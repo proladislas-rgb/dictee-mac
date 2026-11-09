@@ -33,8 +33,8 @@ enum RenduVues {
             cal.date(bySettingHour: h, minute: m, second: 0, of: cal.date(byAdding: .day, value: -jours, to: Date())!)!
         }
         let lignes: [(Int, Int, Int, String, String, Bool)] = [
-            (1, 18, 2, "Mail", "Peux-tu m\u{2019}envoyer le récapitulatif avant jeudi ?", true),
             (1, 16, 24, "Notes", "Le rendez-vous est confirmé pour dix heures.", true),
+            (1, 18, 2, "Mail", "Peux-tu m\u{2019}envoyer le récapitulatif avant jeudi ?", true),
             (0, 10, 8, "Notes", "Penser à envoyer la proposition avant jeudi.", true),
             (0, 11, 30, "Claude", "Reprends le tableau des factures, ajoute une colonne pour la date de relance et trie par montant.", true),
             (0, 13, 55, "WhatsApp", "J\u{2019}arrive dans dix minutes, commande-moi un café.", true),
@@ -109,6 +109,68 @@ enum RenduPanneau {
         panneau("panneau-3-recherche", store: plein, requete: "mail")
         panneau("panneau-4-aucun-resultat", store: plein, requete: "zzz")
         panneau("panneau-5-historique-vide", store: RenduVues.historiqueExemple(vide: true))
+        return ok ? 0 : 1
+    }
+}
+
+/// `Dictee --rendu-fenetre dossier` : la fenêtre principale (3 onglets et états) en PNG, sans fenêtre.
+enum RenduFenetre {
+    struct Cadre<V: View>: View {
+        var taille: CGSize
+        @ViewBuilder var contenu: V
+        var body: some View {
+            ZStack(alignment: .topLeading) {
+                Color(hex: 0x0B0B0B)
+                contenu
+                    .frame(width: taille.width - 80, height: taille.height - 80)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                    .overlay(alignment: .topLeading) {
+                        HStack(spacing: 8) { ForEach(0..<3, id: \.self) { _ in Circle().fill(Color(white: 0.4)).frame(width: 12, height: 12) } }.padding(20)
+                    }
+                    .padding(40)
+            }
+            .frame(width: taille.width, height: taille.height)
+        }
+    }
+
+    @MainActor
+    static func executer(dossier: String) -> Int32 {
+        _ = NSApplication.shared
+        Polices.enregistrer()
+        let url = URL(fileURLWithPath: (dossier as NSString).expandingTildeInPath, isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        var ok = true
+        let taille = CGSize(width: 1040, height: 720)
+
+        func fenetre(_ nom: String, onglet: Onglet, store: HistoriqueStore, mots: MotsModele, reglages: ReglagesModele? = nil, requete: String = "") {
+            let nav = NavigationFenetre(); nav.onglet = onglet
+            let d = ModeleDictees(store: store)
+            d.requete = requete
+            d.selection = d.affichees.first?.id
+            let vue = Cadre(taille: taille) {
+                FenetreVue(nav: nav, dictees: d, store: store, mots: mots, reglages: reglages ?? ReglagesModele(reel: false), curseurFactice: true)
+            }
+            ok = RenduVues.ecrire(RenduVues.png(vue, taille: taille), url.appendingPathComponent("\(nom).png")) && ok
+        }
+        let exemple = RenduVues.historiqueExemple()
+        func motsExemple(avecMessage: Bool = false) -> MotsModele {
+            var p = PropositionsMots(); _ = p.proposer("Premium CI", motsConnus: [])
+            let m = MotsModele(persistant: false, mots: ["Ladislas", "Sillonia", "Ecodistrib", "Abidjan"],
+                               raccourcis: [RaccourciVocal(expression: "ma signature", texte: "Hugues-Henri Delpit"),
+                                            RaccourciVocal(expression: "mon mail", texte: "bonjour@exemple.fr"),
+                                            RaccourciVocal(expression: "mes dispos", texte: "Mardi ou jeudi après-midi")], propositions: p)
+            if avecMessage { m.ajouterMot("sillonia") }
+            return m
+        }
+        fenetre("fenetre-1-dictees", onglet: .dictees, store: exemple, mots: motsExemple())
+        fenetre("fenetre-2-mots", onglet: .mots, store: exemple, mots: motsExemple())
+        fenetre("fenetre-3-reglages", onglet: .reglages, store: exemple, mots: motsExemple())
+        fenetre("fenetre-4-mot-deja-enregistre", onglet: .mots, store: exemple, mots: motsExemple(avecMessage: true))
+        fenetre("fenetre-5-historique-vide", onglet: .dictees, store: RenduVues.historiqueExemple(vide: true), mots: motsExemple())
+        fenetre("fenetre-6-aucun-resultat", onglet: .dictees, store: exemple, mots: motsExemple(), requete: "zzz")
+        let secoursIndispo = ReglagesModele(reel: false)
+        fenetre("fenetre-7-reglages-confirmation", onglet: .reglages, store: exemple, mots: motsExemple(), reglages: { secoursIndispo.confirmerEffacement = true; return secoursIndispo }())
         return ok ? 0 : 1
     }
 }

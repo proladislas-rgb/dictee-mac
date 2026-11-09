@@ -86,3 +86,36 @@ public enum ListeDeMots {
         return liste.filter { Historique.plier($0) != cle }
     }
 }
+
+/// Mots proposés d'après les corrections de Hugues : ils attendent toujours une acceptation explicite, jamais ajoutés tout seuls.
+public struct PropositionsMots: Codable, Equatable, Sendable {
+    public private(set) var enAttente: [String] = []
+    /// Mots refusés : on ne les repropose pas.
+    public private(set) var ignores: [String] = []
+
+    public init() {}
+
+    /// Propose un mot, sauf s'il est déjà connu, déjà en attente ou déjà refusé. Renvoie `true` si la proposition est nouvelle.
+    @discardableResult
+    public mutating func proposer(_ mot: String, motsConnus: [String]) -> Bool {
+        let propre = mot.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !propre.isEmpty else { return false }
+        let cle = Historique.plier(propre)
+        let deja = (motsConnus + enAttente + ignores).contains { Historique.plier($0) == cle }
+        guard !deja else { return false }
+        enAttente.append(propre)
+        return true
+    }
+
+    /// Retire la proposition (le mot est ajouté à la liste par l'appelant) et la renvoie.
+    @discardableResult
+    public mutating func accepter(_ mot: String) -> String? {
+        guard let i = enAttente.firstIndex(of: mot) else { return nil }
+        return enAttente.remove(at: i)
+    }
+
+    public mutating func ignorer(_ mot: String) {
+        guard let i = enAttente.firstIndex(of: mot) else { return }
+        ignores.append(enAttente.remove(at: i))
+    }
+}

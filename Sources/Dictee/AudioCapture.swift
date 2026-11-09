@@ -1,4 +1,6 @@
 import AVFoundation
+import CoreAudio
+import AudioToolbox
 
 /// Le micro (AVAudioEngine). Le moteur est préparé dès le lancement ; il ne tourne (et le voyant orange
 /// du micro ne s'allume) que pendant une dictée. Toutes les opérations passent par une file unique :
@@ -58,7 +60,25 @@ final class AudioCapture: @unchecked Sendable {
 
     // MARK: sur la file audio
 
+    /// Micro choisi dans les Réglages (identifiant CoreAudio) → identifiant de périphérique, s'il est branché.
+    static func peripherique(uid: String) -> AudioDeviceID? {
+        var adresse = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyTranslateUIDToDevice,
+                                                 mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var id = AudioDeviceID(0)
+        var taille = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var cle = uid as CFString
+        let statut = withUnsafeMutablePointer(to: &cle) { pointeur in
+            AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &adresse, UInt32(MemoryLayout<CFString>.size), pointeur, &taille, &id)
+        }
+        return statut == noErr && id != 0 ? id : nil
+    }
+
     private func installerEtDemarrer() throws {
+        if let uid = Settings.micro, var id = Self.peripherique(uid: uid), let unite = engine.inputNode.audioUnit {
+            AudioUnitSetProperty(unite, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &id, UInt32(MemoryLayout<AudioDeviceID>.size))
+        } else if Settings.micro != nil {
+            Log.ecrire("micro choisi introuvable, micro du système utilisé")
+        }
         let entree = engine.inputNode
         let format = entree.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {

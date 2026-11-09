@@ -35,7 +35,7 @@ Technique : Swift 6.2 (outils en ligne de commande, pas d'Xcode), paquet Swift +
 - [ ] Lot 7 — REPRIS selon le design ChatGPT v3 (design/chatgpt-v3/, reçu le 09/11 : « Et tiens avant de faire n'importe quoi ») :
   [x] 7a logo guillemets vectoriel (icône d'app, icône de barre des menus monochrome + trait ambre pendant la capture) et encoche affinée (planches 03 et 06, temps 180-220 ms, fondu 100-140 ms) ;
   [x] 7b panneau compact sous l'encoche (clic sur les guillemets ; style panneau-v3-B ; ↑↓, Entrée recolle dans l'app précédente, copier) + historique enregistré ;
-  [ ] 7c fenêtre principale Dictées / Mots / Réglages (planches 01-02), raccourcis vocaux ;
+  [x] 7c fenêtre principale Dictées / Mots / Réglages (planches 01-02), raccourcis vocaux ;
   [ ] 7d premier lancement en 3 étapes + états vides et d'échec.
 - [ ] (ancien) Lot 7 — Panneau (style B, sorti de l'encoche) : dictées, mots, réglages ; historique enregistré sur le Mac.
 - [ ] Lot 8 — Dictionnaire qui apprend (corrections, Contacts), ouverture au démarrage.

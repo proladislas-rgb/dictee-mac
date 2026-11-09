@@ -35,4 +35,31 @@ enum Settings {
         let v = defaults.integer(forKey: "limiteHistorique")
         return v > 0 ? v : Historique.limiteParDefaut
     }
+
+    /// Adapter le ton à l'app qui reçoit le texte (courriel soigné, message direct, terminal brut…). Activé par défaut.
+    static var adapterLeTon: Bool {
+        get { defaults.object(forKey: "adapterLeTon") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "adapterLeTon") }
+    }
+
+    /// Secours : le texte de la dictée d'Apple quand Groq ne répond pas. Activé par défaut.
+    static var secoursApple: Bool {
+        get { defaults.object(forKey: "secoursApple") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "secoursApple") }
+    }
+
+    /// Langue choisie dans les Réglages (`fr`, `en`) ou `nil` pour la détection automatique.
+    static func choisirLangue(_ code: String?) { defaults.set(code ?? "auto", forKey: "langue") }
+
+    /// Micro choisi (identifiant CoreAudio). `nil` = micro par défaut du système.
+    static var micro: String? {
+        get { defaults.string(forKey: "microUID").flatMap { $0.isEmpty ? nil : $0 } }
+        set { defaults.set(newValue ?? "", forKey: "microUID") }
+    }
+
+    /// Le premier lancement (3 étapes) a été fait : il ne s'affiche plus tout seul.
+    static var premierLancementFait: Bool {
+        get { defaults.bool(forKey: "premierLancementFait") }
+        set { defaults.set(newValue, forKey: "premierLancementFait") }
+    }
 }

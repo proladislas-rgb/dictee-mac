@@ -55,12 +55,13 @@ struct LienNavigation: View {
 
 /// Aide des touches, à droite de la navigation : « ↑ ↓ choisir   ↵ recoller ».
 struct AideTouches: View {
+    var taille: CGFloat = 12
     var body: some View {
         HStack(spacing: 8) {
             Text("\u{2191}\u{2193} choisir")
             Text("\u{21B5} recoller")
         }
-        .font(Polices.commande(12))
+        .font(Polices.commande(taille))
         .lineLimit(1)
         .fixedSize()
         .foregroundStyle(Palette.texte3)

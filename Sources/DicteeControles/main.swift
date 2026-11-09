@@ -80,6 +80,19 @@ verifier(ListeDeMots.ajouter("Élodie", a: ["elodie"]) == .dejaPresent, "mot dé
 verifier(ListeDeMots.ajouter("   ", a: []) == .vide, "mot vide refusé")
 verifier(ListeDeMots.retirer("SILLONIA", de: ["Ladislas", "Sillonia"]) == ["Ladislas"], "retrait d'un mot")
 
+groupe("PropositionsMots")
+do {
+    var p = PropositionsMots()
+    verifier(p.proposer("Premium CI", motsConnus: ["Ladislas"]), "nouvelle proposition")
+    verifier(!p.proposer("premium ci", motsConnus: []), "pas deux fois la même proposition")
+    verifier(!p.proposer("ladislas", motsConnus: ["Ladislas"]), "pas de proposition pour un mot déjà dans la liste")
+    verifier(p.enAttente == ["Premium CI"], "la proposition attend (rien n'est ajouté tout seul)")
+    p.ignorer("Premium CI")
+    verifier(p.enAttente.isEmpty && !p.proposer("Premium CI", motsConnus: []), "mot ignoré : jamais reproposé")
+    var q = PropositionsMots(); _ = q.proposer("Abidjan", motsConnus: [])
+    verifier(q.accepter("Abidjan") == "Abidjan" && q.enAttente.isEmpty, "accepter retire la proposition")
+}
+
 groupe("TextPreview")
 verifier(TextPreview.preview("court") == "court", "texte court intact")
 verifier(TextPreview.preview(String(repeating: "a", count: 100)).count == 31, "coupé à 30 caractères + …")

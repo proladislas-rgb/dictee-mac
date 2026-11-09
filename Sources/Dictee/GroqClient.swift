@@ -9,7 +9,7 @@ enum GroqErreur: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .pasDeCle: return "clé Groq introuvable (~/.config/groq/.env)"
+        case .pasDeCle: return "clé Groq introuvable (Trousseau ou ~/.config/groq/.env)"
         case .http(let code): return "Groq a répondu HTTP \(code)"
         case .reponseIllisible: return "réponse Groq illisible"
         case .reseau(let m): return "réseau : \(m)"
@@ -19,12 +19,22 @@ enum GroqErreur: Error, CustomStringConvertible {
 
 /// Appels à Groq (Whisper large v3 turbo). Une seule session URLSession : la connexion HTTP/2 est réutilisée
 /// par tous les morceaux, et `prechauffer()` l'ouvre dès l'appui sur fn.
-/// La clé n'est lue que dans `~/.config/groq/.env`, mise en mémoire, et n'est jamais écrite nulle part.
+/// La clé (Trousseau, sinon `~/.config/groq/.env`) est mise en mémoire et n'est jamais écrite dans le journal.
 final class GroqClient: @unchecked Sendable {
     static let shared = GroqClient()
 
     private let session: URLSession
-    private let cle: String?
+    private let verrou = NSLock()
+    private var cleEnMemoire: String?
+    private var cleLue = false
+    /// La clé : lue au premier besoin (Trousseau, sinon ~/.config/groq/.env), gardée en mémoire. Jamais journalisée.
+    private var cle: String? {
+        verrou.lock(); defer { verrou.unlock() }
+        if !cleLue { cleEnMemoire = CleGroq.lire(); cleLue = true }
+        return cleEnMemoire
+    }
+    /// À appeler après l'enregistrement d'une nouvelle clé.
+    func recharger() { verrou.lock(); cleLue = false; verrou.unlock() }
     private let base = URL(string: "https://api.groq.com/openai/v1")!
 
     init() {
@@ -35,7 +45,6 @@ final class GroqClient: @unchecked Sendable {
         config.waitsForConnectivity = false
         config.httpMaximumConnectionsPerHost = 4
         session = URLSession(configuration: config)
-        cle = EnvFile.load(key: "GROQ_API_KEY", fromFile: "~/.config/groq/.env")
     }
 
     var cleDisponible: Bool { cle != nil }

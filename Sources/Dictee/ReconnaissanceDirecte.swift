@@ -26,6 +26,16 @@ enum PrechauffageParole {
     nonisolated(unsafe) private(set) static var mode: Mode = .enAttente
     private static let lock = NSLock()
 
+    enum Disponibilite: Equatable { case pret, enPreparation, indisponible(String) }
+    /// Ce que les Réglages peuvent affirmer du secours Apple : seulement « prêt » une fois la préparation réussie.
+    static var disponibilite: Disponibilite {
+        switch etat {
+        case .analyseur, .classique: return .pret
+        case .enAttente: return .enPreparation
+        case .indisponible(let raison): return .indisponible(raison)
+        }
+    }
+
     static var etat: Mode { lock.lock(); defer { lock.unlock() }; return mode }
     private static func poser(_ m: Mode) { lock.lock(); mode = m; lock.unlock() }
 

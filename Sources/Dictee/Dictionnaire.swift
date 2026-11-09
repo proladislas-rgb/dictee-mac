@@ -22,4 +22,9 @@ enum Dictionnaire {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty && !$0.hasPrefix("#") }
     }
+
+    /// Réécrit la liste (un mot par ligne).
+    static func enregistrer(_ mots: [String]) {
+        try? (mots.joined(separator: "\n") + "\n").write(to: url, atomically: true, encoding: .utf8)
+    }
 }

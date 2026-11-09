@@ -178,6 +178,12 @@ final class DictationController {
 
     /// Texte de la dictée d'Apple (faite sur l'appareil) quand Groq ne répond pas.
     private func utiliserLeSecours(_ s: Session, relachement relache: Double) async {
+        guard Settings.secoursApple else {
+            Log.ecrire("dictée \(s.id) : secours Apple désactivé dans les Réglages, rien à écrire")
+            s.direct?.annuler()
+            if courante == nil { panneau.afficherMessage("Dictée impossible, réessaie", app: s.appCible) }
+            return
+        }
         var texte = ""
         if let secours = s.secours {
             texte = await withTaskGroup(of: String.self) { groupe in
@@ -207,10 +213,12 @@ final class DictationController {
     private func ecrire(_ brut: String, session s: Session, relachement relache: Double) async {
         let kind = TextFormatter.kind(bundleID: s.appCible?.bundleIdentifier)
         let champ = await s.champ?.value
-        let contexte = RemiseAuPropre.contexte(bundleID: s.appCible?.bundleIdentifier, role: champ?.role, titreFenetre: champ?.titreFenetre)
+        let contexte = Settings.adapterLeTon ? RemiseAuPropre.contexte(bundleID: s.appCible?.bundleIdentifier, role: champ?.role, titreFenetre: champ?.titreFenetre) : .general
         let nettoyage = await Nettoyage.executer(brut, contexte: contexte, mots: Dictionnaire.mots())
         Log.ecrire("dictée \(s.id) : mise en forme \(contexte.rawValue) (champ \(champ?.role ?? "?")), \(nettoyage.utilise ? "remis au propre" : "texte brut gardé : \(nettoyage.raison)") en \(ms(nettoyage.duree)) ms")
-        let texteFinal = TextFormatter.prepare(nettoyage.texte, for: kind)
+        // raccourcis vocaux (« ma signature » → le texte choisi) : après la remise au propre, pour que l'IA n'y touche pas
+        let apresRaccourcis = RaccourcisVocaux.appliquer(nettoyage.texte, raccourcis: MotsModele.partage.raccourcis)
+        let texteFinal = TextFormatter.prepare(apresRaccourcis, for: kind)
         let texte = raccorder(texteFinal, kind: kind, session: s, champ: champ)
         // Champ protégé : l'encoche reste pour le dire ; sinon elle se referme et le texte arrive au curseur.
         if !IsSecureEventInputEnabled() { fermerSiLibre() }

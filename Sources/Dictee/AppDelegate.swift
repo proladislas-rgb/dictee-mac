@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let clavier = KeyMonitor()
     private let dictee = DictationController()
     private let panneauCompact = PanneauCompact()
+    private lazy var fenetrePrincipale = FenetrePrincipale(dictees: ModeleDictees())
     private var survolStatus: SurvolStatus?
     private var derniereAppExterne: NSRunningApplication?
 
@@ -56,6 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Task { await self.dictee.recoller(entree.texte, dans: cible) }
         }
         panneauCompact.surOuvrirFenetre = { [weak self] onglet in self?.ouvrirFenetre(onglet) }
+        configurerFenetre()
+        installerMenuPrincipal()
         panneauCompact.surChangementEtat = { [weak self] ouvert in self?.survolStatus?.panneauOuvert = ouvert }
         dictee.surDebut = { [weak self] in self?.panneauCompact.fermer(animee: false, rendreLeFocus: false) }
         clavier.onAction = { [weak self] action in self?.dictee.recevoir(action) }
@@ -155,8 +158,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func ouvrirFenetre(_ onglet: Onglet) {
-        Log.ecrire("fenêtre principale demandée (onglet \(onglet.rawValue))")
+        fenetrePrincipale.afficher(onglet)
     }
+
+    private func configurerFenetre() {
+        let m = fenetrePrincipale.dictees
+        // Dans la fenêtre, « recoller » écrit dans la dernière app utilisée avant d'ouvrir Dictée.
+        m.surRecoller = { [weak self] entree in
+            guard let self else { return }
+            let cible = self.derniereAppExterne
+            Task { await self.dictee.recoller(entree.texte, dans: cible) }
+        }
+        m.surCopier = { e in
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(e.texte, forType: .string)
+        }
+        m.surEchap = {}
+        fenetrePrincipale.surAutorisations = { [weak self] in self?.ouvrirAutorisations() }
+        fenetrePrincipale.surRevoirPriseEnMain = { Log.ecrire("prise en main demandée") }
+        fenetrePrincipale.surCle = { Log.ecrire("clé Groq : saisie demandée") }
+    }
+
+    /// Menu de l'app (invisible tant qu'elle n'a pas de Dock, mais ses raccourcis servent la fenêtre) :
+    /// ⌘, ouvre la fenêtre, ⌘1-3 changent d'onglet, ⌘W ferme, Édition rend ⌘C ⌘V aux champs de texte.
+    private func installerMenuPrincipal() {
+        let principal = NSMenu()
+        func sousMenu(_ titre: String, _ construire: (NSMenu) -> Void) {
+            let item = NSMenuItem(); let menu = NSMenu(title: titre)
+            construire(menu); item.submenu = menu; principal.addItem(item)
+        }
+        sousMenu("Dictée") { m in
+            m.addItem(withTitle: "Ouvrir Dictée", action: #selector(ouvrirDictee), keyEquivalent: ",").target = self
+            m.addItem(.separator())
+            m.addItem(withTitle: "Quitter Dictée", action: #selector(quitter), keyEquivalent: "q").target = self
+        }
+        sousMenu("Édition") { m in
+            m.addItem(withTitle: "Annuler", action: Selector(("undo:")), keyEquivalent: "z")
+            let refaire = m.addItem(withTitle: "Rétablir", action: Selector(("redo:")), keyEquivalent: "z"); refaire.keyEquivalentModifierMask = [.command, .shift]
+            m.addItem(.separator())
+            m.addItem(withTitle: "Couper", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+            m.addItem(withTitle: "Copier", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+            m.addItem(withTitle: "Coller", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+            m.addItem(withTitle: "Tout sélectionner", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        }
+        sousMenu("Aller") { m in
+            for (i, o) in Onglet.allCases.enumerated() {
+                let it = m.addItem(withTitle: o.rawValue, action: #selector(allerA(_:)), keyEquivalent: "\(i + 1)")
+                it.target = self; it.tag = i
+            }
+        }
+        sousMenu("Fenêtre") { m in
+            m.addItem(withTitle: "Réduire", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+            m.addItem(withTitle: "Fermer", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        }
+        NSApp.mainMenu = principal
+    }
+
+    @objc private func allerA(_ sender: NSMenuItem) { ouvrirFenetre(Onglet.allCases[sender.tag]) }
 
     func menuNeedsUpdate(_ menu: NSMenu) { reconstruireMenu(menu) }
 

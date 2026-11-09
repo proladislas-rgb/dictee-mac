@@ -5,6 +5,8 @@ let arguments = CommandLine.arguments
 // Modes de vérification en ligne de commande. Aucun ne touche au micro, à la reconnaissance vocale,
 // à l'accessibilité ni à la surveillance du clavier (sinon macOS attribuerait ces autorisations au Terminal).
 
+CleGroq.utiliserTrousseau = false   // les modes en ligne de commande ne lisent que ~/.config/groq/.env
+
 // Dictee --transcrire fichier.wav  (Groq seulement)
 if let i = arguments.firstIndex(of: "--transcrire") {
     guard i + 1 < arguments.count else {
@@ -38,6 +40,11 @@ if let i = arguments.firstIndex(of: "--rendu-icones"), i + 1 < arguments.count {
 // Dictee --rendu-panneau dossier  (panneau compact et ses états en PNG, sans fenêtre)
 if let i = arguments.firstIndex(of: "--rendu-panneau"), i + 1 < arguments.count {
     exit(MainActor.assumeIsolated { RenduPanneau.executer(dossier: arguments[i + 1]) })
+}
+
+// Dictee --rendu-fenetre dossier  (fenêtre principale et ses états en PNG, sans fenêtre)
+if let i = arguments.firstIndex(of: "--rendu-fenetre"), i + 1 < arguments.count {
+    exit(MainActor.assumeIsolated { RenduFenetre.executer(dossier: arguments[i + 1]) })
 }
 
 // Une option inconnue ne doit jamais lancer la vraie app depuis un shell.
