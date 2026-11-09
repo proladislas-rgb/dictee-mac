@@ -9,6 +9,8 @@ enum LecteurInsertion {
     static func observer(pid: pid_t, texte: String) -> ObservationChamp {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 0.15)
+        let web = estAppWeb(pid: pid)
+        if web { activerAccessibiliteWeb(app) }
 
         var ref: CFTypeRef?
         let erreur = AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &ref)
@@ -18,7 +20,9 @@ enum LecteurInsertion {
         case .noValue:
             // L'app répond, mais rien n'a le focus : seulement si une fenêtre existe (sinon on ne sait pas).
             var fenetre: CFTypeRef?
-            if AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &fenetre) == .success { return ObservationChamp(focus: .aucun) }
+            // Les apps web (Electron : Claude, Slack, Notion… ; navigateurs Chromium) n'exposent souvent aucun élément focalisé
+            // même quand le texte a bien été écrit : l'absence de focus n'y prouve rien.
+            if !web, AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &fenetre) == .success { return ObservationChamp(focus: .aucun) }
             return ObservationChamp(focus: .inconnu)
         default:
             return ObservationChamp(focus: .inconnu)
@@ -33,6 +37,32 @@ enum LecteurInsertion {
         // Champ protégé : on ne lit rien.
         if roleTexte == "AXSecureTextField" { return ObservationChamp(focus: .inconnu) }
         return ObservationChamp(focus: .element(role: roleTexte), avantLeCurseur: avantLeCurseur(champ, texte: texte))
+    }
+
+    /// Apps construites sur un moteur web : Electron (cadre « Electron Framework » dans le paquet) ou navigateurs Chromium.
+    private static var cacheWeb: [pid_t: Bool] = [:]
+    private static let verrouWeb = NSLock()
+    static func estAppWeb(pid: pid_t) -> Bool {
+        verrouWeb.lock(); defer { verrouWeb.unlock() }
+        if let v = cacheWeb[pid] { return v }
+        let app = NSRunningApplication(processIdentifier: pid)
+        var web = false
+        if let url = app?.bundleURL {
+            let cadres = url.appendingPathComponent("Contents/Frameworks")
+            let noms = (try? FileManager.default.contentsOfDirectory(atPath: cadres.path)) ?? []
+            web = noms.contains { $0.hasPrefix("Electron Framework") || $0.hasSuffix("Framework.framework") && $0.contains("Chrom") }
+        }
+        let chromium: Set<String> = ["com.google.Chrome", "com.google.Chrome.beta", "com.brave.Browser", "com.microsoft.edgemac",
+                                      "company.thebrowser.Browser", "com.operasoftware.Opera", "com.vivaldi.Vivaldi"]
+        if let id = app?.bundleIdentifier, chromium.contains(id) { web = true }
+        cacheWeb[pid] = web
+        return web
+    }
+
+    /// Demande à une app Electron d'ouvrir son arbre d'Accessibilité (AXManualAccessibility) : sans cela, le champ où l'on
+    /// écrit reste souvent invisible. Pas d'AXEnhancedUserInterface (il ralentit les navigateurs et coupe leurs animations).
+    static func activerAccessibiliteWeb(_ app: AXUIElement) {
+        AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
     }
 
     private static func avantLeCurseur(_ champ: AXUIElement, texte: String) -> String? {
