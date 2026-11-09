@@ -75,3 +75,11 @@ Chaque lot : construit, essayé pour de vrai sur le Mac, poussé sur GitHub.
 - [x] Micro : moteur reconstruit au changement de micro, garde-fou 0,8 s, réglage Automatique (AirPods)
 - [x] Langue : français par défaut, rejet des langues hors liste en Automatique, phrase d'ancrage
 - [ ] Hugues : installer, essayer avec les AirPods connectés, dicter vite après une pause de ~0,5 s, dicter 30 s d'une traite, lire le journal (« envoi anticipé réutilisé / jeté », « remise au propre par unités »)
+
+## Filet de sécurité et mots collés (09/11 soir)
+- [x] Vibration du trackpad en arrière-plan + sons désactivés par défaut (commit séparé).
+- [x] Détection d'échec d'insertion (logique pure `VerificationInsertion`, 29 contrôles), relecture AX à 250/400/650 ms, cible disparue ou non reprise.
+- [x] Filet de sécurité : maquette B (design/maquettes/filet-securite.html), `FiletVue` + `FiletPanneau`, rendus design/rendus-filet/, entrée « Dernière dictée » du menu, réglage `filetDeSecurite`.
+- [x] Mots collés : suspects testés (aucun ne reproduit « à plus tard » collé), garde-fou `MotsColles`, jonction des morceaux, « a » devant une adresse, ligne de journal « texte Groq → final ».
+- [ ] Hugues : essayer le filet en vrai (voir « À vérifier en vrai » à la fin de docs/spec-v1.md) ; si un mot collé réapparaît, relever la ligne « texte Groq → final » du journal.
+- [ ] Les contrôles SonSynthese et tasks/lessons.md modifiés par quelqu'un d'autre pendant ce travail ne sont pas dans mon commit.

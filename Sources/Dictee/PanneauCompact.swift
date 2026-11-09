@@ -107,6 +107,8 @@ struct PanneauVue: View {
 /// Un panneau qui peut prendre le clavier sans activer l'app (l'app n'a pas de Dock) : l'app précédente reste au premier plan.
 final class PanneauClavier: NSPanel {
     var surPerteDeFocus: (() -> Void)?
+    /// Touches traitées par le panneau lui-même (Retour, ⌘C, Échap du filet de sécurité). `true` : la touche est consommée.
+    var surTouche: ((NSEvent) -> Bool)?
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
@@ -115,6 +117,14 @@ final class PanneauClavier: NSPanel {
         surPerteDeFocus?()
     }
     override func cancelOperation(_ sender: Any?) { /* Échap est traité par le champ */ }
+    override func keyDown(with event: NSEvent) {
+        if surTouche?(event) == true { return }
+        super.keyDown(with: event)
+    }
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if surTouche?(event) == true { return true }
+        return super.performKeyEquivalent(with: event)
+    }
 }
 
 /// Le panneau compact : clic sur les guillemets de la barre des menus, il descend sous l'encoche, la recherche reçoit

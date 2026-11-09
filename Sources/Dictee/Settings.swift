@@ -81,11 +81,18 @@ enum Settings {
         set { defaults.set(newValue, forKey: "adapterLeTon") }
     }
 
+    /// Filet de sécurité : si le texte n'arrive pas dans le champ, l'encoche reste ouverte avec le texte à copier. Activé par défaut.
+    /// Exemple : defaults write com.hugues.dictee filetDeSecurite -bool false
+    static var filetDeSecurite: Bool {
+        get { defaults.object(forKey: "filetDeSecurite") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "filetDeSecurite") }
+    }
+
     /// Secours : le texte de la dictée d'Apple quand Groq ne répond pas. Activé par défaut.
-    /// Petits sons au début de la dictée, au texte collé et à l'annulation. Désactivé par défaut (choix de Hugues : la vibration suffit).
-    /// Exemple : defaults write com.hugues.dictee sons -bool true
+    /// Petits sons au début de la dictée, au texte collé et à l'annulation. Activé par défaut (Hugues : un son grave et chaud en plus des vibrations).
+    /// Exemple : defaults write com.hugues.dictee sons -bool false
     static var sons: Bool {
-        get { defaults.object(forKey: "sons") as? Bool ?? false }
+        get { defaults.object(forKey: "sons") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "sons") }
     }
 

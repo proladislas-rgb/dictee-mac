@@ -203,7 +203,8 @@ public enum RemiseAuPropre {
             let part = Double(communs) / Double(lettres.count)
             if part < 0.7 { return .refuse("trop éloigné de la dictée (\(Int(part * 100)) % de mots communs)") }
         }
-        return .accepte(s)
+        // Mots collés par l'IA (« à plus tard » → « àplus tard ») : remis en mots séparés.
+        return .accepte(MotsColles.reparer(entree: entree, sortie: s).texte)
     }
 
     private static let motsFrancais: Set<String> = ["le", "la", "les", "de", "des", "du", "je", "tu", "il", "elle", "nous", "vous", "est", "que", "qu'est", "pas", "un", "une", "et", "pour", "dans", "avec", "sur", "ce", "c'est", "j'ai", "on", "mais", "ou", "où", "comment", "quoi", "alors", "oui", "non"]

@@ -47,6 +47,11 @@ if let i = arguments.firstIndex(of: "--rendu-panneau"), i + 1 < arguments.count 
     exit(MainActor.assumeIsolated { RenduPanneau.executer(dossier: arguments[i + 1]) })
 }
 
+// Dictee --rendu-filet dossier  (filet de sécurité de l'écriture en PNG, sans fenêtre)
+if let i = arguments.firstIndex(of: "--rendu-filet"), i + 1 < arguments.count {
+    exit(MainActor.assumeIsolated { RenduFilet.executer(dossier: arguments[i + 1]) })
+}
+
 // Dictee --rendu-fenetre dossier  (fenêtre principale et ses états en PNG, sans fenêtre)
 if let i = arguments.firstIndex(of: "--rendu-fenetre"), i + 1 < arguments.count {
     exit(MainActor.assumeIsolated { RenduFenetre.executer(dossier: arguments[i + 1]) })

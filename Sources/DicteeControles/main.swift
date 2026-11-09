@@ -731,6 +731,98 @@ do {
     verifier(RemiseAuPropre.consignes(contexte: .general, mots: []).contains("arobase") && RemiseAuPropre.consignes(contexte: .general, mots: []).contains("www.sillonia.fr"), "consignes de l'IA : adresses")
 }
 
+groupe("Mots collés : expressions courantes à travers toute la chaîne de texte")
+do {
+    let phrases = ["À plus tard.", "Bon, à plus tard, et merci.", "À plus.", "Ça dépend du point de vue.", "C'est plus ou moins ça.", "Il y a deux points à voir.", "On se voit plus tard", "Il y a un point, un autre point et plus encore."]
+    let rac = [RaccourciVocal(expression: "mon mail", texte: "h2delpit@gmail.com")]
+    for p in phrases {
+        verifier(AdressesDictees.reconstituer(p) == p, "adresses dictées : « \(p) » inchangé")
+        verifier(RaccourcisVocaux.appliquer(p, raccourcis: rac) == p, "raccourcis vocaux : « \(p) » inchangé")
+        verifier(TextFormatter.prepare(p, for: .other) == p, "mise en forme : « \(p) » inchangé")
+        verifier(RemiseAuPropre.typographieFrancaise(p) == p, "typographie : « \(p) » inchangé")
+        verifier(RemiseAuPropre.corrigerMots(p, dictionnaire: ["Ladislas", "Premium CI", "macOS"]) == p, "dictionnaire : « \(p) » inchangé")
+        verifier(EspacesIntelligents.adapter(p, precedent: "d'accord,", mots: ["Ladislas"]).trimmingCharacters(in: .whitespaces) == (p.first!.isUppercase ? String(p.first!).lowercased() + p.dropFirst() : p), "espaces intelligents : « \(p) » garde ses espaces")
+    }
+    // adresses : un « point » ou un « plus » ordinaire à côté d'une vraie adresse
+    verifier(AdressesDictees.reconstituer("À plus tard, écris à jean arobase gmail point com.") == "À plus tard, écris à jean@gmail.com.", "à plus tard avant une adresse : seule l'adresse change")
+    verifier(AdressesDictees.reconstituer("Du point de vue de jean arobase gmail point com") == "Du point de vue de jean@gmail.com", "point de vue avant une adresse")
+    verifier(AdressesDictees.reconstituer("Il a jean arobase gmail point com") == "Il a jean@gmail.com", "« a » (verbe) devant une adresse n'est pas une lettre épelée")
+    verifier(AdressesDictees.reconstituer("a b c arobase gmail point com") == "abc@gmail.com", "lettres épelées dont « a »")
+    // jonction de morceaux
+    verifier(TextAssembler.joindre(["Je te dis à plus", "tard pour la suite"]) == "Je te dis à plus tard pour la suite", "jonction « … à plus » + « tard »")
+    verifier(TextAssembler.joindre([" Bonjour ", "", "à plus tard"]) == "Bonjour à plus tard", "morceaux vides et espaces de Whisper")
+    verifier(TextAssembler.joindre(["Tu sais, lorsqu'", "on parle"]) == "Tu sais, lorsqu'on parle", "apostrophe en fin de morceau : pas d'espace")
+    verifier(TextAssembler.joindre(["Tu sais, lorsqu\u{2019}", "on parle"]) == "Tu sais, lorsqu\u{2019}on parle", "apostrophe courbe en fin de morceau")
+    verifier(TextAssembler.joindre(["C'est peut-", "être vrai"]) == "C'est peut-être vrai", "trait d'union en fin de morceau")
+    verifier(TextAssembler.joindre(["On se voit demain", ", si tu veux"]) == "On se voit demain, si tu veux", "virgule en début de morceau")
+    verifier(TextAssembler.joindre(["Tu viens", "? Dis-moi"]) == "Tu viens? Dis-moi", "point d'interrogation en début de morceau")
+    verifier(TextAssembler.joindre(["Je pense", "... enfin non"]) == "Je pense ... enfin non", "points de suspension : gardés à part")
+    verifier(TextAssembler.joindre(["On y va -", "tiret de liste"]) == "On y va - tiret de liste", "tiret de liste isolé : espace gardée")
+    verifier(DecoupeEnUnites.assembler(["Bonjour.", "À plus tard."]) == "Bonjour. À plus tard.", "unités remises au propre : espace entre elles")
+    // sortie de l'IA : mots collés remis en mots séparés
+    func repare(_ e: String, _ s: String) -> String { MotsColles.reparer(entree: e, sortie: s).texte }
+    verifier(repare("bon à plus tard hein", "Bon, àplus tard, hein.") == "Bon, à plus tard, hein.", "« àplus tard » → « à plus tard »")
+    verifier(repare("bon à plus tard hein", "Bon, àplustard, hein.") == "Bon, à plus tard, hein.", "« àplustard » → « à plus tard »")
+    verifier(repare("à plus tard", "Àplustard.") == "À plus tard.", "majuscule gardée : « Àplustard. »")
+    verifier(repare("je veux dire à plus tard", "Je veux dire, à plus tard.") == "Je veux dire, à plus tard.", "texte correct : inchangé")
+    verifier(repare("pour quoi faire", "Pourquoi faire ?") == "Pourquoi faire ?", "mots qui s'écrivent d'un bloc : gardés")
+    verifier(repare("c'est du bien joué", "C'est dubien joué.") == "C'est du bien joué.", "« dubien » → « du bien »")
+    verifier(MotsColles.reparer(entree: "à plus tard", sortie: "À plus tard.").repares.isEmpty, "rien à réparer : liste vide")
+    verifier(RemiseAuPropre.verifier(entree: "bon à plus tard hein c'est tout pour moi", sortie: "Bon, àplus tard, hein. C'est tout pour moi.") == .accepte("Bon, à plus tard, hein. C'est tout pour moi."), "garde-fou de l'IA : mot collé réparé et sortie acceptée")
+}
+
+groupe("Journal : texte Groq → texte final")
+do {
+    verifier(ComparaisonJournal.ligne(groq: "bonjour tout le monde", final: "Bonjour, tout le monde.") == nil, "ponctuation et majuscule seules : pas de ligne")
+    verifier(ComparaisonJournal.ligne(groq: "peut-être demain", final: "Peut être demain") == nil, "trait d'union : pas de ligne")
+    let l = ComparaisonJournal.ligne(groq: "Bon à plus tard hein", final: "Bon àplus tard hein")
+    verifier(l?.contains("\u{2192}") == true && l?.contains("àplus") == true, "mot collé : ligne écrite")
+    let longA = String(repeating: "mot ", count: 40) + "à plus tard et la suite"
+    let longB = String(repeating: "mot ", count: 40) + "àplus tard et la suite"
+    let ll = ComparaisonJournal.ligne(groq: longA, final: longB)
+    verifier(ll != nil && ll!.contains("àplus"), "texte long : la fenêtre est centrée sur la différence")
+    if let ll { let morceaux = ll.components(separatedBy: "\""); verifier(morceaux.count == 5 && morceaux[1].count <= 62 && morceaux[3].count <= 62, "chaque côté tient en 60 caractères (+ points de suspension)") }
+    verifier(ComparaisonJournal.ligne(groq: "un deux", final: "un deux trois")?.contains("trois") == true, "mot ajouté en fin : visible")
+}
+
+groupe("Filet de sécurité : l'écriture a-t-elle réussi ?")
+do {
+    let t = "Bonjour Madame Martin, je vous confirme le rendez-vous de jeudi. À plus tard."
+    func v(_ o: ObservationChamp?, _ genre: AppKind = .other, texte: String = t) -> VerdictInsertion { VerificationInsertion.evaluer(texte: texte, observation: o, genre: genre) }
+    verifier(v(ObservationChamp(focus: .element(role: "AXTextArea"), avantLeCurseur: "Salut. " + t)) == .inseree, "texte relu juste avant le curseur : inséré")
+    verifier(v(ObservationChamp(focus: .element(role: "AXTextArea"), avantLeCurseur: "Salut. " + t.replacingOccurrences(of: " ", with: "\u{00A0}"))) == .inseree, "espaces insécables de l'app : inséré")
+    verifier(v(ObservationChamp(focus: .element(role: "AXTextArea"), avantLeCurseur: "Bonjour.\n\nÀ plus tard.")) .estEchec, "autre texte devant le curseur : échec")
+    verifier(v(ObservationChamp(focus: .element(role: "AXTextField"), avantLeCurseur: "")).estEchec, "champ lisible mais vide : échec")
+    verifier(v(ObservationChamp(focus: .element(role: "AXTextArea"), avantLeCurseur: "Le début\n" + "À plus tard.\n"), texte: "Le début\nÀ plus tard.\n") == .inseree, "retour à la ligne final du texte : inséré")
+    verifier(v(ObservationChamp(focus: .element(role: "AXTextField"), avantLeCurseur: "e\u{0301}te\u{0301} e\u{0301}te\u{0301}"), texte: "été été") == .inseree, "accents décomposés ou composés : inséré")
+    verifier(v(ObservationChamp(focus: .element(role: "AXWebArea"), avantLeCurseur: t)) == .inseree, "zone web qui expose le curseur : inséré")
+    verifier(v(ObservationChamp(focus: .element(role: "AXWebArea"), avantLeCurseur: "autre chose")).estEchec, "zone web lisible sans le texte : échec")
+    // aucune lecture possible : jamais d'alarme
+    verifier(v(ObservationChamp(focus: .element(role: "AXTextArea"), avantLeCurseur: nil)) == .indetermine, "champ texte illisible : indéterminé, pas d'alarme")
+    verifier(v(ObservationChamp(focus: .element(role: "AXGroup"), avantLeCurseur: nil)) == .indetermine, "rôle ambigu illisible : indéterminé")
+    verifier(v(ObservationChamp(focus: .element(role: nil), avantLeCurseur: nil)) == .indetermine, "rôle inconnu illisible : indéterminé")
+    verifier(v(ObservationChamp(focus: .inconnu)) == .indetermine, "Accessibilité muette : indéterminé")
+    verifier(v(nil) == .indetermine, "aucune observation : indéterminé")
+    // terminaux
+    verifier(v(ObservationChamp(focus: .element(role: "AXTextArea"), avantLeCurseur: "$ ls"), .terminal) == .indetermine, "Terminal : jamais d'échec même si le texte n'est pas relu")
+    verifier(v(ObservationChamp(focus: .element(role: "AXTextArea"), avantLeCurseur: nil), .terminal) == .indetermine, "Terminal illisible : indéterminé")
+    verifier(v(ObservationChamp(focus: .aucun), .terminal).estEchec, "Terminal sans élément focalisé : échec")
+    // aucun élément focalisé, rôle sans texte
+    verifier(v(ObservationChamp(focus: .aucun)).estEchec, "aucun élément focalisé : échec")
+    verifier(v(ObservationChamp(focus: .element(role: "AXButton"), avantLeCurseur: nil)).estEchec, "bouton focalisé, texte non relisible : échec")
+    verifier(v(ObservationChamp(focus: .element(role: "AXStaticText"), avantLeCurseur: nil)).estEchec, "texte fixe focalisé : échec")
+    verifier(v(ObservationChamp(focus: .element(role: "AXButton"), avantLeCurseur: t)) == .inseree, "preuve d'écriture même sur un rôle surprenant : inséré")
+    // plusieurs relectures
+    verifier(VerificationInsertion.conclure([.nonInseree(raison: "x"), .inseree]) == .inseree, "relecture tardive qui voit le texte : inséré")
+    verifier(VerificationInsertion.conclure([.nonInseree(raison: "x"), .nonInseree(raison: "x"), .nonInseree(raison: "y")]).estEchec, "jamais vu : échec")
+    verifier(VerificationInsertion.conclure([.nonInseree(raison: "x"), .indetermine]) == .indetermine, "lecture qui devient impossible : pas d'alarme")
+    verifier(VerificationInsertion.conclure([]) == .indetermine, "aucune relecture : indéterminé")
+    verifier(VerificationInsertion.delaisDeRelecture.reduce(0, +) <= 700 && VerificationInsertion.delaisDeRelecture[0] >= 250, "première relecture à 250 ms, tout fini en 700 ms")
+    // longueur lue
+    verifier(VerificationInsertion.queueAttendue("  Salut\n  tout le monde  ") == "Salut tout le monde", "queue attendue : espaces réduites")
+    verifier(VerificationInsertion.queueAttendue(t).count == VerificationInsertion.tailleQueue && VerificationInsertion.longueurALire(t) > VerificationInsertion.tailleQueue, "queue de 24 caractères, lecture avec marge")
+}
+
 groupe("Touche 🌐")
 do {
     verifier(!ToucheGlobe.doitEtreReglee(valeur: 0), "0 (Ne rien faire) : rien à régler")

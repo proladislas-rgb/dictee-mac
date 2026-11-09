@@ -12,6 +12,8 @@ final class Collage {
         case champProtege
         /// Le collage n'a pas pu partir (accessibilité manquante) ; le texte est resté dans le presse-papiers.
         case copieSeulement(String)
+        /// L'app visée n'existe plus, ou on n'a pas pu y revenir : rien n'est collé (ni touché dans le presse-papiers).
+        case cibleIndisponible(String)
         case vide
     }
 
@@ -55,6 +57,22 @@ final class Collage {
             return .copieSeulement("accessibilité non accordée")
         }
 
+        // 0. l'app visée : elle doit exister, et on revient dedans si l'écran a changé pendant la dictée
+        if let cible {
+            if cible.isTerminated { return .cibleIndisponible("l\u{2019}app visée n\u{2019}existe plus") }
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier != cible.processIdentifier {
+                Log.ecrire("collage : l'app au premier plan a changé, retour dans \(cible.bundleIdentifier ?? "?")")
+                cible.activate()
+                for _ in 0..<15 {
+                    try? await Task.sleep(for: .milliseconds(20))
+                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == cible.processIdentifier { break }
+                }
+                if NSWorkspace.shared.frontmostApplication?.processIdentifier != cible.processIdentifier {
+                    return .cibleIndisponible("l\u{2019}app visée n\u{2019}a pas pu reprendre le clavier")
+                }
+            }
+        }
+
         // 1. sauvegarder tout le presse-papiers (ou reprendre celle d'un collage précédent pas encore restauré)
         let sauvegarde: Sauvegarde
         if let attente = restauration {
@@ -71,16 +89,6 @@ final class Collage {
         presse.setData(Data(), forType: Collage.typeConfidentiel)
         presse.setData(Data(), forType: Collage.typeTransitoire)
         let compteur = presse.changeCount
-
-        // 3. on revient dans l'app d'origine si l'écran a changé pendant la dictée
-        if let cible, !cible.isTerminated, NSWorkspace.shared.frontmostApplication?.processIdentifier != cible.processIdentifier {
-            Log.ecrire("collage : l'app au premier plan a changé, retour dans \(cible.bundleIdentifier ?? "?")")
-            cible.activate()
-            for _ in 0..<15 {
-                try? await Task.sleep(for: .milliseconds(20))
-                if NSWorkspace.shared.frontmostApplication?.processIdentifier == cible.processIdentifier { break }
-            }
-        }
 
         // 4. ⌘V
         envoyerCommandeV()

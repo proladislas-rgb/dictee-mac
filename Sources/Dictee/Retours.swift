@@ -13,7 +13,7 @@ import DicteeCore
 enum Retours {
     private static var lecteurs: [SonSynthese.Son: AVAudioPlayer] = [:]
     /// Volume de lecture par son (l'amplitude de base est déjà basse : pic d'environ -20 dBFS).
-    private static let volumes: [SonSynthese.Son: Float] = [.debut: 0.55, .fin: 0.5, .annulation: 0.6]
+    private static let volumes: [SonSynthese.Son: Float] = [.debut: 0.8, .fin: 0.75, .annulation: 0.6]
 
     /// À appeler une fois au lancement : fabrique les sons et les précharge.
     static func preparer() {
@@ -44,6 +44,11 @@ enum Retours {
     static func annulation() {
         jouer(.annulation)
         rafale(.generic, coups: 2)
+    }
+
+    /// Le texte n'est pas arrivé : une seule frappe légère, pour dire « regarde l'encoche ».
+    static func filet() {
+        vibrer(.generic)
     }
 
     /// Une vibration plus longue : plusieurs frappes rapprochées (35 ms) qui se fondent en un bourdonnement court.

@@ -51,7 +51,21 @@ public enum TextAssembler {
     public static func joindre(_ parties: [String?]) -> String {
         let propres = parties.compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !estFantome($0) }
-        return propres.joined(separator: " ")
+        var sortie = ""
+        for p in propres {
+            if sortie.isEmpty { sortie = p; continue }
+            sortie += separateur(entre: sortie, et: p) + p
+        }
+        return sortie
+    }
+
+    /// L'espace qui sépare deux morceaux : aucune quand le premier finit par une apostrophe ou un trait d'union collé à une lettre
+    /// (« lorsqu' » + « on »), ni quand le second commence par une virgule, un point seul, « ? », « ! »… (« tard » + « , il »).
+    static func separateur(entre avant: String, et apres: String) -> String {
+        if let d = avant.last, d == "'" || d == "\u{2019}" || d == "-", avant.dropLast().last?.isLetter == true { return "" }
+        if let p = apres.first, ",;:!?)\u{00BB}".contains(p) { return "" }
+        if apres.first == ".", !apres.hasPrefix("..") { return "" }
+        return " "
     }
 
     /// Le texte « prompt » envoyé à Whisper : les mots du dictionnaire, puis la fin du texte précédent.

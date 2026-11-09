@@ -55,6 +55,8 @@ final class DictationController {
     var surInsertion: ((String, String?) -> Void)?
     /// Appelé quand le texte n'a pas pu être écrit (champ protégé, accessibilité manquante).
     var surEchecInsertion: ((String) -> Void)?
+    /// Appelé quand le texte n'est pas arrivé dans l'app : (texte, app visée). L'encoche reste ouverte avec le texte à copier.
+    var surFilet: ((String, NSRunningApplication?) -> Void)?
     /// À appeler quand le micro vient d'être autorisé : prépare le moteur pour un départ instantané.
     func microAutorise() { audio.preparer() }
     /// Appelé quand la capture commence (`true`) ou finit (`false`) : l'icône de la barre des menus montre un trait ambre.
@@ -285,39 +287,80 @@ final class DictationController {
         let apresAdresses = AdressesDictees.reconstituer(nettoyage.texte)
         let apresRaccourcis = RaccourcisVocaux.appliquer(apresAdresses, raccourcis: MotsModele.partage.raccourcis)
         let texteFinal = TextFormatter.prepare(apresRaccourcis, for: kind)
+        if let comparaison = ComparaisonJournal.ligne(groq: brut, final: texteFinal) { Log.ecrire("dictée \(s.id) : \(comparaison)") }
         let texte = raccorder(texteFinal, kind: kind, session: s, champ: champ)
-        // Champ protégé : l'encoche reste pour le dire ; sinon elle se referme et le texte arrive au curseur.
-        if !IsSecureEventInputEnabled() { fermerSiLibre() }
+        // L'encoche de dictée se referme ; en cas d'échec le filet de sécurité la remplace par une encoche avec le texte à copier.
+        fermerSiLibre()
+        let creation = Date()
         let t = ProcessInfo.processInfo.systemUptime
         let issue = await collage.ecrire(texte, dans: s.appCible)
         let collageMs = ms(ProcessInfo.processInfo.systemUptime - t)
         let total = ms(ProcessInfo.processInfo.systemUptime - relache)
         func garder(inseree: Bool, raison: String? = nil) {
-            HistoriqueStore.shared.ajouter(EntreeHistorique(appId: s.appCible?.bundleIdentifier, appNom: s.appCible?.localizedName,
+            HistoriqueStore.shared.ajouter(EntreeHistorique(date: creation, appId: s.appCible?.bundleIdentifier, appNom: s.appCible?.localizedName,
                                                             texte: texteFinal, insere: inseree, raison: raison))
         }
         switch issue {
         case .colle:
-            garder(inseree: true)
             Retours.fin()
-            surInsertion?(texteFinal, s.appCible?.bundleIdentifier)
-            memoire = MemoireInsertion(appId: s.appCible?.bundleIdentifier ?? "", queue: MemoireInsertion.queue(de: texte),
-                                       instant: ProcessInfo.processInfo.systemUptime, frappes: compteurFrappes())
             Log.ecrire("dictée \(s.id) : collé dans \(s.appCible?.bundleIdentifier ?? "?") (\(kind)), collage \(collageMs) ms, \(total) ms après le relâchement")
+            let verdict = await verifierInsertion(texte, cible: s.appCible, kind: kind, idDictee: s.id)
+            if case .nonInseree(let raison) = verdict {
+                garder(inseree: false, raison: raison)
+                surEchecInsertion?("Le texte n\u{2019}est pas arrivé dans le champ, il est gardé dans l\u{2019}historique.")
+                signalerEchec(texteFinal, cible: s.appCible, raison: raison, ancienMessage: "Texte non écrit, voir l\u{2019}historique", idDictee: s.id)
+            } else {
+                garder(inseree: true)
+                surInsertion?(texteFinal, s.appCible?.bundleIdentifier)
+                memoire = MemoireInsertion(appId: s.appCible?.bundleIdentifier ?? "", queue: MemoireInsertion.queue(de: texte),
+                                           instant: ProcessInfo.processInfo.systemUptime, frappes: compteurFrappes())
+            }
         case .champProtege:
             Log.ecrire("dictée \(s.id) : champ protégé, texte copié sans collage")
             garder(inseree: false, raison: "champ protégé")
             surEchecInsertion?("Écriture impossible ici, le texte est copié.")
-            if courante == nil { panneau.afficherMessage("Écriture impossible ici, texte copié", app: s.appCible) }
+            signalerEchec(texteFinal, cible: s.appCible, raison: "champ protégé", ancienMessage: "Écriture impossible ici, texte copié", idDictee: s.id)
         case .copieSeulement(let raison):
             Log.ecrire("dictée \(s.id) : texte copié mais pas collé (\(raison))")
             garder(inseree: false, raison: raison)
             surEchecInsertion?("Le collage n\u{2019}est pas autorisé, le texte est copié.")
-            fermerSiLibre()
-            if courante == nil { panneau.afficherMessage("Texte copié, collage non autorisé", app: s.appCible) }
+            signalerEchec(texteFinal, cible: s.appCible, raison: raison, ancienMessage: "Texte copié, collage non autorisé", idDictee: s.id)
+        case .cibleIndisponible(let raison):
+            Log.ecrire("dictée \(s.id) : rien collé (\(raison))")
+            garder(inseree: false, raison: raison)
+            surEchecInsertion?("Le texte n\u{2019}a pas pu être écrit, il est gardé dans l\u{2019}historique.")
+            signalerEchec(texteFinal, cible: s.appCible, raison: raison, ancienMessage: "Destination indisponible, voir l\u{2019}historique", idDictee: s.id)
         case .vide:
             Log.ecrire("dictée \(s.id) : texte vide après mise en forme")
-            fermerSiLibre()
+        }
+    }
+
+    /// Après le ⌘V : relit le champ par l'Accessibilité (à 250, 400 puis 650 ms) pour s'assurer que le texte est arrivé.
+    /// Ne conclut à un échec que sur une preuve ; si l'app ne laisse rien lire, le verdict est « indéterminé ».
+    private func verifierInsertion(_ texte: String, cible: NSRunningApplication?, kind: AppKind, idDictee: Int) async -> VerdictInsertion {
+        guard Settings.filetDeSecurite, Permissions.accessibiliteOK, let cible, !cible.isTerminated,
+              cible.bundleIdentifier != Bundle.main.bundleIdentifier else { return .indetermine }
+        let (verdict, lectures) = await LecteurInsertion.verifier(texte: texte, pid: cible.processIdentifier, genre: kind)
+        let resume: String
+        switch verdict {
+        case .inseree: resume = "texte retrouvé devant le curseur"
+        case .nonInseree(let raison): resume = "ÉCHEC : \(raison)"
+        case .indetermine: resume = "indéterminé (l\u{2019}app ne laisse pas relire), pas d\u{2019}alarme"
+        }
+        Log.ecrire("dictée \(idDictee) : vérification de l\u{2019}écriture, \(lectures) lecture(s) : \(resume)")
+        return verdict
+    }
+
+    /// Le texte n'est pas arrivé : le filet de sécurité (encoche ouverte avec le texte) ; sans lui, l'ancien message bref.
+    private func signalerEchec(_ texte: String, cible: NSRunningApplication?, raison: String, ancienMessage: String, idDictee: Int) {
+        if Settings.filetDeSecurite {
+            guard courante == nil else {
+                Log.ecrire("dictée \(idDictee) : filet de sécurité non affiché (une nouvelle dictée est en cours), texte dans l\u{2019}historique")
+                return
+            }
+            surFilet?(texte, cible)
+        } else if courante == nil {
+            panneau.afficherMessage(ancienMessage, app: cible)
         }
     }
 
@@ -337,13 +380,20 @@ final class DictationController {
         // laisse au clavier le temps de revenir dans la fenêtre de l'app après la fermeture du panneau
         try? await Task.sleep(for: .milliseconds(70))
         switch await collage.ecrire(pret, dans: cible) {
-        case .colle: Log.ecrire("recoller : collé dans \(cible.bundleIdentifier ?? "?") (\(kind))")
+        case .colle:
+            Log.ecrire("recoller : collé dans \(cible.bundleIdentifier ?? "?") (\(kind))")
+            if case .nonInseree(let raison) = await verifierInsertion(pret, cible: cible, kind: kind, idDictee: 0) {
+                signalerEchec(texte, cible: cible, raison: raison, ancienMessage: "Texte non écrit, voir l\u{2019}historique", idDictee: 0)
+            }
         case .champProtege:
             Log.ecrire("recoller : champ protégé, texte copié")
-            panneau.afficherMessage("Écriture impossible ici, texte copié", app: cible)
+            signalerEchec(texte, cible: cible, raison: "champ protégé", ancienMessage: "Écriture impossible ici, texte copié", idDictee: 0)
         case .copieSeulement(let raison):
             Log.ecrire("recoller : texte copié mais pas collé (\(raison))")
-            panneau.afficherMessage("Texte copié, collage non autorisé", app: cible)
+            signalerEchec(texte, cible: cible, raison: raison, ancienMessage: "Texte copié, collage non autorisé", idDictee: 0)
+        case .cibleIndisponible(let raison):
+            Log.ecrire("recoller : rien collé (\(raison))")
+            signalerEchec(texte, cible: cible, raison: raison, ancienMessage: "Destination indisponible, texte copié", idDictee: 0)
         case .vide: break
         }
     }

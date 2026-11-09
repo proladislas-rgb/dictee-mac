@@ -58,7 +58,10 @@ enum Nettoyage {
         switch RemiseAuPropre.verifier(entree: brut, sortie: reponse, analyse: analyse) {
         case .refuse(let pourquoi):
             var r = rendre(brut, false, "sortie refusée : \(pourquoi)"); r.sortieRefusee = reponse; return r
-        case .accepte(let texte): return rendre(RemiseAuPropre.retoucher(RemiseAuPropre.corrigerMots(texte, dictionnaire: mots), entree: brut, contexte: contexte, finDeTexte: finDeTexte), true, "ok")
+        case .accepte(let texte):
+            let collés = MotsColles.reparer(entree: brut, sortie: reponse).repares
+            if !collés.isEmpty { Log.ecrire("remise au propre : mots collés par l\u{2019}IA remis en mots séparés : \(collés.map { Log.apercu($0) }.joined(separator: ", "))") }
+            return rendre(RemiseAuPropre.retoucher(RemiseAuPropre.corrigerMots(texte, dictionnaire: mots), entree: brut, contexte: contexte, finDeTexte: finDeTexte), true, "ok")
         }
     }
 }

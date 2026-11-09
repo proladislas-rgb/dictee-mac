@@ -164,6 +164,8 @@ public enum AdressesDictees {
                 if elements.isEmpty || dernierEstSeparateur { break loop }
                 elements.append(s); dernierEstSeparateur = true; j -= 1; debut = j + 1
             case .unique(let u):
+                // « il a jean arobase… » : un « a » devant un mot entier est le verbe, pas une lettre épelée
+                if u == "a", !dernierEstSeparateur, case .mot = classe(jetons, j + 1) { break loop }
                 elements.append(u); dernierEstSeparateur = false; j -= 1; debut = j + 1
             case .mot(let m):
                 // un mot entier seulement juste avant l'arobase ou après un séparateur : « écris à jean » ne mange pas « à »

@@ -213,3 +213,51 @@ enum RenduPremierLancement {
         return ok ? 0 : 1
     }
 }
+
+/// `Dictee --rendu-filet dossier` : le filet de sécurité (texte court, texte long, après « Copier ») en PNG, sans fenêtre.
+enum RenduFilet {
+    @MainActor
+    static func executer(dossier: String) -> Int32 {
+        _ = NSApplication.shared
+        Polices.enregistrer()
+        print("Newsreader disponible : \(Polices.newsreaderDisponible)")
+        let url = URL(fileURLWithPath: (dossier as NSString).expandingTildeInPath, isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        var ok = true
+        let geometrie = GeometrieEncoche()   // caméra fictive 200 × 32 pt, comme la maquette
+        let notes = NSWorkspace.shared.icon(forFile: "/System/Applications/Notes.app")
+
+        func rendre(_ nom: String, texte: String, copie: Bool = false, reduire: Bool = false) {
+            let m = FiletModele()
+            m.geometrie = geometrie; m.texte = texte; m.ouvert = true; m.copie = copie; m.reduire = reduire; m.icone = notes
+            let taille = m.tailleFenetre()
+            let scene = CGSize(width: 760, height: 250)
+            let vue = ZStack(alignment: .top) {
+                Color(hex: 0x121211)
+                HStack {
+                    Text("Notes").bold(); Text("Fichier"); Text("Édition"); Spacer()
+                    FormeGuillemets().fill(Palette.texte).frame(width: 14, height: 14 / Guillemets.rapport)
+                    Text("lun. 9 nov.  19:41")
+                }
+                .font(.system(size: 13)).foregroundStyle(Palette.texte2)
+                .padding(.horizontal, 16).frame(height: geometrie.hauteur).frame(maxWidth: .infinity)
+                .background(Color(hex: 0x161615))
+                Text("Aucune note ouverte : le curseur n\u{2019}est dans aucun champ de texte.")
+                    .font(.system(size: 13)).foregroundStyle(Palette.texte3)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 60).padding(.top, 190)
+                FiletVue(m: m, tailleFenetre: taille)
+            }
+            .frame(width: scene.width, height: scene.height, alignment: .top)
+            print("\(nom) : fenêtre \(Int(taille.width)) × \(Int(taille.height)) pt, texte \(Int(m.hauteurTexte)) pt de haut, défile : \(m.texteDefile)")
+            ok = RenduVues.ecrire(RenduVues.png(vue, taille: scene), url.appendingPathComponent("\(nom).png")) && ok
+        }
+        let court = "Bonjour Madame Martin, je vous confirme le rendez-vous de jeudi à dix heures. À plus tard."
+        let long = "Bonjour Madame Martin, suite à notre échange de ce matin, je vous transmets la proposition avec les deux options dont on a parlé. La première couvre l\u{2019}installation seule, la seconde inclut la maintenance pendant deux ans. Dites-moi laquelle vous convient et je prépare le devis pour jeudi, avec les délais de livraison et les conditions de paiement. Je reste disponible demain toute la journée pour en discuter au téléphone, et je peux aussi passer vous voir sur place si vous préférez. À très vite."
+        rendre("filet-1-texte-court", texte: "On se voit mercredi.")
+        rendre("filet-2-texte-moyen", texte: court)
+        rendre("filet-3-texte-long", texte: long)
+        rendre("filet-4-apres-copier", texte: court, copie: true)
+        rendre("filet-5-reduire-animations", texte: court, reduire: true)
+        return ok ? 0 : 1
+    }
+}

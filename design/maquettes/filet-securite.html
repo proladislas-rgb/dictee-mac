@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbe — filet de sécurité</title>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --desk:#0b0b0b; --bar:#161615; --pan:#1a1a19; --raised:#262624;
+  --ink:#ece9e3; --ink-2:#a8a59e; --ink-3:#88857e; --hair:rgba(236,233,227,.09); --amber:#e6a04a;
+  --serif:"Newsreader","New York",Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--desk);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:24px 16px 48px}
+.wrap{max-width:1100px;margin:0 auto}
+.lbl{display:flex;gap:12px;align-items:baseline;margin:28px 0 10px;color:var(--ink-2);font-size:13px}
+.lbl b{color:var(--ink);font-weight:500;font-size:14px}
+.scene{position:relative;height:300px;border-radius:12px;background:#121211;overflow:hidden;box-shadow:0 0 0 1px var(--hair)}
+.menubar{height:30px;background:var(--bar);display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:13px;color:var(--ink-2)}
+.menubar .l{display:flex;gap:18px}.menubar .l b{color:var(--ink);font-weight:600}
+.menubar .r{display:flex;gap:14px;align-items:center}
+.q{font-family:Georgia,serif;font-weight:700;font-size:17px;color:var(--ink);line-height:1}
+.notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:200px;height:32px;background:#000;border-radius:0 0 12px 12px;z-index:3}
+.k{font:500 11px var(--sans);color:var(--ink-2);border:1px solid var(--hair);border-bottom-width:2px;border-radius:5px;padding:1px 6px;margin-left:6px}
+.btn{display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:7px;font-size:13px;color:var(--ink);background:var(--raised)}
+.btn.ghost{background:none;color:var(--ink-2)}
+.timer{height:2px;background:var(--hair);border-radius:1px;overflow:hidden}
+.timer i{display:block;height:100%;width:62%;background:var(--amber)}
+.app{display:inline-flex;align-items:center;gap:6px;color:var(--ink-3);font-size:12px}
+.app i{width:14px;height:14px;border-radius:4px;background:linear-gradient(#f5d34c 0 30%,#f4f1ea 30%)}
+
+/* A — carte sous l'encoche */
+.cardA{position:absolute;top:40px;left:50%;transform:translateX(-50%);width:400px;border-radius:14px;background:var(--pan);box-shadow:0 0 0 1px rgba(255,255,255,.1),0 16px 40px rgba(0,0,0,.45);padding:14px 16px 12px;z-index:2}
+.cardA .head{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-3)}
+.cardA p{font-family:var(--serif);font-size:17px;line-height:1.45;margin:10px 0 12px;color:var(--ink)}
+.cardA .acts{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+.cardA .acts div{display:flex;gap:6px}
+
+/* B — l'encoche reste ouverte */
+.shapeB{position:absolute;top:0;left:50%;transform:translateX(-50%);width:480px;z-index:4}
+.bandB{height:32px;background:#000;border-radius:0 0 14px 14px;display:flex;justify-content:space-between;align-items:center;padding:0 14px}
+.ribbonB{margin:0 26px;background:#000;border-radius:0 0 14px 14px;padding:10px 16px 12px}
+.ribbonB p{font-family:var(--serif);font-size:16px;line-height:1.45;color:var(--ink)}
+.ribbonB .acts{display:flex;justify-content:flex-end;gap:6px;margin-top:10px}
+.ribbonB .btn{background:#1d1d1c}
+.mark{width:6px;height:6px;border-radius:50%;background:var(--amber)}
+
+/* C — discret, s'ouvre au besoin */
+.shapeC{position:absolute;top:0;left:50%;transform:translateX(-50%);width:380px;z-index:4}
+.bandC{height:32px;background:#000;border-radius:0 0 14px 14px;display:flex;justify-content:space-between;align-items:center;padding:0 14px;font-size:12px;color:var(--ink-2)}
+.ribbonC{margin:0 30px;background:#000;border-radius:0 0 12px 12px;height:30px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12.5px;color:var(--ink-2)}
+.ribbonC b{color:var(--ink);font-weight:500}
+.note{position:absolute;left:16px;bottom:14px;font-size:12px;color:var(--ink-3)}
+.doc{position:absolute;left:60px;right:60px;top:150px;bottom:0;background:#1c1c1b;border-radius:10px 10px 0 0;padding:18px 22px;color:var(--ink-3);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="lbl"><b>A — Une carte sous l'encoche</b> le texte complet, deux actions, se ferme seule</div>
+  <div class="scene">
+    <div class="menubar"><div class="l"><b>Notes</b><span>Fichier</span><span>Édition</span></div><div class="r"><span class="q">”</span><span>19:41</span></div></div>
+    <div class="notch"></div>
+    <div class="cardA">
+      <div class="head"><span class="app"><i></i>Pas écrit dans Notes</span><span>Échap</span></div>
+      <p>Bonjour Madame Martin, je vous confirme le rendez-vous de jeudi à dix heures. À plus tard.</p>
+      <div class="timer"><i></i></div>
+      <div class="acts"><span style="font-size:12px;color:var(--ink-3)">Gardé dans l'historique</span><div><span class="btn ghost">Coller ici<span class="k">↵</span></span><span class="btn">Copier<span class="k">⌘C</span></span></div></div>
+    </div>
+    <div class="doc">Aucune note ouverte : le curseur n’est dans aucun champ de texte.</div>
+  </div>
+
+  <div class="lbl"><b>B — L'encoche reste ouverte</b> même forme noire que pendant la dictée, le ruban s'agrandit</div>
+  <div class="scene">
+    <div class="menubar"><div class="l"><b>Notes</b><span>Fichier</span><span>Édition</span></div><div class="r"><span class="q">”</span><span>19:41</span></div></div>
+    <div class="shapeB">
+      <div class="bandB"><span class="app"><i></i></span><span class="mark"></span></div>
+      <div class="ribbonB">
+        <p>Bonjour Madame Martin, je vous confirme le rendez-vous de jeudi à dix heures. À plus tard.</p>
+        <div class="acts"><span class="btn">Coller ici<span class="k">↵</span></span><span class="btn">Copier<span class="k">⌘C</span></span></div>
+      </div>
+    </div>
+    <div class="doc">Aucune note ouverte : le curseur n’est dans aucun champ de texte.</div>
+  </div>
+
+  <div class="lbl"><b>C — Discret d'abord</b> une ligne sous l'encoche ; ⌘C copie tout de suite, un clic montre le texte</div>
+  <div class="scene">
+    <div class="menubar"><div class="l"><b>Notes</b><span>Fichier</span><span>Édition</span></div><div class="r"><span class="q">”</span><span>19:41</span></div></div>
+    <div class="shapeC">
+      <div class="bandC"><span class="app"><i></i></span><span class="mark"></span></div>
+      <div class="ribbonC"><b>Texte non écrit</b><span>·</span><span>⌘C pour copier</span><span>·</span><span>clic pour voir</span></div>
+    </div>
+    <div class="doc">Aucune note ouverte : le curseur n’est dans aucun champ de texte.</div>
+  </div>
+
+</div>
+</body>
+</html>

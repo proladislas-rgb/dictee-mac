@@ -238,3 +238,30 @@ Pas à pas (6,8 s sans pause, 21 s sans pause) : rognage seul 320 / 479 ; FLAC s
 - Constat de Hugues : « h2delpit@gmail.com » dicté sortait « VepoH2LPadjamai.com ». Deux réponses : (1) `AdressesDictees` (`DicteeCore`), règle locale sans IA appliquée au texte final avant les raccourcis vocaux (`DictationController.ecrire`), donc aussi quand la remise au propre n'a pas lieu ; (2) une consigne et un exemple dans la remise au propre. Les raccourcis vocaux « mon mail » / « mon adresse mail » restent le moyen sûr pour SON adresse : ils passent en dernier, le plus long d'abord, et gardent la ponctuation autour (vérifié par `DicteeControles`).
 - La règle ne se déclenche que sur « arobase » (ou « @ ») pour un mail, ou « www » + « point » pour une adresse web. Avant l'arobase : lettres et chiffres épelés (chiffres dits compris, hors « un »), mots entiers seulement juste avant l'arobase ou après un séparateur, « point », « tiret », « tiret du bas », « underscore ». Après : un domaine qui finit par une extension connue (liste dans `extensions`), sinon texte inchangé. Minuscules, accents retirés, ponctuation de phrase et retours à la ligne conservés.
 - Limites : une lettre « a » seule avant l'arobase est lue comme épelée ; « point com » sans arobase ni www n'est jamais transformé ; si Whisper transcrit un autre mot que celui dicté (le cas ci-dessus), la règle ne peut pas deviner : raccourci vocal ou mot du dictionnaire.
+
+## Filet de sécurité de l'écriture et mots collés (09/11 soir)
+
+### Filet de sécurité (demande de Hugues)
+« Lorsque la transcription se fait mais que l'écriture ne se met pas bien dans la barre où le curseur est, il faut une sorte de widget qui s'ouvre à partir de la barre d'en haut et qui me permette de copier-coller le texte. » Maquette choisie : `design/maquettes/filet-securite.html`, variante B « l'encoche reste ouverte ».
+- **Détection** (logique pure `VerificationInsertion`, contrôlée par `DicteeControles`) : après le ⌘V, l'Accessibilité relit les 24 derniers caractères avant le curseur de l'app cible (`LecteurInsertion`), à 250, 400 puis 650 ms ; une seule preuve d'écriture suffit.
+  - échec seulement sur une preuve : aucun élément focalisé alors qu'une fenêtre existe ; champ dont le curseur est lisible mais où le texte n'apparaît pas ; rôle qui ne peut pas recevoir de texte (bouton, texte fixe…) et rien de lisible ;
+  - jamais d'alarme quand on ne peut simplement pas lire (apps sans Accessibilité, délai dépassé) ni dans un terminal (position du curseur non fiable), sauf s'il n'y a aucun élément focalisé ;
+  - hors lecture : champ protégé, Accessibilité non accordée (déjà détectés), app visée disparue ou qui ne peut pas reprendre le clavier (`Collage.Issue.cibleIndisponible` : rien n'est collé ni touché dans le presse-papiers).
+- **Interface** (`FiletVue`, `FiletPanneau`) : la même silhouette noire que pendant la dictée reste ouverte (icône de l'app visée à gauche, point ambre à droite, centre vide), le ruban s'agrandit et montre le texte complet en Newsreader 16 pt (2 à 4 lignes, défilable au-delà, dernière ligne qui s'efface), « Coller ici ↵ » et « Copier ⌘C » à droite sur fond #1d1d1c. « Copier » écrit « Copié » puis referme. Panneau non activant qui prend le clavier (Retour, ⌘C, Échap) ; se ferme par Échap, un clic ailleurs, ou seul après 10 s sans interaction (compte à rebours suspendu tant que la souris est dessus) ; ressort d'ouverture et de fermeture de l'encoche, fondu seul avec « Réduire les animations » ; une frappe légère du trackpad à l'apparition. « Coller ici » retente dans l'app au premier plan (jamais Verbe).
+- Le texte est dans l'historique avec `insere = false` et la raison. Un nouveau départ de dictée ou l'ouverture du panneau compact ferme le filet ; pendant une dictée en cours le filet n'apparaît pas (le texte est dans l'historique).
+- Menu de la barre (clic droit) : « Dernière dictée » ouvre le même filet avec le dernier texte.
+- Réglage : `defaults write com.hugues.dictee filetDeSecurite -bool false` rend l'ancien bref message dans l'encoche.
+- Rendus hors écran : `Dictee --rendu-filet dossier` (`design/rendus-filet/`).
+
+### Mots collés (« à plus tard » écrit « àplus tard »)
+Cause non trouvée : l'historique contient la dictée où Hugues l'a signalé (« Je veux dire, à plus tard, il va mettre à plus tard tout attaché ») et « à plus tard » y est correctement écrit ; Whisper (voix de synthèse) et la remise au propre l'écrivent correctement aussi. Ont été vérifiés et passent (contrôles) : règle des adresses, espaces intelligents, remise au propre locale, raccourcis vocaux, assemblage des morceaux, dictionnaire, typographie. Corrigé ou ajouté par précaution :
+- `MotsColles` : un mot de la sortie de la petite IA qui est exactement la concaténation de 2 à 4 mots consécutifs de l'entrée est remis en mots séparés (garde-fou dans `RemiseAuPropre.verifier`, trace au journal) ;
+- `TextAssembler.joindre` : pas d'espace après une apostrophe ou un trait d'union en fin de morceau (« lorsqu' » + « on »), ni devant une virgule ou un « ? » en début de morceau ;
+- adresses : un « a » (verbe) devant un mot n'est plus pris pour une lettre épelée (« il a jean arobase… »).
+- Journal : pour chaque dictée dont le texte final diffère du texte Groq autrement que par la ponctuation ou la casse, une ligne `texte Groq → final : "…" → "…"` (60 caractères de chaque côté, centrés sur la première différence). Seule exception à la règle des 30 caractères.
+
+### À vérifier en vrai (par Hugues, app installée)
+1. Cliquer dans une zone sans champ de texte (Finder, page web hors champ, app sans note ouverte), dicter : le filet doit s'ouvrir sous l'encoche, vibrer, et « Copier » / « Coller ici » / Échap / 10 s doivent marcher.
+2. Dicter dans un champ normal (Notes, Mail, barre de recherche, Claude) : aucun filet. Si le filet s'ouvre à tort, relever l'app et la ligne « vérification de l'écriture » du journal.
+3. Terminal : jamais de filet (voulu).
+4. Lire le journal après quelques dictées : lignes « texte Groq → final » pour retrouver un mot collé.

@@ -56,6 +56,12 @@ enum Polices {
     static func texte(_ taille: CGFloat) -> Font {
         newsreaderDisponible ? .custom("Newsreader", size: taille) : .system(size: taille, design: .serif)
     }
+    /// La même police pour AppKit (mesure du texte avant de le dessiner).
+    static func nsTexte(_ taille: CGFloat) -> NSFont {
+        if let f = NSFont(name: "Newsreader16pt-Regular", size: taille) ?? NSFont(name: "Newsreader", size: taille) { return f }
+        let base = NSFont.systemFont(ofSize: taille)
+        return base.fontDescriptor.withDesign(.serif).flatMap { NSFont(descriptor: $0, size: taille) } ?? base
+    }
     /// Commandes et métadonnées.
     static func commande(_ taille: CGFloat, _ poids: Font.Weight = .regular) -> Font { .system(size: taille, weight: poids) }
 }

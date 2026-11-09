@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let clavier = KeyMonitor()
     private let dictee = DictationController()
     private let panneauCompact = PanneauCompact()
+    private let filet = FiletPanneau()
     private let priseEnMain = PriseEnMain()
     private var microDejaPrepare = false
     private lazy var fenetrePrincipale = FenetrePrincipale(dictees: ModeleDictees())
@@ -63,10 +64,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Task { await self.dictee.recoller(entree.texte, dans: cible) }
         }
         panneauCompact.surOuvrirFenetre = { [weak self] onglet in self?.ouvrirFenetre(onglet) }
+        // Filet de sécurité : le texte n'est pas arrivé, l'encoche reste ouverte avec le texte (jamais en même temps que le panneau compact).
+        dictee.surFilet = { [weak self] texte, cible in self?.ouvrirFilet(texte, cible: cible) }
+        filet.surColler = { [weak self] texte, app in
+            guard let self else { return }
+            Task { await self.dictee.recoller(texte, dans: app) }
+        }
         configurerFenetre()
         installerMenuPrincipal()
         panneauCompact.surChangementEtat = { [weak self] ouvert in self?.survolStatus?.panneauOuvert = ouvert }
-        dictee.surDebut = { [weak self] in self?.panneauCompact.fermer(animee: false, rendreLeFocus: false) }
+        dictee.surDebut = { [weak self] in
+            self?.panneauCompact.fermer(animee: false, rendreLeFocus: false)
+            self?.filet.fermer(animee: false, rendreLeFocus: false)
+        }
         clavier.onAction = { [weak self] action in
             guard let self else { return }
             // Étape 🌐 du premier lancement : le double appui sert d'essai, il ne lance pas de vraie dictée.
@@ -195,8 +205,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         // une dictée en cours garde la place : le panneau et la dictée ne se superposent pas
         guard !dictee.enCours else { return }
+        filet.fermer(animee: false, rendreLeFocus: false)
         let cible = NSWorkspace.shared.frontmostApplication.flatMap { $0.bundleIdentifier == Bundle.main.bundleIdentifier ? nil : $0 } ?? derniereAppExterne
         panneauCompact.basculer(cible: cible)
+    }
+
+    /// Ouvre le filet de sécurité avec ce texte (échec d'écriture, ou « Dernière dictée » du menu).
+    private func ouvrirFilet(_ texte: String, cible: NSRunningApplication?) {
+        panneauCompact.fermer(animee: false, rendreLeFocus: false)
+        filet.ouvrir(texte: texte, cible: cible)
+    }
+
+    /// Menu › « Dernière dictée » : le texte de la dernière dictée dans le filet, à copier ou à coller dans l'app au premier plan.
+    @objc private func derniereDictee() {
+        guard let derniere = HistoriqueStore.shared.historique.entrees.first, !dictee.enCours else { return }
+        let cible = NSWorkspace.shared.frontmostApplication.flatMap { $0.bundleIdentifier == Bundle.main.bundleIdentifier ? nil : $0 } ?? derniereAppExterne
+        ouvrirFilet(derniere.texte, cible: cible)
     }
 
     func ouvrirFenetre(_ onglet: Onglet) {
@@ -274,6 +298,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         let ouvrir = menu.addItem(withTitle: "Ouvrir Verbe", action: #selector(ouvrirVerbe), keyEquivalent: ",")
         ouvrir.target = self
+        if !HistoriqueStore.shared.historique.estVide {
+            menu.addItem(withTitle: "Dernière dictée", action: #selector(derniereDictee), keyEquivalent: "").target = self
+        }
         menu.addItem(.separator())
         menu.addItem(withTitle: "Prise en main…", action: #selector(revoirPriseEnMain), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Autorisations…", action: #selector(ouvrirAutorisations), keyEquivalent: "").target = self
