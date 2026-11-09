@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=1190">
+<title>Verbe — Réunions, lecture de la note, version 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --desk:#0b0b0b; --pan:#1a1a19; --raised:#262624; --raised-2:#2f2f2d;
+  --ink:#ece9e3; --ink-2:#a8a59e; --ink-3:#88857e;
+  --hair:rgba(236,233,227,.10); --hair-2:rgba(236,233,227,.16);
+  --caret:#e6a04a;
+  --serif:"Newsreader","New York",ui-serif,Charter,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--desk);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;padding:32px 45px 64px;width:1190px}
+.top{font-size:14px;color:var(--ink-2);padding:0 0 28px}
+.top b{color:var(--ink);font-weight:500}
+.scene{margin-bottom:56px}
+.cap{font-size:14px;line-height:20px;color:var(--ink-2);margin-bottom:12px;display:flex;gap:12px;align-items:baseline}
+.cap i{font-style:normal;font-weight:500;color:var(--ink);min-width:20px}
+.win{width:1100px;min-height:680px;background:var(--pan);border-radius:14px;box-shadow:0 0 0 1px rgba(255,255,255,.10);overflow:hidden;position:relative;display:flex;flex-direction:column}
+.win.fix{height:680px}
+svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+svg.s{width:16px;height:16px}
+.lights{display:flex;gap:8px}
+.lights span{width:12px;height:12px;border-radius:50%;background:#4a4a47}
+
+/* barre du haut, identique à la fenêtre v2 */
+.bar{height:60px;display:flex;align-items:center;padding:0 20px;gap:24px;border-bottom:1px solid var(--hair);flex:none}
+.tabs{display:flex;gap:4px;margin-left:8px}
+.tab{display:flex;align-items:center;height:36px;padding:0 14px;border-radius:8px;font-size:15px;color:var(--ink-2);font-weight:500}
+.tab.on{background:var(--raised-2);color:var(--ink)}
+.bar .sp{flex:1}
+.foot{height:48px;border-top:1px solid var(--hair);display:flex;align-items:center;gap:8px;padding:0 40px;flex:none;font-size:14px;color:var(--ink-2);margin-top:auto}
+.foot svg{color:var(--ink-3)}
+
+/* commandes */
+.kbd{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:6px;background:var(--raised-2);font-size:13px;color:var(--ink);font-weight:500}
+.btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:8px;background:var(--raised);box-shadow:inset 0 0 0 1px var(--hair-2);font-size:14px;color:var(--ink);white-space:nowrap}
+.btn.primary{background:var(--ink);color:#0b0b0b;font-weight:500;box-shadow:none}
+.btn.primary .kbd{background:rgba(0,0,0,.12);color:#0b0b0b;height:20px;padding:0 6px;font-size:12px}
+.btn.quiet{background:none;box-shadow:none;color:var(--ink-2);padding:0 8px}
+.field{display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;border-radius:10px;background:var(--raised);box-shadow:inset 0 0 0 1px var(--hair);color:var(--ink-2);font-size:16px;flex:1}
+.field .ph{display:flex;align-items:center}
+.field .ph::before{content:"";display:inline-block;width:2px;height:20px;border-radius:1px;background:var(--caret);margin-right:2px}
+.field .r{margin-left:auto}
+.serif{font-family:var(--serif);font-variation-settings:"opsz" 17}
+
+/* étiquette d'échéance : le repère le plus lisible de la note */
+.due{font-family:var(--sans);display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:6px;background:var(--raised-2);font-size:13px;font-weight:500;color:var(--ink);white-space:nowrap}
+.due.none{background:none;box-shadow:inset 0 0 0 1px var(--hair-2);color:var(--ink-3);font-weight:400}
+.due.done{background:none;color:var(--ink-3);font-weight:400;padding:0}
+.box{width:18px;height:18px;border-radius:5px;box-shadow:inset 0 0 0 1.5px var(--ink-3);flex:none}
+.box.ck{background:var(--ink);box-shadow:none;color:#0b0b0b;display:grid;place-items:center}
+.box.ck svg{width:14px;height:14px;stroke-width:2}
+
+/* sous-barre de la note */
+.sub{height:48px;display:flex;align-items:center;padding:0 40px 0 28px;gap:4px;flex:none}
+.sub .back{display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink-2);margin-right:auto}
+.sub .back svg{width:16px;height:16px}
+
+.nt{font-family:var(--serif);font-size:32px;line-height:40px;font-weight:400;font-variation-settings:"opsz" 32;color:var(--ink)}
+.meta{font-size:14px;line-height:20px;color:var(--ink-2);margin-top:8px}
+.meta b{font-weight:400;color:var(--ink)}
+.bref .l{font-size:13px;color:var(--ink-3);margin-bottom:4px}
+.bref .t{font-family:var(--serif);font-size:22px;line-height:32px;font-variation-settings:"opsz" 22;color:var(--ink)}
+.tr{display:flex;align-items:center;gap:12px;height:52px;border-top:1px solid var(--hair-2);font-size:15px;color:var(--ink-3)}
+.tr b{font-weight:500;color:var(--ink)}
+.tr .go{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--ink-2)}
+.tr svg{width:16px;height:16px}
+
+/* ===== Liste ===== */
+.l-body{padding:16px 40px 0;flex:1}
+.l-top{display:flex;gap:16px;align-items:center}
+.l-filt{display:flex;align-items:center;gap:4px;margin:16px 0 8px;height:32px}
+.l-filt span{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;border-radius:8px;font-size:14px;color:var(--ink-2)}
+.l-filt span.on{background:var(--raised-2);color:var(--ink);font-weight:500}
+.l-filt em{font-style:normal;color:var(--ink-3);font-weight:400}
+.l-filt .tot{margin-left:auto;padding:0;font-size:14px}
+.l-filt .tot b{color:var(--ink);font-weight:500}
+.lr{display:grid;grid-template-columns:76px minmax(0,1fr) 56px 112px;column-gap:20px;align-items:center;height:68px;padding:0 16px;border-radius:10px}
+.lr.sel{background:var(--raised)}
+.lr .d{font-size:14px;line-height:20px;color:var(--ink)}
+.lr .d small{display:block;font-size:13px;color:var(--ink-3)}
+.lr .x{font-family:var(--serif);font-size:19px;line-height:26px;font-variation-settings:"opsz" 19;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lr .y{font-size:14px;line-height:20px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lr .y.q{color:var(--ink-3)}
+.lr .m{font-size:13px;color:var(--ink-3);text-align:right}
+.lr .r{text-align:right;font-size:14px;line-height:20px;color:var(--ink);font-weight:500}
+.lr .r small{display:block;font-size:13px;font-weight:400;color:var(--ink-3)}
+.lr .r.z{color:var(--ink-3);font-weight:400}
+
+/* ===== A ===== */
+.a-body{width:860px;margin:0 auto;padding:4px 0 32px}
+.a-body .bref{margin-top:28px;padding-left:20px;border-left:2px solid var(--hair-2)}
+.sec{margin-top:40px}
+.sec h3{display:flex;align-items:baseline;gap:10px;font-size:17px;line-height:24px;font-weight:500;color:var(--ink);padding-bottom:12px;border-bottom:1px solid var(--hair-2)}
+.sec h3 .c{font-weight:400;font-size:15px;color:var(--ink-3)}
+.it{display:grid;grid-template-columns:20px minmax(0,1fr) auto;column-gap:12px;align-items:start;padding:10px 0;border-bottom:1px solid var(--hair);font-family:var(--serif);font-size:19px;line-height:28px;font-variation-settings:"opsz" 19;color:var(--ink)}
+.it:last-child{border-bottom:0}
+.it b{font-weight:500}
+.it .dot{width:5px;height:5px;border-radius:50%;background:var(--ink-3);margin:12px 0 0 7px}
+.it .ic{color:var(--ink-2);margin-top:5px}
+.it .ic svg{width:18px;height:18px}
+.it .due{margin-top:1px}
+.g{display:grid;grid-template-columns:104px minmax(0,1fr);border-bottom:1px solid var(--hair-2)}
+.g:last-child{border-bottom:0}
+.g .p{font-size:15px;line-height:28px;font-weight:500;color:var(--ink);padding-top:10px}
+.g .p span{font-weight:400;color:var(--ink-3);margin-left:6px;font-size:14px}
+.g .it{grid-template-columns:26px minmax(0,1fr) auto;border-bottom:1px solid var(--hair)}
+.g .it:last-child{border-bottom:0}
+.g .it .box{margin-top:5px}
+.it.fait{color:var(--ink-3)}
+
+/* ===== B ===== */
+.b-body{padding:0 40px;display:flex;flex-direction:column;flex:1}
+.b-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+.b-head .nt{font-size:28px;line-height:36px}
+.b-head .meta{margin-top:4px;white-space:nowrap}
+.b-body .bref{margin-top:14px}
+.b-body .bref .t{font-size:21px;line-height:30px}
+.cols{display:grid;grid-template-columns:1.2fr .8fr 1.35fr;margin-top:20px;flex:1}
+.col{padding:0 24px;border-left:1px solid var(--hair-2)}
+.col:first-child{padding-left:0;border-left:0}
+.col:last-child{padding-right:0}
+.col h3{display:flex;align-items:baseline;gap:10px;font-size:17px;line-height:24px;font-weight:500;color:var(--ink);margin-bottom:8px}
+.col h3 .c{font-weight:400;font-size:15px;color:var(--ink-3)}
+.q1{display:grid;grid-template-columns:minmax(0,1fr) 16px;column-gap:8px;padding:7px 0;font-family:var(--serif);font-size:17px;line-height:24px;font-variation-settings:"opsz" 17;color:var(--ink)}
+.q1 svg{width:16px;height:16px;color:var(--ink-3);margin-top:4px}
+.q1.open{margin:4px -12px;padding:10px 12px;border-radius:10px;background:var(--raised);box-shadow:inset 0 0 0 1px var(--hair-2)}
+.q1.open svg{color:var(--ink-2)}
+.q1 .det{grid-column:1/-1;margin-top:6px;font-size:16px;line-height:23px;color:var(--ink-2)}
+.q1 .det .by{display:flex;align-items:center;gap:8px;margin-top:8px;font-family:var(--sans);font-size:13px;line-height:20px;color:var(--ink-2)}
+.q1 .det .by b{font-weight:500;color:var(--ink)}
+.c2 .q1{grid-template-columns:20px minmax(0,1fr);column-gap:10px}
+.c2 .q1 svg{width:18px;height:18px;color:var(--ink);margin-top:3px}
+.c2 .q1 .due{margin-top:6px;grid-column:2}
+.todo{display:grid;grid-template-columns:88px minmax(0,1fr);column-gap:12px;align-items:start;padding:7px 0;border-bottom:1px solid var(--hair)}
+.todo:last-child{border-bottom:0}
+.todo .due{margin-top:1px;justify-content:center}
+.todo .x{font-family:var(--serif);font-size:17px;line-height:24px;font-variation-settings:"opsz" 18;color:var(--ink)}
+.todo .x small{display:block;font-family:var(--sans);font-size:13px;line-height:18px;color:var(--ink-2);margin-top:1px}
+.todo.fait .x{color:var(--ink-3)}
+.todo.fait .due{justify-content:flex-start;padding:0}
+
+/* ===== C ===== */
+.c-body{width:900px;margin:0 auto;padding:0 0 28px}
+.c-body .bref{margin-top:24px;padding-left:20px;border-left:2px solid var(--hair-2);margin-left:100px}
+.fil{margin-top:32px}
+.mom{position:relative;padding:0 0 28px 100px}
+.mom::before{content:"";position:absolute;left:72px;top:16px;bottom:-12px;width:1px;background:var(--hair-2)}
+.mom:last-child::before{display:none}
+.mom .tm{position:absolute;left:0;top:0;width:56px;text-align:right;font-size:14px;line-height:32px;color:var(--ink-2)}
+.mom .dt{position:absolute;left:68px;top:11px;width:9px;height:9px;border-radius:50%;background:var(--pan);box-shadow:inset 0 0 0 1.5px var(--ink-3)}
+.mom h4{font-family:var(--serif);font-weight:400;font-size:22px;line-height:32px;font-variation-settings:"opsz" 22;color:var(--ink);margin-bottom:6px}
+.e{display:grid;grid-template-columns:84px minmax(0,1fr) auto;column-gap:16px;align-items:start;padding:5px 0;font-family:var(--serif);font-size:18px;line-height:27px;font-variation-settings:"opsz" 18;color:var(--ink)}
+.e .s{font-family:var(--sans);font-size:14px;font-weight:500;color:var(--ink-2);line-height:27px}
+.e .due{margin-top:0}
+.lab{display:inline-flex;align-items:center;justify-content:center;width:84px;gap:6px;height:24px;margin-top:1.5px;padding:0 9px;border-radius:6px;font-family:var(--sans);font-size:13px;font-weight:500;line-height:1;white-space:nowrap}
+.lab svg{width:14px;height:14px;stroke-width:1.8}
+.lab.d{background:var(--ink);color:#0b0b0b}
+.lab.a{box-shadow:inset 0 0 0 1px var(--hair-2);color:var(--ink)}
+.lab.f{color:var(--ink-3);padding-left:0;justify-content:flex-start}
+.e.dec{font-weight:500}
+.e.fait{color:var(--ink-3)}
+.rec{margin-top:8px;padding-left:100px}
+.rec h3{display:flex;align-items:baseline;gap:10px;font-size:17px;line-height:24px;font-weight:500;color:var(--ink);padding-bottom:12px;border-bottom:1px solid var(--hair-2)}
+.rec h3 .c{font-weight:400;font-size:15px;color:var(--ink-3)}
+.rc{display:grid;grid-template-columns:108px minmax(0,1fr) 76px;column-gap:16px;align-items:center;min-height:44px;border-bottom:1px solid var(--hair);font-family:var(--serif);font-size:18px;line-height:26px;font-variation-settings:"opsz" 18;color:var(--ink)}
+.rc:last-child{border-bottom:0}
+.rc .due{justify-content:center}
+.rc .w{font-family:var(--sans);font-size:14px;color:var(--ink-2);text-align:right}
+.rc.fait{color:var(--ink-3)}
+.rc.fait .due{justify-content:flex-start;padding:0}
+</style></head><body>
+
+<div class="top"><b>Verbe</b> · Réunions, lecture de la note · version 2 · même appel fictif dans les trois variantes</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="search" viewBox="0 0 20 20"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2L17 17"/></symbol>
+<symbol id="check" viewBox="0 0 20 20"><path d="M4.5 10.5l3.5 3.5 7.5-8.5"/></symbol>
+<symbol id="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></symbol>
+<symbol id="chevr" viewBox="0 0 20 20"><path d="M8 5l5 5-5 5"/></symbol>
+<symbol id="back" viewBox="0 0 20 20"><path d="M12 5l-5 5 5 5"/></symbol>
+<symbol id="lock" viewBox="0 0 20 20"><rect x="4.5" y="9" width="11" height="7.5" rx="2"/><path d="M7 9V7a3 3 0 0 1 6 0v2"/></symbol>
+<symbol id="rec" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="2.5" fill="currentColor"/></symbol>
+</svg>
+
+<!-- ============ LISTE ============ -->
+<section class="scene" id="liste"><div class="cap"><i>L</i><span>Liste commune aux trois — chaque ligne dit de quoi parlait la réunion et ce qu’il en reste à faire.</span></div>
+<div class="win fix">
+<div class="bar"><div class="lights"><span></span><span></span><span></span></div>
+<div class="tabs"><div class="tab">Dictées</div><div class="tab">Mots</div><div class="tab on">Réunions</div></div><div class="sp"></div><div class="tabs"><div class="tab">Réglages</div></div></div>
+<div class="l-body">
+<div class="l-top"><div class="field"><svg class="i"><use href="#search"/></svg><span class="ph">Rechercher dans les réunions</span><span class="r"><span class="kbd">⌘ K</span></span></div>
+<span class="btn primary"><svg class="i s"><use href="#rec"/></svg> Noter la réunion <span class="kbd">⌥⌘N</span></span></div>
+<div class="l-filt"><span class="on">Toutes <em>6</em></span><span>Avec des actions à faire <em>4</em></span><span class="tot"><b>10</b> actions à faire</span></div>
+<div class="lr sel"><div class="d">14:02<small>lun. 9 nov.</small></div><div><div class="x">Appel Garnier &amp; Fils, offre et calendrier</div><div class="y">Offre complète retenue, budget à valider jeudi, signature visée avant le 20 novembre.</div></div><div class="m">38 min</div><div class="r">4 à faire<small>dès mer. 11</small></div></div>
+<div class="lr"><div class="d">09:30<small>lun. 9 nov.</small></div><div><div class="x">Point de la semaine avec l’équipe</div><div class="y">Trois priorités pour la semaine, le planning des congés de décembre reste à boucler.</div></div><div class="m">24 min</div><div class="r">2 à faire<small>dès mar. 10</small></div></div>
+<div class="lr"><div class="d">17:40<small>dim. 8 nov.</small></div><div><div class="x">Réunion du dim. 8 nov. 2026, 17:40</div><div class="y q">Pas encore de note pour cet enregistrement.</div></div><div class="m">17 min</div><div class="r z">sans note</div></div>
+<div class="lr"><div class="d">11:00<small>ven. 6 nov.</small></div><div><div class="x">Visio Atelier Roche, premier cadrage</div><div class="y">Périmètre limité à une ligne de production, visite sur site à caler semaine du 16.</div></div><div class="m">52 min</div><div class="r">3 à faire<small>dès jeu. 12</small></div></div>
+<div class="lr"><div class="d">15:15<small>jeu. 5 nov.</small></div><div><div class="x">Rendez-vous banque, prêt pour le matériel</div><div class="y">Accord de principe sur 40 000 €, dossier complet à rendre avant le 18 novembre.</div></div><div class="m">31 min</div><div class="r">1 à faire<small>dès mer. 18</small></div></div>
+<div class="lr"><div class="d">10:05<small>mer. 4 nov.</small></div><div><div class="x">Appel fournisseur, délais de livraison</div><div class="y">Livraison confirmée sous six semaines, rien en attente.</div></div><div class="m">17 min</div><div class="r z">tout fait</div></div>
+</div>
+<div class="foot"><svg class="i s"><use href="#lock"/></svg>Gardé sur ce Mac</div>
+</div></section>
+
+<!-- ============ A ============ -->
+<section class="scene" id="a"><div class="cap"><i>A</i><span>Carnet aéré — une ligne En bref, sections titrées avec leur nombre, échéances en étiquettes, actions regroupées par personne.</span></div>
+<div class="win">
+<div class="bar"><div class="lights"><span></span><span></span><span></span></div>
+<div class="tabs"><div class="tab">Dictées</div><div class="tab">Mots</div><div class="tab on">Réunions</div></div><div class="sp"></div><div class="tabs"><div class="tab">Réglages</div></div></div>
+<div class="sub"><span class="back"><svg class="i"><use href="#back"/></svg>Réunions</span><span class="btn quiet">Copier</span><span class="btn quiet">Exporter <svg class="i s"><use href="#chev"/></svg></span><span class="btn quiet">Effacer</span></div>
+<div class="a-body">
+<div class="nt">Appel Garnier &amp; Fils, offre et calendrier</div>
+<div class="meta">lun. 9 nov. 2026, 14:02 · 38 min · <b>Moi, Nathalie, Paul</b></div>
+<div class="bref"><div class="l">En bref</div><div class="t">Offre complète retenue, budget à valider jeudi, signature visée avant le 20 novembre.</div></div>
+
+<div class="sec"><h3>Ce qui a été dit <span class="c">4</span></h3>
+<div class="it"><span class="dot"></span><span><b>Deux ateliers</b> à équiper, un à Lyon et un à Annecy, avant janvier.</span></div>
+<div class="it"><span class="dot"></span><span>L’<b>offre complète</b> comprend les machines, l’installation et deux ans de maintenance.</span></div>
+<div class="it"><span class="dot"></span><span>Le <b>prix</b> reste le point sensible : Nathalie en parle à son associé jeudi.</span></div>
+<div class="it"><span class="dot"></span><span>Un <b>troisième atelier</b> l’an prochain, rien n’est décidé.</span></div></div>
+
+<div class="sec"><h3>Ce qui a été décidé <span class="c">3</span></h3>
+<div class="it"><span class="ic"><svg class="i"><use href="#check"/></svg></span><span>Offre complète retenue, sans l’option formation.</span></div>
+<div class="it"><span class="ic"><svg class="i"><use href="#check"/></svg></span><span>Paiement en deux fois.</span></div>
+<div class="it"><span class="ic"><svg class="i"><use href="#check"/></svg></span><span>Signature visée.</span><span class="due">avant le 20 nov.</span></div></div>
+
+<div class="sec"><h3>Ce qu’il reste à faire <span class="c">4 · 1 fait</span></h3>
+<div class="g"><div class="p">Moi<span>2</span></div><div>
+<div class="it"><span class="box"></span><span>Envoyer la proposition chiffrée, deux options.</span><span class="due">mer. 11 nov. · soir</span></div>
+<div class="it"><span class="box"></span><span>Vérifier la date de livraison avec l’usine.</span><span class="due none">sans date</span></div></div></div>
+<div class="g"><div class="p">Nathalie<span>1</span></div><div>
+<div class="it"><span class="box"></span><span>Valider le budget avec son associé.</span><span class="due">jeu. 12 nov.</span></div></div></div>
+<div class="g"><div class="p">Paul<span>1</span></div><div>
+<div class="it"><span class="box"></span><span>Donner les volumes de commande.</span><span class="due">ven. 13 nov.</span></div></div></div>
+<div class="g"><div class="p" style="color:var(--ink-3)">Fait<span>1</span></div><div>
+<div class="it fait"><span class="box ck"><svg class="i"><use href="#check"/></svg></span><span>Moi, envoyer la fiche technique.</span></div></div></div>
+</div>
+
+<div class="sec" style="margin-top:32px"><div class="tr"><b>Transcription</b>38 min · 3 voix<span class="go">Afficher <svg class="i"><use href="#chevr"/></svg></span></div></div>
+</div>
+<div class="foot"><svg class="i s"><use href="#lock"/></svg>Gardé sur ce Mac</div>
+</div></section>
+
+<!-- ============ B ============ -->
+<section class="scene" id="b"><div class="cap"><i>B</i><span>D’un coup d’œil — Dit, Décidé, À faire côte à côte, tout tient sans défiler ; un clic ouvre le détail (ici : le prix).</span></div>
+<div class="win fix">
+<div class="bar"><div class="lights"><span></span><span></span><span></span></div>
+<div class="tabs"><div class="tab">Dictées</div><div class="tab">Mots</div><div class="tab on">Réunions</div></div><div class="sp"></div><div class="tabs"><div class="tab">Réglages</div></div></div>
+<div class="sub" style="height:40px"><span class="back"><svg class="i"><use href="#back"/></svg>Réunions</span><span class="btn quiet">Copier</span><span class="btn quiet">Exporter <svg class="i s"><use href="#chev"/></svg></span><span class="btn quiet">Effacer</span></div>
+<div class="b-body">
+<div class="b-head"><div class="nt">Appel Garnier &amp; Fils, offre et calendrier</div><div class="meta">lun. 9 nov. 2026, 14:02 · 38 min · <b>Moi, Nathalie, Paul</b></div></div>
+<div class="bref"><div class="l">En bref</div><div class="t">Offre complète retenue, budget à valider jeudi, signature visée avant le 20 novembre.</div></div>
+<div class="cols">
+<div class="col"><h3>Dit <span class="c">4</span></h3>
+<div class="q1"><span>Deux ateliers, Lyon et Annecy, avant janvier</span><svg class="i"><use href="#chevr"/></svg></div>
+<div class="q1"><span>Machines, installation, maintenance 2 ans</span><svg class="i"><use href="#chevr"/></svg></div>
+<div class="q1 open"><span>Prix sensible, Nathalie en parle à son associé jeudi</span><svg class="i"><use href="#chev"/></svg>
+<div class="det">« Le prix, c’est ce qui m’inquiète. J’en parle à mon associé jeudi. »<div class="by"><b>Nathalie</b> · 21:40 dans l’appel · <span style="color:var(--ink)">Écouter</span></div></div></div>
+<div class="q1"><span>Troisième atelier l’an prochain, pas décidé</span><svg class="i"><use href="#chevr"/></svg></div></div>
+<div class="col c2"><h3>Décidé <span class="c">3</span></h3>
+<div class="q1"><svg class="i"><use href="#check"/></svg><span>Offre complète, sans l’option formation</span></div>
+<div class="q1"><svg class="i"><use href="#check"/></svg><span>Paiement en deux fois</span></div>
+<div class="q1"><svg class="i"><use href="#check"/></svg><span>Signature visée</span><span class="due">avant le 20 nov.</span></div></div>
+<div class="col"><h3>À faire <span class="c">4 · 1 fait</span></h3>
+<div class="todo"><span class="due">mer. 11 · soir</span><span class="x">Envoyer la proposition chiffrée, deux options<small>Moi</small></span></div>
+<div class="todo"><span class="due">jeu. 12</span><span class="x">Valider le budget avec son associé<small>Nathalie</small></span></div>
+<div class="todo"><span class="due">ven. 13</span><span class="x">Donner les volumes de commande<small>Paul</small></span></div>
+<div class="todo"><span class="due none">sans date</span><span class="x">Vérifier la date de livraison avec l’usine<small>Moi</small></span></div>
+<div class="todo fait"><span class="due done">fait</span><span class="x">Envoyer la fiche technique<small>Moi</small></span></div></div>
+</div>
+<div class="tr" style="margin-top:12px"><b>Transcription</b>38 min · 3 voix<span class="go">Afficher <svg class="i"><use href="#chevr"/></svg></span></div>
+</div>
+</div></section>
+
+<!-- ============ C ============ -->
+<section class="scene" id="c"><div class="cap"><i>C</i><span>Le fil de l’appel — le déroulé par moments avec l’heure et qui a dit quoi ; décisions et actions repérées dans le fil, récap en bas.</span></div>
+<div class="win">
+<div class="bar"><div class="lights"><span></span><span></span><span></span></div>
+<div class="tabs"><div class="tab">Dictées</div><div class="tab">Mots</div><div class="tab on">Réunions</div></div><div class="sp"></div><div class="tabs"><div class="tab">Réglages</div></div></div>
+<div class="sub"><span class="back"><svg class="i"><use href="#back"/></svg>Réunions</span><span class="btn quiet">Copier</span><span class="btn quiet">Exporter <svg class="i s"><use href="#chev"/></svg></span><span class="btn quiet">Effacer</span></div>
+<div class="c-body">
+<div style="padding-left:100px"><div class="nt">Appel Garnier &amp; Fils, offre et calendrier</div>
+<div class="meta">lun. 9 nov. 2026, 14:02 · 38 min · <b>Moi, Nathalie, Paul</b></div></div>
+<div class="bref"><div class="l">En bref</div><div class="t">Offre complète retenue, budget à valider jeudi, signature visée avant le 20 novembre.</div></div>
+
+<div class="fil">
+<div class="mom"><span class="tm">00:00</span><span class="dt"></span><h4>Les deux ateliers</h4>
+<div class="e"><span class="s">Nathalie</span><span>Deux ateliers à équiper, un à Lyon et un à Annecy, avant janvier.</span></div>
+<div class="e"><span class="s">Moi</span><span>On vise une installation avant les fêtes.</span></div></div>
+
+<div class="mom"><span class="tm">08:15</span><span class="dt"></span><h4>Ce que contient l’offre</h4>
+<div class="e"><span class="s">Moi</span><span>L’offre complète comprend les machines, l’installation et deux ans de maintenance.</span></div>
+<div class="e"><span class="s">Paul</span><span>La formation, on s’en passe, les équipes connaissent déjà le matériel.</span></div>
+<div class="e dec"><span class="lab d"><svg class="i"><use href="#check"/></svg>Décidé</span><span>Offre complète retenue, sans l’option formation.</span></div></div>
+
+<div class="mom"><span class="tm">21:40</span><span class="dt"></span><h4>Le prix</h4>
+<div class="e"><span class="s">Nathalie</span><span>Le prix reste le point sensible, j’en parle à mon associé jeudi.</span></div>
+<div class="e"><span class="lab a">À faire</span><span>Nathalie valide le budget avec son associé.</span><span class="due">jeu. 12 nov.</span></div>
+<div class="e dec"><span class="lab d"><svg class="i"><use href="#check"/></svg>Décidé</span><span>Paiement en deux fois.</span></div></div>
+
+<div class="mom"><span class="tm">29:30</span><span class="dt"></span><h4>Le calendrier</h4>
+<div class="e"><span class="s">Moi</span><span>Un troisième atelier l’an prochain, rien n’est décidé.</span></div>
+<div class="e"><span class="s">Paul</span><span>Je vous donne les volumes de commande vendredi.</span></div>
+<div class="e"><span class="lab a">À faire</span><span>Paul donne les volumes de commande.</span><span class="due">ven. 13 nov.</span></div>
+<div class="e dec"><span class="lab d"><svg class="i"><use href="#check"/></svg>Décidé</span><span>Signature visée.</span><span class="due">avant le 20 nov.</span></div></div>
+
+<div class="mom"><span class="tm">35:10</span><span class="dt"></span><h4>Pour conclure</h4>
+<div class="e"><span class="lab a">À faire</span><span>Moi, envoyer la proposition chiffrée, deux options.</span><span class="due">mer. 11 nov. · soir</span></div>
+<div class="e"><span class="lab a">À faire</span><span>Moi, vérifier la date de livraison avec l’usine.</span><span class="due none">sans date</span></div>
+<div class="e fait"><span class="lab f"><svg class="i"><use href="#check"/></svg>Fait</span><span>Moi, envoyer la fiche technique.</span></div></div>
+</div>
+
+<div class="rec"><h3>Actions, par échéance <span class="c">4 · 1 fait</span></h3>
+<div class="rc"><span class="due">mer. 11 · soir</span><span>Envoyer la proposition chiffrée, deux options</span><span class="w">Moi</span></div>
+<div class="rc"><span class="due">jeu. 12</span><span>Valider le budget avec son associé</span><span class="w">Nathalie</span></div>
+<div class="rc"><span class="due">ven. 13</span><span>Donner les volumes de commande</span><span class="w">Paul</span></div>
+<div class="rc"><span class="due none">sans date</span><span>Vérifier la date de livraison avec l’usine</span><span class="w">Moi</span></div>
+<div class="rc fait"><span class="due done">fait</span><span>Envoyer la fiche technique</span><span class="w">Moi</span></div></div>
+<div class="rec" style="margin-top:20px"><div class="tr"><b>Transcription</b>38 min · 3 voix<span class="go">Afficher <svg class="i"><use href="#chevr"/></svg></span></div></div>
+</div>
+<div class="foot"><svg class="i s"><use href="#lock"/></svg>Gardé sur ce Mac</div>
+</div></section>
+
+<script>(function(){var h=location.hash.slice(1);if(!h)return;var k=h.split(',');document.querySelectorAll('.scene').forEach(function(s){if(k.indexOf(s.id)<0)s.style.display='none'})})();</script>
+</body></html>
