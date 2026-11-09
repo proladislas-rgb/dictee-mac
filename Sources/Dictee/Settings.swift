@@ -22,6 +22,26 @@ enum Settings {
         return l.isEmpty ? ChoixLangue.autoriseesParDefaut : l
     }
 
+    /// Modèle de transcription : `rapide` (whisper-large-v3-turbo) ou `precis` (whisper-large-v3). Réglage « Vitesse de transcription »
+    /// (Réglages › Écriture). `DICTEE_MODELE_WHISPER=rapide|precis` pour les mesures.
+    /// Exemple : defaults write com.hugues.dictee modeleWhisper precis
+    static var modeleWhisper: ModeleWhisper {
+        get {
+            if let force = modeleForce { return force }
+            return ModeleWhisper.depuis(reglage: ProcessInfo.processInfo.environment["DICTEE_MODELE_WHISPER"] ?? defaults.string(forKey: "modeleWhisper")) ?? ModeleWhisper.parDefaut
+        }
+        set { defaults.set(newValue.rawValue, forKey: "modeleWhisper") }
+    }
+
+    /// Imposé par un mode en ligne de commande (`--comparer-precision`) : le modèle essayé à cet instant.
+    nonisolated(unsafe) static var modeleForce: ModeleWhisper?
+
+    /// Latences mesurées chez Hugues pour chaque modèle (affichées discrètement dans les Réglages).
+    static var latences: SuiviLatence {
+        get { SuiviLatence.depuis(defaults.data(forKey: "latencesWhisper")) }
+        set { defaults.set(newValue.donnees(), forKey: "latencesWhisper") }
+    }
+
     /// Délai maximal d'attente de Groq après le relâchement, avant de passer au texte de secours d'Apple.
     static let delaiGroq: Double = 4.0
 

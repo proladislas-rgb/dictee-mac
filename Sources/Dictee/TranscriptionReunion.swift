@@ -89,7 +89,7 @@ final class TranscriptionReunion: @unchecked Sendable {
             BudgetAudio.partage.noter(duree: m.duree)
             do {
                 var texte = try await groq.transcrire(fichier: fichier, prompt: prompt(contexte), langue: langue, autorisees: Settings.languesAutorisees,
-                                                      etiquette: "réunion \(m.locuteur.libelle) \(FormatReunion.horloge(m.debut))")
+                                                      etiquette: "réunion \(m.locuteur.libelle) \(FormatReunion.horloge(m.debut))", modele: .rapide)
                 if let correcteur { texte = await correcteur(texte, verrou.withLock { recus } + 1) }
                 texte = texte.trimmingCharacters(in: .whitespacesAndNewlines)
                 let ms = Int((ProcessInfo.processInfo.systemUptime - debut) * 1000)

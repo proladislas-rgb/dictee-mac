@@ -222,7 +222,8 @@ final class DictationController {
         let attente = ms(ProcessInfo.processInfo.systemUptime - relache)
         switch resultat {
         case .texte(let texte) where !texte.isEmpty:
-            Log.ecrire("dictée \(s.id) : réponse Groq complète \(attente) ms après le relâchement, \"\(Log.apercu(texte))\"")
+            Log.ecrire("dictée \(s.id) : réponse Groq complète \(attente) ms après le relâchement (\(Settings.modeleWhisper.identifiant)), \"\(Log.apercu(texte))\"")
+            if s.transcripteur.nombreDeMorceaux <= 2 { var l = Settings.latences; l.noter(attente, modele: Settings.modeleWhisper); Settings.latences = l }
             await ecrire(texte, session: s, relachement: relache)
         case .texte:
             Log.ecrire("dictée \(s.id) : Groq n'a rien reconnu (\(attente) ms)")

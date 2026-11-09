@@ -22,6 +22,9 @@ final class ReglagesModele: ObservableObject {
     @Published var secoursApple: Bool { didSet { if !installe { return }; Settings.secoursApple = secoursApple } }
     @Published var afficherLaLecture: Bool { didSet { if !installe { return }; Settings.afficherLaLecture = afficherLaLecture; NotificationCenter.default.post(name: .verbeLectureReglages, object: nil) } }
     @Published var pauseLecturePendantDictee: Bool { didSet { if !installe { return }; Settings.pauseLecturePendantDictee = pauseLecturePendantDictee } }
+    @Published var modeleWhisper: ModeleWhisper { didSet { if !installe { return }; Settings.modeleWhisper = modeleWhisper } }
+    /// La phrase sous « Vitesse de transcription » (avec les latences mesurées chez Hugues).
+    @Published private(set) var phraseVitesse = ""
     @Published var langue: String { didSet { if !installe { return }; Settings.choisirLangue(langue == ChoixLangue.automatique ? nil : langue) } }
     @Published var micro: String { didSet { if !installe { return }; Settings.micro = micro.isEmpty ? nil : micro; rafraichirMicroUtilise() } }
     @Published var ouvrirAuDemarrage: Bool
@@ -59,6 +62,7 @@ final class ReglagesModele: ObservableObject {
         vibration = reel ? Settings.vibration : true
         afficherLaLecture = reel ? Settings.afficherLaLecture : true
         pauseLecturePendantDictee = reel ? Settings.pauseLecturePendantDictee : true
+        modeleWhisper = reel ? Settings.modeleWhisper : ModeleWhisper.parDefaut
         langue = reel ? Settings.langueReglage : ChoixLangue.defaut
         micro = reel ? (Settings.micro ?? "") : "exemple"
         ouvrirAuDemarrage = reel ? SMAppService.mainApp.status == .enabled : false
@@ -75,6 +79,8 @@ final class ReglagesModele: ObservableObject {
         if !micro.isEmpty, micro != ChoixMicro.systeme, !micros.contains(where: { $0.id == micro }) { micros.append(MicroChoix(id: micro, nom: "Micro absent")) }
         disponibiliteSecours = PrechauffageParole.disponibilite
         cle = CleGroq.etat
+        phraseVitesse = Settings.latences.phrase()
+        modeleWhisper = Settings.modeleWhisper
         autorisationsCompletes = Permissions.toutesOK
         autorisationsAccordees = [Permissions.microOK, Permissions.accessibiliteOK, Permissions.surveillanceOK].filter { $0 }.count
         rafraichirMicroUtilise()
@@ -99,6 +105,7 @@ final class ReglagesModele: ObservableObject {
         guard reel else { return }
         let v = ToucheGlobe.lire()
         if v != globeValeur { globeValeur = v }
+
     }
 
     func ouvrirVoletClavier() {

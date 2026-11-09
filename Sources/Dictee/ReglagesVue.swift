@@ -61,7 +61,10 @@ struct ReglagesVue: View {
     private var ecriture: some View {
         VStack(alignment: .leading, spacing: 0) {
             EnteteSection(titre: "Écriture", phrase: "Ce que Verbe fait du texte avant de l\u{2019}écrire.", compte: nil)
-            LigneReglage(libelle: "Remettre au propre", note: "Ajoute la ponctuation et retire les « euh ».", premiere: true) {
+            LigneReglage(libelle: "Vitesse de transcription", note: r.phraseVitesse.isEmpty ? "Rapide : le plus rapide.\nPrécis : un peu plus lent, plus juste." : r.phraseVitesse, premiere: true) {
+                ChoixReglage(libelle: "Vitesse de transcription", valeur: $r.modeleWhisper, options: ModeleWhisper.allCases.map { ($0, $0.libelle) })
+            }
+            LigneReglage(libelle: "Remettre au propre", note: "Ajoute la ponctuation et retire les « euh ».") {
                 Interrupteur(actif: $r.remettreAuPropre, etiquette: "Remettre au propre")
             }
             LigneReglage(libelle: "Adapter le ton à l\u{2019}app", note: "Plus soigné dans Mail, plus court dans WhatsApp.") {

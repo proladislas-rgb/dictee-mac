@@ -1911,6 +1911,7 @@ do {
     verifier(r.processusArrete(dureeDeVie: 5, echecMediaRemote: true) == .abandonner(raison: "MediaRemote inaccessible sur cette version de macOS"), "MediaRemote inaccessible : abandon tout de suite")
     r.reinitialiser(); verifier(r.echecs == 0, "réinitialisation")
 }
+controlesPrecision()
 
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)

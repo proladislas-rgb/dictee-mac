@@ -122,8 +122,8 @@ final class ChunkTranscriber: @unchecked Sendable {
             Log.ecrire("envoi anticipé jeté : la parole a repris")
             enAttente = nil
         }
-        guard BudgetRequetes.partage.permet(.anticipation) else {
-            Log.ecrire("envoi anticipé non fait : budget de requêtes bas (\(BudgetRequetes.partage.restantMinute()) restantes cette minute)")
+        guard BudgetRequetes.whisper(Settings.modeleWhisper).permet(.anticipation) else {
+            Log.ecrire("envoi anticipé non fait : budget de requêtes bas (\(BudgetRequetes.whisper(Settings.modeleWhisper).restantMinute()) restantes cette minute)")
             return
         }
         let m = Morceau(morceau: son, contexte: dernierTexte, anticipe: true)
@@ -144,7 +144,9 @@ final class ChunkTranscriber: @unchecked Sendable {
             let debut = ProcessInfo.processInfo.systemUptime
             let nom = "morceau \(m.numero)\(secours ? " (secours)" : m.anticipe ? " (anticipé)" : "")"
             do {
-                var texte = try await groq.transcrire(fichier: fichier, prompt: prompt, langue: langue, autorisees: Settings.languesAutorisees, etiquette: nom)
+                // La requête de secours du modèle précis part en turbo (limites comptées à part, et plus rapide) : la course se joue entre les deux modèles.
+                let modele = secours ? Settings.modeleWhisper.secoursRapide : Settings.modeleWhisper
+                var texte = try await groq.transcrire(fichier: fichier, prompt: prompt, langue: langue, autorisees: Settings.languesAutorisees, etiquette: nom, modele: modele)
                 let ms = Int((ProcessInfo.processInfo.systemUptime - debut) * 1000)
                 // Correction « à l'oreille » (mots du lexique mal entendus) : avant tout le reste, pour que la remise au propre,
                 // l'envoi anticipé et le contexte du morceau suivant partent tous du texte corrigé.
@@ -230,10 +232,10 @@ final class ChunkTranscriber: @unchecked Sendable {
         }
         // Soit la réponse tarde, soit la première requête a échoué sur le réseau.
         if premier.isCancelled { return await premier.value }
-        guard BudgetRequetes.partage.permet(.secours) else { return await premier.value }
+        guard BudgetRequetes.whisper(Settings.modeleWhisper.secoursRapide).permet(.secours) else { return await premier.value }
         let second = demarrerSecours(m)
         let apres = Int((ProcessInfo.processInfo.systemUptime - m.envoyeLe) * 1000)
-        Log.ecrire("morceau \(m.numero) : réponse attendue depuis \(apres) ms, requête de secours lancée")
+        Log.ecrire("morceau \(m.numero) : réponse attendue depuis \(apres) ms, requête de secours lancée\(Settings.modeleWhisper == .precis ? " en turbo" : "")")
         let duel = Duel()
         Task { duel.fini(secours: false, sortie: await premier.value) }
         Task { duel.fini(secours: true, sortie: await second.value) }

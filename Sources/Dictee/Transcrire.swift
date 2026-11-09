@@ -61,7 +61,7 @@ enum Transcrire {
 
     /// Attend que la dernière minute ait laissé de la place (limite gratuite : environ 20 requêtes par minute).
     private static func attendreLeBudget(nettoyage: Bool) async {
-        while BudgetRequetes.partage.restantMinute() < 10 || (nettoyage && BudgetRequetes.nettoyage.restantMinute() < 8) {
+        while BudgetRequetes.whisper(Settings.modeleWhisper).restantMinute() < 10 || (nettoyage && BudgetRequetes.nettoyage.restantMinute() < 8) {
             try? await Task.sleep(for: .milliseconds(500))
         }
     }

@@ -73,9 +73,9 @@ final class GroqClient: @unchecked Sendable {
 
     /// Nombre de requêtes Whisper lancées depuis le démarrage (le banc d'essai s'en sert pour compter son coût).
     private var compteRequetes = 0
-    private func compterEnvoi() {
+    private func compterEnvoi(_ modele: ModeleWhisper) {
         verrou.lock(); compteRequetes += 1; verrou.unlock()
-        BudgetRequetes.partage.noterEnvoi()
+        BudgetRequetes.whisper(modele).noterEnvoi()
     }
     var requetesEnvoyees: Int { verrou.lock(); defer { verrou.unlock() }; return compteRequetes }
 
@@ -98,19 +98,43 @@ final class GroqClient: @unchecked Sendable {
     /// Whisper détecte, la langue détectée est lue (`verbose_json`) et, si elle n'est pas dans `autorisees`, le même morceau est
     /// relancé aussitôt en forçant la première langue autorisée (la détection se trompe souvent sur les phrases très courtes).
     func transcrire(fichier: EncodeurAudio.Fichier, prompt: String, langue: String?, autorisees: [String] = ChoixLangue.autoriseesParDefaut,
-                    etiquette: String = "") async throws -> String {
+                    etiquette: String = "", modele: ModeleWhisper = Settings.modeleWhisper) async throws -> String {
+        // Le modèle « Précis » est limité ou en panne : le même morceau part aussitôt en « Rapide » (limites comptées à part), jamais d'attente en plus.
+        var modele = modele
+        if modele == .precis, BudgetRequetes.precis.enPause() {
+            Log.ecrire("\(etiquette) : modèle précis en pause (limite atteinte) -> turbo pour ce morceau")
+            modele = .rapide
+        }
+        do {
+            return try await transcrireAvec(modele: modele, fichier: fichier, prompt: prompt, langue: langue, autorisees: autorisees, etiquette: etiquette)
+        } catch let e as GroqErreur where modele == .precis && Self.justifieLeSecours(e) {
+            Log.ecrire("\(etiquette) : modèle précis en échec (\(e)) -> même morceau relancé en turbo")
+            return try await transcrireAvec(modele: .rapide, fichier: fichier, prompt: prompt, langue: langue, autorisees: autorisees, etiquette: etiquette + " (turbo de secours)")
+        }
+    }
+
+    /// Limite atteinte, panne de Groq ou réseau : le turbo a ses propres limites et peut répondre.
+    static func justifieLeSecours(_ e: GroqErreur) -> Bool {
+        switch e {
+        case .http(let c): return c == 429 || c >= 500
+        case .reseau: return true
+        default: return false
+        }
+    }
+
+    private func transcrireAvec(modele: ModeleWhisper, fichier: EncodeurAudio.Fichier, prompt: String, langue: String?, autorisees: [String], etiquette: String) async throws -> String {
         if let langue, !langue.isEmpty {
-            return try await requete(fichier: fichier, prompt: prompt, langue: langue, verbose: false, etiquette: etiquette).texte
+            return try await requete(modele: modele, fichier: fichier, prompt: prompt, langue: langue, verbose: false, etiquette: etiquette).texte
         }
         let t0 = ProcessInfo.processInfo.systemUptime
-        let premiere = try await requete(fichier: fichier, prompt: prompt, langue: nil, verbose: true, etiquette: etiquette)
+        let premiere = try await requete(modele: modele, fichier: fichier, prompt: prompt, langue: nil, verbose: true, etiquette: etiquette)
         if ChoixLangue.accepter(nomDetecte: premiere.langue, autorisees: autorisees) { return premiere.texte }
         let forcee = autorisees.first ?? ChoixLangue.defaut
         Log.ecrire("\(etiquette) : langue détectée « \(premiere.langue ?? "?") » hors de la liste (\(autorisees.joined(separator: ", "))) -> même morceau relancé en « \(forcee) » (+\(Int((ProcessInfo.processInfo.systemUptime - t0) * 1000)) ms déjà perdus)")
-        return try await requete(fichier: fichier, prompt: prompt, langue: forcee, verbose: false, etiquette: etiquette + " (langue forcée)").texte
+        return try await requete(modele: modele, fichier: fichier, prompt: prompt, langue: forcee, verbose: false, etiquette: etiquette + " (langue forcée)").texte
     }
 
-    private func requete(fichier: EncodeurAudio.Fichier, prompt: String, langue: String?, verbose: Bool, etiquette: String) async throws -> (texte: String, langue: String?) {
+    private func requete(modele: ModeleWhisper, fichier: EncodeurAudio.Fichier, prompt: String, langue: String?, verbose: Bool, etiquette: String) async throws -> (texte: String, langue: String?) {
         guard let cle else { throw GroqErreur.pasDeCle }
         // Mesure du « secours rapide » : la première requête de chaque morceau est retardée (jamais en usage normal).
         if let ms = ProcessInfo.processInfo.environment["DICTEE_RETARD_PREMIERE_REQUETE_MS"].flatMap({ Double($0) }), !etiquette.contains("secours") {
@@ -121,7 +145,7 @@ final class GroqClient: @unchecked Sendable {
         func champ(_ nom: String, _ valeur: String) {
             corps.append("--\(frontiere)\r\nContent-Disposition: form-data; name=\"\(nom)\"\r\n\r\n\(valeur)\r\n".data(using: .utf8)!)
         }
-        champ("model", "whisper-large-v3-turbo")
+        champ("model", modele.identifiant)
         champ("response_format", verbose ? "verbose_json" : "json")
         champ("temperature", "0")
         if let langue, !langue.isEmpty { champ("language", langue) }
@@ -136,7 +160,7 @@ final class GroqClient: @unchecked Sendable {
         req.setValue("multipart/form-data; boundary=\(frontiere)", forHTTPHeaderField: "Content-Type")
         req.httpBody = corps
 
-        compterEnvoi()
+        compterEnvoi(modele)
         let mesure = MesureReseau()
         let data: Data, reponse: URLResponse
         do { (data, reponse) = try await session.data(for: req, delegate: mesure) }
@@ -146,11 +170,12 @@ final class GroqClient: @unchecked Sendable {
         if !mesure.resume.isEmpty { Log.ecrire("réseau \(etiquette) : \(mesure.resume), \(corps.count / 1024) Ko envoyés") }
 
         guard let http = reponse as? HTTPURLResponse else { throw GroqErreur.reponseIllisible }
-        BudgetRequetes.partage.noterRestantJour(http.value(forHTTPHeaderField: "x-ratelimit-remaining-requests").flatMap { Int($0) })
+        let budget = BudgetRequetes.whisper(modele)
+        budget.noterRestantJour(http.value(forHTTPHeaderField: "x-ratelimit-remaining-requests").flatMap { Int($0) })
         if http.statusCode == 429 {
             let attente = BudgetRequetes.secondes(deEnTete: http.value(forHTTPHeaderField: "retry-after"))
-            BudgetRequetes.partage.noter429(retryAfter: attente)
-            Log.ecrire("Groq limite atteinte (429), nouvelle tentative possible dans \(Int(attente ?? 0)) s : envois de confort suspendus")
+            budget.noter429(retryAfter: attente)
+            Log.ecrire("Groq limite atteinte (429, \(modele.identifiant)), nouvelle tentative possible dans \(Int(attente ?? 0)) s : envois de confort suspendus")
         }
         guard http.statusCode == 200 else { throw GroqErreur.http(http.statusCode) }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let texte = json["text"] as? String else {

@@ -30,6 +30,12 @@ public final class BudgetRequetes: @unchecked Sendable {
         self.margeSecours = margeSecours
     }
 
+    /// Budget de Whisper large-v3 (« Précis ») : ses limites gratuites sont comptées à part de celles du turbo (même plafond de 20 par minute).
+    public static let precis = BudgetRequetes()
+
+    /// Le budget du modèle de transcription choisi (`partage` pour le turbo).
+    public static func whisper(_ modele: ModeleWhisper) -> BudgetRequetes { modele == .rapide ? partage : precis }
+
     /// Budget de la remise au propre (modèle de langue de Groq : limites plus serrées, surtout en jetons par minute).
     public static let nettoyage = BudgetRequetes(limiteMinute: 10, margeAnticipation: 6, margeSecours: 3)
 
