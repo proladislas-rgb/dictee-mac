@@ -36,7 +36,11 @@ final class DictationController {
         }
     }
 
-    private(set) var etat: Etat = .repos
+    private(set) var etat: Etat = .repos {
+        didSet { if (oldValue != .repos) != (etat != .repos) { surChangementEtat?(etat != .repos) } }
+    }
+    /// Appelé quand une dictée commence (`true`) ou finit (`false`, relâchement ou annulation) : la lecture en cours se met en pause, puis reprend.
+    var surChangementEtat: ((Bool) -> Void)?
     private var courante: Session?
     private var compteur = 0
     private let audio = AudioCapture()

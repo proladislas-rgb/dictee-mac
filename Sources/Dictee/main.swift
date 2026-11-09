@@ -46,6 +46,22 @@ if let i = arguments.firstIndex(of: "--rendu-encoche"), i + 1 < arguments.count 
     exit(MainActor.assumeIsolated { RenduEncoche.executer(dossier: arguments[i + 1]) })
 }
 
+// Dictee --rendu-lecture dossier  (l'îlot de la lecture en cours et la bulle de dictée en PNG, sans fenêtre)
+if let i = arguments.firstIndex(of: "--rendu-lecture"), i + 1 < arguments.count {
+    exit(MainActor.assumeIsolated { RenduLecture.executer(dossier: arguments[i + 1]) })
+}
+
+// Dictee --lecture-test [secondes]  (lance le programme d'aide de la lecture en cours, affiche ce qui joue ; ni micro, ni clavier, ni Accessibilité)
+if let i = arguments.firstIndex(of: "--lecture-test") {
+    let secondes = (i + 1 < arguments.count ? Double(arguments[i + 1]) : nil) ?? 6
+    exit(MainActor.assumeIsolated { LectureTest.executer(secondes: secondes) })
+}
+
+// Dictee --lecture-essai [--app identifiant]  (essai de bout en bout de la lecture en cours, fenêtres transparentes ; ni micro, ni clavier, ni Accessibilité)
+if arguments.contains("--lecture-essai") {
+    exit(MainActor.assumeIsolated { LectureEssai.executer(arguments: arguments) })
+}
+
 // Dictee --rendu-reunion dossier  (encoche des réunions, liste et note en PNG, sans fenêtre)
 if let i = arguments.firstIndex(of: "--rendu-reunion"), i + 1 < arguments.count {
     exit(MainActor.assumeIsolated { RenduReunions.executer(dossier: arguments[i + 1]) })

@@ -20,6 +20,8 @@ final class ReglagesModele: ObservableObject {
     @Published var garderSonReunions: Bool { didSet { if !installe { return }; Settings.garderSonReunions = garderSonReunions } }
     @Published var proposerLesAppels: Bool { didSet { if !installe { return }; Settings.proposerLesAppels = proposerLesAppels } }
     @Published var secoursApple: Bool { didSet { if !installe { return }; Settings.secoursApple = secoursApple } }
+    @Published var afficherLaLecture: Bool { didSet { if !installe { return }; Settings.afficherLaLecture = afficherLaLecture; NotificationCenter.default.post(name: .verbeLectureReglages, object: nil) } }
+    @Published var pauseLecturePendantDictee: Bool { didSet { if !installe { return }; Settings.pauseLecturePendantDictee = pauseLecturePendantDictee } }
     @Published var langue: String { didSet { if !installe { return }; Settings.choisirLangue(langue == ChoixLangue.automatique ? nil : langue) } }
     @Published var micro: String { didSet { if !installe { return }; Settings.micro = micro.isEmpty ? nil : micro; rafraichirMicroUtilise() } }
     @Published var ouvrirAuDemarrage: Bool
@@ -55,6 +57,8 @@ final class ReglagesModele: ObservableObject {
         proposerLesAppels = reel ? Settings.proposerLesAppels : true
         sons = reel ? Settings.sons : true
         vibration = reel ? Settings.vibration : true
+        afficherLaLecture = reel ? Settings.afficherLaLecture : true
+        pauseLecturePendantDictee = reel ? Settings.pauseLecturePendantDictee : true
         langue = reel ? Settings.langueReglage : ChoixLangue.defaut
         micro = reel ? (Settings.micro ?? "") : "exemple"
         ouvrirAuDemarrage = reel ? SMAppService.mainApp.status == .enabled : false

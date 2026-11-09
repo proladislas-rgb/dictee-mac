@@ -40,6 +40,15 @@ cp "$BIN" "$ASSEMBLAGE/Contents/MacOS/$NOM_APP"
 # Police du texte dicté (Newsreader, licence OFL) et sa licence
 cp Resources/Polices/Newsreader.ttf Resources/Polices/OFL.txt "$ASSEMBLAGE/Contents/Resources/"
 
+# Lecture en cours dans l'encoche : un petit module natif (Objective-C) chargé par /usr/bin/perl, qui lit MediaRemote à la place de l'app
+# (macOS ≥ 15.4 ne le permet plus aux apps tierces). arm64e : /usr/bin/perl est arm64e, il ne charge pas un module arm64 seul.
+echo "==> Module de lecture en cours (verbe-lecture.dylib)"
+mkdir -p "$ASSEMBLAGE/Contents/Resources/lecture"
+clang -arch arm64e -arch arm64 -mmacosx-version-min=26.0 -dynamiclib -fobjc-arc -O2 -Wall -Werror -framework Foundation \
+  -install_name @rpath/verbe-lecture.dylib -o "$ASSEMBLAGE/Contents/Resources/lecture/verbe-lecture.dylib" Resources/lecture/verbe-lecture.m
+cp Resources/lecture/lanceur.pl "$ASSEMBLAGE/Contents/Resources/lecture/"
+codesign --force --sign - "$ASSEMBLAGE/Contents/Resources/lecture/verbe-lecture.dylib"
+
 # Icône d'app : dessinée en vectoriel par l'app elle-même (--rendu-icones : PNG seulement, ni micro ni clavier), puis iconutil.
 echo "==> Icône (AppIcon.icns)"
 rm -rf .build/icones

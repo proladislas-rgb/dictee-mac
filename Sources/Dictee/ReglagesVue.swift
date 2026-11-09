@@ -19,11 +19,11 @@ struct ReglagesVue: View {
                 Group {
                     if g.size.width >= Self.largeurDeuxColonnes {
                         HStack(alignment: .top, spacing: 56) {
-                            VStack(alignment: .leading, spacing: 28) { dictee; ecriture }.frame(maxWidth: .infinity, alignment: .top)
+                            VStack(alignment: .leading, spacing: 28) { dictee; ecriture; lecture }.frame(maxWidth: .infinity, alignment: .top)
                             VStack(alignment: .leading, spacing: 28) { retours; reunions; compte }.frame(maxWidth: .infinity, alignment: .top)
                         }
                     } else {
-                        VStack(alignment: .leading, spacing: 28) { dictee; ecriture; retours; reunions; compte }
+                        VStack(alignment: .leading, spacing: 28) { dictee; ecriture; lecture; retours; reunions; compte }
                     }
                 }
                 .padding(.top, 20)
@@ -70,6 +70,20 @@ struct ReglagesVue: View {
             LigneReglage(libelle: "Secours", note: r.phraseSecours) {
                 ChoixReglage(libelle: "Secours", valeur: $r.secoursApple, options: [(true, "Apple"), (false, "Aucun")])
             }
+        }
+    }
+
+    private var lecture: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            EnteteSection(titre: "Lecture en cours", phrase: "Ce qui joue sur le Mac, dans l\u{2019}encoche.", compte: nil)
+            LigneReglage(libelle: "Afficher la lecture en cours", note: "Musique et vidéos : pochette, titre, commandes. Survole l\u{2019}encoche pour la déplier.", premiere: true) {
+                Interrupteur(actif: $r.afficherLaLecture, etiquette: "Afficher la lecture en cours")
+            }
+            LigneReglage(libelle: "Mettre en pause pendant la dictée", note: r.afficherLaLecture ? "La lecture reprend à la fin, seulement si Verbe l\u{2019}a mise en pause." : "Demande d\u{2019}afficher la lecture en cours.") {
+                Interrupteur(actif: $r.pauseLecturePendantDictee, etiquette: "Mettre en pause pendant la dictée")
+            }
+            .opacity(r.afficherLaLecture ? 1 : 0.45)
+            .disabled(!r.afficherLaLecture)
         }
     }
 

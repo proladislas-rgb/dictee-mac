@@ -149,6 +149,22 @@ enum Settings {
         set { defaults.set(newValue ?? "", forKey: "microUID") }
     }
 
+    // MARK: Lecture en cours
+
+    /// Afficher dans l'encoche ce qui joue sur le Mac (musique, vidéo) avec ses commandes. Activé par défaut ; coupé, le programme d'aide
+    /// n'est jamais lancé. Exemple : defaults write com.hugues.dictee afficherLaLecture -bool false
+    static var afficherLaLecture: Bool {
+        get { defaults.object(forKey: "afficherLaLecture") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "afficherLaLecture") }
+    }
+
+    /// Mettre la lecture en pause pendant une dictée, puis la reprendre (seulement si c'est Verbe qui l'a mise en pause). Activé par défaut ;
+    /// n'a d'effet que si la lecture est affichée. Exemple : defaults write com.hugues.dictee pauseLecturePendantDictee -bool false
+    static var pauseLecturePendantDictee: Bool {
+        get { defaults.object(forKey: "pauseLecturePendantDictee") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "pauseLecturePendantDictee") }
+    }
+
     // MARK: Mise à jour automatique
 
     /// Vérifier GitHub une fois par jour s'il existe une nouvelle version. Activé par défaut.

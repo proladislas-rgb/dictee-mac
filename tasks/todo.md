@@ -67,7 +67,7 @@ Chaque lot : construit, essayé pour de vrai sur le Mac, poussé sur GitHub.
 
 ## Ordre décidé par Hugues (09/11 soir)
 1. Finir Verbe : onglet Journée → 0.3.1 (mise à jour automatique) — onglet Journée CONSTRUIT le 09/11 soir (voir ci-dessous) ; reste la 0.3.1
-2. Barre d'outils de l'encoche façon Dynamic Island (maquettes d'abord)
+2. Barre d'outils de l'encoche façon Dynamic Island : la lecture en cours est CONSTRUITE (09/11 nuit, voir ci-dessous) ; reste à l'essayer en vrai
 3. CRM WhatsApp de terrain : plus tard, sans se presser
 
 ## Résumé de la journée — onglet Journée (09/11 soir)
@@ -78,6 +78,16 @@ Choix de Hugues : « C1 avec un mélange du B2 et avec les fonctionnalités du C
 - [x] Rendus `design/rendus-journee/` (`Verbe --rendu-journee`), spec dans docs/spec-v1.md (« Résumé de la journée »).
 - [ ] Hugues : essayer en vrai (clics, ← →, Échap, cocher une action puis ouvrir la note, durée de parole dans historique.json) — 4 points dans la spec.
 - Écarts avec la maquette : les 7 derniers jours sont sous les trois colonnes (ça ne tient plus dans 770 px avec les En bref et 5 actions, la page défile) ; ⌘2 = Journée, Réunions passe en ⌘3 ; « Journée » apparaît aussi dans la navigation du panneau compact.
+
+## Lecture en cours dans l'encoche (09/11 nuit, après la 0.3.1)
+Maquette validée par Hugues (« c'est très bien, moi j'adore ») : `design/maquettes/lecture-encoche-v3.html` (A + C). Une partie de Verbe, même encoche. Détail, mesures et « À vérifier en vrai » : docs/spec-v1.md (« Lecture en cours dans l'encoche »).
+- [x] Source : module natif `Resources/lecture/verbe-lecture.m` (MediaRemote, arm64e + arm64) chargé par `/usr/bin/perl` (`lanceur.pl`), lignes JSON, notifications seulement (0,00 s de processeur en 30 s), commandes lecture / pause / bascule / suivant / précédent / position ; relancé avec délai croissant, abandon silencieux si MediaRemote disparaît ; fabriqué par `build.sh`.
+- [x] Logique pure `DicteeCore/LectureEnCours.swift` (lignes JSON, position, temps, trace sonore, libellé de source, site lu dans les titres de fenêtres, couleur dominante, priorités, pause / reprise, relance) : contrôles dans DicteeControles (977 verts au total).
+- [x] Îlot (repos : pochette ronde qui tourne ou carrée + onde teintée ; déplié 600 × 228 : trace sonore glissable, ±10 s, lecture-pause, suivant, lueur), bulle pendant la dictée, ressort interruptible, « Réduire les animations », jamais le focus, visible en plein écran ; priorités dictée > réunion > filet > mise à jour > lecture ; pause pendant la dictée et reprise seulement si c'est Verbe qui a mis en pause.
+- [x] Réglages › « Lecture en cours » : « Afficher la lecture en cours » + « Mettre en pause pendant la dictée » (activés par défaut).
+- [x] Vérifié sans rien montrer à l'écran : `Verbe --lecture-essai` (18 contrôles verts avec une source de test à volume 0), `Verbe --lecture-test`, rendus `Verbe --rendu-lecture` → `design/rendus-lecture/`.
+- [ ] Hugues : essayer en vrai (YouTube et Netflix dans Chrome, Spotify, pause pendant la dictée, plein écran) — 6 points dans la spec. Le site « YouTube » vient de l'Accessibilité (titre des fenêtres) : non testable depuis le shell.
+- [ ] Publication : à décider avec Hugues (README à compléter : la lecture passe par un module chargé par perl, MediaRemote étant fermé aux apps tierces depuis macOS 15.4 ; une future version de macOS peut le couper, la fonction se désactive alors toute seule).
 
 ## Étapes
 - [x] 1. Étude des deux apps installées avec REA (observer, ne rien copier) (rapport gardé hors du dépôt public)

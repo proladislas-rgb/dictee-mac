@@ -1724,5 +1724,171 @@ do {
     verifier(Journee.actions(jour: date(20, 9), reunions: toutes, maintenant: lundi, calendrier: cal).isEmpty && Journee.reunions(jour: date(20, 9), reunions: toutes, calendrier: cal).isEmpty, "jour sans réunion : rien")
 }
 
+// MARK: Lecture en cours dans l'encoche
+
+groupe("Lecture en cours : lignes du programme d'aide")
+do {
+    verifier(AideLecture.decoder("{\"t\":\"pret\"}") == .pret, "ligne « pret »")
+    verifier(AideLecture.decoder("{\"t\":\"rien\"}") == .rien, "ligne « rien »")
+    verifier(AideLecture.decoder("{\"t\":\"echec\",\"raison\":\"MediaRemote introuvable\"}") == .echec("MediaRemote introuvable"), "ligne « echec » avec sa raison")
+    verifier(AideLecture.decoder("pas du json") == nil && AideLecture.decoder("{\"x\":1}") == nil && AideLecture.decoder("{\"t\":\"inconnu\"}") == nil, "ligne illisible ou inconnue : ignorée")
+    let ligne = "{\"t\":\"etat\",\"titre\":\"Le Retour\",\"artiste\":\"Une chaîne\",\"app\":\"com.google.Chrome\",\"pid\":686,\"joue\":true,\"duree\":2530.5,\"pos\":724,\"depuis\":1794262856.5,\"vitesse\":1,\"image\":\"/tmp/x.bin\"}"
+    if case .etat(let m)? = AideLecture.decoder(ligne) {
+        verifier(m.titre == "Le Retour" && m.artiste == "Une chaîne" && m.app == "com.google.Chrome" && m.pid == 686 && m.joue, "état : titre, artiste, app, pid, lecture")
+        verifier(m.duree == 2530.5 && m.position == 724 && m.vitesse == 1 && m.cheminImage == "/tmp/x.bin", "état : durée, position, vitesse, image")
+        verifier(m.depuis == Date(timeIntervalSince1970: 1794262856.5) && m.positionnable, "état : instant de référence, barre utilisable")
+        verifier(m.album == nil, "état : album absent = nil")
+    } else { verifier(false, "état décodé") }
+    if case .etat(let d)? = AideLecture.decoder("{\"t\":\"etat\",\"titre\":\"Direct\",\"app\":\"com.google.Chrome\",\"joue\":false,\"vitesse\":0,\"pos\":0}") {
+        verifier(d.duree == nil && !d.positionnable && !d.joue, "direct (pas de durée) : pas de barre, en pause")
+    } else { verifier(false, "direct décodé") }
+    verifier(AideLecture.decoder("{\"t\":\"etat\",\"joue\":true}") == .rien, "état sans titre ni app : rien")
+    if case .etat(let s)? = AideLecture.decoder("{\"t\":\"etat\",\"app\":\"com.spotify.client\",\"joue\":true}") {
+        verifier(s.titre == "Lecture en cours", "app sans titre : titre générique")
+    } else { verifier(false, "app sans titre décodée") }
+    verifier(AideLecture.ligne(.pause) == "{\"cmd\":\"pause\"}\n" && AideLecture.ligne(.bascule) == "{\"cmd\":\"toggle\"}\n"
+             && AideLecture.ligne(.suivant) == "{\"cmd\":\"next\"}\n" && AideLecture.ligne(.precedent) == "{\"cmd\":\"prev\"}\n" && AideLecture.ligne(.lecture) == "{\"cmd\":\"play\"}\n", "commandes envoyées au programme d'aide")
+    verifier(AideLecture.ligne(.position(100)) == "{\"cmd\":\"seek\",\"pos\":100.000}\n" && AideLecture.ligne(.position(-5)).contains("0.000"), "position : jamais négative")
+}
+
+groupe("Lecture en cours : position, temps et barre")
+do {
+    let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+    var m = MorceauEnCours(titre: "T", joue: true, duree: 214, position: 96, depuis: t0, vitesse: 1)
+    verifier(m.positionA(t0.addingTimeInterval(5)) == 101, "en lecture : la position avance toute seule (96 s + 5 s)")
+    verifier(m.positionA(t0.addingTimeInterval(500)) == 214, "jamais au-delà de la durée")
+    verifier(m.positionA(t0.addingTimeInterval(-3)) == 96, "avant l'instant de référence : la position de référence")
+    m.vitesse = 1.5; verifier(m.positionA(t0.addingTimeInterval(10)) == 111, "vitesse 1,5 : avance plus vite")
+    m.joue = false; verifier(m.positionA(t0.addingTimeInterval(10)) == 96, "en pause : la position ne bouge pas")
+    verifier(MorceauEnCours(titre: "T", joue: true).positionA(t0) == nil, "sans position : nil")
+    let a = MorceauEnCours(titre: "T", app: "x", joue: true, duree: 100), b = MorceauEnCours(titre: "T", app: "x", joue: false, duree: 100, position: 50)
+    verifier(a.cle == b.cle, "même morceau : même clé, quelles que soient la position et la lecture")
+    verifier(a.cle != MorceauEnCours(titre: "T2", app: "x", joue: true, duree: 100).cle, "autre titre : autre clé")
+    verifier(TempsLecture.format(97) == "1:37" && TempsLecture.format(725) == "12:05" && TempsLecture.format(0) == "0:00" && TempsLecture.format(3723) == "1:02:03", "format des temps : 1:37, 12:05, 0:00, 1:02:03")
+    verifier(TempsLecture.format(59.9) == "0:59" && TempsLecture.format(-4) == "0:00" && TempsLecture.format(.infinity) == "0:00", "temps : arrondi vers le bas, jamais négatif ni infini")
+    verifier(TempsLecture.restant(position: 96, duree: 214) == "\u{2212}1:58" && TempsLecture.restant(position: 300, duree: 214) == "\u{2212}0:00", "temps restant avec le vrai signe moins")
+    verifier(TempsLecture.fraction(position: 107, duree: 214) == 0.5 && TempsLecture.fraction(position: 5, duree: 0) == 0 && TempsLecture.fraction(position: 999, duree: 214) == 1, "position -> barre (bornée)")
+    verifier(TempsLecture.position(fraction: 0.25, duree: 200) == 50 && TempsLecture.position(fraction: 1.7, duree: 200) == 200 && TempsLecture.position(fraction: -1, duree: 200) == 0, "barre -> position (bornée)")
+    verifier(TempsLecture.fractionSousSouris(x: 188, largeur: 376) == 0.5 && TempsLecture.fractionSousSouris(x: -20, largeur: 376) == 0 && TempsLecture.fractionSousSouris(x: 900, largeur: 376) == 1, "souris sur la barre -> fraction (glisser hors de la barre : bornée)")
+    let aller = TempsLecture.position(fraction: TempsLecture.fraction(position: 123, duree: 456), duree: 456)
+    verifier(abs(aller - 123) < 1e-9, "position -> barre -> position : aller-retour")
+    verifier(TempsLecture.saut(position: 100, delta: -10, duree: 214) == 90 && TempsLecture.saut(position: 4, delta: -10, duree: 214) == 0 && TempsLecture.saut(position: 210, delta: 10, duree: 214) == 214 && TempsLecture.saut(position: 10, delta: 10, duree: nil) == 20, "reculer / avancer de 10 s sans sortir de la piste")
+    let h = TraceSonore.hauteurs()
+    verifier(h.count == 54 && h.allSatisfy { $0 >= 0.22 && $0 <= 1 } && h == TraceSonore.hauteurs(), "trace sonore : 54 barres entre 0,22 et 1, toujours les mêmes")
+    verifier(TraceSonore.barresTeintees(fraction: 0.5) == 27 && TraceSonore.barresTeintees(fraction: 2) == 54 && TraceSonore.barresTeintees(fraction: -1) == 0, "barres teintées selon la progression")
+}
+
+groupe("Lecture en cours : source")
+do {
+    verifier(SourceLecture.libelle(bundle: "com.google.Chrome", nomApp: "Google Chrome", artiste: "Une chaîne", album: nil, site: "YouTube") == "Chrome \u{00B7} YouTube", "Chrome sur YouTube : « Chrome · YouTube »")
+    verifier(SourceLecture.libelle(bundle: "com.google.Chrome", nomApp: "Google Chrome", artiste: "Snayzy", album: nil, site: nil) == "Chrome \u{00B7} Snayzy", "Chrome, site inconnu : on n'invente pas, la chaîne annoncée")
+    verifier(SourceLecture.libelle(bundle: "com.google.Chrome", nomApp: nil, artiste: nil, album: nil, site: nil) == "Chrome", "Chrome sans rien d'autre : « Chrome »")
+    verifier(SourceLecture.libelle(bundle: "com.spotify.client", nomApp: "Spotify", artiste: "Un groupe", album: "Un disque", site: nil) == "Spotify \u{00B7} Un groupe", "Spotify : l'artiste")
+    verifier(SourceLecture.libelle(bundle: "com.apple.Music", nomApp: "Music", artiste: nil, album: "Un disque", site: nil) == "Musique \u{00B7} Un disque", "Musique : nom français, album à défaut d'artiste")
+    verifier(SourceLecture.libelle(bundle: "com.exemple.Lecteur", nomApp: "Google Lecteur", artiste: nil, album: nil, site: nil) == "Lecteur", "app inconnue : nom du système sans « Google »")
+    verifier(SourceLecture.libelle(bundle: nil, nomApp: nil, artiste: nil, album: nil, site: nil) == "Lecture", "rien du tout : « Lecture »")
+    verifier(SourceLecture.estNavigateur("com.apple.Safari") && SourceLecture.estNavigateur("org.mozilla.firefox") && !SourceLecture.estNavigateur("com.spotify.client") && !SourceLecture.estNavigateur(nil), "navigateurs reconnus")
+    verifier(SourceLecture.genre(bundle: "com.spotify.client", album: nil, duree: nil, site: nil) == .musique && SourceLecture.genre(bundle: "com.apple.Music", album: nil, duree: nil, site: nil) == .musique, "Spotify et Musique : musique (pochette ronde)")
+    verifier(SourceLecture.genre(bundle: "com.google.Chrome", album: nil, duree: 2530, site: "YouTube") == .video && SourceLecture.genre(bundle: "com.google.Chrome", album: nil, duree: nil, site: nil) == .video, "Chrome sur YouTube : vidéo (pochette carrée)")
+    verifier(SourceLecture.genre(bundle: "com.google.Chrome", album: "Un disque", duree: 200, site: "YouTube Music") == .musique && SourceLecture.genre(bundle: "com.google.Chrome", album: nil, duree: 200, site: "SoundCloud") == .musique, "YouTube Music, SoundCloud : musique")
+    verifier(SourceLecture.genre(bundle: "com.apple.podcasts", album: "Une émission", duree: 3000, site: nil) == .video, "Podcasts : pochette carrée")
+    verifier(SourceLecture.genre(bundle: "com.exemple.Lecteur", album: "Un disque", duree: 180, site: nil) == .musique && SourceLecture.genre(bundle: "com.exemple.Lecteur", album: "Un film", duree: 7000, site: nil) == .video, "app inconnue avec album court : musique ; album très long : non")
+}
+
+groupe("Lecture en cours : site lu dans le titre des fenêtres")
+do {
+    let titreYT = "Série · S2 É4 · Le Retour"
+    verifier(SourceLecture.site(titresDeFenetres: ["Série · S2 É4 · Le Retour - YouTube - Google Chrome"], titreMedia: titreYT) == "YouTube", "« Titre - YouTube - Google Chrome » : YouTube")
+    verifier(SourceLecture.site(titresDeFenetres: ["(3) Série · S2 É4 · Le Retour - YouTube - Google Chrome \u{2013} Hugues"], titreMedia: titreYT) == "YouTube", "compteur de notifications et profil : YouTube")
+    verifier(SourceLecture.site(titresDeFenetres: ["Netflix - Google Chrome"], titreMedia: "Une série") == "Netflix", "onglet « Netflix » : Netflix")
+    verifier(SourceLecture.site(titresDeFenetres: ["Album · Titre 3 - YouTube Music - Mozilla Firefox"], titreMedia: "Album · Titre 3") == "YouTube Music", "YouTube Music se distingue de YouTube")
+    verifier(SourceLecture.site(titresDeFenetres: ["Mes mails - Gmail - Google Chrome", "Autre page - Google Chrome"], titreMedia: titreYT) == nil, "onglet qui joue non affiché : nil, on n'invente pas")
+    verifier(SourceLecture.site(titresDeFenetres: ["Un autre titre - YouTube - Google Chrome"], titreMedia: titreYT) == nil, "autre vidéo YouTube affichée : pas de lien avec le média -> nil")
+    verifier(SourceLecture.site(titresDeFenetres: [], titreMedia: titreYT) == nil && SourceLecture.site(titresDeFenetres: ["x"], titreMedia: "") == nil, "aucune fenêtre ou titre vide : nil")
+    verifier(SourceLecture.site(titresDeFenetres: ["Mes mails - Gmail - Google Chrome", "Série · S2 É4 · Le Retour - YouTube - Google Chrome"], titreMedia: titreYT) == "YouTube", "plusieurs fenêtres : celle qui correspond")
+}
+
+groupe("Lecture en cours : couleur dominante de la pochette")
+do {
+    func image(_ l: Int, _ h: Int, _ f: (Int, Int) -> (UInt8, UInt8, UInt8, UInt8)) -> [UInt8] {
+        var p = [UInt8](); for y in 0..<h { for x in 0..<l { let c = f(x, y); p += [c.0, c.1, c.2, c.3] } }; return p
+    }
+    func teinte(_ c: CouleurRVB) -> Double { CouleurDominante.hsv(r: c.r, g: c.g, b: c.b).h }
+    func ecart(_ a: Double, _ b: Double) -> Double { let d = abs(a - b).truncatingRemainder(dividingBy: 360); return min(d, 360 - d) }
+    let bleue = image(24, 24) { x, y in y < 18 ? (20, 70 + UInt8(x), 200, 255) : (8, 20, 40, 255) }   // bleu franc + fond sombre
+    let t1 = CouleurDominante.teinte(rgba: bleue, largeur: 24, hauteur: 24)
+    verifier(ecart(teinte(t1.clair), 220) < 20, "pochette bleue : teinte claire bleue (\(t1.clair.hexa))")
+    verifier(CouleurDominante.hsv(r: t1.clair.r, g: t1.clair.g, b: t1.clair.b).v == 1, "teinte claire : toujours lumineuse")
+    let rose = image(24, 24) { x, _ in x < 14 ? (255, 60, 150, 255) : (255, 150, 40, 255) }   // rose (58 %) et orange (42 %)
+    let t2 = CouleurDominante.teinte(rgba: rose, largeur: 24, hauteur: 24)
+    verifier(ecart(teinte(t2.clair), 333) < 20 && ecart(teinte(t2.profond), 30) < 25, "rose et orange : le rose domine, l'orange est la deuxième couleur (\(t2.clair.hexa) / \(t2.profond.hexa))")
+    let orange = image(24, 24) { _, _ in (250, 140, 60, 255) }
+    let t3 = CouleurDominante.teinte(rgba: orange, largeur: 24, hauteur: 24)
+    verifier(ecart(teinte(t3.clair), 25) < 20 && ecart(teinte(t3.profond), teinte(t3.clair)) < 25 && t3.profond != t3.clair, "pochette d'une seule couleur : la deuxième est une variante plus profonde")
+    verifier(CouleurDominante.teinte(rgba: image(24, 24) { x, _ in (UInt8(x * 10), UInt8(x * 10), UInt8(x * 10), 255) }, largeur: 24, hauteur: 24) == .neutre, "pochette en niveaux de gris : teinte neutre")
+    verifier(CouleurDominante.teinte(rgba: image(24, 24) { _, _ in (255, 0, 0, 0) }, largeur: 24, hauteur: 24) == .neutre, "pochette transparente : teinte neutre")
+    verifier(CouleurDominante.teinte(rgba: [], largeur: 0, hauteur: 0) == .neutre && CouleurDominante.teinte(rgba: [1, 2, 3], largeur: 5, hauteur: 5) == .neutre, "données absentes ou trop courtes : neutre, sans plantage")
+    let taches = image(24, 24) { x, y in x < 1 && y < 1 ? (255, 0, 0, 255) : (240, 240, 240, 255) }
+    verifier(CouleurDominante.teinte(rgba: taches, largeur: 24, hauteur: 24) == .neutre, "un seul pixel coloré sur une image blanche : neutre (moins de 3 %)")
+}
+
+groupe("Lecture en cours : priorités sur l'encoche")
+do {
+    func aff(_ o: OccupationEncoche, morceau: Bool = true, reglage: Bool = true) -> AffichageLecture { PrioriteLecture.affichage(occupation: o, morceau: morceau, reglageAffichage: reglage) }
+    verifier(aff(OccupationEncoche()) == .ilot, "rien d'autre : l'îlot s'affiche")
+    verifier(aff(OccupationEncoche(), morceau: false) == .aucun, "rien ne joue : rien")
+    verifier(aff(OccupationEncoche(), reglage: false) == .aucun && aff(OccupationEncoche(dictee: true), reglage: false) == .aucun, "réglage coupé : rien, même pendant une dictée")
+    verifier(aff(OccupationEncoche(dictee: true)) == .bulle, "dictée : la lecture devient une bulle")
+    verifier(aff(OccupationEncoche(reunion: true)) == .aucun, "réunion : la lecture ne s'affiche pas")
+    verifier(aff(OccupationEncoche(dictee: true, reunion: true)) == .aucun, "dictée pendant une réunion : toujours rien (pas de bulle)")
+    verifier(aff(OccupationEncoche(filet: true)) == .aucun && aff(OccupationEncoche(miseAJour: true)) == .aucun && aff(OccupationEncoche(autreAnnonce: true)) == .aucun, "filet, mise à jour, autre annonce : la lecture s'efface")
+    verifier(aff(OccupationEncoche(dictee: true, filet: true)) == .bulle, "dictée + filet : la dictée garde la place, la lecture est une bulle")
+}
+
+groupe("Lecture en cours : pause pendant la dictée")
+do {
+    let joue = MorceauEnCours(titre: "A", app: "com.spotify.client", joue: true, duree: 200)
+    let enPause = MorceauEnCours(titre: "A", app: "com.spotify.client", joue: false, duree: 200)
+    var p = PauseDictee()
+    verifier(p.debut(morceau: joue, reglage: true, reunion: false) == .pause && p.pauseParNous, "quelque chose joue : pause au début")
+    verifier(p.debut(morceau: joue, reglage: true, reunion: false) == .rien, "pas de deuxième pause")
+    verifier(p.fin(morceau: enPause) == .reprendre && !p.pauseParNous, "fin de dictée : reprise (c'est nous qui avions mis en pause)")
+    verifier(p.fin(morceau: enPause) == .rien, "pas de deuxième reprise")
+    var q = PauseDictee()
+    verifier(q.debut(morceau: enPause, reglage: true, reunion: false) == .rien && q.fin(morceau: enPause) == .rien, "déjà en pause avant la dictée : on ne touche à rien, on ne relance pas")
+    verifier(q.debut(morceau: nil, reglage: true, reunion: false) == .rien, "rien ne joue : rien")
+    var r = PauseDictee()
+    verifier(r.debut(morceau: joue, reglage: false, reunion: false) == .rien && r.fin(morceau: enPause) == .rien, "réglage coupé : ni pause ni reprise")
+    var u = PauseDictee()
+    verifier(u.debut(morceau: joue, reglage: true, reunion: true) == .rien && u.fin(morceau: enPause) == .rien, "pendant une réunion : pas de pause automatique")
+    var v = PauseDictee()
+    _ = v.debut(morceau: joue, reglage: true, reunion: false)
+    verifier(v.fin(morceau: joue) == .rien, "l'utilisateur a relancé la lecture pendant la dictée : pas de commande en plus")
+    var w = PauseDictee()
+    _ = w.debut(morceau: joue, reglage: true, reunion: false)
+    verifier(w.fin(morceau: MorceauEnCours(titre: "B", app: "com.spotify.client", joue: false, duree: 180)) == .rien, "autre morceau à la fin : on ne reprend pas")
+    var x = PauseDictee()
+    _ = x.debut(morceau: joue, reglage: true, reunion: false)
+    verifier(x.fin(morceau: nil) == .rien && !x.pauseParNous, "plus rien à la fin (app fermée) : on ne reprend pas, l'état est remis à zéro")
+    var y = PauseDictee()
+    verifier(y.fin(morceau: enPause) == .rien, "fin sans début : rien")
+}
+
+groupe("Lecture en cours : relance du programme d'aide")
+do {
+    verifier([1, 2, 3, 4, 5, 6, 7, 8].map { PlanRelanceAide.delai(apresEchecs: $0) } == [1, 2, 4, 8, 16, 32, 60, 60], "délais croissants 1, 2, 4, 8, 16, 32, puis 60 s au plus")
+    var p = PlanRelanceAide()
+    verifier(p.processusArrete(dureeDeVie: 0.3, echecMediaRemote: false) == .relancer(apres: 1), "premier arrêt rapide : relance après 1 s")
+    verifier(p.processusArrete(dureeDeVie: 0.3, echecMediaRemote: false) == .relancer(apres: 2), "deuxième : 2 s")
+    verifier(p.processusArrete(dureeDeVie: 120, echecMediaRemote: false) == .relancer(apres: 1), "après 2 minutes de vie, le compteur repart de zéro")
+    var q = PlanRelanceAide()
+    var derniere = PlanRelanceAide.Decision.relancer(apres: 0)
+    for _ in 0..<7 { derniere = q.processusArrete(dureeDeVie: 0.1, echecMediaRemote: false) }
+    verifier(derniere == .abandonner(raison: "le programme d'aide s'arrête sans cesse"), "7 arrêts de suite : on abandonne")
+    var r = PlanRelanceAide()
+    verifier(r.processusArrete(dureeDeVie: 5, echecMediaRemote: true) == .abandonner(raison: "MediaRemote inaccessible sur cette version de macOS"), "MediaRemote inaccessible : abandon tout de suite")
+    r.reinitialiser(); verifier(r.echecs == 0, "réinitialisation")
+}
+
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)

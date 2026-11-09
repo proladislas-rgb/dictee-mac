@@ -349,6 +349,8 @@ final class PriseEnMain {
     private var minuteur: Timer?
     private var abonnement: AnyCancellable?
     var surFin: () -> Void = {}
+    /// Appelé quand la fenêtre apparaît ou disparaît (la lecture en cours s'efface pendant la prise en main).
+    var surChangementEtat: () -> Void = {}
 
     var estOuvert: Bool { fenetre?.isVisible == true }
 
@@ -390,6 +392,7 @@ final class PriseEnMain {
             Task { @MainActor in self?.modele.rafraichir() }
         }
         Log.ecrire("prise en main ouverte (étape \(etape.rawValue))")
+        surChangementEtat()
     }
 
     /// À l'entrée de la dernière étape, ou au clic dans le champ : l'app redevient active pour que ⌘V arrive dans le champ.
@@ -403,6 +406,7 @@ final class PriseEnMain {
         DispatchQueue.main.asyncAfter(deadline: .now() + GeometrieEncoche.dureeMouvement + 0.08) { [weak self] in
             guard let self, !self.apparition.visible else { return }
             f?.orderOut(nil)
+            self.surChangementEtat()
         }
         Log.ecrire("prise en main fermée (fait = \(fait))")
         surFin()

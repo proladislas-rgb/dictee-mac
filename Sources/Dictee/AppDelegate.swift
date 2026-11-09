@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let panneauCompact = PanneauCompact()
     private let filet = FiletPanneau()
     private let priseEnMain = PriseEnMain()
+    private let lecture = LectureControleur()
     private var microDejaPrepare = false
     private lazy var reunionControleur = ReunionController()
     private lazy var fenetrePrincipale = FenetrePrincipale(dictees: ModeleDictees(), controleurReunions: reunionControleur)
@@ -76,8 +77,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         configurerFenetre()
         configurerReunions()
         configurerMiseAJour()
+        configurerLecture()
         installerMenuPrincipal()
-        panneauCompact.surChangementEtat = { [weak self] ouvert in self?.survolStatus?.panneauOuvert = ouvert }
+        panneauCompact.surChangementEtat = { [weak self] ouvert in
+            self?.survolStatus?.panneauOuvert = ouvert
+            self?.lecture.occupationChangee()
+        }
         dictee.surDebut = { [weak self] in
             self?.panneauCompact.fermer(animee: false, rendreLeFocus: false)
             self?.filet.fermer(animee: false, rendreLeFocus: false)
@@ -115,6 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        lecture.arreter()
         Log.ecrire("arrêt")
         Log.vider()
     }
@@ -288,6 +294,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         reunionControleur.$phase.sink { phase in if phase != .repos { MiseAJourControleur.partage.occuper() } }.store(in: &abonnements)
         maj.demarrer()
+    }
+
+    /// Lecture en cours dans l'encoche : ce qui occupe l'encoche (dictée, réunion, filet, mise à jour, panneau compact, prise en main)
+    /// est relu à chaque changement ; le programme d'aide ne démarre que si le réglage est actif.
+    private func configurerLecture() {
+        lecture.occupation = { [weak self] in
+            guard let self else { return OccupationEncoche() }
+            return OccupationEncoche(dictee: self.dictee.panneau.modele.ouverte,
+                                     reunion: self.reunionControleur.phase != .repos,
+                                     filet: self.filet.estOuvert,
+                                     miseAJour: MiseAJourControleur.partage.bande.estOuverte,
+                                     autreAnnonce: self.panneauCompact.estOuvert || self.priseEnMain.estOuvert)
+        }
+        lecture.dicteeMainsLibres = { [weak self] in self?.dictee.panneau.modele.mainsLibres ?? false }
+        dictee.surChangementEtat = { [weak self] enCours in self?.lecture.dicteeChange(enCours: enCours) }
+        dictee.panneau.modele.$ouverte.dropFirst().sink { [weak self] _ in self?.lecture.occupationChangee() }.store(in: &abonnements)
+        dictee.panneau.modele.$mainsLibres.dropFirst().sink { [weak self] libres in self?.lecture.bulle.suivre(mainsLibres: libres) }.store(in: &abonnements)
+        reunionControleur.$phase.dropFirst().sink { [weak self] _ in self?.lecture.occupationChangee() }.store(in: &abonnements)
+        MiseAJourControleur.partage.bande.etat.$ouverte.dropFirst().sink { [weak self] _ in self?.lecture.occupationChangee() }.store(in: &abonnements)
+        filet.surChangementEtat = { [weak self] _ in self?.lecture.occupationChangee() }
+        priseEnMain.surChangementEtat = { [weak self] in self?.lecture.occupationChangee() }
+        lecture.demarrer()
     }
 
     @objc private func rechercherLesMisesAJour() {
