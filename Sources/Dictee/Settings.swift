@@ -1,4 +1,5 @@
 import Foundation
+import DicteeCore
 
 /// Réglages simples (le panneau de réglages arrive au lot 7). Modifiables avec `defaults write com.hugues.dictee ...`.
 enum Settings {
@@ -28,4 +29,10 @@ enum Settings {
 
     /// Délai maximal de la remise au propre ; au-delà, le texte brut de Groq est collé.
     static let delaiNettoyage: Double = 1.2
+
+    /// Nombre maximal de dictées gardées dans l'historique.
+    static var limiteHistorique: Int {
+        let v = defaults.integer(forKey: "limiteHistorique")
+        return v > 0 ? v : Historique.limiteParDefaut
+    }
 }

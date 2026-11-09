@@ -9,6 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var voletsDejaOuverts = Set<String>()
     private let clavier = KeyMonitor()
     private let dictee = DictationController()
+    private let panneauCompact = PanneauCompact()
+    private var survolStatus: SurvolStatus?
+    private var derniereAppExterne: NSRunningApplication?
 
     init(options: Options) {
         self.options = options
@@ -46,6 +49,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
+        Polices.enregistrer()
+        suivreLesApps()
+        panneauCompact.surRecoller = { [weak self] entree, cible in
+            guard let self else { return }
+            Task { await self.dictee.recoller(entree.texte, dans: cible) }
+        }
+        panneauCompact.surOuvrirFenetre = { [weak self] onglet in self?.ouvrirFenetre(onglet) }
+        panneauCompact.surChangementEtat = { [weak self] ouvert in self?.survolStatus?.panneauOuvert = ouvert }
+        dictee.surDebut = { [weak self] in self?.panneauCompact.fermer(animee: false, rendreLeFocus: false) }
         clavier.onAction = { [weak self] action in self?.dictee.recevoir(action) }
         dictee.compteurFrappes = { [weak self] in self?.clavier.frappes ?? 0 }
         dictee.surCapture = { [weak self] actif in self?.mettreIcone(capture: actif) }
@@ -101,15 +113,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
 
     private func installerIcone() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let bouton = item.button {
             bouton.image = IconeBarre.image(capture: false)
+            bouton.target = self
+            bouton.action = #selector(clicIcone(_:))
+            bouton.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            survolStatus = SurvolStatus(bouton: bouton)
         }
-        let menu = NSMenu()
-        menu.delegate = self
-        item.menu = menu
         statusItem = item
-        reconstruireMenu(menu)
+    }
+
+    /// App qui avait le curseur : la dernière app au premier plan qui n'est pas Dictée elle-même.
+    private func suivreLesApps() {
+        derniereAppExterne = NSWorkspace.shared.frontmostApplication.flatMap { $0.bundleIdentifier == Bundle.main.bundleIdentifier ? nil : $0 }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                  app.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
+            MainActor.assumeIsolated { self?.derniereAppExterne = app }
+        }
+    }
+
+    /// Clic gauche : le panneau compact. Clic droit (ou ctrl-clic) : le menu.
+    @objc private func clicIcone(_ sender: NSStatusBarButton) {
+        let evenement = NSApp.currentEvent
+        let menuDemande = evenement?.type == .rightMouseUp || evenement?.modifierFlags.contains(.control) == true
+        if menuDemande {
+            panneauCompact.fermer(animee: false, rendreLeFocus: false)
+            let menu = NSMenu()
+            menu.delegate = self
+            reconstruireMenu(menu)
+            statusItem?.menu = menu
+            sender.performClick(nil)
+            statusItem?.menu = nil
+            return
+        }
+        // une dictée en cours garde la place : le panneau et la dictée ne se superposent pas
+        guard !dictee.enCours else { return }
+        let cible = NSWorkspace.shared.frontmostApplication.flatMap { $0.bundleIdentifier == Bundle.main.bundleIdentifier ? nil : $0 } ?? derniereAppExterne
+        panneauCompact.basculer(cible: cible)
+    }
+
+    func ouvrirFenetre(_ onglet: Onglet) {
+        Log.ecrire("fenêtre principale demandée (onglet \(onglet.rawValue))")
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) { reconstruireMenu(menu) }
@@ -124,6 +170,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ligne("Micro", ok: Permissions.microOK)
         ligne("Accessibilité (coller le texte)", ok: Permissions.accessibiliteOK)
         ligne("Surveillance de l'entrée (touche fn)", ok: Permissions.surveillanceOK)
+        menu.addItem(.separator())
+        let ouvrir = menu.addItem(withTitle: "Ouvrir Dictée", action: #selector(ouvrirDictee), keyEquivalent: ",")
+        ouvrir.target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Autorisations…", action: #selector(ouvrirAutorisations), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Ouvrir le journal", action: #selector(ouvrirJournal), keyEquivalent: "").target = self
@@ -151,6 +200,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    @objc private func ouvrirDictee() { ouvrirFenetre(.dictees) }
     @objc private func ouvrirJournal() { NSWorkspace.shared.open(Log.url) }
     @objc private func quitter() { NSApp.terminate(nil) }
+}
+
+/// Fond anthracite doux derrière les guillemets de la barre des menus : au survol, ou quand le panneau est ouvert.
+@MainActor
+final class SurvolStatus: NSObject {
+    private weak var bouton: NSStatusBarButton?
+    private var survol = false
+    var panneauOuvert = false { didSet { appliquer() } }
+
+    init(bouton: NSStatusBarButton) {
+        self.bouton = bouton
+        super.init()
+        bouton.wantsLayer = true
+        bouton.layer?.cornerRadius = 5
+        bouton.layer?.cornerCurve = .continuous
+        bouton.addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
+    }
+
+    @objc func mouseEntered(_ event: NSEvent) { survol = true; appliquer() }
+    @objc func mouseExited(_ event: NSEvent) { survol = false; appliquer() }
+
+    private func appliquer() {
+        bouton?.layer?.backgroundColor = survol || panneauOuvert ? Palette.nsSelectionCG : NSColor.clear.cgColor
+    }
 }

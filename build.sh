@@ -22,6 +22,9 @@ rm -rf "$ASSEMBLAGE"
 mkdir -p "$ASSEMBLAGE/Contents/MacOS" "$ASSEMBLAGE/Contents/Resources"
 cp "$BIN" "$ASSEMBLAGE/Contents/MacOS/$NOM_APP"
 
+# Police du texte dicté (Newsreader, licence OFL) et sa licence
+cp Resources/Polices/Newsreader.ttf Resources/Polices/OFL.txt "$ASSEMBLAGE/Contents/Resources/"
+
 # Icône d'app : dessinée en vectoriel par l'app elle-même (--rendu-icones : PNG seulement, ni micro ni clavier), puis iconutil.
 echo "==> Icône (AppIcon.icns)"
 rm -rf .build/icones

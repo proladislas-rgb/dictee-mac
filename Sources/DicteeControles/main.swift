@@ -17,6 +17,69 @@ verifier(EnvFile.value(for: "GROQ_API_KEY", in: "export GROQ_API_KEY='abc123'\r\
 verifier(EnvFile.value(for: "GROQ_API_KEY", in: "# commentaire\nAUTRE=1\n") == nil, "clé absente")
 verifier(EnvFile.value(for: "GROQ_API_KEY", in: "GROQ_API_KEY=\n") == nil, "valeur vide")
 
+groupe("Historique")
+do {
+    var h = Historique()
+    let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+    for i in 0..<5 { h.ajouter(EntreeHistorique(date: t0.addingTimeInterval(Double(i)), appNom: i % 2 == 0 ? "Mail" : "Notes", texte: "Dictée numéro \(i)"), limite: 3) }
+    verifier(h.entrees.count == 3, "limite respectée (3 gardées sur 5)")
+    verifier(h.entrees.first?.texte == "Dictée numéro 4", "la plus récente en tête")
+    verifier(h.entrees.last?.texte == "Dictée numéro 2", "les plus anciennes sont retirées")
+    verifier(h.filtrer("DICTEE 3").map(\.texte) == ["Dictée numéro 3"], "recherche sans casse ni accents")
+    verifier(h.filtrer("mail").count == 2, "recherche aussi sur l'app de destination")
+    verifier(h.filtrer("  ").count == 3, "recherche vide : tout")
+    verifier(h.filtrer("introuvable").isEmpty, "aucun résultat")
+    let donnees = h.donnees()
+    verifier(donnees.flatMap { Historique.depuis($0) } == h, "enregistrement JSON aller-retour")
+    verifier(Historique.depuis(Data("pas du json".utf8)) == nil, "fichier abîmé : nil, pas de plantage")
+    var e = h; e.effacer(); verifier(e.estVide, "effacer vide tout")
+    let id = h.entrees[1].id; var s = h; s.supprimer(id: id); verifier(s.entrees.count == 2 && !s.entrees.contains { $0.id == id }, "supprimer une entrée")
+    var r = Historique(); r.ajouter(EntreeHistorique(texte: "échec", insere: false, raison: "champ protégé"))
+    verifier(r.entrees[0].insere == false && r.entrees[0].texte == "échec", "texte gardé même si l'insertion a échoué")
+}
+do {
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/Paris")!
+    let maintenant = cal.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 15))!
+    func a(_ jour: Int, _ heure: Int, mois: Int = 11, annee: Int = 2026) -> EntreeHistorique {
+        EntreeHistorique(date: cal.date(from: DateComponents(year: annee, month: mois, day: jour, hour: heure))!, texte: "x")
+    }
+    let g = Historique.groupes([a(9, 14), a(9, 10), a(8, 18), a(3, 9), a(30, 9, mois: 12, annee: 2025)], maintenant: maintenant, calendrier: cal)
+    verifier(g.map(\.titre).prefix(2) == ["Aujourd\u{2019}hui", "Hier"], "groupes : Aujourd'hui puis Hier")
+    verifier(g[0].entrees.count == 2, "deux dictées aujourd'hui dans le même groupe")
+    verifier(g.count == 4, "un groupe par jour")
+    verifier(g[2].titre.lowercased().contains("novembre") && !g[2].titre.contains("2026"), "jour plus ancien : date sans année")
+    verifier(g[3].titre.contains("2025"), "autre année : avec l'année")
+}
+verifier(Selection.deplacer(0, de: 1, sur: 3) == 1 && Selection.deplacer(2, de: 1, sur: 3) == 0 && Selection.deplacer(0, de: -1, sur: 3) == 2, "sélection ↑↓ avec retour aux extrémités")
+verifier(Selection.deplacer(5, de: 0, sur: 0) == 0 && Selection.deplacer(9, de: 1, sur: 3) == 0, "sélection : liste vide / indice hors limites")
+
+groupe("RaccourcisVocaux")
+do {
+    let rs = [RaccourciVocal(expression: "ma signature", texte: "Hugues-Henri Delpit"),
+              RaccourciVocal(expression: "mon mail", texte: "bonjour@exemple.fr"),
+              RaccourciVocal(expression: "mes dispos", texte: "Mardi ou jeudi après-midi"),
+              RaccourciVocal(expression: "mon mail pro", texte: "pro@exemple.fr")]
+    verifier(RaccourcisVocaux.appliquer("Ma signature.", raccourcis: rs) == "Hugues-Henri Delpit", "dictée réduite au raccourci : texte exact, sans point final")
+    verifier(RaccourcisVocaux.appliquer("Voici mon mail, merci.", raccourcis: rs) == "Voici bonjour@exemple.fr, merci.", "au milieu d'une phrase : ponctuation gardée")
+    verifier(RaccourcisVocaux.appliquer("Envoie à mon mail pro demain.", raccourcis: rs) == "Envoie à pro@exemple.fr demain.", "le plus long raccourci gagne")
+    verifier(RaccourcisVocaux.appliquer("MES DISPOS", raccourcis: rs) == "Mardi ou jeudi après-midi", "sans tenir compte des majuscules")
+    verifier(RaccourcisVocaux.appliquer("mes dispos sont bonnes, ma signature", raccourcis: rs) == "Mardi ou jeudi après-midi sont bonnes, Hugues-Henri Delpit", "plusieurs raccourcis dans une phrase")
+    verifier(RaccourcisVocaux.appliquer("Le mail est parti.", raccourcis: rs) == "Le mail est parti.", "mot seul : pas de remplacement")
+    verifier(RaccourcisVocaux.appliquer("mon maillot", raccourcis: rs) == "mon maillot", "mots entiers seulement")
+    verifier(RaccourcisVocaux.appliquer("rien à remplacer", raccourcis: []) == "rien à remplacer", "aucun raccourci : texte intact")
+    let apo = [RaccourciVocal(expression: "l'adresse", texte: "12 rue des Lilas")]
+    verifier(RaccourcisVocaux.appliquer("Voici l’adresse.", raccourcis: apo) == "Voici 12 rue des Lilas.", "apostrophe courbe reconnue")
+    let acc = [RaccourciVocal(expression: "à bientôt", texte: "À très vite, Hugues")]
+    verifier(RaccourcisVocaux.appliquer("a bientot", raccourcis: acc) == "À très vite, Hugues", "sans tenir compte des accents")
+    verifier(RaccourcisVocaux.appliquer("Merci. Ma signature", raccourcis: rs) == "Merci. Hugues-Henri Delpit", "raccourci en fin de dictée")
+}
+groupe("ListeDeMots")
+verifier(ListeDeMots.ajouter("Sillonia", a: ["Ladislas"]) == .ajoute(["Ladislas", "Sillonia"]), "ajout d'un mot")
+verifier(ListeDeMots.ajouter("  ladislas ", a: ["Ladislas"]) == .dejaPresent, "mot déjà enregistré (casse et espaces)")
+verifier(ListeDeMots.ajouter("Élodie", a: ["elodie"]) == .dejaPresent, "mot déjà enregistré (accents)")
+verifier(ListeDeMots.ajouter("   ", a: []) == .vide, "mot vide refusé")
+verifier(ListeDeMots.retirer("SILLONIA", de: ["Ladislas", "Sillonia"]) == ["Ladislas"], "retrait d'un mot")
+
 groupe("TextPreview")
 verifier(TextPreview.preview("court") == "court", "texte court intact")
 verifier(TextPreview.preview(String(repeating: "a", count: 100)).count == 31, "coupé à 30 caractères + …")

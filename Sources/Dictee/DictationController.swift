@@ -33,13 +33,16 @@ final class DictationController {
     private var compteur = 0
     private let audio = AudioCapture()
 
-    private let collage = Collage()
-    private let panneau = EnclochePanneau()
+    let collage = Collage()
+    let panneau = EnclochePanneau()
     private var ouvertureRetardee: DispatchWorkItem?
 
     /// Appelé quand une dictée finit sans passer par la touche fn (boutons ✕ / ✓, micro impossible) :
     /// la machine de la touche fn doit alors être remise à zéro.
     var surFinIndependante: (() -> Void)?
+    /// Appelé au début d'une dictée : le panneau compact se ferme (les deux ne se superposent jamais).
+    var surDebut: (() -> Void)?
+    var enCours: Bool { etat != .repos }
     /// Appelé quand la capture commence (`true`) ou finit (`false`) : l'icône de la barre des menus montre un trait ambre.
     var surCapture: ((Bool) -> Void)?
     /// Nombre de frappes au clavier depuis le lancement (fourni par l'écoute du clavier).
@@ -77,6 +80,7 @@ final class DictationController {
         let s = Session(id: compteur, mainsLibres: mainsLibres, appCible: NSWorkspace.shared.frontmostApplication, transcripteur: transcripteur)
         courante = s
         etat = .ecoute(mainsLibres: mainsLibres)
+        surDebut?()
         surCapture?(true)
         Log.ecrire("dictée \(s.id) : appui fn (\(mainsLibres ? "mains libres" : "tenu")), app cible = \(s.appCible?.bundleIdentifier ?? "inconnue")")
 
@@ -206,30 +210,69 @@ final class DictationController {
         let contexte = RemiseAuPropre.contexte(bundleID: s.appCible?.bundleIdentifier, role: champ?.role, titreFenetre: champ?.titreFenetre)
         let nettoyage = await Nettoyage.executer(brut, contexte: contexte, mots: Dictionnaire.mots())
         Log.ecrire("dictée \(s.id) : mise en forme \(contexte.rawValue) (champ \(champ?.role ?? "?")), \(nettoyage.utilise ? "remis au propre" : "texte brut gardé : \(nettoyage.raison)") en \(ms(nettoyage.duree)) ms")
-        var texte = TextFormatter.prepare(nettoyage.texte, for: kind)
-        texte = raccorder(texte, kind: kind, session: s, champ: champ)
+        let texteFinal = TextFormatter.prepare(nettoyage.texte, for: kind)
+        let texte = raccorder(texteFinal, kind: kind, session: s, champ: champ)
         // Champ protégé : l'encoche reste pour le dire ; sinon elle se referme et le texte arrive au curseur.
         if !IsSecureEventInputEnabled() { fermerSiLibre() }
         let t = ProcessInfo.processInfo.systemUptime
         let issue = await collage.ecrire(texte, dans: s.appCible)
         let collageMs = ms(ProcessInfo.processInfo.systemUptime - t)
         let total = ms(ProcessInfo.processInfo.systemUptime - relache)
+        func garder(inseree: Bool, raison: String? = nil) {
+            HistoriqueStore.shared.ajouter(EntreeHistorique(appId: s.appCible?.bundleIdentifier, appNom: s.appCible?.localizedName,
+                                                            texte: texteFinal, insere: inseree, raison: raison))
+        }
         switch issue {
         case .colle:
+            garder(inseree: true)
             memoire = MemoireInsertion(appId: s.appCible?.bundleIdentifier ?? "", queue: MemoireInsertion.queue(de: texte),
                                        instant: ProcessInfo.processInfo.systemUptime, frappes: compteurFrappes())
             Log.ecrire("dictée \(s.id) : collé dans \(s.appCible?.bundleIdentifier ?? "?") (\(kind)), collage \(collageMs) ms, \(total) ms après le relâchement")
         case .champProtege:
             Log.ecrire("dictée \(s.id) : champ protégé, texte copié sans collage")
-            if courante == nil { panneau.afficherMessage("Champ protégé, texte copié", app: s.appCible) }
+            garder(inseree: false, raison: "champ protégé")
+            if courante == nil { panneau.afficherMessage("Écriture impossible ici, texte copié", app: s.appCible) }
         case .copieSeulement(let raison):
             Log.ecrire("dictée \(s.id) : texte copié mais pas collé (\(raison))")
+            garder(inseree: false, raison: raison)
             fermerSiLibre()
             if courante == nil { panneau.afficherMessage("Texte copié, collage non autorisé", app: s.appCible) }
         case .vide:
             Log.ecrire("dictée \(s.id) : texte vide après mise en forme")
             fermerSiLibre()
         }
+    }
+
+    /// Recolle un texte de l'historique dans l'app qui avait le curseur avant l'ouverture du panneau (jamais dans la
+    /// recherche du panneau). Mise en forme selon l'app (terminal : une ligne, aucun Entrée). Si la destination n'existe
+    /// plus, ou si l'écriture est impossible, le texte reste dans le presse-papiers et l'encoche le dit.
+    func recoller(_ texte: String, dans cible: NSRunningApplication?) async {
+        guard etat == .repos else { return }
+        guard let cible, !cible.isTerminated else {
+            copierSeulement(texte)
+            Log.ecrire("recoller : destination indisponible, texte copié")
+            panneau.afficherMessage("Destination indisponible, texte copié", app: nil)
+            return
+        }
+        let kind = TextFormatter.kind(bundleID: cible.bundleIdentifier)
+        let pret = TextFormatter.prepare(texte, for: kind)
+        // laisse au clavier le temps de revenir dans la fenêtre de l'app après la fermeture du panneau
+        try? await Task.sleep(for: .milliseconds(70))
+        switch await collage.ecrire(pret, dans: cible) {
+        case .colle: Log.ecrire("recoller : collé dans \(cible.bundleIdentifier ?? "?") (\(kind))")
+        case .champProtege:
+            Log.ecrire("recoller : champ protégé, texte copié")
+            panneau.afficherMessage("Écriture impossible ici, texte copié", app: cible)
+        case .copieSeulement(let raison):
+            Log.ecrire("recoller : texte copié mais pas collé (\(raison))")
+            panneau.afficherMessage("Texte copié, collage non autorisé", app: cible)
+        case .vide: break
+        }
+    }
+
+    private func copierSeulement(_ texte: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(texte, forType: .string)
     }
 
     /// Espace devant et minuscule en milieu de phrase, d'après ce qui précède le curseur.
