@@ -82,10 +82,10 @@ enum Settings {
     }
 
     /// Secours : le texte de la dictée d'Apple quand Groq ne répond pas. Activé par défaut.
-    /// Petits sons au début de la dictée, au texte collé et à l'annulation. Activé par défaut.
-    /// Exemple : defaults write com.hugues.dictee sons -bool false
+    /// Petits sons au début de la dictée, au texte collé et à l'annulation. Désactivé par défaut (choix de Hugues : la vibration suffit).
+    /// Exemple : defaults write com.hugues.dictee sons -bool true
     static var sons: Bool {
-        get { defaults.object(forKey: "sons") as? Bool ?? true }
+        get { defaults.object(forKey: "sons") as? Bool ?? false }
         set { defaults.set(newValue, forKey: "sons") }
     }
 

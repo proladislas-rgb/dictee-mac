@@ -28,24 +28,30 @@ enum Retours {
         }
     }
 
-    /// Début de la dictée : deux notes brèves montantes, une pulsation « changement de niveau ».
+    /// Début de la dictée : (son facultatif) et une vibration longue et franche, 4 frappes.
     static func debut() {
         jouer(.debut)
-        vibrer(.levelChange)
+        rafale(.levelChange, coups: 4)
     }
 
-    /// Texte collé : une note brève qui descend, deux petits tapes « alignement » à 80 ms d'écart.
+    /// Texte collé : (son facultatif) et une vibration de 3 frappes.
     static func fin() {
         jouer(.fin)
-        vibrer(.alignment)
-        guard Settings.vibration else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { vibrer(.alignment) }
+        rafale(.alignment, coups: 3)
     }
 
-    /// Annulation : un tic grave étouffé, une pulsation sourde « générique ».
+    /// Annulation : (son facultatif) et une vibration courte de 2 frappes.
     static func annulation() {
         jouer(.annulation)
-        vibrer(.generic)
+        rafale(.generic, coups: 2)
+    }
+
+    /// Une vibration plus longue : plusieurs frappes rapprochées (35 ms) qui se fondent en un bourdonnement court.
+    private static func rafale(_ motif: NSHapticFeedbackManager.FeedbackPattern, coups: Int) {
+        guard Settings.vibration else { return }
+        for i in 0..<coups {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.035 * Double(i)) { vibrer(motif) }
+        }
     }
 
     private static func jouer(_ son: SonSynthese.Son) {
@@ -56,8 +62,17 @@ enum Retours {
         lecteur.play()
     }
 
+    /// L'actionneur du trackpad d'abord (il marche même quand Verbe est en arrière-plan, ce que `NSHapticFeedbackManager`
+    /// ne fait pas) ; la vibration standard d'AppKit seulement en repli.
     private static func vibrer(_ motif: NSHapticFeedbackManager.FeedbackPattern) {
         guard Settings.vibration else { return }
+        let force: ActionneurTrackpad.Force
+        switch motif {
+        case .levelChange: force = .franche
+        case .alignment: force = .moyenne
+        default: force = .legere
+        }
+        if ActionneurTrackpad.taper(force) { return }
         NSHapticFeedbackManager.defaultPerformer.perform(motif, performanceTime: .now)
     }
 }
