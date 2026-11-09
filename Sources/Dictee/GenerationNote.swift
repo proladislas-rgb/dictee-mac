@@ -26,15 +26,15 @@ struct GenerationNote {
         var brute: NoteBrute
         if parties.count <= 1 {
             surEtape("Note en préparation")
-            brute = try await appeler(systeme: NoteReunion.consigneNote, message: NoteReunion.messageTranscription(segments, duree: duree, debut: debut), maxSortie: 2500, effort: "medium")
+            brute = try await appeler(systeme: NoteReunion.consigneNote, message: NoteReunion.messageTranscription(segments, duree: duree, debut: debut), maxSortie: 4500, effort: "medium")
         } else {
             var notes: [NoteBrute] = []
             for (i, p) in parties.enumerated() {
                 surEtape("Note en préparation, partie \(i + 1) sur \(parties.count)")
-                notes.append(try await appeler(systeme: NoteReunion.consignePartie, message: NoteReunion.messagePartie(p, numero: i + 1, sur: parties.count), maxSortie: 1800, effort: "low"))
+                notes.append(try await appeler(systeme: NoteReunion.consignePartie, message: NoteReunion.messagePartie(p, numero: i + 1, sur: parties.count), maxSortie: 2600, effort: "low"))
             }
             surEtape("Note en préparation, assemblage")
-            brute = try await appeler(systeme: NoteReunion.consigneAssemblage, message: NoteReunion.messageAssemblage(notes, duree: duree, debut: debut), maxSortie: 2500, effort: "medium")
+            brute = try await appeler(systeme: NoteReunion.consigneAssemblage, message: NoteReunion.messageAssemblage(notes, duree: duree, debut: debut), maxSortie: 4500, effort: "medium")
         }
         let (propre, retraits) = garde.nettoyer(brute)
         return (propre, retraits)

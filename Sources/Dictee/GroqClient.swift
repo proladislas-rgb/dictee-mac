@@ -238,7 +238,12 @@ extension GroqClient {
             Log.ecrire("Groq (note de réunion) : limite atteinte (429), attente demandée \(Int(attente ?? 0)) s")
             throw NoteLimite(retryApres: attente)
         }
-        guard http.statusCode == 200 else { throw GroqErreur.http(http.statusCode) }
+        guard http.statusCode == 200 else {
+            // Le code d'erreur seulement (jamais le corps : « failed_generation » contient le texte de la note).
+            let code = ((try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? [String: Any])?["code"] as? String
+            Log.ecrire("Groq (note de réunion) : HTTP \(http.statusCode)\(code.map { ", code « \($0) »" } ?? "")")
+            throw GroqErreur.http(http.statusCode)
+        }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let choix = (json["choices"] as? [[String: Any]])?.first,
               let message = choix["message"] as? [String: Any],

@@ -117,11 +117,16 @@ enum RenduPanneau {
 enum RenduFenetre {
     struct Cadre<V: View>: View {
         var taille: CGSize
+        /// La barre du haut de la vraie fenêtre (onglets), quand le rendu doit la montrer.
+        var barre: AnyView? = nil
         @ViewBuilder var contenu: V
         var body: some View {
             ZStack(alignment: .topLeading) {
                 Color(hex: 0x0B0B0B)
-                contenu
+                VStack(spacing: 0) {
+                    if let barre { barre.frame(height: 60).frame(maxWidth: .infinity, alignment: .leading) }
+                    contenu
+                }
                     .frame(width: taille.width - 80, height: taille.height - 80)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))

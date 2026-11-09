@@ -55,8 +55,7 @@ enum ReunionTest {
         if !sansNote, !fusion.isEmpty {
             do {
                 let (note, retraits) = try await GenerationNote().rediger(segments: fusion, duree: duree, debut: r.debut) { print("  \($0)") }
-                r.titre = note.titre; r.dit = note.dit; r.decisions = note.decisions; r.actions = note.actions
-                r.participants = ["Moi"] + note.participants
+                NoteReunion.appliquer(note, a: &r, segments: fusion)
                 r.etat = .prete
                 for x in retraits { print("  garde anti-invention : retiré \(x)") }
                 print(String(format: "note écrite en %.0f s", ProcessInfo.processInfo.systemUptime - t1))
@@ -70,7 +69,37 @@ enum ReunionTest {
         try? ReunionMarkdown.rendre(r).write(to: md, atomically: true, encoding: .utf8)
         print("écrit \(json.path)\nécrit \(md.path)\n")
         print(ReunionMarkdown.rendre(r))
-        return r.etat == .prete || sansNote ? 0 : 1
+        var controle = true
+        if r.etat == .prete { controle = verifierPresentation(r) }
+        return (r.etat == .prete || sansNote) && controle ? 0 : 1
+    }
+
+    /// Contrôle automatique de la présentation « D'un coup d'œil » : « En bref » présent, chaque citation est une portion exacte
+    /// d'un passage de la transcription (et le passage porte bien l'heure et le locuteur donnés), les échéances sont en vraies dates.
+    private static func verifierPresentation(_ r: Reunion) -> Bool {
+        var ok = true
+        func controle(_ condition: Bool, _ nom: String) { print("  \(condition ? "ok   " : "ÉCHEC")  \(nom)"); if !condition { ok = false } }
+        print("Contrôle de la présentation")
+        controle(!(r.enBref ?? "").isEmpty, "« En bref » écrit : \(r.enBref ?? "(vide)")")
+        for (i, p) in r.dit.enumerated() {
+            if let c = r.citation(point: i) {
+                let exacte = r.segments.contains { $0.texte.contains(c.texte) && $0.locuteur == c.locuteur && $0.debut == c.debut }
+                controle(exacte, "point \(i + 1) « \(p) » : citation exacte (\(c.locuteur.libelle), \(FormatReunion.horloge(c.debut))) « \(c.texte) »")
+            } else {
+                print("  --    point \(i + 1) « \(p) » : pas de citation")
+            }
+        }
+        controle(r.citations?.count ?? 0 > 0, "au moins une citation retrouvée")
+        for a in r.actions {
+            let e = Echeance.etiquette(quand: a.quand, date: a.echeance)
+            print("  --    action « \(a.quoi) » (\(a.qui ?? "?")) quand « \(a.quand ?? "-") » -> \(a.echeance ?? "-") -> \(e.texte)")
+            if a.echeance != nil { controle(Echeance.analyser(a.quand ?? "", depuis: r.debut).date == a.echeance, "échéance recalculée identique") }
+        }
+        for (i, d) in r.decisions.enumerated() {
+            let e = r.echeance(decision: i)
+            print("  --    décision « \(d) »\(e.map { " : « \($0.quand) » -> \($0.date ?? "-")" } ?? "")")
+        }
+        return ok
     }
 
     /// Lit le fichier comme un micro (tampons de 100 ms) et le donne à une piste ; les morceaux coupés partent chez Whisper.

@@ -1,14 +1,22 @@
 import AppKit
+import AVFoundation
 import SwiftUI
 import UniformTypeIdentifiers
 import DicteeCore
+
+enum FiltreReunions { case toutes, avecActions }
 
 /// L'état de l'onglet Réunions : la liste, la note ouverte, la recherche, les actions (copier, exporter, effacer, cocher).
 @MainActor
 final class ReunionsModele: ObservableObject {
     @Published var ouverte: UUID?
     @Published var requete = "" { didSet { if requete != oldValue { selection = affichees.first?.id } } }
+    @Published var filtre: FiltreReunions = .toutes { didSet { if filtre != oldValue { selection = affichees.first?.id } } }
     @Published var selection: UUID?
+    /// Le point de « Dit » déplié dans la note (un seul à la fois), et celui dont on écoute la phrase.
+    @Published var pointOuvert: Int?
+    @Published var ecoute: Int?
+    private var lecteur: AVAudioPlayer?
     @Published var transcriptionDepliee = false
     @Published var suppressionEnAttente = false
     @Published var copiee = false
@@ -22,30 +30,51 @@ final class ReunionsModele: ObservableObject {
     init(store: ReunionStore? = nil) { self.store = store ?? ReunionStore.shared }
 
     var affichees: [Reunion] {
-        let mots = Historique.plier(requete).split(whereSeparator: { $0.isWhitespace }).map(String.init)
-        guard !mots.isEmpty else { return store.reunions }
-        return store.reunions.filter { r in
-            let cible = Historique.plier(([r.titreAffiche] + r.dit + r.decisions + r.actions.map(\.quoi) + r.segments.map(\.texte)).joined(separator: " "))
-            return mots.allSatisfy { cible.contains($0) }
-        }
+        let trouvees = store.reunions.filter { ListeReunions.correspond($0, requete: requete) }
+        return filtre == .avecActions ? ListeReunions.avecActions(trouvees) : trouvees
     }
 
-    /// Groupes par jour (même regroupement que l'historique des dictées).
-    var groupes: [(titre: String, reunions: [Reunion])] {
-        let liste = affichees
-        let pseudo = liste.map { EntreeHistorique(id: $0.id, date: $0.debut, texte: $0.titreAffiche) }
-        let parId = Dictionary(uniqueKeysWithValues: liste.map { ($0.id, $0) })
-        return Historique.groupes(pseudo).map { g in (g.titre, g.entrees.compactMap { parId[$0.id] }) }
-    }
+    var nombreAvecActions: Int { ListeReunions.avecActions(store.reunions).count }
+    var totalActions: Int { ListeReunions.totalActions(store.reunions) }
 
     var reunionOuverte: Reunion? { ouverte.flatMap { store.reunion(id: $0) } }
 
-    func reinitialiser() { ouverte = nil; requete = ""; selection = store.reunions.first?.id; jetonFocus += 1 }
+    func reinitialiser() { ouverte = nil; requete = ""; filtre = .toutes; selection = store.reunions.first?.id; jetonFocus += 1 }
 
     func ouvrir(_ id: UUID) {
-        ouverte = id; selection = id; transcriptionDepliee = false; suppressionEnAttente = false; copiee = false; notionCopie = false
+        arreterEcoute()
+        ouverte = id; selection = id; transcriptionDepliee = false; suppressionEnAttente = false; copiee = false; notionCopie = false; pointOuvert = nil
     }
-    func fermerLaNote() { ouverte = nil; suppressionEnAttente = false }
+    func fermerLaNote() { arreterEcoute(); ouverte = nil; suppressionEnAttente = false; pointOuvert = nil }
+
+    func basculerPoint(_ i: Int) {
+        arreterEcoute()
+        pointOuvert = pointOuvert == i ? nil : i
+    }
+
+    // MARK: écouter une phrase (seulement si le son de la réunion a été gardé)
+
+    func sonDisponible(_ r: Reunion, _ c: CitationReunion) -> Bool {
+        r.sonGarde && FileManager.default.fileExists(atPath: store.fichierSon(r, c.locuteur).path)
+    }
+
+    func ecouter(_ r: Reunion, point: Int) {
+        if ecoute == point { arreterEcoute(); return }
+        arreterEcoute()
+        guard let c = r.citation(point: point), sonDisponible(r, c), let p = try? AVAudioPlayer(contentsOf: store.fichierSon(r, c.locuteur)) else {
+            Log.ecrire("réunions : son de la phrase illisible"); return
+        }
+        p.currentTime = c.debut
+        guard p.play() else { return }
+        lecteur = p; ecoute = point
+        let duree = max(2, c.fin - c.debut + 1)
+        DispatchQueue.main.asyncAfter(deadline: .now() + duree) { [weak self] in
+            guard let self, self.lecteur === p else { return }
+            self.arreterEcoute()
+        }
+    }
+
+    func arreterEcoute() { lecteur?.stop(); lecteur = nil; ecoute = nil }
 
     func deplacer(_ delta: Int) {
         let liste = affichees
@@ -128,7 +157,7 @@ struct ReunionsVue: View {
     var body: some View {
         Group {
             if let r = m.reunionOuverte {
-                NoteReunionVue(m: m, r: r)
+                NoteReunionVue(m: m, r: r.echeancesCalculees())
             } else {
                 ReunionsListeVue(m: m, store: store, controleur: controleur, curseurFactice: curseurFactice)
             }
@@ -155,6 +184,8 @@ struct ReunionsListeVue: View {
     @ObservedObject var store: ReunionStore
     @ObservedObject var controleur: ReunionController
     var curseurFactice = false
+    /// Fenêtre étroite : les lignes perdent la colonne « durée » pour laisser la place au titre.
+    @State private var etroite = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -168,31 +199,28 @@ struct ReunionsListeVue: View {
             .padding(.horizontal, DicteesFenetreVue.margeH)
             .padding(.top, 8)
 
+            if !store.reunions.isEmpty { filtres.padding(.horizontal, DicteesFenetreVue.margeH).padding(.top, 14).padding(.bottom, 6) }
+
             if let libelle = controleur.libelleEnCours {
                 HStack(spacing: 8) {
                     Circle().fill(Palette.accent).frame(width: 6, height: 6)
                     Text(libelle).font(Polices.commande(14)).foregroundStyle(Palette.texte2)
                     Spacer()
                 }
-                .padding(.horizontal, DicteesFenetreVue.margeH + 16).padding(.top, 14)
+                .padding(.horizontal, DicteesFenetreVue.margeH + 16).padding(.top, 8).padding(.bottom, 4)
                 .accessibilityElement(children: .combine)
             }
 
             if store.reunions.isEmpty {
                 vide("Aucune réunion pour l\u{2019}instant.", detail: "Appuie sur \u{2325}\u{2318}N pendant un appel : Verbe écoute ton micro et le son du Mac, puis écrit la note.")
             } else if m.affichees.isEmpty {
-                vide("Aucun résultat", detail: "Essaie un autre mot.")
+                vide("Aucun résultat", detail: m.filtre == .avecActions && m.requete.isEmpty ? "Plus aucune action à faire dans les notes." : "Essaie un autre mot.")
             } else {
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: false) {
                         LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(m.groupes.enumerated()), id: \.offset) { _, g in
-                                Text(g.titre).font(Polices.commande(13)).foregroundStyle(Palette.texte2)
-                                    .padding(.horizontal, 16).padding(.top, 20).padding(.bottom, 8)
-                                    .accessibilityAddTraits(.isHeader)
-                                ForEach(g.reunions) { r in
-                                    LigneReunion(r: r, choisie: m.selection == r.id) { m.ouvrir(r.id) } surSurvol: { m.selection = r.id }.id(r.id)
-                                }
+                            ForEach(m.affichees) { r in
+                                LigneReunion(r: r, choisie: m.selection == r.id, etroite: etroite) { m.ouvrir(r.id) } surSurvol: { m.selection = r.id }.id(r.id)
                             }
                         }
                         .padding(.horizontal, DicteesFenetreVue.margeH)
@@ -219,7 +247,22 @@ struct ReunionsListeVue: View {
             .frame(height: 48)
             .overlay(alignment: .top) { Rectangle().fill(Palette.filet).frame(height: 1) }
         }
-        .onAppear { if m.selection == nil { m.selection = store.reunions.first?.id }; m.jetonFocus += 1 }
+        .background(GeometryReader { g in Color.clear.onAppear { etroite = g.size.width < 760 }.onChange(of: g.size.width) { _, w in etroite = w < 760 } })
+        .onAppear { if m.selection == nil { m.selection = m.affichees.first?.id }; m.jetonFocus += 1 }
+    }
+
+    /// « Toutes 6 » · « Avec des actions à faire 4 » · « 10 actions à faire ».
+    private var filtres: some View {
+        HStack(spacing: 4) {
+            PuceFiltre(titre: "Toutes", nombre: store.reunions.count, actif: m.filtre == .toutes) { m.filtre = .toutes }
+            PuceFiltre(titre: "Avec des actions à faire", nombre: m.nombreAvecActions, actif: m.filtre == .avecActions) { m.filtre = .avecActions }
+            Spacer(minLength: 8)
+            let total = m.totalActions
+            (Text("\(total)").fontWeight(.medium).foregroundStyle(Palette.texte) + Text(" action\(total > 1 ? "s" : "") à faire").foregroundStyle(Palette.texte2))
+                .font(Polices.commande(14)).lineLimit(1)
+                .accessibilityLabel("\(total) action\(total > 1 ? "s" : "") à faire en tout")
+        }
+        .frame(height: 32)
     }
 
     private var champ: some View {
@@ -251,9 +294,37 @@ struct ReunionsListeVue: View {
     }
 }
 
+/// Un filtre de la liste : texte, nombre en gris, pastille quand il est actif.
+struct PuceFiltre: View {
+    var titre: String
+    var nombre: Int
+    var actif: Bool
+    var action: () -> Void
+    @State private var survol = false
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(titre).font(Polices.commande(14, actif ? .medium : .regular))
+                Text("\(nombre)").font(Polices.commande(14)).foregroundStyle(Palette.texte3)
+            }
+            .foregroundStyle(actif || survol ? Palette.texte : Palette.texte2)
+            .padding(.horizontal, 12).frame(height: 32)
+            .background(RoundedRectangle(cornerRadius: 8).fill(actif ? Palette.relief : (survol ? Palette.selection : .clear)))
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .fixedSize()
+        }
+        .buttonStyle(.plain)
+        .onHover { survol = $0 }
+        .accessibilityLabel("\(titre), \(nombre)")
+        .accessibilityAddTraits(actif ? .isSelected : [])
+    }
+}
+
+/// Une réunion sur deux lignes : jour et heure, titre, « En bref » sur une ligne, durée, ce qu'il reste à faire.
 struct LigneReunion: View {
     let r: Reunion
     var choisie: Bool
+    var etroite = false
     var ouvrir: () -> Void
     var surSurvol: () -> Void
     @State private var survol = false
@@ -261,55 +332,129 @@ struct LigneReunion: View {
     private static let formatHeure: DateFormatter = {
         let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "HH:mm"; return f
     }()
+    private static let formatJour: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "EEE d MMM"; return f
+    }()
 
     var body: some View {
         let actif = choisie || survol
-        HStack(spacing: 16) {
-            Text(Self.formatHeure.string(from: r.debut)).font(Polices.commande(14).monospacedDigit()).foregroundStyle(Palette.texte2).frame(width: 56, alignment: .leading)
-            Text(r.titreAffiche).font(Polices.texte(18)).foregroundStyle(actif ? Palette.texte : Palette.texte2)
-                .lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
-            if r.etat == .sansNote { Text("sans note").font(Polices.commande(12)).foregroundStyle(Palette.texte3) }
-            Text(FormatReunion.duree(r.duree)).font(Polices.commande(13)).foregroundStyle(Palette.texte2).lineLimit(1).frame(minWidth: 64, alignment: .trailing)
-            Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Palette.texte3).opacity(actif ? 1 : 0)
+        let resume = ResumeReunion.de(r)
+        HStack(spacing: etroite ? 14 : 20) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(Self.formatHeure.string(from: r.debut)).font(Polices.commande(14).monospacedDigit()).foregroundStyle(Palette.texte)
+                Text(Self.formatJour.string(from: r.debut)).font(Polices.commande(13)).foregroundStyle(Palette.texte3).lineLimit(1)
+            }
+            .frame(width: 76, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(r.titreAffiche).font(Polices.texte(19)).foregroundStyle(Palette.texte).lineLimit(1).truncationMode(.tail)
+                Text(deuxiemeLigne(resume)).font(Polices.commande(14)).foregroundStyle(resume.noteEcrite ? Palette.texte2 : Palette.texte3).lineLimit(1).truncationMode(.tail)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if !etroite { Text(FormatReunion.duree(r.duree)).font(Polices.commande(13)).foregroundStyle(Palette.texte3).lineLimit(1).frame(width: 56, alignment: .trailing) }
+            droite(resume).frame(width: 112, alignment: .trailing)
         }
         .padding(.horizontal, 16)
-        .frame(height: 52)
+        .frame(height: 68)
         .background(RoundedRectangle(cornerRadius: 10).fill(actif ? Palette.selection : .clear))
         .contentShape(Rectangle())
         .onHover { survol = $0; if $0 { surSurvol() } }
         .onTapGesture(perform: ouvrir)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(Self.formatHeure.string(from: r.debut)), \(r.titreAffiche), \(FormatReunion.duree(r.duree))")
+        .accessibilityLabel("\(Self.formatJour.string(from: r.debut)), \(Self.formatHeure.string(from: r.debut)), \(r.titreAffiche), \(FormatReunion.duree(r.duree)), \(resume.noteEcrite ? "\(resume.aFaire) à faire" : "sans note")")
         .accessibilityAddTraits(choisie ? [.isSelected, .isButton] : .isButton)
+    }
+
+    private func deuxiemeLigne(_ resume: ResumeReunion) -> String {
+        switch r.etat {
+        case .prete: return resume.enBref
+        case .sansNote: return "Pas encore de note pour cet enregistrement."
+        default: return "Note en préparation\u{2026}"
+        }
+    }
+
+    @ViewBuilder private func droite(_ resume: ResumeReunion) -> some View {
+        if r.etat == .sansNote {
+            Text("sans note").font(Polices.commande(14)).foregroundStyle(Palette.texte3).lineLimit(1)
+        } else if r.etat != .prete {
+            Text("en préparation").font(Polices.commande(14)).foregroundStyle(Palette.texte3).lineLimit(1)
+        } else if resume.aFaire > 0 {
+            VStack(alignment: .trailing, spacing: 0) {
+                Text("\(resume.aFaire) à faire").font(Polices.commande(14, .medium)).foregroundStyle(Palette.texte).lineLimit(1)
+                if let iso = resume.premiere, let jour = Echeance.jour(iso, court: true) {
+                    Text("\(resume.premiereAvant ? "avant" : "dès") \(jour)").font(Polices.commande(13)).foregroundStyle(Palette.texte3).lineLimit(1)
+                }
+            }
+        } else {
+            Text(resume.toutFait ? "tout fait" : "rien à faire").font(Polices.commande(14)).foregroundStyle(Palette.texte3).lineLimit(1)
+        }
     }
 }
 
-// MARK: la note, version A « Le carnet »
+// MARK: la note, version B « D'un coup d'œil »
 
-/// Une page qui se lit de haut en bas : titre modifiable, date et participants, « Ce qui a été dit », « Ce qui a été décidé »,
-/// « Ce qu'il reste à faire » (cases à cocher), puis la transcription repliée. Une section vide n'est pas montrée.
+/// Trois colonnes de largeurs différentes sur une même ligne (Dit, Décidé, À faire), à hauteur commune.
+struct TroisColonnes: Layout {
+    var poids: [CGFloat] = [1.2, 0.8, 1.35]
+    private func largeurs(_ total: CGFloat) -> [CGFloat] {
+        let somme = poids.reduce(0, +)
+        return poids.map { total * $0 / somme }
+    }
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let total = proposal.width ?? 900
+        let h = zip(subviews, largeurs(total)).map { $0.sizeThatFits(ProposedViewSize(width: $1, height: nil)).height }.max() ?? 0
+        return CGSize(width: total, height: max(h, proposal.height ?? 0))
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        for (v, w) in zip(subviews, largeurs(bounds.width)) {
+            v.place(at: CGPoint(x: x, y: bounds.minY), anchor: .topLeading, proposal: ProposedViewSize(width: w, height: bounds.height))
+            x += w
+        }
+    }
+}
+
+/// Une étiquette de date : « mer. 11 · soir » (pleine), « sans date » (cadre), « fait » (texte gris).
+struct EtiquetteDate: View {
+    enum Style { case pleine, sansDate, fait }
+    var texte: String
+    var style: Style = .pleine
+    var largeur: CGFloat?
+    var body: some View {
+        Text(texte)
+            .font(Polices.commande(13, style == .pleine ? .medium : .regular))
+            .foregroundStyle(style == .pleine ? Palette.texte : Palette.texte3)
+            .lineLimit(1).minimumScaleFactor(0.85)
+            .padding(.horizontal, style == .fait ? 0 : 10)
+            .frame(height: 26)
+            .frame(width: largeur, alignment: style == .fait ? .leading : .center)
+            .background { if style == .pleine { RoundedRectangle(cornerRadius: 6).fill(Palette.relief) } }
+            .overlay { if style == .sansDate { RoundedRectangle(cornerRadius: 6).strokeBorder(Palette.contour, lineWidth: 1) } }
+            .fixedSize(horizontal: largeur == nil, vertical: true)
+    }
+}
+
+/// La note : en-tête (titre modifiable, date · durée · participants), « En bref », puis Dit · Décidé · À faire côte à côte, sans
+/// cartes ; un point de « Dit » s'ouvre sur la phrase exacte de la transcription. Les anciennes notes (sans « En bref » ni citations)
+/// s'affichent de la même façon, sans ces éléments. En fenêtre étroite, les colonnes passent l'une sous l'autre.
 struct NoteReunionVue: View {
     @ObservedObject var m: ReunionsModele
     var r: Reunion
     @State private var titre = ""
     @FocusState private var titreFocus: Bool
-    static let colonneEtiquette: CGFloat = 150
-    static let largeurPage: CGFloat = 720
-    /// Sous cette largeur, les étiquettes passent au-dessus de leur contenu (petite fenêtre).
-    static let largeurCompacte: CGFloat = 860
+    /// Sous cette largeur, les trois colonnes passent l'une sous l'autre.
+    static let largeurCompacte: CGFloat = 820
     @State private var largeur: CGFloat = 1000
+    @State private var hauteur: CGFloat = 600
     private var compacte: Bool { largeur < Self.largeurCompacte }
-    private var retrait: CGFloat { compacte ? 0 : Self.colonneEtiquette }
 
     var body: some View {
         VStack(spacing: 0) {
-            barre.padding(.horizontal, DicteesFenetreVue.margeH).frame(height: 52)
+            barre.padding(.horizontal, DicteesFenetreVue.margeH).frame(height: 48)
             ScrollView(.vertical, showsIndicators: false) {
                 page
-                    .frame(maxWidth: Self.largeurPage + Self.colonneEtiquette, alignment: .leading)
                     .padding(.horizontal, DicteesFenetreVue.margeH)
-                    .padding(.top, 4).padding(.bottom, 40)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 4).padding(.bottom, 8)
+                    .frame(minHeight: hauteur, alignment: .top)
             }
             HStack { MentionLocale(); Spacer() }
                 .padding(.horizontal, DicteesFenetreVue.margeH)
@@ -317,6 +462,7 @@ struct NoteReunionVue: View {
                 .overlay(alignment: .top) { Rectangle().fill(Palette.filet).frame(height: 1) }
         }
         .background(GeometryReader { g in Color.clear.onAppear { largeur = g.size.width }.onChange(of: g.size.width) { _, w in largeur = w } })
+        .background(GeometryReader { g in Color.clear.onAppear { hauteur = max(0, g.size.height - 96) }.onChange(of: g.size.height) { _, h in hauteur = max(0, h - 96) } })
         .onAppear { titre = r.titre }
         .onChange(of: r.id) { _, _ in titre = r.titre }
         .onChange(of: r.titre) { _, nouveau in if !titreFocus { titre = nouveau } }
@@ -350,57 +496,51 @@ struct NoteReunionVue: View {
 
     private var page: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TextField(r.titreAffiche, text: $titre, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(Polices.texte(30))
-                .foregroundStyle(Palette.texte)
-                .tint(Palette.accent)
-                .focused($titreFocus)
-                .onSubmit { m.titre(r.id, devient: titre); titreFocus = false }
-                .onChange(of: titreFocus) { _, f in if !f { m.titre(r.id, devient: titre) } }
-                .padding(.leading, retrait)
-                .accessibilityLabel("Titre de la réunion")
-            meta.padding(.leading, retrait).padding(.top, 8)
+            entete
+            if let a = etat { a.padding(.top, 16) }
+            if let b = r.enBref?.trimmingCharacters(in: .whitespacesAndNewlines), !b.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("En bref").font(Polices.commande(13)).foregroundStyle(Palette.texte3)
+                    Text(b).font(Polices.texte(21)).lineSpacing(4).foregroundStyle(Palette.texte).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                }
+                .padding(.top, 14)
+                .accessibilityElement(children: .combine)
+            }
+            if r.etat == .prete || !(r.dit.isEmpty && r.decisions.isEmpty && r.actions.isEmpty) { colonnes.padding(.top, 20).frame(maxHeight: .infinity) }
+            else { Spacer(minLength: 0) }
+            if !r.avertissements.isEmpty { avertissements.padding(.top, 12) }
+            if !r.segments.isEmpty { transcription.padding(.top, 12) }
+        }
+    }
 
-            if let a = etat { a.padding(.leading, retrait).padding(.top, 20) }
-
-            if !r.dit.isEmpty {
-                section("Ce qui a été dit") {
-                    VStack(alignment: .leading, spacing: 10) { ForEach(Array(r.dit.enumerated()), id: \.offset) { _, t in paragraphe(t) } }
-                }
-            }
-            if !r.decisions.isEmpty {
-                section("Ce qui a été décidé") {
-                    VStack(alignment: .leading, spacing: 10) { ForEach(Array(r.decisions.enumerated()), id: \.offset) { _, t in paragraphe(t) } }
-                }
-            }
-            if !r.actions.isEmpty {
-                section("Ce qu\u{2019}il reste à faire") {
-                    VStack(alignment: .leading, spacing: 4) { ForEach(r.actions) { a in ligneAction(a) } }
-                }
-            }
-            if !r.avertissements.isEmpty {
-                section("À savoir") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(Array(r.avertissements.enumerated()), id: \.offset) { _, t in
-                            Text(t).font(Polices.commande(13)).foregroundStyle(Palette.texte3).fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-            }
-            if !r.segments.isEmpty {
-                section("Transcription") { transcription }
+    private var entete: some View {
+        let champ = TextField(r.titreAffiche, text: $titre, axis: .vertical)
+            .textFieldStyle(.plain)
+            .font(Polices.texte(28))
+            .foregroundStyle(Palette.texte)
+            .tint(Palette.accent)
+            .focused($titreFocus)
+            .onSubmit { m.titre(r.id, devient: titre); titreFocus = false }
+            .onChange(of: titreFocus) { _, f in if !f { m.titre(r.id, devient: titre) } }
+            .accessibilityLabel("Titre de la réunion")
+        return Group {
+            if compacte {
+                VStack(alignment: .leading, spacing: 4) { champ; meta }
+            } else {
+                HStack(alignment: .lastTextBaseline, spacing: 24) { champ.frame(maxWidth: .infinity, alignment: .leading); meta.fixedSize() }
             }
         }
     }
 
+    /// « lun. 9 nov. 2026, 14:02 · 38 min · Moi, Nathalie, Paul »
     private var meta: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("\(FormatReunion.jourHeure(r.debut)) \u{00B7} \(FormatReunion.duree(r.duree))").foregroundStyle(Palette.texte3)
-            if !r.participants.isEmpty { Text(r.participants.joined(separator: ", ")).foregroundStyle(Palette.texte2) }
+        var t = AttributedString("\(FormatReunion.jourHeure(r.debut)) \u{00B7} \(FormatReunion.duree(r.duree))")
+        t.foregroundColor = Palette.texte2
+        if !r.participants.isEmpty {
+            var p = AttributedString(" \u{00B7} " + r.participants.joined(separator: ", ")); p.foregroundColor = Palette.texte
+            t.append(p)
         }
-        .font(Polices.commande(13))
-        .lineSpacing(3)
+        return Text(t).font(Polices.commande(14)).lineLimit(compacte ? 3 : 1).fixedSize(horizontal: false, vertical: true)
     }
 
     /// L'état de la note quand elle n'est pas (encore) écrite.
@@ -417,31 +557,128 @@ struct NoteReunionVue: View {
         }
     }
 
-    private func section<Contenu: View>(_ titre: String, @ViewBuilder _ contenu: () -> Contenu) -> some View {
-        let etiquette = Text(titre).font(Polices.commande(13)).foregroundStyle(Palette.texte3).lineLimit(2).accessibilityAddTraits(.isHeader)
-        return Group {
-            if compacte {
-                VStack(alignment: .leading, spacing: 8) {
-                    etiquette
-                    contenu().frame(maxWidth: Self.largeurPage, alignment: .leading)
-                }
-            } else {
-                HStack(alignment: .firstTextBaseline, spacing: 0) {
-                    etiquette.frame(width: Self.colonneEtiquette - 16, alignment: .leading).padding(.trailing, 16)
-                    contenu().frame(maxWidth: Self.largeurPage, alignment: .leading)
-                }
+    // MARK: les trois colonnes
+
+    @ViewBuilder private var colonnes: some View {
+        if compacte {
+            VStack(alignment: .leading, spacing: 0) {
+                colonneDit.padding(.bottom, 20)
+                colonneDecide.padding(.vertical, 20).overlay(alignment: .top) { Rectangle().fill(Palette.contour).frame(height: 1) }
+                colonneAFaire.padding(.top, 20).overlay(alignment: .top) { Rectangle().fill(Palette.contour).frame(height: 1) }
+            }
+        } else {
+            TroisColonnes {
+                colonneDit.padding(.trailing, 24).frame(maxHeight: .infinity, alignment: .topLeading)
+                colonneDecide.padding(.horizontal, 24).frame(maxHeight: .infinity, alignment: .topLeading)
+                    .overlay(alignment: .leading) { Rectangle().fill(Palette.contour).frame(width: 1) }
+                colonneAFaire.padding(.leading, 24).frame(maxHeight: .infinity, alignment: .topLeading)
+                    .overlay(alignment: .leading) { Rectangle().fill(Palette.contour).frame(width: 1) }
             }
         }
-        .padding(.top, 28)
     }
 
-    private func paragraphe(_ t: String) -> some View {
-        Text(t).font(Polices.texte(18)).foregroundStyle(Palette.texte).lineSpacing(5).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+    private func entete(_ titre: String, _ compte: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(titre).font(Polices.commande(17, .medium)).foregroundStyle(Palette.texte)
+            Text(compte).font(Polices.commande(15)).foregroundStyle(Palette.texte3)
+        }
+        .padding(.bottom, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 
-    private func ligneAction(_ a: ActionReunion) -> some View {
+    private func rien(_ t: String) -> some View { Text(t).font(Polices.texte(17)).foregroundStyle(Palette.texte3).padding(.vertical, 7) }
+
+    // Dit
+
+    private var colonneDit: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            entete("Dit", "\(r.dit.count)")
+            if r.dit.isEmpty { rien("Rien noté.") }
+            ForEach(Array(r.dit.enumerated()), id: \.offset) { i, t in point(i, t) }
+        }
+    }
+
+    @ViewBuilder private func point(_ i: Int, _ t: String) -> some View {
+        if let c = r.citation(point: i) {
+            let ouvert = m.pointOuvert == i
+            VStack(alignment: .leading, spacing: 0) {
+                Button { withAnimation(.easeOut(duration: 0.15)) { m.basculerPoint(i) } } label: {
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(t).font(Polices.texte(17)).lineSpacing(3).foregroundStyle(Palette.texte).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: ouvert ? "chevron.down" : "chevron.right").font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(ouvert ? Palette.texte2 : Palette.texte3).frame(width: 16, height: 24)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(t)
+                .accessibilityValue(ouvert ? "ouvert" : "fermé")
+                .accessibilityHint("Montre la phrase de la transcription")
+                if ouvert {
+                    Text("\u{00AB}\u{202F}\(c.texte)\u{202F}\u{00BB}").font(Polices.texte(16)).lineSpacing(4).foregroundStyle(Palette.texte2)
+                        .fixedSize(horizontal: false, vertical: true).textSelection(.enabled).padding(.top, 6)
+                    HStack(spacing: 6) {
+                        Text(c.locuteur.libelle).fontWeight(.medium).foregroundStyle(Palette.texte)
+                        Text("\u{00B7} \(FormatReunion.horloge(c.debut)) dans l\u{2019}appel").foregroundStyle(Palette.texte2)
+                        if m.sonDisponible(r, c) {
+                            Text("\u{00B7}").foregroundStyle(Palette.texte2)
+                            Button { m.ecouter(r, point: i) } label: { Text(m.ecoute == i ? "Arrêter" : "Écouter").foregroundStyle(Palette.texte) }
+                                .buttonStyle(.plain).accessibilityLabel(m.ecoute == i ? "Arrêter l\u{2019}écoute" : "Écouter la phrase")
+                        }
+                    }
+                    .font(Polices.commande(13)).padding(.top, 8)
+                }
+            }
+            .padding(.horizontal, ouvert ? 12 : 0).padding(.vertical, ouvert ? 10 : 7)
+            .background { if ouvert { RoundedRectangle(cornerRadius: 10).fill(Palette.selection).overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Palette.contour, lineWidth: 1)) } }
+            .padding(.horizontal, ouvert ? -12 : 0).padding(.vertical, ouvert ? 4 : 0)
+        } else {
+            Text(t).font(Polices.texte(17)).lineSpacing(3).foregroundStyle(Palette.texte).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 7)
+        }
+    }
+
+    // Décidé
+
+    private var colonneDecide: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            entete("Décidé", "\(r.decisions.count)")
+            if r.decisions.isEmpty { rien("Rien de décidé.") }
+            ForEach(Array(r.decisions.enumerated()), id: \.offset) { i, t in
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "checkmark").font(.system(size: 12, weight: .medium)).foregroundStyle(Palette.texte).frame(width: 20, height: 24)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(t).font(Polices.texte(17)).lineSpacing(3).foregroundStyle(Palette.texte).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                        if let e = r.echeance(decision: i) {
+                            let et = Echeance.etiquette(quand: e.quand, date: e.date)
+                            EtiquetteDate(texte: et.texte)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.vertical, 7)
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    // À faire
+
+    private var colonneAFaire: some View {
+        let t = ActionsReunion.triees(r.actions)
+        return VStack(alignment: .leading, spacing: 0) {
+            entete("À faire", t.faites.isEmpty ? "\(t.aFaire.count)" : "\(t.aFaire.count) \u{00B7} \(t.faites.count) fait")
+            if r.actions.isEmpty { rien("Rien à faire.") }
+            ForEach(Array(t.aFaire.enumerated()), id: \.element.id) { i, a in ligneAction(a, derniere: i == t.aFaire.count - 1 && t.faites.isEmpty) }
+            ForEach(Array(t.faites.enumerated()), id: \.element.id) { i, a in ligneAction(a, derniere: i == t.faites.count - 1) }
+        }
+    }
+
+    private func ligneAction(_ a: ActionReunion, derniere: Bool) -> some View {
         Button { m.cocher(r.id, action: a.id) } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
+            HStack(alignment: .top, spacing: 8) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 5).strokeBorder(a.fait ? Palette.texte : Palette.texte3, lineWidth: 1.5)
                     if a.fait {
@@ -449,43 +686,56 @@ struct NoteReunionVue: View {
                         Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)).foregroundStyle(Palette.surface)
                     }
                 }
-                .frame(width: 16, height: 16)
-                .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 2 }
-                Text(libelle(a)).font(Polices.texte(18)).lineSpacing(5).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                .frame(width: 18, height: 18).padding(.top, 3)
+                if a.fait { EtiquetteDate(texte: "fait", style: .fait, largeur: 92).padding(.top, 0) }
+                else {
+                    let e = Echeance.etiquette(quand: a.quand, date: a.echeance, court: true)
+                    EtiquetteDate(texte: e.texte, style: e.sansDate ? .sansDate : .pleine, largeur: 92)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(a.quoi).font(Polices.texte(17)).lineSpacing(3).foregroundStyle(a.fait ? Palette.texte3 : Palette.texte).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                    if let q = a.qui, !q.isEmpty { Text(q).font(Polices.commande(13)).foregroundStyle(a.fait ? Palette.texte3 : Palette.texte2) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, 7)
+            .overlay(alignment: .bottom) { if !derniere { Rectangle().fill(Palette.filet).frame(height: 1) } }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(a.qui.map { $0 + " : " } ?? "")\(a.quoi)\(a.quand.map { ", " + $0 } ?? "")")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(a.qui.map { $0 + " : " } ?? "")\(a.quoi), \(Echeance.etiquette(quand: a.quand, date: a.echeance).texte)")
         .accessibilityValue(a.fait ? "fait" : "à faire")
         .accessibilityAddTraits(.isToggle)
     }
 
-    /// « Moi  envoyer la proposition, mercredi soir » : le prénom en clair, le reste en gris (barré de gris quand c'est fait).
-    private func libelle(_ a: ActionReunion) -> AttributedString {
-        var s = AttributedString()
-        if let q = a.qui, !q.isEmpty {
-            var x = AttributedString(q + " "); x.foregroundColor = a.fait ? Palette.texte3 : Palette.texte; s.append(x)
-        }
-        var quoi = AttributedString(a.quoi); quoi.foregroundColor = a.fait ? Palette.texte3 : Palette.texte2; s.append(quoi)
-        if let q = a.quand, !q.isEmpty { var x = AttributedString(", " + q); x.foregroundColor = Palette.texte3; s.append(x) }
-        return s
-    }
+    // MARK: à savoir, transcription repliée
 
-    // MARK: transcription repliée
+    private var avertissements: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(r.avertissements.enumerated()), id: \.offset) { _, t in
+                Text(t).font(Polices.commande(13)).foregroundStyle(Palette.texte3).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
 
     private var transcription: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button { withAnimation(.easeOut(duration: 0.15)) { m.transcriptionDepliee.toggle() } } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .medium)).rotationEffect(.degrees(m.transcriptionDepliee ? 90 : 0)).foregroundStyle(Palette.texte3)
-                    Text(m.transcriptionDepliee ? "Replier" : "Afficher").font(Polices.commande(14)).foregroundStyle(Palette.texte2)
-                    Text("\(FormatReunion.duree(r.duree)), \(r.voix) voix").font(Polices.commande(14)).foregroundStyle(Palette.texte3)
+                HStack(spacing: 12) {
+                    Text("Transcription").font(Polices.commande(15, .medium)).foregroundStyle(Palette.texte)
+                    Text("\(FormatReunion.duree(r.duree)) \u{00B7} \(r.voix) voix").font(Polices.commande(15)).foregroundStyle(Palette.texte3)
+                    Spacer()
+                    HStack(spacing: 6) {
+                        Text(m.transcriptionDepliee ? "Replier" : "Afficher").font(Polices.commande(15))
+                        Image(systemName: "chevron.right").font(.system(size: 11, weight: .medium)).rotationEffect(.degrees(m.transcriptionDepliee ? 90 : 0))
+                    }
+                    .foregroundStyle(Palette.texte2)
                 }
-                .frame(height: 28).contentShape(Rectangle())
+                .frame(height: 52).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .overlay(alignment: .top) { Rectangle().fill(Palette.contour).frame(height: 1) }
             .accessibilityLabel(m.transcriptionDepliee ? "Replier la transcription" : "Afficher la transcription")
             if m.transcriptionDepliee {
                 VStack(alignment: .leading, spacing: 0) {
@@ -501,7 +751,7 @@ struct NoteReunionVue: View {
                         .accessibilityElement(children: .combine)
                     }
                 }
-                .padding(.top, 8)
+                .padding(.bottom, 12)
             }
         }
     }

@@ -228,8 +228,7 @@ final class ReunionController: ObservableObject {
                 Task { @MainActor in self?.panneau.modele.traitement = etape }
             }
             for x in retraits { Log.ecrire("réunion : garde anti-invention, retiré \(x)") }
-            r.titre = note.titre; r.dit = note.dit; r.decisions = note.decisions; r.actions = note.actions
-            r.participants = ["Moi"] + note.participants
+            NoteReunion.appliquer(note, a: &r, segments: fusion)
             r.etat = .prete
         } catch {
             Log.ecrire("réunion : note impossible (\(error))")
@@ -258,8 +257,7 @@ final class ReunionController: ObservableObject {
         Task {
             do {
                 let (note, _) = try await GenerationNote().rediger(segments: r.segments, duree: r.duree, debut: r.debut)
-                r.titre = note.titre; r.dit = note.dit; r.decisions = note.decisions; r.actions = note.actions
-                r.participants = ["Moi"] + note.participants
+                NoteReunion.appliquer(note, a: &r, segments: r.segments)
                 r.etat = .prete
             } catch {
                 r.etat = .sansNote
