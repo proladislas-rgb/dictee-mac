@@ -2,6 +2,7 @@ import AVFoundation
 import CoreAudio
 import AudioToolbox
 import DicteeCore
+import VerbeObjC
 
 enum MicroErreur: Error, LocalizedError {
     case aucunSon
@@ -160,8 +161,22 @@ final class AudioCapture: @unchecked Sendable {
             let statut = AudioUnitSetProperty(unite, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &id, UInt32(MemoryLayout<AudioDeviceID>.size))
             if statut != noErr { Log.ecrire("micro : impossible d'imposer « \(p.nom) » (erreur \(statut)), micro du système utilisé") }
         }
-        neuf.prepare()
-        Log.ecrire("micro : moteur construit (\(motif)) ; \(decision.raison) ; \(description())")
+        // -[AVAudioEngine prepare] peut lever une exception Objective-C (graphe invalide, micro imposé incompatible…) :
+        // rattrapée ici ; on repart alors sur un moteur neuf au micro du système, sans préparation anticipée.
+        // Le nœud d'entrée doit exister dans le graphe avant `prepare()` (sinon : « inputNode != nullptr || outputNode != nullptr »).
+        _ = neuf.inputNode
+        if let raison = VerbeEssayer({ neuf.prepare() }) {
+            Log.ecrire("micro : préparation refusée par macOS (\(raison)) ; moteur neuf au micro du système")
+            if let o = observateur { NotificationCenter.default.removeObserver(o); observateur = nil }
+            let secours = AVAudioEngine()
+            engine = secours
+            observateur = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: secours, queue: nil) { [weak self] _ in
+                self?.file.async { self?.reconfigurer() }
+            }
+            decisionDuMoteur = .systeme(raison: "secours après refus de préparation")
+            _ = secours.inputNode
+        }
+        Log.ecrire("micro : moteur construit (\(motif)) ; \(decisionDuMoteur?.raison ?? decision.raison) ; \(description())")
     }
 
     private func installerEtDemarrer() throws {
@@ -173,9 +188,16 @@ final class AudioCapture: @unchecked Sendable {
         let p = pipeline
         entree.removeTap(onBus: 0)
         // format nil : le tap prend le format réel du micro à cet instant (jamais un format gardé d'avant)
-        entree.installTap(onBus: 0, bufferSize: 2048, format: nil) { tampon, _ in p?.traiter(tampon) }
-        engine.prepare()
-        try engine.start()
+        var erreurDemarrage: Error?
+        if let raison = VerbeEssayer({
+            entree.installTap(onBus: 0, bufferSize: 2048, format: nil) { tampon, _ in p?.traiter(tampon) }
+            engine.prepare()
+            do { try engine.start() } catch { erreurDemarrage = error }
+        }) {
+            entree.removeTap(onBus: 0)
+            throw NSError(domain: "Dictee", code: 2, userInfo: [NSLocalizedDescriptionKey: "micro refusé par macOS (\(raison))"])
+        }
+        if let erreurDemarrage { throw erreurDemarrage }
     }
 
     private func arreterMoteur() {
@@ -183,7 +205,7 @@ final class AudioCapture: @unchecked Sendable {
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()
             enCours = false
-            engine.prepare()
+            if let raison = VerbeEssayer({ self.engine.prepare() }) { Log.ecrire("micro : préparation après arrêt refusée (\(raison))") }
         }
     }
 
