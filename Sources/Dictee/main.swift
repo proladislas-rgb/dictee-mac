@@ -13,12 +13,17 @@ if let i = arguments.firstIndex(of: "--transcrire") {
         FileHandle.standardError.write(Data("Usage : Dictee --transcrire fichier.wav\n".utf8))
         exit(2)
     }
-    exit(Transcrire.executer(chemin: arguments[i + 1]))
+    exit(Transcrire.executer(chemin: arguments[i + 1], arguments: arguments))
 }
 
 // Dictee --nettoyer "texte" --app com.apple.mail  (remise au propre, réseau seulement)
 if arguments.contains("--nettoyer") {
     exit(Nettoyer.executer(arguments: arguments))
+}
+
+// Dictee --verifier-flac  (encodage FLAC sans perte, taille et durée ; ni micro ni réseau)
+if arguments.contains("--verifier-flac") {
+    exit(VerifierFLAC.executer())
 }
 
 // Dictee --verifier-collage  (presse-papiers privé, faux ⌘V)

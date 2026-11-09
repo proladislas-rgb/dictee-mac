@@ -8,7 +8,9 @@ final class RecordingPipeline: @unchecked Sendable {
     static let formatSortie = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: true)!
 
     /// Appelé sur le fil audio : doit rendre la main tout de suite.
-    var surMorceau: ((_ wav: Data, _ duree: Double) -> Void)?
+    var surMorceau: ((MorceauSon) -> Void)?
+    /// Pause d'au moins 0,3 s : voici le morceau tel qu'il partirait si la parole s'arrêtait là (envoi anticipé).
+    var surAnticipation: ((MorceauSon) -> Void)?
     /// Niveau instantané 0…1 (pour les barres de l'encoche), appelé sur le fil audio.
     var surNiveau: ((Float) -> Void)?
     /// Le tampon d'origine, tel que reçu du micro (pour la reconnaissance en direct). Valable le temps de l'appel.
@@ -16,11 +18,18 @@ final class RecordingPipeline: @unchecked Sendable {
 
     private let lock = NSLock()
     private var echantillons: [Int16] = []
-    private var chunker = VoiceChunker()
+    private var chunker: VoiceChunker
     private var tranchesTraitees = 0
     private var convertisseur: AVAudioConverter?
     private var formatEntree: AVAudioFormat?
     private(set) var termine = false
+
+    init() {
+        var config = VoiceChunker.Config()
+        if !Settings.rognageFin { config.tailFrames = 1_000_000 }   // mesure : ancien comportement (aucun rognage de fin)
+        if !Settings.decoupeLongue { config.microChunkFrames = 1_000_000; config.forcedCutFrames = 1_000_000 }   // mesure : ancien comportement
+        chunker = VoiceChunker(config: config)
+    }
 
     var dureeEnregistree: Double { lock.lock(); defer { lock.unlock() }; return Double(echantillons.count) / 16_000 }
 
@@ -29,7 +38,8 @@ final class RecordingPipeline: @unchecked Sendable {
         guard let converti = convertir(tampon), converti.frameLength > 0, let canal = converti.int16ChannelData else { return }
         let nouveaux = UnsafeBufferPointer(start: canal[0], count: Int(converti.frameLength))
 
-        var aEnvoyer: [(Data, Double)] = []
+        var aEnvoyer: [MorceauSon] = []
+        var anticipes: [MorceauSon] = []
         var niveau: Float = 0
         lock.lock()
         if termine { lock.unlock(); return }
@@ -41,21 +51,26 @@ final class RecordingPipeline: @unchecked Sendable {
             }
             tranchesTraitees += 1
             niveau = max(niveau, Self.niveauAffichable(db))
-            if let r = chunker.feed(levelDb: db) {
-                aEnvoyer.append((WAV.encode(samples: Array(echantillons[r.start..<r.end])), Double(r.count) / 16_000))
-            }
+            if let r = chunker.feed(levelDb: db) { aEnvoyer.append(morceau(r, forcee: chunker.derniereCoupeForcee)) }
+            else if let r = chunker.anticipation, surAnticipation != nil { anticipes.append(morceau(r)) }
         }
         lock.unlock()
         if niveau > 0 || !aEnvoyer.isEmpty { surNiveau?(niveau) }
-        for (wav, duree) in aEnvoyer { surMorceau?(wav, duree) }
+        for m in anticipes { surAnticipation?(m) }
+        for m in aEnvoyer { surMorceau?(m) }
     }
 
-    /// Fin de la dictée : renvoie le dernier morceau (WAV) s'il contient de la parole.
-    func terminer() -> (wav: Data, duree: Double)? {
+    /// Fin de la dictée : renvoie le dernier morceau s'il contient de la parole.
+    func terminer() -> MorceauSon? {
         lock.lock(); defer { lock.unlock() }
         termine = true
         guard let r = chunker.finish(totalSamples: echantillons.count) else { return nil }
-        return (WAV.encode(samples: Array(echantillons[r.start..<r.end])), Double(r.count) / 16_000)
+        return morceau(r)
+    }
+
+    /// À appeler verrou pris.
+    private func morceau(_ r: VoiceChunker.Range, forcee: Bool = false) -> MorceauSon {
+        MorceauSon(echantillons: Array(echantillons[r.start..<r.end]), cle: r, coupeForcee: forcee)
     }
 
     /// -60 dB (silence) → 0, -15 dB (voix forte) → 1.

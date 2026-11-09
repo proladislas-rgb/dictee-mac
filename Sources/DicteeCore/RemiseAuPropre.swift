@@ -95,6 +95,19 @@ public enum RemiseAuPropre {
         return Analyse(nombreDeMots: m.count, hesitations: hes, corrections: cor, commandes: cmd)
     }
 
+    /// Les 5 premiers mots du texte contiennent-ils une correction dite (« non plutôt »…) qui pourrait viser ce qui précède ?
+    public static func commenceParUneCorrection(_ texte: String) -> Bool {
+        let debut = " " + mots(texte).prefix(5).joined(separator: " ") + " "
+        return corrections.contains { debut.contains(" \($0) ") }
+    }
+
+    private static let marqueursDeListe: Set<String> = ["premierement", "deuxiemement", "troisiemement", "quatriemement", "tiret", "bullet", "puce"]
+
+    /// Le texte annonce-t-il ou continue-t-il une liste (premièrement, tiret…) ? Une liste peut courir sur plusieurs morceaux.
+    public static func contientUneListe(_ texte: String) -> Bool {
+        mots(texte).contains { marqueursDeListe.contains($0) }
+    }
+
     // MARK: consignes
 
     public static func consigne(pour contexte: ContexteMiseEnForme) -> String {
@@ -217,9 +230,10 @@ public enum RemiseAuPropre {
 
     /// Dernière retouche de ce qui sort de l'IA (déterministe) : typographie française, pas de point final
     /// dans un terminal ni dans une barre de recherche.
-    public static func retoucher(_ texte: String, entree: String, contexte: ContexteMiseEnForme) -> String {
+    /// `finDeTexte` faux : simple partie d'une dictée, le point final est gardé (il est retiré une fois, sur le tout).
+    public static func retoucher(_ texte: String, entree: String, contexte: ContexteMiseEnForme, finDeTexte: Bool = true) -> String {
         var s = estFrancais(entree) ? typographieFrancaise(texte) : texte
-        if contexte == .terminal || contexte == .recherche { s = TextFormatter.sansPointFinal(s) }
+        if finDeTexte && (contexte == .terminal || contexte == .recherche) { s = TextFormatter.sansPointFinal(s) }
         return s
     }
 

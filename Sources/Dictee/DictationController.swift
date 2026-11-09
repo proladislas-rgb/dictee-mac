@@ -20,9 +20,13 @@ final class DictationController {
         let pipeline = RecordingPipeline()
         var direct: (any ReconnaissanceDirecte)?
         var secours: Task<String, Never>?
-        /// Lecture du champ focalisé (Accessibilité), lancée au relâchement pendant que Groq travaille.
-        var champ: Task<ContexteChamp, Never>?
+        /// Lecture du champ focalisé (Accessibilité), lancée à l'appui puis au relâchement, pendant que Groq travaille.
+        let champ = LectureChamp()
         let transcripteur: ChunkTranscriber
+        /// Remise au propre lancée pendant la pause d'avant le relâchement, sur le texte qu'on aurait si la parole s'arrêtait là.
+        /// Remise au propre par unités de phrases pendant les longues dictées.
+        var unites: NettoyageParUnites?
+        var nettoyageAnticipe: (brut: String, contexte: ContexteMiseEnForme, tache: Task<Nettoyage.Resultat, Never>)?
         init(id: Int, mainsLibres: Bool, appCible: NSRunningApplication?, transcripteur: ChunkTranscriber) {
             self.id = id; self.mainsLibres = mainsLibres; self.appCible = appCible; self.transcripteur = transcripteur
         }
@@ -60,6 +64,8 @@ final class DictationController {
         panneau.modele.surAnnuler = { [weak self] in self?.annulerParBouton() }
         panneau.modele.surValider = { [weak self] in self?.validerParBouton() }
         Dictionnaire.creerSiAbsent()
+        // Le premier codage FLAC de la session coûte ~20 ms de plus : on le fait à vide, tout de suite.
+        Task.detached(priority: .utility) { _ = EncodeurAudio.flacEnMemoire(Array(repeating: 0, count: 3200)) }
         if Permissions.microOK { audio.preparer() }
         if !GroqClient.shared.cleDisponible { Log.ecrire("ATTENTION : clé Groq introuvable (~/.config/groq/.env), seul le secours Apple sera possible") }
     }
@@ -86,12 +92,28 @@ final class DictationController {
         let transcripteur = ChunkTranscriber(mots: Dictionnaire.mots(), langue: Settings.langue)
         let s = Session(id: compteur, mainsLibres: mainsLibres, appCible: NSWorkspace.shared.frontmostApplication, transcripteur: transcripteur)
         courante = s
+        let champLu = s.champ, bundle = s.appCible?.bundleIdentifier
+        let unites = NettoyageParUnites(mots: Dictionnaire.mots()) {
+            guard Settings.adapterLeTon else { return .general }
+            let c = champLu.dejaConnu()
+            return RemiseAuPropre.contexte(bundleID: bundle, role: c?.role, titreFenetre: c?.titreFenetre)
+        }
+        s.unites = unites
+        transcripteur.surMorceauRevenu = { numero, texte, finParPause in unites.morceauRevenu(numero: numero, texte: texte, finParPause: finParPause) }
+        transcripteur.surTexteAnticipe = { [weak self] parties in
+            // Dictée déjà découpée en unités : seule la queue est remise au propre à l'avance.
+            if unites.nombreDUnites > 0 { unites.anticiperQueue(parties: parties); return }
+            let texte = TextAssembler.joindre(parties)
+            Task { @MainActor in self?.nettoyerALAvance(texte, session: s) }
+        }
         etat = .ecoute(mainsLibres: mainsLibres)
         surDebut?()
         surCapture?(true)
         Log.ecrire("dictée \(s.id) : appui fn (\(mainsLibres ? "mains libres" : "tenu")), app cible = \(s.appCible?.bundleIdentifier ?? "inconnue")")
 
-        s.pipeline.surMorceau = { wav, duree in transcripteur.envoyer(wav: wav, duree: duree) }
+        if let pid = s.appCible?.processIdentifier, Permissions.accessibiliteOK { s.champ.lireAuDebut(pid: pid) }
+        s.pipeline.surMorceau = { transcripteur.envoyer($0) }
+        if transcripteur.anticipationActive { s.pipeline.surAnticipation = { transcripteur.anticiper($0) } }
         s.pipeline.surNiveau = { [weak self] n in
             DispatchQueue.main.async { MainActor.assumeIsolated { if self?.courante?.id == s.id { self?.panneau.niveau(n) } } }
         }
@@ -138,22 +160,24 @@ final class DictationController {
         s.relachement = t
         etat = .repos
         courante = nil
+        // Le dernier morceau part avant tout le reste (arrêt du micro, interface, journal) : c'est lui qui fait attendre.
+        // Si la pause d'avant le relâchement l'avait déjà envoyé, la requête en cours est simplement reprise.
+        let dernier = s.pipeline.terminer()
+        if let dernier { s.transcripteur.envoyer(dernier) }
+        let envoye = ProcessInfo.processInfo.systemUptime
         surCapture?(false)
-        Log.ecrire("dictée \(s.id) : relâchement après \(ms(t - s.debut)) ms")
-        if let pid = s.appCible?.processIdentifier, Permissions.accessibiliteOK {
-            s.champ = Task.detached(priority: .userInitiated) { LecteurCurseur.lire(pid: pid) }
-        }
+        Log.ecrire("dictée \(s.id) : relâchement après \(ms(t - s.debut)) ms, dernier morceau \(dernier.map { String(format: "%.1f s", $0.duree) } ?? "aucun") \(dernier == nil ? "à envoyer" : "parti") en \(ms(envoye - t)) ms")
+        if let pid = s.appCible?.processIdentifier, Permissions.accessibiliteOK { s.champ.lireALaFin(pid: pid) }
         ouvertureRetardee?.cancel()
         // Finalisation : le texte du ruban se fixe en blanc (l'encoche reste ouverte jusqu'au texte final).
         if panneau.modele.ouverte { panneau.figer() }
 
-        audio.arreter { [weak self] in
-            // Sur la file audio : plus aucun tampon n'arrive. On envoie le dernier morceau.
-            if let dernier = s.pipeline.terminer() { s.transcripteur.envoyer(wav: dernier.wav, duree: dernier.duree) }
-            // La reconnaissance d'Apple finit en parallèle : son texte ne sert que si Groq échoue.
+        audio.arreter {
+            // Sur la file audio : plus aucun tampon n'arrive. La reconnaissance d'Apple finit en parallèle :
+            // son texte ne sert que si Groq échoue.
             if let direct = s.direct { s.secours = Task { await direct.terminer() } }
-            Task { @MainActor in await self?.finaliser(s) }
         }
+        Task { @MainActor [weak self] in await self?.finaliser(s) }
     }
 
     private func finaliser(_ s: Session) async {
@@ -192,6 +216,7 @@ final class DictationController {
             return
         }
         var texte = ""
+        if s.secours == nil, let direct = s.direct { s.secours = Task { await direct.terminer() } }
         if let secours = s.secours {
             texte = await withTaskGroup(of: String.self) { groupe in
                 groupe.addTask { await secours.value }
@@ -211,6 +236,19 @@ final class DictationController {
         await ecrire(texte, session: s, relachement: relache)
     }
 
+    /// La pause d'avant le relâchement a fait partir le dernier morceau et Groq a déjà répondu : on remet au propre sans attendre.
+    /// Si la parole reprend, ce travail est jeté ; sinon sa réponse est prête (ou presque) au relâchement.
+    private func nettoyerALAvance(_ brut: String, session s: Session) {
+        guard etat != .repos, courante?.id == s.id else { return }
+        if let a = s.nettoyageAnticipe, a.brut == brut { return }
+        let champ = s.champ.dejaConnu()
+        let contexte = Settings.adapterLeTon ? RemiseAuPropre.contexte(bundleID: s.appCible?.bundleIdentifier, role: champ?.role, titreFenetre: champ?.titreFenetre) : .general
+        guard let a = NettoyageFinal.lancerALAvance(brut, contexte: contexte, mots: Dictionnaire.mots()) else { return }
+        s.nettoyageAnticipe?.tache.cancel()
+        s.nettoyageAnticipe = a
+        Log.ecrire("dictée \(s.id) : remise au propre lancée à l'avance (pause en cours)")
+    }
+
     /// Referme l'encoche, sauf si une nouvelle dictée l'a déjà reprise.
     private func fermerSiLibre() {
         if courante == nil { panneau.fermer() }
@@ -219,10 +257,13 @@ final class DictationController {
     /// Mise en forme selon l'app cible, puis collage au curseur.
     private func ecrire(_ brut: String, session s: Session, relachement relache: Double) async {
         let kind = TextFormatter.kind(bundleID: s.appCible?.bundleIdentifier)
-        let champ = await s.champ?.value
+        let (champ, sourceChamp) = await s.champ.contexte()
         let contexte = Settings.adapterLeTon ? RemiseAuPropre.contexte(bundleID: s.appCible?.bundleIdentifier, role: champ?.role, titreFenetre: champ?.titreFenetre) : .general
-        let nettoyage = await Nettoyage.executer(brut, contexte: contexte, mots: Dictionnaire.mots())
-        Log.ecrire("dictée \(s.id) : mise en forme \(contexte.rawValue) (champ \(champ?.role ?? "?")), \(nettoyage.utilise ? "remis au propre" : "texte brut gardé : \(nettoyage.raison)") en \(ms(nettoyage.duree)) ms")
+        let tNettoyage = ProcessInfo.processInfo.systemUptime
+        let (nettoyage, modeNettoyage) = await NettoyageFinal.executer(brut: brut, contexte: contexte, transcripteur: s.transcripteur, unites: s.unites,
+                                                                      anticipe: s.nettoyageAnticipe, mots: Dictionnaire.mots())
+        let attenteNettoyage = ms(ProcessInfo.processInfo.systemUptime - tNettoyage)
+        Log.ecrire("dictée \(s.id) : mise en forme \(contexte.rawValue) (champ \(champ?.role ?? "?"), lu au \(sourceChamp)), \(nettoyage.utilise ? "remis au propre" : "texte brut gardé : \(nettoyage.raison)") \(modeNettoyage), \(attenteNettoyage) ms d'attente après Groq (travail de \(ms(nettoyage.duree)) ms)")
         // raccourcis vocaux (« ma signature » → le texte choisi) : après la remise au propre, pour que l'IA n'y touche pas
         let apresRaccourcis = RaccourcisVocaux.appliquer(nettoyage.texte, raccourcis: MotsModele.partage.raccourcis)
         let texteFinal = TextFormatter.prepare(apresRaccourcis, for: kind)
@@ -329,6 +370,8 @@ final class DictationController {
         courante = nil
         surCapture?(false)
         s.transcripteur.annuler()
+        s.nettoyageAnticipe?.tache.cancel()
+        s.unites?.annulerTout()
         s.direct?.annuler()
         ouvertureRetardee?.cancel()
         panneau.fermer()

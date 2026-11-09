@@ -300,9 +300,9 @@ do {
     verifier(r.coupes.count == 1, "une pause de 1,2 s coupe une fois")
     if let c = r.coupes.first {
         verifier(c.start >= (50 - 15 - 1) * 320 && c.start <= 50 * 320, "le silence de début est rogné (0,3 s gardées)")
-        verifier(c.end == (50 + 150 + 25) * 320, "coupe 0,5 s après la fin de la parole")
+        verifier(c.end == (50 + 150 + 12) * 320, "coupe 0,5 s après la fin de la parole, silence de fin rogné à 0,25 s")
     }
-    verifier(r.fin != nil && r.fin!.start >= (50 + 150 + 25) * 320 && r.fin!.start <= (50 + 150 + 60) * 320 && r.fin!.end == r.total * 320, "le dernier morceau part au relâchement")
+    verifier(r.fin != nil && r.fin!.start >= (50 + 150 + 25) * 320 && r.fin!.start <= (50 + 150 + 60) * 320 && r.fin!.end == r.total * 320, "le dernier morceau part au relâchement (parole jusqu'au bout : rien de rogné)")
 }
 do {
     let r = jouerChunker([(-70, 50), (-20, 30), (-70, 40), (-20, 30)]) // morceau de 1,5 s : trop court pour couper
@@ -319,6 +319,89 @@ do {
 do {
     let r = jouerChunker([(-52, 100), (-25, 150), (-52, 100), (-25, 100)]) // bruit de fond de -52 dB, parole à -25
     verifier(r.coupes.count == 1, "bruit de fond de -52 dB : la pause est quand même trouvée")
+}
+// Envoi anticipé et rognage de fin
+func jouerAvecAnticipation(_ segments: [(db: Float, frames: Int)]) -> (anticipations: [VoiceChunker.Range], coupes: [VoiceChunker.Range], fin: VoiceChunker.Range?, total: Int) {
+    var c = VoiceChunker()
+    var anticipations: [VoiceChunker.Range] = [], coupes: [VoiceChunker.Range] = []
+    var n = 0
+    for seg in segments { for _ in 0..<seg.frames {
+        n += 1
+        if let r = c.feed(levelDb: seg.db) { coupes.append(r) } else if let a = c.anticipation { anticipations.append(a) }
+    } }
+    return (anticipations, coupes, c.finish(totalSamples: n * 320), n)
+}
+do {
+    // 0,3 s de calme, 2,5 s de parole, puis 0,45 s de pause avant le relâchement
+    let r = jouerAvecAnticipation([(-70, 15), (-20, 125), (-70, 22)])
+    verifier(r.anticipations.count == 1, "pause de 0,3 s : un seul envoi anticipé")
+    verifier(r.coupes.isEmpty, "pas de coupe avant 0,5 s de pause")
+    verifier(r.fin != nil && r.anticipations.first == r.fin, "relâchement sans nouvelle parole : le dernier morceau est exactement l'envoi anticipé")
+    verifier(r.fin?.end == (15 + 125 + 12) * 320, "silence de fin rogné à 0,25 s après le dernier son")
+}
+do {
+    // parole, pause de 0,4 s (anticipation), la parole reprend, puis relâchement : l'anticipation ne vaut plus
+    let r = jouerAvecAnticipation([(-70, 15), (-20, 60), (-70, 20), (-20, 40)])
+    verifier(r.anticipations.count == 1 && r.fin != nil && r.anticipations.first != r.fin, "parole reprise : le dernier morceau diffère de l'anticipation")
+    verifier(r.fin?.end == r.total * 320, "parole jusqu'au relâchement : rien n'est rogné")
+}
+do {
+    // pause de 1 s dans un long morceau : anticipation à 0,3 s, coupe à 0,5 s, même morceau
+    let r = jouerAvecAnticipation([(-70, 15), (-20, 150), (-70, 50), (-20, 100)])
+    verifier(r.anticipations.count >= 1 && r.coupes.count == 1 && r.anticipations.first == r.coupes.first, "la coupe à 0,5 s est le morceau déjà envoyé à l'avance")
+}
+do {
+    // trois mots avec pauses de 0,2 s : jamais d'anticipation
+    let r = jouerAvecAnticipation([(-70, 15), (-20, 40), (-70, 10), (-20, 40), (-70, 10), (-20, 40)])
+    verifier(r.anticipations.isEmpty, "pauses de 0,2 s : aucun envoi anticipé")
+}
+do {
+    // un petit bruit à -30 dB (hors parole) pendant la pause repousse l'anticipation : jamais de coupe dans un mot qui reprend
+    let r = jouerAvecAnticipation([(-70, 15), (-20, 60), (-70, 10), (-30, 2), (-70, 10)])
+    verifier(r.anticipations.isEmpty, "un bruit pendant la pause repousse l'envoi anticipé")
+}
+// Longues dictées d'une traite
+func parleContinue(frames: Int, creuxTousLes: Int = 17) -> [(db: Float, frames: Int)] {
+    // niveau -20 dB avec un petit creux de 2 tranches (-38 dB, entre deux syllabes) régulier : jamais de vrai silence
+    var segs: [(db: Float, frames: Int)] = [(-70, 15)]
+    var reste = frames
+    while reste > 0 { let n = min(creuxTousLes, reste); segs.append((-20, n)); reste -= n; if reste > 0 { segs.append((-38, 2)); reste -= 2 } }
+    return segs
+}
+do {
+    let r = jouerAvecAnticipation(parleContinue(frames: 1000)) // 20 s d'une traite
+    verifier(r.coupes.count == 1 && r.fin != nil, "20 s d'une traite : une coupe forcée, puis le reste au relâchement (\(r.coupes.count) coupe(s))")
+    if let c = r.coupes.first, let f = r.fin {
+        verifier(Double(c.count) <= 12.2 * 16_000 && Double(c.count) >= 11 * 16_000, "le premier morceau fait ~12 s (\(Double(c.count) / 16_000) s)")
+        verifier(c.end == f.start, "le morceau suivant reprend exactement où le précédent finit")
+        verifier(Double(f.count) / 16_000 < 10, "le dernier morceau reste court (\(Double(f.count) / 16_000) s)")
+    }
+}
+do {
+    let r = jouerAvecAnticipation(parleContinue(frames: 3000)) // 60 s d'une traite
+    let morceaux = r.coupes + (r.fin.map { [$0] } ?? [])
+    verifier(morceaux.count >= 5 && morceaux.count <= 7, "60 s d'une traite : \(morceaux.count) requêtes (5 à 7 attendues)")
+    verifier(zip(morceaux, morceaux.dropFirst()).allSatisfy { $0.end == $1.start }, "60 s : aucun trou, aucun recouvrement entre les morceaux")
+    verifier(morceaux.allSatisfy { Double($0.count) / 16_000 <= 12.3 }, "60 s : aucun morceau au-delà de ~12 s")
+}
+do {
+    // la coupe forcée tombe dans le creux le plus profond des 1,5 dernière seconde, pas dans un pic
+    var segs: [(db: Float, frames: Int)] = [(-70, 15), (-20, 590), (-20, 20), (-42, 4), (-20, 60)]
+    segs = [(-70, 15), (-20, 560), (-42, 4), (-20, 30), (-20, 20)]   // creux profond à ~11,3 s
+    let r = jouerAvecAnticipation(segs)
+    verifier(r.coupes.count == 1, "creux profond dans la fenêtre : coupe forcée")
+    if let c = r.coupes.first {
+        let tr = c.end / 320
+        verifier(tr >= 15 + 560 - 1 && tr <= 15 + 560 + 5, "coupée dans le creux (tranche \(tr), creux en \(15 + 560)–\(15 + 564))")
+    }
+}
+do {
+    // micro-pause de 0,26 s après 9 s de parole : coupe (au-delà de 8 s)
+    let r = jouerAvecAnticipation([(-70, 15), (-20, 450), (-70, 13), (-20, 100)])
+    verifier(r.coupes.count == 1 && r.coupes[0].end == (15 + 450 + 12) * 320, "morceau de 9 s : une micro-pause de 0,26 s coupe")
+    // la même pause après 5 s de parole : pas de coupe (il faut 0,5 s)
+    let r2 = jouerAvecAnticipation([(-70, 15), (-20, 250), (-70, 13), (-20, 100)])
+    verifier(r2.coupes.isEmpty, "morceau de 5 s : une pause de 0,26 s ne coupe pas")
 }
 do {
     let s: [Int16] = Array(repeating: 0, count: 320)
@@ -388,6 +471,75 @@ do {
     let r2 = Desinstallation.effacer(maison: maison)
     verifier(r2.effaces.isEmpty && r2.echecs.isEmpty, "rejouable sans erreur")
     verifier(Desinstallation.effacer(maison: URL(fileURLWithPath: "/")).effaces.isEmpty, "refuse la racine comme dossier personnel")
+}
+
+groupe("BudgetRequetes")
+do {
+    let b = BudgetRequetes(limiteMinute: 18)
+    verifier(b.restantMinute(a: 100) == 18 && b.permet(.anticipation, a: 100), "au départ : tout est permis")
+    for i in 0..<10 { b.noterEnvoi(a: 100 + Double(i)) }
+    verifier(b.restantMinute(a: 110) == 8, "10 envois : 8 restants")
+    verifier(b.permet(.anticipation, a: 110) && b.permet(.secours, a: 110), "8 restants : l'envoi anticipé passe encore")
+    b.noterEnvoi(a: 111)
+    verifier(!b.permet(.anticipation, a: 111) && b.permet(.secours, a: 111), "7 restants : plus d'envoi anticipé, la requête de secours passe")
+    for i in 0..<4 { b.noterEnvoi(a: 112 + Double(i)) }
+    verifier(!b.permet(.secours, a: 120), "3 restants : plus rien de confort")
+    verifier(b.restantMinute(a: 165) == 18 - 9, "les envois de plus d'une minute sortent du compte")
+    verifier(b.restantMinute(a: 300) == 18, "une minute plus tard : budget plein")
+    b.noterRestantJour(150)
+    verifier(!b.permet(.anticipation, a: 300) && b.permet(.secours, a: 300), "peu de requêtes restantes dans la journée : plus d'envoi anticipé")
+    b.noterRestantJour(10)
+    verifier(!b.permet(.secours, a: 300), "presque plus rien dans la journée : plus de secours non plus")
+    let j = BudgetRequetes.init(limiteMinute: 10, margeAnticipation: 6, margeSecours: 3)
+    j.noterRestantJetons(2000, a: 10)
+    verifier(!j.permet(.anticipation, a: 20) && j.permet(.secours, a: 20) && j.permet(.anticipation, a: 41), "peu de jetons restants : plus d'anticipation ; valeur de plus de 30 s ignorée")
+    let c = BudgetRequetes()
+    c.noter429(retryAfter: 12, a: 50)
+    verifier(!c.permet(.secours, a: 55) && c.enPause(a: 55) && c.permet(.secours, a: 63), "après un 429 : pause de confort pendant retry-after")
+    c.noter429(retryAfter: nil, a: 100)
+    verifier(c.enPause(a: 119) && !c.enPause(a: 121), "429 sans retry-after : 20 s de pause")
+    verifier(BudgetRequetes.secondes(deEnTete: "2m52.8s") == 172.8, "durée « 2m52.8s » lue")
+    verifier(BudgetRequetes.secondes(deEnTete: "340ms") == 0.34, "durée « 340ms » lue")
+    verifier(BudgetRequetes.secondes(deEnTete: "12s") == 12 && BudgetRequetes.secondes(deEnTete: "7") == 7, "durées « 12s » et « 7 » lues")
+    verifier(BudgetRequetes.secondes(deEnTete: nil) == nil && BudgetRequetes.secondes(deEnTete: "abc") == nil, "en-tête absent ou illisible : rien")
+}
+
+groupe("Coupe forcée")
+verifier(TextAssembler.sansPonctuationDeCoupe(" Il reste à tester. ") == "Il reste à tester", "le point de fin d'un morceau coupé en pleine parole est retiré")
+verifier(TextAssembler.sansPonctuationDeCoupe("Tu viens ?") == "Tu viens ?" && TextAssembler.sansPonctuationDeCoupe("Super !") == "Super !", "? et ! sont gardés")
+verifier(TextAssembler.joindre([TextAssembler.sansPonctuationDeCoupe("Il reste à tester."), "la vitesse de l'ensemble."]) == "Il reste à tester la vitesse de l'ensemble.", "recollage sans faux point au milieu de la phrase")
+
+groupe("DecoupeEnUnites")
+do {
+    var d = DecoupeEnUnites()
+    verifier(d.recevoir(numero: 1, texte: "On commence par le début de la phrase", finParPause: true).isEmpty, "phrase sans point : pas d'unité")
+    let u = d.recevoir(numero: 2, texte: "et on la termine ici.", finParPause: true)
+    verifier(u.count == 1 && u[0].debut == 1 && u[0].fin == 2 && u[0].brut == "On commence par le début de la phrase et on la termine ici.", "deux morceaux, une phrase : une unité")
+    verifier(d.premierMorceauOuvert == 3 && d.queue(parties: ["a", "b", "reste de la fin"]) == "reste de la fin", "la queue = ce qui suit la dernière unité")
+}
+do {
+    var d = DecoupeEnUnites()
+    verifier(d.recevoir(numero: 2, texte: "Deuxième phrase.", finParPause: true).isEmpty, "le morceau 2 arrive avant le 1 : on attend")
+    let u = d.recevoir(numero: 1, texte: "Première phrase.", finParPause: true)
+    verifier(u.count == 2 && u[0].brut == "Première phrase." && u[1].brut == "Deuxième phrase.", "morceaux arrivés dans le désordre : unités dans l'ordre")
+}
+do {
+    var d = DecoupeEnUnites()
+    verifier(d.recevoir(numero: 1, texte: "Il a dit que c'est fini.", finParPause: false).isEmpty, "coupe en pleine parole : jamais une fin d'unité, même avec un point")
+    let u = d.recevoir(numero: 2, texte: "Et voilà.", finParPause: true)
+    verifier(u.count == 1 && u[0].debut == 1 && u[0].fin == 2, "l'unité se ferme à la pause suivante")
+}
+do {
+    verifier(DecoupeEnUnites.finitUnePhrase("C'est bon !") && DecoupeEnUnites.finitUnePhrase("Vraiment ?") && DecoupeEnUnites.finitUnePhrase("Il a dit « oui. »") && DecoupeEnUnites.finitUnePhrase("Alors…"), "points, ?, !, … et guillemets fermants")
+    verifier(!DecoupeEnUnites.finitUnePhrase("et puis,") && !DecoupeEnUnites.finitUnePhrase("") && !DecoupeEnUnites.finitUnePhrase("  "), "virgule ou vide : pas une fin de phrase")
+    verifier(DecoupeEnUnites.separationSure(["Je passe mardi à dix heures.", "On se retrouve au café."]), "deux phrases ordinaires : séparables")
+    verifier(!DecoupeEnUnites.separationSure(["Je passe mardi.", "Non plutôt mercredi à dix heures."]), "correction au début de l'unité suivante : pas séparable")
+    verifier(DecoupeEnUnites.separationSure(["Je passe mardi non plutôt mercredi à dix heures.", "On se retrouve au café ce soir."]), "correction au milieu d'une unité : séparable")
+    verifier(!DecoupeEnUnites.separationSure(["Il faut acheter premièrement du pain.", "Deuxièmement du lait."]), "liste sur deux unités : pas séparable")
+    verifier(DecoupeEnUnites.contexteAdapte(.general) && DecoupeEnUnites.contexteAdapte(.terminal) && !DecoupeEnUnites.contexteAdapte(.courriel) && !DecoupeEnUnites.contexteAdapte(.notes) && !DecoupeEnUnites.contexteAdapte(.assistantIA), "courriel, notes, assistant : texte entier")
+    verifier(DecoupeEnUnites.assembler(["Bonjour.", " ", "Comment vas-tu ?"]) == "Bonjour. Comment vas-tu ?", "recollage avec une espace, vides ignorés")
+    verifier(DecoupeEnUnites.assembler(["Voici :\n", "la suite."]) == "Voici :\nla suite.", "pas d'espace après un retour à la ligne")
+    verifier(RemiseAuPropre.retoucher("On part.", entree: "on part", contexte: .terminal, finDeTexte: false) == "On part." && RemiseAuPropre.retoucher("On part.", entree: "on part", contexte: .terminal) == "On part", "point final gardé dans une partie, retiré sur le tout")
 }
 
 groupe("Installation")

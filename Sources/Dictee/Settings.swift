@@ -24,11 +24,37 @@ enum Settings {
 
     /// Modèle de langue de Groq pour la remise au propre (nom vérifié avec GET /openai/v1/models le 09/11).
     static var modeleNettoyage: String {
-        defaults.string(forKey: "modeleNettoyage").flatMap { $0.isEmpty ? nil : $0 } ?? "openai/gpt-oss-20b"
+        ProcessInfo.processInfo.environment["DICTEE_MODELE_NETTOYAGE"].flatMap { $0.isEmpty ? nil : $0 }   // mesures en ligne de commande
+            ?? defaults.string(forKey: "modeleNettoyage").flatMap { $0.isEmpty ? nil : $0 } ?? "openai/gpt-oss-20b"
     }
 
     /// Délai maximal de la remise au propre ; au-delà, le texte brut de Groq est collé.
     static let delaiNettoyage: Double = 1.2
+
+    /// Son envoyé à Groq en FLAC (plus léger). `defaults write com.hugues.dictee envoiFLAC -bool false` revient au WAV.
+    static var envoiFLAC: Bool { reglage("DICTEE_ENVOI", "envoiFLAC", defaut: true, faux: "wav") }
+
+    /// Rognage du silence de fin de chaque morceau (0,25 s gardées). Interrupteur de mesure : `DICTEE_ROGNAGE=non`.
+    static var rognageFin: Bool { reglage("DICTEE_ROGNAGE", "rognageFin", defaut: true, faux: "non") }
+
+    /// Envoi anticipé du dernier morceau à la pause de 0,3 s. `DICTEE_ANTICIPATION=non` ou `defaults write ... envoiAnticipe -bool false`.
+    static var envoiAnticipe: Bool { reglage("DICTEE_ANTICIPATION", "envoiAnticipe", defaut: true, faux: "non") }
+
+    /// Seconde requête identique quand Groq tarde (> 0,7 s). `DICTEE_SECOURS=non` ou `defaults write ... requeteDeSecours -bool false`.
+    static var requeteDeSecours: Bool { reglage("DICTEE_SECOURS", "requeteDeSecours", defaut: true, faux: "non") }
+
+    /// Coupes des longues dictées (micro-pause après 8 s, coupe forcée après 12 s). `DICTEE_DECOUPE=ancienne` : seulement les pauses de 0,5 s.
+    static var decoupeLongue: Bool { reglage("DICTEE_DECOUPE", "decoupeLongue", defaut: true, faux: "ancienne") }
+
+    /// Interrupteur de vitesse : la variable d'environnement (mesures en ligne de commande) l'emporte sur le réglage.
+    private static func reglage(_ variable: String, _ cle: String, defaut: Bool, faux: String) -> Bool {
+        if let v = ProcessInfo.processInfo.environment[variable] { return v != faux }
+        return defaults.object(forKey: cle) as? Bool ?? defaut
+    }
+
+    /// Au bout de ce délai sans réponse, la remise au propre envoie une seconde requête identique (la première réponse gagne).
+    /// Mettre 99 pour la désactiver (mesures : `DICTEE_SECOURS=non`).
+    static var secoursNettoyage: Double { requeteDeSecours ? 0.55 : 99 }
 
     /// Nombre maximal de dictées gardées dans l'historique.
     static var limiteHistorique: Int {

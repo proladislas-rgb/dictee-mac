@@ -77,3 +77,53 @@ enum LecteurCurseur {
         return plage
     }
 }
+
+/// Deux lectures du champ focalisé : une à l'appui sur fn, une au relâchement. Quand le texte est prêt, on prend la plus
+/// récente déjà terminée ; on n'attend la lecture du relâchement que si l'appui n'a rien donné. Comme ça, un texte de Groq
+/// qui arrive tout de suite (envoi anticipé) n'attend jamais l'Accessibilité.
+final class LectureChamp: @unchecked Sendable {
+    private let verrou = NSLock()
+    private var debut: ContexteChamp?
+    private var fin: ContexteChamp?
+    private var tacheFin: Task<ContexteChamp, Never>?
+
+    func lireAuDebut(pid: pid_t) {
+        Task.detached(priority: .userInitiated) { [self] in
+            noterDebut(LecteurCurseur.lire(pid: pid))
+        }
+    }
+
+    private func noterDebut(_ c: ContexteChamp) { verrou.lock(); debut = c; verrou.unlock() }
+    private func noterFin(_ c: ContexteChamp) { verrou.lock(); fin = c; verrou.unlock() }
+    private func garder(_ t: Task<ContexteChamp, Never>) { verrou.lock(); tacheFin = t; verrou.unlock() }
+
+    func lireALaFin(pid: pid_t) {
+        let t = Task.detached(priority: .userInitiated) { [self] () -> ContexteChamp in
+            let c = LecteurCurseur.lire(pid: pid)
+            noterFin(c)
+            return c
+        }
+        garder(t)
+    }
+
+    private func pret() -> (ContexteChamp?, Task<ContexteChamp, Never>?, source: String) {
+        verrou.lock(); defer { verrou.unlock() }
+        if let fin { return (fin, nil, "relâchement") }
+        if let debut { return (debut, nil, "appui") }
+        return (nil, tacheFin, "relâchement")
+    }
+
+    /// Ce qu'on sait déjà du champ (lecture la plus récente terminée), sans attendre.
+    func dejaConnu() -> ContexteChamp? {
+        verrou.lock(); defer { verrou.unlock() }
+        return fin ?? debut
+    }
+
+    /// Le champ, sans attendre si une lecture est déjà prête. `source` va au journal.
+    func contexte() async -> (ContexteChamp?, source: String) {
+        let (c, tache, source) = pret()
+        if let c { return (c, source) }
+        if let tache { return (await tache.value, source) }
+        return (nil, "aucune")
+    }
+}

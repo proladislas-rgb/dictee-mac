@@ -36,6 +36,15 @@ public enum TextAssembler {
         return hallucinations.contains(n)
     }
 
+    /// Un morceau coupé en pleine parole (coupe forcée des longues dictées) finit au milieu d'une phrase : le « . » ou la « , »
+    /// que Whisper ajoute à sa fin est retiré. Un « ? » ou un « ! » est gardé (l'intonation peut être réelle).
+    public static func sansPonctuationDeCoupe(_ texte: String) -> String {
+        var t = texte.trimmingCharacters(in: .whitespacesAndNewlines)
+        while let d = t.last, d == "." || d == "," || d == ";" || d == ":" { t.removeLast() }
+        // le retrait d'un « … » n'est pas fait : il peut être dit
+        return t
+    }
+
     /// Recolle les textes des morceaux (déjà dans l'ordre), en retirant les vides et les phrases fantômes.
     public static func joindre(_ parties: [String?]) -> String {
         let propres = parties.compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
