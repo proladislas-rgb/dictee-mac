@@ -7,7 +7,7 @@ final class NavigationFenetre: ObservableObject {
     @Published var onglet: Onglet = .dictees
 }
 
-/// La fenêtre principale (planches 01 et 02) : un titre, un onglet à la fois, trois liens texte en bas, pas de barre latérale.
+/// La fenêtre principale : les onglets en haut (comme les apps du Mac), un onglet à la fois, pas de barre latérale.
 struct FenetreVue: View {
     @ObservedObject var nav: NavigationFenetre
     @ObservedObject var dictees: ModeleDictees
@@ -23,14 +23,18 @@ struct FenetreVue: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                FormeGuillemets().fill(Palette.texte).frame(width: 15, height: 15 / Guillemets.rapport)
-                Text("Verbe").font(Polices.commande(15, .medium)).foregroundStyle(Palette.texte)
+            // Barre du haut, comme dans les apps du Mac : la place des boutons de fenêtre, puis les onglets, puis l'aide clavier.
+            HStack(spacing: 20) {
+                Color.clear.frame(width: 60)
+                ForEach(Onglet.allCases) { o in
+                    LienNavigation(titre: o.rawValue, courant: o == nav.onglet, taille: 14, hauteur: 52) { nav.onglet = o }
+                }
+                Spacer(minLength: 8)
+                if nav.onglet == .dictees { AideTouches(taille: 12) }
             }
+            .padding(.horizontal, 20)
             .frame(height: 52)
-            .frame(maxWidth: .infinity)
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
+            .overlay(alignment: .bottom) { Rectangle().fill(Palette.filet).frame(height: 1) }
 
             Group {
                 switch nav.onglet {
@@ -43,11 +47,8 @@ struct FenetreVue: View {
                 }
             }
             .padding(.horizontal, 28)
+            .padding(.top, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-
-            NavigationBasse(courant: nav.onglet, surChoix: { nav.onglet = $0 }, marge: 28, hauteur: 52, taille: 15) {
-                if nav.onglet == .dictees { AideTouches(taille: 13) }
-            }
         }
         .background(Palette.surface)
     }
@@ -100,6 +101,10 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         f.backgroundColor = NSColor(srgbRed: 26/255, green: 26/255, blue: 25/255, alpha: 1)
         f.appearance = NSAppearance(named: .darkAqua)
         f.isReleasedWhenClosed = false
+        // Barre de titre « unifiée » de 52 px : les boutons rouge/jaune/vert sont centrés sur la ligne des onglets.
+        f.toolbar = NSToolbar(identifier: "VerbeBarre")
+        f.toolbarStyle = .unified
+        f.titlebarSeparatorStyle = .none
         f.minSize = NSSize(width: 560, height: 420)
         f.contentView = NSHostingView(rootView: FenetreVue(nav: nav, dictees: dictees, store: dictees.store, mots: MotsModele.partage, reglages: reglages,
                                                            surRevoirPriseEnMain: { [weak self] in self?.surRevoirPriseEnMain() },
