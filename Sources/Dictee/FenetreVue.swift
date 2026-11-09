@@ -75,8 +75,15 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         if fenetre == nil { creer() }
         guard let f = fenetre else { return }
         if onglet == .dictees { dictees.reinitialiser() }
+        // Tant que la fenêtre est ouverte, Verbe est une app « normale » : icône dans le Dock et dans ⌘Tab.
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         f.makeKeyAndOrderFront(nil)
+    }
+
+    /// Fenêtre fermée : Verbe redevient discret (plus d'icône dans le Dock), il reste dans l'encoche et la barre des menus.
+    func windowWillClose(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
     }
 
     func fermer() { fenetre?.close() }

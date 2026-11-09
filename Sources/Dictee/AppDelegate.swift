@@ -223,6 +223,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ouvrirFilet(derniere.texte, cible: cible)
     }
 
+    /// Verbe relancé alors qu'il tourne déjà (clic sur son icône dans le Dock, Applications, Launchpad ou Spotlight) :
+    /// on ouvre la fenêtre principale au lieu de ne rien faire.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        ouvrirFenetre(.dictees)
+        return true
+    }
+
     func ouvrirFenetre(_ onglet: Onglet) {
         fenetrePrincipale.afficher(onglet)
     }
