@@ -144,8 +144,9 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
         if fenetre == nil { creer() }
         guard let f = fenetre else { return }
         if onglet == .dictees { dictees.reinitialiser() }
-        // Tant que la fenêtre est ouverte, Verbe est une app « normale » : icône dans le Dock et dans ⌘Tab.
-        NSApp.setActivationPolicy(.regular)
+        // Verbe reste une app d'arrière-plan (pas d'icône « active » dans le Dock) même fenêtre ouverte : une app « normale »
+        // ne peut plus afficher l'encoche par-dessus une app en plein écran (constaté dans le Terminal en plein écran).
+        // Pour l'ouvrir : icône gardée dans le Dock, Applications, Launchpad ou Spotlight (réouverture gérée par l'AppDelegate).
         NSApp.activate(ignoringOtherApps: true)
         f.makeKeyAndOrderFront(nil)
     }
