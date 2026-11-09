@@ -307,10 +307,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                      miseAJour: MiseAJourControleur.partage.bande.estOuverte,
                                      autreAnnonce: self.panneauCompact.estOuvert || self.priseEnMain.estOuvert)
         }
-        lecture.dicteeMainsLibres = { [weak self] in self?.dictee.panneau.modele.mainsLibres ?? false }
+        lecture.rubanDictee = { [weak self] in self?.dictee.panneau.modele.ruban ?? false }
+        lecture.reserveRuban = { [weak self] r in self?.dictee.panneau.modele.reserveRuban = r }
+        dictee.panneau.modele.$ruban.dropFirst().sink { [weak self] _ in self?.lecture.occupationChangee() }.store(in: &abonnements)
         dictee.surChangementEtat = { [weak self] enCours in self?.lecture.dicteeChange(enCours: enCours) }
         dictee.panneau.modele.$ouverte.dropFirst().sink { [weak self] _ in self?.lecture.occupationChangee() }.store(in: &abonnements)
-        dictee.panneau.modele.$mainsLibres.dropFirst().sink { [weak self] libres in self?.lecture.bulle.suivre(mainsLibres: libres) }.store(in: &abonnements)
         reunionControleur.$phase.dropFirst().sink { [weak self] _ in self?.lecture.occupationChangee() }.store(in: &abonnements)
         MiseAJourControleur.partage.bande.etat.$ouverte.dropFirst().sink { [weak self] _ in self?.lecture.occupationChangee() }.store(in: &abonnements)
         filet.surChangementEtat = { [weak self] _ in self?.lecture.occupationChangee() }

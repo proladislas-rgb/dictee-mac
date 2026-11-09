@@ -20,11 +20,23 @@ enum LectureMesures {
     static let pochetteRepos: CGFloat = 30
     static let pochetteOuvert: CGFloat = 140 * 0.78
     static let margeLaterale: CGFloat = 28
-    static let margeReposLaterale: CGFloat = 12
+    static let margeReposLaterale: CGFloat = 2     // la fenêtre de repos déborde à peine de la forme : elle ne capte aucun clic sur les icônes voisines
     static let margeBasse: CGFloat = 30
     static let reposMargeBasse: CGFloat = 6
-    static let ondeLargeur: CGFloat = 50
-    static let ondeHauteur: CGFloat = 24
+    static let egaliseurBarres = 5
+    static let egaliseurLargeurBarre: CGFloat = 2
+    static let egaliseurEcart: CGFloat = 3
+    static let egaliseurHauteurMax: CGFloat = 13
+    static let egaliseurHauteurMin: CGFloat = 2.5
+    static let egaliseurLargeur: CGFloat = CGFloat(egaliseurBarres) * egaliseurLargeurBarre + CGFloat(egaliseurBarres - 1) * egaliseurEcart   // 22
+    static let egaliseurHauteur: CGFloat = 14
+    static let egaliseurMargeDroite: CGFloat = 16
+
+    /// Largeur de l'îlot dans la hauteur de la barre des menus : jamais plus que la bande de la dictée (caméra + 2 ailes), donc jamais sur
+    /// les icônes que la dictée laisse libres. Au-dessous de la barre, le corps déplié peut être plus large.
+    static func largeurBarre(_ g: GeometrieEncoche) -> CGFloat { g.largeur + 2 * GeometrieEncoche.aile }
+    /// Retrait horizontal du corps déplié par rapport à la bande de la barre des menus, de chaque côté.
+    static func epaule(_ g: GeometrieEncoche) -> CGFloat { max(0, (ouvertLargeur - largeurBarre(g)) / 2) }
 
     static func largeurRepos(_ g: GeometrieEncoche) -> CGFloat { g.largeur + 2 * reposAile }
     static func decalage(_ g: GeometrieEncoche) -> CGFloat { g.hauteur - 38 }
@@ -44,12 +56,15 @@ private func teinteSwiftUI(_ c: CouleurRVB) -> Color { Color(.sRGB, red: c.r, gr
 // MARK: forme
 
 /// La forme noire : haut plat avec, de chaque côté, un congé concave qui la raccorde au bord de l'écran (les « oreilles » de la maquette),
-/// coins du bas arrondis. Le centre n'est jamais dessiné à part : c'est du noir, la caméra.
+/// coins du bas arrondis. Le centre n'est jamais dessiné à part : c'est du noir, la caméra. Quand le corps est plus large que la bande
+/// (`largeurBarre`), il s'élargit sous la barre des menus par une épaule (congé concave puis coin arrondi), comme le ruban de la dictée.
 struct FormeIlot: Shape {
     var largeur: CGFloat
     var hauteur: CGFloat
     var rayon: CGFloat
     var oreille: CGFloat   // 0…1
+    var largeurBarre: CGFloat
+    var hauteurBarre: CGFloat
 
     func path(in rect: CGRect) -> Path {
         let k: CGFloat = 0.5522847498
@@ -57,16 +72,35 @@ struct FormeIlot: Shape {
         let x0 = rect.midX - largeur / 2, x1 = rect.midX + largeur / 2
         let R = max(0, min(rayon, hauteur / 2 + 12, largeur / 2))
         let e = 10 * min(1, max(0, oreille))
-        p.move(to: CGPoint(x: x0 - e, y: 0))
-        p.addLine(to: CGPoint(x: x1 + e, y: 0))
-        // congé concave droit : de (x1 + e, 0) à (x1, e)
-        p.addCurve(to: CGPoint(x: x1, y: e), control1: CGPoint(x: x1 + e - k * e, y: 0), control2: CGPoint(x: x1, y: e - k * e))
-        p.addLine(to: CGPoint(x: x1, y: hauteur - R))
-        p.addCurve(to: CGPoint(x: x1 - R, y: hauteur), control1: CGPoint(x: x1, y: hauteur - R + k * R), control2: CGPoint(x: x1 - R + k * R, y: hauteur))
-        p.addLine(to: CGPoint(x: x0 + R, y: hauteur))
-        p.addCurve(to: CGPoint(x: x0, y: hauteur - R), control1: CGPoint(x: x0 + R - k * R, y: hauteur), control2: CGPoint(x: x0, y: hauteur - R + k * R))
-        p.addLine(to: CGPoint(x: x0, y: e))
-        p.addCurve(to: CGPoint(x: x0 - e, y: 0), control1: CGPoint(x: x0, y: e - k * e), control2: CGPoint(x: x0 - e + k * e, y: 0))
+        let haut = min(largeur, largeurBarre)
+        let pas = (largeur - haut) / 2                      // largeur de l'épaule
+        let x0t = rect.midX - haut / 2, x1t = rect.midX + haut / 2
+        let f = min(10, pas * 0.45), Rs = max(0, min(14, pas - f))
+        let ys = max(0, min(hauteurBarre, hauteur - R - f - Rs - 1))
+        let epaule = pas >= 1
+        p.move(to: CGPoint(x: x0t - e, y: 0))
+        p.addLine(to: CGPoint(x: x1t + e, y: 0))
+        // congé concave droit : de (x1t + e, 0) à (x1t, e)
+        p.addCurve(to: CGPoint(x: x1t, y: e), control1: CGPoint(x: x1t + e - k * e, y: 0), control2: CGPoint(x: x1t, y: e - k * e))
+        if epaule {
+            p.addLine(to: CGPoint(x: x1t, y: ys))
+            p.addCurve(to: CGPoint(x: x1t + f, y: ys + f), control1: CGPoint(x: x1t, y: ys + k * f), control2: CGPoint(x: x1t + f - k * f, y: ys + f))
+            p.addLine(to: CGPoint(x: x1 - Rs, y: ys + f))
+            p.addCurve(to: CGPoint(x: x1, y: ys + f + Rs), control1: CGPoint(x: x1 - Rs + k * Rs, y: ys + f), control2: CGPoint(x: x1, y: ys + f + Rs - k * Rs))
+        }
+        p.addLine(to: CGPoint(x: epaule ? x1 : x1t, y: hauteur - R))
+        let dx1 = epaule ? x1 : x1t, dx0 = epaule ? x0 : x0t
+        p.addCurve(to: CGPoint(x: dx1 - R, y: hauteur), control1: CGPoint(x: dx1, y: hauteur - R + k * R), control2: CGPoint(x: dx1 - R + k * R, y: hauteur))
+        p.addLine(to: CGPoint(x: dx0 + R, y: hauteur))
+        p.addCurve(to: CGPoint(x: dx0, y: hauteur - R), control1: CGPoint(x: dx0 + R - k * R, y: hauteur), control2: CGPoint(x: dx0, y: hauteur - R + k * R))
+        if epaule {
+            p.addLine(to: CGPoint(x: x0, y: ys + f + Rs))
+            p.addCurve(to: CGPoint(x: x0 + Rs, y: ys + f), control1: CGPoint(x: x0, y: ys + f + Rs - k * Rs), control2: CGPoint(x: x0 + Rs - k * Rs, y: ys + f))
+            p.addLine(to: CGPoint(x: x0t - f, y: ys + f))
+            p.addCurve(to: CGPoint(x: x0t, y: ys), control1: CGPoint(x: x0t - f + k * f, y: ys + f), control2: CGPoint(x: x0t, y: ys + k * f))
+        }
+        p.addLine(to: CGPoint(x: x0t, y: e))
+        p.addCurve(to: CGPoint(x: x0t - e, y: 0), control1: CGPoint(x: x0t, y: e - k * e), control2: CGPoint(x: x0t - e + k * e, y: 0))
         p.closeSubpath()
         return p
     }
@@ -74,88 +108,103 @@ struct FormeIlot: Shape {
 
 // MARK: couches Core Animation (aucune charge pour l'app : l'animation tourne dans le serveur d'affichage)
 
-/// L'onde sinusoïdale de l'aile droite : défile et respire tant que ça joue, se fige (amplitude basse) en pause.
-struct OndeSinus: NSViewRepresentable {
+/// Le petit égaliseur de l'aile droite : cinq barres fines arrondies, teintées par la pochette. Chaque barre suit sa propre courbe de
+/// hauteurs tirées au hasard et adoucies (durées différentes d'une barre à l'autre : le motif ne se répète pas à l'œil). Tout tourne dans
+/// le serveur d'affichage (animation Core Animation) : aucune charge pour l'app. À la pause, les barres s'aplatissent en douceur.
+/// Avec « Réduire les animations » : hauteurs fixes, jamais d'animation.
+struct Egaliseur: NSViewRepresentable {
     var teinte: CouleurRVB
     var joue: Bool
     var reduire: Bool
 
+    /// Hauteurs fixes (rendus PNG, « Réduire les animations »).
+    static let hauteursFixes: [CGFloat] = [6, 11, 13, 8, 5]
+    private static let enveloppe: [CGFloat] = [0.78, 1, 0.92, 1, 0.74]
+    private static let durees: [CFTimeInterval] = [3.1, 2.3, 3.7, 2.7, 3.3]
+
     final class Vue: NSView {
-        private let amplitude = CALayer()
-        private let defilement = CAShapeLayer()
-        private var enMarche = false
+        private var barres: [CALayer] = []
+        private var etat = -1   // 0 à plat, 1 en marche, 2 figé en hauteurs fixes
         override init(frame: NSRect) {
             super.init(frame: frame)
             wantsLayer = true
-            layer?.masksToBounds = true
-            let l = LectureMesures.ondeLargeur, h = LectureMesures.ondeHauteur
-            amplitude.frame = CGRect(x: 0, y: 0, width: l, height: h)
-            defilement.frame = CGRect(x: 0, y: 0, width: 2 * l, height: h)
-            // deux périodes complètes (100 pt) : le motif défile d'une période (50 pt) puis recommence
-            let chemin = CGMutablePath()
-            let demi = l / 2, haut: CGFloat = 1.5, bas = h - 1.5, milieu = h / 2
-            chemin.move(to: CGPoint(x: 0, y: milieu))
-            for i in 0..<4 {
-                let x = CGFloat(i) * demi, sommet = i % 2 == 0 ? haut : bas
-                chemin.addCurve(to: CGPoint(x: x + demi, y: milieu), control1: CGPoint(x: x + demi * 0.25, y: sommet), control2: CGPoint(x: x + demi * 0.75, y: sommet))
+            layer?.masksToBounds = false
+            for i in 0..<LectureMesures.egaliseurBarres {
+                let b = CALayer()
+                b.cornerRadius = LectureMesures.egaliseurLargeurBarre / 2
+                let x = CGFloat(i) * (LectureMesures.egaliseurLargeurBarre + LectureMesures.egaliseurEcart) + LectureMesures.egaliseurLargeurBarre / 2
+                b.bounds = CGRect(x: 0, y: 0, width: LectureMesures.egaliseurLargeurBarre, height: LectureMesures.egaliseurHauteurMin)
+                b.position = CGPoint(x: x, y: LectureMesures.egaliseurHauteur / 2)
+                layer?.addSublayer(b)
+                barres.append(b)
             }
-            defilement.path = chemin
-            defilement.fillColor = nil
-            defilement.lineWidth = 2.4
-            defilement.lineCap = .round
-            amplitude.addSublayer(defilement)
-            layer?.addSublayer(amplitude)
         }
         required init?(coder: NSCoder) { fatalError() }
-        override var isFlipped: Bool { true }
+
+        private func hauteurAffichee(_ b: CALayer) -> CGFloat { b.presentation()?.bounds.height ?? b.bounds.height }
 
         func appliquer(teinte: CouleurRVB, joue: Bool, reduire: Bool) {
             let c = CGColor(srgbRed: teinte.r, green: teinte.g, blue: teinte.b, alpha: 1)
-            defilement.strokeColor = c
-            // la lueur est portée par la vue, hors du masque : on la pose sur le calque de la vue lui-même
-            layer?.shadowColor = c; layer?.shadowOpacity = 0.9; layer?.shadowRadius = 5; layer?.shadowOffset = .zero
-            layer?.masksToBounds = false
-            amplitude.masksToBounds = true
-            let marche = joue && !reduire
-            if marche == enMarche { if !marche { fixer() }; return }
-            enMarche = marche
-            defilement.removeAllAnimations(); amplitude.removeAllAnimations()
-            guard marche else { fixer(); return }
-            amplitude.setAffineTransform(.identity)
-            let flux = CABasicAnimation(keyPath: "position.x")
-            flux.fromValue = defilement.position.x; flux.toValue = defilement.position.x - LectureMesures.ondeLargeur
-            flux.duration = 1.5; flux.repeatCount = .infinity; flux.timingFunction = CAMediaTimingFunction(name: .linear)
-            defilement.add(flux, forKey: "flux")
-            let souffle = CABasicAnimation(keyPath: "transform.scale.y")
-            souffle.fromValue = 0.35; souffle.toValue = 1
-            souffle.duration = 1.2; souffle.autoreverses = true; souffle.repeatCount = .infinity
-            souffle.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            amplitude.add(souffle, forKey: "souffle")
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            for b in barres { b.backgroundColor = c }
+            layer?.shadowColor = c; layer?.shadowOpacity = 0.65; layer?.shadowRadius = 3.5; layer?.shadowOffset = .zero
+            CATransaction.commit()
+            let voulu = !joue ? 0 : (reduire ? 2 : 1)
+            guard voulu != etat else { return }
+            etat = voulu
+            CATransaction.begin(); CATransaction.setDisableActions(true)   // seules nos animations explicites bougent les barres
+            for (i, b) in barres.enumerated() {
+                let depart = hauteurAffichee(b)
+                b.removeAllAnimations()
+                switch voulu {
+                case 1:
+                    var valeurs = (0..<8).map { _ in LectureMesures.egaliseurHauteurMin + (LectureMesures.egaliseurHauteurMax * Egaliseur.enveloppe[i] - LectureMesures.egaliseurHauteurMin) * CGFloat.random(in: 0.05...1) }
+                    // pas deux sommets de suite trop proches : la courbe respire au lieu de frémir
+                    for j in 1..<valeurs.count where abs(valeurs[j] - valeurs[j - 1]) < 2 { valeurs[j] = min(LectureMesures.egaliseurHauteurMax, valeurs[j - 1] + 4) }
+                    // montée douce depuis la hauteur courante, puis la courbe en boucle (son dernier point rejoint le premier)
+                    let montee = CABasicAnimation(keyPath: "bounds.size.height")
+                    montee.fromValue = depart; montee.toValue = valeurs[0]
+                    montee.duration = 0.45; montee.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                    b.bounds.size.height = valeurs[0]
+                    b.add(montee, forKey: "montee")
+                    let boucle = CAKeyframeAnimation(keyPath: "bounds.size.height")
+                    boucle.values = (valeurs + [valeurs[0]]).map { NSNumber(value: Double($0)) }
+                    boucle.calculationMode = .cubic
+                    boucle.duration = Egaliseur.durees[i] * 2.4
+                    boucle.repeatCount = .infinity
+                    boucle.beginTime = b.convertTime(CACurrentMediaTime(), from: nil) + 0.45
+                    b.add(boucle, forKey: "boucle")
+                case 2:
+                    b.bounds.size.height = Egaliseur.hauteursFixes[i]
+                default:
+                    let aplat = CABasicAnimation(keyPath: "bounds.size.height")
+                    aplat.fromValue = depart; aplat.toValue = LectureMesures.egaliseurHauteurMin
+                    aplat.duration = 0.6; aplat.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    b.bounds.size.height = LectureMesures.egaliseurHauteurMin
+                    b.add(aplat, forKey: "aplat")
+                }
+            }
+            CATransaction.commit()
         }
-        private func fixer() { amplitude.setAffineTransform(CGAffineTransform(scaleX: 1, y: 0.4)) }
     }
 
-    func makeNSView(context: Context) -> Vue { Vue(frame: CGRect(x: 0, y: 0, width: LectureMesures.ondeLargeur, height: LectureMesures.ondeHauteur)) }
+    func makeNSView(context: Context) -> Vue { Vue(frame: CGRect(x: 0, y: 0, width: LectureMesures.egaliseurLargeur, height: LectureMesures.egaliseurHauteur)) }
     func updateNSView(_ v: Vue, context: Context) { v.appliquer(teinte: teinte, joue: joue, reduire: reduire) }
 }
 
-/// La même onde, immobile, pour les rendus PNG.
-struct OndeFixe: View {
+/// Le même égaliseur, immobile, pour les rendus PNG (`joue` : hauteurs fixes ; sinon à plat).
+struct EgaliseurFixe: View {
     var teinte: CouleurRVB
+    var joue: Bool
     var body: some View {
-        Path { p in
-            let l = LectureMesures.ondeLargeur, h = LectureMesures.ondeHauteur, demi = l / 2
-            let a: CGFloat = 0.95
-            let milieu = h / 2
-            p.move(to: CGPoint(x: 0, y: milieu))
-            for i in 0..<2 {
-                let x = CGFloat(i) * demi, sommet = i % 2 == 0 ? milieu - (milieu - 1.5) * a : milieu + (milieu - 1.5) * a
-                p.addCurve(to: CGPoint(x: x + demi, y: milieu), control1: CGPoint(x: x + demi * 0.25, y: sommet), control2: CGPoint(x: x + demi * 0.75, y: sommet))
+        HStack(spacing: LectureMesures.egaliseurEcart) {
+            ForEach(0..<LectureMesures.egaliseurBarres, id: \.self) { i in
+                Capsule().fill(teinteSwiftUI(teinte))
+                    .frame(width: LectureMesures.egaliseurLargeurBarre, height: joue ? Egaliseur.hauteursFixes[i] : LectureMesures.egaliseurHauteurMin)
             }
         }
-        .stroke(teinteSwiftUI(teinte), style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
-        .shadow(color: teinteSwiftUI(teinte).opacity(0.9), radius: 5)
-        .frame(width: LectureMesures.ondeLargeur, height: LectureMesures.ondeHauteur)
+        .shadow(color: teinteSwiftUI(teinte).opacity(0.65), radius: 3.5)
+        .frame(width: LectureMesures.egaliseurLargeur, height: LectureMesures.egaliseurHauteur)
     }
 }
 
@@ -258,15 +307,20 @@ struct TraceBarre: View {
     var teinte: TeintePochette
     var actif: Bool
     static let hauteurs = TraceSonore.hauteurs()
+    static let barreEcran: CGFloat = 4, ecartEcran: CGFloat = 1.5
+    /// Largeur (dans le repère de la maquette) qui donne des barres de 4 pt et des écarts de 1,5 pt à l'écran.
+    static let largeur: CGFloat = (CGFloat(hauteurs.count) * barreEcran + CGFloat(hauteurs.count - 1) * ecartEcran) / LectureMesures.echelle
 
     var body: some View {
         Canvas { ctx, taille in
             let n = Self.hauteurs.count
-            let ecart: CGFloat = 2
-            let l = (taille.width - ecart * CGFloat(n - 1)) / CGFloat(n)
+            // Dessinée à l'échelle de l'îlot (78 %) : barres de 4 pt et écarts de 1,5 pt À L'ÉCRAN (8 et 3 pixels sur un écran Retina), pour
+            // qu'aucune barre ne tombe entre deux pixels ; `Self.largeur` est la largeur qui donne exactement ces mesures.
+            let ecart = Self.ecartEcran / LectureMesures.echelle
+            let l = Self.barreEcran / LectureMesures.echelle
             func barre(_ i: Int) -> Path {
                 let h = max(3, taille.height * CGFloat(Self.hauteurs[i]))
-                return Path(roundedRect: CGRect(x: CGFloat(i) * (l + ecart), y: (taille.height - h) / 2, width: l, height: h), cornerRadius: 1.5)
+                return Path(roundedRect: CGRect(x: CGFloat(i) * (l + ecart), y: (taille.height - h) / 2, width: l, height: h), cornerRadius: 1.5 / LectureMesures.echelle)
             }
             for i in 0..<n { ctx.fill(barre(i), with: .color(.white.opacity(0.2))) }
             let x = taille.width * CGFloat(min(1, max(0, fraction)))
@@ -288,17 +342,28 @@ struct TraceBarre: View {
     }
 }
 
-/// La pochette (ou, à défaut, une pastille sobre).
+/// La pochette. Chaîne de repli : l'image du système, sinon la miniature de la vidéo (déposée dans `m.image` par le contrôleur), sinon l'icône
+/// de l'app qui joue, en petit sur fond sombre, sinon un pictogramme sobre.
 struct PochetteLecture: View {
     @ObservedObject var m: LectureModele
+    /// La mini-miniature de la dictée : l'image réduite à la main, jamais en rotation.
+    var miniature = false
     var body: some View {
         ZStack {
             Color(white: 0.11)
             if let image = m.image {
-                if m.genre == .musique && !m.statique {
+                if miniature {
+                    Image(nsImage: m.imageMini ?? image).resizable().interpolation(.high).aspectRatio(contentMode: .fill)
+                } else if m.genre == .musique && !m.statique {
                     ImageRotative(image: image, tourne: m.joue && !m.reduire)
                 } else {
-                    Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
+                    Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: .fill)
+                }
+            } else if let icone = m.iconeApp {
+                GeometryReader { geo in
+                    Image(nsImage: icone).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+                        .frame(width: geo.size.width * (miniature ? 0.86 : 0.58), height: geo.size.height * (miniature ? 0.86 : 0.58))
+                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
                 }
             } else {
                 Image(systemName: m.genre == .musique ? "music.note" : "play.rectangle.fill")
@@ -339,10 +404,11 @@ struct IlotVue: View, Animatable {
         let e = LectureMesures.echelle
         let xP = L(12, 30 * e), yP = L((g.hauteur - LectureMesures.pochetteRepos) / 2, (60 + dy) * e)
         let rayonP = genreMusique ? tailleP / 2 : L(9, 30)
-        let oc = lisse((p - 0.5) / 0.35) * (1 - lisse(absence * 2.4))
+        let oc = lisse((p - 0.42) / 0.5) * (1 - lisse(absence * 2.4))
         let present = 1 - lisse(absence)
         let t = m.teinte
-        let forme = FormeIlot(largeur: largeur, hauteur: hauteur, rayon: rayon, oreille: min(1, p * 3))
+        let forme = FormeIlot(largeur: largeur, hauteur: hauteur, rayon: rayon, oreille: min(1, p * 3),
+                              largeurBarre: L(reposL, LectureMesures.largeurBarre(g)), hauteurBarre: g.hauteur)
 
         ZStack(alignment: .top) {
             // fond noir, filet clair, ombre portée
@@ -353,7 +419,7 @@ struct IlotVue: View, Animatable {
             // île : tout le reste est dans le repère de l'îlot (origine en haut à gauche), rogné à la forme
             ZStack(alignment: .topLeading) {
                 // lueur teintée par la pochette
-                if let image = m.image, p > 0.05 {
+                if let image = m.image ?? m.iconeApp, p > 0.05 {
                     Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
                         .frame(width: LectureMesures.ouvertLargeur, height: LectureMesures.hauteurOuvert(g))
                         .scaleEffect(1.5)
@@ -376,22 +442,25 @@ struct IlotVue: View, Animatable {
                     .opacity(Double(1 - lisse(absence * 1.8)))
                     .accessibilityLabel("Pochette")
 
-                // onde de l'aile droite
+                // égaliseur de l'aile droite
                 Group {
-                    if m.statique { OndeFixe(teinte: t.clair) }
-                    else { OndeSinus(teinte: t.clair, joue: m.joue, reduire: m.reduire) }
+                    if m.statique { EgaliseurFixe(teinte: t.clair, joue: m.joue) }
+                    else { Egaliseur(teinte: t.clair, joue: m.joue, reduire: m.reduire) }
                 }
-                .frame(width: LectureMesures.ondeLargeur, height: LectureMesures.ondeHauteur)
-                .offset(x: largeur - 12 - LectureMesures.ondeLargeur, y: (g.hauteur - LectureMesures.ondeHauteur) / 2)
-                .opacity(Double(1 - lisse(absence * 2)))
+                .frame(width: LectureMesures.egaliseurLargeur, height: LectureMesures.egaliseurHauteur)
+                .offset(x: largeur - LectureMesures.egaliseurMargeDroite - LectureMesures.egaliseurLargeur,
+                        y: (g.hauteur - LectureMesures.egaliseurHauteur) / 2)
+                .opacity(Double(1 - lisse(absence * 2)) * Double(1 - lisse(p * 4)))
                 .accessibilityHidden(true)
 
                 // contenu déplié
                 if oc > 0.001 {
                     contenu(g: g, dy: dy)
                         .frame(width: LectureMesures.ouvertLargeurBase, height: LectureMesures.ouvertHauteurBase + dy, alignment: .topLeading)
-                        .scaleEffect((0.94 + 0.06 * oc) * LectureMesures.echelle, anchor: .topLeading)
-                        .blur(radius: (1 - oc) * 9)
+                        .scaleEffect(LectureMesures.echelle, anchor: .topLeading)
+                        // le contenu arrive après la forme : fondu léger et petite montée de 5 pt
+                        .offset(y: (1 - oc) * 5)
+                        .blur(radius: (1 - oc) * 4)
                         .opacity(Double(oc))
                         .allowsHitTesting(oc > 0.6)
                 }
@@ -429,8 +498,9 @@ struct IlotVue: View, Animatable {
                     .opacity(m.joue ? 1 : 0.4)
                 Text(m.joue ? "En lecture" : "En pause").font(.system(size: 11.5)).foregroundStyle(Palette.texte2)
             }
-            .frame(height: g.hauteur)
-            .offset(x: 28, y: 0)
+            .frame(height: g.hauteur / LectureMesures.echelle)
+            // dans la bande de la barre des menus, à gauche de la caméra (jamais au-delà de la bande de la dictée)
+            .offset(x: (LectureMesures.epaule(g) + 14) / LectureMesures.echelle, y: 0)
 
             VStack(alignment: .leading, spacing: 0) {
                 Text(m.morceau?.titre ?? "")
@@ -472,15 +542,15 @@ struct IlotVue: View, Animatable {
             ZStack(alignment: .topLeading) {
                 if m.morceau?.positionnable == true, let duree {
                     TraceBarre(fraction: fraction, teinte: teinte, actif: survolBarre || m.fractionGlissee != nil)
-                        .frame(width: 376, height: 34)
+                        .frame(width: TraceBarre.largeur, height: 34)
                         .scaleEffect(x: 1, y: m.fractionGlissee != nil ? 1.12 : 1)
                         .animation(.spring(duration: 0.2, bounce: 0.2), value: m.fractionGlissee != nil)
                         .contentShape(Rectangle())
                         .onHover { survolBarre = $0 }
                         .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local)
-                            .onChanged { v in m.fractionGlissee = TempsLecture.fractionSousSouris(x: v.location.x, largeur: 376) }
+                            .onChanged { v in m.fractionGlissee = TempsLecture.fractionSousSouris(x: v.location.x, largeur: TraceBarre.largeur) }
                             .onEnded { v in
-                                let f = TempsLecture.fractionSousSouris(x: v.location.x, largeur: 376)
+                                let f = TempsLecture.fractionSousSouris(x: v.location.x, largeur: TraceBarre.largeur)
                                 m.fractionGlissee = nil
                                 m.surPosition(TempsLecture.position(fraction: f, duree: duree))
                                 m.surFinGlissement()
@@ -494,15 +564,15 @@ struct IlotVue: View, Animatable {
                         Text(TempsLecture.restant(position: position ?? 0, duree: duree))
                     }
                     .font(.system(size: 12).monospacedDigit()).foregroundStyle(Palette.texte3)
-                    .frame(width: 376).offset(y: 38)
+                    .frame(width: TraceBarre.largeur).offset(y: 38)
                 } else {
                     // direct, ou durée inconnue : pas de barre à glisser
                     Text(m.morceau?.joue == true ? "En direct" : "Durée inconnue")
                         .font(.system(size: 12)).foregroundStyle(Palette.texte3)
-                        .frame(width: 376, height: 34, alignment: .leading)
+                        .frame(width: TraceBarre.largeur, height: 34, alignment: .leading)
                 }
             }
-            .frame(width: 376, height: 54, alignment: .topLeading)
+            .frame(width: TraceBarre.largeur, height: 54, alignment: .topLeading)
         }
         .offset(x: 196, y: 106 + dy)
     }
@@ -518,37 +588,39 @@ struct LectureHote: View {
     }
 }
 
-// MARK: bulle pendant la dictée
 
-/// Petite bulle ronde détachée, à droite de l'encoche de dictée : la pochette (à demi éteinte) et l'icône pause.
-struct BulleLectureVue: View {
+// MARK: mini-miniature pendant la dictée
+
+/// La lecture pendant une dictée : une mini-miniature de 18 pt DANS le ruban de la dictée (au bout, côté droit). La vraie image de ce qui
+/// joue (pochette, miniature de la vidéo, à défaut icône de l'app), légèrement assombrie, avec un fin glyphe pause blanc ; ronde pour la
+/// musique. Un clic dessus reprend la lecture. Apparaît et disparaît en fondu doux avec la pause et la reprise.
+struct MiniatureLectureVue: View {
     @ObservedObject var m: LectureModele
-    /// 0 = absente, 1 = présente (animé par ressort).
+    /// 0 = absente, 1 = présente.
     var presence: CGFloat
-    /// Écart horizontal depuis le bord gauche de la vue jusqu'à la bulle (animé quand la dictée passe en mains libres).
-    var decalage: CGFloat
-    var taille: CGSize
+    static let cote: CGFloat = 18
+    @State private var survol = false
+
+    private var forme: AnyShape { m.genre == .musique ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 4.5, style: .continuous)) }
 
     var body: some View {
-        ZStack {
-            Circle().fill(Color.black)
-                .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 0.5))
-                .shadow(color: .black.opacity(0.5), radius: 10, x: 0, y: 8)
-            PochetteLecture(m: m)
-                .frame(width: 28, height: 28)
-                .clipShape(Circle())
-                .opacity(0.5)
-            if !m.joue {
-                Image(systemName: "pause.fill").font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
-                    .transition(.opacity)
+        Button { m.surReprise() } label: {
+            ZStack {
+                PochetteLecture(m: m, miniature: true)
+                    .frame(width: Self.cote, height: Self.cote)
+                    .overlay(Color.black.opacity(m.image == nil ? (survol ? 0.22 : 0.36) : (survol ? 0.30 : 0.46)))
+                Image(systemName: "pause.fill").font(.system(size: 7.5, weight: .bold)).foregroundStyle(.white.opacity(0.95))
             }
+            .frame(width: Self.cote, height: Self.cote)
+            .clipShape(forme)
+            .overlay(forme.stroke(Color.white.opacity(0.14), lineWidth: 0.5))
+            .contentShape(Rectangle().inset(by: -4))
         }
-        .frame(width: 36, height: 36)
-        .scaleEffect(0.4 + 0.6 * presence)
-        .opacity(Double(min(1, max(0, (presence - 0.15) / 0.6))))
-        .offset(x: decalage, y: 1)
-        .frame(width: taille.width, height: taille.height, alignment: .topLeading)
-        .animation(.easeOut(duration: 0.12), value: m.joue)
-        .accessibilityLabel(m.joue ? "Lecture en cours" : "Lecture en pause pendant la dictée")
+        .buttonStyle(.plain)
+        .onHover { survol = $0 }
+        .scaleEffect(0.82 + 0.18 * presence)
+        .opacity(Double(min(1, max(0, presence))))
+        .animation(.easeOut(duration: 0.12), value: survol)
+        .accessibilityLabel("Reprendre la lecture")
     }
 }

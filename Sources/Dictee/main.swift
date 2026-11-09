@@ -62,6 +62,17 @@ if arguments.contains("--lecture-essai") {
     exit(MainActor.assumeIsolated { LectureEssai.executer(arguments: arguments) })
 }
 
+// Dictee --lecture-mesure [secondes]  (processeur de l'îlot au repos, îlot visible ; aucune commande envoyée)
+if let i = arguments.firstIndex(of: "--lecture-mesure") {
+    let secondes = (i + 1 < arguments.count ? Double(arguments[i + 1]) : nil) ?? 30
+    exit(MainActor.assumeIsolated { LectureMesure.executer(secondes: secondes) })
+}
+
+// Dictee --miniature-essai [identifiant]  (téléchargement et cache de la miniature YouTube ; réseau seulement)
+if arguments.contains("--miniature-essai") {
+    exit(MainActor.assumeIsolated { MiniatureEssai.executer(arguments: arguments) })
+}
+
 // Dictee --rendu-reunion dossier  (encoche des réunions, liste et note en PNG, sans fenêtre)
 if let i = arguments.firstIndex(of: "--rendu-reunion"), i + 1 < arguments.count {
     exit(MainActor.assumeIsolated { RenduReunions.executer(dossier: arguments[i + 1]) })

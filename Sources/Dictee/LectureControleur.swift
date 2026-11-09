@@ -7,7 +7,7 @@ extension Notification.Name {
     static let verbeLectureReglages = Notification.Name("verbe.lecture.reglages")
 }
 
-/// La lecture en cours dans l'encoche : relie le programme d'aide (ce qui joue), l'îlot et la bulle (ce qu'on voit), les réglages et les
+/// La lecture en cours dans l'encoche : relie le programme d'aide (ce qui joue), l'îlot et la mini-miniature de la dictée (ce qu'on voit), les réglages et les
 /// priorités sur l'encoche. Priorités : dictée > réunion > filet de sécurité > proposition de mise à jour > lecture (voir `PrioriteLecture`).
 ///
 /// Pendant une dictée : si quelque chose joue, pause au début (commande `pause`) et reprise à la fin, seulement si c'est Verbe qui a mis en
@@ -16,7 +16,7 @@ extension Notification.Name {
 final class LectureControleur {
     let modele = LectureModele()
     let panneau: LecturePanneau
-    let bulle: LectureBulle
+    let miniature: LectureMiniature
     let systeme = LecteurSysteme()
 
     /// Ce qui occupe l'encoche en dehors de la dictée de ce contrôleur (rempli par l'AppDelegate).
@@ -28,10 +28,13 @@ final class LectureControleur {
     private var recalcul: DispatchWorkItem?
     private(set) var affichage: AffichageLecture = .aucun
     /// Mode d'essai : fenêtres invisibles.
-    var essaiInvisible = false { didSet { panneau.invisible = essaiInvisible; bulle.invisible = essaiInvisible } }
+    var essaiInvisible = false { didSet { panneau.invisible = essaiInvisible; miniature.invisible = essaiInvisible } }
     private var cheminImage: String?
     private var appCharge: String?
     private var derniereRechercheDeSite = Date.distantPast
+    private var derniereRechercheDeMiniature = Date.distantPast
+    /// L'image affichée est une miniature retrouvée par nous (et non celle du système) : on l'efface au morceau suivant.
+    private var imageDeSecours = false
     private var reglagesObserves: NSObjectProtocol?
 
     /// La dictée n'occupe l'encoche (et ne met la lecture en pause) qu'après 0,28 s : un appui court (moins de 0,25 s, le premier du double
@@ -40,14 +43,15 @@ final class LectureControleur {
 
     init() {
         panneau = LecturePanneau(modele: modele)
-        bulle = LectureBulle(modele: modele)
+        miniature = LectureMiniature(modele: modele)
+        modele.surReprise = { [weak self] in self?.reprendreParClic() }
         modele.surBascule = { [weak self] in self?.basculer() }
         modele.surSuivant = { [weak self] in self?.systeme.envoyer(.suivant) }
         modele.surPrecedent = { [weak self] in self?.systeme.envoyer(.precedent) }
         modele.surSaut = { [weak self] delta in self?.sauter(delta) }
         modele.surPosition = { [weak self] s in self?.aller(a: s) }
         modele.surFinGlissement = { [weak self] in self?.panneau.apresGlissement() }
-        panneau.surDepliage = { [weak self] in self?.chercherLeSite() }
+        panneau.surDepliage = { [weak self] in self?.chercherLeSite(); self?.chercherLaMiniature() }
         systeme.surEvenement = { [weak self] e in self?.recevoir(e) }
         systeme.surAbandon = { [weak self] _ in self?.vider() }
     }
@@ -65,7 +69,7 @@ final class LectureControleur {
     func arreter() {
         systeme.arreter()
         panneau.fermer()
-        bulle.fermer()
+        miniature.fermer()
     }
 
     /// Le programme d'aide n'est lancé que si « Afficher la lecture en cours » est actif.
@@ -81,6 +85,7 @@ final class LectureControleur {
     private func vider() {
         modele.morceau = nil
         modele.image = nil
+        imageDeSecours = false
         cheminImage = nil
         pause = PauseDictee()
         recalculer()
@@ -95,6 +100,7 @@ final class LectureControleur {
             if modele.morceau != nil { vider() }
         case .etat(let m):
             let nouveau = m.cle != modele.morceau?.cle
+            if nouveau, imageDeSecours { imageDeSecours = false; modele.image = nil }
             if m.cheminImage != cheminImage { chargerImage(m.cheminImage) }
             if m.app != appCharge { chargerApp(m) }
             if nouveau {
@@ -102,6 +108,8 @@ final class LectureControleur {
                 modele.pop += 1
                 chercherLeSite(pour: m)
             }
+            // l'image du système d'abord ; à défaut, la miniature de la vidéo ; à défaut, l'icône de l'app (dessinée par la vue)
+            if nouveau { chercherLaMiniature(pour: m) }
             if m != modele.morceau { modele.morceau = m }
             recalculer()
         }
@@ -109,13 +117,46 @@ final class LectureControleur {
 
     private func chargerImage(_ chemin: String?) {
         cheminImage = chemin
-        guard let chemin, let image = NSImage(contentsOfFile: chemin) else {
+        if let chemin, let image = NSImage(contentsOfFile: chemin) {
+            modele.image = image
+            imageDeSecours = false
+        } else if !imageDeSecours {
             modele.image = nil
-            modele.teinte = .neutre
-            return
         }
-        modele.image = image
-        modele.teinte = Self.teinte(de: image)
+        appliquerTeinte()
+    }
+
+    /// La teinte (égaliseur, lueur, trace sonore) suit l'image retenue : celle du système, la miniature, sinon l'icône de l'app.
+    private func appliquerTeinte() {
+        modele.imageMini = (modele.image ?? modele.iconeApp).flatMap { Self.reduire($0, pixels: 40) }
+        modele.teinte = (modele.image ?? modele.iconeApp).map { Self.teinte(de: $0) } ?? .neutre
+    }
+
+    // MARK: miniature (repli quand le navigateur n'envoie aucune image)
+
+    private func chercherLaMiniature() {
+        guard let m = modele.morceau, modele.image == nil, m.cheminImage == nil, Date().timeIntervalSince(derniereRechercheDeMiniature) > 4 else { return }
+        chercherLaMiniature(pour: m)
+    }
+
+    /// Chrome sur YouTube n'envoie souvent aucune image au système : on retrouve l'identifiant de la vidéo dans l'adresse de l'onglet qui
+    /// joue (Accessibilité, aucune autorisation de plus), puis on prend la miniature publique (cache disque par identifiant).
+    private func chercherLaMiniature(pour m: MorceauEnCours) {
+        guard m.cheminImage == nil, modele.image == nil, SourceLecture.estNavigateur(m.app), Permissions.accessibiliteOK, let pid = m.pid else { return }
+        derniereRechercheDeMiniature = Date()
+        let cle = m.cle, titre = m.titre
+        Task.detached(priority: .utility) { [self] in
+            guard let id = MiniatureLecture.identifiantDeLOnglet(pid: pid, titreMedia: titre),
+                  let (image, origine) = await MiniatureLecture.charger(identifiant: id) else { return }
+            await MainActor.run {
+                // le morceau a pu changer, ou le système envoyer enfin sa propre image, pendant ce temps
+                guard modele.morceau?.cle == cle, modele.image == nil, cheminImage == nil else { return }
+                modele.image = image
+                imageDeSecours = true
+                appliquerTeinte()
+                Log.ecrire("lecture : miniature de la vidéo (\(origine.rawValue))")
+            }
+        }
     }
 
     /// Nom et icône de l'app qui joue.
@@ -125,9 +166,24 @@ final class LectureControleur {
         if let pid = m.pid { app = NSRunningApplication(processIdentifier: pid_t(pid)) }
         if app == nil, let id = m.app { app = NSRunningApplication.runningApplications(withBundleIdentifier: id).first }
         modele.nomApp = app?.localizedName
-        if let icone = app?.icon { modele.iconeApp = icone }
-        else if let id = m.app, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) { modele.iconeApp = NSWorkspace.shared.icon(forFile: url.path) }
-        else { modele.iconeApp = nil }
+        var icone = app?.icon
+        if icone == nil, let id = m.app, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) { icone = NSWorkspace.shared.icon(forFile: url.path) }
+        // l'icône est redessinée une fois à 256 pixels (la représentation par défaut est minuscule : floue en grand, ou en repli de la pochette)
+        modele.iconeApp = icone.map { Self.reduire($0, pixels: 256, rogner: false) ?? $0 }
+        appliquerTeinte()
+    }
+
+    /// L'image réduite au carré (rognage centré) avec une interpolation haute : nette à 18 pt sur un écran Retina.
+    static func reduire(_ image: NSImage, pixels: Int, rogner: Bool = true) -> NSImage? {
+        var proposition = NSRect(x: 0, y: 0, width: pixels, height: pixels)
+        guard let cg = image.cgImage(forProposedRect: &proposition, context: nil, hints: nil),
+              let ctx = CGContext(data: nil, width: pixels, height: pixels, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        ctx.interpolationQuality = .high
+        let l = CGFloat(cg.width), h = CGFloat(cg.height), cote = rogner ? min(l, h) : max(l, h), k = CGFloat(pixels) / cote
+        ctx.draw(cg, in: CGRect(x: (CGFloat(pixels) - l * k) / 2, y: (CGFloat(pixels) - h * k) / 2, width: l * k, height: h * k))
+        guard let sortie = ctx.makeImage() else { return nil }
+        return NSImage(cgImage: sortie, size: NSSize(width: pixels, height: pixels))
     }
 
     /// La couleur vive de la pochette : lue sur une copie de 24 × 24 pixels.
@@ -221,23 +277,37 @@ final class LectureControleur {
     private func recalculer() {
         var o = occupation()
         o.dictee = o.dictee || dicteeConfirmee
-        let voulu = PrioriteLecture.affichage(occupation: o, morceau: modele.morceau != nil, reglageAffichage: Settings.afficherLaLecture)
+        var voulu = PrioriteLecture.affichage(occupation: o, morceau: modele.morceau != nil, reglageAffichage: Settings.afficherLaLecture)
+        // Pendant la dictée, la mini-miniature n'existe que si c'est Verbe qui a mis la lecture en pause (c'est le geste pour la reprendre),
+        // qu'elle est bien en pause, et que le ruban de texte de la dictée est sorti (c'est dedans qu'elle se loge).
+        if voulu == .miniature, !(pause.pauseParNous && !modele.joue && rubanDictee()) { voulu = .aucun }
         guard voulu != affichage else { return }
         let avant = affichage
         affichage = voulu
         switch voulu {
         case .aucun:
-            panneau.retirer(); bulle.retirer()
+            panneau.retirer(); miniature.retirer(); reserveRuban(0)
         case .ilot:
-            bulle.retirer(); panneau.afficher()
-        case .bulle:
-            panneau.retirer(); bulle.afficher(mainsLibres: dicteeMainsLibres())
+            miniature.retirer(); reserveRuban(0); panneau.afficher()
+        case .miniature:
+            panneau.retirer(); reserveRuban(LectureMiniature.reserve); miniature.afficher()
         }
         if avant != voulu { Log.ecrire("lecture : affichage \(avant) → \(voulu)") }
     }
 
-    /// Rempli par l'AppDelegate : la dictée en cours est-elle en mains libres (la bulle suit le bord de l'encoche) ?
-    var dicteeMainsLibres: () -> Bool = { false }
+    /// Rempli par l'AppDelegate : le ruban de texte de la dictée est-il sorti ? et réserve à droite du texte du ruban (la mini-miniature s'y loge).
+    var rubanDictee: () -> Bool = { false }
+    var reserveRuban: (CGFloat) -> Void = { _ in }
+
+    /// Clic sur la mini-miniature : la lecture reprend tout de suite (la dictée continue). `PauseDictee` voit alors une lecture relancée par
+    /// Hugues : elle ne fera rien de plus à la fin de la dictée.
+    private func reprendreParClic() {
+        guard modele.morceau != nil, !modele.joue else { return }
+        systeme.envoyer(.lecture)
+        appliquerLocalement(joue: true)
+        Log.ecrire("lecture : reprise par un clic sur la miniature pendant la dictée")
+        recalculer()
+    }
 
     // MARK: dictée
 

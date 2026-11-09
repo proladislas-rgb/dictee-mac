@@ -2,12 +2,14 @@ import AppKit
 import SwiftUI
 import DicteeCore
 
-/// L'état de la lecture en cours affiché par l'îlot et par la bulle de dictée. Rien ici n'interroge le système : le contrôleur
+/// L'état de la lecture en cours affiché par l'îlot et par la mini-miniature de la dictée. Rien ici n'interroge le système : le contrôleur
 /// (`LectureControleur`) pousse ce que dit le programme d'aide, la vue calcule la position toute seule à partir de là.
 @MainActor
 final class LectureModele: ObservableObject {
     @Published var morceau: MorceauEnCours?
     @Published var image: NSImage?
+    /// La même image réduite à la main (40 × 40 pixels, rognée au carré, interpolation haute) pour la mini-miniature de la dictée : nette à 18 pt.
+    @Published var imageMini: NSImage?
     @Published var teinte: TeintePochette = .neutre
     /// Site reconnu dans le navigateur (« YouTube »), s'il a pu être établi.
     @Published var site: String?
@@ -38,6 +40,8 @@ final class LectureModele: ObservableObject {
     var surSaut: (Double) -> Void = { _ in }
     var surPosition: (Double) -> Void = { _ in }
     var surClicIlot: () -> Void = {}
+    /// Un clic sur la mini-miniature pendant une dictée : reprend la lecture tout de suite.
+    var surReprise: () -> Void = {}
     var surFinGlissement: () -> Void = {}
 
     var genre: GenreLecture {

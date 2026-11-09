@@ -47,6 +47,8 @@ final class EncocheModele: ObservableObject {
     @Published var texte = ""
     @Published var fige = false             // finalisation : tous les mots en blanc
     @Published var message: String?         // ex. « Champ protégé, texte copié »
+    /// Place laissée libre à droite du texte du ruban (la mini-miniature de la lecture s'y loge pendant une dictée).
+    @Published var reserveRuban: CGFloat = 0
     @Published var niveaux: [CGFloat] = Array(repeating: 0, count: 5)
     var icone: NSImage?
     var geometrie = GeometrieEncoche()
@@ -212,7 +214,7 @@ struct EncocheVue: View {
     }
 
     private func rubanTexte(g: GeometrieEncoche, largeur: CGFloat) -> some View {
-        let largeurTexte = largeur - 2 * GeometrieEncoche.retraitRuban - 24
+        let largeurTexte = largeur - 2 * GeometrieEncoche.retraitRuban - 24 - m.reserveRuban
         return Group {
             if let message = m.message {
                 Text(message)
@@ -225,8 +227,10 @@ struct EncocheVue: View {
                     .frame(width: largeurTexte, height: GeometrieEncoche.hauteurRuban, alignment: .leading)
             }
         }
+        .frame(width: largeur - 2 * GeometrieEncoche.retraitRuban - 24, alignment: .leading)
         .padding(.top, g.hauteur)
         .opacity(m.ruban ? 1 : 0)
+        .animation(.easeOut(duration: 0.2), value: m.reserveRuban)
         .animation(.easeOut(duration: GeometrieEncoche.dureeFondu), value: m.ruban)
     }
 }

@@ -3,7 +3,8 @@ import SwiftUI
 import DicteeCore
 
 /// Vérification visuelle sans fenêtre : `Verbe --rendu-lecture dossier`
-/// Dessine l'îlot de la lecture en cours (repos × 3 contenus, déplié × 2, direct, pause) et la bulle pendant une dictée, sur un faux bureau,
+/// Dessine l'îlot de la lecture en cours (repos × 3 contenus, déplié × 2, direct, pause, sans image), la dictée (avec la mini-miniature de
+/// la lecture dans le ruban) et la zone des icônes de la barre des menus avec l'îlot par-dessus, sur un faux bureau,
 /// et écrit des PNG (rien n'apparaît à l'écran). Les pochettes sont fictives (formes et couleurs de la maquette, aucune marque).
 /// Ni micro, ni clavier, ni Accessibilité, ni son.
 enum RenduLecture {
@@ -90,7 +91,7 @@ enum RenduLecture {
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         let geometrie = NSScreen.screens.first.map { GeometrieEncoche.mesurer($0).0 } ?? GeometrieEncoche()
         print("caméra : \(Int(geometrie.largeur)) × \(Int(geometrie.hauteur)) pt")
-        let chrome = ["/Applications/Google Chrome.app"].first { FileManager.default.fileExists(atPath: $0) }.map { NSWorkspace.shared.icon(forFile: $0) }
+        let chrome = ["/Applications/Google Chrome.app"].first { FileManager.default.fileExists(atPath: $0) }.map { NSWorkspace.shared.icon(forFile: $0) }.map { LectureControleur.reduire($0, pixels: 256, rogner: false) ?? $0 }
         let notes = NSWorkspace.shared.icon(forFile: "/System/Applications/Notes.app")
 
         let contenus: [Contenu] = [
@@ -176,28 +177,92 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau) { ilot(modele(contenus[2], joue: false), p: 0) }, "repos-album-en-pause")
         ecrire(bureau(hauteur: grandBureau) { ilot(modele(contenus[2]), p: 0.5) }, "transition-mi-course")
 
-        // la dictée prend la place : l'encoche de dictée et la bulle de la lecture (en pause) à côté
+        // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
+        func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
+            let m = modele(c, joue: joue)
+            m.image = nil
+            m.teinte = chrome.map { LectureControleur.teinte(de: $0) } ?? .neutre
+            return m
+        }
         do {
-            let m = modele(contenus[2], joue: false)
+            let m = sansImage(contenus[1])
+            print("teinte (icône de l'app) : \(m.teinte.clair.hexa)")
+            ecrire(bureau(hauteur: petitBureau) { ilot(m, p: 0) }, "repos-sans-image")
+            ecrire(bureau(hauteur: grandBureau) { ilot(m, p: 1) }, "ouvert-sans-image")
+        }
+
+        // la dictée prend la place : l'îlot s'efface ; la lecture (en pause) devient une mini-miniature DANS le ruban de texte, au bout, côté droit
+        let tailleDictee = EnclochePanneau.tailleFenetre(pour: geometrie)
+        func dictee(mainsLibres: Bool, avecMiniature: Bool) -> EncocheModele {
             let e = EncocheModele()
             e.geometrie = geometrie
-            e.ouverte = true; e.ruban = true; e.texte = "Je te rappelle demain pour confirmer"
+            e.ouverte = true; e.ruban = true; e.texte = "Je te rappelle demain pour confirmer le rendez-vous de jeudi"
+            e.mainsLibres = mainsLibres
+            e.reserveRuban = avecMiniature ? LectureMiniature.reserve : 0
             e.icone = notes
             e.niveaux = [0.35, 0.7, 1.0, 0.55, 0.25]
-            let tailleDictee = EnclochePanneau.tailleFenetre(pour: geometrie)
-            let decalage = 1142 / 2 + (geometrie.largeur + 2 * GeometrieEncoche.aile) / 2 + 14
-            ecrire(bureau(hauteur: geometrie.hauteur + 80) {
-                EncocheVue(m: e, tailleFenetre: tailleDictee).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                BulleLectureVue(m: m, presence: 1, decalage: decalage, taille: CGSize(width: 1142, height: geometrie.hauteur + 10))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }, "bulle-dictee")
-            let mLecture = modele(contenus[0], joue: true)
-            ecrire(bureau(hauteur: geometrie.hauteur + 80) {
-                EncocheVue(m: e, tailleFenetre: tailleDictee).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                BulleLectureVue(m: mLecture, presence: 1, decalage: decalage, taille: CGSize(width: 1142, height: geometrie.hauteur + 10))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }, "bulle-dictee-lecture-en-cours")
+            return e
         }
+        /// La dictée et, posée dessus à son vrai emplacement (celui du petit panneau cliquable), la mini-miniature.
+        func scene(_ lecture: LectureModele?, mainsLibres: Bool = false) -> some View {
+            let finRuban = 1142 / 2 + (geometrie.largeur + 2 * GeometrieEncoche.aile) / 2 - GeometrieEncoche.retraitRuban
+            let droite = finRuban - LectureMiniature.retraitDroit + 4
+            return ZStack(alignment: .topLeading) {
+                EncocheVue(m: dictee(mainsLibres: mainsLibres, avecMiniature: lecture != nil), tailleFenetre: tailleDictee)
+                    .frame(width: 1142, height: tailleDictee.height, alignment: .top)
+                if let lecture {
+                    MiniatureLectureVue(m: lecture, presence: 1)
+                        .frame(width: LectureMiniature.tailleFenetre.width, height: LectureMiniature.tailleFenetre.height)
+                        .offset(x: droite - LectureMiniature.tailleFenetre.width, y: geometrie.hauteur)
+                }
+            }
+            .frame(width: 1142, height: tailleDictee.height, alignment: .topLeading)
+        }
+        ecrire(bureau(hauteur: geometrie.hauteur + 80) { scene(nil).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }, "dictee-sans-lecture")
+        ecrire(bureau(hauteur: geometrie.hauteur + 80) { scene(modele(contenus[2], joue: false)).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }, "dictee-miniature-musique")
+        ecrire(bureau(hauteur: geometrie.hauteur + 80) { scene(modele(contenus[1], joue: false)).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }, "dictee-miniature-video")
+        ecrire(bureau(hauteur: geometrie.hauteur + 80) { scene(sansImage(contenus[1], joue: false)).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }, "dictee-miniature-icone-app")
+        ecrire(bureau(hauteur: geometrie.hauteur + 80) { scene(modele(contenus[0], joue: false), mainsLibres: true).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }, "dictee-mains-libres-miniature")
+
+        // la zone des icônes : barre des menus remplie d'icônes jusqu'à la caméra ; les repères en pointillé marquent la limite de la bande
+        // de la dictée (caméra + 90 pt de chaque côté). L'îlot, au repos comme déplié, ne doit rien cacher au-delà.
+        func zoneIcones(_ m: LectureModele, p: CGFloat, avecDictee: Bool = false, hauteur: CGFloat) -> some View {
+            let demiCamera = geometrie.largeur / 2, limite = demiCamera + GeometrieEncoche.aile
+            let symboles = ["wifi", "battery.100", "magnifyingglass", "switch.2", "speaker.wave.2.fill", "moon.fill", "bell.fill", "airplayvideo"]
+            let menus = ["Aide", "Fenêtre", "Signets", "Historique", "Présentation", "Édition", "Fichier"]
+            return ZStack(alignment: .top) {
+                RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: 0x3B5B8C))
+                    .overlay(LinearGradient(colors: [Color.white.opacity(0.18), .clear], startPoint: .top, endPoint: .bottom))
+                HStack(spacing: 0) {
+                    HStack(spacing: 14) { ForEach(menus, id: \.self) { Text($0).font(.system(size: 12.5)) } }
+                        .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, 8)
+                    Color.clear.frame(width: geometrie.largeur)
+                    HStack(spacing: 16) { ForEach(symboles, id: \.self) { Image(systemName: $0).font(.system(size: 12.5)) } }
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 8)
+                }
+                .foregroundStyle(Color.white.opacity(0.92)).frame(height: geometrie.hauteur)
+                .background(Color.black.opacity(0.18))
+                // repères : limite de la bande de la dictée, de part et d'autre de la caméra
+                HStack(spacing: 0) {
+                    Rectangle().fill(Color.clear).frame(width: 1142 / 2 - limite)
+                    Rectangle().fill(Color(hex: 0xFF3B30)).frame(width: 1, height: hauteur)
+                    Spacer(minLength: 0)
+                    Rectangle().fill(Color(hex: 0xFF3B30)).frame(width: 1, height: hauteur)
+                    Rectangle().fill(Color.clear).frame(width: 1142 / 2 - limite)
+                }
+                .frame(width: 1142, height: hauteur)
+                if avecDictee {
+                    scene(m).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                } else {
+                    ilot(m, p: p)
+                }
+            }
+            .frame(width: 1142, height: hauteur, alignment: .top)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        ecrire(zoneIcones(modele(contenus[1]), p: 0, hauteur: geometrie.hauteur + 40), "zone-icones-repos")
+        ecrire(zoneIcones(modele(contenus[1]), p: 1, hauteur: grandBureau), "zone-icones-ouvert")
+        ecrire(zoneIcones(modele(contenus[1], joue: false), p: 0, avecDictee: true, hauteur: geometrie.hauteur + 40), "zone-icones-dictee")
 
         return ok ? 0 : 1
     }

@@ -16,6 +16,7 @@ final class LecturePanneau {
     private var grande = CGSize.zero
     private var fenetreOuverte = false
     private var delaiFermeture: DispatchWorkItem?
+    private var intention: DispatchWorkItem?
     private var retrait: DispatchWorkItem?
     private var reduction: DispatchWorkItem?
     private var moniteurClic: Any?
@@ -24,7 +25,9 @@ final class LecturePanneau {
     var invisible = false
     var cadre: NSRect? { fenetre?.frame }
 
-    static let delaiFermeture: TimeInterval = 0.25
+    static let delaiFermeture: TimeInterval = 0.45
+    /// Temps que la souris doit rester sur l'îlot avant qu'il s'ouvre.
+    static let delaiIntention: TimeInterval = 0.28
     /// Appelé quand l'îlot se déplie (le site du navigateur est relu à ce moment-là).
     var surDepliage: () -> Void = {}
     private var reduire: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
@@ -74,6 +77,7 @@ final class LecturePanneau {
     func retirer() {
         guard let f = fenetre, f.isVisible else { modele.absence = 1; return }
         delaiFermeture?.cancel()
+        intention?.cancel()
         reduction?.cancel()
         retirerMoniteur()
         modele.epingle = false
@@ -97,16 +101,26 @@ final class LecturePanneau {
 
     // MARK: survol, clic
 
-    /// La souris entre dans l'îlot (ou en sort) : il se déplie, ou se referme après un petit délai.
+    /// La souris entre dans l'îlot (ou en sort). Entrée : l'îlot ne s'ouvre qu'après une petite intention (la souris reste 0,28 s dessus ;
+    /// un passage rapide n'ouvre rien, et si la souris repart pendant ce délai rien ne bouge). Sortie : il se referme 0,45 s plus tard
+    /// (annulé si la souris revient). Si l'îlot est encore à moitié ouvert quand la souris revient, il repart tout de suite vers l'ouvert.
     func survol(_ dedans: Bool) {
         delaiFermeture?.cancel()
+        intention?.cancel()
         guard modele.absence < 1 else { return }
         if dedans {
-            // Hugues : « un peu trop sensible quand je passe dessus, faudrait que je puisse cliquer » : le survol ne déplie plus,
-            // il annule seulement une fermeture en attente. On déplie au clic.
-            return
+            if estDeplie && modele.progres > 0.99 { return }
+            if fenetreOuverte { deplier(); return }   // revient pendant la fermeture : on repart de l'état courant, sans attendre
+            let item = DispatchWorkItem { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self, self.modele.absence < 1, !self.estDeplie else { return }
+                    self.deplier()
+                }
+            }
+            intention = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.delaiIntention, execute: item)
         } else {
-            guard !modele.epingle, modele.fractionGlissee == nil else { return }
+            guard fenetreOuverte || estDeplie, !modele.epingle, modele.fractionGlissee == nil else { return }
             let item = DispatchWorkItem { [weak self] in
                 MainActor.assumeIsolated {
                     guard let self, !self.modele.epingle, self.modele.fractionGlissee == nil else { return }
@@ -127,7 +141,8 @@ final class LecturePanneau {
     /// Clic sur l'îlot (hors boutons et barre) : le déplie et le garde (ou le relâche).
     private func clic() {
         guard modele.absence < 1 else { return }
-        // Clic : déplie ; nouveau clic : replie. Déplié par clic, l'îlot se referme aussi quand la souris le quitte.
+        intention?.cancel(); delaiFermeture?.cancel()
+        // Clic : déplie tout de suite (sans attendre l'intention) ; nouveau clic : replie. L'îlot se referme aussi quand la souris le quitte.
         if !estDeplie { modele.epingle = false; deplier(); return }
         modele.epingle = false
         replier()
@@ -170,7 +185,8 @@ final class LecturePanneau {
                 }
             }
         } else {
-            withAnimation(mouvement(rebond: cible > 0.5 ? 0.28 : 0.1, duree: cible > 0.5 ? 0.5 : 0.42)) { modele.progres = cible }
+            // ressort doux : presque critique (rebond 0,06 à l'ouverture, aucun à la fermeture), repart de l'état et de la vitesse courants
+            withAnimation(mouvement(rebond: cible > 0.5 ? 0.06 : 0, duree: cible > 0.5 ? 0.55 : 0.45)) { modele.progres = cible }
         }
     }
 
@@ -255,102 +271,91 @@ final class LecturePanneau {
     }
 }
 
-// MARK: bulle
+// MARK: mini-miniature
 
-/// Position et présence de la bulle, animées par ressort.
 @MainActor
-final class BulleEtat: ObservableObject {
+final class MiniatureEtat: ObservableObject {
     @Published var presence: CGFloat = 0
-    @Published var decalage: CGFloat = 0
 }
 
-struct BulleHote: View {
+struct MiniatureHote: View {
     @ObservedObject var m: LectureModele
-    @ObservedObject var etat: BulleEtat
-    var taille: CGSize
-    var body: some View { BulleLectureVue(m: m, presence: etat.presence, decalage: etat.decalage, taille: taille) }
+    @ObservedObject var etat: MiniatureEtat
+    var body: some View {
+        MiniatureLectureVue(m: m, presence: etat.presence).frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 }
 
-/// La petite bulle ronde de la lecture pendant une dictée : détachée, à droite de l'encoche de dictée, jamais cliquable (la fenêtre laisse
-/// passer tous les clics) ni prenant le focus.
+/// La mini-miniature de la lecture pendant une dictée. Elle ne s'affiche pas dans la fenêtre de la dictée (qui laisse passer tous les clics) :
+/// c'est un tout petit panneau posé exactement sur le bout droit du ruban de texte, qui ne prend jamais le focus et ne capte que son propre clic.
 @MainActor
-final class LectureBulle {
+final class LectureMiniature {
     let modele: LectureModele
-    let etat = BulleEtat()
+    let etat = MiniatureEtat()
     private var fenetre: PanneauSansFocus?
     private var retrait: DispatchWorkItem?
-    private var centre: CGFloat = 0
-    private var mainsLibres = false
     var invisible = false
     private var reduire: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
+    /// Réserve à droite du texte du ruban (miniature + marge) pour que le texte dicté ne passe jamais dessous.
+    static let reserve: CGFloat = MiniatureLectureVue.cote + 8
+    /// Distance entre le bout droit du ruban et le bord droit de la miniature (le coin du ruban est arrondi à 11 pt).
+    static let retraitDroit: CGFloat = 12
+    static let tailleFenetre = CGSize(width: MiniatureLectureVue.cote + 8, height: GeometrieEncoche.hauteurRuban)
+
     init(modele: LectureModele) { self.modele = modele }
 
-    private func tailleFenetre(_ g: GeometrieEncoche) -> CGSize {
-        let moitie = (g.largeur + 2 * GeometrieEncoche.aile + GeometrieEncoche.rallongeMainsLibres) / 2
-        return CGSize(width: ceil(moitie + 14 + 36 + 16), height: g.hauteur + 10)
-    }
-    private func decalage(_ g: GeometrieEncoche, mainsLibres: Bool) -> CGFloat {
-        (g.largeur + 2 * GeometrieEncoche.aile + (mainsLibres ? GeometrieEncoche.rallongeMainsLibres : 0)) / 2 + 14
+    /// Le cadre exact : bout droit du ruban de la dictée (centre + moitié de la bande de base − retrait du ruban), à la hauteur du ruban.
+    static func cadre(ecran: NSScreen) -> NSRect {
+        let (g, centre) = GeometrieEncoche.mesurer(ecran)
+        let finRuban = centre + (g.largeur + 2 * GeometrieEncoche.aile) / 2 - GeometrieEncoche.retraitRuban
+        let droite = finRuban - retraitDroit + 4          // 4 pt de zone de clic au-delà de la miniature
+        return NSRect(x: droite - tailleFenetre.width, y: ecran.frame.maxY - g.hauteur - GeometrieEncoche.hauteurRuban,
+                      width: tailleFenetre.width, height: tailleFenetre.height)
     }
 
-    func afficher(mainsLibres: Bool) {
+    func afficher() {
         retrait?.cancel()
         guard let ecran = NSScreen.screens.first else { return }
-        let (g, c) = GeometrieEncoche.mesurer(ecran)
-        centre = c
-        self.mainsLibres = mainsLibres
-        let t = tailleFenetre(g)
-        let cadre = NSRect(x: c, y: ecran.frame.maxY - t.height, width: t.width, height: t.height)
+        let cadre = Self.cadre(ecran: ecran)
         if fenetre == nil {
             let f = PanneauSansFocus(contentRect: cadre, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             f.isOpaque = false
             f.backgroundColor = .clear
             f.hasShadow = false
-            f.level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
+            f.level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 4)   // au-dessus de la dictée (+3)
             f.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
             f.hidesOnDeactivate = false
             f.isMovable = false
+            f.becomesKeyOnlyIfNeeded = true
             f.animationBehavior = .none
             f.appearance = NSAppearance(named: .darkAqua)
-            f.ignoresMouseEvents = true
+            let vue = VueHebergeePremierClic(rootView: MiniatureHote(m: modele, etat: etat))
+            vue.frame = NSRect(origin: .zero, size: cadre.size)
+            f.contentView = vue
             fenetre = f
         }
         guard let f = fenetre else { return }
-        let dejaLa = f.isVisible && etat.presence > 0.5
         f.setFrame(cadre, display: false)
-        let vue = NSHostingView(rootView: BulleHote(m: modele, etat: etat, taille: t))
-        vue.frame = NSRect(origin: .zero, size: t)
-        f.contentView = vue
         f.alphaValue = invisible ? 0 : 1
+        f.ignoresMouseEvents = invisible
         f.orderFrontRegardless()
-        let cible = decalage(g, mainsLibres: mainsLibres)
-        if dejaLa {
-            withAnimation(reduire ? nil : .spring(duration: GeometrieEncoche.dureeMouvement, bounce: 0.12)) { etat.decalage = cible }
-        } else {
-            etat.decalage = cible
-            withAnimation(reduire ? .easeOut(duration: GeometrieEncoche.dureeFondu) : .spring(duration: 0.4, bounce: 0.3)) { etat.presence = 1 }
-        }
-    }
-
-    /// La dictée passe en mains libres (ou en revient) : la bulle suit le bord de l'encoche.
-    func suivre(mainsLibres: Bool) {
-        guard fenetre?.isVisible == true, self.mainsLibres != mainsLibres, let ecran = NSScreen.screens.first else { return }
-        self.mainsLibres = mainsLibres
-        let (g, _) = GeometrieEncoche.mesurer(ecran)
-        withAnimation(reduire ? nil : .spring(duration: GeometrieEncoche.dureeMouvement, bounce: 0.12)) { etat.decalage = decalage(g, mainsLibres: mainsLibres) }
+        withAnimation(reduire ? .easeOut(duration: GeometrieEncoche.dureeFondu) : .easeOut(duration: 0.28)) { etat.presence = 1 }
     }
 
     func retirer() {
         guard let f = fenetre, f.isVisible else { etat.presence = 0; return }
-        withAnimation(reduire ? .easeOut(duration: GeometrieEncoche.dureeFondu) : .spring(duration: 0.3, bounce: 0)) { etat.presence = 0 }
+        f.ignoresMouseEvents = true
+        withAnimation(.easeOut(duration: reduire ? GeometrieEncoche.dureeFondu : 0.2)) { etat.presence = 0 }
         let item = DispatchWorkItem { [weak self] in
             guard let self, self.etat.presence < 0.01 else { return }
             self.fenetre?.orderOut(nil)
         }
         retrait = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
     }
 
+    var estVisible: Bool { fenetre?.isVisible == true && etat.presence > 0.01 }
+    var cadre: NSRect? { fenetre?.frame }
     func fermer() { fenetre?.orderOut(nil) }
 }

@@ -1808,6 +1808,28 @@ do {
     verifier(SourceLecture.site(titresDeFenetres: ["Mes mails - Gmail - Google Chrome", "Série · S2 É4 · Le Retour - YouTube - Google Chrome"], titreMedia: titreYT) == "YouTube", "plusieurs fenêtres : celle qui correspond")
 }
 
+groupe("Lecture en cours : miniature YouTube (repli de l'image)")
+do {
+    let id = "dQw4w9WgXcQ"
+    func i(_ a: String) -> String? { MiniatureYouTube.identifiant(adresse: a) }
+    verifier(i("https://www.youtube.com/watch?v=dQw4w9WgXcQ") == id, "youtube.com/watch?v= : identifiant")
+    verifier(i("youtube.com/watch?v=dQw4w9WgXcQ") == id && i("www.youtube.com/watch?v=dQw4w9WgXcQ") == id, "adresse affichée sans https:// ni www.")
+    verifier(i("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s&list=PLabc&index=3") == id, "paramètres en plus (&t=, &list=)")
+    verifier(i("https://www.youtube.com/watch?list=PLabc&v=dQw4w9WgXcQ&pp=ygUHdGVzdA%3D%3D") == id, "v= pas en premier")
+    verifier(i("https://youtu.be/dQw4w9WgXcQ") == id && i("https://youtu.be/dQw4w9WgXcQ?si=abcdef&t=10") == id, "youtu.be/ID, avec paramètres")
+    verifier(i("https://www.youtube.com/shorts/dQw4w9WgXcQ") == id && i("https://youtube.com/shorts/dQw4w9WgXcQ?feature=share") == id, "/shorts/ID")
+    verifier(i("https://www.youtube.com/embed/dQw4w9WgXcQ") == id && i("https://www.youtube.com/live/dQw4w9WgXcQ?si=x") == id, "/embed/ID, /live/ID")
+    verifier(i("https://m.youtube.com/watch?v=dQw4w9WgXcQ") == id && i("https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVM") == id, "m.youtube.com, music.youtube.com")
+    verifier(i("https://www.youtube.com/") == nil && i("youtube.com") == nil && i("https://www.youtube.com/feed/subscriptions") == nil, "page d'accueil ou autre page : nil")
+    verifier(i("https://www.youtube.com/playlist?list=PLabc") == nil && i("https://www.youtube.com/@chaine") == nil, "liste ou chaîne sans vidéo : nil")
+    verifier(i("https://exemple.com/watch?v=dQw4w9WgXcQ") == nil && i("https://notyoutube.com/watch?v=dQw4w9WgXcQ") == nil && i("https://youtube.com.evil.fr/watch?v=dQw4w9WgXcQ") == nil, "autre site (même ressemblant) : nil")
+    verifier(i("https://www.youtube.com/watch?v=court") == nil && i("https://www.youtube.com/watch?v=dQw4w9WgXcQdQw") == nil && i("https://www.youtube.com/watch?v=../../etc/pw") == nil, "identifiant de mauvaise longueur ou piégé : nil")
+    verifier(i("") == nil && i("deux mots youtube.com/watch?v=dQw4w9WgXcQ") == nil && i("Rechercher avec Google ou saisir une URL") == nil, "texte qui n'est pas une adresse : nil")
+    verifier(SourceLecture.fenetreMontre(titreFenetre: "(3) Série · S2 É4 · Le Retour - YouTube - Google Chrome \u{2013} Hugues", titreMedia: "Série · S2 É4 · Le Retour"), "la fenêtre qui montre la vidéo (compteur, profil) est reconnue")
+    verifier(!SourceLecture.fenetreMontre(titreFenetre: "Mes mails - Gmail - Google Chrome", titreMedia: "Série · S2 É4 · Le Retour") && !SourceLecture.fenetreMontre(titreFenetre: "Ab - Google Chrome", titreMedia: "Ab"), "une autre fenêtre, ou un titre de média trop court : non")
+    verifier(MiniatureYouTube.adresseMiniature(identifiant: id)?.absoluteString == "https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg" && MiniatureYouTube.adresseMiniature(identifiant: "x/../y") == nil, "adresse de la miniature, refusée pour un identifiant invalide")
+}
+
 groupe("Lecture en cours : couleur dominante de la pochette")
 do {
     func image(_ l: Int, _ h: Int, _ f: (Int, Int) -> (UInt8, UInt8, UInt8, UInt8)) -> [UInt8] {
@@ -1838,11 +1860,11 @@ do {
     verifier(aff(OccupationEncoche()) == .ilot, "rien d'autre : l'îlot s'affiche")
     verifier(aff(OccupationEncoche(), morceau: false) == .aucun, "rien ne joue : rien")
     verifier(aff(OccupationEncoche(), reglage: false) == .aucun && aff(OccupationEncoche(dictee: true), reglage: false) == .aucun, "réglage coupé : rien, même pendant une dictée")
-    verifier(aff(OccupationEncoche(dictee: true)) == .bulle, "dictée : la lecture devient une bulle")
+    verifier(aff(OccupationEncoche(dictee: true)) == .miniature, "dictée : l'îlot s'efface, la lecture devient une mini-miniature dans le ruban de la dictée")
     verifier(aff(OccupationEncoche(reunion: true)) == .aucun, "réunion : la lecture ne s'affiche pas")
-    verifier(aff(OccupationEncoche(dictee: true, reunion: true)) == .aucun, "dictée pendant une réunion : toujours rien (pas de bulle)")
+    verifier(aff(OccupationEncoche(dictee: true, reunion: true)) == .aucun, "dictée pendant une réunion : toujours rien")
     verifier(aff(OccupationEncoche(filet: true)) == .aucun && aff(OccupationEncoche(miseAJour: true)) == .aucun && aff(OccupationEncoche(autreAnnonce: true)) == .aucun, "filet, mise à jour, autre annonce : la lecture s'efface")
-    verifier(aff(OccupationEncoche(dictee: true, filet: true)) == .bulle, "dictée + filet : la dictée garde la place, la lecture est une bulle")
+    verifier(aff(OccupationEncoche(dictee: true, filet: true)) == .miniature, "dictée + filet : la dictée garde la place, la lecture reste une mini-miniature")
 }
 
 groupe("Lecture en cours : pause pendant la dictée")

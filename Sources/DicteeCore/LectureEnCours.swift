@@ -240,6 +240,14 @@ public enum SourceLecture {
         return t
     }
 
+    /// Le titre d'une fenêtre de navigateur est-il celui du média qui joue (« (3) Titre - YouTube - Google Chrome » pour « Titre ») ?
+    /// Compare les 18 premiers caractères du média, sans accents ni casse ; faux pour un titre de média trop court pour être sûr.
+    public static func fenetreMontre(titreFenetre: String, titreMedia: String) -> Bool {
+        let media = normaliser(titreMedia).trimmingCharacters(in: .whitespaces)
+        guard media.count >= 6 else { return false }
+        return normaliser(sansNavigateur(titreFenetre)).contains(String(media.prefix(18)))
+    }
+
     /// Le site qui joue, d'après les titres des fenêtres du navigateur : une fenêtre dont le titre contient celui du média et se termine
     /// par un site connu (« Titre - YouTube »), ou dont le titre EST un site connu (« Netflix »). nil si on ne peut pas l'affirmer
     /// (l'onglet qui joue n'est pas l'onglet affiché) : on n'invente jamais un site.
@@ -375,15 +383,15 @@ public enum AffichageLecture: Equatable, Sendable {
     case aucun
     /// L'îlot (au repos dans les ailes de l'encoche, déplié au survol).
     case ilot
-    /// Petite bulle ronde détachée à côté de l'encoche de dictée (pochette + icône pause).
-    case bulle
+    /// Pendant une dictée : aucune forme de la lecture, seulement une mini-miniature DANS le ruban de la dictée (cliquable : reprend la lecture).
+    case miniature
 }
 
 public enum PrioriteLecture {
     public static func affichage(occupation o: OccupationEncoche, morceau: Bool, reglageAffichage: Bool) -> AffichageLecture {
         guard reglageAffichage, morceau else { return .aucun }
         if o.reunion { return .aucun }                  // pendant une réunion, la lecture ne s'affiche pas
-        if o.dictee { return .bulle }                   // dictée : la lecture devient une bulle à côté
+        if o.dictee { return .miniature }               // dictée : l'îlot s'efface ; mini-miniature dans le ruban (si Verbe a mis en pause)
         if o.filet || o.miseAJour || o.autreAnnonce { return .aucun }
         return .ilot
     }
@@ -440,4 +448,39 @@ public struct PlanRelanceAide: Equatable, Sendable {
     }
 
     public mutating func reinitialiser() { echecs = 0 }
+}
+
+// MARK: miniature d'une vidéo YouTube (repli quand le navigateur ne donne aucune image)
+
+public enum MiniatureYouTube {
+    /// Un identifiant de vidéo YouTube : 11 caractères parmi lettres, chiffres, « _ » et « - ». Tout le reste est refusé (l'identifiant
+    /// sert à fabriquer une adresse et un nom de fichier : jamais autre chose).
+    public static func estIdentifiant(_ s: String) -> Bool {
+        s.utf8.count == 11 && s.utf8.allSatisfy { ($0 >= 48 && $0 <= 57) || ($0 >= 65 && $0 <= 90) || ($0 >= 97 && $0 <= 122) || $0 == 95 || $0 == 45 }
+    }
+
+    /// L'identifiant de la vidéo d'une adresse, telle qu'un navigateur l'affiche (avec ou sans « https:// » ni « www. ») :
+    /// youtube.com/watch?v=ID (autres paramètres permis, dans n'importe quel ordre), youtu.be/ID, /shorts/ID, /embed/ID, /live/ID,
+    /// music.youtube.com et m.youtube.com. nil pour tout le reste (page d'accueil, liste de lecture sans vidéo, autre site).
+    public static func identifiant(adresse brute: String) -> String? {
+        var s = brute.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty, s.count < 2048, !s.contains(" ") else { return nil }
+        if !s.contains("://") { s = "https://" + s }
+        guard let u = URLComponents(string: s), let hote = u.host?.lowercased(), u.scheme == "https" || u.scheme == "http" else { return nil }
+        let chemin = u.path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        if hote == "youtu.be" {
+            return chemin.first.flatMap { estIdentifiant($0) ? $0 : nil }
+        }
+        guard hote == "youtube.com" || hote.hasSuffix(".youtube.com") else { return nil }
+        if chemin.first == "watch" {
+            return u.queryItems?.first(where: { $0.name == "v" })?.value.flatMap { estIdentifiant($0) ? $0 : nil }
+        }
+        if chemin.count >= 2, ["shorts", "embed", "live", "v"].contains(chemin[0]) { return estIdentifiant(chemin[1]) ? chemin[1] : nil }
+        return nil
+    }
+
+    /// L'adresse de la miniature publique (320 × 180, la taille « mqdefault » : environ 10 Ko).
+    public static func adresseMiniature(identifiant: String) -> URL? {
+        estIdentifiant(identifiant) ? URL(string: "https://i.ytimg.com/vi/\(identifiant)/mqdefault.jpg") : nil
+    }
 }

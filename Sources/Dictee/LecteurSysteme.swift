@@ -50,7 +50,13 @@ final class LecteurSysteme {
         liberer(terminer: true)
     }
 
+    /// Mode d'essai : si défini, aucune commande ne part tant que la dernière app annoncée par le système n'est pas exactement celle-ci
+    /// (la source de test) : une commande de lecture ne doit jamais atteindre le vrai lecteur de Hugues.
+    var appExclusive: String?
+    private var derniereApp: String?
+
     func envoyer(_ commande: CommandeLecture) {
+        if let appExclusive, derniereApp != appExclusive { Log.ecrire("lecture : commande refusée (l'app élue n'est pas la source de test)"); return }
         guard let entree, processus?.isRunning == true else { return }
         try? entree.write(contentsOf: Data(AideLecture.ligne(commande).utf8))
     }
@@ -104,6 +110,7 @@ final class LecteurSysteme {
             guard let evenement = AideLecture.decoder(ligne) else { continue }
             if case .echec(let raison) = evenement { echecMediaRemote = true; Log.ecrire("lecture : programme d'aide en échec (\(raison))") }
             if case .pret = evenement { Log.ecrire("lecture : programme d'aide prêt") }
+            switch evenement { case .etat(let m): derniereApp = m.app; case .rien: derniereApp = nil; default: break }
             surEvenement(evenement)
         }
         if tampon.count > 1_000_000 { tampon = Data() }
