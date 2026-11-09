@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=1190">
+<title>Verbe — le résumé de la journée</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --desk:#0b0b0b; --pan:#1a1a19; --box:#212120; --raised:#262624; --raised-2:#2f2f2d;
+  --ink:#ece9e3; --ink-2:#a8a59e; --ink-3:#88857e;
+  --hair:rgba(236,233,227,.10); --hair-2:rgba(236,233,227,.16);
+  --amber:#e6a04a;
+  --serif:"Newsreader","New York",ui-serif,Charter,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--desk);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;padding:32px 45px 64px;width:1190px}
+.top{font-size:14px;color:var(--ink-2);padding:0 0 28px}
+.top b{color:var(--ink);font-weight:500}
+.scene{margin-bottom:56px}
+.cap{font-size:14px;line-height:20px;color:var(--ink-2);margin-bottom:12px;display:flex;gap:12px;align-items:baseline}
+.cap i{font-style:normal;font-weight:500;color:var(--ink);min-width:20px}
+.win{width:1100px;height:680px;background:var(--pan);border-radius:14px;box-shadow:0 0 0 1px rgba(255,255,255,.10);overflow:hidden;position:relative;display:flex;flex-direction:column}
+.win.tall{height:770px}
+svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+svg.s{width:16px;height:16px}
+.app{width:24px;height:24px;flex:none;display:block}
+.app.sm{width:20px;height:20px}
+.lights{display:flex;gap:8px}
+.lights span{width:12px;height:12px;border-radius:50%;background:#4a4a47}
+.serif{font-family:var(--serif);font-variation-settings:"opsz" 17}
+.ink{color:var(--ink)}
+
+/* contrôles */
+.kbd{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:6px;background:var(--raised-2);font-size:13px;color:var(--ink);font-weight:500}
+.btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:8px;background:var(--raised);box-shadow:inset 0 0 0 1px var(--hair-2);font-size:14px;color:var(--ink);white-space:nowrap}
+.btn.primary{background:var(--ink);color:#0b0b0b;font-weight:500;box-shadow:none}
+.btn.primary .kbd{background:rgba(0,0,0,.12);color:#0b0b0b;height:20px;padding:0 6px;font-size:12px}
+.btn.quiet{background:none;box-shadow:none;color:var(--ink-2);padding:0 8px}
+.sel{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 10px 0 14px;border-radius:8px;background:var(--raised);box-shadow:inset 0 0 0 1px var(--hair-2);font-size:15px;color:var(--ink);white-space:nowrap}
+.sel svg{color:var(--ink-2);width:16px;height:16px}
+.tg{width:44px;height:26px;border-radius:13px;background:var(--ink);position:relative;flex:none}
+.tg::after{content:"";position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:var(--pan)}
+.tg.off{background:#3a3a38}
+.tg.off::after{right:auto;left:3px;background:#8a877f}
+.field{display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;border-radius:10px;background:var(--raised);box-shadow:inset 0 0 0 1px var(--hair);color:var(--ink-2);font-size:16px}
+.field .ph{display:flex;align-items:center}
+.field .ph::before{content:"";display:inline-block;width:2px;height:20px;border-radius:1px;background:var(--amber);margin-right:2px}
+.field .r{margin-left:auto;font-size:13px;color:var(--ink-3)}
+.n{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--raised-2);font-size:12px;color:var(--ink);font-weight:500}
+.hint{color:var(--ink-2);font-size:13px;display:inline-flex;gap:8px;align-items:center}
+.hint .kbd{height:22px;font-size:12px;padding:0 6px;background:var(--raised)}
+
+/* barre d'onglets */
+.bar{height:60px;display:flex;align-items:center;padding:0 20px;gap:24px;border-bottom:1px solid var(--hair);flex:none}
+.tabs{display:flex;gap:4px;margin-left:8px}
+.tab{display:flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:8px;font-size:15px;color:var(--ink-2);font-weight:500}
+.tab.on{background:var(--raised-2);color:var(--ink)}
+.bar .sp{flex:1}
+.foot{height:48px;border-top:1px solid var(--hair);display:flex;align-items:center;gap:24px;padding:0 40px;flex:none;margin-top:auto}
+
+/* liste de dictées */
+.body{padding:0 40px;flex:1;min-height:0;overflow:hidden}
+.day{display:flex;justify-content:space-between;height:40px;align-items:flex-end;padding:0 16px 8px;font-size:13px;color:var(--ink-2)}
+.day b{color:var(--ink);font-weight:500}
+.row{display:grid;grid-template-columns:56px 24px minmax(0,1fr) auto;column-gap:16px;align-items:center;height:52px;padding:0 16px;border-radius:10px}
+.row .t{font-size:14px;color:var(--ink-2)}
+.row .x{font-family:var(--serif);font-size:18px;line-height:26px;font-variation-settings:"opsz" 18;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .a{font-size:13px;color:var(--ink-2);min-width:64px;text-align:right}
+.row.on{background:var(--raised);box-shadow:inset 0 0 0 1px var(--hair-2)}
+
+/* blocs communs au résumé */
+.lbl{font-size:13px;color:var(--ink-2);line-height:18px}
+.h{font-size:15px;font-weight:500;color:var(--ink);line-height:20px}
+.h .c{color:var(--ink-3);font-weight:400;margin-left:6px}
+.apps .ap{display:grid;grid-template-columns:20px minmax(0,1fr);column-gap:12px;align-items:center;height:40px}
+.apps .ap .nm{font-size:14px;color:var(--ink);line-height:18px;display:flex;justify-content:space-between}
+.apps .ap .nm span{color:var(--ink-2);font-size:13px}
+.apps .ap .tr{height:3px;border-radius:2px;background:var(--raised-2);margin-top:6px;position:relative}
+.apps .ap .tr i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--ink-2)}
+.apps .ap .w{font-size:13px;color:var(--ink-2);min-width:52px;text-align:right}
+.apps.tight .ap{height:36px}
+.mt{padding:10px 0;border-bottom:1px solid var(--hair)}
+.mt:last-child{border-bottom:0}
+.mt .tt{font-size:15px;color:var(--ink);line-height:20px}
+.mt .me{font-size:13px;color:var(--ink-2);line-height:18px;margin-top:2px}
+.mt .eb{font-family:var(--serif);font-variation-settings:"opsz" 15;font-size:16px;line-height:22px;color:var(--ink-2);margin-top:6px}
+.todo .td{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:12px;align-items:center;min-height:36px;font-size:14px;color:var(--ink);line-height:18px}
+.todo .td .due{font-size:13px;color:var(--ink-3);white-space:nowrap}
+.todo .td .due.dem{color:var(--ink);font-weight:500}
+.cb{width:16px;height:16px;border-radius:5px;box-shadow:inset 0 0 0 1.5px var(--ink-3)}
+.base{font-size:12px;line-height:18px;color:var(--ink-3)}
+.more{font-size:13px;color:var(--ink-2)}
+
+/* ===== A1 : l'encoche ===== */
+.desk{position:relative;width:1100px;height:340px;border-radius:12px;background:#121211;overflow:hidden;box-shadow:0 0 0 1px var(--hair)}
+.mbar{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:13px;color:var(--ink-2);background:#161615}
+.mbar .l{display:flex;gap:18px}.mbar .l b{color:var(--ink);font-weight:600}
+.mbar .r{display:flex;gap:14px;align-items:center}
+.q{font-family:Georgia,serif;font-weight:700;font-size:17px;color:var(--ink);line-height:1}
+.dwin{position:absolute;left:260px;right:260px;top:150px;bottom:0;background:#1c1c1b;border-radius:10px 10px 0 0;padding:20px 24px;color:var(--ink-3);font-size:13px;line-height:20px}
+.dwin p+p{margin-top:8px}
+.shape{position:absolute;top:0;left:50%;width:480px;margin-left:-240px;z-index:4}
+.nb{height:32px;background:#000;border-radius:0 0 10px 10px;position:relative;display:flex;align-items:center;justify-content:space-between;padding:0 14px}
+.nb .cam{position:absolute;left:50%;top:0;width:200px;height:32px;margin-left:-100px;border:1px solid rgba(237,237,237,.11);border-top:0;border-radius:0 0 10px 10px}
+.nb .x{color:var(--ink-3)}
+.nr{position:relative;margin:-1px 24px 0;background:#000;border-radius:0 0 16px 16px;padding:12px 18px 14px}
+.nr::before,.nr::after{content:"";position:absolute;top:1px;width:8px;height:8px}
+.nr::before{left:-8px;background:radial-gradient(circle at 0 100%,transparent 7.5px,#000 8px)}
+.nr::after{right:-8px;background:radial-gradient(circle at 100% 100%,transparent 7.5px,#000 8px)}
+.nr p{font-size:15px;line-height:22px;color:var(--ink)}
+.nr p span{color:var(--ink-2)}
+.nr .ac{display:flex;align-items:center;justify-content:space-between;margin-top:12px}
+.nr .ac .m{font-size:12px;color:var(--ink-3)}
+.nr .ac div{display:flex;gap:4px;align-items:center}
+.nr .btn{height:30px;font-size:13px;padding:0 12px;border-radius:7px}
+.nr .btn.primary .kbd{height:18px}
+
+/* ===== A2 : réglage ===== */
+.panel{width:640px;background:var(--pan);border-radius:14px;box-shadow:0 0 0 1px rgba(255,255,255,.10);padding:24px 28px 12px}
+.panel .hd{padding-bottom:12px;border-bottom:1px solid var(--hair-2)}
+.panel h3{font-size:18px;font-weight:500;line-height:24px}
+.panel .sub{font-size:13px;color:var(--ink-2);line-height:20px;margin-top:2px}
+.set{display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:64px;padding:8px 0;border-bottom:1px solid var(--hair)}
+.set:last-child{border-bottom:0}
+.set .l{font-size:15px;line-height:20px}
+.set .d{font-size:13px;line-height:18px;color:var(--ink-2);margin-top:2px;max-width:380px}
+.set .c{display:flex;align-items:center;gap:12px;flex:none}
+
+/* ===== A3 : la journée en lecture ===== */
+.back{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2);height:60px;padding:0 40px;flex:none}
+.rd{display:grid;grid-template-columns:minmax(0,1fr) 340px;column-gap:64px;padding:8px 40px 0;flex:1;min-height:0}
+.rd .big{font-family:var(--serif);font-variation-settings:"opsz" 36;font-size:34px;line-height:42px;font-weight:400}
+.rd .dt{font-size:14px;color:var(--ink-2);margin-top:4px}
+.story{margin-top:28px}
+.story .li{display:grid;grid-template-columns:104px minmax(0,1fr);column-gap:16px;padding:14px 0;border-top:1px solid var(--hair)}
+.story .li .k{font-size:13px;color:var(--ink-3);line-height:28px}
+.story .li .v{font-family:var(--serif);font-variation-settings:"opsz" 22;font-size:22px;line-height:30px;color:var(--ink)}
+.story .li .v b{font-weight:500}
+.story .li .v span{color:var(--ink-2)}
+.rd .side>*+*{margin-top:28px}
+.rd .side .h{padding-bottom:6px;border-bottom:1px solid var(--hair-2)}
+.rd .side .mt .tt{font-size:15px}
+
+/* ===== B : le bandeau ===== */
+.band{margin:20px 40px 0;background:var(--box);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);flex:none}
+.band .top2{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch}
+.band .say{padding:20px 24px;display:flex;flex-direction:column;justify-content:space-between}
+.band .say p{font-family:var(--serif);font-variation-settings:"opsz" 20;font-size:20px;line-height:28px;color:var(--ink);max-width:520px}
+.band .open{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2);margin-top:12px}
+.band .nums{display:flex}
+.band .num{width:164px;padding:20px 20px;border-left:1px solid var(--hair)}
+.band .num .v{font-size:28px;line-height:32px;font-weight:500;color:var(--ink);letter-spacing:0}
+.band .num .v small{font-size:15px;font-weight:400;color:var(--ink-2);margin-left:2px}
+.band .num .k{font-size:13px;color:var(--ink);margin-top:6px;line-height:18px}
+.band .num .dl{font-size:12px;color:var(--ink-3);margin-top:2px;line-height:16px}
+.band .full{border-top:1px solid var(--hair);display:grid;grid-template-columns:1.05fr 1.15fr 1.1fr;column-gap:40px;padding:20px 24px 4px}
+.band .full .h{margin-bottom:8px}
+.band .bot{display:flex;justify-content:space-between;gap:24px;padding:12px 24px 16px;border-top:1px solid var(--hair);margin-top:16px}
+
+/* ===== C : l'onglet Journée ===== */
+.jn{padding:24px 40px 0;flex:1;min-height:0;overflow:hidden}
+.jn .nav{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2);height:20px}
+.jn .nav b{color:var(--ink);font-weight:500}
+.jn .nav svg{color:var(--ink-3)}
+.jn .say{font-family:var(--serif);font-variation-settings:"opsz" 28;font-size:27px;line-height:37px;color:var(--ink);max-width:880px;margin-top:14px}
+.chart{margin-top:22px}
+.chart svg{display:block;width:1020px}
+.chart text{font-family:var(--sans);font-size:12px;fill:var(--ink-3);font-variant-numeric:tabular-nums}
+.cols3{display:grid;grid-template-columns:316px 1fr 292px;column-gap:44px;margin-top:22px}
+.cols3 .h{padding-bottom:6px;border-bottom:1px solid var(--hair-2);margin-bottom:4px}
+.wk{display:grid;grid-template-columns:repeat(7,1fr);column-gap:8px;align-items:end;height:112px;margin-top:14px;position:relative}
+.wk .d{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;position:relative}
+.wk .d i{display:block;width:100%;border-radius:3px 3px 0 0;background:#4a4a47}
+.wk .d.now i{background:var(--ink)}
+.wk .avg{position:absolute;left:0;right:0;border-top:1px dashed var(--ink-3)}
+.wl{display:grid;grid-template-columns:repeat(7,1fr);column-gap:8px;margin-top:6px;font-size:12px;color:var(--ink-3);text-align:center}
+.wl .now{color:var(--ink)}
+.facts{margin-top:18px}
+.facts div{display:flex;justify-content:space-between;gap:12px;font-size:14px;line-height:20px;color:var(--ink-2);padding:7px 0;border-top:1px solid var(--hair)}
+.facts b{font-weight:500;color:var(--ink)}
+.sel-h{font-size:15px;color:var(--ink);margin-top:14px;display:flex;justify-content:space-between;align-items:baseline}
+.sel-h span{font-size:13px;color:var(--ink-2)}
+</style></head><body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="search" viewBox="0 0 20 20"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2L17 17"/></symbol>
+<symbol id="check" viewBox="0 0 20 20"><path d="M4.5 10.5l3.5 3.5 7.5-8.5"/></symbol>
+<symbol id="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></symbol>
+<symbol id="chevr" viewBox="0 0 20 20"><path d="M8 5l5 5-5 5"/></symbol>
+<symbol id="chevl" viewBox="0 0 20 20"><path d="M12 5l-5 5 5 5"/></symbol>
+<symbol id="x" viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></symbol>
+<symbol id="a-mail" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#3b82f6"/><rect x="5" y="7.5" width="14" height="9.5" rx="1.8" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M5.8 8.8l6.2 4.6 6.2-4.6" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+<symbol id="a-wa" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#25b862"/><path d="M12 5.5a6.5 6.5 0 0 0-5.5 9.9L5.5 18.5l3.2-1A6.5 6.5 0 1 0 12 5.5z" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+<symbol id="a-notes" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#f2f0ea"/><path d="M0 6a6 6 0 0 1 6-6h12a6 6 0 0 1 6 6v2.5H0z" fill="#f5c642"/><path d="M6 13h12M6 16.5h12M6 20h7" stroke="#9a978f" stroke-width="1.3" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="a-claude" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#d97757"/><g stroke="#fff" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14M7.1 7.1l9.8 9.8M16.9 7.1l-9.8 9.8"/></g></symbol>
+<symbol id="a-msg" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#30c15a"/><path d="M12 6c-3.6 0-6.5 2.3-6.5 5.2 0 1.5.8 2.9 2.1 3.8-.1 1-.6 1.9-1.4 2.6 1.4-.1 2.7-.6 3.6-1.3.7.2 1.4.3 2.2.3 3.6 0 6.5-2.3 6.5-5.2S15.600 6 12 6z" fill="#fff"/></symbol>
+</defs></svg>
+
+<div class="top"><b>Verbe · le résumé de la journée</b> — trois manières de le montrer, mêmes données (maquettes, rien n’est branché).</div>
+
+<!-- ============ A ============ -->
+<section class="scene"><div class="cap"><i>A1</i><span>Le mot du soir — à 18:00 l’encoche s’ouvre une fois, deux lignes et un bouton.</span></div>
+<div class="desk"><div class="mbar"><div class="l"><b>Mail</b><span>Fichier</span><span>Édition</span><span>Présentation</span></div><div class="r"><span class="q">”</span><span>lun. 9 nov.</span><span>18:00</span></div></div>
+<div class="dwin"><p>Objet : Récapitulatif avant jeudi</p><p>Bonjour Madame Martin, je vous transmets la proposition avec les deux options chiffrées.</p></div>
+<div class="shape"><div class="nb"><span class="q">”</span><div class="cam"></div><svg class="i s x"><use href="#x"/></svg></div>
+<div class="nr"><p>Grosse journée : 4&nbsp;120 mots dictés, 38&nbsp;% de plus que ta moyenne. <span>Environ 1&nbsp;h&nbsp;20 gagnées sur le clavier.</span></p>
+<div class="ac"><span class="m">Mot du soir · 18:00</span><div><span class="btn quiet">Plus tard</span><span class="btn primary">Voir la journée <span class="kbd">↵</span></span></div></div></div></div>
+</div></section>
+
+<section class="scene"><div class="cap"><i>A2</i><span>Dans Réglages — activé ou non, à l’heure que tu veux, week-end au choix.</span></div>
+<div class="panel"><div class="hd"><h3>Mot du soir</h3><div class="sub">Un bilan de la journée, une seule fois.</div></div>
+<div class="set"><div><div class="l">Afficher le bilan dans l’encoche</div><div class="d">Seulement les jours où tu as dicté.</div></div><div class="c"><span class="tg"></span></div></div>
+<div class="set"><div><div class="l">Heure</div><div class="d">Si le Mac est en veille, il s’affiche à la reprise.</div></div><div class="c"><span class="sel">18:00<svg class="i"><use href="#chev"/></svg></span></div></div>
+<div class="set"><div><div class="l">Le week-end</div></div><div class="c"><span class="tg off"></span></div></div></div></section>
+
+<section class="scene"><div class="cap"><i>A3</i><span>« Voir la journée » ouvre la fenêtre sur une page à lire, du haut vers le bas.</span></div>
+<div class="win">
+<div class="bar"><div class="lights"><span></span><span></span><span></span></div><div class="tabs"><div class="tab on">Dictées</div><div class="tab">Réunions</div><div class="tab">Mots<span class="n">1</span></div></div><div class="sp"></div><div class="tabs"><div class="tab">Réglages</div></div></div>
+<div class="back"><svg class="i s"><use href="#chevl"/></svg>Dictées</div>
+<div class="rd">
+<div><div class="big">Grosse journée</div><div class="dt">lundi 9 novembre</div>
+<div class="story">
+<div class="li"><div class="k">Écrit</div><div class="v"><b>4&nbsp;120 mots</b> en 64 dictées, 38&nbsp;% de plus que ta moyenne <span>(2&nbsp;980)</span>.</div></div>
+<div class="li"><div class="k">Temps gagné</div><div class="v">Environ <b>1&nbsp;h&nbsp;20</b> par rapport au clavier.</div></div>
+<div class="li"><div class="k">Où</div><div class="v">Surtout dans <b>Mail</b> <span>(1&nbsp;480 mots)</span> et <b>Claude</b> <span>(1&nbsp;150)</span>, puis Messages.</div></div>
+<div class="li"><div class="k">Moment fort</div><div class="v">Entre 10&nbsp;h et 11&nbsp;h : <b>700 mots</b>.</div></div>
+<div class="li"><div class="k">Série</div><div class="v">11 jours de suite. Ta meilleure journée reste jeudi 5 novembre <span>(4&nbsp;640 mots)</span>.</div></div>
+</div>
+<div class="base" style="margin-top:8px">Temps gagné = mots ÷ 40 par minute (vitesse de frappe moyenne), moins ton temps de parole.</div></div>
+<div class="side">
+<div><div class="h">Réunions<span class="c">2</span></div>
+<div class="mt"><div class="tt">Point devis Brume</div><div class="me">9&nbsp;h&nbsp;15 · 32&nbsp;min · 2 actions à faire sur 3</div></div>
+<div class="mt"><div class="tt">Revue du planning</div><div class="me">15&nbsp;h&nbsp;30 · 48&nbsp;min · 3 actions à faire sur 4</div></div></div>
+<div class="todo"><div class="h">À faire<span class="c">5</span></div>
+<div class="td"><span class="cb"></span><span>Envoyer la proposition chiffrée</span><span class="due dem">demain</span></div>
+<div class="td"><span class="cb"></span><span>Relancer Brume pour signer</span><span class="due dem">demain</span></div>
+<div class="td"><span class="cb"></span><span>Mettre à jour le planning</span><span class="due">jeu. 12</span></div>
+<div class="td"><span class="cb"></span><span>Valider le budget d’hiver</span><span class="due">ven. 13</span></div>
+<div class="td"><span class="cb"></span><span>Réserver la salle du 20</span><span class="due">lun. 16</span></div></div>
+</div></div>
+<div class="foot"><span class="hint"><span class="kbd">esc</span> revenir aux dictées</span></div>
+</div></section>
+
+<!-- ============ B ============ -->
+<section class="scene"><div class="cap"><i>B1</i><span>En tête des Dictées — un bandeau, la phrase et trois chiffres comparés à ta moyenne.</span></div>
+<div class="win">
+<div class="bar"><div class="lights"><span></span><span></span><span></span></div><div class="tabs"><div class="tab on">Dictées</div><div class="tab">Réunions</div><div class="tab">Mots<span class="n">1</span></div></div><div class="sp"></div><div class="tabs"><div class="tab">Réglages</div></div></div>
+<div class="band"><div class="top2">
+<div class="say"><p>Grosse journée : 4&nbsp;120 mots dictés, 38&nbsp;% de plus que ta moyenne. Tu as surtout écrit dans Mail et Claude.</p><span class="open">Voir la journée<svg class="i s"><use href="#chevr"/></svg></span></div>
+<div class="nums">
+<div class="num"><div class="v">4&nbsp;120</div><div class="k">mots dictés</div><div class="dl">+38&nbsp;% · moy. 2&nbsp;980</div></div>
+<div class="num"><div class="v">1&nbsp;h&nbsp;20</div><div class="k">gagnées</div><div class="dl">moy. 56&nbsp;min</div></div>
+<div class="num"><div class="v">64</div><div class="k">dictées</div><div class="dl">moy. 46</div></div>
+</div></div></div>
+<div class="body" style="padding-top:20px"><div class="field"><svg class="i"><use href="#search"/></svg><span class="ph">Rechercher dans les dictées</span><span class="r"><span class="kbd">⌘ K</span></span></div>
+<div class="day"><span><b>Aujourd’hui</b> · lundi 9 novembre</span><span>64 dictées</span></div>
+<div class="row"><span class="t">17:52</span><svg class="app"><use href="#a-mail"/></svg><span class="x">Je vous confirme le rendez-vous de jeudi à dix heures.</span><span class="a">Mail</span></div>
+<div class="row"><span class="t">17:31</span><svg class="app"><use href="#a-claude"/></svg><span class="x">Reprends le tableau des factures, ajoute une colonne pour la date de relance.</span><span class="a">Claude</span></div>
+<div class="row"><span class="t">17:06</span><svg class="app"><use href="#a-msg"/></svg><span class="x">On se voit mercredi pour parler du devis.</span><span class="a">Messages</span></div>
+<div class="row"><span class="t">16:48</span><svg class="app"><use href="#a-wa"/></svg><span class="x">J’arrive dans dix minutes, commande-moi un café.</span><span class="a">WhatsApp</span></div>
+<div class="row"><span class="t">16:20</span><svg class="app"><use href="#a-mail"/></svg><span class="x">Peux-tu m’envoyer le récapitulatif avant jeudi ?</span><span class="a">Mail</span></div></div>
+<div class="foot"><span class="hint"><span class="kbd">↑</span><span class="kbd">↓</span> choisir</span><span class="hint"><span class="kbd">↵</span> recoller</span><span class="hint"><span class="kbd">espace</span> déplier</span><span class="hint"><span class="kbd">⌘ C</span> copier</span></div>
+</div></section>
+
+<section class="scene"><div class="cap"><i>B2</i><span>Un clic sur le bandeau le déplie : apps, réunions, actions, sans quitter la liste.</span></div>
+<div class="win" style="height:716px">
+<div class="bar"><div class="lights"><span></span><span></span><span></span></div><div class="tabs"><div class="tab on">Dictées</div><div class="tab">Réunions</div><div class="tab">Mots<span class="n">1</span></div></div><div class="sp"></div><div class="tabs"><div class="tab">Réglages</div></div></div>
+<div class="band"><div class="top2">
+<div class="say"><p>Grosse journée : 4&nbsp;120 mots dictés, 38&nbsp;% de plus que ta moyenne. Tu as surtout écrit dans Mail et Claude.</p><span class="open">Réduire<svg class="i s" style="transform:rotate(-90deg)"><use href="#chevr"/></svg></span></div>
+<div class="nums">
+<div class="num"><div class="v">4&nbsp;120</div><div class="k">mots dictés</div><div class="dl">+38&nbsp;% · moy. 2&nbsp;980</div></div>
+<div class="num"><div class="v">1&nbsp;h&nbsp;20</div><div class="k">gagnées</div><div class="dl">moy. 56&nbsp;min</div></div>
+<div class="num"><div class="v">64</div><div class="k">dictées</div><div class="dl">moy. 46</div></div>
+</div></div>
+<div class="full">
+<div class="apps"><div class="h">Où tu as écrit</div>
+<div class="ap"><svg class="app sm"><use href="#a-mail"/></svg><div><div class="nm">Mail<span>1&nbsp;480</span></div><div class="tr"><i style="width:100%"></i></div></div></div>
+<div class="ap"><svg class="app sm"><use href="#a-claude"/></svg><div><div class="nm">Claude<span>1&nbsp;150</span></div><div class="tr"><i style="width:77.7%"></i></div></div></div>
+<div class="ap"><svg class="app sm"><use href="#a-msg"/></svg><div><div class="nm">Messages<span>640</span></div><div class="tr"><i style="width:43.2%"></i></div></div></div>
+<div class="ap"><svg class="app sm"><use href="#a-wa"/></svg><div><div class="nm">WhatsApp<span>480</span></div><div class="tr"><i style="width:32.4%"></i></div></div></div>
+<div class="ap"><svg class="app sm"><use href="#a-notes"/></svg><div><div class="nm">Notes<span>370</span></div><div class="tr"><i style="width:25%"></i></div></div></div></div>
+<div><div class="h">Réunions<span class="c">2</span></div>
+<div class="mt"><div class="tt">Point devis Brume</div><div class="me">9&nbsp;h&nbsp;15 · 32&nbsp;min · 2 actions à faire sur 3</div><div class="eb">Brume valide les deux options, décision attendue vendredi.</div></div>
+<div class="mt"><div class="tt">Revue du planning</div><div class="me">15&nbsp;h&nbsp;30 · 48&nbsp;min · 3 actions à faire sur 4</div><div class="eb">Novembre tient, la salle du 20 reste à réserver.</div></div></div>
+<div class="todo"><div class="h">À faire<span class="c">5</span></div>
+<div class="td"><span class="cb"></span><span>Envoyer la proposition chiffrée</span><span class="due dem">demain</span></div>
+<div class="td"><span class="cb"></span><span>Relancer Brume pour signer</span><span class="due dem">demain</span></div>
+<div class="td"><span class="cb"></span><span>Mettre à jour le planning</span><span class="due">jeu. 12</span></div>
+<div class="td"><span class="cb"></span><span>Valider le budget d’hiver</span><span class="due">ven. 13</span></div>
+<div class="td"><span class="cb"></span><span>Réserver la salle du 20</span><span class="due">lun. 16</span></div></div>
+</div>
+<div class="bot"><span class="more">Série de 11 jours · meilleure journée jeu. 5 nov., 4&nbsp;640 mots</span><span class="base">Temps gagné = mots ÷ 40 par minute (frappe moyenne), moins ton temps de parole.</span></div>
+</div>
+<div class="body" style="padding-top:16px"><div class="field"><svg class="i"><use href="#search"/></svg><span class="ph">Rechercher dans les dictées</span><span class="r"><span class="kbd">⌘ K</span></span></div>
+<div class="day"><span><b>Aujourd’hui</b> · lundi 9 novembre</span><span>64 dictées</span></div>
+<div class="row"><span class="t">17:52</span><svg class="app"><use href="#a-mail"/></svg><span class="x">Je vous confirme le rendez-vous de jeudi à dix heures.</span><span class="a">Mail</span></div></div>
+</div></section>
+
+<!-- ============ C ============ -->
+<section class="scene"><div class="cap"><i>C1</i><span>Onglet Journée — la phrase, la courbe des heures, puis apps, réunions, actions et semaine.</span></div>
+<div class="win tall">
+<div class="bar"><div class="lights"><span></span><span></span><span></span></div><div class="tabs"><div class="tab">Dictées</div><div class="tab on">Journée</div><div class="tab">Réunions</div><div class="tab">Mots<span class="n">1</span></div></div><div class="sp"></div><div class="tabs"><div class="tab">Réglages</div></div></div>
+<div class="jn">
+<div class="nav"><svg class="i s"><use href="#chevl"/></svg><b>Aujourd’hui</b> · lundi 9 novembre<svg class="i s"><use href="#chevr"/></svg></div>
+<div class="say">Grosse journée : 4&nbsp;120 mots dictés, 38&nbsp;% de plus que ta moyenne. Tu as gagné environ 1&nbsp;h&nbsp;20 par rapport au clavier, surtout en écrivant dans Mail et Claude.</div>
+<div class="chart"><svg viewBox="0 0 1020 160" width="1020" height="160"><line x1="36" x2="996" y1="116.0" y2="116.0" stroke="rgba(236,233,227,0.16)"/><text x="0" y="120.0">0</text><line x1="36" x2="996" y1="75.0" y2="75.0" stroke="rgba(236,233,227,0.07)"/><text x="0" y="79.0">400</text><path d="M36.0,106.8 C44.6,105.7 58.1,106.7 84.0,100.6 C109.9,94.5 145.4,83.1 180.0,72.9 C214.6,62.8 241.4,46.1 276.0,44.2 C310.6,42.4 337.4,51.4 372.0,62.7 C406.6,74.0 433.4,102.2 468.0,106.8 C502.6,111.4 529.4,98.5 564.0,88.3 C598.6,78.2 625.4,54.3 660.0,50.4 C694.6,46.5 721.4,64.6 756.0,66.8 C790.6,69.0 817.4,59.9 852.0,62.7 C886.6,65.5 922.1,78.1 948.0,82.2 C973.9,86.2 987.4,84.7 996.0,85.2 L996.0,116 L36.0,116 Z" fill="rgba(236,233,227,.06)"/><path d="M36.0,106.8 C44.6,105.7 58.1,106.7 84.0,100.6 C109.9,94.5 145.4,83.1 180.0,72.9 C214.6,62.8 241.4,46.1 276.0,44.2 C310.6,42.4 337.4,51.4 372.0,62.7 C406.6,74.0 433.4,102.2 468.0,106.8 C502.6,111.4 529.4,98.5 564.0,88.3 C598.6,78.2 625.4,54.3 660.0,50.4 C694.6,46.5 721.4,64.6 756.0,66.8 C790.6,69.0 817.4,59.9 852.0,62.7 C886.6,65.5 922.1,78.1 948.0,82.2 C973.9,86.2 987.4,84.7 996.0,85.2" fill="none" stroke="#a8a59e" stroke-width="2" stroke-linejoin="round"/><circle cx="276.0" cy="44.2" r="5" fill="#e6a04a"/><text x="276.0" y="30.2" text-anchor="middle" style="fill:#ece9e3;font-size:13px">10 h · 700 mots</text><text x="36.0" y="138" text-anchor="middle">8 h</text><text x="228.0" y="138" text-anchor="middle">10 h</text><text x="420.0" y="138" text-anchor="middle">12 h</text><text x="612.0" y="138" text-anchor="middle">14 h</text><text x="804.0" y="138" text-anchor="middle">16 h</text><text x="996.0" y="138" text-anchor="middle">18 h</text></svg></div>
+<div class="cols3">
+<div class="apps"><div class="h">Où tu as écrit</div>
+<div class="ap"><svg class="app sm"><use href="#a-mail"/></svg><div><div class="nm">Mail<span>1&nbsp;480</span></div><div class="tr"><i style="width:100%"></i></div></div></div>
+<div class="ap"><svg class="app sm"><use href="#a-claude"/></svg><div><div class="nm">Claude<span>1&nbsp;150</span></div><div class="tr"><i style="width:77.7%"></i></div></div></div>
+<div class="ap"><svg class="app sm"><use href="#a-msg"/></svg><div><div class="nm">Messages<span>640</span></div><div class="tr"><i style="width:43.2%"></i></div></div></div>
+<div class="ap"><svg class="app sm"><use href="#a-wa"/></svg><div><div class="nm">WhatsApp<span>480</span></div><div class="tr"><i style="width:32.4%"></i></div></div></div>
+<div class="ap"><svg class="app sm"><use href="#a-notes"/></svg><div><div class="nm">Notes<span>370</span></div><div class="tr"><i style="width:25%"></i></div></div></div></div>
+<div class="todo"><div class="h">Réunions et actions</div>
+<div class="mt" style="padding:8px 0"><div class="tt" style="font-size:14px">Point devis Brume <span style="color:var(--ink-3)">· 9&nbsp;h&nbsp;15 · 32&nbsp;min</span></div></div>
+<div class="mt" style="padding:8px 0"><div class="tt" style="font-size:14px">Revue du planning <span style="color:var(--ink-3)">· 15&nbsp;h&nbsp;30 · 48&nbsp;min</span></div></div>
+<div class="lbl" style="margin:12px 0 4px">5 actions à faire, dont 2 pour demain</div>
+<div class="td"><span class="cb"></span><span>Envoyer la proposition chiffrée</span><span class="due dem">demain</span></div>
+<div class="td"><span class="cb"></span><span>Relancer Brume pour signer</span><span class="due dem">demain</span></div>
+<div class="td"><span class="cb"></span><span>Mettre à jour le planning</span><span class="due">jeu. 12</span></div></div>
+<div><div class="h">Les 7 derniers jours</div>
+<div class="wk"><div class="d"><i style="height:61.4%"></i></div><div class="d"><i style="height:71.1%"></i></div><div class="d"><i style="height:100.0%"></i></div><div class="d"><i style="height:56.0%"></i></div><div class="d"><i style="height:13.8%"></i></div><div class="d"><i style="height:2.0%"></i></div><div class="d now"><i style="height:88.8%"></i></div><div class="avg" style="bottom:64.2%"></div></div>
+<div class="wl"><span>mar.</span><span>mer.</span><span>jeu.</span><span>ven.</span><span>sam.</span><span>dim.</span><span class="now">auj.</span></div>
+<div class="facts"><div><span>Série</span><b>11 jours de suite</b></div><div><span>Meilleure journée</span><b>jeu. 5 nov. · 4&nbsp;640</b></div><div><span>Moyenne</span><b>2&nbsp;980 mots</b></div></div></div>
+</div></div>
+<div class="foot"><span class="base">Temps gagné = mots ÷ 40 par minute (vitesse de frappe moyenne), moins ton temps de parole.</span></div>
+</div></section>
+
+<section class="scene"><div class="cap"><i>C2</i><span>Un clic sur une heure de la courbe ouvre les dictées de cette heure.</span></div>
+<div class="win tall">
+<div class="bar"><div class="lights"><span></span><span></span><span></span></div><div class="tabs"><div class="tab">Dictées</div><div class="tab on">Journée</div><div class="tab">Réunions</div><div class="tab">Mots<span class="n">1</span></div></div><div class="sp"></div><div class="tabs"><div class="tab">Réglages</div></div></div>
+<div class="jn">
+<div class="nav"><svg class="i s"><use href="#chevl"/></svg><b>Aujourd’hui</b> · lundi 9 novembre<svg class="i s"><use href="#chevr"/></svg></div>
+<div class="chart" style="margin-top:18px"><svg viewBox="0 0 1020 150" width="1020" height="150"><line x1="36" x2="996" y1="108.0" y2="108.0" stroke="rgba(236,233,227,0.16)"/><text x="0" y="112.0">0</text><line x1="36" x2="996" y1="71.0" y2="71.0" stroke="rgba(236,233,227,0.07)"/><text x="0" y="75.0">400</text><rect x="228.0" y="20" width="96.0" height="88" fill="rgba(236,233,227,.07)" rx="4"/><path d="M36.0,99.7 C44.6,98.7 58.1,99.6 84.0,94.1 C109.9,88.6 145.4,78.3 180.0,69.2 C214.6,60.0 241.4,44.9 276.0,43.2 C310.6,41.6 337.4,49.7 372.0,59.9 C406.6,70.1 433.4,95.5 468.0,99.7 C502.6,103.8 529.4,92.2 564.0,83.0 C598.6,73.9 625.4,52.3 660.0,48.8 C694.6,45.3 721.4,61.6 756.0,63.6 C790.6,65.6 817.4,57.4 852.0,59.9 C886.6,62.4 922.1,73.8 948.0,77.5 C973.9,81.1 987.4,79.8 996.0,80.2 L996.0,108 L36.0,108 Z" fill="rgba(236,233,227,.06)"/><path d="M36.0,99.7 C44.6,98.7 58.1,99.6 84.0,94.1 C109.9,88.6 145.4,78.3 180.0,69.2 C214.6,60.0 241.4,44.9 276.0,43.2 C310.6,41.6 337.4,49.7 372.0,59.9 C406.6,70.1 433.4,95.5 468.0,99.7 C502.6,103.8 529.4,92.2 564.0,83.0 C598.6,73.9 625.4,52.3 660.0,48.8 C694.6,45.3 721.4,61.6 756.0,63.6 C790.6,65.6 817.4,57.4 852.0,59.9 C886.6,62.4 922.1,73.8 948.0,77.5 C973.9,81.1 987.4,79.8 996.0,80.2" fill="none" stroke="#a8a59e" stroke-width="2" stroke-linejoin="round"/><circle cx="276.0" cy="43.2" r="5" fill="#e6a04a"/><text x="276.0" y="29.2" text-anchor="middle" style="fill:#ece9e3;font-size:13px">10 h · 700 mots</text><text x="36.0" y="130" text-anchor="middle">8 h</text><text x="228.0" y="130" text-anchor="middle">10 h</text><text x="420.0" y="130" text-anchor="middle">12 h</text><text x="612.0" y="130" text-anchor="middle">14 h</text><text x="804.0" y="130" text-anchor="middle">16 h</text><text x="996.0" y="130" text-anchor="middle">18 h</text></svg></div>
+<div class="sel-h"><b style="font-weight:500">10&nbsp;h à 11&nbsp;h · 11 dictées</b><span>700 mots · ton meilleur moment de la journée</span></div>
+<div style="margin:8px -16px 0">
+<div class="row"><span class="t">10:02</span><svg class="app"><use href="#a-mail"/></svg><span class="x">Bonjour Anaïs, je te renvoie le devis avec la remise dont on a parlé.</span><span class="a">Mail · 58 mots</span></div>
+<div class="row"><span class="t">10:08</span><svg class="app"><use href="#a-notes"/></svg><span class="x">Penser à envoyer la proposition avant jeudi.</span><span class="a">Notes · 7 mots</span></div>
+<div class="row"><span class="t">10:15</span><svg class="app"><use href="#a-claude"/></svg><span class="x">Reprends le tableau des factures, ajoute une colonne pour la date de relance et trie par montant.</span><span class="a">Claude · 94 mots</span></div>
+<div class="row"><span class="t">10:21</span><svg class="app"><use href="#a-mail"/></svg><span class="x">Merci pour votre retour, je vous envoie le récapitulatif avant jeudi.</span><span class="a">Mail · 63 mots</span></div>
+<div class="row"><span class="t">10:34</span><svg class="app"><use href="#a-msg"/></svg><span class="x">Je suis en route, j’arrive dans quinze minutes.</span><span class="a">Messages · 9 mots</span></div>
+<div class="row"><span class="t">10:41</span><svg class="app"><use href="#a-claude"/></svg><span class="x">Résume-moi ce document en cinq points, sans jargon.</span><span class="a">Claude · 62 mots</span></div>
+<div class="row"><span class="t"></span><span></span><span class="x" style="font-family:var(--sans);font-size:14px;color:var(--ink-2)">5 autres dictées</span><span class="a"></span></div>
+</div></div>
+<div class="foot"><span class="hint"><span class="kbd">←</span><span class="kbd">→</span> changer d’heure</span><span class="hint"><span class="kbd">esc</span> revenir à la journée</span></div>
+</div></section>
+</body></html>

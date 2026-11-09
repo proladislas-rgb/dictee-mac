@@ -1532,5 +1532,197 @@ do {
     verifier(NotesDeVersion.blocs("").isEmpty && NotesDeVersion.blocs(String(repeating: "a\n", count: 10_000)).count < 5000, "notes vides ou démesurées : sans danger")
 }
 
+groupe("Journée : agrégation, moyenne, série, meilleure journée")
+do {
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/Paris")!; cal.locale = Locale(identifier: "fr_FR")
+    func date(_ j: Int, _ h: Int, _ m: Int = 0, mois: Int = 11) -> Date { cal.date(from: DateComponents(year: 2026, month: mois, day: j, hour: h, minute: m))! }
+    func mots(_ n: Int) -> String { Array(repeating: "mot", count: n).joined(separator: " ") }
+    func e(_ j: Int, _ h: Int, _ n: Int, app: String? = "Mail", parole: Double? = nil, insere: Bool = true, m: Int = 0, mois: Int = 11) -> EntreeHistorique {
+        EntreeHistorique(date: date(j, h, m, mois: mois), appId: app.map { "id." + $0 }, appNom: app, texte: mots(n), insere: insere, dureeParole: parole)
+    }
+    let lundi = date(9, 12)   // lundi 9 novembre 2026
+
+    // agrégation par heure et par app
+    let jour = [e(9, 10, 58, parole: 20), e(9, 10, 7, app: "Notes", parole: 4), e(9, 10, 94, app: "Claude", parole: 30), e(9, 14, 40, parole: 12), e(8, 10, 500), e(9, 15, 30, insere: false)]
+    let r = Journee.resume(jour: lundi, entrees: jour, calendrier: cal)
+    verifier(r.dictees == 5 && r.mots == 58 + 7 + 94 + 40 + 30, "résumé : seulement les dictées du jour (hier ignoré)")
+    verifier(r.motsParHeure.count == 24 && r.motsParHeure[10] == 159 && r.motsParHeure[14] == 40 && r.motsParHeure[9] == 0, "mots par heure : 24 cases, 10 h = 159, 14 h = 40")
+    verifier(r.dicteesParHeure[10] == 3 && r.dicteesParHeure[14] == 1, "dictées par heure")
+    verifier(r.heurePic == 10, "heure du pic = 10 h")
+    verifier(r.apps.map(\.nom) == ["Mail", "Claude", "Notes"] && r.apps.map(\.mots) == [98, 94, 7], "apps : classées par mots, la dictée non écrite n'y est pas")
+    verifier(r.dureeParole == 66 && r.sansDuree == 1, "temps de parole : somme des durées enregistrées, une dictée sans durée comptée à part")
+    verifier(abs(r.tempsGagne - (Double(r.mots) / 40 * 60 - 66)) < 0.001, "temps gagné = mots ÷ 40 par minute, moins la parole")
+    verifier(Journee.tempsGagne(mots: 10, dureeParole: 600) == 0, "temps gagné jamais négatif")
+    let vide = Journee.resume(jour: lundi, entrees: [], calendrier: cal)
+    verifier(vide.mots == 0 && vide.dictees == 0 && vide.heurePic == nil && vide.apps.isEmpty && vide.motsParHeure == Array(repeating: 0, count: 24), "journée sans dictée : tout à zéro, pas de pic")
+    let egalite = Journee.resume(jour: lundi, entrees: [e(9, 16, 10), e(9, 9, 10)], calendrier: cal)
+    verifier(egalite.heurePic == 9, "pic à égalité : la plus tôt")
+    let tard = Journee.resume(jour: lundi, entrees: [EntreeHistorique(date: cal.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 23, minute: 59))!, texte: "a b")], calendrier: cal)
+    verifier(tard.motsParHeure[23] == 2, "23 h 59 reste dans la journée, case 23")
+    // ancien historique (sans dureeParole) : se lit sans erreur
+    let ancien = Data(#"{"entrees":[{"id":"6F0F2C2B-9C61-4A0B-8F1B-1E6A4A9D3A11","date":"2026-11-09T09:00:00Z","texte":"Bonjour","insere":true}]}"#.utf8)
+    verifier(Historique.depuis(ancien)?.entrees.first?.dureeParole == nil && Historique.depuis(ancien)?.entrees.count == 1, "ancien historique sans durée de parole : lu, durée absente")
+    var avecDuree = Historique(); avecDuree.ajouter(EntreeHistorique(texte: "x", dureeParole: 2.5))
+    verifier(avecDuree.donnees().flatMap { Historique.depuis($0) }?.entrees.first?.dureeParole == 2.5, "durée de parole : enregistrée et relue")
+
+    // moyenne glissante : 14 derniers jours actifs avant le jour
+    var longue: [EntreeHistorique] = []
+    for k in 1...20 { longue.append(e(k, 10, 100 * k, mois: 10)) }   // 20 jours actifs d'octobre : 100, 200 ... 2000 mots (1er au 20)
+    longue.append(e(9, 10, 777))
+    let moy = Journee.moyenne(avant: lundi, entrees: longue, calendrier: cal)
+    verifier(moy?.jours == 14, "moyenne : 14 jours actifs au plus")
+    verifier(moy.map { abs($0.mots - (Double((7...20).reduce(0) { $0 + 100 * $1 }) / 14)) < 0.001 } == true, "moyenne : les 14 derniers jours actifs (7 au 20), pas le jour lui-même")
+    verifier(Journee.moyenne(avant: date(1, 12, mois: 10), entrees: longue, calendrier: cal) == nil, "premier jour : pas de moyenne")
+    let trous = [e(2, 10, 100), e(4, 10, 300), e(5, 10, 500)]
+    verifier(Journee.moyenne(avant: date(6, 12), entrees: trous, calendrier: cal)?.jours == 3 && Journee.moyenne(avant: date(6, 12), entrees: trous, calendrier: cal)?.mots == 300, "moyenne : les jours sans dictée ne comptent pas (3 jours actifs)")
+    verifier(Journee.moyenne(avant: date(4, 12), entrees: trous, calendrier: cal)?.jours == 1, "moyenne : seulement les jours avant")
+
+    // série
+    let suite = [e(9, 10, 5), e(8, 10, 5), e(7, 10, 5), e(5, 10, 5), e(4, 10, 5)]
+    verifier(Journee.serie(jusquA: lundi, entrees: suite, maintenant: lundi, calendrier: cal) == 3, "série : 9, 8, 7 de suite (le 6 manque)")
+    verifier(Journee.serie(jusquA: date(8, 9), entrees: suite, maintenant: lundi, calendrier: cal) == 2, "série : se termine le jour affiché")
+    verifier(Journee.serie(jusquA: lundi, entrees: [e(8, 10, 5), e(7, 10, 5)], maintenant: lundi, calendrier: cal) == 2, "série : aujourd'hui sans dictée, celle d'hier n'est pas rompue")
+    verifier(Journee.serie(jusquA: date(9, 9), entrees: [e(8, 10, 5)], maintenant: date(10, 9), calendrier: cal) == 0, "série : un jour passé sans dictée = 0")
+    verifier(Journee.serie(jusquA: lundi, entrees: [], maintenant: lundi, calendrier: cal) == 0, "série : rien = 0")
+
+    // meilleure journée
+    let jours = [e(5, 10, 300), e(5, 11, 400), e(6, 10, 700), e(9, 10, 700)]
+    verifier(Journee.meilleure(entrees: jours, calendrier: cal)?.mots == 700 && Journee.meilleure(entrees: jours, calendrier: cal)?.jour == cal.startOfDay(for: lundi), "meilleure journée : égalité, la plus récente")
+    verifier(Journee.meilleure(entrees: jours, avant: lundi, calendrier: cal)?.jour == cal.startOfDay(for: date(6, 9)), "meilleure journée avant le jour affiché")
+    verifier(Journee.meilleure(entrees: [], calendrier: cal) == nil, "meilleure journée : rien = nil")
+
+    // les 7 derniers jours
+    let sept = Journee.septJours(jusquA: lundi, entrees: suite, maintenant: lundi, calendrier: cal)
+    verifier(sept.count == 7 && sept.last?.etiquette == "auj." && sept.first?.etiquette == "mar." && sept[5].etiquette == "dim.", "7 jours : de mardi à aujourd'hui")
+    verifier(sept.map(\.mots) == [0, 5, 5, 0, 5, 5, 5], "7 jours : mots de chaque jour (0 quand rien)")
+    verifier(Journee.septJours(jusquA: date(8, 9), entrees: suite, maintenant: lundi, calendrier: cal).last?.etiquette == "dim.", "7 jours : un jour passé garde son nom")
+
+    // les dictées d'une heure, heures voisines
+    let h10 = Journee.dictees(jour: lundi, heure: 10, entrees: jour, calendrier: cal)
+    verifier(h10.count == 3 && h10.map(\.date) == h10.map(\.date).sorted(), "dictées d'une heure : celles de l'heure, dans l'ordre de la journée")
+    verifier(Journee.dictees(jour: lundi, heure: 11, entrees: jour, calendrier: cal).isEmpty, "heure sans dictée : liste vide")
+    verifier(Journee.heureVoisine(motsParHeure: r.motsParHeure, depuis: 10, delta: 1) == 14 && Journee.heureVoisine(motsParHeure: r.motsParHeure, depuis: 14, delta: -1) == 10, "heure voisine : saute les heures vides")
+    verifier(Journee.heureVoisine(motsParHeure: r.motsParHeure, depuis: 15, delta: 1) == nil && Journee.heureVoisine(motsParHeure: r.motsParHeure, depuis: 10, delta: -1) == nil, "heure voisine : aucune au-delà des extrémités")
+}
+
+groupe("Journée : courbe, formats")
+do {
+    var parHeure = Array(repeating: 0, count: 24)
+    verifier(Journee.plageHeures(motsParHeure: parHeure) == (8, 18), "plage : 8 h à 18 h par défaut")
+    parHeure[6] = 10; parHeure[21] = 10
+    verifier(Journee.plageHeures(motsParHeure: parHeure) == (6, 22), "plage : élargie aux heures actives, bornes paires")
+    parHeure[5] = 3; parHeure[23] = 3
+    verifier(Journee.plageHeures(motsParHeure: parHeure) == (4, 24), "plage : plafonnée à 24 h")
+    verifier(Journee.ligneRepere(pic: 700) == 400 && Journee.ligneRepere(pic: 1_000) == 500 && Journee.ligneRepere(pic: 90) == 50 && Journee.ligneRepere(pic: 3) == nil, "ligne repère : nombre rond sous le pic (700 → 400)")
+    verifier(FormatJournee.nombre(4120) == "4\u{00A0}120" && FormatJournee.nombre(980) == "980" && FormatJournee.nombre(1_250_000) == "1\u{00A0}250\u{00A0}000" && FormatJournee.nombre(0) == "0", "nombres : espace insécable des milliers")
+    verifier(FormatJournee.duree(80 * 60) == "1\u{00A0}h\u{00A0}20" && FormatJournee.duree(56 * 60) == "55\u{00A0}min" && FormatJournee.duree(7 * 60) == "7\u{00A0}min" && FormatJournee.duree(60 * 60) == "1\u{00A0}h" && FormatJournee.duree(10) == "moins d\u{2019}une minute", "durées : arrondies (1 h 20, 55 min, 7 min, 1 h)")
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/Paris")!
+    verifier(FormatJournee.heureLongue(cal.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 9, minute: 5))!, calendrier: cal) == "9\u{00A0}h\u{00A0}05" && FormatJournee.heureLongue(cal.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 14))!, calendrier: cal) == "14\u{00A0}h", "heure longue : 9 h 05, 14 h")
+    let maintenant = cal.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 15))!
+    verifier(Journee.titreJour(maintenant, maintenant: maintenant, calendrier: cal).relatif == "Aujourd\u{2019}hui" && Journee.titreJour(maintenant, maintenant: maintenant, calendrier: cal).date.lowercased() == "lundi 9 novembre", "titre du jour : Aujourd'hui · lundi 9 novembre")
+    let hier = cal.date(byAdding: .day, value: -1, to: maintenant)!, avantHier = cal.date(byAdding: .day, value: -2, to: maintenant)!
+    verifier(Journee.titreJour(hier, maintenant: maintenant, calendrier: cal).relatif == "Hier" && Journee.titreJour(avantHier, maintenant: maintenant, calendrier: cal).relatif == nil, "titre du jour : Hier, puis la date seule")
+    verifier(Journee.titreJour(cal.date(from: DateComponents(year: 2025, month: 12, day: 30))!, maintenant: maintenant, calendrier: cal).date.contains("2025"), "titre du jour : l'année quand ce n'est pas l'année en cours")
+    verifier(!Journee.piedDePage(sansDuree: 0).contains("compte pour 0") && Journee.piedDePage(sansDuree: 3).contains("3 dictées") && Journee.piedDePage(sansDuree: 3).contains("compte pour 0") && Journee.piedDePage(sansDuree: 1).contains("Une dictée"), "pied de page : la durée absente des anciennes dictées est dite")
+    verifier(Journee.piedDePage(sansDuree: 0).hasPrefix("Temps gagné = mots ÷ 40 par minute (vitesse de frappe moyenne), moins ton temps de parole."), "pied de page : la formule")
+}
+
+groupe("Journée : phrase-bilan")
+do {
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/Paris")!; cal.locale = Locale(identifier: "fr_FR")
+    func jourDe(_ j: Int) -> Date { cal.date(from: DateComponents(year: 2026, month: 11, day: j, hour: 12))! }
+    let lundi = jourDe(9), samedi = jourDe(7), mardi = jourDe(3)
+    func r(_ jour: Date, mots: Int, gagne: Double? = nil, apps: [(String, Int)] = [("Mail", 1_480), ("Claude", 1_150), ("Messages", 640), ("WhatsApp", 480), ("Notes", 370)]) -> ResumeJournee {
+        ResumeJournee(jour: cal.startOfDay(for: jour), dictees: mots > 0 ? 5 : 0, mots: mots, dureeParole: 0, sansDuree: 0, tempsGagne: gagne ?? Double(mots) / 40 * 60,
+                      motsParHeure: Array(repeating: 0, count: 24), dicteesParHeure: Array(repeating: 0, count: 24),
+                      apps: apps.map { AppJournee(appId: nil, nom: $0.0, mots: $0.1, dictees: 1) }, heurePic: nil)
+    }
+    func moy(_ m: Double, jours: Int = 14) -> MoyenneJournees { MoyenneJournees(mots: m, dictees: 46, tempsGagne: 3_000, jours: jours) }
+    func p(_ resume: ResumeJournee, _ m: MoyenneJournees?, meilleur: Int? = 9_999, maintenant: Date? = nil) -> PhraseJournee {
+        Journee.phrase(resume, moyenne: m, meilleurAvant: meilleur, maintenant: maintenant ?? lundi, calendrier: cal)
+    }
+    // journée chargée : l'exemple de la maquette
+    let chargee = p(r(lundi, mots: 4_120, gagne: 4_800), moy(2_980))
+    verifier(chargee.cas == .grosse, "4 120 mots pour une moyenne de 2 980 : grosse journée")
+    verifier(chargee.texte == "Grosse journée : 4\u{00A0}120\u{00A0}mots dictés, 38\u{00A0}% de plus que ta moyenne. Tu as gagné environ 1\u{00A0}h\u{00A0}20 par rapport au clavier, surtout en écrivant dans Mail et Claude.", "phrase chargée : celle de la maquette, mot pour mot")
+    print("    chargée : \(chargee.texte)")
+    // belle, dans la moyenne
+    verifier(p(r(lundi, mots: 3_300), moy(2_980)).cas == .belle && p(r(lundi, mots: 3_300), moy(2_980)).texte.hasPrefix("Belle journée"), "108 % à 125 % : belle journée")
+    verifier(p(r(lundi, mots: 3_000), moy(2_980)).cas == .dansLaMoyenne && !p(r(lundi, mots: 3_000), moy(2_980)).texte.contains("de plus") && !p(r(lundi, mots: 3_000), moy(2_980)).texte.contains("de moins"), "autour de la moyenne : ni plus ni moins")
+    // record
+    let record = p(r(lundi, mots: 4_640), moy(2_980), meilleur: 4_000)
+    verifier(record.cas == .record && record.texte.hasPrefix("Ta meilleure journée jusqu\u{2019}ici : 4\u{00A0}640"), "plus de mots que n'importe quel jour avant : record")
+    verifier(p(r(lundi, mots: 4_640), moy(2_980), meilleur: nil).cas == .grosse, "pas de meilleur jour avant : pas de record (premier jour de la série)")
+    // jours calmes : phrase calme, jamais de faux enthousiasme
+    let calme = p(r(mardi, mots: 300, gagne: 100, apps: [("Notes", 300)]), moy(2_980), maintenant: lundi)
+    verifier(calme.cas == .calme && calme.texte == "Journée calme : 300\u{00A0}mots dictés. Tu as écrit dans Notes.", "journée très calme : phrase calme, sans pourcentage ni temps gagné")
+    print("    calme : \(calme.texte)")
+    let plusCalme = p(r(mardi, mots: 2_000), moy(2_980), maintenant: lundi)
+    verifier(plusCalme.cas == .calme && plusCalme.texte.hasPrefix("Une journée plus calme que d\u{2019}habitude : 2\u{00A0}000\u{00A0}mots dictés, 33\u{00A0}% de moins que ta moyenne."), "entre 50 % et 92 % : plus calme que d'habitude, dit simplement")
+    for t in [calme.texte, plusCalme.texte] { verifier(!t.contains("!") && !t.lowercased().contains("bravo") && !t.lowercased().contains("super"), "ton sobre : aucun point d'exclamation ni félicitation (\(t.prefix(20))…)") }
+    // aujourd'hui sous la moyenne : la journée n'est pas finie
+    let enCours = p(r(lundi, mots: 800, apps: [("Mail", 800)]), moy(2_980), maintenant: lundi)
+    verifier(enCours.cas == .enCours && enCours.texte.contains("pour l\u{2019}instant") && enCours.texte.contains("Ta moyenne sur une journée : 2\u{00A0}980") && !enCours.texte.contains("calme"), "aujourd'hui sous la moyenne : « pour l'instant », pas de verdict")
+    // aucune dictée
+    verifier(p(r(lundi, mots: 0), moy(2_980), maintenant: lundi).texte == "Pas encore de dictée aujourd\u{2019}hui." && p(r(lundi, mots: 0), moy(2_980), maintenant: lundi).cas == .aucune, "aujourd'hui sans dictée : phrase calme")
+    verifier(p(r(mardi, mots: 0), moy(2_980), maintenant: lundi).texte == "Aucune dictée ce jour-là.", "jour passé sans dictée")
+    verifier(p(r(samedi, mots: 0), moy(2_980), maintenant: lundi).texte == "Pas de dictée ce jour-là, c\u{2019}était le week-end.", "week-end passé sans dictée")
+    // week-end : pas de comparaison à la moyenne de semaine
+    let we = p(r(samedi, mots: 300, apps: [("Messages", 300)]), moy(2_980), maintenant: lundi)
+    verifier(we.cas == .weekend && we.texte.hasPrefix("Week-end : 300\u{00A0}mots dictés.") && !we.texte.contains("moyenne"), "week-end : aucune comparaison avec la moyenne")
+    print("    week-end : \(we.texte)")
+    // premier jour
+    let premier = p(r(lundi, mots: 420, gagne: 400, apps: [("Mail", 300), ("Notes", 120)]), nil)
+    verifier(premier.cas == .premierJour && !premier.texte.contains("moyenne ") && !premier.texte.contains("% de"), "premier jour : aucune comparaison")
+    verifier(premier.texte.hasPrefix("Première journée avec Verbe : 420\u{00A0}mots dictés.") && premier.texte.contains("arriveront"), "premier jour : phrase d'accueil")
+    print("    premier jour : \(premier.texte)")
+    // peu de recul (1 ou 2 jours avant) : pas de comparaison non plus
+    let peu = p(r(lundi, mots: 420, gagne: 400, apps: [("Mail", 420)]), moy(100, jours: 2))
+    verifier(peu.cas == .peuDeRecul && !peu.texte.contains("moyenne") && !peu.texte.contains("%"), "moins de 3 jours de recul : pas de comparaison")
+    verifier(p(r(lundi, mots: 420, apps: [("Mail", 420)]), moy(100, jours: 3)).cas != .peuDeRecul, "3 jours de recul : on compare")
+    // seconde phrase : temps gagné et apps
+    let sans = p(r(lundi, mots: 3_000, gagne: 120, apps: [("Mail", 3_000)]), moy(2_980))
+    verifier(sans.texte.hasSuffix("Tu as écrit dans Mail.") && !sans.texte.contains("gagné"), "moins de 3 min gagnées : on ne le dit pas (« Tu as écrit dans Mail »)")
+    verifier(p(r(lundi, mots: 3_000, apps: [("Mail", 2_000), ("Claude", 500), ("Notes", 500)]), moy(2_980)).texte.contains("surtout en écrivant dans Mail,") == false, "phrase : un seul nom quand le deuxième pèse moins de 30 %")
+    verifier(p(r(lundi, mots: 3_000, apps: [("Mail", 2_000), ("Claude", 500), ("Notes", 500)]), moy(2_980)).texte.hasSuffix("surtout en écrivant dans Mail."), "apps : une app dominante, « surtout » car il y en a d'autres")
+    verifier(p(r(lundi, mots: 3_000, apps: [("Mail", 1_600), ("Claude", 1_400)]), moy(2_980)).texte.hasSuffix("en écrivant dans Mail et Claude."), "deux apps seulement : pas de « surtout »")
+    verifier(p(r(lundi, mots: 3_000, apps: []), moy(2_980)).texte.hasSuffix("par rapport au clavier."), "sans app connue : seulement le temps gagné")
+    verifier(p(r(lundi, mots: 1, gagne: 0, apps: []), nil).texte.contains("1\u{00A0}mot dicté."), "un seul mot : singulier")
+}
+
+groupe("Journée : réunions et actions du jour")
+do {
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/Paris")!; cal.locale = Locale(identifier: "fr_FR")
+    func date(_ j: Int, _ h: Int, _ m: Int = 0) -> Date { cal.date(from: DateComponents(year: 2026, month: 11, day: j, hour: h, minute: m))! }
+    let lundi = date(9, 18)
+    let a1 = ActionReunion(quoi: "Envoyer la proposition", quand: "demain", echeance: "2026-11-10")
+    let a2 = ActionReunion(quoi: "Mettre à jour le planning", quand: "jeudi", echeance: "2026-11-12")
+    let a3 = ActionReunion(quoi: "Déjà fait", fait: true, echeance: "2026-11-10")
+    let a4 = ActionReunion(quoi: "Sans date")
+    let a5 = ActionReunion(quoi: "Aujourd'hui même", quand: "ce soir", echeance: "2026-11-09")
+    let matin = Reunion(debut: date(9, 9, 15), duree: 32 * 60, titre: "Point devis", dit: ["Brume valide."], actions: [a2, a1, a3, a4], etat: .prete, enBref: "Brume valide les deux options.")
+    let apresMidi = Reunion(debut: date(9, 15, 30), duree: 48 * 60, titre: "Revue du planning", actions: [a5], etat: .prete, enBref: "Novembre tient.")
+    let sansNote = Reunion(debut: date(9, 17), duree: 600, titre: "", etat: .sansNote)
+    let hier = Reunion(debut: date(8, 10), titre: "Hier", actions: [ActionReunion(quoi: "Pas aujourd'hui")], etat: .prete)
+    let toutes = [apresMidi, hier, matin, sansNote]
+    let rj = Journee.reunions(jour: lundi, reunions: toutes, calendrier: cal)
+    verifier(rj.map(\.titre) == ["Point devis", "Revue du planning", "Réunion du lun. 9 nov. 2026, 17:00"], "réunions du jour : seulement celles du jour, par heure")
+    verifier(rj[0].heure == "9\u{00A0}h\u{00A0}15" && rj[0].duree == "32 min" && rj[0].actions == "3 actions à faire sur 4" && rj[0].enBref == "Brume valide les deux options.", "réunion : heure, durée, actions à faire sur le total, En bref")
+    verifier(rj[1].actions == "1 action à faire sur 1", "une seule action : singulier")
+    verifier(rj[2].noteEcrite == false && rj[2].enBref.isEmpty && rj[2].actions == nil, "réunion sans note : pas d'En bref ni d'actions")
+    let aj = Journee.actions(jour: lundi, reunions: toutes, maintenant: lundi, calendrier: cal)
+    verifier(aj.map(\.quoi) == ["Aujourd'hui même", "Envoyer la proposition", "Mettre à jour le planning", "Sans date"], "actions : non cochées seulement, échéances proches d'abord, sans date à la fin")
+    verifier(aj[0].etiquette == "aujourd\u{2019}hui" && aj[0].urgente && aj[1].etiquette == "demain" && aj[1].urgente, "étiquettes « aujourd'hui » et « demain »")
+    verifier(aj[2].etiquette == "jeu. 12" && !aj[2].urgente && aj[3].sansDate, "autre échéance : « jeu. 12 » ; sans date signalée")
+    verifier(aj.allSatisfy { $0.reunion == matin.id || $0.reunion == apresMidi.id }, "chaque action garde sa réunion (pour la cocher dans la note)")
+    let tard = Journee.actions(jour: lundi, reunions: [matin], maintenant: date(11, 9), calendrier: cal)
+    verifier(tard.first { $0.quoi == "Envoyer la proposition" }?.etiquette == "en retard", "échéance passée : « en retard »")
+    var cochee = matin; cochee.actions[1].fait = true   // « Envoyer la proposition » cochée dans la note
+    verifier(!Journee.actions(jour: lundi, reunions: [cochee], maintenant: lundi, calendrier: cal).contains { $0.quoi == "Envoyer la proposition" }, "action cochée : disparaît de la liste")
+    let gardee = Journee.actions(jour: lundi, reunions: [cochee], aussi: [a1.id], maintenant: lundi, calendrier: cal)
+    verifier(gardee.first?.quoi == "Envoyer la proposition" && gardee.first?.fait == true && gardee.first?.urgente == false, "action qu'on vient de cocher ici : reste à sa place, barrée")
+    verifier(Journee.actions(jour: date(20, 9), reunions: toutes, maintenant: lundi, calendrier: cal).isEmpty && Journee.reunions(jour: date(20, 9), reunions: toutes, calendrier: cal).isEmpty, "jour sans réunion : rien")
+}
+
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)

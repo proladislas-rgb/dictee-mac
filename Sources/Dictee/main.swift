@@ -51,6 +51,11 @@ if let i = arguments.firstIndex(of: "--rendu-reunion"), i + 1 < arguments.count 
     exit(MainActor.assumeIsolated { RenduReunions.executer(dossier: arguments[i + 1]) })
 }
 
+// Dictee --rendu-journee dossier  (l'onglet Journée et ses états en PNG, sans fenêtre)
+if let i = arguments.firstIndex(of: "--rendu-journee"), i + 1 < arguments.count {
+    exit(MainActor.assumeIsolated { RenduJournee.executer(dossier: arguments[i + 1]) })
+}
+
 // Dictee --rendu-icones dossier  (icône d'app + planches de contrôle en PNG, sans fenêtre)
 if let i = arguments.firstIndex(of: "--rendu-icones"), i + 1 < arguments.count {
     exit(MainActor.assumeIsolated { RenduIcones.executer(dossier: arguments[i + 1]) })

@@ -124,7 +124,7 @@ enum RenduReunions {
             let barre = AnyView(HStack(spacing: 0) { BarreOngletsVue(nav: nav, mots: mots).padding(.leading, 68); Spacer(); BarreReglagesVue(nav: nav).padding(.trailing, 20) })
             let vue = RenduFenetre.Cadre(taille: taille, barre: barre) {
                 FenetreVue(nav: nav, dictees: d, store: historique, mots: mots,
-                           reglages: ReglagesModele(reel: false), reunions: r, controleur: controleur, curseurFactice: true)
+                           reglages: ReglagesModele(reel: false), reunions: r, controleur: controleur, journee: JourneeModele(dictees: d, reunions: r), curseurFactice: true)
             }
             ok = RenduVues.ecrire(RenduVues.png(vue, taille: taille), url.appendingPathComponent("\(nom).png")) && ok
         }

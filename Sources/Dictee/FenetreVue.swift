@@ -16,6 +16,7 @@ struct FenetreVue: View {
     @ObservedObject var reglages: ReglagesModele
     @ObservedObject var reunions: ReunionsModele
     @ObservedObject var controleur: ReunionController
+    @ObservedObject var journee: JourneeModele
     var surRevoirPriseEnMain: () -> Void = {}
     var surAutorisations: () -> Void = {}
     var surCle: () -> Void = {}
@@ -31,6 +32,8 @@ struct FenetreVue: View {
                 switch nav.onglet {
                 case .dictees:
                     DicteesFenetreVue(m: dictees, store: store, reglages: reglages, curseurFactice: curseurFactice)
+                case .journee:
+                    JourneeVue(m: journee)
                 case .reunions:
                     ReunionsVue(m: reunions, store: reunions.store, controleur: controleur, curseurFactice: curseurFactice)
                 case .mots:
@@ -55,6 +58,7 @@ struct BarreOngletsVue: View {
     var body: some View {
         HStack(spacing: 4) {
             OngletBarre(titre: Onglet.dictees.rawValue, actif: nav.onglet == .dictees) { nav.onglet = .dictees }
+            OngletBarre(titre: Onglet.journee.rawValue, actif: nav.onglet == .journee) { nav.onglet = .journee }
             OngletBarre(titre: Onglet.reunions.rawValue, actif: nav.onglet == .reunions) { nav.onglet = .reunions }
             OngletBarre(titre: Onglet.mots.rawValue, actif: nav.onglet == .mots, pastille: mots.propositions.enAttente.count) { nav.onglet = .mots }
         }
@@ -113,6 +117,7 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
     let dictees: ModeleDictees
     let reunions = ReunionsModele()
     let controleurReunions: ReunionController
+    let journee: JourneeModele
     private(set) lazy var reglages = ReglagesModele.partage
     private var fenetre: NSWindow?
     var surRevoirPriseEnMain: () -> Void = {}
@@ -120,7 +125,13 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
     var surCle: () -> Void = {}
     var surDesinstaller: () -> Void = {}
 
-    init(dictees: ModeleDictees, controleurReunions: ReunionController) { self.dictees = dictees; self.controleurReunions = controleurReunions; super.init() }
+    init(dictees: ModeleDictees, controleurReunions: ReunionController) {
+        self.dictees = dictees; self.controleurReunions = controleurReunions
+        journee = JourneeModele(dictees: dictees, reunions: reunions)
+        super.init()
+        journee.surOuvrirNote = { [weak self] id in self?.ouvrirNote(id) }
+        journee.surOuvrirDictees = { [weak self] in self?.afficher(.dictees) }
+    }
 
     var estOuverte: Bool { fenetre?.isVisible == true }
 
@@ -131,6 +142,7 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
         guard let f = fenetre else { return }
         if onglet == .dictees { dictees.reinitialiser() }
         if onglet == .reunions, reunions.ouverte == nil { reunions.reinitialiser() }
+        if onglet == .journee { journee.reinitialiser() }
         // Verbe reste une app d'arrière-plan (pas d'icône « active » dans le Dock) même fenêtre ouverte : une app « normale »
         // ne peut plus afficher l'encoche par-dessus une app en plein écran (constaté dans le Terminal en plein écran).
         // Pour l'ouvrir : icône gardée dans le Dock, Applications, Launchpad ou Spotlight (réouverture gérée par l'AppDelegate).
@@ -197,7 +209,7 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
         // S'ouvre sur le bureau où l'on se trouve, pas sur celui où la fenêtre était la dernière fois.
         f.collectionBehavior.insert(.moveToActiveSpace)
         f.minSize = NSSize(width: 560, height: 420)
-        f.contentView = NSHostingView(rootView: FenetreVue(nav: nav, dictees: dictees, store: dictees.store, mots: MotsModele.partage, reglages: reglages, reunions: reunions, controleur: controleurReunions,
+        f.contentView = NSHostingView(rootView: FenetreVue(nav: nav, dictees: dictees, store: dictees.store, mots: MotsModele.partage, reglages: reglages, reunions: reunions, controleur: controleurReunions, journee: journee,
                                                            surRevoirPriseEnMain: { [weak self] in self?.surRevoirPriseEnMain() },
                                                            surAutorisations: { [weak self] in self?.surAutorisations() },
                                                            surCle: { [weak self] in self?.surCle() },

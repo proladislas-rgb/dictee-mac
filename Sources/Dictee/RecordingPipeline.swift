@@ -39,6 +39,11 @@ final class RecordingPipeline: @unchecked Sendable {
 
     var dureeEnregistree: Double { lock.lock(); defer { lock.unlock() }; return Double(echantillons.count) / 16_000 }
 
+    /// Temps de parole de la dictée : la durée des morceaux qui contiennent de la parole (les silences d'au moins 0,5 s, coupés, n'y sont pas).
+    /// Sert au « temps gagné » du résumé de la journée.
+    private var dureeMorceaux = 0.0
+    var dureeParole: Double { lock.lock(); defer { lock.unlock() }; return dureeMorceaux }
+
     func traiter(_ tampon: AVAudioPCMBuffer) {
         if !premierRecu { premierRecu = true; surPremierTampon?(tampon.format) }
         surTamponBrut?(tampon)
@@ -58,7 +63,7 @@ final class RecordingPipeline: @unchecked Sendable {
             }
             tranchesTraitees += 1
             niveau = max(niveau, Self.niveauAffichable(db))
-            if let r = chunker.feed(levelDb: db) { aEnvoyer.append(morceau(r, forcee: chunker.derniereCoupeForcee)) }
+            if let r = chunker.feed(levelDb: db) { dureeMorceaux += Double(r.count) / 16_000; aEnvoyer.append(morceau(r, forcee: chunker.derniereCoupeForcee)) }
             else if let r = chunker.anticipation, surAnticipation != nil { anticipes.append(morceau(r)) }
         }
         lock.unlock()
@@ -72,6 +77,7 @@ final class RecordingPipeline: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         termine = true
         guard let r = chunker.finish(totalSamples: echantillons.count) else { return nil }
+        dureeMorceaux += Double(r.count) / 16_000
         return morceau(r)
     }
 

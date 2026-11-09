@@ -143,7 +143,7 @@ enum RenduMiseAJour {
             let r = ReglagesModele(reel: false, maj: maj)
             let vue = RenduFenetre.Cadre(taille: taille) {
                 FenetreVue(nav: nav, dictees: d, store: exemple, mots: MotsModele(persistant: false, mots: [], raccourcis: [], propositions: PropositionsMots()),
-                           reglages: r, reunions: reunions, controleur: controleur, curseurFactice: true)
+                           reglages: r, reunions: reunions, controleur: controleur, journee: JourneeModele(dictees: d, reunions: reunions), curseurFactice: true)
             }
             ok = RenduVues.ecrire(RenduVues.png(vue, taille: taille), url.appendingPathComponent("\(nom).png")) && ok
         }

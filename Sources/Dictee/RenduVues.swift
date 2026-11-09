@@ -164,7 +164,7 @@ enum RenduFenetre {
                 if suppression { d.suppressionEnAttente = e.id }
             }
             let vue = Cadre(taille: taille) {
-                FenetreVue(nav: nav, dictees: d, store: store, mots: mots, reglages: reglages ?? ReglagesModele(reel: false), reunions: reunions, controleur: controleur, curseurFactice: true)
+                FenetreVue(nav: nav, dictees: d, store: store, mots: mots, reglages: reglages ?? ReglagesModele(reel: false), reunions: reunions, controleur: controleur, journee: JourneeModele(dictees: d, reunions: reunions), curseurFactice: true)
             }
             ok = RenduVues.ecrire(RenduVues.png(vue, taille: taille), url.appendingPathComponent("\(nom).png")) && ok
         }

@@ -11,11 +11,14 @@ public struct EntreeHistorique: Codable, Equatable, Identifiable, Sendable {
     /// `false` quand le texte n'a pas pu être écrit dans l'app (champ protégé, accessibilité, destination absente).
     public var insere: Bool
     public var raison: String?
+    /// Temps de parole de la dictée, en secondes (les silences ne comptent pas). Absent des dictées faites avant le résumé de la journée :
+    /// elles se lisent sans erreur et comptent pour 0.
+    public var dureeParole: Double?
 
     public init(id: UUID = UUID(), date: Date = Date(), appId: String? = nil, appNom: String? = nil,
-                texte: String, insere: Bool = true, raison: String? = nil) {
+                texte: String, insere: Bool = true, raison: String? = nil, dureeParole: Double? = nil) {
         self.id = id; self.date = date; self.appId = appId; self.appNom = appNom
-        self.texte = texte; self.insere = insere; self.raison = raison
+        self.texte = texte; self.insere = insere; self.raison = raison; self.dureeParole = dureeParole
     }
 }
 
@@ -28,7 +31,9 @@ public struct GroupeHistorique: Equatable, Sendable {
 
 /// L'historique des dictées : les plus récentes d'abord, borné, filtrable, groupé par jour. Logique pure.
 public struct Historique: Codable, Equatable, Sendable {
-    public static let limiteParDefaut = 500
+    /// 3 000 dictées : de quoi garder une cinquantaine de jours, pour que la moyenne des 14 derniers jours actifs, la série et la meilleure
+    /// journée du résumé de la journée reposent sur de vraies données (500 ne couvraient que 8 jours à 64 dictées par jour).
+    public static let limiteParDefaut = 3000
     public private(set) var entrees: [EntreeHistorique] = []
 
     public init(entrees: [EntreeHistorique] = []) { self.entrees = entrees.sorted { $0.date > $1.date } }

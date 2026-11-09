@@ -429,3 +429,43 @@ Décision de Hugues : « Verbe vérifie GitHub une fois par jour, propose "Insta
 2. « Plus tard » : rien jusqu'au lendemain ; « Nouveautés » montre les notes.
 3. Depuis le DMG (non installée) : Réglages dit pourquoi on ne peut pas installer.
 4. Cliquer sur « Installer » pendant une dictée en mains libres : Verbe attend la fin avant de se relancer.
+
+## Résumé de la journée (onglet Journée, 09/11 soir)
+
+Demande de Hugues sur `design/maquettes/journee.html` : « tu me fais le C1 avec un mélange du B2 et avec les fonctionnalités du C2 ». Tout est local : aucun réseau, aucune IA pour la phrase. Logique pure dans `DicteeCore/Journee.swift` (testée dans DicteeControles), vues dans `Sources/Dictee/JourneeVue.swift`, rendus dans `RenduJournee.swift`.
+
+### Page
+- **Onglet « Journée »** entre Dictées et Réunions (élément de la barre d'outils de la fenêtre, comme les autres ; ⌘2 ouvre Journée, Réunions passe à ⌘3). Le panneau compact de l'encoche montre aussi « Journée » dans sa navigation du bas.
+- **Navigation par jour** : `‹ Aujourd'hui · lundi 9 novembre ›` (← et → au clavier, › grisé sur aujourd'hui, « Revenir à aujourd'hui » sur un jour passé).
+- **Phrase-bilan** en Newsreader 27 pt, tutoiement, générée par règles (voir plus bas). Un jour sans dictée : phrase calme + lien « Aller aux dictées ».
+- **Courbe** : une seule, grise, mots par heure (8 h-18 h au moins, élargie aux heures utilisées), ligne repère ronde (700 de pic → 400), point ambre sur le pic avec « 10 h · 700 mots ». Chaque heure où l'on a dicté est un bouton (survol : le point et l'étiquette suivent).
+- **Trois colonnes (mélange B2)** : « Où tu as écrit » (vraies icônes d'apps, cache `IconesApps` de la fenêtre, fines barres, mots ; 5 apps au plus, seules les dictées réellement écrites comptent), « Réunions » du jour (titre, `9 h 15 · 32 min · 2 actions à faire sur 3`, En bref sur une ligne ; un clic ouvre la note dans l'onglet Réunions), « À faire » (actions non cochées des réunions du jour, par échéance, étiquette `demain` / `aujourd'hui` / `en retard` en gras, sinon `jeu. 12` ; 5 au plus puis « + N autres dans les notes »). Cocher ici écrit dans la note (même donnée : `ReunionsModele.cocher`) et la case reste visible, barrée, jusqu'à ce qu'on quitte la page (on peut se raviser).
+- **Les 7 derniers jours** : barres neutres, le jour affiché en clair, moyenne en pointillé ; chaque barre est un bouton qui va à ce jour. À côté : série, meilleure journée, moyenne. (Ce bloc est sous les trois colonnes : avec les En bref et cinq actions, tout ne tient plus dans 770 px ; la page défile, le pied de page reste fixe.)
+- **Pied de page** : « Temps gagné = mots ÷ 40 par minute (vitesse de frappe moyenne), moins ton temps de parole. » ; si des dictées du jour n'ont pas de durée de parole : « N dictées de ce jour datent d'avant l'enregistrement du temps de parole : il compte pour 0. »
+
+### Fonctionnalités de C2
+- Un clic sur une heure de la courbe (ou sur son étiquette) ouvre la liste des dictées de cette heure : `10 h à 11 h · 11 dictées` / `700 mots · ton meilleur moment de la journée` ; la phrase se retire pour laisser la place, comme la maquette. Chaque ligne : heure, icône, texte (Newsreader), `Mail · 58 mots` ; un clic la déplie avec **Recoller dans Mail** et **Copier** (mêmes actions que l'onglet Dictées : `ModeleDictees.recoller` / `copier`).
+- ← → changent d'heure (en sautant les heures vides), Échap ou un clic ailleurs referme. Pied de page : « ← → changer d'heure · esc revenir à la journée ».
+
+### Données
+- `EntreeHistorique.dureeParole` (secondes, facultative) : la somme des durées des morceaux de son qui contiennent de la parole (`RecordingPipeline.dureeParole` ; les silences d'au moins 0,5 s, coupés, n'y sont pas). Les anciennes dictées se lisent sans erreur et comptent 0. Contrôlé avec `Verbe --transcrire` (réseau seulement) : un fichier de 8,9 s avec deux silences de 3 s donne « parole mesurée 3,1 s sur 8,9 s ».
+- **Limite de l'historique passée de 500 à 3 000 dictées** : à 64 dictées par jour, 500 ne couvraient que 8 jours, donc ni 14 jours actifs de moyenne, ni série, ni meilleure journée. Toutes les statistiques sont calculées sur l'historique conservé (effacer l'historique efface aussi la page).
+- **Temps gagné** = mots ÷ 40 par minute − temps de parole, jamais négatif. **Moyenne** = les 14 derniers jours actifs (au moins une dictée) strictement avant le jour affiché. **Série** = jours actifs de suite jusqu'au jour affiché ; aujourd'hui sans dictée, la série d'hier n'est pas rompue. **Meilleure journée** = le plus de mots sur tout l'historique (la plus récente en cas d'égalité).
+
+### La phrase (règles, dans l'ordre)
+1. Aucune dictée : « Pas encore de dictée aujourd'hui. » / « Aucune dictée ce jour-là. » (variantes week-end).
+2. Week-end : « Week-end : N mots dictés. » (jamais comparé à la moyenne, qui est faite de jours de semaine).
+3. Premier jour (aucun jour actif avant) : « Première journée avec Verbe : N mots dictés. … Les comparaisons arriveront avec les jours suivants. » Moins de 3 jours actifs avant : aucune comparaison non plus.
+4. Record (plus de mots que n'importe quel jour avant) : « Ta meilleure journée jusqu'ici : … ».
+5. Rapport à la moyenne : ≥ 125 % « Grosse journée : N mots dictés, X % de plus que ta moyenne. » ; ≥ 108 % « Belle journée … » ; ≥ 92 % « Une journée dans ta moyenne : … » ; aujourd'hui en dessous : « N mots dictés pour l'instant. Ta moyenne sur une journée : M. » (la journée n'est pas finie, pas de verdict) ; ≥ 50 % « Une journée plus calme que d'habitude : …, X % de moins que ta moyenne. » ; sinon « Journée calme : N mots dictés. » Jamais de point d'exclamation ni de félicitation.
+6. Seconde phrase : « Tu as gagné environ 1 h 20 par rapport au clavier, surtout en écrivant dans Mail et Claude. » (temps gagné ≥ 3 min ; la 2e app est citée si elle pèse ≥ 30 % de la 1re ; « surtout » quand il y en a d'autres) ; sinon « Tu as surtout écrit dans Mail. ».
+
+### Vérifié
+- `swift run DicteeControles` : agrégation par heure et par app, moyenne glissante (14 jours actifs, trous, premier jour), série, meilleure journée, 7 jours, heures voisines, plage et ligne repère de la courbe, formats (nombres, durées, heures), choix de la phrase dans chaque cas (chargée, belle, dans la moyenne, record, calme, en cours, week-end, premier jour, peu de recul, sans dictée), réunions et actions du jour, ancien historique sans durée.
+- Rendus PNG hors écran `Verbe --rendu-journee DOSSIER` → `design/rendus-journee/` (journée chargée, calme, heure ouverte, dictée dépliée, fenêtre étroite, premier jour, week-end, sans dictée, fenêtre par défaut), comparés à `design/maquettes/journee.html` (C1, C2).
+
+### À vérifier en vrai (par Hugues, app installée) — non testable depuis le shell
+1. Les clics, ← → et Échap dans la vraie fenêtre (les rendus PNG ne montrent que l'état, pas le clavier).
+2. Que la durée de parole soit bien enregistrée sur les nouvelles dictées (historique.json : champ `dureeParole`) et que « temps gagné » ait l'air juste après une vraie journée.
+3. Cocher une action ici, ouvrir la note : la case y est cochée (et inversement).
+4. Les anciennes dictées (sans durée) gonflent le « temps gagné » des jours d'avant ce soir : c'est dit dans le pied de page.

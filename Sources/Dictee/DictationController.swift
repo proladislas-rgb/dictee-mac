@@ -303,9 +303,10 @@ final class DictationController {
         let issue = await collage.ecrire(texte, dans: s.appCible)
         let collageMs = ms(ProcessInfo.processInfo.systemUptime - t)
         let total = ms(ProcessInfo.processInfo.systemUptime - relache)
+        let parole = s.pipeline.dureeParole
         func garder(inseree: Bool, raison: String? = nil) {
             HistoriqueStore.shared.ajouter(EntreeHistorique(date: creation, appId: s.appCible?.bundleIdentifier, appNom: s.appCible?.localizedName,
-                                                            texte: texteFinal, insere: inseree, raison: raison))
+                                                            texte: texteFinal, insere: inseree, raison: raison, dureeParole: parole))
         }
         switch issue {
         case .colle:

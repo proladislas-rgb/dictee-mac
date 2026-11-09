@@ -65,6 +65,20 @@ Chaque lot : construit, essayé pour de vrai sur le Mac, poussé sur GitHub.
   - [ ] Plus tard : export Airtable, option « tout sur le Mac » (dictée Apple) au lieu de Groq, suppression d'écho par traitement du signal (aujourd'hui : par le texte), noms des participants Eux.
 - [ ] Pistes suivantes à discuter (s'inspirer de l'idée, tout réécrire) : retouche de texte sélectionné à la voix (façon Grammarly), raccourcis tapés (façon TextExpander), historique du presse-papiers dans l'encoche (façon Paste), captures annotées (façon CleanShot X).
 
+## Ordre décidé par Hugues (09/11 soir)
+1. Finir Verbe : onglet Journée → 0.3.1 (mise à jour automatique) — onglet Journée CONSTRUIT le 09/11 soir (voir ci-dessous) ; reste la 0.3.1
+2. Barre d'outils de l'encoche façon Dynamic Island (maquettes d'abord)
+3. CRM WhatsApp de terrain : plus tard, sans se presser
+
+## Résumé de la journée — onglet Journée (09/11 soir)
+Choix de Hugues : « C1 avec un mélange du B2 et avec les fonctionnalités du C2 » (maquette `design/maquettes/journee.html`).
+- [x] Logique pure `DicteeCore/Journee.swift` : agrégation par heure et par app, moyenne des 14 derniers jours actifs, série, meilleure journée, 7 jours, temps gagné (mots ÷ 40 par min − parole), phrase-bilan par règles (grosse / belle / dans la moyenne / record / calme / en cours / week-end / premier jour / peu de recul / sans dictée), réunions et actions du jour ; 890 contrôles verts.
+- [x] `EntreeHistorique.dureeParole` (facultative, anciennes dictées = 0, dit dans le pied de page) enregistrée par `RecordingPipeline.dureeParole` ; limite de l'historique 500 → 3 000.
+- [x] Onglet « Journée » (entre Dictées et Réunions) : navigation par jour, phrase en grand, courbe des heures, 3 colonnes (apps avec vraies icônes, réunions + En bref → ouvre la note, À faire cochable et synchronisé), 7 derniers jours + série / meilleure journée / moyenne, pied de page ; clic sur une heure = ses dictées (Recoller / Copier), ← → Échap ; états sans dictée, premier jour, week-end, fenêtre étroite.
+- [x] Rendus `design/rendus-journee/` (`Verbe --rendu-journee`), spec dans docs/spec-v1.md (« Résumé de la journée »).
+- [ ] Hugues : essayer en vrai (clics, ← →, Échap, cocher une action puis ouvrir la note, durée de parole dans historique.json) — 4 points dans la spec.
+- Écarts avec la maquette : les 7 derniers jours sont sous les trois colonnes (ça ne tient plus dans 770 px avec les En bref et 5 actions, la page défile) ; ⌘2 = Journée, Réunions passe en ⌘3 ; « Journée » apparaît aussi dans la navigation du panneau compact.
+
 ## Étapes
 - [x] 1. Étude des deux apps installées avec REA (observer, ne rien copier) (rapport gardé hors du dépôt public)
 - [ ] 2. Maquette des écrans → pastille : 3 versions (A fil, B encoche, C curseur) dans ~/Desktop/Dictee-maquettes/pastilles.html, CHOIX DE HUGUES = B l.encoche ; panneau v1 refusé (« trop IA ») → v2 refusé (« trop gros ») → 3 pistes compactes v3-A instrument, v3-B page écrite, v3-C encoche dans ~/Desktop/Dictee-maquettes/, C CHOISI ; encoches de dictée v4 A/B/C prêtes, attente choix
