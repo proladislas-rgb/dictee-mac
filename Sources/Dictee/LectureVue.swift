@@ -10,11 +10,15 @@ import DicteeCore
 /// Mesures de la maquette (en points). Les rangées sous la barre sont décalées de `g.hauteur - 38` : la maquette suppose une barre de 38.
 enum LectureMesures {
     static let reposAile: CGFloat = 66          // largeur de chaque aile au repos (332 = 200 + 2 × 66)
-    static let ouvertLargeur: CGFloat = 600
-    static let ouvertHauteur: CGFloat = 228
-    static let rayonOuvert: CGFloat = 48
+    /// Échelle de l'îlot déplié (Hugues : « la barre est beaucoup trop grande ») : la maquette est dessinée à 600 × 228, affichée à 78 %.
+    static let echelle: CGFloat = 0.78
+    static let ouvertLargeurBase: CGFloat = 600
+    static let ouvertHauteurBase: CGFloat = 228
+    static let ouvertLargeur: CGFloat = ouvertLargeurBase * echelle
+    static let ouvertHauteur: CGFloat = ouvertHauteurBase * echelle
+    static let rayonOuvert: CGFloat = 48 * echelle
     static let pochetteRepos: CGFloat = 30
-    static let pochetteOuvert: CGFloat = 140
+    static let pochetteOuvert: CGFloat = 140 * 0.78
     static let margeLaterale: CGFloat = 28
     static let margeReposLaterale: CGFloat = 12
     static let margeBasse: CGFloat = 30
@@ -332,7 +336,8 @@ struct IlotVue: View, Animatable {
         let rayon = L(g.hauteur / 2, LectureMesures.rayonOuvert)
         let genreMusique = m.genre == .musique
         let tailleP = L(LectureMesures.pochetteRepos, LectureMesures.pochetteOuvert)
-        let xP = L(12, 30), yP = L((g.hauteur - LectureMesures.pochetteRepos) / 2, 60 + dy)
+        let e = LectureMesures.echelle
+        let xP = L(12, 30 * e), yP = L((g.hauteur - LectureMesures.pochetteRepos) / 2, (60 + dy) * e)
         let rayonP = genreMusique ? tailleP / 2 : L(9, 30)
         let oc = lisse((p - 0.5) / 0.35) * (1 - lisse(absence * 2.4))
         let present = 1 - lisse(absence)
@@ -384,8 +389,8 @@ struct IlotVue: View, Animatable {
                 // contenu déplié
                 if oc > 0.001 {
                     contenu(g: g, dy: dy)
-                        .frame(width: LectureMesures.ouvertLargeur, height: LectureMesures.hauteurOuvert(g), alignment: .topLeading)
-                        .scaleEffect(0.94 + 0.06 * oc, anchor: .top)
+                        .frame(width: LectureMesures.ouvertLargeurBase, height: LectureMesures.ouvertHauteurBase + dy, alignment: .topLeading)
+                        .scaleEffect((0.94 + 0.06 * oc) * LectureMesures.echelle, anchor: .topLeading)
                         .blur(radius: (1 - oc) * 9)
                         .opacity(Double(oc))
                         .allowsHitTesting(oc > 0.6)

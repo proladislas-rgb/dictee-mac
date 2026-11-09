@@ -102,7 +102,9 @@ final class LecturePanneau {
         delaiFermeture?.cancel()
         guard modele.absence < 1 else { return }
         if dedans {
-            if !estDeplie || !fenetreOuverte { deplier() }
+            // Hugues : « un peu trop sensible quand je passe dessus, faudrait que je puisse cliquer » : le survol ne déplie plus,
+            // il annule seulement une fermeture en attente. On déplie au clic.
+            return
         } else {
             guard !modele.epingle, modele.fractionGlissee == nil else { return }
             let item = DispatchWorkItem { [weak self] in
@@ -125,9 +127,10 @@ final class LecturePanneau {
     /// Clic sur l'îlot (hors boutons et barre) : le déplie et le garde (ou le relâche).
     private func clic() {
         guard modele.absence < 1 else { return }
-        if !estDeplie { modele.epingle = true; deplier(); return }
-        modele.epingle.toggle()
-        if !modele.epingle { replier() }
+        // Clic : déplie ; nouveau clic : replie. Déplié par clic, l'îlot se referme aussi quand la souris le quitte.
+        if !estDeplie { modele.epingle = false; deplier(); return }
+        modele.epingle = false
+        replier()
     }
 
     private func deplier() {
