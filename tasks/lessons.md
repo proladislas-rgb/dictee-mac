@@ -62,3 +62,4 @@ Format : [date] | ce qui a mal tourné | règle pour l'éviter
 
 [2026-11-10] | Un garde-fou de fidélité à 70 % de mots communs refusait « Ok, ok, Tuget. » → « Ok, t'inquiète. » (50 %) : sur un texte de 3 mots, un seul mot corrigé suffit à faire échouer le seuil | Un seuil en pourcentage ne vaut rien sur les textes très courts : le calculer en nombre de mots changés autorisés (ici les mots suspects désignés par la relecture, au plus 3)
 
+2026-11-10 | perl -0pi avec un caractère Unicode échappé ( {2019}) a double-encodé tout docs/spec-v1.md (é → Ã©) | modifier les fichiers français avec l'outil Edit, jamais perl/sed sans -CSD ; vérifier git diff --stat après toute retouche en ligne de commande

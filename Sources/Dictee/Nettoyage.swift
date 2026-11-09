@@ -93,6 +93,9 @@ enum Nettoyage {
         case .refuse(let pourquoi):
             var r = rendre(brut, false, "sortie refusée : \(pourquoi)"); r.sortieRefusee = reponse; return r
         case .accepte(let texte):
+            if let entree = entreeRelecture, let perdu = Relecture.suspectEfface(entree: brut, sortie: texte, suspects: entree.declenchement.suspects) {
+                var r = rendre(brut, false, "sortie refusée : mot « \(Log.apercu(perdu)) » effacé au lieu d'être corrigé"); r.sortieRefusee = reponse; return r
+            }
             let collés = MotsColles.reparer(entree: brut, sortie: reponse).repares
             if !collés.isEmpty { Log.ecrire("remise au propre : mots collés par l\u{2019}IA remis en mots séparés : \(collés.map { Log.apercu($0) }.joined(separator: ", "))") }
             var r = rendre(RemiseAuPropre.retoucher(RemiseAuPropre.corrigerMots(texte, dictionnaire: mots), entree: brut, contexte: contexte, finDeTexte: finDeTexte), true, "ok")

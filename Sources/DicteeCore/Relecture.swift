@@ -158,6 +158,17 @@ public enum Relecture {
         return ((0..<x.count).filter { !gx.contains($0) }.map { x[$0] }, (0..<y.count).filter { !gy.contains($0) }.map { y[$0] })
     }
 
+    /// Un mot suspect a-t-il disparu sans être remplacé ? Rend ce mot, sinon `nil`.
+    /// Corriger un mot mal entendu, oui ; l'effacer, jamais : un mot perdu est pire qu'un mot faux (« ok Tuget on se voit » ne doit pas devenir « on se voit »).
+    /// Un remplacement se voit à un mot nouveau en sortie (« Tuget » → « t'inquiète ») ; deux mots suspects peuvent fusionner en un.
+    public static func suspectEfface(entree: String, sortie: String, suspects: [String]) -> String? {
+        let (retires, ajoutes) = ecarts(entree, sortie)
+        let suspectsPlies = Set(suspects.flatMap { tokens($0) })
+        let perdus = retires.filter { suspectsPlies.contains($0) }
+        guard let premier = perdus.first else { return nil }
+        return ajoutes.count * 2 < perdus.count ? premier : nil
+    }
+
     /// Garde-fou de la relecture seule : la sortie ne doit différer de l'entrée que par les mots suspects (au plus 3, et au plus un tiers du texte).
     /// Rend le texte accepté, ou la raison du refus.
     public static func verifier(entree: String, sortie: String, suspects: [String]) -> RemiseAuPropre.Verdict {
@@ -180,6 +191,7 @@ public enum Relecture {
         let nouveauxB = (0..<b.count).filter { !gardesB.contains($0) }
         if changesA.count > min(3, max(1, (a.count + 2) / 3)) { return .refuse("trop de mots changés (\(changesA.count) sur \(a.count))") }
         if nouveauxB.count > changesA.count * 2 + 1 { return .refuse("trop de mots ajoutés") }
+        if !changesA.isEmpty && nouveauxB.count * 2 < changesA.count { return .refuse("mot effacé au lieu d'être corrigé") }
         let permis = Set(suspects.flatMap { tokens($0) })
         for i in changesA where !permis.contains(a[i]) && !permis.contains(ClePhonetique.plier(a[i])) {
             return .refuse("mot changé qui n'était pas suspect : « \(a[i]) »")
