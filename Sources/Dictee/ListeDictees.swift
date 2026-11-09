@@ -19,9 +19,11 @@ struct MetriquesListe {
 /// L'état partagé de la liste des dictées : recherche, ligne choisie, ligne dépliée. Les actions sont branchées dehors.
 @MainActor
 final class ModeleDictees: ObservableObject {
-    @Published var requete = "" { didSet { if requete != oldValue { selection = affichees.first?.id; developpee = nil } } }
-    @Published var selection: UUID?
+    @Published var requete = "" { didSet { if requete != oldValue { selection = affichees.first?.id; developpee = nil; suppressionEnAttente = nil } } }
+    @Published var selection: UUID? { didSet { if selection != oldValue { suppressionEnAttente = nil } } }
     @Published var developpee: UUID?
+    /// Dictée dont la suppression attend la confirmation (« Supprimer cette dictée ? »).
+    @Published var suppressionEnAttente: UUID?
     /// Ligne dont l'action « copier » vient d'être faite (retour visuel d'une seconde).
     @Published var copiee: UUID?
     @Published var jetonFocus = 0
@@ -31,6 +33,8 @@ final class ModeleDictees: ObservableObject {
     var surCopier: (EntreeHistorique) -> Void = { _ in }
     var surEchap: () -> Void = {}
     var surOuvrirFenetre: () -> Void = {}
+    /// L'app où « recoller » écrira (la dernière utilisée avant Verbe) ; `nil` = inconnue.
+    var nomDestination: () -> String? = { nil }
 
     init(store: HistoriqueStore? = nil) { self.store = store ?? HistoriqueStore.shared }
 
@@ -65,6 +69,20 @@ final class ModeleDictees: ObservableObject {
         guard let e = e ?? entreeChoisie else { return }
         developpee = developpee == e.id ? nil : e.id
         selection = e.id
+        suppressionEnAttente = nil
+    }
+
+    func demanderSuppression(_ e: EntreeHistorique) { suppressionEnAttente = e.id }
+    func annulerSuppression() { suppressionEnAttente = nil }
+
+    /// Supprime la dictée et choisit sa voisine (la suivante, sinon la précédente).
+    func confirmerSuppression(_ e: EntreeHistorique) {
+        let liste = affichees
+        let voisine = liste.firstIndex { $0.id == e.id }.flatMap { i in liste.indices.contains(i + 1) ? liste[i + 1].id : (i > 0 ? liste[i - 1].id : nil) }
+        store.supprimer(id: e.id)
+        suppressionEnAttente = nil
+        if developpee == e.id { developpee = nil }
+        selection = voisine
     }
 
     /// Les commandes du champ : ↑ ↓ choisir, Entrée recoller, Échap (efface la recherche puis ferme), ⌘C copier…

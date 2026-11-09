@@ -22,6 +22,8 @@ public struct EntreeHistorique: Codable, Equatable, Identifiable, Sendable {
 public struct GroupeHistorique: Equatable, Sendable {
     public var titre: String
     public var entrees: [EntreeHistorique]
+    /// Le jour du groupe (celui de sa première dictée).
+    public var jour: Date? { entrees.first?.date }
 }
 
 /// L'historique des dictées : les plus récentes d'abord, borné, filtrable, groupé par jour. Logique pure.
@@ -37,6 +39,16 @@ public struct Historique: Codable, Equatable, Sendable {
     public mutating func ajouter(_ entree: EntreeHistorique, limite: Int = Historique.limiteParDefaut) {
         entrees.insert(entree, at: 0)
         if entrees.count > max(1, limite) { entrees.removeLast(entrees.count - max(1, limite)) }
+    }
+
+    /// Nombre de mots d'un texte (séparés par des espaces ; « l'arrivée » ou « c'est » comptent pour un).
+    public static func compterMots(_ texte: String) -> Int {
+        texte.split(whereSeparator: { $0.isWhitespace }).count
+    }
+
+    /// Mots dictés le jour de `jour` (le texte final, tel qu'il a été écrit).
+    public func motsLe(_ jour: Date = Date(), calendrier: Calendar = .current) -> Int {
+        entrees.filter { calendrier.isDate($0.date, inSameDayAs: jour) }.reduce(0) { $0 + Self.compterMots($1.texte) }
     }
 
     public mutating func supprimer(id: UUID) { entrees.removeAll { $0.id == id } }

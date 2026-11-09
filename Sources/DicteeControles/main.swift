@@ -50,6 +50,15 @@ do {
     verifier(g[2].titre.lowercased().contains("novembre") && !g[2].titre.contains("2026"), "jour plus ancien : date sans année")
     verifier(g[3].titre.contains("2025"), "autre année : avec l'année")
 }
+do {
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/Paris")!
+    let jour = cal.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 15))!
+    func e(_ j: Int, _ texte: String) -> EntreeHistorique { EntreeHistorique(date: cal.date(from: DateComponents(year: 2026, month: 11, day: j, hour: 10))!, texte: texte) }
+    let h = Historique(entrees: [e(9, "On se voit mercredi pour parler du devis."), e(9, "J\u{2019}arrive dans dix minutes."), e(8, "Hier, trois mots")])
+    verifier(Historique.compterMots("  Bonjour   Madame\nMartin ") == 3 && Historique.compterMots("") == 0, "compter les mots : espaces multiples, retours à la ligne, texte vide")
+    verifier(h.motsLe(jour, calendrier: cal) == 8 + 4, "mots du jour : seulement les dictées d'aujourd'hui")
+    verifier(Historique.groupes(h.entrees, maintenant: jour, calendrier: cal).first?.jour == h.entrees.first?.date, "groupe : son jour = celui de sa première dictée")
+}
 verifier(Selection.deplacer(0, de: 1, sur: 3) == 1 && Selection.deplacer(2, de: 1, sur: 3) == 0 && Selection.deplacer(0, de: -1, sur: 3) == 2, "sélection ↑↓ avec retour aux extrémités")
 verifier(Selection.deplacer(5, de: 0, sur: 0) == 0 && Selection.deplacer(9, de: 1, sur: 3) == 0, "sélection : liste vide / indice hors limites")
 

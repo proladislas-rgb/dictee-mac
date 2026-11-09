@@ -242,6 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let cible = self.derniereAppExterne
             Task { await self.dictee.recoller(entree.texte, dans: cible) }
         }
+        m.nomDestination = { [weak self] in self?.derniereAppExterne?.localizedName }
         m.surCopier = { e in
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(e.texte, forType: .string)

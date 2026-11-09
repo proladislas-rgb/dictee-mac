@@ -32,17 +32,17 @@ enum RenduVues {
         func a(_ jours: Int, _ h: Int, _ m: Int) -> Date {
             cal.date(bySettingHour: h, minute: m, second: 0, of: cal.date(byAdding: .day, value: -jours, to: Date())!)!
         }
-        let lignes: [(Int, Int, Int, String, String, Bool)] = [
-            (1, 16, 24, "Notes", "Le rendez-vous est confirmé pour dix heures.", true),
-            (1, 18, 2, "Mail", "Peux-tu m\u{2019}envoyer le récapitulatif avant jeudi ?", true),
-            (0, 10, 8, "Notes", "Penser à envoyer la proposition avant jeudi.", true),
-            (0, 11, 30, "Claude", "Reprends le tableau des factures, ajoute une colonne pour la date de relance et trie par montant.", true),
-            (0, 13, 55, "WhatsApp", "J\u{2019}arrive dans dix minutes, commande-moi un café.", true),
-            (0, 14, 12, "Mail", "Bonjour Madame Martin, suite à notre échange de ce matin, je vous transmets la proposition avec les deux options dont on a parlé.", true),
-            (0, 14, 41, "Notes", "On se voit mercredi pour parler du devis.", false),
+        let lignes: [(Int, Int, Int, String, String, String, Bool)] = [
+            (1, 16, 24, "Notes", "com.apple.Notes", "Le rendez-vous est confirmé pour dix heures.", false),
+            (1, 18, 2, "Mail", "com.apple.mail", "Peux-tu m\u{2019}envoyer le récapitulatif avant jeudi ?", true),
+            (0, 10, 8, "Notes", "com.apple.Notes", "Penser à envoyer la proposition avant jeudi.", true),
+            (0, 11, 30, "Claude", "com.anthropic.claudefordesktop", "Reprends le tableau des factures, ajoute une colonne pour la date de relance et trie par montant.", true),
+            (0, 13, 55, "WhatsApp", "net.whatsapp.WhatsApp", "J\u{2019}arrive dans dix minutes, commande-moi un café.", true),
+            (0, 14, 12, "Mail", "com.apple.mail", "Bonjour Madame Martin, suite à notre échange de ce matin, je vous transmets la proposition avec les deux options chiffrées. Je reste disponible demain pour en discuter et ajuster le calendrier si besoin.", true),
+            (0, 14, 41, "Messages", "com.apple.MobileSMS", "On se voit mercredi pour parler du devis.", true),
         ]
-        for (j, h, m, app, texte, insere) in lignes {
-            store.ajouter(EntreeHistorique(date: a(j, h, m), appId: nil, appNom: app, texte: texte, insere: insere, raison: insere ? nil : "champ protégé"))
+        for (j, h, m, app, id, texte, insere) in lignes {
+            store.ajouter(EntreeHistorique(date: a(j, h, m), appId: id, appNom: app, texte: texte, insere: insere, raison: insere ? nil : "champ protégé"))
         }
         return store
     }
@@ -141,37 +141,50 @@ enum RenduFenetre {
         let url = URL(fileURLWithPath: (dossier as NSString).expandingTildeInPath, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         var ok = true
-        let taille = CGSize(width: 1040, height: 720)
+        // 1180 × 760 = fenêtre de 1100 × 680 (comme la maquette) sur un fond de bureau
+        let taille = CGSize(width: 1180, height: 760)
 
-        func fenetre(_ nom: String, onglet: Onglet, store: HistoriqueStore, mots: MotsModele, reglages: ReglagesModele? = nil, requete: String = "") {
+        func fenetre(_ nom: String, onglet: Onglet, store: HistoriqueStore, mots: MotsModele, reglages: ReglagesModele? = nil, requete: String = "",
+                     deplier: Bool = false, taille: CGSize = taille, suppression: Bool = false) {
             let nav = NavigationFenetre(); nav.onglet = onglet
             let d = ModeleDictees(store: store)
             d.requete = requete
             d.selection = d.affichees.first?.id
+            d.nomDestination = { "Mail" }
+            if deplier, let e = d.affichees.first(where: { $0.texte.hasPrefix("Bonjour") }) {
+                d.developpee = e.id; d.selection = e.id
+                if suppression { d.suppressionEnAttente = e.id }
+            }
             let vue = Cadre(taille: taille) {
                 FenetreVue(nav: nav, dictees: d, store: store, mots: mots, reglages: reglages ?? ReglagesModele(reel: false), curseurFactice: true)
             }
             ok = RenduVues.ecrire(RenduVues.png(vue, taille: taille), url.appendingPathComponent("\(nom).png")) && ok
         }
         let exemple = RenduVues.historiqueExemple()
-        func motsExemple(avecMessage: Bool = false) -> MotsModele {
-            var p = PropositionsMots(); _ = p.proposer("Premium CI", motsConnus: [])
-            let m = MotsModele(persistant: false, mots: ["Ladislas", "Sillonia", "Ecodistrib", "Abidjan"],
-                               raccourcis: [RaccourciVocal(expression: "ma signature", texte: "Hugues-Henri Delpit"),
-                                            RaccourciVocal(expression: "mon mail", texte: "bonjour@exemple.fr"),
+        func motsExemple(avecMessage: Bool = false, propositions: Bool = true) -> MotsModele {
+            var p = PropositionsMots(); if propositions { _ = p.proposer("Brume", motsConnus: []) }
+            let m = MotsModele(persistant: false, mots: ["Anaïs Morel", "Brume & Fils", "Villeurbanne", "Marchetti"],
+                               raccourcis: [RaccourciVocal(expression: "ma signature", texte: "Camille Roussel"),
+                                            RaccourciVocal(expression: "mon mail", texte: "camille@exemple.fr"),
                                             RaccourciVocal(expression: "mes dispos", texte: "Mardi ou jeudi après-midi")], propositions: p)
-            if avecMessage { m.ajouterMot("sillonia") }
+            if avecMessage { m.ajouterMot("villeurbanne") }
             return m
         }
-        fenetre("fenetre-1-dictees", onglet: .dictees, store: exemple, mots: motsExemple())
+        let petite = CGSize(width: 700, height: 600)
+        fenetre("fenetre-1-dictees", onglet: .dictees, store: exemple, mots: motsExemple(), deplier: true)
         fenetre("fenetre-2-mots", onglet: .mots, store: exemple, mots: motsExemple())
         fenetre("fenetre-3-reglages", onglet: .reglages, store: exemple, mots: motsExemple())
-        fenetre("fenetre-4-mot-deja-enregistre", onglet: .mots, store: exemple, mots: motsExemple(avecMessage: true))
+        fenetre("fenetre-4-mot-deja-enregistre", onglet: .mots, store: exemple, mots: motsExemple(avecMessage: true, propositions: false))
         fenetre("fenetre-5-historique-vide", onglet: .dictees, store: RenduVues.historiqueExemple(vide: true), mots: motsExemple())
         fenetre("fenetre-6-aucun-resultat", onglet: .dictees, store: exemple, mots: motsExemple(), requete: "zzz")
-        let secoursIndispo = ReglagesModele(reel: false)
-        fenetre("fenetre-7-reglages-confirmation", onglet: .reglages, store: exemple, mots: motsExemple(), reglages: { secoursIndispo.confirmerEffacement = true; return secoursIndispo }())
+        let confirmation = ReglagesModele(reel: false); confirmation.confirmerEffacement = true
+        fenetre("fenetre-7-reglages-confirmation", onglet: .reglages, store: exemple, mots: motsExemple(), reglages: confirmation)
         fenetre("fenetre-8-reglages-globe", onglet: .reglages, store: exemple, mots: motsExemple(), reglages: ReglagesModele(reel: false, globe: 2))
+        fenetre("fenetre-9-dictees-liste", onglet: .dictees, store: exemple, mots: motsExemple())
+        fenetre("fenetre-10-suppression", onglet: .dictees, store: exemple, mots: motsExemple(), deplier: true, suppression: true)
+        fenetre("fenetre-11-petite-dictees", onglet: .dictees, store: exemple, mots: motsExemple(), deplier: true, taille: petite)
+        fenetre("fenetre-12-petite-mots", onglet: .mots, store: exemple, mots: motsExemple(), taille: petite)
+        fenetre("fenetre-13-petite-reglages", onglet: .reglages, store: exemple, mots: motsExemple(), taille: petite)
         return ok ? 0 : 1
     }
 }

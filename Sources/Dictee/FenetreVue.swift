@@ -23,14 +23,14 @@ struct FenetreVue: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Barre du haut, comme dans les apps du Mac : la place des boutons de fenêtre, puis les onglets, puis l'aide clavier.
-            HStack(spacing: 20) {
-                Color.clear.frame(width: 60)
-                ForEach(Onglet.allCases) { o in
-                    LienNavigation(titre: o.rawValue, courant: o == nav.onglet, taille: 14, hauteur: 52) { nav.onglet = o }
-                }
+            // Barre du haut, comme dans les apps du Mac : la place des boutons de fenêtre, puis les onglets, « Réglages » à droite.
+            HStack(spacing: 4) {
+                Color.clear.frame(width: 84, height: 1)
+                OngletBarre(titre: Onglet.dictees.rawValue, actif: nav.onglet == .dictees) { nav.onglet = .dictees }
+                OngletBarre(titre: Onglet.mots.rawValue, actif: nav.onglet == .mots, pastille: mots.propositions.enAttente.count) { nav.onglet = .mots }
+                OngletBientot(titre: "Réunions")
                 Spacer(minLength: 8)
-                if nav.onglet == .dictees { AideTouches(taille: 12) }
+                OngletBarre(titre: Onglet.reglages.rawValue, actif: nav.onglet == .reglages) { nav.onglet = .reglages }
             }
             .padding(.horizontal, 20)
             .frame(height: 52)
@@ -39,20 +39,76 @@ struct FenetreVue: View {
             Group {
                 switch nav.onglet {
                 case .dictees:
-                    DicteesVue(m: dictees, store: store, metriques: .fenetre, invite: "Rechercher dans les dictées", curseurFactice: curseurFactice)
+                    DicteesFenetreVue(m: dictees, store: store, reglages: reglages, curseurFactice: curseurFactice)
                 case .mots:
-                    MotsVue(m: mots, curseurFactice: curseurFactice)
+                    MotsVue(m: mots, curseurFactice: curseurFactice).padding(.horizontal, DicteesFenetreVue.margeH)
                 case .reglages:
                     ReglagesVue(r: reglages, store: store, surRevoirPriseEnMain: surRevoirPriseEnMain, surAutorisations: surAutorisations, surCle: surCle, surDesinstaller: surDesinstaller)
+                        .padding(.horizontal, DicteesFenetreVue.margeH)
                 }
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         // La barre des onglets occupe la zone de titre (même ligne que les boutons rouge/jaune/vert) au lieu de se placer dessous.
         .ignoresSafeArea(.container, edges: .top)
         .background(Palette.surface)
+        // Le micro réellement utilisé peut changer (casque branché) : relu de temps en temps tant que la fenêtre est ouverte.
+        .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in reglages.rafraichirMicroUtilise() }
+    }
+}
+
+/// Un onglet de la barre du haut : texte seul, pastille discrète quand il est actif, pastille de nombre éventuelle.
+struct OngletBarre: View {
+    var titre: String
+    var actif: Bool
+    var pastille = 0
+    var action: () -> Void
+    @State private var survol = false
+    @FocusState private var focus: Bool
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(titre).font(Polices.commande(14, .medium))
+                if pastille > 0 {
+                    Text("\(pastille)").font(Polices.commande(12, .medium)).foregroundStyle(Palette.texte)
+                        .frame(minWidth: 20, minHeight: 20)
+                        .background(Capsule().fill(actif ? Palette.surface : Palette.relief))
+                }
+            }
+            .foregroundStyle(actif ? Palette.texte : (survol ? Palette.texte : Palette.texte2))
+            .padding(.horizontal, 12)
+            .frame(height: 32)
+            .background(RoundedRectangle(cornerRadius: 8).fill(actif ? Palette.relief : (survol ? Palette.selection : .clear)))
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .fixedSize()
+        }
+        .buttonStyle(.plain)
+        .focusable()
+        .focused($focus)
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Palette.texte3, lineWidth: 1.5).padding(-2).opacity(focus ? 1 : 0))
+        .onHover { survol = $0 }
+        .accessibilityLabel(pastille > 0 ? "\(titre), \(pastille) en attente" : titre)
+        .accessibilityAddTraits(actif ? .isSelected : [])
+    }
+}
+
+/// « Réunions · bientôt » : grisé, non cliquable pour l'instant.
+struct OngletBientot: View {
+    var titre: String
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(titre).font(Polices.commande(14))
+            Text("bientôt").font(Polices.commande(12))
+                .padding(.horizontal, 8).frame(height: 20)
+                .overlay(Capsule().strokeBorder(Palette.contour, lineWidth: 1))
+        }
+        .foregroundStyle(Palette.texte3)
+        .padding(.horizontal, 12)
+        .frame(height: 32)
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(titre), bientôt disponible")
+        .accessibilityAddTraits(.isStaticText)
     }
 }
 

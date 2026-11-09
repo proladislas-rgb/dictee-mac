@@ -13,9 +13,29 @@ enum CommandeChamp: Equatable {
 final class ChampNS: NSTextField {
     var surRaccourci: ((NSEvent) -> Bool)?
     var prendreLeFocusAuMontage = true
+    /// Barre d'espace pressée dans un champ vide (déplier la dictée choisie) ; `true` = traitée, rien n'est tapé.
+    var surEspace: (() -> Bool)?
+    private var moniteurEspace: Any?
+
+    private func retirerMoniteur() {
+        if let moniteurEspace { NSEvent.removeMonitor(moniteurEspace) }
+        moniteurEspace = nil
+    }
+
+    deinit { if let moniteurEspace { NSEvent.removeMonitor(moniteurEspace) } }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        retirerMoniteur()
+        if window != nil, surEspace != nil {
+            moniteurEspace = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self, event.keyCode == 49,
+                      event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
+                      let editeur = self.currentEditor() as? NSText, self.window?.firstResponder === editeur,
+                      editeur.string.isEmpty, self.surEspace?() == true else { return event }
+                return nil
+            }
+        }
         guard window != nil, prendreLeFocusAuMontage else { return }
         DispatchQueue.main.async { [weak self] in
             guard let self, let fenetre = self.window, fenetre.isKeyWindow || fenetre is NSPanel else { return }
@@ -47,6 +67,8 @@ struct ChampRecherche: NSViewRepresentable {
     /// Change de valeur pour redonner le focus au champ (ouverture du panneau, ⌘K).
     var jetonFocus: Int = 0
     var surCommande: (CommandeChamp) -> Bool
+    /// La barre d'espace, dans un champ vide, déplie la ligne choisie (fenêtre des dictées).
+    var espaceDeplie = false
 
     func makeCoordinator() -> Coordinateur { Coordinateur(self) }
 
@@ -63,6 +85,7 @@ struct ChampRecherche: NSViewRepresentable {
         champ.cell?.isScrollable = true
         champ.delegate = context.coordinator
         champ.surRaccourci = { [weak coord = context.coordinator] event in coord?.raccourci(event) ?? false }
+        if espaceDeplie { champ.surEspace = { [weak coord = context.coordinator] in coord?.parent.surCommande(.voirTout) ?? false } }
         context.coordinator.champ = champ
         context.coordinator.dernierJeton = jetonFocus
         return champ

@@ -19,7 +19,7 @@ final class ReglagesModele: ObservableObject {
     @Published var vibration: Bool { didSet { if !installe { return }; Settings.vibration = vibration } }
     @Published var secoursApple: Bool { didSet { if !installe { return }; Settings.secoursApple = secoursApple } }
     @Published var langue: String { didSet { if !installe { return }; Settings.choisirLangue(langue == ChoixLangue.automatique ? nil : langue) } }
-    @Published var micro: String { didSet { if !installe { return }; Settings.micro = micro.isEmpty ? nil : micro } }
+    @Published var micro: String { didSet { if !installe { return }; Settings.micro = micro.isEmpty ? nil : micro; rafraichirMicroUtilise() } }
     @Published var ouvrirAuDemarrage: Bool
     @Published private(set) var micros: [MicroChoix]
     /// Phrase sobre quand le système refuse (ex. ouverture au démarrage).
@@ -28,6 +28,10 @@ final class ReglagesModele: ObservableObject {
     @Published private(set) var disponibiliteSecours: PrechauffageParole.Disponibilite = .enPreparation
     @Published private(set) var cle: CleGroq.Etat = .absente
     @Published private(set) var autorisationsCompletes = true
+    /// Combien des 3 autorisations (micro, accessibilité, saisie au clavier) sont accordées.
+    @Published private(set) var autorisationsAccordees = 3
+    /// Le micro que la prochaine dictée utilisera réellement (la décision d'« Automatique » comprise).
+    @Published private(set) var microUtilise = "Micro du MacBook"
     /// Réglage « Appuyer sur 🌐 pour » (voir `ToucheGlobe`) ; `nil` = clé absente.
     @Published private(set) var globeValeur: Int?
     private var installe = false
@@ -45,7 +49,7 @@ final class ReglagesModele: ObservableObject {
         sons = reel ? Settings.sons : true
         vibration = reel ? Settings.vibration : true
         langue = reel ? Settings.langueReglage : ChoixLangue.defaut
-        micro = reel ? (Settings.micro ?? "") : ""
+        micro = reel ? (Settings.micro ?? "") : "exemple"
         ouvrirAuDemarrage = reel ? SMAppService.mainApp.status == .enabled : false
         micros = [MicroChoix(id: ChoixMicro.automatique, nom: "Automatique"), MicroChoix(id: ChoixMicro.systeme, nom: "Micro du système")]
         installe = true
@@ -61,8 +65,22 @@ final class ReglagesModele: ObservableObject {
         disponibiliteSecours = PrechauffageParole.disponibilite
         cle = CleGroq.etat
         autorisationsCompletes = Permissions.toutesOK
+        autorisationsAccordees = [Permissions.microOK, Permissions.accessibiliteOK, Permissions.surveillanceOK].filter { $0 }.count
+        rafraichirMicroUtilise()
         ouvrirAuDemarrage = SMAppService.mainApp.status == .enabled
         rafraichirGlobe()
+    }
+
+    /// Relit le micro réellement utilisé : même décision que celle de la capture (`ChoixMicro`), sans toucher au micro.
+    func rafraichirMicroUtilise() {
+        guard reel else { return }
+        let decision = ChoixMicro.decider(reglage: micro.isEmpty ? nil : micro, peripheriques: AudioCapture.peripheriquesEntree(), defautUID: AudioCapture.peripheriqueParDefaut()?.uid)
+        let nom: String
+        switch decision {
+        case .impose(let p, _): nom = p.nom
+        case .systeme: nom = AudioCapture.peripheriqueParDefaut()?.nom ?? "Aucun micro"
+        }
+        if nom != microUtilise { microUtilise = nom }
     }
 
     /// Relit seulement la touche 🌐 (appelé chaque seconde pendant que les Réglages sont à l'écran).
@@ -89,13 +107,18 @@ final class ReglagesModele: ObservableObject {
         ouvrirAuDemarrage = SMAppService.mainApp.status == .enabled
     }
 
-    /// Phrase sous « Secours » : n'affirme « La dictée d'Apple est active » qu'une fois le secours réellement prêt.
-    var phraseSecours: String? {
+    /// Phrase sous « Secours » : n'affirme que le secours prend le relais qu'une fois la dictée d'Apple réellement prête.
+    var phraseSecours: String {
         guard secoursApple else { return "Sans secours, une dictée échoue si Groq ne répond pas." }
         switch disponibiliteSecours {
-        case .pret: return "La dictée d\u{2019}Apple est active"
-        case .enPreparation: return "La dictée d\u{2019}Apple est en préparation"
-        case .indisponible: return "La dictée d\u{2019}Apple est indisponible sur ce Mac"
+        case .pret: return "Si Groq ne répond pas, la dictée d\u{2019}Apple prend le relais."
+        case .enPreparation: return "La dictée d\u{2019}Apple est en préparation."
+        case .indisponible: return "La dictée d\u{2019}Apple est indisponible sur ce Mac."
         }
+    }
+
+    /// Le nom de la langue réglée, pour la ligne d'état.
+    var nomLangue: String {
+        switch langue { case "fr": return "Français"; case "en": return "Anglais"; default: return "Automatique" }
     }
 }

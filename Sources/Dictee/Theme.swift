@@ -12,7 +12,13 @@ enum Palette {
     static let texte3 = Color(hex: 0x88857E)
     static let accent = Color(hex: 0xE6A04A)
     static let filet = Color(red: 236/255, green: 233/255, blue: 227/255).opacity(0.09)
-    static let interrupteurEteint = Color(hex: 0x2F2F2D)
+    static let interrupteurEteint = Color(hex: 0x3A3A38)
+    /// Pastilles, touches (kbd) et onglet actif : un cran au-dessus de la sélection.
+    static let relief = Color(hex: 0x2F2F2D)
+    /// Contour des champs et boutons encadrés.
+    static let contour = Color(red: 236/255, green: 233/255, blue: 227/255).opacity(0.16)
+    /// Texte sur un bouton plein clair.
+    static let surBouton = Color(hex: 0x0B0B0B)
     static let nsAccent = NSColor(srgbRed: 230/255, green: 160/255, blue: 74/255, alpha: 1)
     static let nsSelectionCG = CGColor(srgbRed: 38/255, green: 38/255, blue: 36/255, alpha: 1)
     static let nsTexte = NSColor(srgbRed: 236/255, green: 233/255, blue: 227/255, alpha: 1)
