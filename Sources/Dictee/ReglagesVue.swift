@@ -146,6 +146,11 @@ struct ReglagesVue: View {
                         .opacity(store.historique.estVide ? 0.4 : 1).disabled(store.historique.estVide)
                 }
             }
+            LigneReglage(libelle: "Garder le son des \(TestPrecision.nombreDeDictees) prochaines dictées pour un test de précision",
+                         note: r.testPrecision ? "\(r.testPrecisionRestant) dictée\(r.testPrecisionRestant > 1 ? "s" : "") encore gardée\(r.testPrecisionRestant > 1 ? "s" : ""), sur ce Mac seulement. Ça s\u{2019}arrête tout seul."
+                                               : "Le son reste sur ce Mac (dossier test-precision), pour comparer les modèles plus tard. Désactivé par défaut.") {
+                Interrupteur(actif: $r.testPrecision, etiquette: "Test de précision")
+            }
             HStack(spacing: 24) {
                 LienDiscret(titre: "Revoir la prise en main", action: surRevoirPriseEnMain)
                 LienDiscret(titre: "Désinstaller Verbe", action: surDesinstaller)

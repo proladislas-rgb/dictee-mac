@@ -39,6 +39,9 @@ final class RecordingPipeline: @unchecked Sendable {
 
     var dureeEnregistree: Double { lock.lock(); defer { lock.unlock() }; return Double(echantillons.count) / 16_000 }
 
+    /// Tout le son de la dictée (16 kHz mono), pour le test de précision sur la vraie voix (réglage désactivé par défaut).
+    func echantillonsComplets() -> [Int16] { lock.lock(); defer { lock.unlock() }; return echantillons }
+
     /// Temps de parole de la dictée : la durée des morceaux qui contiennent de la parole (les silences d'au moins 0,5 s, coupés, n'y sont pas).
     /// Sert au « temps gagné » du résumé de la journée.
     private var dureeMorceaux = 0.0

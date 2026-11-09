@@ -16,6 +16,12 @@ if let i = arguments.firstIndex(of: "--transcrire") {
     exit(Transcrire.executer(chemin: arguments[i + 1], arguments: arguments))
 }
 
+// Dictee --comparer-precision  (repasse les sons du test de précision en turbo / large-v3 / + relecture ; réseau seulement)
+if arguments.contains("--comparer-precision") {
+    Task { @MainActor in exit(await ComparerPrecision.executer(arguments: arguments)) }
+    RunLoop.main.run()
+}
+
 // Dictee --declencheurs [--exemples]  (combien de dictées de l'historique auraient déclenché la relecture de sens ; ni réseau ni micro)
 if arguments.contains("--declencheurs") {
     exit(MainActor.assumeIsolated { MesurerRelecture.executer(arguments: arguments) })

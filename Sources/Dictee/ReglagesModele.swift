@@ -25,6 +25,13 @@ final class ReglagesModele: ObservableObject {
     @Published var modeleWhisper: ModeleWhisper { didSet { if !installe { return }; Settings.modeleWhisper = modeleWhisper } }
     /// La phrase sous « Vitesse de transcription » (avec les latences mesurées chez Hugues).
     @Published private(set) var phraseVitesse = ""
+    /// Test de précision sur la vraie voix : actif tant qu'il reste des dictées à garder (50 au départ, s'arrête seul).
+    @Published var testPrecision: Bool {
+        didSet { if !installe || testPrecision == (Settings.testPrecisionRestant > 0) { return }
+                 Settings.testPrecisionRestant = testPrecision ? TestPrecision.nombreDeDictees : 0
+                 testPrecisionRestant = Settings.testPrecisionRestant }
+    }
+    @Published private(set) var testPrecisionRestant = 0
     @Published var langue: String { didSet { if !installe { return }; Settings.choisirLangue(langue == ChoixLangue.automatique ? nil : langue) } }
     @Published var micro: String { didSet { if !installe { return }; Settings.micro = micro.isEmpty ? nil : micro; rafraichirMicroUtilise() } }
     @Published var ouvrirAuDemarrage: Bool
@@ -63,6 +70,7 @@ final class ReglagesModele: ObservableObject {
         afficherLaLecture = reel ? Settings.afficherLaLecture : true
         pauseLecturePendantDictee = reel ? Settings.pauseLecturePendantDictee : true
         modeleWhisper = reel ? Settings.modeleWhisper : ModeleWhisper.parDefaut
+        testPrecision = reel ? Settings.testPrecisionRestant > 0 : false
         langue = reel ? Settings.langueReglage : ChoixLangue.defaut
         micro = reel ? (Settings.micro ?? "") : "exemple"
         ouvrirAuDemarrage = reel ? SMAppService.mainApp.status == .enabled : false
@@ -105,7 +113,9 @@ final class ReglagesModele: ObservableObject {
         guard reel else { return }
         let v = ToucheGlobe.lire()
         if v != globeValeur { globeValeur = v }
-
+        let restant = Settings.testPrecisionRestant
+        if restant != testPrecisionRestant { testPrecisionRestant = restant }
+        if testPrecision != (restant > 0) { testPrecision = restant > 0 }
     }
 
     func ouvrirVoletClavier() {

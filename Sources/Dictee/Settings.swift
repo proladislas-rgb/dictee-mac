@@ -33,6 +33,13 @@ enum Settings {
         set { defaults.set(newValue.rawValue, forKey: "modeleWhisper") }
     }
 
+    /// Test de précision sur la vraie voix : nombre de dictées dont le son sera encore gardé (0 = désactivé, défaut). Activer le réglage met 50.
+    /// Les sons sont gardés localement dans `test-precision/` (0600), jamais envoyés ailleurs que chez Groq comme n'importe quelle dictée.
+    static var testPrecisionRestant: Int {
+        get { max(0, defaults.integer(forKey: "testPrecisionRestant")) }
+        set { defaults.set(max(0, newValue), forKey: "testPrecisionRestant") }
+    }
+
     /// Imposé par un mode en ligne de commande (`--comparer-precision`) : le modèle essayé à cet instant.
     nonisolated(unsafe) static var modeleForce: ModeleWhisper?
     /// Imposé par `--comparer-precision` : temps maximal de la relecture seule (on veut voir sa qualité, pas son délai).

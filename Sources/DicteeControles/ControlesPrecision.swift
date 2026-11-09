@@ -55,6 +55,7 @@ func controlesPrecision() {
     controlesRelecture()
     controlesExpressions()
     controlesApprentissage()
+    controlesTestPrecision()
 }
 
 // MARK: relecture de sens
@@ -206,4 +207,26 @@ private func controlesApprentissage() {
     verifier(relu?.noter("Tuget", dictee: "c-2", motsConnus: []) == .apprise, "le compte survit à l'enregistrement (propositions.json)")
     let ancien = Data(#"{"enAttente":["Brume"],"ignores":["Zed"]}"#.utf8)
     verifier((try? JSONDecoder().decode(PropositionsMots.self, from: ancien))?.enAttente == ["Brume"], "ancien propositions.json (sans compteur) toujours lisible")
+}
+
+// MARK: test de précision sur la vraie voix
+
+private func controlesTestPrecision() {
+    groupe("Précision : test sur la vraie voix (50 dictées)")
+    verifier(TestPrecision.nombreDeDictees == 50, "50 dictées")
+    verifier(TestPrecision.nomDeFichier(numero: 7) == "dictee-007", "nom de fichier à trois chiffres")
+    verifier(TestPrecision.prochainNumero(fichiers: []) == 1, "dossier vide : numéro 1")
+    verifier(TestPrecision.prochainNumero(fichiers: ["dictee-001.wav", "dictee-001.json", "dictee-012.wav", "autre.txt"]) == 13, "numéro suivant")
+    verifier(TestPrecision.apresUnSon(restant: 50) == 49 && TestPrecision.apresUnSon(restant: 1) == 0 && TestPrecision.apresUnSon(restant: 0) == 0, "le compteur baisse et s'arrête à 0")
+    var reste = TestPrecision.nombreDeDictees, gardes = 0
+    while reste > 0 { reste = TestPrecision.apresUnSon(restant: reste); gardes += 1 }
+    verifier(gardes == 50, "s'arrête seul après 50 sons")
+    verifier(!TestPrecision.different("Ok, ok, t'inquiète.", "ok ok t'inquiète"), "ponctuation et majuscules seules : même texte")
+    verifier(TestPrecision.different("Ok, ok, Tuget.", "Ok, ok, t'inquiète."), "un mot différent : différent")
+    let e = TestPrecision.ecarts("Ok, ok, Tuget.", "Ok, ok, t'inquiète.")
+    verifier(e.retires == ["tuget"] && e.ajoutes == ["t'inquiete"], "écarts : mot retiré / mot ajouté")
+    let meta = EchantillonPrecision(numero: 3, date: Date(timeIntervalSince1970: 1_800_000_000), appId: "com.apple.Notes", appNom: "Notes", modele: "whisper-large-v3", langue: "fr", texteGroq: "brut", texteFinal: "final", duree: 2.5)
+    let enc = JSONEncoder(); enc.dateEncodingStrategy = .iso8601
+    let dec = JSONDecoder(); dec.dateDecodingStrategy = .iso8601
+    verifier((try? enc.encode(meta)).flatMap { try? dec.decode(EchantillonPrecision.self, from: $0) } == meta, "métadonnées d'un son : JSON aller-retour")
 }

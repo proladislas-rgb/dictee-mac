@@ -309,6 +309,8 @@ final class DictationController {
         let texteFinal = TextFormatter.prepare(apresRaccourcis, for: kind)
         if let comparaison = ComparaisonJournal.ligne(groq: brut, final: texteFinal) { Log.ecrire("dictée \(s.id) : \(comparaison)") }
         let texte = raccorder(texteFinal, kind: kind, session: s, champ: champ)
+        TestPrecisionStore.enregistrerSiActif(echantillons: s.pipeline.echantillonsComplets(), appId: s.appCible?.bundleIdentifier, appNom: s.appCible?.localizedName,
+                                              texteGroq: brut, texteFinal: texteFinal, duree: s.pipeline.dureeEnregistree, idDictee: s.id)
         // L'encoche de dictée se referme ; en cas d'échec le filet de sécurité la remplace par une encoche avec le texte à copier.
         fermerSiLibre()
         let creation = Date()

@@ -66,9 +66,14 @@ enum Transcrire {
         }
     }
 
-    private static func unEssai(url: URL, tempsReel: Bool, nettoyage: Bool, bundle: String?) async -> Essai? {
+    /// `lexique` : comme l'app (mots choisis dans le lexique et les expressions pour Whisper, correction à l'oreille) ; le comparateur de précision s'en sert.
+    static func unEssai(url: URL, tempsReel: Bool, nettoyage: Bool, bundle: String?, lexique: Bool = false) async -> Essai? {
         guard let fichier = try? AVAudioFile(forReading: url) else { return nil }
-        let transcripteur = ChunkTranscriber(mots: Dictionnaire.mots(), langue: Settings.langue)
+        let transcripteur = lexique
+            ? ChunkTranscriber(mots: Dictionnaire.mots(), langue: Settings.langue,
+                               promptPour: PreparationLexique.promptPour(langue: Settings.langue, genre: TextFormatter.kind(bundleID: bundle), champ: { nil }, recents: []),
+                               correcteur: PreparationLexique.correcteur())
+            : ChunkTranscriber(mots: Dictionnaire.mots(), langue: Settings.langue)
         let pipeline = RecordingPipeline()
         pipeline.surMorceau = { transcripteur.envoyer($0) }
         if transcripteur.anticipationActive { pipeline.surAnticipation = { transcripteur.anticiper($0) } }
