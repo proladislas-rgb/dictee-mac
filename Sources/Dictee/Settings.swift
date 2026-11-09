@@ -5,11 +5,21 @@ import DicteeCore
 enum Settings {
     private static let defaults = UserDefaults.standard
 
-    /// Langue forcée pour Whisper (`fr`, `en`…). `nil` = détection automatique.
-    /// Exemple : defaults write com.hugues.dictee langue fr
-    static var langue: String? {
-        guard let l = defaults.string(forKey: "langue"), !l.isEmpty, l != "auto" else { return nil }
-        return l
+    /// Langue de la dictée : `fr` (par défaut), `en`, ou `auto`. La détection automatique de Whisper se trompe sur les phrases
+    /// très courtes (« Est-ce que ça marche ? » compris comme de l'allemand), d'où le français par défaut.
+    /// Exemple : defaults write com.hugues.dictee langue en   (`DICTEE_LANGUE=auto` pour les mesures)
+    static var langueReglage: String {
+        ChoixLangue.parametre(reglage: ProcessInfo.processInfo.environment["DICTEE_LANGUE"] ?? defaults.string(forKey: "langue")) ?? ChoixLangue.automatique
+    }
+
+    /// Langue envoyée à Whisper ; `nil` = détection automatique (limitée à `languesAutorisees`).
+    static var langue: String? { langueReglage == ChoixLangue.automatique ? nil : langueReglage }
+
+    /// En mode Automatique : les langues acceptées (français et anglais par défaut). Une autre langue détectée fait relancer le morceau.
+    static var languesAutorisees: [String] {
+        let env = ProcessInfo.processInfo.environment["DICTEE_LANGUES"].map { $0.split(separator: ",").map(String.init) }   // mesures
+        let l = env ?? defaults.stringArray(forKey: "languesAutorisees") ?? []
+        return l.isEmpty ? ChoixLangue.autoriseesParDefaut : l
     }
 
     /// Délai maximal d'attente de Groq après le relâchement, avant de passer au texte de secours d'Apple.
@@ -45,6 +55,9 @@ enum Settings {
 
     /// Coupes des longues dictées (micro-pause après 8 s, coupe forcée après 12 s). `DICTEE_DECOUPE=ancienne` : seulement les pauses de 0,5 s.
     static var decoupeLongue: Bool { reglage("DICTEE_DECOUPE", "decoupeLongue", defaut: true, faux: "ancienne") }
+
+    /// Remise au propre par unités de phrases pendant les longues dictées. `DICTEE_UNITES=non` pour revenir au texte entier d'un coup.
+    static var nettoyageParUnites: Bool { reglage("DICTEE_UNITES", "nettoyageParUnites", defaut: true, faux: "non") }
 
     /// Interrupteur de vitesse : la variable d'environnement (mesures en ligne de commande) l'emporte sur le réglage.
     private static func reglage(_ variable: String, _ cle: String, defaut: Bool, faux: String) -> Bool {

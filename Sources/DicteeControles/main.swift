@@ -504,6 +504,24 @@ do {
     verifier(BudgetRequetes.secondes(deEnTete: nil) == nil && BudgetRequetes.secondes(deEnTete: "abc") == nil, "en-tête absent ou illisible : rien")
 }
 
+groupe("ChoixLangue")
+do {
+    verifier(ChoixLangue.parametre(reglage: nil) == "fr" && ChoixLangue.parametre(reglage: "") == "fr", "aucun réglage : français")
+    verifier(ChoixLangue.parametre(reglage: "en") == "en" && ChoixLangue.parametre(reglage: "FR") == "fr", "anglais et français choisis")
+    verifier(ChoixLangue.parametre(reglage: "auto") == nil, "Automatique : pas de langue envoyée")
+    verifier(ChoixLangue.code(nom: "French") == "fr" && ChoixLangue.code(nom: "german") == "de" && ChoixLangue.code(nom: "xx") == "xx" && ChoixLangue.code(nom: "Klingon") == nil, "noms de langue de Groq lus")
+    verifier(ChoixLangue.accepter(nomDetecte: "French", autorisees: ["fr", "en"]) && ChoixLangue.accepter(nomDetecte: "English", autorisees: ["fr", "en"]), "français et anglais acceptés")
+    verifier(!ChoixLangue.accepter(nomDetecte: "German", autorisees: ["fr", "en"]), "allemand refusé : le morceau est relancé en français")
+    verifier(!ChoixLangue.accepter(nomDetecte: "Klingon", autorisees: ["fr", "en"]), "langue inconnue refusée")
+    verifier(ChoixLangue.accepter(nomDetecte: nil, autorisees: ["fr", "en"]) && ChoixLangue.accepter(nomDetecte: " ", autorisees: ["fr"]), "langue non indiquée : acceptée")
+    verifier(ChoixLangue.accepter(nomDetecte: "Spanish", autorisees: ["fr", "es"]), "liste personnalisée respectée")
+    verifier(ChoixLangue.phraseAncre(langue: "fr") == "Transcription d'une dictée en français." && ChoixLangue.phraseAncre(langue: nil) == nil, "phrase d'ancrage en français, aucune en automatique")
+    let p = TextAssembler.prompt(mots: ["Sillonia", "Ladislas"], contexte: "Bonjour à tous.", ancre: ChoixLangue.phraseAncre(langue: "fr"))
+    verifier(p == "Transcription d'une dictée en français. Sillonia, Ladislas. Bonjour à tous.", "le prompt commence par la phrase d'ancrage, puis le dictionnaire, puis le contexte")
+    verifier(TextAssembler.estFantome("Transcription d'une dictée en français.") && TextAssembler.joindre(["Transcription d'une dictée en français.", "Bonjour."]) == "Bonjour.", "si Whisper répète la phrase d'ancrage sur du silence, elle est retirée")
+    verifier(TextAssembler.prompt(mots: [], contexte: String(repeating: "a", count: 900), ancre: "Ancre.").count <= 600, "le prompt reste borné à 600 caractères avec l'ancre")
+}
+
 groupe("ChoixMicro")
 do {
     let mac = PeripheriqueEntree(uid: "BuiltInMic", nom: "Micro du MacBook Air", transport: .integre)
@@ -530,8 +548,8 @@ do {
     var d = DecoupeEnUnites()
     verifier(d.recevoir(numero: 1, texte: "On commence par le début de la phrase", finParPause: true).isEmpty, "phrase sans point : pas d'unité")
     let u = d.recevoir(numero: 2, texte: "et on la termine ici.", finParPause: true)
-    verifier(u.count == 1 && u[0].debut == 1 && u[0].fin == 2 && u[0].brut == "On commence par le début de la phrase et on la termine ici.", "deux morceaux, une phrase : une unité")
-    verifier(d.premierMorceauOuvert == 3 && d.queue(parties: ["a", "b", "reste de la fin"]) == "reste de la fin", "la queue = ce qui suit la dernière unité")
+    verifier(u.count == 1 && u[0].brut == "On commence par le début de la phrase et on la termine ici.", "deux morceaux, une phrase : une unité")
+    verifier(d.queue(parties: ["On commence par le début de la phrase", "et on la termine ici.", "reste de la fin"]) == "reste de la fin", "la queue = ce qui suit la dernière unité")
 }
 do {
     var d = DecoupeEnUnites()
@@ -541,9 +559,26 @@ do {
 }
 do {
     var d = DecoupeEnUnites()
-    verifier(d.recevoir(numero: 1, texte: "Il a dit que c'est fini.", finParPause: false).isEmpty, "coupe en pleine parole : jamais une fin d'unité, même avec un point")
+    verifier(d.recevoir(numero: 1, texte: "Il a dit que c'est fini.", finParPause: false).isEmpty, "coupe en pleine parole, une seule phrase (la dernière n'est pas sûre) : pas d'unité")
     let u = d.recevoir(numero: 2, texte: "Et voilà.", finParPause: true)
-    verifier(u.count == 1 && u[0].debut == 1 && u[0].fin == 2, "l'unité se ferme à la pause suivante")
+    verifier(u.count == 1 && u[0].brut == "Il a dit que c'est fini. Et voilà.", "l'unité se ferme à la pause suivante, avec tout")
+}
+do {
+    // dictée d'une traite : le 1er morceau (coupé en pleine parole) contient deux phrases entières et un début de troisième
+    var d = DecoupeEnUnites()
+    let p1 = "Alors voilà je voulais te faire un point rapide. Nous avons terminé la première version de l'application. Il reste à tester la"
+    let u = d.recevoir(numero: 1, texte: p1, finParPause: false)
+    verifier(u.count == 1 && u[0].brut == "Alors voilà je voulais te faire un point rapide. Nous avons terminé la première version de l'application.", "coupe forcée : l'unité va jusqu'à la dernière fin de phrase du texte")
+    verifier(d.queue(parties: [p1]) == "Il reste à tester la", "le bout de phrase reste pour la suite")
+    let parties: [String?] = [p1, "vitesse de l'ensemble et à vérifier la précision sur des cas difficiles."]
+    verifier(d.recevoir(numero: 2, texte: parties[1]!, finParPause: true).first?.brut == "Il reste à tester la vitesse de l'ensemble et à vérifier la précision sur des cas difficiles.", "la fin de la dictée complète le bout de phrase")
+    verifier(d.queue(parties: parties).isEmpty, "plus rien en queue")
+}
+do {
+    verifier(DecoupeEnUnites.derniereFinDePhrase("M. Dupont arrive demain matin") == nil, "« M. Dupont » n'est pas une fin de phrase")
+    verifier(DecoupeEnUnites.derniereFinDePhrase("Il coûte 3. Ensuite on verra") == nil, "« 3. » n'est pas une fin de phrase")
+    verifier(DecoupeEnUnites.derniereFinDePhrase("C'est fini. et puis le reste") == nil, "pas de majuscule après : pas une fin de phrase")
+    verifier(DecoupeEnUnites.derniereFinDePhrase("Bonjour tout le monde ? Alors on commence") == 23, "point d'interrogation suivi d'une majuscule")
 }
 do {
     verifier(DecoupeEnUnites.finitUnePhrase("C'est bon !") && DecoupeEnUnites.finitUnePhrase("Vraiment ?") && DecoupeEnUnites.finitUnePhrase("Il a dit « oui. »") && DecoupeEnUnites.finitUnePhrase("Alors…"), "points, ?, !, … et guillemets fermants")

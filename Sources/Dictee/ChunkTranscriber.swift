@@ -129,14 +129,14 @@ final class ChunkTranscriber: @unchecked Sendable {
         let (groq, mots, langue) = (self.groq, self.mots, self.langue)
         return Task { [weak self] () -> Sortie in
             guard self != nil else { return Sortie(texte: nil, erreur: "annulé") }
-            let prompt = TextAssembler.prompt(mots: mots, contexte: m.contexte)
+            let prompt = TextAssembler.prompt(mots: mots, contexte: m.contexte, ancre: ChoixLangue.phraseAncre(langue: langue))
             let t0 = ProcessInfo.processInfo.systemUptime
             let fichier = await m.fichier.value
             let codage = Int((ProcessInfo.processInfo.systemUptime - t0) * 1000)
             let debut = ProcessInfo.processInfo.systemUptime
             let nom = "morceau \(m.numero)\(secours ? " (secours)" : m.anticipe ? " (anticipé)" : "")"
             do {
-                var texte = try await groq.transcrire(fichier: fichier, prompt: prompt, langue: langue, etiquette: nom)
+                var texte = try await groq.transcrire(fichier: fichier, prompt: prompt, langue: langue, autorisees: Settings.languesAutorisees, etiquette: nom)
                 let ms = Int((ProcessInfo.processInfo.systemUptime - debut) * 1000)
                 // Coupé en pleine parole : le point que Whisper met à la fin du morceau n'existe pas dans la phrase.
                 if !m.finParPause { texte = TextAssembler.sansPonctuationDeCoupe(texte) }
@@ -212,14 +212,10 @@ final class ChunkTranscriber: @unchecked Sendable {
         guard vitesse.secours, !texteDejaRecu(m) else { return await premier.value }
         let attente = m.envoyeLe + vitesse.seuilSecours - ProcessInfo.processInfo.systemUptime
         if attente > 0 {
-            let fini: Sortie? = await withTaskGroup(of: Sortie?.self) { g in
-                g.addTask { await premier.value }
-                g.addTask { try? await Task.sleep(for: .seconds(attente)); return nil }
-                let premier = await g.next() ?? nil
-                g.cancelAll()
-                return premier
-            }
-            if let fini, fini.erreur == nil || !fini.retentable { return fini }
+            let fin = Premiere<Sortie>()
+            Task { fin.resoudre(await premier.value) }
+            Task { try? await Task.sleep(for: .seconds(attente)); fin.resoudre(nil) }
+            if let fini = await fin.attendre(), fini.erreur == nil || !fini.retentable { return fini }
         }
         // Soit la réponse tarde, soit la première requête a échoué sur le réseau.
         if premier.isCancelled { return await premier.value }
@@ -227,19 +223,11 @@ final class ChunkTranscriber: @unchecked Sendable {
         let second = demarrerSecours(m)
         let apres = Int((ProcessInfo.processInfo.systemUptime - m.envoyeLe) * 1000)
         Log.ecrire("morceau \(m.numero) : réponse attendue depuis \(apres) ms, requête de secours lancée")
-        let gagnant: Sortie = await withTaskGroup(of: (Bool, Sortie).self) { g in
-            g.addTask { (false, await premier.value) }
-            g.addTask { (true, await second.value) }
-            var derniere = Sortie(texte: nil, erreur: "aucune réponse")
-            for await (estSecours, s) in g {
-                if s.texte != nil {
-                    Log.ecrire("morceau \(m.numero) : \(estSecours ? "la requête de secours" : "la première requête") a répondu la première")
-                    return s
-                }
-                derniere = s
-            }
-            return derniere
-        }
+        let duel = Duel()
+        Task { duel.fini(secours: false, sortie: await premier.value) }
+        Task { duel.fini(secours: true, sortie: await second.value) }
+        let (estSecours, gagnant) = await duel.course.attendre() ?? (false, Sortie(texte: nil, erreur: "aucune réponse"))
+        if gagnant.texte != nil { Log.ecrire("morceau \(m.numero) : \(estSecours ? "la requête de secours" : "la première requête") a répondu la première") }
         premier.cancel(); second.cancel()
         return gagnant
     }
@@ -249,27 +237,30 @@ final class ChunkTranscriber: @unchecked Sendable {
     func resultat(delai: Double) async -> Resultat {
         let liste = copieDesMorceaux()
         if liste.isEmpty { return .texte("") }
-        let course = await withTaskGroup(of: Resultat.self) { groupe -> Resultat in
-            groupe.addTask { [self] in
-                var parties: [String?] = []
-                for m in liste {
-                    let s = await valeur(de: m)
-                    if let e = s.erreur { return .echec(e) }
-                    parties.append(s.texte)
-                }
-                return .texte(TextAssembler.joindre(parties))
-            }
-            groupe.addTask {
-                try? await Task.sleep(for: .seconds(delai))
-                return .delai
-            }
-            let premier = await groupe.next() ?? .delai
-            groupe.cancelAll()
-            return premier
-        }
-        if case .texte = course {} else { annuler() }
+        // Le texte complet contre le délai maximal : le premier arrivé gagne, sans attendre l'autre.
+        let course = Premiere<Resultat>()
+        Task { course.resoudre(await self.assembler(liste)) }
+        Task { try? await Task.sleep(for: .seconds(delai)); course.resoudre(.delai) }
+        let r = await course.attendre() ?? .delai
+        if case .texte = r {} else { annuler() }
         // L'envoi anticipé en vol qui n'a pas servi est abandonné.
         if let reste = retirerEnAttente() { reste.tache.cancel(); reste.secours?.cancel() }
-        return course
+        return r
+    }
+
+    /// Tous les morceaux sont attendus en même temps (chacun peut avoir sa requête de secours), puis recollés dans l'ordre.
+    private func assembler(_ liste: [Morceau]) async -> Resultat {
+        let sorties = await withTaskGroup(of: (Int, Sortie).self) { g -> [Sortie] in
+            for (i, m) in liste.enumerated() { g.addTask { (i, await self.valeur(de: m)) } }
+            var r = [Sortie?](repeating: nil, count: liste.count)
+            for await (i, s) in g { r[i] = s }
+            return r.map { $0 ?? Sortie(texte: nil, erreur: "manquant") }
+        }
+        var parties: [String?] = []
+        for s in sorties {
+            if let e = s.erreur { return .echec(e) }
+            parties.append(s.texte)
+        }
+        return .texte(TextAssembler.joindre(parties))
     }
 }

@@ -157,3 +157,50 @@ Tout a été vérifié **hors écran** : rendus PNG par `Dictee --rendu-icones |
 - **Emplacement** : aucun chemin d'installation n'est codé en dur ; tout part de `Bundle.main` et du dossier personnel. Lancée depuis l'image disque (volume en lecture seule) ou depuis un dossier « AppTranslocation », l'app propose de se copier dans `/Applications` (sinon `~/Applications`) et de se relancer de là (`Installation` dans `DicteeCore`, copie à côté puis remplacement atomique).
 - **Désinstaller Dictée…** (menu du clic droit et Réglages) : confirmation, puis arrêt de l'ouverture au démarrage, effacement de l'élément Trousseau de la clé Groq, de `Application Support/Dictee`, `Logs/Dictee`, des préférences (`com.hugues.dictee`), des caches, puis app à la corbeille (`NSWorkspace.recycle`) et sortie directe (rien n'est réécrit après). Le journal est arrêté avant l'effacement. La liste est dans `Desinstallation` (`DicteeCore`) et vérifiée par `DicteeControles` sur un faux dossier personnel : `~/.config/groq/.env` n'y figure jamais.
 - **Non vérifié en vrai** (à essayer par Hugues sur une copie, jamais sur l'app qu'il utilise) : la proposition de déplacement depuis l'image disque, la désinstallation complète (corbeille, Trousseau), l'avertissement de première ouverture sur un autre Mac.
+
+## Vitesse, micro et langue (09/11 soir)
+
+Banc d'essai : `Dictee --transcrire fichier.wav --temps-reel --repetitions 10 [--nettoyer-aussi] [--app com.apple.mail]` (réseau seulement, aucun micro). Le son est livré à la vitesse d'un micro, le « relâchement » a lieu à la fin du fichier, on mesure jusqu'au texte (avec `--nettoyer-aussi` : jusqu'au texte remis au propre). WAV générés par `say -v Thomas` puis `afconvert` ; « sans » = 0,05 s de silence final, « courte » = pause de 0,4 s avant le relâchement. Médianes de 10 essais (4 pour 60 s, 3 pour la remise au propre à 60 s) ; le bruit du réseau est de ±40 ms d'une série à l'autre. Interrupteurs de mesure (variables d'environnement) : `DICTEE_ENVOI=wav`, `DICTEE_ROGNAGE=non`, `DICTEE_ANTICIPATION=non`, `DICTEE_SECOURS=non`, `DICTEE_DECOUPE=ancienne`, `DICTEE_UNITES=non`, `DICTEE_LANGUE=auto|fr|en`.
+
+### Limites Groq et budget de requêtes
+Whisper large v3 turbo, plan gratuit : 20 requêtes/minute, 2 000/jour, 7 200 s d'audio/heure (minimum facturé 10 s par requête). Modèle de langue (gpt-oss-20b) : 1 000 requêtes/jour, 8 000 jetons/minute. Les en-têtes `x-ratelimit-*` ne donnent que le restant du jour (et les jetons pour le modèle de langue) ; le compte par minute est tenu localement (`BudgetRequetes`). Les requêtes « de confort » (envoi anticipé, requête de secours, remise au propre à l'avance) ne partent que s'il reste de la marge (envoi anticipé : au moins 8 requêtes libres sur 18 ; secours : au moins 4 ; remise au propre : 6 sur 10 et au moins 3 500 jetons) ; après un 429, plus aucune requête de confort pendant `retry-after`. Les vrais morceaux partent toujours.
+
+### Ce qui est fait
+- **Dernier morceau parti avant tout le reste** au relâchement (avant l'arrêt du micro et de l'interface) ; lecture du champ (Accessibilité) dès l'appui, pour que le texte n'attende jamais l'Accessibilité.
+- **Rognage du silence de fin** (0,25 s gardés après le dernier son) et **envoi en FLAC** (encodeur Apple, sans perte, relu identique ; `Dictee --verifier-flac`) : 64 % du poids du WAV, 6 à 20 ms d'encodage. Les textes sont identiques à ceux du WAV. Gain de délai non mesurable sur cette liaison (dans le bruit) ; utile surtout sur une liaison montante lente. Désactivable : `defaults write com.hugues.dictee envoiFLAC -bool false`.
+- **Envoi anticipé** : 0,3 s après le dernier son, le morceau en cours part déjà (même rognage, même clé) ; au relâchement, s'il n'y a eu aucun son depuis, la requête en cours est reprise telle quelle, sinon elle est jetée. Au journal : « envoi anticipé réutilisé / jeté ».
+- **Requête de secours** : si la réponse tarde plus de 0,7 s après l'envoi (ou échoue sur le réseau), une seconde requête identique part et la première réponse gagne. Même principe, à 0,55 s, pour la remise au propre. Secours Apple inchangé (4 s).
+- **Longues dictées** : au-delà de 8 s, une micro-pause de 0,24 s coupe ; au-delà de 12 s sans pause, coupe forcée au point le plus calme des 1,5 dernière seconde. Le point que Whisper met à la fin d'un morceau coupé en pleine parole est retiré. Une dictée de 60 s fait 5 à 7 requêtes.
+- **Remise au propre en avance** : (a) à la pause d'avant le relâchement, dès que Groq a répondu, le texte entier est remis au propre ; (b) pendant les longues dictées, par « unités » de phrases (jusqu'à la dernière fin de phrase que Whisper a ponctuée dans le texte, ou à une pause) ; au relâchement, il ne reste que la queue. Les unités ne sont pas utilisées (texte entier d'un coup, comme avant) si une correction dite ou une liste pourrait courir d'une unité à l'autre, si l'endroit a changé, ou pour les courriels / notes / assistants (paragraphes décidés sur le texte entier).
+- **Connexion** : une seule session, HTTP/3 (QUIC) d'après les mesures réseau du journal, réutilisée entre les requêtes ; préchauffée à l'appui sur fn (≈ 170-240 ms pour une requête à vide, 33 ms de connexion neuve, tout cela pendant que l'utilisateur parle). Le journal note pour chaque requête : protocole, connexion neuve ou réutilisée, envoi, attente, réception.
+- **Journal par étape** : relâchement → dernier morceau parti (ms) ; par morceau : durée du son, FLAC/WAV et Ko, codage, réponse Groq, mesures réseau ; envoi anticipé réutilisé/jeté ; requête de secours ; remise au propre (mode, attente, travail) ; collage ; total depuis le relâchement.
+
+### Micro (AirPods)
+Bug : avec des AirPods par défaut, rien ne se passait après l'appui. Le moteur audio gardait le micro du MacBook préparé et `engine.start()` pouvait bloquer sans jamais rendre la main. Maintenant : moteur reconstruit à chaque changement du micro par défaut ou de la liste des micros (écoute CoreAudio) ; tap installé avec le format réel (jamais gardé) ; si aucun son 0,8 s après l'appui : cause au journal, moteur reconstruit, un nouvel essai ; sinon abandon propre avec « Micro indisponible ». Réglage Micro : **Automatique** (défaut : micro intégré du Mac quand un casque Bluetooth est le micro par défaut, pour éviter le mode téléphone des AirPods), **Micro du système**, ou un micro précis (AirPods compris). Le journal note le micro, son transport et les formats. **Non vérifié en vrai** (impossible sans toucher au micro depuis un shell) : le démarrage avec AirPods, l'imposition du micro intégré (`kAudioOutputUnitProperty_CurrentDevice`). Limite connue : si `engine.start()` ne rend jamais la main (file audio bloquée), la dictée est abandonnée mais la file reste bloquée.
+
+### Langue
+Whisper se trompait de langue sur les phrases courtes (« Est-ce que ça marche ? » compris comme de l'allemand). Réglage Langue : **Français** par défaut (`language=fr` envoyé à Groq), Anglais, ou Automatique. En Automatique : `verbose_json` pour lire la langue détectée ; hors de la liste (français + anglais par défaut ; `defaults write com.hugues.dictee languesAutorisees -array fr en`), le même morceau est relancé aussitôt en français (coût mesuré : +250 ms, une requête de plus). Le prompt de Whisper commence par une phrase d'ancrage dans la langue choisie (« Transcription d'une dictée en français. »), retirée du texte si Whisper la répète sur du silence.
+
+### Mesures (relâchement de fn → texte, médiane / maximum en ms, 10 essais)
+| Dictée | Avant | Après |
+|---|---|---|
+| 1,5 s, sans pause | 288 / 382 | 270 / 328 (dans le bruit) |
+| 1,5 s, pause de 0,4 s | 293 / 417 | 129 / 195 |
+| 6,8 s, sans pause | 325 / 517 | 297 / 520 (dans le bruit) |
+| 6,8 s, pause de 0,4 s | 301 / 418 | 183 / 319 |
+| 21 s avec ponctuation, sans pause | 432 / 646 | 414 / 696 |
+| 21 s avec ponctuation, pause de 0,4 s | 459 / 641 | 245 / 2 358 (valeur isolée due au secours défectueux, corrigé ensuite) |
+| 20 s d'une traite | 413 / 542 | 382 / 405 |
+| 56 s d'une traite (4 essais) | 805 / 918 | 290 / 317 |
+| Pause d'au moins 0,7 s avant le relâchement | 0 à 33 | 0 à 1 (l'ancienne coupe à 0,5 s faisait déjà le travail) |
+| Avec remise au propre, 6,8 s, pause 0,4 s | 696 / 820 | 632 / 757 puis 862 / 1 240 (Groq lent à ce moment) |
+| Avec remise au propre, 20 s d'une traite | 889 / 1 890 | 812 / 1 357 (le texte de ce WAV n'a aucune ponctuation : pas d'unité possible) |
+| Avec remise au propre, 56 s d'une traite (3 essais) | 1 547 / 1 867 | 772 / 922 |
+Pas à pas (6,8 s sans pause, 21 s sans pause) : rognage seul 320 / 479 ; FLAC seul 326 / 447 ; les deux 320 / 447 (avant : 325 / 432). Le texte transcrit est identique à chaque étape. Requête de secours, test avec la première requête retardée de 1,5 s : 1 965 → 1 060 ms. Langue : 3 phrases de 1 à 1,5 s (« Est-ce que ça marche ? », « Excusez-moi. », « On se voit demain. »), 10 essais chacune, français par défaut : 30 sur 30 corrects, aucune langue étrangère (la détection automatique, elle aussi, donnait 30 sur 30 avec une voix de synthèse très propre : l'erreur de Hugues vient de sa vraie voix, que les WAV de synthèse ne reproduisent pas).
+
+### Écarté
+- **Autre modèle pour la remise au propre** : seuls gpt-oss-20b, gpt-oss-120b, qwen3.8-27b et allam-2-7b sont chez Groq (pas de llama « instant »). Mesures avec la même consigne : gpt-oss-20b 0,7 à 1,3 s, gpt-oss-120b 0,3 à 1,1 s (et il garde les « euh »), qwen 0,4 à 3,4 s. Aucun n'est plus rapide ni plus fiable : gpt-oss-20b reste.
+- **Remise au propre par morceau pour courriel, notes, assistants** : le découpage en paragraphes se décide sur le texte entier.
+- **Pause d'anticipation plus courte que 0,3 s** : trop de requêtes jetées (les pauses de 0,2 s entre deux mots sont fréquentes).
+- **Forcer HTTP/2** : URLSession choisit HTTP/3 tout seul et réutilise la connexion ; rien à gagner.
+- Le gain réel de l'envoi anticipé dépend de la pause de l'utilisateur avant de relâcher : aucun en dessous de 0,3 s, jusqu'au délai de Groq (~0,3 s) à partir de ~0,65 s.

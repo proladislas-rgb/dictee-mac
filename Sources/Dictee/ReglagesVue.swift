@@ -19,7 +19,7 @@ struct ReglagesVue: View {
                     ChoixReglage(libelle: "Micro", valeur: $r.micro, options: r.micros.map { ($0.id, $0.nom) })
                 }
                 LigneReglage(libelle: "Langue", note: nil) {
-                    ChoixReglage(libelle: "Langue", valeur: $r.langue, options: [("auto", "Détection automatique"), ("fr", "Français"), ("en", "English")])
+                    ChoixReglage(libelle: "Langue", valeur: $r.langue, options: [("fr", "Français"), ("en", "Anglais"), ("auto", "Automatique")])
                 }
                 LigneReglage(libelle: "Remettre au propre", note: nil) { Interrupteur(actif: $r.remettreAuPropre, etiquette: "Remettre au propre") }
                 LigneReglage(libelle: "Adapter le ton à l\u{2019}app", note: nil) { Interrupteur(actif: $r.adapterLeTon, etiquette: "Adapter le ton à l\u{2019}app") }

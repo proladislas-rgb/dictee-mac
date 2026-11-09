@@ -16,6 +16,8 @@ public enum TextAssembler {
         "thanks for watching!",
         "n'oubliez pas de vous abonner",
         "abonnez-vous",
+        "transcription d'une dictée en français",
+        "transcription of a dictation in english",
     ]
     private static let hallucinations: Set<String> = Set(phrasesBrutes.map(normaliser))
 
@@ -54,12 +56,13 @@ public enum TextAssembler {
 
     /// Le texte « prompt » envoyé à Whisper : les mots du dictionnaire, puis la fin du texte précédent.
     /// Whisper ne retient que ~224 jetons : on borne à 600 caractères au total, en gardant la fin du contexte.
-    public static func prompt(mots: [String], contexte: String?, limite: Int = 600) -> String {
+    public static func prompt(mots: [String], contexte: String?, ancre: String? = nil, limite: Int = 600) -> String {
+        let debut = (ancre ?? "").trimmingCharacters(in: .whitespaces)
         var partie1 = mots.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: ", ")
         if !partie1.isEmpty { partie1 += "." }
         var fin = (contexte ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let place = max(0, limite - partie1.count - 1)
+        let place = max(0, limite - partie1.count - debut.count - 2)
         if fin.count > place { fin = String(fin.suffix(place)) }
-        return [partie1, fin].filter { !$0.isEmpty }.joined(separator: " ")
+        return [debut, partie1, fin].filter { !$0.isEmpty }.joined(separator: " ")
     }
 }

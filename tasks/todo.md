@@ -48,6 +48,15 @@ Technique : Swift 6.2 (outils en ligne de commande, pas d'Xcode), paquet Swift +
   correction phonétique après Groq (« Sionia » → « Sillonia ») sur tout le lexique ; banc d'essai mesuré (phrases difficiles FR/EN/autres langues, voix de synthèse + vraies dictées) avant/après.
 Chaque lot : construit, essayé pour de vrai sur le Mac, poussé sur GitHub.
 
+## Nom
+- 2026-11-09 : l'app s'appelle **Verbe** (choix de Hugues). Garder l'identifiant com.hugues.dictee (autorisations et réglages conservés).
+- [ ] Premier lancement : détecter la touche 🌐 réglée sur les emoji (com.apple.HIToolbox AppleFnUsageType ≠ 0) et proposer un bouton « Régler pour moi » (sinon le double appui ouvre les emoji — constaté chez Hugues le 09/11).
+- [ ] Renommage en Verbe (app, textes, DMG, README, notes ; CORRIGER la première ouverture : « Terminé » puis Réglages › Confidentialité et sécurité › Ouvrir quand même, le clic droit ne suffit plus sur macOS 26) → version 0.2.0 avec l'accélération ; puis réinstallation propre chez Hugues depuis le DMG.
+
+## Après Verbe 0.2.0 (décidé le 09/11)
+- [ ] Notes de réunion et d'appel DANS Verbe : enregistrement (micro + son du Mac), texte complet, résumé, actions, export Airtable/Notion ; tout stocké en local ; option « tout sur le Mac » (dictée Apple) au lieu de Groq.
+- [ ] Pistes suivantes à discuter (s'inspirer de l'idée, tout réécrire) : retouche de texte sélectionné à la voix (façon Grammarly), raccourcis tapés (façon TextExpander), historique du presse-papiers dans l'encoche (façon Paste), captures annotées (façon CleanShot X).
+
 ## Étapes
 - [x] 1. Étude des deux apps installées avec REA (observer, ne rien copier) (rapport gardé hors du dépôt public)
 - [ ] 2. Maquette des écrans → pastille : 3 versions (A fil, B encoche, C curseur) dans ~/Desktop/Dictee-maquettes/pastilles.html, CHOIX DE HUGUES = B l.encoche ; panneau v1 refusé (« trop IA ») → v2 refusé (« trop gros ») → 3 pistes compactes v3-A instrument, v3-B page écrite, v3-C encoche dans ~/Desktop/Dictee-maquettes/, C CHOISI ; encoches de dictée v4 A/B/C prêtes, attente choix
@@ -59,3 +68,9 @@ Chaque lot : construit, essayé pour de vrai sur le Mac, poussé sur GitHub.
 ## Besoins côté Hugues
 - [x] Clé API Groq dans ~/.config/groq/.env (testée 2026-11-09 : 0,45 s pour une phrase, dictionnaire via le champ prompt efficace)
 - [ ] Accepter les autorisations micro + accessibilité au premier lancement
+
+## Vitesse, micro, langue (09/11 soir) — fait, à confirmer par les vraies dictées de Hugues
+- [x] Envoi anticipé, rognage + FLAC, requête de secours, découpe des longues dictées, remise au propre en avance / par unités, connexion, journal par étape (voir « Vitesse, micro et langue » dans docs/spec-v1.md)
+- [x] Micro : moteur reconstruit au changement de micro, garde-fou 0,8 s, réglage Automatique (AirPods)
+- [x] Langue : français par défaut, rejet des langues hors liste en Automatique, phrase d'ancrage
+- [ ] Hugues : installer, essayer avec les AirPods connectés, dicter vite après une pause de ~0,5 s, dicter 30 s d'une traite, lire le journal (« envoi anticipé réutilisé / jeté », « remise au propre par unités »)

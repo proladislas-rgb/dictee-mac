@@ -24,7 +24,7 @@ final class NettoyageParUnites: @unchecked Sendable {
 
     /// Un morceau est revenu de Groq (appelé depuis le fil de la requête).
     func morceauRevenu(numero: Int, texte: String, finParPause: Bool) {
-        guard Settings.remettreAuPropre, GroqClient.shared.cleDisponible else { return }
+        guard Settings.nettoyageParUnites, Settings.remettreAuPropre, GroqClient.shared.cleDisponible else { return }
         let contexte = contexteActuel()
         guard DecoupeEnUnites.contexteAdapte(contexte) else { return }
         let nouvelles = decouper(numero: numero, texte: texte, finParPause: finParPause)

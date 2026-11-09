@@ -16,7 +16,7 @@ final class ReglagesModele: ObservableObject {
     @Published var remettreAuPropre: Bool { didSet { if !installe { return }; Settings.remettreAuPropre = remettreAuPropre } }
     @Published var adapterLeTon: Bool { didSet { if !installe { return }; Settings.adapterLeTon = adapterLeTon } }
     @Published var secoursApple: Bool { didSet { if !installe { return }; Settings.secoursApple = secoursApple } }
-    @Published var langue: String { didSet { if !installe { return }; Settings.choisirLangue(langue == "auto" ? nil : langue) } }
+    @Published var langue: String { didSet { if !installe { return }; Settings.choisirLangue(langue == ChoixLangue.automatique ? nil : langue) } }
     @Published var micro: String { didSet { if !installe { return }; Settings.micro = micro.isEmpty ? nil : micro } }
     @Published var ouvrirAuDemarrage: Bool
     @Published private(set) var micros: [MicroChoix]
@@ -35,7 +35,7 @@ final class ReglagesModele: ObservableObject {
         remettreAuPropre = reel ? Settings.remettreAuPropre : true
         adapterLeTon = reel ? Settings.adapterLeTon : true
         secoursApple = reel ? Settings.secoursApple : true
-        langue = reel ? (Settings.langue ?? "auto") : "auto"
+        langue = reel ? Settings.langueReglage : ChoixLangue.defaut
         micro = reel ? (Settings.micro ?? "") : ""
         ouvrirAuDemarrage = reel ? SMAppService.mainApp.status == .enabled : false
         micros = [MicroChoix(id: ChoixMicro.automatique, nom: "Automatique"), MicroChoix(id: ChoixMicro.systeme, nom: "Micro du système")]

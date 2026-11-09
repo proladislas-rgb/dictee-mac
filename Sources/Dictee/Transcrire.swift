@@ -33,7 +33,7 @@ enum Transcrire {
             var requetes: [Int] = []
             var premierTexte = ""
             for essai in 1...repetitions {
-                if repetitions > 1 { await attendreLeBudget() }
+                if repetitions > 1 { await attendreLeBudget(nettoyage: avecNettoyage) }
                 let avant = GroqClient.shared.requetesEnvoyees
                 guard let r = await unEssai(url: url, tempsReel: tempsReel, nettoyage: avecNettoyage, bundle: bundle) else { sortie = 1; break }
                 let nReq = GroqClient.shared.requetesEnvoyees - avant
@@ -60,8 +60,10 @@ enum Transcrire {
     struct Essai { var texte: String; var morceaux: Int; var apresRelachement: Double; var total: Double; var details = "" }
 
     /// Attend que la dernière minute ait laissé de la place (limite gratuite : environ 20 requêtes par minute).
-    private static func attendreLeBudget() async {
-        while BudgetRequetes.partage.restantMinute() < 10 { try? await Task.sleep(for: .milliseconds(500)) }
+    private static func attendreLeBudget(nettoyage: Bool) async {
+        while BudgetRequetes.partage.restantMinute() < 10 || (nettoyage && BudgetRequetes.nettoyage.restantMinute() < 8) {
+            try? await Task.sleep(for: .milliseconds(500))
+        }
     }
 
     private static func unEssai(url: URL, tempsReel: Bool, nettoyage: Bool, bundle: String?) async -> Essai? {

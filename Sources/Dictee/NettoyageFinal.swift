@@ -18,12 +18,15 @@ enum NettoyageFinal {
     static func executer(brut: String, contexte: ContexteMiseEnForme, transcripteur: ChunkTranscriber, unites: NettoyageParUnites?,
                          anticipe: Anticipe?, mots: [String]) async -> (resultat: Nettoyage.Resultat, mode: String) {
         let parties = transcripteur.textes()
+        // Texte entier déjà remis au propre pendant la pause d'avant le relâchement : rien de plus rapide.
+        if let a = anticipe, a.brut == brut, a.contexte == contexte {
+            unites?.annulerTout()
+            return (await a.tache.value, "lancée à l'avance et réutilisée")
+        }
         if let unites, unites.nombreDUnites > 0, TextAssembler.joindre(parties) == brut,
            let r = await unites.resultat(parties: parties, contexte: contexte) {
+            anticipe?.tache.cancel()
             return (r, "par unités")
-        }
-        if let a = anticipe, a.brut == brut, a.contexte == contexte {
-            return (await a.tache.value, "lancée à l'avance et réutilisée")
         }
         var mode = "d'un coup"
         if let a = anticipe { a.tache.cancel(); mode = "d'un coup (l'avance jetée : le texte ou l'endroit a changé)" }
