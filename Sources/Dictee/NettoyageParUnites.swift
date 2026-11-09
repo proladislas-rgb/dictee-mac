@@ -14,9 +14,11 @@ final class NettoyageParUnites: @unchecked Sendable {
     private var queueAnticipee: (brut: String, contexte: ContexteMiseEnForme, tache: Task<Nettoyage.Resultat, Never>)?
     private let mots: [String]
     private let contexteActuel: @Sendable () -> ContexteMiseEnForme
+    private let relecture: RelectureSession?
 
-    init(mots: [String], contexteActuel: @escaping @Sendable () -> ContexteMiseEnForme) {
+    init(mots: [String], relecture: RelectureSession? = nil, contexteActuel: @escaping @Sendable () -> ContexteMiseEnForme) {
         self.mots = mots
+        self.relecture = relecture
         self.contexteActuel = contexteActuel
     }
 
@@ -44,8 +46,8 @@ final class NettoyageParUnites: @unchecked Sendable {
     private func ajouter(_ t: Travail) { verrou.lock(); travaux.append(t); verrou.unlock() }
 
     private func lancer(_ brut: String, contexte: ContexteMiseEnForme) -> Task<Nettoyage.Resultat, Never> {
-        let mots = self.mots
-        return Task.detached(priority: .userInitiated) { await Nettoyage.executer(brut, contexte: contexte, mots: mots, finDeTexte: false) }
+        let (mots, relecture) = (self.mots, self.relecture)
+        return Task.detached(priority: .userInitiated) { await Nettoyage.executer(brut, contexte: contexte, mots: mots, finDeTexte: false, relecture: relecture) }
     }
 
     /// La queue (morceaux après la dernière unité) connue à la pause d'avant le relâchement : sa remise au propre part déjà.
@@ -79,12 +81,12 @@ final class NettoyageParUnites: @unchecked Sendable {
         guard DecoupeEnUnites.separationSure(pieces) else { annulerTout(); Log.ecrire("unités jetées : correction ou liste entre deux morceaux"); return nil }
 
         let debut = ProcessInfo.processInfo.systemUptime
-        let mots = self.mots
+        let (mots, relecture) = (self.mots, self.relecture)
         // Chaque pièce : déjà lancée, ou lancée maintenant (en parallèle avec les autres).
         var taches = travaux.map { $0.tache ?? lancer($0.unite.brut, contexte: contexte) }
         if !queue.isEmpty {
             if let a = anticipee, a.brut == queue, a.contexte == contexte { taches.append(a.tache) }
-            else { anticipee?.tache.cancel(); taches.append(Task.detached(priority: .userInitiated) { await Nettoyage.executer(queue, contexte: contexte, mots: mots, finDeTexte: false) }) }
+            else { anticipee?.tache.cancel(); taches.append(Task.detached(priority: .userInitiated) { await Nettoyage.executer(queue, contexte: contexte, mots: mots, finDeTexte: false, relecture: relecture) }) }
         }
         var resultats: [Nettoyage.Resultat] = []
         for t in taches { resultats.append(await t.value) }

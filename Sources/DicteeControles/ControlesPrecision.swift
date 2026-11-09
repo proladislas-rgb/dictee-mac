@@ -52,8 +52,75 @@ func controlesPrecision() {
         verifier(l.phrase().contains("environ 100 ms chez toi") && l.phrase().contains("environ 410 ms chez toi"), "phrase avec les chiffres chez Hugues")
     }
 
+    controlesRelecture()
     controlesExpressions()
     controlesApprentissage()
+}
+
+// MARK: relecture de sens
+
+private func controlesRelecture() {
+    groupe("Précision : quand la relecture de sens se déclenche")
+    // Correcteur simulé : il connaît tout, sauf « Tuget » et quelques noms propres inventés.
+    let inconnus: Set<String> = ["tuget", "ecodistrib", "konto", "qonto"]
+    func connu(_ m: String) -> Bool { !inconnus.contains(m.lowercased()) }
+    let vide = VocabulaireRelecture()
+    let tuget = Relecture.declencher(texte: "Ok, ok, Tuget.", estConnu: connu, vocabulaire: vide)
+    verifier(tuget?.raison == .motInconnu && tuget?.suspects == ["Tuget"], "« Ok, ok, Tuget. » : mot inconnu du correcteur et du lexique")
+    verifier(Relecture.declencher(texte: "Ok, ok, merci.", estConnu: connu, vocabulaire: vide) == nil, "phrase de mots connus : pas de relecture")
+    let lex = VocabulaireRelecture(connus: Relecture.plier(["Tuget", "Ecodistrib"]))
+    verifier(Relecture.declencher(texte: "Ok, ok, Tuget.", estConnu: connu, vocabulaire: lex) == nil, "mot inconnu du correcteur mais dans le lexique / mots.txt : pas de relecture")
+    verifier(Relecture.declencher(texte: "On voit ça avec Ecodistrib demain.", estConnu: connu, vocabulaire: lex) == nil, "nom propre du lexique : pas de relecture")
+    verifier(Relecture.declencher(texte: "Mon numéro de téléphone est 0612345678 merci", estConnu: connu, vocabulaire: vide) == nil, "nombre : ignoré")
+    verifier(Relecture.declencher(texte: "On va voir le CEE demain matin avec lui", estConnu: connu, vocabulaire: vide) == nil, "sigle : ignoré")
+    verifier(Relecture.declencher(texte: "écris à jean@exemple.fr demain", estConnu: connu, vocabulaire: vide) == nil, "adresse mail : ignorée")
+    // phrase courte : un mot du quotidien ne déclenche rien, un mot jamais dicté déclenche
+    let connaitTout: (String) -> Bool = { _ in true }
+    verifier(Relecture.declencher(texte: "Oui d'accord", estConnu: connaitTout, vocabulaire: vide) == nil, "phrase courte de mots du quotidien : rien")
+    let courte = Relecture.declencher(texte: "Vas-y Tonton", estConnu: connaitTout, vocabulaire: VocabulaireRelecture(connus: Relecture.plier(["vas-y"])))
+    verifier(courte?.raison == .phraseCourte && courte?.suspects == ["Tonton"], "phrase courte avec un mot jamais dicté : relecture")
+    verifier(Relecture.declencher(texte: "Vas-y Tonton demain", estConnu: connaitTout, vocabulaire: VocabulaireRelecture(connus: Relecture.plier(["vas-y", "demain"])))?.raison == .phraseCourte, "trois mots : une phrase courte")
+    verifier(Relecture.declencher(texte: "Vas-y Tonton demain ok", estConnu: connaitTout, vocabulaire: VocabulaireRelecture(connus: Relecture.plier(["vas-y", "demain"])))?.raison == .phraseCourte, "quatre mots : encore une phrase courte")
+    verifier(Relecture.declencher(texte: "Vas-y Tonton demain ok merci", estConnu: connaitTout, vocabulaire: VocabulaireRelecture(connus: Relecture.plier(["vas-y", "demain"]))) == nil, "cinq mots de mots connus du correcteur : plus une phrase courte")
+    verifier(Relecture.declencher(texte: "Je vais aller chercher les enfants à l'école demain matin pour la réunion", estConnu: connaitTout, vocabulaire: vide) == nil, "phrase longue de mots connus du correcteur : rien")
+    // mot qui ressemble à l'oreille à un mot du contexte
+    let contexte = VocabulaireRelecture(connus: Relecture.plier(["envoie", "message"]), contexte: Relecture.motsDuContexte(["Réponse à Qonto : le compte est ouvert", "Virement Qonto"]))
+    let hc = Relecture.declencher(texte: "envoie le message au Konto", estConnu: connaitTout, vocabulaire: contexte)
+    verifier(hc?.raison == .horsContexte && hc?.suspects == ["Konto"], "« Konto » ressemble au « Qonto » du contexte : relecture")
+    verifier(Relecture.declencher(texte: "envoie le message au Qonto", estConnu: connaitTout, vocabulaire: contexte) == nil, "le mot du contexte lui-même : rien")
+    verifier(Relecture.declencher(texte: String(repeating: "mot ", count: 60), estConnu: connaitTout, vocabulaire: vide) == nil, "texte très long : pas de relecture")
+
+    groupe("Précision : garde-fou de la relecture")
+    func accepte(_ e: String, _ s: String, _ susp: [String]) -> String? { if case .accepte(let t) = Relecture.verifier(entree: e, sortie: s, suspects: susp) { return t }; return nil }
+    func refuse(_ e: String, _ s: String, _ susp: [String]) -> Bool { if case .refuse = Relecture.verifier(entree: e, sortie: s, suspects: susp) { return true }; return false }
+    verifier(accepte("Ok, ok, Tuget.", "Ok, ok, t'inquiète.", ["Tuget"]) == "Ok, ok, t'inquiète.", "« Tuget » → « t'inquiète » accepté (un mot sur trois, suspect)")
+    verifier(accepte("Ok, ok, Tuget.", "\"Ok, ok, t'inquiète.\"", ["Tuget"]) == "Ok, ok, t'inquiète.", "guillemets ajoutés autour : retirés")
+    verifier(accepte("Franchement c'est lourd", "Franchement c'est lourd", ["lourd"]) == "Franchement c'est lourd", "texte identique accepté")
+    verifier(refuse("Ok, ok, Tuget.", "Ok, d'accord, t'inquiète.", ["Tuget"]), "un mot qui n'était pas suspect a changé : refusé")
+    verifier(refuse("Ok, ok, Tuget.", "Voici le texte : Ok, ok, t'inquiète.", ["Tuget"]), "préambule ou ajout de mots : refusé")
+    verifier(refuse("On se capte demain", "Oui, on se capte demain, je suis d'accord avec toi", ["capte"]), "réponse à la place du texte : refusé")
+    verifier(refuse("Tuget Machin Truc Bidule Chose", "Un deux trois quatre cinq", ["Tuget", "Machin", "Truc", "Bidule", "Chose"]), "tout réécrit : refusé")
+    verifier(refuse("", "", []), "sortie vide : refusé")
+    verifier(accepte("Quand tu serais dispo demein on se voit", "Quand tu serais dispo demain on se voit", ["demein"]) != nil, "faute simple corrigée dans une phrase plus longue")
+    verifier(refuse("a b c d e f g h i j", "a b c x y z w h i j", ["d", "e", "f", "g"]), "quatre mots changés sur dix, même suspects : refusé (trois au plus)")
+
+    groupe("Précision : relecture et remise au propre en un seul appel")
+    func verdictFusion(_ e: String, _ s: String, relus: Int) -> Bool { if case .accepte = RemiseAuPropre.verifier(entree: e, sortie: s, motsRelus: relus) { return true }; return false }
+    verifier(!verdictFusion("Ok, ok, Tuget.", "Ok, t'inquiète.", relus: 0), "sans relecture : « Tuget » → « t'inquiète » est trop éloigné (50 % de mots communs)")
+    verifier(verdictFusion("Ok, ok, Tuget.", "Ok, t'inquiète.", relus: 1), "avec un mot suspect : le mot relu ne compte pas contre la fidélité")
+    verifier(!verdictFusion("Ok, ok, Tuget.", "Voici ma réponse complète à votre question.", relus: 1), "une réponse à la place du texte reste refusée")
+    verifier(!verdictFusion("a b c d e f", "x y z w v u", relus: 3), "tout réécrit reste refusé même avec trois mots suspects")
+
+    groupe("Précision : consigne de la relecture")
+    let c = ContexteRelecture(expressions: ["t'inquiète", "on se capte"], mots: ["Ecodistrib"], avantCurseur: "Salut Léa, ", titreFenetre: "WhatsApp", suspects: ["Tuget"])
+    let seule = Relecture.consigne(c)
+    verifier(seule.contains("ne réponds JAMAIS") && seule.contains("Ne change que ces mots-là") && seule.contains("Ne reformule jamais"), "consigne stricte : jamais répondre, jamais reformuler")
+    verifier(seule.contains("t'inquiète ; on se capte") && seule.contains("Ecodistrib") && seule.contains("Salut Léa") && seule.contains("WhatsApp") && seule.contains("Tuget"), "expressions, mots, texte avant le curseur, titre et mots suspects donnés")
+    let fusion = RemiseAuPropre.consignes(contexte: .general, mots: [], relecture: c)
+    verifier(fusion.contains("Relecture de sens") && fusion.contains("Retire les hésitations"), "un seul appel : remise au propre + relecture")
+    verifier(!RemiseAuPropre.consignes(contexte: .general, mots: []).contains("Relecture de sens"), "sans relecture : consigne d'avant inchangée")
+    let longContexte = ContexteRelecture(avantCurseur: String(repeating: "mot ", count: 200))
+    verifier(Relecture.section(longContexte).count < 1_500, "le texte avant le curseur est coupé (240 caractères)")
 }
 
 // MARK: expressions

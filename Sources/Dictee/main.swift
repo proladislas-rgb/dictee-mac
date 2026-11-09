@@ -16,6 +16,11 @@ if let i = arguments.firstIndex(of: "--transcrire") {
     exit(Transcrire.executer(chemin: arguments[i + 1], arguments: arguments))
 }
 
+// Dictee --declencheurs [--exemples]  (combien de dictées de l'historique auraient déclenché la relecture de sens ; ni réseau ni micro)
+if arguments.contains("--declencheurs") {
+    exit(MainActor.assumeIsolated { MesurerRelecture.executer(arguments: arguments) })
+}
+
 // Dictee --reunion-test moi.wav eux.wav [--sortie DOSSIER] [--sans-note]  (deux pistes -> transcription Moi / Eux -> note ; réseau seulement)
 if let i = arguments.firstIndex(of: "--reunion-test") {
     guard i + 2 < arguments.count, !arguments[i + 1].hasPrefix("--"), !arguments[i + 2].hasPrefix("--") else {

@@ -35,6 +35,8 @@ enum Settings {
 
     /// Imposé par un mode en ligne de commande (`--comparer-precision`) : le modèle essayé à cet instant.
     nonisolated(unsafe) static var modeleForce: ModeleWhisper?
+    /// Imposé par `--comparer-precision` : temps maximal de la relecture seule (on veut voir sa qualité, pas son délai).
+    nonisolated(unsafe) static var delaiRelectureForce: Double?
 
     /// Latences mesurées chez Hugues pour chaque modèle (affichées discrètement dans les Réglages).
     static var latences: SuiviLatence {
@@ -89,8 +91,22 @@ enum Settings {
     /// Apprendre des corrections de Hugues juste après une dictée (propositions dans « Mots »). `defaults write ... apprentissageDesCorrections -bool false`.
     static var apprentissageDesCorrections: Bool { reglage("DICTEE_APPRENTISSAGE", "apprentissageDesCorrections", defaut: true, faux: "non") }
 
+    /// Relecture de sens après Whisper (corrige les mots mal entendus d'après le contexte). `DICTEE_RELECTURE=non` ou `defaults write ... relectureDeSens -bool false`.
+    static var relecture: Bool { reglage("DICTEE_RELECTURE", "relectureDeSens", defaut: true, faux: "non") }
+
     /// Les expressions personnelles de Hugues sont données à Whisper et à la relecture. `DICTEE_EXPRESSIONS=non` ou `defaults write ... expressionsPourWhisper -bool false`.
     static var expressionsPourWhisper: Bool { reglage("DICTEE_EXPRESSIONS", "expressionsPourWhisper", defaut: true, faux: "non") }
+
+    /// Modèle de langue de la relecture seule (texte déjà propre ou trop court pour la remise au propre).
+    static var modeleRelecture: String {
+        ProcessInfo.processInfo.environment["DICTEE_MODELE_RELECTURE"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? defaults.string(forKey: "modeleRelecture").flatMap { $0.isEmpty ? nil : $0 } ?? ModelesTexte.rapide
+    }
+
+    /// Temps maximal de la relecture seule (au-delà, le texte est collé sans elle). Mesures : `DICTEE_DELAI_RELECTURE=0.6`.
+    static var delaiRelecture: Double {
+        delaiRelectureForce ?? ProcessInfo.processInfo.environment["DICTEE_DELAI_RELECTURE"].flatMap { Double($0) } ?? 0.25
+    }
 
     /// Interrupteur de vitesse : la variable d'environnement (mesures en ligne de commande) l'emporte sur le réglage.
     private static func reglage(_ variable: String, _ cle: String, defaut: Bool, faux: String) -> Bool {

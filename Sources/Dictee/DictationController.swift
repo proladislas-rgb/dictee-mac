@@ -25,12 +25,15 @@ final class DictationController {
         /// Lecture du champ focalisé (Accessibilité), lancée à l'appui puis au relâchement, pendant que Groq travaille.
         let champ: LectureChamp
         let transcripteur: ChunkTranscriber
+        /// Relecture de sens (mots mal entendus), avec le champ lu par l'Accessibilité.
+        let relecture: RelectureSession
         /// Remise au propre lancée pendant la pause d'avant le relâchement, sur le texte qu'on aurait si la parole s'arrêtait là.
         /// Remise au propre par unités de phrases pendant les longues dictées.
         var unites: NettoyageParUnites?
         var nettoyageAnticipe: (brut: String, contexte: ContexteMiseEnForme, tache: Task<Nettoyage.Resultat, Never>)?
         init(id: Int, mainsLibres: Bool, appCible: NSRunningApplication?, transcripteur: ChunkTranscriber, champ: LectureChamp) {
             self.id = id; self.mainsLibres = mainsLibres; self.appCible = appCible; self.transcripteur = transcripteur; self.champ = champ
+            relecture = RelectureSession(champ: { [champ] in champ.dejaConnu() })
             // Le son de début est capté par le micro : la détection de parole ignore ses premières tranches (0,2 s en mains libres, 0,32 s en mode « tenir » où il part à 0,12 s).
             pipeline = RecordingPipeline(tranchesIgnorees: Settings.sons ? (mainsLibres ? 10 : 16) : 0)
         }
@@ -75,9 +78,10 @@ final class DictationController {
         panneau.modele.surValider = { [weak self] in self?.validerParBouton() }
         Dictionnaire.creerSiAbsent()
         Orthographe.prechauffer()
-        // Apprentissage automatique (une fois par jour au plus) : hors du chemin de la dictée.
+        // Apprentissage automatique (une fois par jour au plus) et vocabulaire de la relecture : hors du chemin de la dictée.
         Task { @MainActor in
             MotsModele.partage.apprendreDeLHistorique()
+            VocabulaireRelectureStore.partage.rafraichir()
         }
         // Le premier codage FLAC de la session coûte ~20 ms de plus : on le fait à vide, tout de suite.
         Task.detached(priority: .utility) { _ = EncodeurAudio.flacEnMemoire(Array(repeating: 0, count: 3200)) }
@@ -115,7 +119,7 @@ final class DictationController {
         let s = Session(id: compteur, mainsLibres: mainsLibres, appCible: appCible, transcripteur: transcripteur, champ: champ)
         courante = s
         let champLu = s.champ, bundle = s.appCible?.bundleIdentifier
-        let unites = NettoyageParUnites(mots: Dictionnaire.mots()) {
+        let unites = NettoyageParUnites(mots: Dictionnaire.mots(), relecture: s.relecture) {
             guard Settings.adapterLeTon else { return .general }
             let c = champLu.dejaConnu()
             return RemiseAuPropre.contexte(bundleID: bundle, role: c?.role, titreFenetre: c?.titreFenetre)
@@ -277,7 +281,7 @@ final class DictationController {
         if let a = s.nettoyageAnticipe, a.brut == brut { return }
         let champ = s.champ.dejaConnu()
         let contexte = Settings.adapterLeTon ? RemiseAuPropre.contexte(bundleID: s.appCible?.bundleIdentifier, role: champ?.role, titreFenetre: champ?.titreFenetre) : .general
-        guard let a = NettoyageFinal.lancerALAvance(brut, contexte: contexte, mots: Dictionnaire.mots()) else { return }
+        guard let a = NettoyageFinal.lancerALAvance(brut, contexte: contexte, mots: Dictionnaire.mots(), relecture: s.relecture) else { return }
         s.nettoyageAnticipe?.tache.cancel()
         s.nettoyageAnticipe = a
         Log.ecrire("dictée \(s.id) : remise au propre lancée à l'avance (pause en cours)")
@@ -295,9 +299,9 @@ final class DictationController {
         let contexte = Settings.adapterLeTon ? RemiseAuPropre.contexte(bundleID: s.appCible?.bundleIdentifier, role: champ?.role, titreFenetre: champ?.titreFenetre) : .general
         let tNettoyage = ProcessInfo.processInfo.systemUptime
         let (nettoyage, modeNettoyage) = await NettoyageFinal.executer(brut: brut, contexte: contexte, transcripteur: s.transcripteur, unites: s.unites,
-                                                                      anticipe: s.nettoyageAnticipe, mots: Dictionnaire.mots())
+                                                                      anticipe: s.nettoyageAnticipe, mots: Dictionnaire.mots(), relecture: s.relecture)
         let attenteNettoyage = ms(ProcessInfo.processInfo.systemUptime - tNettoyage)
-        Log.ecrire("dictée \(s.id) : mise en forme \(contexte.rawValue) (champ \(champ?.role ?? "?"), lu au \(sourceChamp)), \(nettoyage.utilise ? "remis au propre" : "texte brut gardé : \(nettoyage.raison)") \(modeNettoyage), \(attenteNettoyage) ms d'attente après Groq (travail de \(ms(nettoyage.duree)) ms)")
+        Log.ecrire("dictée \(s.id) : mise en forme \(contexte.rawValue) (champ \(champ?.role ?? "?"), lu au \(sourceChamp)), \(nettoyage.utilise ? "remis au propre" : "texte brut gardé : \(nettoyage.raison)") \(modeNettoyage), \(attenteNettoyage) ms d'attente après Groq (travail de \(ms(nettoyage.duree)) ms)\(nettoyage.relecture.map { ", relecture de sens : \($0)" } ?? "")")
         // raccourcis vocaux (« ma signature » → le texte choisi) : après la remise au propre, pour que l'IA n'y touche pas
         // Adresses dictées (« x arobase y point com ») reconstituées d'abord par la règle locale, y compris quand la remise au propre n'a pas eu lieu.
         let apresAdresses = AdressesDictees.reconstituer(nettoyage.texte)
@@ -328,6 +332,7 @@ final class DictationController {
                 signalerEchec(texteFinal, cible: s.appCible, raison: raison, ancienMessage: "Texte non écrit, voir l\u{2019}historique", idDictee: s.id)
             } else {
                 garder(inseree: true)
+                VocabulaireRelectureStore.partage.rafraichir()
                 MotsModele.partage.apprendreDeLHistorique()
                 surInsertion?(texteFinal, s.appCible?.bundleIdentifier)
                 SurveillanceCorrections.lancer(texte: texte, cible: s.appCible, genre: kind, idDictee: s.id)
