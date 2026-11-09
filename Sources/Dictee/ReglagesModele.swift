@@ -38,12 +38,15 @@ final class ReglagesModele: ObservableObject {
     @Published private(set) var globeValeur: Int?
     private var installe = false
     private let reel: Bool
+    /// Mises à jour : l'état partagé avec la ligne sous l'encoche (réel), ou un exemple pour les rendus.
+    let maj: MiseAJourModele
 
     var globeAReglerEncore: Bool { ToucheGlobe.doitEtreReglee(valeur: globeValeur) }
 
     /// `reel = false` : valeurs d'exemple, aucun accès au système (rendus PNG).
-    init(reel: Bool = true, globe: Int? = 0) {
+    init(reel: Bool = true, globe: Int? = 0, maj: MiseAJourModele? = nil) {
         self.reel = reel
+        self.maj = maj ?? (reel ? MiseAJourControleur.partage.modele : MiseAJourModele.exemple(verifieeLe: Date()))
         globeValeur = reel ? ToucheGlobe.lire() : globe
         remettreAuPropre = reel ? Settings.remettreAuPropre : true
         adapterLeTon = reel ? Settings.adapterLeTon : true

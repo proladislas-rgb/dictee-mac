@@ -149,6 +149,52 @@ enum Settings {
         set { defaults.set(newValue ?? "", forKey: "microUID") }
     }
 
+    // MARK: Mise à jour automatique
+
+    /// Vérifier GitHub une fois par jour s'il existe une nouvelle version. Activé par défaut.
+    /// Exemple : defaults write com.hugues.dictee verifierLesMisesAJour -bool false
+    static var verifierLesMisesAJour: Bool {
+        get { defaults.object(forKey: "verifierLesMisesAJour") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "verifierLesMisesAJour") }
+    }
+
+    /// Dernière vérification qui a abouti (la dernière réponse lisible de GitHub).
+    static var miseAJourDerniereReussite: Date? {
+        get { defaults.object(forKey: "miseAJourDerniereReussite") as? Date }
+        set { defaults.set(newValue, forKey: "miseAJourDerniereReussite") }
+    }
+
+    /// Dernière tentative, réussie ou non (limite la fréquence quand le réseau manque).
+    static var miseAJourDerniereTentative: Date? {
+        get { defaults.object(forKey: "miseAJourDerniereTentative") as? Date }
+        set { defaults.set(newValue, forKey: "miseAJourDerniereTentative") }
+    }
+
+    /// GitHub a demandé de patienter (limite de requêtes) : rien n'est demandé avant cette heure.
+    static var miseAJourPasAvant: Date? {
+        get { defaults.object(forKey: "miseAJourPasAvant") as? Date }
+        set { defaults.set(newValue, forKey: "miseAJourPasAvant") }
+    }
+
+    /// « Plus tard » : la version repoussée et l'heure du prochain rappel.
+    static var miseAJourReport: ReportProposition? {
+        get {
+            guard let v = defaults.string(forKey: "miseAJourReportVersion").flatMap(VersionApp.init),
+                  let d = defaults.object(forKey: "miseAJourReportJusqua") as? Date else { return nil }
+            return ReportProposition(version: v, jusqua: d)
+        }
+        set {
+            defaults.set(newValue?.version.description, forKey: "miseAJourReportVersion")
+            defaults.set(newValue?.jusqua, forKey: "miseAJourReportJusqua")
+        }
+    }
+
+    /// Version qu'une mise à jour vient d'installer (lue au lancement suivant pour le journal, puis effacée).
+    static var miseAJourInstallee: String? {
+        get { defaults.string(forKey: "miseAJourInstallee") }
+        set { defaults.set(newValue, forKey: "miseAJourInstallee") }
+    }
+
     /// Le premier lancement (3 étapes) a été fait : il ne s'affiche plus tout seul.
     static var premierLancementFait: Bool {
         get { defaults.bool(forKey: "premierLancementFait") }

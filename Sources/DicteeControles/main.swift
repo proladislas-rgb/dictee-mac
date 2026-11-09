@@ -1256,5 +1256,171 @@ do {
     verifier(u.observer(app: zoom, reunionEnCours: false, maintenant: 7)?.nom == "Zoom", "coupure brève du micro : l'épisode continue")
 }
 
+
+// MARK: Mise à jour automatique
+groupe("Mise à jour : versions")
+do {
+    func v(_ t: String) -> VersionApp { VersionApp(t)! }
+    verifier(v("0.2.10") > v("0.2.9"), "0.2.10 > 0.2.9 (comparaison par nombres, pas par texte)")
+    verifier(v("0.3") == v("0.3.0") && v("v0.3.0") == v("0.3"), "0.3 == 0.3.0, préfixe v accepté")
+    verifier(v("1.0.0") > v("0.99.99") && v("0.3.0") > v("0.2.2"), "ordre des versions")
+    verifier(!(v("0.2.2") > v("0.2.2")) && !(v("0.2.2") < v("0.2.2")), "versions égales")
+    verifier(VersionApp("") == nil && VersionApp("0.3.0-beta") == nil && VersionApp("abc") == nil && VersionApp("1..2") == nil && VersionApp("0.x") == nil, "versions illisibles refusées")
+    verifier(VersionApp("1.2.3.4.5") == nil && VersionApp("1234567.0") == nil && VersionApp("-1.0") == nil, "versions trop longues ou négatives refusées")
+    verifier(v("v0.3.0").description == "0.3.0", "affichage sans le v")
+}
+
+func releaseJSON(tag: String = "v0.3.0", brouillon: Bool = false, prerelease: Bool = false, assets: [(String, Int?, String?, String)]? = nil, corps: String = "# Verbe 0.3.0\n- une chose") -> Data {
+    let a = assets ?? [("Verbe-0.3.0.dmg", 1_500_000, "sha256:" + String(repeating: "ab", count: 32), "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.3.0.dmg"),
+                       ("Verbe-0.3.0.dmg.sha256", 90, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.3.0.dmg.sha256")]
+    let liste = a.map { (nom, taille, digest, url) -> [String: Any] in
+        var d: [String: Any] = ["name": nom, "browser_download_url": url]
+        if let taille { d["size"] = taille }
+        if let digest { d["digest"] = digest }
+        return d
+    }
+    let json: [String: Any] = ["tag_name": tag, "html_url": "https://github.com/proladislas-rgb/dictee-mac/releases/tag/\(tag)", "body": corps,
+                               "draft": brouillon, "prerelease": prerelease, "assets": liste]
+    return try! JSONSerialization.data(withJSONObject: json)
+}
+
+groupe("Mise à jour : choix de la release et de l'asset")
+do {
+    let actuelle = VersionApp("0.2.2")!
+    if case .proposition(let p) = ChoixMiseAJour.analyser(json: releaseJSON(), versionActuelle: actuelle) {
+        verifier(p.version == VersionApp("0.3.0")! && p.nomDMG == "Verbe-0.3.0.dmg", "release plus récente : proposition de 0.3.0")
+        verifier(p.taille == 1_500_000 && p.dmgURL.lastPathComponent == "Verbe-0.3.0.dmg", "asset Verbe-<version>.dmg choisi")
+        verifier(p.empreinteJSON == String(repeating: "ab", count: 32), "empreinte du champ digest lue")
+        verifier(p.empreinteURL?.lastPathComponent == "Verbe-0.3.0.dmg.sha256", "fichier .sha256 repéré")
+        verifier(p.notes.contains("une chose") && p.pageURL != nil, "notes et page de la release gardées")
+    } else { verifier(false, "release plus récente : proposition de 0.3.0") }
+    verifier(ChoixMiseAJour.analyser(json: releaseJSON(), versionActuelle: VersionApp("0.3.0")!) == .aJour, "même version : à jour")
+    verifier(ChoixMiseAJour.analyser(json: releaseJSON(), versionActuelle: VersionApp("0.4.0")!) == .aJour, "version installée plus récente : à jour")
+    verifier(ChoixMiseAJour.analyser(json: releaseJSON(tag: "v0.2.10"), versionActuelle: VersionApp("0.2.9")!) != .aJour, "0.2.10 est plus récente que 0.2.9")
+    verifier(ChoixMiseAJour.analyser(json: releaseJSON(brouillon: true), versionActuelle: actuelle) == .aJour, "brouillon ignoré")
+    verifier(ChoixMiseAJour.analyser(json: releaseJSON(prerelease: true), versionActuelle: actuelle) == .aJour, "pré-version ignorée")
+    verifier(ChoixMiseAJour.analyser(json: Data("pas du json".utf8), versionActuelle: actuelle) == .illisible, "JSON abîmé : illisible, pas de plantage")
+    verifier(ChoixMiseAJour.analyser(json: releaseJSON(tag: "nightly"), versionActuelle: actuelle) == .illisible, "tag illisible : rien proposé")
+    verifier(ChoixMiseAJour.analyser(json: Data("{}".utf8), versionActuelle: actuelle) == .illisible, "JSON vide : illisible")
+    let autre = [("Verbe-0.2.9.dmg", 1_000_000, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.2.9.dmg"),
+                 ("Verbe.dmg", 1_000_000, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe.dmg")] as [(String, Int?, String?, String)]
+    if case .inutilisable = ChoixMiseAJour.analyser(json: releaseJSON(assets: autre), versionActuelle: actuelle) { verifier(true, "aucun asset au bon nom : jamais un autre fichier") }
+    else { verifier(false, "aucun asset au bon nom : jamais un autre fichier") }
+    let ailleurs = [("Verbe-0.3.0.dmg", 1_000_000, nil, "https://evil.example.com/proladislas-rgb/dictee-mac/Verbe-0.3.0.dmg")] as [(String, Int?, String?, String)]
+    if case .inutilisable = ChoixMiseAJour.analyser(json: releaseJSON(assets: ailleurs), versionActuelle: actuelle) { verifier(true, "adresse hors GitHub refusée") } else { verifier(false, "adresse hors GitHub refusée") }
+    let http = [("Verbe-0.3.0.dmg", 1_000_000, nil, "http://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.3.0.dmg")] as [(String, Int?, String?, String)]
+    if case .inutilisable = ChoixMiseAJour.analyser(json: releaseJSON(assets: http), versionActuelle: actuelle) { verifier(true, "adresse en http refusée") } else { verifier(false, "adresse en http refusée") }
+    let autreDepot = [("Verbe-0.3.0.dmg", 1_000_000, nil, "https://github.com/quelquun/autre/releases/download/v0.3.0/Verbe-0.3.0.dmg")] as [(String, Int?, String?, String)]
+    if case .inutilisable = ChoixMiseAJour.analyser(json: releaseJSON(assets: autreDepot), versionActuelle: actuelle) { verifier(true, "autre dépôt GitHub refusé") } else { verifier(false, "autre dépôt GitHub refusé") }
+    let grosse = [("Verbe-0.3.0.dmg", 900_000_000, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.3.0.dmg")] as [(String, Int?, String?, String)]
+    if case .inutilisable = ChoixMiseAJour.analyser(json: releaseJSON(assets: grosse), versionActuelle: actuelle) { verifier(true, "fichier trop gros refusé") } else { verifier(false, "fichier trop gros refusé") }
+    let sansTaille = [("Verbe-0.3.0.dmg", nil, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.3.0.dmg")] as [(String, Int?, String?, String)]
+    if case .inutilisable = ChoixMiseAJour.analyser(json: releaseJSON(assets: sansTaille), versionActuelle: actuelle) { verifier(true, "taille absente : refusé") } else { verifier(false, "taille absente : refusé") }
+    let sansEmpreinte = [("Verbe-0.3.0.dmg", 1_000_000, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.3.0.dmg")] as [(String, Int?, String?, String)]
+    if case .proposition(let p) = ChoixMiseAJour.analyser(json: releaseJSON(assets: sansEmpreinte), versionActuelle: actuelle) { verifier(p.empreinteJSON == nil && p.empreinteURL == nil, "ancienne release sans empreinte : proposée, sans empreinte") }
+    else { verifier(false, "ancienne release sans empreinte : proposée, sans empreinte") }
+    verifier(PolitiqueAdresses.production.accepteRedirection(URL(string: "https://objects.githubusercontent.com/github-production-release-asset/abc")!), "redirection vers objects.githubusercontent.com permise")
+    verifier(!PolitiqueAdresses.production.accepteRedirection(URL(string: "https://githubusercontent.com.evil.fr/x")!), "faux sous-domaine refusé")
+    verifier(!PolitiqueAdresses.production.accepte(URL(string: "https://user:mdp@github.com/proladislas-rgb/dictee-mac/x")!), "adresse avec identifiants refusée")
+    verifier(PolitiqueAdresses.local.accepte(URL(string: "http://127.0.0.1:8123/Verbe-9.9.9.dmg")!) && !PolitiqueAdresses.production.accepte(URL(string: "http://127.0.0.1:8123/x")!), "http local permis seulement en mode de test")
+}
+
+groupe("Mise à jour : empreinte SHA-256")
+do {
+    let h = String(repeating: "0123456789abcdef", count: 4)
+    verifier(EmpreinteSHA256.depuisDigest("sha256:" + h) == h, "digest GitHub lu")
+    verifier(EmpreinteSHA256.depuisDigest("sha1:" + h) == nil && EmpreinteSHA256.depuisDigest("sha256:zz") == nil && EmpreinteSHA256.depuisDigest("sha256:" + h.uppercased()) == h, "digest : mauvais algorithme ou longueur refusés, majuscules acceptées")
+    verifier(EmpreinteSHA256.depuisFichier("\(h)  Verbe-0.3.0.dmg\n", nomFichier: "Verbe-0.3.0.dmg") == h, "fichier .sha256 de shasum")
+    verifier(EmpreinteSHA256.depuisFichier("\(h) *Verbe-0.3.0.dmg", nomFichier: "Verbe-0.3.0.dmg") == h, "variante binaire (*nom)")
+    verifier(EmpreinteSHA256.depuisFichier(h + "\n", nomFichier: "Verbe-0.3.0.dmg") == h, "empreinte seule")
+    verifier(EmpreinteSHA256.depuisFichier("\(h)  Verbe-0.2.0.dmg", nomFichier: "Verbe-0.3.0.dmg") == nil, "fichier .sha256 d'une autre version refusé")
+    verifier(EmpreinteSHA256.depuisFichier("<html>404</html>", nomFichier: "Verbe-0.3.0.dmg") == nil && EmpreinteSHA256.depuisFichier("", nomFichier: "x") == nil, "page d'erreur ou fichier vide refusés")
+    verifier(EmpreinteSHA256.depuisFichier("\(h)  Verbe-0.3.0.dmg\n\(h)  autre.dmg", nomFichier: "Verbe-0.3.0.dmg") == nil, "plusieurs lignes : refusé")
+    verifier(EmpreinteSHA256.correspond(calculee: h, attendues: [h, h.uppercased()]), "empreintes identiques")
+    verifier(!EmpreinteSHA256.correspond(calculee: h, attendues: [h, String(repeating: "f", count: 64)]), "une seule empreinte différente suffit à refuser")
+    verifier(EmpreinteSHA256.correspond(calculee: h, attendues: []), "aucune empreinte publiée : rien à comparer")
+    var c = EmpreinteSHA256.Calcul(); c.ajouter(Data("abc".utf8))
+    verifier(c.resultat() == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" && c.octets == 3, "SHA-256 de « abc » (valeur connue)")
+    var d = EmpreinteSHA256.Calcul(); d.ajouter(Data("a".utf8)); d.ajouter(Data("bc".utf8))
+    verifier(d.resultat() == c.resultat(), "calcul par morceaux identique au calcul d'un bloc")
+    let fichier = FileManager.default.temporaryDirectory.appendingPathComponent("controle-sha-\(UUID().uuidString)")
+    try! Data("abc".utf8).write(to: fichier)
+    verifier((try? EmpreinteSHA256.calculer(fichier: fichier)) == c.resultat(), "SHA-256 d'un fichier")
+    try? FileManager.default.removeItem(at: fichier)
+}
+
+groupe("Mise à jour : quand vérifier GitHub")
+do {
+    let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+    func apres(_ s: TimeInterval) -> Date { t0.addingTimeInterval(s) }
+    verifier(PlanVerification.doitVerifierSeul(automatique: true, derniereReussite: nil, derniereTentative: nil, pasAvant: nil, maintenant: t0), "jamais vérifié : on vérifie")
+    verifier(!PlanVerification.doitVerifierSeul(automatique: true, derniereReussite: t0, derniereTentative: t0, pasAvant: nil, maintenant: apres(23 * 3600)), "moins de 24 h : non")
+    verifier(PlanVerification.doitVerifierSeul(automatique: true, derniereReussite: t0, derniereTentative: t0, pasAvant: nil, maintenant: apres(24 * 3600 + 1)), "24 h passées : oui")
+    verifier(!PlanVerification.doitVerifierSeul(automatique: false, derniereReussite: nil, derniereTentative: nil, pasAvant: nil, maintenant: t0), "interrupteur coupé : jamais seul")
+    verifier(!PlanVerification.doitVerifierSeul(automatique: true, derniereReussite: nil, derniereTentative: t0, pasAvant: nil, maintenant: apres(600)), "échec récent (hors ligne) : pas de nouvelle tentative avant 30 min")
+    verifier(PlanVerification.doitVerifierSeul(automatique: true, derniereReussite: nil, derniereTentative: t0, pasAvant: nil, maintenant: apres(1801)), "30 min après l'échec : on réessaie")
+    verifier(!PlanVerification.doitVerifierSeul(automatique: true, derniereReussite: nil, derniereTentative: nil, pasAvant: apres(1800), maintenant: t0), "limite de l'API atteinte : on attend l'heure donnée")
+    verifier(PlanVerification.doitVerifierSeul(automatique: true, derniereReussite: apres(10 * 24 * 3600), derniereTentative: nil, pasAvant: nil, maintenant: t0), "dernière vérification dans le futur (horloge reculée) : on revérifie")
+    verifier(!PlanVerification.demandePermise(derniereTentative: t0, pasAvant: nil, maintenant: apres(5)), "deux demandes à moins de 10 s : la seconde est refusée")
+    verifier(PlanVerification.demandePermise(derniereTentative: t0, pasAvant: nil, maintenant: apres(11)), "demande 11 s après : permise")
+    verifier(!PlanVerification.demandePermise(derniereTentative: nil, pasAvant: apres(100), maintenant: t0), "demande pendant la pause imposée par GitHub : refusée")
+    verifier(PlanVerification.pasAvant(statut: 200, enTetes: [:], maintenant: t0) == nil && PlanVerification.pasAvant(statut: 404, enTetes: [:], maintenant: t0) == nil, "réponses normales : pas de pause")
+    verifier(PlanVerification.pasAvant(statut: 429, enTetes: ["Retry-After": "120"], maintenant: t0) == apres(120), "429 avec Retry-After : on attend ce délai")
+    verifier(PlanVerification.pasAvant(statut: 403, enTetes: ["X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "\(Int(t0.timeIntervalSince1970) + 1500)"], maintenant: t0) == apres(1500), "403 limite atteinte : on attend l'heure de remise à zéro")
+    verifier(PlanVerification.pasAvant(statut: 403, enTetes: [:], maintenant: t0) == apres(3600), "403 sans précision : une heure")
+}
+
+groupe("Mise à jour : afficher ou non la proposition")
+do {
+    let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+    let actuelle = VersionApp("0.3.0")!, neuve = VersionApp("0.3.1")!
+    func peut(_ c: ContexteAffichage = ContexteAffichage(), report: ReportProposition? = nil, version: VersionApp = neuve, maintenant: Date = t0) -> Bool {
+        AffichageMiseAJour.peutProposer(version: version, versionActuelle: actuelle, contexte: c, report: report, maintenant: maintenant)
+    }
+    verifier(peut(), "rien en cours : on propose")
+    verifier(!peut(ContexteAffichage(dicteeEnCours: true)), "jamais pendant une dictée")
+    verifier(!peut(ContexteAffichage(reunionEnCours: true)), "jamais pendant une réunion")
+    verifier(!peut(ContexteAffichage(autreAnnonce: true)), "jamais par-dessus une autre annonce de l'encoche")
+    verifier(!peut(ContexteAffichage(installationPossible: false)), "jamais si l'app ne peut pas se remplacer (DMG, dossier en lecture seule)")
+    verifier(!peut(version: actuelle), "version déjà installée : rien")
+    let report = ReportProposition.plusTard(version: neuve, maintenant: t0)
+    verifier(!peut(report: report, maintenant: t0.addingTimeInterval(3600)), "« Plus tard » : rien une heure après")
+    verifier(!peut(report: report, maintenant: t0.addingTimeInterval(23 * 3600)), "« Plus tard » : rien 23 h après")
+    verifier(peut(report: report, maintenant: t0.addingTimeInterval(24 * 3600 + 1)), "« Plus tard » : le lendemain, on repropose")
+    verifier(peut(report: report, version: VersionApp("0.3.2")!, maintenant: t0.addingTimeInterval(3600)), "une version plus récente que celle repoussée est proposée tout de suite")
+    verifier(peut(report: ReportProposition(version: neuve, jusqua: t0.addingTimeInterval(30 * 24 * 3600)), maintenant: t0), "report absurde (horloge déréglée) ignoré")
+    verifier(AffichageMiseAJour.peutRedemarrer(contexte: ContexteAffichage()) && !AffichageMiseAJour.peutRedemarrer(contexte: ContexteAffichage(dicteeEnCours: true)) && !AffichageMiseAJour.peutRedemarrer(contexte: ContexteAffichage(reunionEnCours: true)), "le redémarrage attend la fin d'une dictée ou d'une réunion")
+}
+
+groupe("Mise à jour : emplacement et contrôle de l'app")
+do {
+    typealias E = EmplacementApp
+    verifier(E.evaluer(chemin: "/Applications/Verbe.app", volumeEnLectureSeule: false, dossierEcrivable: true) == .possible, "/Applications modifiable : possible")
+    verifier(E.evaluer(chemin: "/Users/x/Applications/Verbe.app", volumeEnLectureSeule: false, dossierEcrivable: true) == .possible, "~/Applications : possible")
+    verifier(E.evaluer(chemin: "/Volumes/Verbe/Verbe.app", volumeEnLectureSeule: true, dossierEcrivable: false) != .possible, "depuis l'image disque : refusé")
+    verifier(E.evaluer(chemin: "/private/var/folders/x/AppTranslocation/ABC/d/Verbe.app", volumeEnLectureSeule: false, dossierEcrivable: true) != .possible, "dossier translocalisé : refusé")
+    verifier(E.evaluer(chemin: "/Applications/Verbe.app", volumeEnLectureSeule: true, dossierEcrivable: true) != .possible, "volume en lecture seule : refusé")
+    verifier(E.evaluer(chemin: "/Applications/Verbe.app", volumeEnLectureSeule: false, dossierEcrivable: false) != .possible, "dossier non modifiable : refusé")
+    verifier(E.evaluer(chemin: "/Users/x/dictee-mac/.build/release/Dictee", volumeEnLectureSeule: false, dossierEcrivable: true) != .possible, "binaire nu (hors app) : refusé")
+    let sortie = "Executable=/x/Verbe\nIdentifier=com.hugues.dictee\nFormat=app bundle with Mach-O thin (arm64)\nSignature=adhoc\n"
+    verifier(ControleApp.identifiant(sortieCodesign: sortie) == "com.hugues.dictee" && ControleApp.identifiant(sortieCodesign: "rien") == nil, "identifiant lu dans la sortie de codesign")
+    let v = VersionApp("0.3.1")!
+    verifier(ControleApp.refus(identifiantAttendu: "com.hugues.dictee", identifiantSignature: "com.hugues.dictee", identifiantPlist: "com.hugues.dictee", versionAttendue: v, versionPlist: "0.3.1") == nil, "app conforme : acceptée")
+    verifier(ControleApp.refus(identifiantAttendu: "com.hugues.dictee", identifiantSignature: "com.autre.app", identifiantPlist: "com.hugues.dictee", versionAttendue: v, versionPlist: "0.3.1") != nil, "autre identifiant de signature : refusée")
+    verifier(ControleApp.refus(identifiantAttendu: "com.hugues.dictee", identifiantSignature: "com.hugues.dictee", identifiantPlist: "com.autre.app", versionAttendue: v, versionPlist: "0.3.1") != nil, "autre identifiant dans Info.plist : refusée")
+    verifier(ControleApp.refus(identifiantAttendu: "com.hugues.dictee", identifiantSignature: "com.hugues.dictee", identifiantPlist: "com.hugues.dictee", versionAttendue: v, versionPlist: "0.2.0") != nil, "version différente de celle annoncée (retour en arrière déguisé) : refusée")
+    verifier(ControleApp.refus(identifiantAttendu: "com.hugues.dictee", identifiantSignature: nil, identifiantPlist: "com.hugues.dictee", versionAttendue: v, versionPlist: "0.3.1") != nil, "signature illisible : refusée")
+}
+
+groupe("Mise à jour : notes de version")
+do {
+    let b = NotesDeVersion.blocs("# Verbe 0.3.0\n\nIntro avec **gras** et [un lien](https://x.fr).\n\n## Ce qui change\n- **Mise à jour** automatique\n* Une autre `chose`\n<script>alert(1)</script>\n![img](http://x/y.png)\nFin")
+    verifier(!b.contains(.titre("Verbe 0.3.0")), "le premier titre (le nom de la version) n'est pas répété")
+    verifier(b.first == .paragraphe("Intro avec gras et un lien."), "gras et liens réduits au texte")
+    verifier(b.contains(.titre("Ce qui change")) && b.contains(.puce("Mise à jour automatique")) && b.contains(.puce("Une autre chose")), "titres et puces")
+    verifier(!b.contains { if case .paragraphe(let t) = $0 { return t.contains("<") || t.contains("http") } else { return false } }, "ni HTML ni adresse dans le texte montré")
+    verifier(NotesDeVersion.blocs("").isEmpty && NotesDeVersion.blocs(String(repeating: "a\n", count: 10_000)).count < 5000, "notes vides ou démesurées : sans danger")
+}
+
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)

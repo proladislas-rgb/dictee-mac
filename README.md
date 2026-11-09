@@ -26,6 +26,8 @@ En une commande pour les initiés : `xattr -dr com.apple.quarantine /Application
 
 **Touche 🌐.** Si elle ouvre les emoji (ou autre chose que « Ne rien faire »), Verbe te le dit au premier lancement et ouvre le bon volet des Réglages : Clavier › « Appuyer sur la touche 🌐 pour » › « Ne rien faire ».
 
+**Mises à jour.** Verbe se met à jour tout seul à partir de la 0.3 : une fois par jour, il demande à GitHub s'il existe une version plus récente et, si oui, propose **Installer** dans une ligne sous l'encoche (jamais pendant une dictée ni une réunion ; « Plus tard » repousse au lendemain, « Nouveautés » montre les notes de la version). Il télécharge le fichier, contrôle sa taille, son empreinte SHA-256 et sa signature, remplace l'app puis se relance. Si une étape échoue, rien n'est remplacé. Réglages › Compte & données › **Mises à jour** : version actuelle, bouton « Rechercher », interrupteur « Vérifier automatiquement ». Depuis une version plus ancienne que la 0.3, il faut retélécharger le fichier une fois.
+
 **Venant de la version 0.1.0 (Dictée).** Verbe garde le même identifiant : autorisations, historique et dictionnaire sont conservés. Ferme Dictée, ouvre Verbe, puis jette l'ancienne `Dictee.app`.
 
 **Désinstaller.** Clic droit sur les guillemets dans la barre des menus › **Désinstaller Verbe…** (ou Réglages › Désinstaller). Cela efface l'historique, les mots, les raccourcis, le journal, les réglages et la clé Groq du Trousseau, puis place l'app à la corbeille (et, après confirmation, une éventuelle ancienne `Dictee.app`). Ton éventuel fichier `~/.config/groq/.env` n'est jamais touché.
@@ -64,13 +66,22 @@ Les dossiers internes gardent l'ancien nom `Dictee`, pour que rien ne se perde e
 |---|---|
 | `Sources/` | Le code Swift (`Dictee` : le produit Swift de l'app, nom interne gardé ; `DicteeCore` : la logique testée, `DicteeControles` : les contrôles) |
 | `build.sh` | Fabrication et installation dans `~/Applications` (`Verbe.app`) |
-| `release.sh` | Fabrique `dist/Verbe-<version>.dmg` (version lue dans `VERSION`) |
+| `release.sh` | Fabrique `dist/Verbe-<version>.dmg` et `dist/Verbe-<version>.dmg.sha256` (version lue dans `VERSION`) |
 | `docs/spec-v1.md` | La spécification technique |
 | `design/` | Les maquettes validées et les captures |
 | `LIS-MOI-CHATGPT.md` | Le brief design (nom, logo, animations) |
 | `tasks/` | Le plan et les leçons du projet |
 
 Vérifier la logique : `swift run DicteeControles`
+
+Publier une version (le fichier `.sha256` se joint toujours au DMG : Verbe le compare avant de se mettre à jour) :
+
+```bash
+./release.sh
+gh release create v<version> dist/Verbe-<version>.dmg dist/Verbe-<version>.dmg.sha256 --target main --title "Verbe <version>" --notes-file dist/notes-v<version>.md
+```
+
+Les notes de la release s'affichent dans « Nouveautés » ; le DMG doit s'appeler exactement `Verbe-<version>.dmg`.
 
 ## Licence
 

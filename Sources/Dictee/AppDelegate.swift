@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import Combine
 import DicteeCore
 
 @MainActor
@@ -18,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var fenetrePrincipale = FenetrePrincipale(dictees: ModeleDictees(), controleurReunions: reunionControleur)
     private var survolStatus: SurvolStatus?
     private var derniereAppExterne: NSRunningApplication?
+    private var abonnements = Set<AnyCancellable>()
 
     init(options: Options) {
         self.options = options
@@ -73,11 +75,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         configurerFenetre()
         configurerReunions()
+        configurerMiseAJour()
         installerMenuPrincipal()
         panneauCompact.surChangementEtat = { [weak self] ouvert in self?.survolStatus?.panneauOuvert = ouvert }
         dictee.surDebut = { [weak self] in
             self?.panneauCompact.fermer(animee: false, rendreLeFocus: false)
             self?.filet.fermer(animee: false, rendreLeFocus: false)
+            MiseAJourControleur.partage.occuper()   // jamais de proposition de mise à jour pendant une dictée
         }
         clavier.onAction = { [weak self] action in
             guard let self else { return }
@@ -270,6 +274,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         reunionControleur.demarrerSurveillanceDesAppels()
     }
 
+    /// Mise à jour automatique : vérification une fois par jour, proposition sous l'encoche (jamais pendant une dictée, une réunion
+    /// ni une autre annonce), installation et relance. Voir MiseAJourControleur.
+    private func configurerMiseAJour() {
+        let maj = MiseAJourControleur.partage
+        maj.contexte = { [weak self] in
+            guard let self else { return ContexteAffichage() }
+            let phase = self.reunionControleur.phase
+            return ContexteAffichage(
+                dicteeEnCours: self.dictee.enCours,
+                reunionEnCours: phase != .repos,   // enregistrement, traitement, note prête, « Noter cet appel ? »
+                autreAnnonce: self.panneauCompact.estOuvert || self.filet.estOuvert || self.priseEnMain.estOuvert)
+        }
+        reunionControleur.$phase.sink { phase in if phase != .repos { MiseAJourControleur.partage.occuper() } }.store(in: &abonnements)
+        maj.demarrer()
+    }
+
+    @objc private func rechercherLesMisesAJour() {
+        let maj = MiseAJourControleur.partage
+        // La progression et le résultat se lisent dans Réglages › Compte & données : on l'ouvre.
+        ouvrirFenetre(.reglages)
+        if maj.modele.disponible != nil, maj.modele.peutInstaller { maj.installer() } else { maj.rechercher(manuel: true) }
+    }
+
     @objc private func noterLaReunion() { reunionControleur.basculer() }
 
     /// Menu de l'app (invisible tant qu'elle n'a pas de Dock, mais ses raccourcis servent la fenêtre) :
@@ -332,6 +359,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(withTitle: "Dernière dictée", action: #selector(derniereDictee), keyEquivalent: "").target = self
         }
         menu.addItem(.separator())
+        let maj = MiseAJourControleur.partage.modele
+        if let d = maj.disponible, maj.peutInstaller {
+            menu.addItem(withTitle: "Installer Verbe \(d.version)…", action: #selector(rechercherLesMisesAJour), keyEquivalent: "").target = self
+        } else {
+            menu.addItem(withTitle: "Rechercher les mises à jour…", action: #selector(rechercherLesMisesAJour), keyEquivalent: "").target = self
+        }
         menu.addItem(withTitle: "Prise en main…", action: #selector(revoirPriseEnMain), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Autorisations…", action: #selector(ouvrirAutorisations), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Ouvrir le journal", action: #selector(ouvrirJournal), keyEquivalent: "").target = self

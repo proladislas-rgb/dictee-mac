@@ -89,3 +89,11 @@ Chaque lot : construit, essayé pour de vrai sur le Mac, poussé sur GitHub.
 - [x] Mots collés : suspects testés (aucun ne reproduit « à plus tard » collé), garde-fou `MotsColles`, jonction des morceaux, « a » devant une adresse, ligne de journal « texte Groq → final ».
 - [ ] Hugues : essayer le filet en vrai (voir « À vérifier en vrai » à la fin de docs/spec-v1.md) ; si un mot collé réapparaît, relever la ligne « texte Groq → final » du journal.
 - [ ] Les contrôles SonSynthese et tasks/lessons.md modifiés par quelqu'un d'autre pendant ce travail ne sont pas dans mon commit.
+
+## Mise à jour automatique (09/11 soir, Verbe 0.3.0)
+- [x] Vérification quotidienne de GitHub (releases/latest, sans jeton, limites respectées, hors ligne silencieux), comparaison de versions, choix de l'asset `Verbe-<version>.dmg`.
+- [x] Ligne sous l'encoche (Nouveautés / Plus tard / Installer), jamais pendant une dictée ni une réunion ; « Plus tard » = lendemain ; notes de version lisibles.
+- [x] Installation : téléchargement, taille + SHA-256 (digest GitHub et fichier `.sha256`), signature, montage en lecture seule, copie à côté, échange atomique avec retour en arrière, quarantaine retirée, relance. Rien n'est remplacé si une étape échoue.
+- [x] Réglages › Compte & données › Mises à jour (version, À jour / disponible, Rechercher, Vérifier automatiquement) et entrée « Rechercher les mises à jour… » du menu.
+- [x] `release.sh` : fichier `.sha256`, `--version` / `--sortie` pour les faux DMG de test ; logique pure testée dans DicteeControles ; modes `--verifier-mise-a-jour`, `--installer-mise-a-jour-test`, `--rendu-mise-a-jour`.
+- [ ] Publication de la 0.3.0 par Hugues : `./release.sh` puis `gh release create v0.3.0 dist/Verbe-0.3.0.dmg dist/Verbe-0.3.0.dmg.sha256 --target main --title "Verbe 0.3.0" --notes-file dist/notes-v0.3.0.md` ; la mise à jour se verra à la 0.3.1 (publier une 0.3.1 de test, ou la prochaine vraie version, et essayer depuis la 0.3.0 installée : voir « À vérifier en vrai » de la section « Mise à jour automatique » de docs/spec-v1.md).

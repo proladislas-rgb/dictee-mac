@@ -117,6 +117,7 @@ struct ReglagesVue: View {
             LigneReglage(libelle: "Ouvrir au démarrage", note: r.avis ?? "Verbe est prêt dès que le Mac s\u{2019}allume.") {
                 Interrupteur(actif: .constant(r.ouvrirAuDemarrage), etiquette: "Ouvrir au démarrage") { r.choisirOuvertureAuDemarrage($0) }
             }
+            LignesMiseAJour(m: r.maj)
             if r.confirmerEffacement {
                 LigneReglage(libelle: "Historique", note: "Effacer les \(n) dictées ? Cela ne se récupère pas.") {
                     BoutonCadre("Effacer") { store.effacer(); r.confirmerEffacement = false }

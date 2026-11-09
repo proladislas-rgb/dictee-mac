@@ -5,11 +5,12 @@
 #   ./build.sh --sortie DOSSIER    assemble dans DOSSIER/Verbe.app, sans rien installer (utilisé par release.sh)
 # Nom : l'app s'appelle Verbe (paquet Verbe.app, exécutable Verbe). Le produit Swift et les dossiers internes gardent
 # le nom Dictee, et l'identifiant reste com.hugues.dictee : les autorisations, l'historique et le dictionnaire sont conservés.
-# La version vient du fichier VERSION, seul endroit où elle s'écrit.
+# La version vient du fichier VERSION, seul endroit où elle s'écrit (seule exception : VERBE_VERSION=x.y.z, posée par release.sh --version
+# pour fabriquer une fausse version de test ; le binaire ne change pas, seule l'Info.plist porte ce numéro).
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="$(tr -d '[:space:]' < VERSION)"
+VERSION="${VERBE_VERSION:-$(tr -d '[:space:]' < VERSION)}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION illisible : « $VERSION »"; exit 1; }
 NOM_APP="Verbe"
 PRODUIT_SWIFT="Dictee"   # nom interne du produit SwiftPM (voir Package.swift)

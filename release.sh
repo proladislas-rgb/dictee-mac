@@ -1,18 +1,29 @@
 #!/bin/zsh
-# Fabrique le fichier d'installation : dist/Verbe-<version>.dmg
+# Fabrique les fichiers d'une release : dist/Verbe-<version>.dmg et dist/Verbe-<version>.dmg.sha256
 #   ./release.sh
+#   ./release.sh --version 9.9.9 --sortie /un/dossier   (faux DMG de test, par exemple pour la mise à jour automatique)
 # Ne touche pas à ~/Applications (l'app installée n'est ni remplacée ni fermée).
-# La version vient du fichier VERSION. Signature ad hoc (pas de compte développeur Apple).
+# La version vient du fichier VERSION (sauf --version). Signature ad hoc (pas de compte développeur Apple).
+# Le fichier .sha256 est au format de `shasum -a 256` : Verbe le compare au DMG avant de se mettre à jour. Il se joint à la release.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 VERSION="$(tr -d '[:space:]' < VERSION)"
-[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION illisible : « $VERSION »"; exit 1; }
 DIST="dist"
+TEST=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --version) [[ -n "${2:-}" ]] || { echo "--version demande un numéro"; exit 2; }; VERSION="$2"; TEST=1; shift 2 ;;
+    --sortie) [[ -n "${2:-}" ]] || { echo "--sortie demande un dossier"; exit 2; }; DIST="$2"; shift 2 ;;
+    *) echo "Option inconnue : $1"; exit 2 ;;
+  esac
+done
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION illisible : « $VERSION »"; exit 1; }
+export VERBE_VERSION="$VERSION"
 CONTENU="$DIST/contenu-dmg"
 DMG="$DIST/Verbe-$VERSION.dmg"
 
-rm -rf "$DIST/app" "$CONTENU" "$DMG"
+rm -rf "$DIST/app" "$CONTENU" "$DMG" "$DMG.sha256"
 mkdir -p "$DIST/app" "$CONTENU"
 
 echo "==> Construction de l'app (release, version $VERSION)"
@@ -63,6 +74,11 @@ Si tu as déjà la version 0.1.0 (qui s'appelait Dictée)
   Verbe garde tes autorisations, ton historique et ton dictionnaire. Ferme Dictée, ouvre
   Verbe, puis jette l'ancienne Dictee.app.
 
+Mises à jour
+  À partir de la 0.3, Verbe cherche seul une nouvelle version sur GitHub (une fois par jour),
+  te la propose sous l'encoche, puis se remplace et se relance. Réglages › Mises à jour pour
+  le couper ou chercher tout de suite.
+
 Désinstaller
   Clic droit sur les guillemets de la barre des menus › Désinstaller Verbe…
   (ou Réglages › Désinstaller). Cela efface l'historique, les mots, les réglages,
@@ -79,5 +95,15 @@ hdiutil create -volname "Verbe" -srcfolder "$CONTENU" -fs HFS+ -format UDZO -ov 
 hdiutil verify "$DMG" >/dev/null
 rm -rf "$CONTENU"
 
+echo "==> Empreinte SHA-256"
+( cd "$DIST" && shasum -a 256 "Verbe-$VERSION.dmg" > "Verbe-$VERSION.dmg.sha256" && shasum -a 256 -c "Verbe-$VERSION.dmg.sha256" >/dev/null )
+
 echo "==> Prête : $DMG ($(du -h "$DMG" | cut -f1))"
-echo "    SHA-256 : $(shasum -a 256 "$DMG" | cut -d' ' -f1)"
+echo "    SHA-256 : $(cut -d' ' -f1 "$DMG.sha256")  ($DMG.sha256)"
+if [[ "$TEST" == 1 ]]; then
+  echo "    Version de test ($VERSION) : à ne jamais publier."
+else
+  echo "    Publier (Hugues, à la main) :"
+  echo "      gh release create v$VERSION $DMG $DMG.sha256 --target main --title \"Verbe $VERSION\" --notes-file dist/notes-v$VERSION.md"
+  [[ -f "dist/notes-v$VERSION.md" ]] || echo "    ATTENTION : dist/notes-v$VERSION.md n'existe pas encore (les notes de la release, lues par « Nouveautés »)."
+fi

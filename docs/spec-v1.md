@@ -371,3 +371,53 @@ Demande de Hugues : « l'enregistrement de la réunion, c'est comme Wispr Flow �
 6. « Noter cet appel ? » : s'affiche une seule fois par appel, après ~6 s, jamais pendant une réunion ; « Non » la retire.
 7. Réunion d'une heure : la note se fait par parties (3-4 min après l'arrêt), quota Groq respecté (journal « en attente de budget »).
 8. Export Markdown et « Copier pour Notion » (coller dans une page Notion).
+
+## Mise à jour automatique (Verbe 0.3.0, 09/11 soir)
+
+Décision de Hugues : « Verbe vérifie GitHub une fois par jour, propose "Installer" sous l'encoche, se remplace et se relance ». Disponible à partir de la 0.3 (une version plus ancienne se retélécharge une fois).
+
+### Vérification
+- Au lancement (après 30 s), puis relevé toutes les 10 min qui ne vérifie que si 24 h se sont écoulées depuis la dernière vérification **réussie** (on compare des dates : la veille du Mac décale les minuteurs) ; après un échec (réseau coupé) : nouvelle tentative au plus toutes les 30 min, **en silence**. Sur demande : « Rechercher » (Réglages › Compte & données › Mises à jour) et « Rechercher les mises à jour… » du menu ; deux demandes à moins de 10 s : la seconde est refusée.
+- `GET https://api.github.com/repos/proladislas-rgb/dictee-mac/releases/latest`, sans jeton, `User-Agent: Verbe-<version>`, `Accept: application/vnd.github+json`. Limite de 60 requêtes/heure sans jeton : une requête par jour en usage normal ; un 403/429 (`Retry-After`, ou `x-ratelimit-reset` quand `x-ratelimit-remaining` vaut 0, sinon 1 h) pose une heure avant laquelle rien n'est demandé (`PlanVerification.pasAvant`).
+- Comparaison par nombres (`VersionApp` : 0.2.10 > 0.2.9, 0.3 == 0.3.0 ; un suffixe `-beta` rend la version illisible : rien n'est proposé). Brouillons et pré-versions ignorés. Asset pris : `Verbe-<version>.dmg`, nom exact, la version étant celle du tag.
+- Adresses : seulement `https` vers `github.com`, `api.github.com` ou `*.githubusercontent.com`, et le chemin de téléchargement doit commencer par `/proladislas-rgb/dictee-mac/` (`PolitiqueAdresses`) ; une redirection hors de ces hôtes est refusée. Taille annoncée obligatoire, 500 Mo au plus.
+- Réglage « Vérifier automatiquement » (`verifierLesMisesAJour`, activé par défaut) : il coupe la vérification seule, pas la demande à la main.
+
+### Proposition sous l'encoche
+- `MiseAJourPanneau` / `MiseAJourBandeVue` : même masse noire que le filet de sécurité (icône de Verbe à gauche, point ambre à droite, caméra vide), ruban d'une ligne : « Verbe 0.3.1 est disponible » · **Nouveautés** · **Plus tard** · **Installer**. Fenêtre sans bord, jamais le focus, niveau +1 (sous l'encoche des réunions +2 et celle de la dictée +3).
+- `AffichageMiseAJour.peutProposer` : jamais pendant une dictée, une réunion (enregistrement, traitement, note prête, « Noter cet appel ? »), ni si le filet, le panneau compact ou la prise en main sont ouverts ; jamais si l'app ne peut pas se remplacer elle-même. Une dictée ou une réunion qui commence retire la ligne tout de suite.
+- « Plus tard » (ou 45 s sans réponse, souris absente) : rappel le lendemain (24 h) **pour cette version** ; une version plus récente est proposée sans attendre. Après un échec d'installation, la ligne se tait aussi jusqu'au lendemain ; Réglages garde la version disponible et son bouton Installer.
+- « Nouveautés » : petite fenêtre lisible avec le Markdown de la release réduit à titres, puces et paragraphes (`NotesDeVersion` : pas de lien cliquable, pas de HTML, 8 000 caractères au plus) et un lien « Voir sur GitHub ».
+
+### Installation (`InstallateurMiseAJour`)
+1. Emplacement : jamais depuis l'image disque, un volume en lecture seule, un dossier `AppTranslocation` ou un dossier non modifiable (`EmplacementApp`) ; la raison s'affiche dans Réglages et la ligne n'apparaît pas.
+2. Dossier de travail privé (0700) dans le dossier temporaire ; place libre ≥ 3 × la taille du DMG. Téléchargement par morceaux, taille vérifiée à l'octet près, SHA-256 calculé au fil de l'eau.
+3. **Empreinte** : celle du champ `digest` du JSON de l'asset (GitHub la calcule) **et** celle du fichier `Verbe-<version>.dmg.sha256` joint à la release (format `shasum -a 256`, nom de fichier vérifié) ; toutes celles qui existent doivent correspondre. Aucune publiée (ancienne release) : journal, et seules la taille et la signature sont contrôlées.
+4. `hdiutil attach -nobrowse -readonly -noautoopen -mountpoint <dossier de travail>/montage` (pas de fenêtre Finder, pas de collision avec un volume « Verbe » déjà monté) ; démontage garanti (réessai en `-force`).
+5. Contrôle de l'app du DMG : `Verbe.app` est un vrai dossier (pas un lien), `codesign --verify --strict --deep`, identifiant de la signature **et** de l'Info.plist = `com.hugues.dictee`, version de l'Info.plist = celle annoncée, exécutable présent (`ControleApp`).
+6. `ditto` vers un dossier caché **à côté de l'app actuelle** (même volume), retrait de l'attribut de quarantaine, nouveau contrôle complet.
+7. Échange atomique `renamex_np(RENAME_SWAP)` (l'ancienne passe à la place de la copie préparée ; repli `replaceItemAt` si le volume ne sait pas échanger), puis contrôle de l'app en place ; s'il échoue : échange inverse, l'ancienne est rendue intacte. L'ancienne est ensuite supprimée. Les restes d'une installation interrompue (`.Verbe.app.maj-*`) sont effacés au début de la suivante.
+8. Relance : si une dictée ou une réunion est en cours, on attend sa fin ; puis un petit `/bin/sh` détaché attend la sortie de l'ancien processus (`kill -0`, 10 s au plus) et fait `open` de la nouvelle app ; Verbe quitte.
+- Une étape qui échoue ne remplace rien : phrase sobre (« Mise à jour impossible. Rien n'a été changé. », détail dans Réglages), cause au journal.
+- Limite honnête : la signature est « ad hoc » (pas de compte développeur Apple) ; elle prouve que le DMG est intact et que l'app est bien « Verbe », pas qui l'a signée. La confiance repose sur HTTPS vers GitHub et sur l'empreinte publiée *avec* la release : elles protègent d'une corruption ou d'une coupure, pas d'une release publiée par quelqu'un d'autre sur le dépôt.
+- Les autorisations (micro, accessibilité, surveillance de l'entrée) sont rattachées à l'exigence désignée `identifier "com.hugues.dictee"`, inchangée d'une version à l'autre : elles survivent au remplacement (comme avec `build.sh`).
+
+### Réglages › Compte & données
+- « Mises à jour » : `Version 0.3.0. Vérifiée aujourd'hui à 14:05.`, état « À jour », bouton **Rechercher** ; quand une version attend, une ligne « Verbe 0.3.1 est disponible » avec **Nouveautés** et **Installer** (la progression remplace les boutons) ; interrupteur « Vérifier automatiquement ».
+
+### Fabrication
+- `release.sh` écrit aussi `dist/Verbe-<version>.dmg.sha256` (format `shasum -a 256`, relu par `shasum -c`) et imprime la commande de publication. `--version X.Y.Z --sortie DOSSIER` fabrique un faux DMG de test (sans toucher à `dist/` ni à `VERSION`) ; `build.sh` lit `VERBE_VERSION` pour cela.
+
+### Vérifié (sans rien installer dans /Applications)
+- `swift run DicteeControles` : versions, choix de l'asset, adresses, empreintes, planification, règle d'affichage (dictée, réunion, « Plus tard »), emplacement, contrôle de l'app, notes.
+- `Verbe --verifier-mise-a-jour [--version-actuelle X] [--api URL locale]` : réseau seulement, affiche ce que Verbe proposerait ; sur la vraie API avec `--version-actuelle 0.2.0` : « Verbe 0.2.2 », empreinte lue dans le JSON.
+- `Verbe --installer-mise-a-jour-test [--api URL locale] --app COPIE.app [--simuler-echec-apres-echange]` : chaîne complète sur une **copie** (refuse /Applications/Verbe.app, ~/Applications/Verbe.app et l'app qui exécute), sans relance. Faux DMG 9.9.9 fabriqué par `release.sh` et servi par `python3 -m http.server` en local : la copie passe de 0.3.0 à 9.9.9, signature valide, aucun reste, aucun volume resté monté. Même chaîne sur la vraie release 0.2.2 de GitHub (redirection vers objects.githubusercontent.com, empreinte du JSON conforme).
+- Échecs, la copie reste en 0.3.0 et valide à chaque fois : empreinte `.sha256` fausse, `digest` faux, fichier tronqué, fichier plus gros qu'annoncé, octet changé (empreintes de l'original), fichier qui n'est pas une image disque (empreintes justes), 404, app d'un autre identifiant, app d'une autre version, signature rompue (Info.plist changé après coup), DMG sans Verbe.app, dossier en lecture seule, contrôle refusé après l'échange (retour en arrière prouvé). Sans empreinte publiée : installation faite, journal.
+- Un processus lancé depuis la copie continue normalement quand son dossier est remplacé pendant qu'il tourne.
+- Rendus PNG : `design/rendus-mise-a-jour/` (`Verbe --rendu-mise-a-jour DOSSIER`).
+
+### À vérifier en vrai (par Hugues, app installée) — non testable depuis le shell
+1. Publier la 0.3.0 puis, plus tard, une 0.3.1 : la ligne apparaît sous l'encoche (pas pendant une dictée), « Installer » télécharge, remplace dans /Applications, relance ; les autorisations (micro, accessibilité, fn) ne sont pas redemandées. macOS peut protéger les apps contre la modification par un autre processus (« Gestion des apps ») : si une fenêtre le demande, accepter une fois.
+2. « Plus tard » : rien jusqu'au lendemain ; « Nouveautés » montre les notes.
+3. Depuis le DMG (non installée) : Réglages dit pourquoi on ne peut pas installer.
+4. Cliquer sur « Installer » pendant une dictée en mains libres : Verbe attend la fin avant de se relancer.

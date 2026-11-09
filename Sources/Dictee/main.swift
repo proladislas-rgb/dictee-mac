@@ -76,6 +76,23 @@ if let i = arguments.firstIndex(of: "--rendu-premier-lancement"), i + 1 < argume
     exit(MainActor.assumeIsolated { RenduPremierLancement.executer(dossier: arguments[i + 1]) })
 }
 
+// Dictee --verifier-mise-a-jour [--version-actuelle X] [--api URL locale]  (interroge GitHub et dit ce que Verbe proposerait ; réseau seulement, n'installe rien)
+if arguments.contains("--verifier-mise-a-jour") {
+    Task { @MainActor in exit(await MiseAJourTest.verifier(arguments: arguments)) }
+    RunLoop.main.run()
+}
+
+// Dictee --installer-mise-a-jour-test --api URL locale --app COPIE.app  (installe sur une COPIE, sans relancer ; ni micro, ni clavier)
+if arguments.contains("--installer-mise-a-jour-test") {
+    Task { @MainActor in exit(await MiseAJourTest.installer(arguments: arguments)) }
+    RunLoop.main.run()
+}
+
+// Dictee --rendu-mise-a-jour dossier  (la ligne sous l'encoche et la ligne des Réglages en PNG, sans fenêtre)
+if let i = arguments.firstIndex(of: "--rendu-mise-a-jour"), i + 1 < arguments.count {
+    exit(MainActor.assumeIsolated { RenduMiseAJour.executer(dossier: arguments[i + 1]) })
+}
+
 // Dictee --construire-lexique  (lit les notes de Hugues, écrit lexique.json ; ni micro, ni réseau, ni Accessibilité)
 if arguments.contains("--construire-lexique") {
     exit(MainActor.assumeIsolated { ConstruireLexique.executer() })
