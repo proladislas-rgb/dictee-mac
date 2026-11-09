@@ -115,7 +115,7 @@ enum IconeBarre {
             return true
         }
         image.isTemplate = !capture
-        image.accessibilityDescription = "Dictée"
+        image.accessibilityDescription = "Verbe"
         return image
     }
 }

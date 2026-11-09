@@ -1,15 +1,18 @@
 #!/bin/zsh
-# Fabrique Dictee.app : compile, assemble, signe, installe dans ~/Applications.
+# Fabrique Verbe.app : compile, assemble, signe, installe dans ~/Applications.
 #   ./build.sh                     compile + assemble + signe + installe dans ~/Applications
-#   ./build.sh --sans-installer    s'arrête après l'assemblage (dans .build/Dictee.app)
-#   ./build.sh --sortie DOSSIER    assemble dans DOSSIER/Dictee.app, sans rien installer (utilisé par release.sh)
+#   ./build.sh --sans-installer    s'arrête après l'assemblage (dans .build/Verbe.app)
+#   ./build.sh --sortie DOSSIER    assemble dans DOSSIER/Verbe.app, sans rien installer (utilisé par release.sh)
+# Nom : l'app s'appelle Verbe (paquet Verbe.app, exécutable Verbe). Le produit Swift et les dossiers internes gardent
+# le nom Dictee, et l'identifiant reste com.hugues.dictee : les autorisations, l'historique et le dictionnaire sont conservés.
 # La version vient du fichier VERSION, seul endroit où elle s'écrit.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 VERSION="$(tr -d '[:space:]' < VERSION)"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION illisible : « $VERSION »"; exit 1; }
-NOM_APP="Dictee"
+NOM_APP="Verbe"
+PRODUIT_SWIFT="Dictee"   # nom interne du produit SwiftPM (voir Package.swift)
 BUNDLE_ID="com.hugues.dictee"
 DEST="$HOME/Applications/$NOM_APP.app"
 ASSEMBLAGE=".build/$NOM_APP.app"
@@ -25,7 +28,7 @@ esac
 echo "==> Compilation (release)"
 swift build -c release
 
-BIN="$(swift build -c release --show-bin-path)/$NOM_APP"
+BIN="$(swift build -c release --show-bin-path)/$PRODUIT_SWIFT"
 [[ -x "$BIN" ]] || { echo "Exécutable introuvable : $BIN"; exit 1; }
 
 echo "==> Assemblage de $NOM_APP.app"
@@ -60,9 +63,9 @@ cat > "$ASSEMBLAGE/Contents/Info.plist" <<PLIST
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Dictée écoute ta voix seulement pendant que tu tiens la touche fn, pour écrire ce que tu dis.</string>
+  <string>Verbe écoute ta voix seulement pendant que tu tiens la touche fn, pour écrire ce que tu dis.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
-  <string>Dictée utilise la reconnaissance vocale du Mac, sur l'appareil, pour afficher ton texte en direct et en secours.</string>
+  <string>Verbe utilise la reconnaissance vocale du Mac, sur l'appareil, pour afficher ton texte en direct et en secours.</string>
 </dict>
 </plist>
 PLIST
@@ -83,13 +86,16 @@ fi
 echo "==> Installation dans $DEST"
 mkdir -p "$HOME/Applications"
 # Si l'app tourne, on la ferme proprement avant de remplacer le dossier (elle sera relancée à la main).
-if pgrep -x "$NOM_APP" >/dev/null 2>&1; then
+if pgrep -x "$NOM_APP" >/dev/null 2>&1 || pgrep -x "$PRODUIT_SWIFT" >/dev/null 2>&1; then
   echo "    $NOM_APP tourne : fermeture avant remplacement"
-  osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || pkill -x "$NOM_APP" || true
+  osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || pkill -x "$NOM_APP" || pkill -x "$PRODUIT_SWIFT" || true
   sleep 1
 fi
 rm -rf "$DEST"
 cp -R "$ASSEMBLAGE" "$DEST"
 codesign --verify --strict "$DEST"
 echo "==> Prête : $DEST"
+for ancienne in "$HOME/Applications/Dictee.app" "/Applications/Dictee.app"; do
+  [[ -d "$ancienne" ]] && echo "    Ancienne app trouvée (nom d'avant Verbe) : $ancienne — à jeter une fois Verbe essayée (elle a le même identifiant)."
+done
 echo "    Lancer : open \"$DEST\""

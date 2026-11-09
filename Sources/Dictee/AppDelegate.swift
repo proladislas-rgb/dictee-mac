@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import DicteeCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
@@ -23,7 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
-        Log.ecrire("démarrage Dictee \(version) pid=\(ProcessInfo.processInfo.processIdentifier) sansInterface=\(options.sansInterface)")
+        Log.ecrire("démarrage Verbe \(version) pid=\(ProcessInfo.processInfo.processIdentifier) sansInterface=\(options.sansInterface)")
         Log.ecrire("autorisations : \(Permissions.resume())")
 
         if let autre = autreInstance() {
@@ -66,7 +67,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installerMenuPrincipal()
         panneauCompact.surChangementEtat = { [weak self] ouvert in self?.survolStatus?.panneauOuvert = ouvert }
         dictee.surDebut = { [weak self] in self?.panneauCompact.fermer(animee: false, rendreLeFocus: false) }
-        clavier.onAction = { [weak self] action in self?.dictee.recevoir(action) }
+        clavier.onAction = { [weak self] action in
+            guard let self else { return }
+            // Étape 🌐 du premier lancement : le double appui sert d'essai, il ne lance pas de vraie dictée.
+            if self.priseEnMain.estOuvert, self.priseEnMain.modele.attendDoubleAppui {
+                self.priseEnMain.modele.noterGeste(action)
+                if action == .begin(handsFree: true) { self.clavier.reinitialiserGeste() }
+                return
+            }
+            self.dictee.recevoir(action)
+        }
         dictee.compteurFrappes = { [weak self] in self?.clavier.frappes ?? 0 }
         dictee.surCapture = { [weak self] actif in self?.mettreIcone(capture: actif) }
         dictee.surFinIndependante = { [weak self] in self?.clavier.reinitialiserGeste() }
@@ -159,7 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = item
     }
 
-    /// App qui avait le curseur : la dernière app au premier plan qui n'est pas Dictée elle-même.
+    /// App qui avait le curseur : la dernière app au premier plan qui n'est pas Verbe elle-même.
     private func suivreLesApps() {
         derniereAppExterne = NSWorkspace.shared.frontmostApplication.flatMap { $0.bundleIdentifier == Bundle.main.bundleIdentifier ? nil : $0 }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
@@ -195,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func configurerFenetre() {
         let m = fenetrePrincipale.dictees
-        // Dans la fenêtre, « recoller » écrit dans la dernière app utilisée avant d'ouvrir Dictée.
+        // Dans la fenêtre, « recoller » écrit dans la dernière app utilisée avant d'ouvrir Verbe.
         m.surRecoller = { [weak self] entree in
             guard let self else { return }
             let cible = self.derniereAppExterne
@@ -220,10 +230,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let item = NSMenuItem(); let menu = NSMenu(title: titre)
             construire(menu); item.submenu = menu; principal.addItem(item)
         }
-        sousMenu("Dictée") { m in
-            m.addItem(withTitle: "Ouvrir Dictée", action: #selector(ouvrirDictee), keyEquivalent: ",").target = self
+        sousMenu("Verbe") { m in
+            m.addItem(withTitle: "Ouvrir Verbe", action: #selector(ouvrirVerbe), keyEquivalent: ",").target = self
             m.addItem(.separator())
-            m.addItem(withTitle: "Quitter Dictée", action: #selector(quitter), keyEquivalent: "q").target = self
+            m.addItem(withTitle: "Quitter Verbe", action: #selector(quitter), keyEquivalent: "q").target = self
         }
         sousMenu("Édition") { m in
             m.addItem(withTitle: "Annuler", action: Selector(("undo:")), keyEquivalent: "z")
@@ -262,28 +272,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ligne("Accessibilité (coller le texte)", ok: Permissions.accessibiliteOK)
         ligne("Surveillance de l'entrée (touche fn)", ok: Permissions.surveillanceOK)
         menu.addItem(.separator())
-        let ouvrir = menu.addItem(withTitle: "Ouvrir Dictée", action: #selector(ouvrirDictee), keyEquivalent: ",")
+        let ouvrir = menu.addItem(withTitle: "Ouvrir Verbe", action: #selector(ouvrirVerbe), keyEquivalent: ",")
         ouvrir.target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Prise en main…", action: #selector(revoirPriseEnMain), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Autorisations…", action: #selector(ouvrirAutorisations), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Ouvrir le journal", action: #selector(ouvrirJournal), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Désinstaller Dictée…", action: #selector(desinstaller), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Désinstaller Verbe…", action: #selector(desinstaller), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quitter", action: #selector(quitter), keyEquivalent: "q").target = self
     }
 
     @objc private func ouvrirAutorisations() {
         let alerte = NSAlert()
-        alerte.messageText = "Autorisations de Dictée"
+        alerte.messageText = "Autorisations de Verbe"
         alerte.informativeText = """
         Micro : \(Permissions.microOK ? "accordé" : "manquant")
         Accessibilité : \(Permissions.accessibiliteOK ? "accordée" : "manquante")
         Surveillance de l'entrée : \(Permissions.surveillanceOK ? "accordée" : "manquante")
 
         Pour que la touche fn serve à dicter :
-        • Réglages Système > Clavier > « Appuyer sur 🌐 pour » : choisis « Ne rien faire », sinon les emoji s'ouvrent.
+        • Réglages Système > Clavier > « Appuyer sur la touche 🌐 pour » : choisis « Ne rien faire » (en ce moment : \(ToucheGlobe.doitEtreReglee(valeur: ToucheGlobe.lire()) ? "à régler" : "réglé")).
         • Si Wispr Flow tourne, coupe son raccourci fn : les deux apps ne peuvent pas partager la même touche.
         """
         alerte.addButton(withTitle: Permissions.premierManquant == nil ? "Fermer" : "Ouvrir le volet qui manque")
@@ -295,7 +305,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func revoirPriseEnMain() { ouvrirPriseEnMain() }
-    @objc private func ouvrirDictee() { ouvrirFenetre(.dictees) }
+    @objc private func ouvrirVerbe() { ouvrirFenetre(.dictees) }
     @objc private func ouvrirJournal() { NSWorkspace.shared.open(Log.url) }
     @objc private func desinstaller() { InstallationApp.desinstaller() }
     @objc private func quitter() { NSApp.terminate(nil) }

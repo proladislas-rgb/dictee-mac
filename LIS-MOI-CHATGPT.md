@@ -1,5 +1,7 @@
 # À lire par ChatGPT : design de l'app de dictée pour Mac
 
+> Mise à jour 09/11 : le nom choisi est **Verbe** (le paquet est `Verbe.app`). Le nom interne `Dictee` reste dans le code, les dossiers et l'identifiant `com.hugues.dictee`, pour conserver réglages et autorisations.
+
 ## Message à coller dans ChatGPT avec ce dossier
 
 > Tu es directeur artistique et designer produit spécialisé dans les apps Mac. Je t'envoie le dossier d'une app de dictée vocale pour Mac. Ce fichier `LIS-MOI-CHATGPT.md` explique tout ; les images sont dans `design/captures/` et les maquettes animées (à ouvrir dans un navigateur) dans `design/maquettes/`.

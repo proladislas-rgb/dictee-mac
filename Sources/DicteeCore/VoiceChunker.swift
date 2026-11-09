@@ -43,6 +43,9 @@ public struct VoiceChunker: Sendable {
         public var microSilenceFrames = 12       // 0,24 s
         public var forcedCutFrames = 600         // 12 s sans pause : coupe forcée au point le plus calme
         public var forcedWindowFrames = 75       // ... cherché dans les 1,5 dernière seconde
+        /// Tranches du tout début ignorées par la détection de parole (le petit son de début de dictée, capté par le micro,
+        /// ne doit pas passer pour de la voix). Le son, lui, n'est pas touché, et le rognage de début garde d'autant plus de tranches avant la parole.
+        public var ignoredStartFrames = 0
         public init() {}
     }
 
@@ -82,7 +85,8 @@ public struct VoiceChunker: Sendable {
         frame += 1
         anticipation = nil
         derniereCoupeForcee = false
-        let loud = levelDb > thresholdDb
+        let ignoree = frame <= config.ignoredStartFrames
+        let loud = !ignoree && levelDb > thresholdDb
         if loud { lastLoudEnd = frame }
         recentLevels.append(levelDb)
         if recentLevels.count > config.forcedWindowFrames + 10 { recentLevels.removeFirst(recentLevels.count - config.forcedWindowFrames - 10) }
@@ -91,8 +95,8 @@ public struct VoiceChunker: Sendable {
             if aboveRun >= config.onsetFrames { inSpeech = true }
         } else {
             aboveRun = 0
-            // le bruit de fond ne se met à jour que dans les silences
-            noiseFloorDb = noiseFloorDb * 0.97 + levelDb * 0.03
+            // le bruit de fond ne se met à jour que dans les silences (pas dans les tranches ignorées du début)
+            if !ignoree { noiseFloorDb = noiseFloorDb * 0.97 + levelDb * 0.03 }
             if inSpeech { inSpeech = false }
         }
         let parole = loud && aboveRun >= config.onsetFrames
@@ -107,7 +111,8 @@ public struct VoiceChunker: Sendable {
 
         if speechFrames == 0 {
             // Pas encore de parole : on ne garde que les 0,3 s les plus récentes.
-            chunkStartFrame = max(chunkStartFrame, frame - config.preRollFrames)
+            // (les tranches ignorées du début s'ajoutent : une parole commencée pendant le petit son n'est pas rognée)
+            chunkStartFrame = max(chunkStartFrame, frame - config.preRollFrames - config.ignoredStartFrames)
             return nil
         }
         let length = frame - chunkStartFrame

@@ -4,10 +4,11 @@ import Combine
 import SwiftUI
 import DicteeCore
 
-/// L'état du premier lancement : trois étapes (le geste, les accès, une première dictée réussie).
+/// L'état du premier lancement : le geste, les accès, la touche 🌐 (seulement si elle fait autre chose que « Ne rien faire »)
+/// et une première dictée réussie.
 @MainActor
 final class PriseEnMainModele: ObservableObject {
-    enum Etape: Int { case geste = 1, acces, premiere }
+    enum Etape: Int { case geste = 1, acces, globe, premiere }
 
     @Published var etape: Etape = .geste
     @Published private(set) var microOK = false
@@ -15,6 +16,10 @@ final class PriseEnMainModele: ObservableObject {
     @Published private(set) var accessibiliteOK = false
     @Published private(set) var surveillanceOK = false
     @Published private(set) var cle: CleGroq.Etat = .absente
+    /// Réglage « Appuyer sur 🌐 pour » (`AppleFnUsageType`) ; `nil` = clé absente (réglage d'origine, qui fait quelque chose).
+    @Published private(set) var globeValeur: Int?
+    /// Le double appui d'essai a été reconnu (étape de la touche 🌐).
+    @Published private(set) var doubleAppuiVu = false
     /// Même si une clé existe, montrer le champ (« Modifier » dans les Réglages).
     @Published var forcerCle = false
     @Published var saisieCle = ""
@@ -30,6 +35,15 @@ final class PriseEnMainModele: ObservableObject {
     var surTerminer: () -> Void = {}
     var surPasser: () -> Void = {}
 
+    var globeAReglerEncore: Bool { ToucheGlobe.doitEtreReglee(valeur: globeValeur) }
+    /// Pendant l'étape 🌐, une fois la touche réglée : le double appui sert à l'essai, il ne lance pas de dictée.
+    var attendDoubleAppui: Bool { etape == .globe && !globeAReglerEncore }
+
+    /// Les étapes montrées : celle de la touche 🌐 n'existe que si elle est à régler (ou si on y est déjà).
+    var etapesMontrees: [Etape] {
+        [.geste, .acces] + (etape == .globe || globeAReglerEncore ? [.globe] : []) + [.premiere]
+    }
+
     var accesCompletsOK: Bool { microOK && accessibiliteOK && surveillanceOK }
     var accesManquants: String {
         var m: [String] = []
@@ -40,9 +54,9 @@ final class PriseEnMainModele: ObservableObject {
     }
 
     /// `reel = false` : valeurs d'exemple, aucun accès au système (rendus PNG).
-    init(reel: Bool = true, micro: Bool = false, accessibilite: Bool = false, surveillance: Bool = false, cle: CleGroq.Etat = .absente) {
+    init(reel: Bool = true, micro: Bool = false, accessibilite: Bool = false, surveillance: Bool = false, cle: CleGroq.Etat = .absente, globe: Int? = 0) {
         self.reel = reel
-        microOK = micro; accessibiliteOK = accessibilite; surveillanceOK = surveillance; self.cle = cle
+        microOK = micro; accessibiliteOK = accessibilite; surveillanceOK = surveillance; self.cle = cle; globeValeur = globe
         if reel { rafraichir() }
     }
 
@@ -54,6 +68,7 @@ final class PriseEnMainModele: ObservableObject {
         accessibiliteOK = Permissions.accessibiliteOK
         surveillanceOK = Permissions.surveillanceOK
         cle = CleGroq.etat
+        globeValeur = ToucheGlobe.lire()
     }
 
     func demander(_ volet: Permissions.Volet) {
@@ -76,7 +91,20 @@ final class PriseEnMainModele: ObservableObject {
     }
 
     func suivant() {
-        if let e = Etape(rawValue: etape.rawValue + 1) { etape = e; if e == .premiere { jetonFocus += 1 } }
+        var n = etape.rawValue + 1
+        if Etape(rawValue: n) == .globe, !globeAReglerEncore { n += 1 }   // déjà sur « Ne rien faire » : rien à guider
+        if let e = Etape(rawValue: n) { etape = e; if e == .premiere { jetonFocus += 1 } }
+    }
+
+    /// Ouvre le volet Clavier des Réglages Système : c'est le seul endroit où le réglage prend effet.
+    func ouvrirVoletClavier() {
+        guard let url = URL(string: ToucheGlobe.adresseVoletClavier) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    /// Un geste reconnu pendant l'étape 🌐 : seul le double appui compte. Aucune dictée ne démarre pendant cette étape (voir l'aiguillage dans `AppDelegate`).
+    func noterGeste(_ action: GestureAction) {
+        if action == .begin(handsFree: true) { doubleAppuiVu = true }
     }
 
     /// Appelé quand une dictée vient d'être collée dans notre propre champ d'essai : la réussite est vérifiée dans le champ.
@@ -95,8 +123,8 @@ final class PriseEnMainModele: ObservableObject {
     }
 
     /// Rendus PNG seulement : poser des états qui viennent normalement du système ou d'une vraie dictée.
-    func setEtatPourRendu(refuse: Bool, reussie: Bool, echec: String?) {
-        microRefuse = refuse; self.reussie = reussie; echecInsertion = echec
+    func setEtatPourRendu(refuse: Bool, reussie: Bool, echec: String?, doubleAppuiVu: Bool = false) {
+        microRefuse = refuse; self.reussie = reussie; echecInsertion = echec; self.doubleAppuiVu = doubleAppuiVu
     }
 
     func insertionImpossible(_ raison: String) { if etape == .premiere { echecInsertion = raison } }
@@ -110,11 +138,12 @@ struct PriseEnMainVue: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("\(m.etape.rawValue) sur 3").font(Polices.commande(12)).foregroundStyle(Palette.texte3).padding(.bottom, 14)
+            Text("\((m.etapesMontrees.firstIndex(of: m.etape) ?? 0) + 1) sur \(m.etapesMontrees.count)").font(Polices.commande(12)).foregroundStyle(Palette.texte3).padding(.bottom, 14)
             Group {
                 switch m.etape {
                 case .geste: geste
                 case .acces: acces
+                case .globe: globe
                 case .premiere: premiere
                 }
             }
@@ -162,10 +191,6 @@ struct PriseEnMainVue: View {
             ligneAcces("Surveillance de l\u{2019}entrée", "Pour reconnaître la touche fn.", ok: m.surveillanceOK, refuse: false, volet: .surveillance)
             if m.cle == .absente || m.forcerCle { cle.padding(.top, 10) }
             Spacer(minLength: 0)
-            if !m.accesCompletsOK {
-                Text("Si des emoji s\u{2019}ouvrent avec fn : Réglages Système, Clavier, « Appuyer sur 🌐 », Ne rien faire.")
-                    .font(Polices.commande(12)).foregroundStyle(Palette.texte3).fixedSize(horizontal: false, vertical: true)
-            }
         }
     }
 
@@ -202,7 +227,44 @@ struct PriseEnMainVue: View {
         }
     }
 
-    // MARK: étape 3
+    // MARK: étape 🌐
+
+    private var globe: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if m.globeAReglerEncore {
+                Text(ToucheGlobe.phrase(valeur: m.globeValeur)).font(Polices.texte(22)).foregroundStyle(Palette.texte)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Elle se déclenche en même temps que fn : le double appui de Verbe ouvrirait aussi cette action.")
+                    .font(Polices.commande(13)).foregroundStyle(Palette.texte2).fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Dans le volet Clavier, choisissez :").font(Polices.commande(13)).foregroundStyle(Palette.texte2)
+                    Text("\u{00AB}\u{202F}\(ToucheGlobe.consigne)\u{202F}\u{00BB}").font(Polices.texte(16)).foregroundStyle(Palette.texte)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 4)
+                LienTexte(titre: "Ouvrir le volet Clavier", fort: true) { m.ouvrirVoletClavier() }.padding(.top, 4)
+                Text("Cette étape se termine toute seule dès que le réglage est changé.").font(Polices.commande(12)).foregroundStyle(Palette.texte3)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Votre touche 🌐 est réglée").font(Polices.texte(22)).foregroundStyle(Palette.texte)
+                Text("Essayez : appuyez deux fois, vite, sur fn. Rien d\u{2019}autre ne doit s\u{2019}ouvrir.")
+                    .font(Polices.commande(13)).foregroundStyle(Palette.texte2).fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    ToucheFn()
+                    ToucheFn()
+                }
+                .padding(.vertical, 8)
+                if m.doubleAppuiVu {
+                    HStack(spacing: 6) { Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold)); Text("Double appui reconnu.") }
+                        .font(Polices.commande(13)).foregroundStyle(Palette.texte)
+                } else {
+                    Text("En attente du double appui.").font(Polices.commande(13)).foregroundStyle(Palette.texte3)
+                }
+            }
+        }
+    }
+
+    // MARK: dernière étape
 
     private var premiere: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -217,7 +279,7 @@ struct PriseEnMainVue: View {
             }
             .frame(height: 56)
             if m.reussie {
-                Text("Le texte est écrit. Dictée est prête.").font(Polices.commande(13)).foregroundStyle(Palette.texte)
+                Text("Le texte est écrit. Verbe est prêt.").font(Polices.commande(13)).foregroundStyle(Palette.texte)
             } else if let echec = m.echecInsertion {
                 Text(echec).font(Polices.commande(13)).foregroundStyle(Palette.texte2)
             } else {
@@ -237,6 +299,9 @@ struct PriseEnMainVue: View {
             case .acces:
                 if !m.accesCompletsOK { Text(m.accesManquants).font(Polices.commande(12)).foregroundStyle(Palette.texte3).padding(.trailing, 12) }
                 LienTexte(titre: "Continuer", fort: m.accesCompletsOK) { if m.accesCompletsOK { m.suivant() } }.opacity(m.accesCompletsOK ? 1 : 0.35)
+            case .globe:
+                if m.globeAReglerEncore { LienTexte(titre: "Plus tard") { m.suivant() } }
+                else { LienTexte(titre: "Continuer", fort: m.doubleAppuiVu) { m.suivant() } }
             case .premiere: LienTexte(titre: "Terminer", fort: m.reussie) { if m.reussie { m.surTerminer() } }.opacity(m.reussie ? 1 : 0.35)
             }
         }

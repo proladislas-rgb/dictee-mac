@@ -17,7 +17,9 @@ final class DictationController {
         let appCible: NSRunningApplication?
         let debut = ProcessInfo.processInfo.systemUptime
         var relachement: Double?
-        let pipeline = RecordingPipeline()
+        let pipeline: RecordingPipeline
+        /// Le son et la vibration de début ont été joués (sinon une annulation silencieuse : appui trop court).
+        var retourDebutJoue = false
         var direct: (any ReconnaissanceDirecte)?
         var secours: Task<String, Never>?
         /// Lecture du champ focalisé (Accessibilité), lancée à l'appui puis au relâchement, pendant que Groq travaille.
@@ -29,6 +31,8 @@ final class DictationController {
         var nettoyageAnticipe: (brut: String, contexte: ContexteMiseEnForme, tache: Task<Nettoyage.Resultat, Never>)?
         init(id: Int, mainsLibres: Bool, appCible: NSRunningApplication?, transcripteur: ChunkTranscriber) {
             self.id = id; self.mainsLibres = mainsLibres; self.appCible = appCible; self.transcripteur = transcripteur
+            // Le son de début est capté par le micro : la détection de parole ignore ses premières tranches (0,2 s en mains libres, 0,32 s en mode « tenir » où il part à 0,12 s).
+            pipeline = RecordingPipeline(tranchesIgnorees: Settings.sons ? (mainsLibres ? 10 : 16) : 0)
         }
     }
 
@@ -66,6 +70,7 @@ final class DictationController {
         Dictionnaire.creerSiAbsent()
         // Le premier codage FLAC de la session coûte ~20 ms de plus : on le fait à vide, tout de suite.
         Task.detached(priority: .utility) { _ = EncodeurAudio.flacEnMemoire(Array(repeating: 0, count: 3200)) }
+        Retours.preparer()
         if Permissions.microOK { audio.preparer() }
         if !GroqClient.shared.cleDisponible { Log.ecrire("ATTENTION : clé Groq introuvable (~/.config/groq/.env), seul le secours Apple sera possible") }
     }
@@ -101,7 +106,7 @@ final class DictationController {
         s.unites = unites
         transcripteur.surMorceauRevenu = { numero, texte, finParPause in unites.morceauRevenu(numero: numero, texte: texte, finParPause: finParPause) }
         transcripteur.surTexteAnticipe = { [weak self] parties in
-            // Dictée déjà découpée en unités : seule la queue est remise au propre à l'avance.
+            // Une dictée déjà découpée en unités : seule la queue est remise au propre à l'avance.
             if unites.nombreDUnites > 0 { unites.anticiperQueue(parties: parties); return }
             let texte = TextAssembler.joindre(parties)
             Task { @MainActor in self?.nettoyerALAvance(texte, session: s) }
@@ -129,9 +134,10 @@ final class DictationController {
         ouvertureRetardee?.cancel()
         if mainsLibres {
             panneau.ouvrir(app: s.appCible, mainsLibres: true)
+            jouerDebut(s)
         } else {
             let item = DispatchWorkItem { [weak self] in
-                MainActor.assumeIsolated { if self?.courante?.id == s.id { self?.panneau.ouvrir(app: s.appCible, mainsLibres: false) } }
+                MainActor.assumeIsolated { if self?.courante?.id == s.id { self?.panneau.ouvrir(app: s.appCible, mainsLibres: false); self?.jouerDebut(s) } }
             }
             ouvertureRetardee = item
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: item)
@@ -154,6 +160,12 @@ final class DictationController {
                 }
             }
         }
+    }
+
+    /// Son + vibration de début. Lancés sans attendre : la lecture et le retour haptique ne bloquent rien.
+    private func jouerDebut(_ s: Session) {
+        s.retourDebutJoue = true
+        Retours.debut()
     }
 
     // MARK: fin
@@ -216,7 +228,7 @@ final class DictationController {
         guard Settings.secoursApple else {
             Log.ecrire("dictée \(s.id) : secours Apple désactivé dans les Réglages, rien à écrire")
             s.direct?.annuler()
-            if courante == nil { panneau.afficherMessage("Dictée impossible, réessaie", app: s.appCible) }
+            if courante == nil { panneau.afficherMessage("Impossible de dicter, réessaie", app: s.appCible) }
             return
         }
         var texte = ""
@@ -233,7 +245,7 @@ final class DictationController {
         texte = texte.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !texte.isEmpty else {
             Log.ecrire("dictée \(s.id) : pas de texte de secours, rien à écrire")
-            if courante == nil { panneau.afficherMessage("Dictée impossible, réessaie", app: s.appCible) }
+            if courante == nil { panneau.afficherMessage("Impossible de dicter, réessaie", app: s.appCible) }
             return
         }
         Log.ecrire("dictée \(s.id) : texte de secours Apple utilisé, \"\(Log.apercu(texte))\"")
@@ -269,7 +281,9 @@ final class DictationController {
         let attenteNettoyage = ms(ProcessInfo.processInfo.systemUptime - tNettoyage)
         Log.ecrire("dictée \(s.id) : mise en forme \(contexte.rawValue) (champ \(champ?.role ?? "?"), lu au \(sourceChamp)), \(nettoyage.utilise ? "remis au propre" : "texte brut gardé : \(nettoyage.raison)") \(modeNettoyage), \(attenteNettoyage) ms d'attente après Groq (travail de \(ms(nettoyage.duree)) ms)")
         // raccourcis vocaux (« ma signature » → le texte choisi) : après la remise au propre, pour que l'IA n'y touche pas
-        let apresRaccourcis = RaccourcisVocaux.appliquer(nettoyage.texte, raccourcis: MotsModele.partage.raccourcis)
+        // Adresses dictées (« x arobase y point com ») reconstituées d'abord par la règle locale, y compris quand la remise au propre n'a pas eu lieu.
+        let apresAdresses = AdressesDictees.reconstituer(nettoyage.texte)
+        let apresRaccourcis = RaccourcisVocaux.appliquer(apresAdresses, raccourcis: MotsModele.partage.raccourcis)
         let texteFinal = TextFormatter.prepare(apresRaccourcis, for: kind)
         let texte = raccorder(texteFinal, kind: kind, session: s, champ: champ)
         // Champ protégé : l'encoche reste pour le dire ; sinon elle se referme et le texte arrive au curseur.
@@ -285,6 +299,7 @@ final class DictationController {
         switch issue {
         case .colle:
             garder(inseree: true)
+            Retours.fin()
             surInsertion?(texteFinal, s.appCible?.bundleIdentifier)
             memoire = MemoireInsertion(appId: s.appCible?.bundleIdentifier ?? "", queue: MemoireInsertion.queue(de: texte),
                                        instant: ProcessInfo.processInfo.systemUptime, frappes: compteurFrappes())
@@ -373,6 +388,7 @@ final class DictationController {
         etat = .repos
         courante = nil
         surCapture?(false)
+        if s.retourDebutJoue { Retours.annulation() }
         s.transcripteur.annuler()
         s.nettoyageAnticipe?.tache.cancel()
         s.unites?.annulerTout()

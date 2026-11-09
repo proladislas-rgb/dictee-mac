@@ -133,7 +133,8 @@ public enum RemiseAuPropre {
         - Ponctue et mets les majuscules. Ne reformule pas, n'ajoute rien, ne retire aucun autre mot.
         - Garde la langue parlée (français, anglais ou mélange), sans traduire.
         - Commandes dites : « à la ligne » = un retour à la ligne ; « nouveau paragraphe » = une ligne vide ; « point », « virgule », « point d'interrogation », « deux points » = le signe, seulement quand c'est clairement une commande de ponctuation.
-        - Si la personne énumère (premièrement, deuxièmement… ou « tiret »), garde la phrase d'introduction suivie de « : », puis écris une liste, un élément par ligne, avec « - ».
+        - Si la personne énumère (premièrement, deuxièmement… ou « tiret » en début d'élément, hors adresse), garde la phrase d'introduction suivie de « : », puis écris une liste, un élément par ligne, avec « - ».
+        - Adresses dictées : « arobase » = @, « point » dans une adresse = « . » (« point com », « point fr », « point net » = .com, .fr, .net), « tiret » = -, « tiret du bas » ou « underscore » = _. Lettres et chiffres épelés collés ensemble. Une adresse mail ou web s'écrit sans aucune espace et en minuscules : « jean point dupont arobase gmail point com » devient jean.dupont@gmail.com ; « www point sillonia point fr » devient www.sillonia.fr.
         - Typographie française : une espace avant « ? », « ! », « : » et « ; ».
         - Forme pour cet endroit : \(consigne(pour: contexte))
         """
@@ -147,6 +148,7 @@ public enum RemiseAuPropre {
         il faut acheter premièrement du pain deuxièmement du lait → Il faut acheter :
         - du pain
         - du lait
+        écris à jean point dupont arobase gmail point com demain → Écris à jean.dupont@gmail.com demain.
         """
         return t
     }

@@ -28,8 +28,10 @@ final class RecordingPipeline: @unchecked Sendable {
     private var formatEntree: AVAudioFormat?
     private(set) var termine = false
 
-    init() {
+    /// `tranchesIgnorees` : tranches de 20 ms du début que la détection de parole ignore (petit son de début de dictée).
+    init(tranchesIgnorees: Int = 0) {
         var config = VoiceChunker.Config()
+        config.ignoredStartFrames = tranchesIgnorees
         if !Settings.rognageFin { config.tailFrames = 1_000_000 }   // mesure : ancien comportement (aucun rognage de fin)
         if !Settings.decoupeLongue { config.microChunkFrames = 1_000_000; config.forcedCutFrames = 1_000_000 }   // mesure : ancien comportement
         chunker = VoiceChunker(config: config)

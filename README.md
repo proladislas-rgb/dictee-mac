@@ -1,6 +1,6 @@
-# Dictée
+# Verbe
 
-App de dictée vocale native pour Mac. Tu cliques n'importe où (mail, document, barre de recherche, Terminal), tu tiens **fn**, tu parles, tu relâches : le texte propre s'écrit à l'endroit du curseur. Tout se passe dans l'encoche du MacBook. Le texte s'affiche en direct pendant que tu parles, avec ta voix qui s'anime et l'icône de l'app où le texte va s'écrire.
+App de dictée vocale native pour Mac (ancien nom : Dictée). Tu cliques n'importe où (mail, document, barre de recherche, Terminal), tu tiens **fn**, tu parles, tu relâches : le texte propre s'écrit à l'endroit du curseur. Tout se passe dans l'encoche du MacBook. Le texte s'affiche en direct pendant que tu parles, avec ta voix qui s'anime et l'icône de l'app où le texte va s'écrire.
 
 - **Rapide** : texte collé environ 0,4 s après le relâchement de fn (mesuré).
 - **Gratuit** : la transcription passe par Whisper large v3 turbo chez Groq, avec une clé gratuite. La dictée d'Apple, faite sur le Mac, prend le relais si le réseau manque.
@@ -11,14 +11,24 @@ App de dictée vocale native pour Mac. Tu cliques n'importe où (mail, document,
 
 ## Télécharger
 
-1. Télécharge `Dictee-<version>.dmg` sur la [page des versions](https://github.com/proladislas-rgb/dictee-mac/releases/latest).
-2. Ouvre le fichier, glisse **Dictee** sur le dossier **Applications**.
-3. Ouvre Dictée depuis Applications. La première fois, fais clic droit › **Ouvrir** (voir ci-dessous).
-4. Colle ta clé Groq gratuite quand Dictée la demande ([console.groq.com](https://console.groq.com)), puis accepte les autorisations.
+1. Télécharge `Verbe-<version>.dmg` sur la [page des versions](https://github.com/proladislas-rgb/dictee-mac/releases/latest).
+2. Ouvre le fichier, glisse **Verbe** sur le dossier **Applications**.
+3. Ouvre Verbe depuis Applications. **La première fois, macOS refuse** : voir « Première ouverture » ci-dessous.
+4. Colle ta clé Groq gratuite quand Verbe la demande ([console.groq.com](https://console.groq.com)), puis accepte les autorisations.
 
-**Première ouverture.** Dictée n'est pas signée par un compte développeur Apple (c'est payant, le projet reste gratuit). macOS affiche donc un avertissement : clic droit sur l'app › Ouvrir › Ouvrir, ou Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ». Une seule fois suffit. Règle aussi Réglages Système › Clavier › « Appuyer sur 🌐 pour » sur « Ne rien faire ».
+**Première ouverture.** Verbe n'est pas signé par un compte développeur Apple (c'est payant, le projet reste gratuit). Sur un Mac récent (macOS 15 et après), le clic droit › Ouvrir ne suffit plus. Fais ceci, une seule fois :
 
-**Désinstaller.** Clic droit sur les guillemets dans la barre des menus › **Désinstaller Dictée…** (ou Réglages › Désinstaller). Cela efface l'historique, les mots, les raccourcis, le journal, les réglages et la clé Groq du Trousseau, puis place l'app à la corbeille. Ton éventuel fichier `~/.config/groq/.env` n'est jamais touché.
+1. Ouvre Verbe. La fenêtre qui s'affiche propose « Placer dans la corbeille » ou « Terminé » : clique sur **Terminé** (surtout pas sur la corbeille).
+2. Ouvre Réglages Système › **Confidentialité et sécurité**, descends tout en bas : clique sur **Ouvrir quand même**, puis confirme avec ton mot de passe ou Touch ID.
+3. Rouvre Verbe depuis Applications.
+
+En une commande pour les initiés : `xattr -dr com.apple.quarantine /Applications/Verbe.app`
+
+**Touche 🌐.** Si elle ouvre les emoji (ou autre chose que « Ne rien faire »), Verbe te le dit au premier lancement et ouvre le bon volet des Réglages : Clavier › « Appuyer sur la touche 🌐 pour » › « Ne rien faire ».
+
+**Venant de la version 0.1.0 (Dictée).** Verbe garde le même identifiant : autorisations, historique et dictionnaire sont conservés. Ferme Dictée, ouvre Verbe, puis jette l'ancienne `Dictee.app`.
+
+**Désinstaller.** Clic droit sur les guillemets dans la barre des menus › **Désinstaller Verbe…** (ou Réglages › Désinstaller). Cela efface l'historique, les mots, les raccourcis, le journal, les réglages et la clé Groq du Trousseau, puis place l'app à la corbeille (et, après confirmation, une éventuelle ancienne `Dictee.app`). Ton éventuel fichier `~/.config/groq/.env` n'est jamais touché.
 
 ## Installer depuis le code
 
@@ -28,13 +38,13 @@ Il faut les outils en ligne de commande d'Apple (`xcode-select --install`). Xcod
 git clone https://github.com/proladislas-rgb/dictee-mac.git
 cd dictee-mac
 mkdir -p ~/.config/groq && echo 'GROQ_API_KEY=ta_cle' > ~/.config/groq/.env   # clé gratuite sur console.groq.com
-./build.sh            # fabrique et installe ~/Applications/Dictee.app
-open ~/Applications/Dictee.app
+./build.sh            # fabrique et installe ~/Applications/Verbe.app
+open ~/Applications/Verbe.app
 ```
 
-Au premier lancement, accepte les trois autorisations : le micro, l'accessibilité (pour écrire au curseur) et la surveillance de l'entrée (pour la touche fn). Dans Réglages Système › Clavier, règle « Appuyer sur 🌐 pour » sur « Ne rien faire ».
+Au premier lancement, accepte les trois autorisations : le micro, l'accessibilité (pour écrire au curseur) et la surveillance de l'entrée (pour la touche fn). Verbe guide aussi le réglage de la touche 🌐 (Clavier › « Appuyer sur la touche 🌐 pour » › « Ne rien faire »).
 
-L'app n'est pas signée par un compte développeur Apple. Si tu la reçois d'une autre personne, ouvre-la la première fois par clic droit › Ouvrir.
+Une app construite sur ton Mac n'est pas mise en quarantaine : pas d'avertissement. Reçue d'une autre personne, elle suit la procédure « Première ouverture » ci-dessus.
 
 ## Utiliser
 
@@ -44,15 +54,17 @@ L'app n'est pas signée par un compte développeur Apple. Si tu la reçois d'une
 | Deux appuis rapides sur **fn** | Mains libres : un nouvel appui sur fn ou ✓ termine |
 | **Échap** ou ✕ | Annule, rien n'est écrit |
 
-Ton dictionnaire (noms propres, jargon) se trouve dans `~/Library/Application Support/Dictee/mots.txt`, un mot par ligne. Le journal est dans `~/Library/Logs/Dictee/dictee.log`. On n'y écrit jamais tes textes en entier.
+Un petit son et une vibration du trackpad marquent le début, la fin (texte collé) et l'annulation. Réglages › **Sons** et **Vibration** les coupent séparément. La vibration ne se sent que si un doigt est posé sur le trackpad.
+
+Les dossiers internes gardent l'ancien nom `Dictee`, pour que rien ne se perde en changeant de nom. Ton dictionnaire (noms propres, jargon) se trouve dans `~/Library/Application Support/Dictee/mots.txt`, un mot par ligne. Le journal est dans `~/Library/Logs/Dictee/dictee.log`. On n'y écrit jamais tes textes en entier.
 
 ## Dans ce dépôt
 
 | Où | Quoi |
 |---|---|
-| `Sources/` | Le code Swift (`Dictee` : l'app, `DicteeCore` : la logique testée, `DicteeControles` : les contrôles) |
-| `build.sh` | Fabrication et installation dans `~/Applications` |
-| `release.sh` | Fabrique `dist/Dictee-<version>.dmg` (version lue dans `VERSION`) |
+| `Sources/` | Le code Swift (`Dictee` : le produit Swift de l'app, nom interne gardé ; `DicteeCore` : la logique testée, `DicteeControles` : les contrôles) |
+| `build.sh` | Fabrication et installation dans `~/Applications` (`Verbe.app`) |
+| `release.sh` | Fabrique `dist/Verbe-<version>.dmg` (version lue dans `VERSION`) |
 | `docs/spec-v1.md` | La spécification technique |
 | `design/` | Les maquettes validées et les captures |
 | `LIS-MOI-CHATGPT.md` | Le brief design (nom, logo, animations) |

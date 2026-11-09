@@ -55,7 +55,7 @@ public enum RaccourcisVocaux {
             }
         }
         guard remplacements > 0 else { return texte }
-        // Dictée réduite à un raccourci (+ ponctuation) : le texte exact, sans point final.
+        // Une dictée réduite à un raccourci (+ ponctuation) : le texte exact, sans point final.
         if remplacements == 1, seul { return dernier }
         return sortie
     }

@@ -25,7 +25,7 @@ struct FenetreVue: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 FormeGuillemets().fill(Palette.texte).frame(width: 15, height: 15 / Guillemets.rapport)
-                Text("Dictée").font(Polices.commande(15, .medium)).foregroundStyle(Palette.texte)
+                Text("Verbe").font(Polices.commande(15, .medium)).foregroundStyle(Palette.texte)
             }
             .frame(height: 52)
             .frame(maxWidth: .infinity)
@@ -86,7 +86,7 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         let taille = CGSize(width: min(FenetreVue.tailleParDefaut.width, ecran.width * 0.92), height: min(FenetreVue.tailleParDefaut.height, ecran.height * 0.92))
         let f = NSWindow(contentRect: NSRect(origin: .zero, size: taille), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                          backing: .buffered, defer: false)
-        f.title = "Dictée"
+        f.title = "Verbe"
         f.titleVisibility = .hidden
         f.titlebarAppearsTransparent = true
         f.isMovableByWindowBackground = false

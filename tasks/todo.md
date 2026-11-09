@@ -50,8 +50,9 @@ Chaque lot : construit, essayé pour de vrai sur le Mac, poussé sur GitHub.
 
 ## Nom
 - 2026-11-09 : l'app s'appelle **Verbe** (choix de Hugues). Garder l'identifiant com.hugues.dictee (autorisations et réglages conservés).
-- [ ] Premier lancement : détecter la touche 🌐 réglée sur les emoji (com.apple.HIToolbox AppleFnUsageType ≠ 0) et proposer un bouton « Régler pour moi » (sinon le double appui ouvre les emoji — constaté chez Hugues le 09/11).
-- [ ] Renommage en Verbe (app, textes, DMG, README, notes ; CORRIGER la première ouverture : « Terminé » puis Réglages › Confidentialité et sécurité › Ouvrir quand même, le clic droit ne suffit plus sur macOS 26) → version 0.2.0 avec l'accélération ; puis réinstallation propre chez Hugues depuis le DMG.
+- [x] Premier lancement : détecter la touche 🌐 (AppleFnUsageType ≠ 0), étape guidée avec bouton vers le volet Clavier (pas de defaults write : il ne s'applique pas), relecture chaque seconde, double appui d'essai, ligne discrète dans Réglages (fait le 09/11 ; à vérifier en vrai par Hugues).
+- [x] Renommage en Verbe (app, textes, DMG, README, notes, première ouverture corrigée) → version 0.2.0 : `dist/Verbe-0.2.0.dmg` fabriqué et vérifié le 09/11 (identifiant et dossiers internes gardés, voir spec « Écarts »). Aussi dans la 0.2.0 : sons + vibration (réglages séparés), adresses mail/web dictées reconstituées.
+- [ ] Publication de la 0.2.0 par Hugues : `gh release create v0.2.0 dist/Verbe-0.2.0.dmg --target main --title "Verbe 0.2.0" --notes-file dist/notes-v0.2.0.md` ; puis réinstallation propre chez lui depuis le DMG (quitter Dictée d'abord) et les 5 points « À vérifier en vrai » de la spec (section Verbe 0.2.0).
 
 ## Après Verbe 0.2.0 (décidé le 09/11)
 - [ ] Notes de réunion et d'appel DANS Verbe : enregistrement (micro + son du Mac), texte complet, résumé, actions, export Airtable/Notion ; tout stocké en local ; option « tout sur le Mac » (dictée Apple) au lieu de Groq.

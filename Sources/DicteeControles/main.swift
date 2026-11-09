@@ -595,11 +595,11 @@ do {
 
 groupe("Installation")
 do {
-    verifier(Installation.doitProposerDeplacement(chemin: "/Volumes/Dictee/Dictee.app", volumeEnLectureSeule: true), "lancée depuis l'image disque : proposer")
-    verifier(Installation.doitProposerDeplacement(chemin: "/private/var/folders/ab/T/AppTranslocation/ABC/d/Dictee.app", volumeEnLectureSeule: true), "app translocalisée : proposer")
-    verifier(!Installation.doitProposerDeplacement(chemin: "/Applications/Dictee.app", volumeEnLectureSeule: false), "dans /Applications : rien à proposer")
-    verifier(!Installation.doitProposerDeplacement(chemin: "/tmp/maison-exemple/Applications/Dictee.app", volumeEnLectureSeule: false), "dans ~/Applications : rien à proposer")
-    verifier(!Installation.doitProposerDeplacement(chemin: "/Volumes/DisqueExterne/Dictee.app", volumeEnLectureSeule: false), "disque externe inscriptible : on ne dérange pas")
+    verifier(Installation.doitProposerDeplacement(chemin: "/Volumes/Verbe/Verbe.app", volumeEnLectureSeule: true), "lancée depuis l'image disque : proposer")
+    verifier(Installation.doitProposerDeplacement(chemin: "/private/var/folders/ab/T/AppTranslocation/ABC/d/Verbe.app", volumeEnLectureSeule: true), "app translocalisée : proposer")
+    verifier(!Installation.doitProposerDeplacement(chemin: "/Applications/Verbe.app", volumeEnLectureSeule: false), "dans /Applications : rien à proposer")
+    verifier(!Installation.doitProposerDeplacement(chemin: "/tmp/maison-exemple/Applications/Verbe.app", volumeEnLectureSeule: false), "dans ~/Applications : rien à proposer")
+    verifier(!Installation.doitProposerDeplacement(chemin: "/Volumes/DisqueExterne/Verbe.app", volumeEnLectureSeule: false), "disque externe inscriptible : on ne dérange pas")
     let maison = URL(fileURLWithPath: "/tmp/maison-exemple", isDirectory: true)
     verifier(Installation.dossierDestination(maison: maison, applicationsEcrivable: true).path == "/Applications", "destination : /Applications si possible")
     verifier(Installation.dossierDestination(maison: maison, applicationsEcrivable: false).path == "/tmp/maison-exemple/Applications", "destination : ~/Applications sinon")
@@ -607,20 +607,144 @@ do {
     let fm = FileManager.default
     let racine = fm.temporaryDirectory.appendingPathComponent("dictee-install-\(UUID().uuidString)", isDirectory: true)
     defer { try? fm.removeItem(at: racine) }
-    let source = racine.appendingPathComponent("dmg/Dictee.app/Contents", isDirectory: true)
+    let source = racine.appendingPathComponent("dmg/Verbe.app/Contents", isDirectory: true)
     try? fm.createDirectory(at: source, withIntermediateDirectories: true)
     try? Data("v2".utf8).write(to: source.appendingPathComponent("version.txt"))
-    let app = racine.appendingPathComponent("dmg/Dictee.app")
+    let app = racine.appendingPathComponent("dmg/Verbe.app")
     let dest = racine.appendingPathComponent("Applications", isDirectory: true)
     let copie = try? Installation.copier(app: app, dansDossier: dest)
-    verifier(copie?.path == dest.appendingPathComponent("Dictee.app").path && fm.fileExists(atPath: dest.appendingPathComponent("Dictee.app/Contents/version.txt").path), "copie dans un dossier créé au besoin")
+    verifier(copie?.path == dest.appendingPathComponent("Verbe.app").path && fm.fileExists(atPath: dest.appendingPathComponent("Verbe.app/Contents/version.txt").path), "copie dans un dossier créé au besoin")
     // une ancienne version déjà installée est remplacée, sans reste
-    try? Data("v1".utf8).write(to: dest.appendingPathComponent("Dictee.app/Contents/version.txt"))
+    try? Data("v1".utf8).write(to: dest.appendingPathComponent("Verbe.app/Contents/version.txt"))
     try? Data("v3".utf8).write(to: source.appendingPathComponent("version.txt"))
     _ = try? Installation.copier(app: app, dansDossier: dest)
-    verifier((try? String(contentsOf: dest.appendingPathComponent("Dictee.app/Contents/version.txt"), encoding: .utf8)) == "v3", "remplace l'ancienne version")
+    verifier((try? String(contentsOf: dest.appendingPathComponent("Verbe.app/Contents/version.txt"), encoding: .utf8)) == "v3", "remplace l'ancienne version")
     verifier((try? fm.contentsOfDirectory(atPath: dest.path))?.filter { $0.contains("installation") }.isEmpty == true, "aucun fichier temporaire laissé")
     verifier((try? Installation.copier(app: racine.appendingPathComponent("absente.app"), dansDossier: dest)) == nil, "source absente : erreur, pas de plantage")
+}
+
+groupe("Ancien nom (Dictee.app)")
+do {
+    let fm = FileManager.default
+    let racine = fm.temporaryDirectory.appendingPathComponent("dictee-ancien-\(UUID().uuidString)", isDirectory: true)
+    defer { try? fm.removeItem(at: racine) }
+    let a1 = racine.appendingPathComponent("A", isDirectory: true), a2 = racine.appendingPathComponent("B", isDirectory: true)
+    for d in [a1, a2] { try? fm.createDirectory(at: d, withIntermediateDirectories: true) }
+    try? fm.createDirectory(at: a1.appendingPathComponent("Dictee.app/Contents"), withIntermediateDirectories: true)
+    try? fm.createDirectory(at: a1.appendingPathComponent("Verbe.app/Contents"), withIntermediateDirectories: true)
+    try? fm.createDirectory(at: a2.appendingPathComponent("Autre.app"), withIntermediateDirectories: true)
+    let trouvees = Desinstallation.anciennesApps(dossiers: [a1, a2], exclure: a1.appendingPathComponent("Verbe.app"), fm: fm)
+    verifier(trouvees.map(\.lastPathComponent) == ["Dictee.app"] && trouvees.first?.deletingLastPathComponent().path == a1.path, "trouve seulement l'ancienne Dictee.app, jamais Verbe.app ni une autre app")
+    verifier(Desinstallation.anciennesApps(dossiers: [a1, a2], exclure: a1.appendingPathComponent("Dictee.app"), fm: fm).isEmpty, "l'app qui tourne n'est jamais comptée comme ancienne copie")
+    verifier(Desinstallation.anciennesApps(dossiers: [a2], exclure: a1.appendingPathComponent("Verbe.app"), fm: fm).isEmpty, "aucune ancienne copie : liste vide")
+    let maison = URL(fileURLWithPath: "/tmp/maison-exemple")
+    verifier(Desinstallation.dossiersApplications(maison: maison).map(\.path) == ["/Applications", "/tmp/maison-exemple/Applications"], "dossiers visés : /Applications et ~/Applications")
+    verifier(Desinstallation.cheminsRelatifs.contains("Library/Application Support/Dictee") && Desinstallation.identifiant == "com.hugues.dictee", "dossiers internes et identifiant gardés (autorisations, historique, dictionnaire)")
+}
+
+groupe("Sons de début, de fin, d'annulation")
+do {
+    // Le son de début, capté par le micro, ne doit pas passer pour de la voix : les premières tranches sont ignorées.
+    func fin(ignorees: Int, _ segments: [(db: Float, frames: Int)]) -> VoiceChunker.Range? {
+        var cfg = VoiceChunker.Config(); cfg.ignoredStartFrames = ignorees
+        var c = VoiceChunker(config: cfg); var n = 0
+        for seg in segments { for _ in 0..<seg.frames { n += 1; _ = c.feed(levelDb: seg.db) } }
+        return c.finish(totalSamples: n * 320)
+    }
+    verifier(fin(ignorees: 0, [(-30, 8), (-70, 60)]) != nil, "sans masque, un son de 160 ms au tout début passe pour de la parole")
+    verifier(fin(ignorees: 10, [(-30, 8), (-70, 60)]) == nil, "avec masque, le même son au tout début n'est pas de la parole")
+    let parole = fin(ignorees: 16, [(-30, 10), (-70, 10), (-20, 60)])
+    verifier(parole != nil && parole!.start == 0 && parole!.end == 80 * 320, "la parole qui suit le masque est gardée, et rien avant elle n'est perdu (début à 0)")
+    let tot = fin(ignorees: 16, [(-20, 40)])
+    verifier(tot != nil && tot!.start == 0, "parole commencée dans le masque : détectée juste après, morceau complet gardé")
+    for son in SonSynthese.Son.allCases {
+        let n = SonSynthese.notes(son)
+        let e = SonSynthese.echantillons(n)
+        let d = Double(e.count) / Double(SonSynthese.frequenceEchantillonnage)
+        let pic = Double(e.map { abs(Int($0)) }.max() ?? 0) / Double(Int16.max)
+        verifier(d >= 0.04 && d <= 0.125, "\(son) : durée \(Int(d * 1000)) ms (entre 40 et 125 ms)")
+        verifier(pic > 0.05 && pic <= 0.25, "\(son) : volume bas (pic \(String(format: "%.2f", pic)) de la pleine échelle)")
+        verifier(abs(Int(e.first ?? 0)) < 40 && abs(Int(e.last ?? 0)) < 40, "\(son) : départ et arrivée à zéro, pas de clic")
+        let wav = SonSynthese.wav(son)
+        verifier(wav.count == 44 + e.count * 2 && wav.prefix(4) == Data("RIFF".utf8), "\(son) : fichier WAV valide en mémoire")
+    }
+    let debut = SonSynthese.notes(.debut), fin2 = SonSynthese.notes(.fin), annul = SonSynthese.notes(.annulation)
+    verifier(debut.count == 2 && debut[1].frequenceDebut > debut[0].frequenceDebut, "début : deux notes, la seconde plus haute")
+    verifier(fin2.count == 1 && fin2[0].frequenceFin < fin2[0].frequenceDebut, "fin : une note qui descend")
+    verifier(annul.count == 1 && annul[0].frequenceDebut < 250, "annulation : un tic grave")
+    verifier(SonSynthese.duree(.debut) <= 0.12 + 1e-9, "début : 120 ms au plus")
+}
+
+groupe("Adresses dictées")
+do {
+    func r(_ t: String) -> String { AdressesDictees.reconstituer(t) }
+    verifier(r("jean arobase gmail point com") == "jean@gmail.com", "cas simple : X arobase Y point com")
+    verifier(r("h2delpit arobase gmail point com") == "h2delpit@gmail.com", "mot avec chiffre")
+    verifier(r("h 2 d e l p i t arobase gmail point com") == "h2delpit@gmail.com", "lettres et chiffres épelés collés")
+    verifier(r("H, 2, D, E, L, P, I, T arobase gmail point com.") == "h2delpit@gmail.com.", "épelé avec virgules de Whisper, point final de la phrase gardé")
+    verifier(r("jean point dupont arobase gmail point com") == "jean.dupont@gmail.com", "point dans la partie locale")
+    verifier(r("jean tiret louis arobase gmail point com") == "jean-louis@gmail.com", "tiret")
+    verifier(r("jean tiret du bas louis arobase gmail point com") == "jean_louis@gmail.com", "tiret du bas")
+    verifier(r("jean underscore louis arobase gmail point com") == "jean_louis@gmail.com", "underscore")
+    verifier(r("contact arobase sillonia point fr") == "contact@sillonia.fr", "extension .fr")
+    verifier(r("contact arobase ecodistrib point net") == "contact@ecodistrib.net", "extension .net")
+    verifier(r("paul arobase mon tiret site point co point uk") == "paul@mon-site.co.uk", "domaine à deux extensions et tiret")
+    verifier(r("Écris à Jean arobase Gmail point com demain.") == "Écris à jean@gmail.com demain.", "majuscules retirées, « à » reste un mot de la phrase")
+    verifier(r("Mon adresse est jean arobase gmail point com, merci.") == "Mon adresse est jean@gmail.com, merci.", "virgule après l'adresse gardée")
+    verifier(r("Envoie à (jean arobase gmail point com) tout de suite") == "Envoie à (jean@gmail.com) tout de suite", "parenthèses gardées")
+    verifier(r("contact arobase sillonia point fr point merci") == "contact@sillonia.fr point merci", "ce qui suit l'extension n'est pas mangé")
+    verifier(r("jean @ gmail point com") == "jean@gmail.com", "« @ » resté seul")
+    verifier(r("jean@gmail point com") == "jean@gmail.com", "« @ » collé, domaine dicté")
+    verifier(r("jean@Gmail.com") == "jean@gmail.com", "adresse déjà écrite : minuscules")
+    verifier(r("Écris-moi à h2delpit@gmail.com, merci") == "Écris-moi à h2delpit@gmail.com, merci", "adresse correcte : intacte")
+    verifier(r("jean arobase gmail point com et marie arobase yahoo point fr") == "jean@gmail.com et marie@yahoo.fr", "deux adresses")
+    verifier(r("hugues arobase sillonia point com") == "hugues@sillonia.com", "nom simple")
+    verifier(r("pense à écrire à Hugues-Henri Delpit arobase gmail point com") == "pense à écrire à Hugues-Henri delpit@gmail.com", "un seul mot entier avant l'arobase")
+    // pas de fausses adresses
+    verifier(r("on se voit à l'arobase de la rue") == "on se voit à l'arobase de la rue", "arobase sans domaine : inchangé")
+    verifier(r("le point com du site") == "le point com du site", "« point com » seul : inchangé")
+    verifier(r("il faut mettre un arobase point") == "il faut mettre un arobase point", "arobase sans partie locale ni domaine : inchangé")
+    verifier(r("jean arobase gmail point machin") == "jean arobase gmail point machin", "extension inconnue : inchangé")
+    verifier(r("Bonjour, comment vas-tu ?") == "Bonjour, comment vas-tu ?", "texte ordinaire : inchangé")
+    verifier(r("point. tiret du pain") == "point. tiret du pain", "commandes de liste : inchangées")
+    // adresses web
+    verifier(r("www point sillonia point fr") == "www.sillonia.fr", "adresse web")
+    verifier(r("va sur www point google point com, puis ferme") == "va sur www.google.com, puis ferme", "adresse web dans une phrase")
+    verifier(r("w w w point sillonia point fr.") == "www.sillonia.fr.", "w w w épelé, point final gardé")
+    verifier(r("www point machin point truc") == "www point machin point truc", "web : extension inconnue, inchangé")
+    verifier(r("Voici\nh2 arobase gmail point com\nmerci") == "Voici\nh2@gmail.com\nmerci", "retours à la ligne gardés")
+}
+
+groupe("Raccourcis vocaux : adresse, après la remise au propre")
+do {
+    let adresse = "h2delpit@gmail.com"
+    let rac = [RaccourciVocal(expression: "mon mail", texte: adresse), RaccourciVocal(expression: "mon adresse mail", texte: adresse)]
+    func a(_ t: String) -> String { RaccourcisVocaux.appliquer(t, raccourcis: rac) }
+    verifier(a("Envoie-le à mon mail, merci.") == "Envoie-le à \(adresse), merci.", "« à mon mail, merci » : virgule gardée")
+    verifier(a("Mon adresse mail, c'est ça.") == "\(adresse), c'est ça.", "le raccourci le plus long gagne (mon adresse mail)")
+    verifier(a("Mon mail.") == adresse, "dictée réduite au raccourci : adresse seule, sans point")
+    verifier(a("Écris à mon mail.") == "Écris à \(adresse).", "point final de la phrase gardé")
+    verifier(a("Mon mail : h2.") == "\(adresse) : h2.", "deux-points gardés")
+    // même chaîne que l'app : règle locale d'abord, raccourcis ensuite
+    let texte = RaccourcisVocaux.appliquer(AdressesDictees.reconstituer("Écris à jean arobase gmail point com ou à mon mail, merci."), raccourcis: rac)
+    verifier(texte == "Écris à jean@gmail.com ou à \(adresse), merci.", "adresse dictée puis raccourci dans la même phrase")
+    verifier(RemiseAuPropre.consignes(contexte: .general, mots: []).contains("arobase") && RemiseAuPropre.consignes(contexte: .general, mots: []).contains("www.sillonia.fr"), "consignes de l'IA : adresses")
+}
+
+groupe("Touche 🌐")
+do {
+    verifier(!ToucheGlobe.doitEtreReglee(valeur: 0), "0 (Ne rien faire) : rien à régler")
+    verifier(ToucheGlobe.doitEtreReglee(valeur: 2) && ToucheGlobe.doitEtreReglee(valeur: 1) && ToucheGlobe.doitEtreReglee(valeur: 3), "1, 2 ou 3 : à régler")
+    verifier(ToucheGlobe.doitEtreReglee(valeur: nil), "clé absente (réglage d'origine du Mac) : à régler")
+    verifier(ToucheGlobe.interpreter(NSNumber(value: 0)) == 0 && ToucheGlobe.interpreter(NSNumber(value: 2)) == 2, "nombre lu")
+    verifier(ToucheGlobe.interpreter("3") == 3 && ToucheGlobe.interpreter(" 0 ") == 0, "texte lu")
+    verifier(ToucheGlobe.interpreter(nil) == nil && ToucheGlobe.interpreter("abc") == nil, "absent ou illisible : nil")
+    verifier(ToucheGlobe.phrase(valeur: 2) == "Votre touche 🌐 ouvre les emoji" && ToucheGlobe.phrase(valeur: nil) == "Votre touche 🌐 ouvre les emoji", "phrase : emoji")
+    verifier(ToucheGlobe.phrase(valeur: 3).contains("dictée d\u{2019}Apple") && ToucheGlobe.phrase(valeur: 1).contains("méthode de saisie"), "phrase : dictée d'Apple, méthode de saisie")
+    verifier(ToucheGlobe.adresseVoletClavier == "x-apple.systempreferences:com.apple.Keyboard-Settings.extension", "adresse du volet Clavier")
+    verifier(ToucheGlobe.consigne == "Appuyer sur la touche 🌐 pour : Ne rien faire", "consigne")
+    let lue = ToucheGlobe.lire()   // lecture seule des préférences système, aucun accès au clavier
+    verifier(lue == nil || (0...3).contains(lue!), "lecture réelle du réglage : \(lue.map(String.init) ?? "absent")")
 }
 
 print("\n\(total - echecs)/\(total) contrôles passés")

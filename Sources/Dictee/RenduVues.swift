@@ -171,11 +171,12 @@ enum RenduFenetre {
         fenetre("fenetre-6-aucun-resultat", onglet: .dictees, store: exemple, mots: motsExemple(), requete: "zzz")
         let secoursIndispo = ReglagesModele(reel: false)
         fenetre("fenetre-7-reglages-confirmation", onglet: .reglages, store: exemple, mots: motsExemple(), reglages: { secoursIndispo.confirmerEffacement = true; return secoursIndispo }())
+        fenetre("fenetre-8-reglages-globe", onglet: .reglages, store: exemple, mots: motsExemple(), reglages: ReglagesModele(reel: false, globe: 2))
         return ok ? 0 : 1
     }
 }
 
-/// `Dictee --rendu-premier-lancement dossier` : les trois étapes et leurs états en PNG, sans fenêtre.
+/// `Dictee --rendu-premier-lancement dossier` : les étapes et leurs états en PNG, sans fenêtre.
 enum RenduPremierLancement {
     @MainActor
     static func executer(dossier: String) -> Int32 {
@@ -187,11 +188,11 @@ enum RenduPremierLancement {
         let taille = CGSize(width: 700, height: 560)
 
         func etape(_ nom: String, _ e: PriseEnMainModele.Etape, micro: Bool = false, refuse: Bool = false, access: Bool = false, surv: Bool = false,
-                   cle: CleGroq.Etat = .absente, essai: String = "", reussie: Bool = false, echec: String? = nil) {
-            let m = PriseEnMainModele(reel: false, micro: micro, accessibilite: access, surveillance: surv, cle: cle)
+                   cle: CleGroq.Etat = .absente, essai: String = "", reussie: Bool = false, echec: String? = nil, globe: Int? = 0, doubleAppuiVu: Bool = false) {
+            let m = PriseEnMainModele(reel: false, micro: micro, accessibilite: access, surveillance: surv, cle: cle, globe: globe)
             m.etape = e
             m.essai = essai
-            m.setEtatPourRendu(refuse: refuse, reussie: reussie, echec: echec)
+            m.setEtatPourRendu(refuse: refuse, reussie: reussie, echec: echec, doubleAppuiVu: doubleAppuiVu)
             let app = ApparitionPanneau(); app.visible = true
             let vue = RenduVues.Bureau(taille: taille, camera: 180) {
                 PriseEnMainVue(m: m, apparition: app, curseurFactice: true).padding(.top, PriseEnMain.ecartHaut - 6)
@@ -203,9 +204,12 @@ enum RenduPremierLancement {
         etape("premier-2-acces-partiel", .acces, micro: true, access: true)
         etape("premier-2-micro-refuse", .acces, refuse: true, access: true, surv: true, cle: .fichier)
         etape("premier-2-acces-complets", .acces, micro: true, access: true, surv: true, cle: .trousseau)
-        etape("premier-3-attente", .premiere, micro: true, access: true, surv: true, cle: .trousseau)
-        etape("premier-3-reussie", .premiere, micro: true, access: true, surv: true, cle: .trousseau, essai: "On se voit mercredi pour parler du devis.", reussie: true)
-        etape("premier-3-echec", .premiere, micro: true, access: true, surv: true, cle: .trousseau, echec: "Écriture impossible ici, le texte est copié.")
+        etape("premier-3-globe-a-regler", .globe, micro: true, access: true, surv: true, cle: .trousseau, globe: 2)
+        etape("premier-3-globe-essai", .globe, micro: true, access: true, surv: true, cle: .trousseau, globe: 0)
+        etape("premier-3-globe-reconnu", .globe, micro: true, access: true, surv: true, cle: .trousseau, globe: 0, doubleAppuiVu: true)
+        etape("premier-4-attente", .premiere, micro: true, access: true, surv: true, cle: .trousseau)
+        etape("premier-4-reussie", .premiere, micro: true, access: true, surv: true, cle: .trousseau, essai: "On se voit mercredi pour parler du devis.", reussie: true)
+        etape("premier-4-echec", .premiere, micro: true, access: true, surv: true, cle: .trousseau, echec: "Écriture impossible ici, le texte est copié.")
         return ok ? 0 : 1
     }
 }

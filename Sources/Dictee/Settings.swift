@@ -82,6 +82,20 @@ enum Settings {
     }
 
     /// Secours : le texte de la dictée d'Apple quand Groq ne répond pas. Activé par défaut.
+    /// Petits sons au début de la dictée, au texte collé et à l'annulation. Activé par défaut.
+    /// Exemple : defaults write com.hugues.dictee sons -bool false
+    static var sons: Bool {
+        get { defaults.object(forKey: "sons") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "sons") }
+    }
+
+    /// Retour haptique du trackpad (se sent seulement avec un doigt posé sur un trackpad Force Touch). Activé par défaut.
+    /// Exemple : defaults write com.hugues.dictee vibration -bool false
+    static var vibration: Bool {
+        get { defaults.object(forKey: "vibration") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "vibration") }
+    }
+
     static var secoursApple: Bool {
         get { defaults.object(forKey: "secoursApple") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "secoursApple") }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Ce que « Désinstaller Dictée… » efface, et rien d'autre. Fonctions sans interface, vérifiées par `DicteeControles`
+/// Ce que « Désinstaller Verbe… » efface, et rien d'autre. Fonctions sans interface, vérifiées par `DicteeControles`
 /// (sur un faux dossier personnel, jamais sur le vrai).
 ///
 /// Ne touche jamais à `~/.config/groq/.env` : ce fichier appartient à la personne, pas à l'app.
@@ -19,6 +19,22 @@ public enum Desinstallation {
         "Library/HTTPStorages/\(identifiant)",
         "Library/Saved Application State/\(identifiant).savedState",
     ]
+
+    /// Nom de l'app avant le renommage en Verbe (0.1.0) : une ancienne copie peut encore traîner dans Applications.
+    public static let ancienNomApp = "Dictee.app"
+
+    /// Les dossiers où l'app s'installe : /Applications et ~/Applications.
+    public static func dossiersApplications(maison: URL) -> [URL] {
+        [URL(fileURLWithPath: "/Applications", isDirectory: true), maison.appendingPathComponent("Applications", isDirectory: true)]
+    }
+
+    /// Les anciennes copies `Dictee.app` présentes dans ces dossiers (sauf `exclure`, l'app qui tourne). Jamais autre chose.
+    public static func anciennesApps(dossiers: [URL], exclure: URL, fm: FileManager = .default) -> [URL] {
+        let exclu = exclure.standardizedFileURL.path
+        return dossiers.map { $0.appendingPathComponent(ancienNomApp) }.filter {
+            $0.standardizedFileURL.path != exclu && (try? fm.attributesOfItem(atPath: $0.path)) != nil
+        }
+    }
 
     public static func elements(maison: URL) -> [URL] {
         cheminsRelatifs.map { maison.appendingPathComponent($0) }
