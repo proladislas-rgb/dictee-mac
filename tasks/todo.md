@@ -122,3 +122,12 @@ Maquette validée par Hugues (« c'est très bien, moi j'adore ») : `design/maq
 - [x] Réglages › Compte & données › Mises à jour (version, À jour / disponible, Rechercher, Vérifier automatiquement) et entrée « Rechercher les mises à jour… » du menu.
 - [x] `release.sh` : fichier `.sha256`, `--version` / `--sortie` pour les faux DMG de test ; logique pure testée dans DicteeControles ; modes `--verifier-mise-a-jour`, `--installer-mise-a-jour-test`, `--rendu-mise-a-jour`.
 - [ ] Publication de la 0.3.0 par Hugues : `./release.sh` puis `gh release create v0.3.0 dist/Verbe-0.3.0.dmg dist/Verbe-0.3.0.dmg.sha256 --target main --title "Verbe 0.3.0" --notes-file dist/notes-v0.3.0.md` ; la mise à jour se verra à la 0.3.1 (publier une 0.3.1 de test, ou la prochaine vraie version, et essayer depuis la 0.3.0 installée : voir « À vérifier en vrai » de la section « Mise à jour automatique » de docs/spec-v1.md).
+
+## Précision de la transcription (10/11, branche `precision`)
+Demande de Hugues : mieux transcrire (« un peu meilleurs sur la transcription » chez Wispr Flow), sans rien perdre en fluidité ; choix turbo / précis visible ; apprentissage automatique.
+- [x] 1. Modèle Whisper réglable (Rapide turbo / Précis large-v3), défaut **Précis** (justesse 91,9 % contre 86,2 %, latence dans le bruit, quota gratuit à part), repli turbo sur 429 / panne et requête de secours en turbo, budget de requêtes par modèle, latences mesurées affichées dans Réglages (docs/spec-v1.md, « Précision de la transcription »).
+- [x] 2. Relecture de sens (qwen3.8-27b sans raisonnement, ≤ 250 ms, ou fusionnée à la remise au propre), garde-fou strict, journal ; modèles de langue de secours (gpt-oss-20b était à sec : 200 000 jetons par jour) ; `--declencheurs` mesure le taux de déclenchement (15 %).
+- [x] 3. Expressions personnelles automatiques (une fois par jour depuis l'historique, onglet Mots › Tes expressions, prompt Whisper dans 45 jetons) + corrections apprises seules à la 2e occurrence + ligne « appris cette semaine ».
+- [x] 4. Test sur la vraie voix : réglage « Garder le son des 50 prochaines dictées… » (désactivé), `Verbe --comparer-precision`.
+- [ ] Hugues : activer le test de précision et dicter 50 dictées, puis lancer `Verbe --comparer-precision` ; essayer en vrai (5 points « À vérifier en vrai » de la spec).
+- [ ] À surveiller : la remise au propre coûte ~1 000 jetons par dictée (200 000 par jour et par gpt-oss) ; raccourcir la consigne ou garder qwen en 3e secours si les 429 reviennent.

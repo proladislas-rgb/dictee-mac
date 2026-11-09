@@ -51,3 +51,14 @@ Format : [date] | ce qui a mal tourné | règle pour l'éviter
 [2026-11-10] | Test du « refermé » sur `modele.progres` : c'est la cible du ressort (elle saute tout de suite), pas la valeur affichée ; un essai « interrompu en pleine fermeture » lisait 0 | Dans les essais, ne conclure sur une animation que sur ce que le modèle garantit (cible, fenêtre, délais) ; la continuité visuelle d'un ressort se juge sur un rendu mi-course
 
 [2026-11-10] | Source de test de la lecture perdue (hors dépôt) pendant que Hugues écoutait Deezer : l'app « élue » change à tout moment | `LecteurSysteme.appExclusive` : en essai, aucune commande ne part si la dernière app annoncée n'est pas la source de test ; la source (SourceTest.app, bundle `source-test`, volume 0) se recrée en 40 lignes si besoin
+
+[2026-11-10] | Les cinq voix de synthèse « Français (France) » (Eddy, Flo, Sandy, Rocko, Shelley) sont presque illisibles pour Whisper (13 à 40 % de mots justes) : un premier banc de précision comparait du bruit | Pour un banc de justesse, n'utiliser que des voix lisibles (Thomas, Jacques), vérifier d'abord que la voix la plus claire est juste à ~100 % sur l'un et l'autre modèle ; sinon le banc ne mesure que la voix
+
+[2026-11-10] | Les remises au propre échouaient en silence chez Hugues (« texte brut gardé : trop lent ou en erreur ») : gpt-oss-20b avait épuisé son quota de 200 000 jetons PAR JOUR (une remise au propre en coûte ~1 000) ; les en-têtes x-ratelimit-* ne donnent que les requêtes et les jetons par minute, jamais le quota du jour en jetons, et une petite requête passe encore alors qu'une grosse reçoit 429 | Quand une requête de langue échoue vite (< 100 ms), lire le corps de la 429 (il dit « tokens per day (TPD) » et le restant), journaliser le code d'erreur, et prévoir un modèle de secours : chaque modèle de Groq a son quota
+
+[2026-11-10] | `HOME=/dossier/faux` n'est pas honoré par `FileManager.homeDirectoryForCurrentUser` : mon essai du comparateur a lu le VRAI dossier de Hugues | Pour tester un mode qui lit des fichiers dans Application Support, prévoir une variable d'environnement qui désigne le dossier (ici `DICTEE_DOSSIER_TEST_PRECISION`), jamais compter sur HOME ; vérifier le chemin affiché avant d'accepter d'effacer quoi que ce soit
+
+[2026-11-10] | Un `sed -i` sans `''` (macOS) a encore échoué en silence | Sur macOS : `sed -i ''` ou, mieux, un petit script python pour les remplacements multi-lignes
+
+[2026-11-10] | Un garde-fou de fidélité à 70 % de mots communs refusait « Ok, ok, Tuget. » → « Ok, t'inquiète. » (50 %) : sur un texte de 3 mots, un seul mot corrigé suffit à faire échouer le seuil | Un seuil en pourcentage ne vaut rien sur les textes très courts : le calculer en nombre de mots changés autorisés (ici les mots suspects désignés par la relecture, au plus 3)
+
