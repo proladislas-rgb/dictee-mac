@@ -26,7 +26,8 @@ Format : [date] | ce qui a mal tourné | règle pour l'éviter
 
 [2026-11-09] | Son de début/fin fabriqué par synthèse (sinus grave « à la Willow », d'après une simple mesure de hauteur) : Hugues « il est horrible ». Un son d'interface réussi tient au timbre, qu'un sinus ne rend pas | Pour un son, faire ÉCOUTER des candidats réels (sons du Mac par nom via NSSound(named:), banques libres de droits) et laisser Hugues choisir ; ne jamais livrer un son synthétisé sans écoute validée
 
+[2026-11-09] | Filet de sécurité : fausses alertes dans l'app Claude (Electron) alors que le texte était bien écrit — « aucun élément focalisé » avait été pris pour une preuve d'échec, or les apps Electron/Chromium n'exposent pas leur focus à l'Accessibilité par défaut | Une absence d'information n'est jamais une preuve : traiter les apps web à part (AXManualAccessibility, verdict « indéterminé ») et tester toute détection sur Claude, Slack, Chrome, Notes et Terminal avant de livrer
+
 [2026-11-09] | Surveillance d'un banc d'essai lancé en arrière-plan avec `pgrep -f banc-lexique` : le motif se retrouve dans la ligne de commande de la surveillance elle-même, qui ne s'arrête donc jamais | Attendre un processus avec `pgrep -x NomExact` (et jamais avec `-f` sur un mot que la commande de surveillance contient)
 
 [2026-11-09] | Le lexique construit depuis les notes contenait le mot mal entendu cité en exemple dans les notes de l'app elle-même, donc la correction à l'oreille ne corrigeait plus l'exemple phare | Les notes de l'outil de dictée (dictee-mac) sont exclues des sources du lexique ; vérifier le lexique avec les exemples cibles (`Verbe --oreille "texte"`) avant tout banc d'essai
-

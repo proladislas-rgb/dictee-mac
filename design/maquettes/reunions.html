@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbe — réunions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --desk:#0b0b0b; --bar:#141413; --pan:#1a1a19; --raised:#262624;
+  --ink:#ece9e3; --ink-2:#a8a59e; --ink-3:#88857e;
+  --hair:rgba(236,233,227,.09); --amber:#e6a04a;
+  --serif:"Newsreader","New York",ui-serif,Charter,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--desk);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;padding:8px 24px 64px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default;text-align:left}
+svg{display:block;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+::selection{background:rgba(230,160,74,.34);color:#fff}
+
+.cap{margin:44px 0 12px;font-size:13px;line-height:20px;color:var(--ink-3)}
+.cap b{color:var(--ink);font-weight:500;margin-right:10px}
+
+/* ---------- écran (barre des menus + encoche) ---------- */
+.screen{position:relative;overflow:hidden;border-radius:12px;background:#0f0f0e;box-shadow:0 0 0 1px var(--hair)}
+.menubar{height:32px;background:var(--bar);display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:13px;color:var(--ink-2)}
+.menubar .l,.menubar .r{display:flex;gap:18px;align-items:center}
+.menubar b{font-weight:600;color:var(--ink)}
+.q{font:700 17px/1 Georgia,serif;color:var(--ink-2)}
+.q.on{display:grid;place-items:center;width:26px;height:20px;border-radius:5px;background:var(--raised);color:var(--ink)}
+
+.cam{position:absolute;top:0;left:50%;width:200px;height:32px;margin-left:-100px;background:#000;border-radius:0 0 10px 10px;z-index:4}
+
+/* encoche en cours : bande 380 × 32, centre caméra vide, ruban soudé dessous */
+.notch{position:absolute;top:0;left:50%;width:380px;margin-left:-190px;z-index:5}
+.band{height:32px;background:#000;border-radius:0 0 12px 12px;display:grid;grid-template-columns:90px 200px 90px;align-items:center}
+.wl{display:flex;align-items:center;gap:8px;padding-left:14px;font-size:13px;color:var(--ink);white-space:nowrap}
+.wr{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-right:8px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--amber);flex:none}
+.timer{font-size:13px;line-height:16px;color:var(--ink)}
+.timer.off{color:var(--ink-3)}
+.trace{display:flex;flex-direction:column;gap:3px;width:36px}
+.trace div{display:flex;align-items:center;gap:1px;height:8px}
+.trace i{display:block;width:2px;border-radius:1px;background:var(--ink)}
+.trace div+div i{background:var(--ink-3)}
+.nb{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--ink)}
+.nb:hover{background:#2a2a2d}
+.stop{width:8px;height:8px;border-radius:2px;background:var(--ink)}
+.rib{position:relative;margin:-1px 24px 0;height:25px;background:#000;border-radius:0 0 12px 12px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:12px;color:var(--ink-3);white-space:nowrap}
+.rib::before,.rib::after{content:"";position:absolute;top:1px;width:8px;height:8px}
+.rib::before{left:-8px;background:radial-gradient(circle at 0 100%,transparent 7.5px,#000 8px)}
+.rib::after{right:-8px;background:radial-gradient(circle at 100% 100%,transparent 7.5px,#000 8px)}
+.rib .ac{display:flex;gap:4px}
+.rib .ac span{height:20px;padding:0 8px;border-radius:5px;display:inline-flex;align-items:center;gap:6px;color:var(--ink)}
+.rib .ac span.h{background:#2a2a2d}
+.k{font:500 11px/16px var(--sans);color:var(--ink-3);border:1px solid var(--hair);border-bottom-width:2px;border-radius:5px;padding:0 5px}
+
+/* ---------- panneau compact (v3 B) ---------- */
+.s1a{height:384px}
+.panel{position:absolute;top:40px;left:50%;width:352px;height:320px;margin-left:-176px;border-radius:14px;background:var(--pan);box-shadow:0 0 0 1px rgba(255,255,255,.1);display:grid;grid-template-rows:minmax(0,1fr) 40px;overflow:hidden;z-index:3}
+.pv{padding:8px}
+.field{display:flex;align-items:center;gap:8px;height:36px;padding:0 8px;color:var(--ink-3);position:relative;font-size:13px}
+.field .cr{width:2px;height:16px;border-radius:1px;background:var(--amber);margin-left:0}
+.pa{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:12px;align-items:center;height:36px;padding:0 8px;border-radius:8px;background:var(--raised);font-size:13px;color:var(--ink);margin-top:4px}
+.pa svg{color:var(--ink-2)}
+.pdiv{height:1px;background:var(--hair);margin:8px 8px 4px}
+.row{display:grid;grid-template-columns:36px minmax(0,1fr) auto;column-gap:8px;align-items:center;height:36px;padding:0 8px;border-radius:8px}
+.row .t{font-size:12px;color:var(--ink-3)}
+.row .x{font-family:var(--serif);font-size:15px;line-height:20px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .a{font-size:12px;color:var(--ink-3)}
+.pn{display:flex;align-items:center;gap:20px;padding:0 16px;border-top:1px solid var(--hair);font-size:13px;color:var(--ink-3)}
+.pn b{font-weight:500;color:var(--ink)}
+
+/* ---------- 1b : appel en cours ---------- */
+.s1b{height:300px}
+.vis{position:absolute;left:150px;right:150px;top:104px;bottom:0;background:var(--pan);border-radius:12px 12px 0 0;box-shadow:0 0 0 1px rgba(255,255,255,.07);padding:44px 20px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-content:start}
+.vis .d{position:absolute;top:14px;left:16px;display:flex;gap:7px}
+.vis .d i{width:10px;height:10px;border-radius:50%;background:#3a3a38}
+.vis .tile{height:150px;border-radius:8px;background:#222221;position:relative}
+.vis .tile span{position:absolute;left:10px;bottom:8px;font-size:12px;color:var(--ink-3)}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.s1c{height:92px}
+
+/* ---------- fenêtre principale ---------- */
+.win{position:relative;height:650px;border-radius:14px;background:var(--pan);box-shadow:0 0 0 1px rgba(255,255,255,.1);display:grid;grid-template-rows:44px minmax(0,1fr) 52px;overflow:hidden}
+.tb{display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;color:var(--ink);position:relative}
+.tb .tl{position:absolute;left:20px;display:flex;gap:8px}
+.tb .tl i{width:12px;height:12px;border-radius:50%;background:#3a3a38}
+.tb .q{font-size:16px;color:var(--ink)}
+.bd{position:relative;min-height:0;padding:0 32px;overflow:hidden}
+.ft{display:flex;align-items:center;justify-content:space-between;padding:0 32px;border-top:1px solid var(--hair);font-size:14px;color:var(--ink-3)}
+.ft nav{display:flex;gap:28px}
+.ft nav b{font-weight:500;color:var(--ink)}
+.ft .r{display:flex;align-items:center;gap:20px;font-size:13px}
+.ft .r span{display:inline-flex;align-items:center;gap:6px}
+.lock{width:13px;height:13px}
+
+/* liste (3) */
+.sr{display:flex;align-items:center;gap:12px;margin-top:8px}
+.srf{flex:1;display:flex;align-items:center;gap:12px;height:40px;padding:0 16px;border-radius:10px;background:var(--raised);font-size:14px;color:var(--ink-3)}
+.srf .cr{width:2px;height:18px;border-radius:1px;background:var(--amber);margin-left:-4px}
+.srf .k{margin-left:auto}
+.new{height:40px;padding:0 14px;border-radius:10px;display:inline-flex;align-items:center;gap:10px;font-size:13px;color:var(--ink)}
+.new .k{margin-left:2px}
+.day{height:36px;padding:16px 16px 0;font-size:13px;line-height:16px;color:var(--ink-3)}
+.mr{display:grid;grid-template-columns:88px minmax(0,1fr) 120px;align-items:center;height:44px;padding:0 16px;border-radius:10px}
+.mr .t{font-size:13px;color:var(--ink-3)}
+.mr .x{position:relative;top:1px;font-family:var(--serif);font-size:17px;line-height:24px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mr .a{font-size:13px;color:var(--ink-3);text-align:right}
+.mr.sel{background:var(--raised)}
+.mr.sel .x{color:var(--ink)}
+.mr .ic{display:none;justify-content:flex-end;gap:2px;margin-right:-6px}
+.mr.sel .ic{display:flex}
+.mr.sel .a{display:none}
+.ib{display:grid;place-items:center;width:28px;height:28px;border-radius:6px;color:var(--ink-2)}
+
+/* barre d'actions de la note */
+.top{display:flex;align-items:center;justify-content:space-between;height:44px;margin-top:4px}
+.back{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--ink-3);margin-left:-6px;padding:0 6px;height:28px}
+.acts{display:flex;gap:2px;position:relative}
+.btn{height:28px;padding:0 10px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2)}
+.btn.on{background:var(--raised);color:var(--ink)}
+.btn.q3{color:var(--ink-3)}
+.menu{position:absolute;top:32px;right:60px;width:212px;padding:4px;border-radius:10px;background:var(--raised);box-shadow:0 0 0 1px rgba(255,255,255,.08),0 12px 28px rgba(0,0,0,.45);z-index:6}
+.menu div{height:32px;padding:0 10px;border-radius:6px;display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--ink)}
+.menu div.h{background:rgba(255,255,255,.07)}
+.menu div span{color:var(--ink-3);font-size:12px}
+.cb{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--ink-3);flex:none;display:grid;place-items:center}
+.cb.y{background:var(--ink);border-color:var(--ink);color:var(--pan)}
+.cb.y svg{stroke-width:2.5}
+
+/* ---------- variante A : le carnet ---------- */
+.A{display:grid;grid-template-columns:132px 700px;column-gap:0;padding-top:4px}
+.A h2{grid-column:2;font:400 28px/36px var(--serif);font-variation-settings:"opsz" 28;color:var(--ink);display:flex;align-items:center}
+.A h2 .cr{width:2px;height:28px;border-radius:1px;background:var(--amber);margin-left:2px}
+.A .meta{grid-column:2;font-size:13px;line-height:20px;color:var(--ink-3);margin-top:8px}
+.A .meta span{color:var(--ink-2)}
+.A .lab{font-size:13px;line-height:26px;color:var(--ink-3);margin-top:24px}
+.A .tx{margin-top:24px;font-family:var(--serif);font-size:17px;line-height:26px;font-variation-settings:"opsz" 17;color:var(--ink)}
+.A .tx p+p{margin-top:4px}
+.A .tx.sum{color:var(--ink)}
+.A .tx.dec p{position:relative}
+.A .todo{display:grid;grid-template-columns:16px 1fr;column-gap:14px;align-items:start}
+.A .todo+.todo{margin-top:4px}
+.A .todo .cb{margin-top:5px}
+.A .todo p{margin:0!important;color:var(--ink-2)}
+.A .todo p em{font-style:normal;color:var(--ink)}
+.A .todo.done p{color:var(--ink-3)}
+.A .todo.done p em{color:var(--ink-3)}
+.A .fold{display:flex;align-items:center;gap:10px;font-family:var(--sans);font-size:13px;line-height:26px;color:var(--ink-2)}
+.A .fold span{color:var(--ink-3)}
+
+/* ---------- variante B : la note et sa source ---------- */
+.B{position:absolute;inset:0;display:grid;grid-template-columns:604px minmax(0,1fr)}
+.Bl{padding:0 40px 0 32px;min-width:0}
+.Br{border-left:1px solid var(--hair);padding:0 32px 0 24px;min-width:0;position:relative;overflow:hidden}
+.Bl .top{margin-top:4px}
+.B h2{font:400 26px/34px var(--serif);font-variation-settings:"opsz" 26;color:var(--ink);margin-top:4px}
+.B .meta{font-size:13px;line-height:20px;color:var(--ink-3);margin-top:6px}
+.B .meta span{color:var(--ink-2)}
+.B .lab{font-size:13px;line-height:20px;color:var(--ink-3);margin-top:20px;margin-bottom:4px}
+.B .sm{font-family:var(--serif);font-size:16px;line-height:24px;font-variation-settings:"opsz" 16;color:var(--ink)}
+.B .dr{display:grid;grid-template-columns:48px minmax(0,1fr);align-items:baseline;min-height:32px;padding:4px 8px;margin:0 -8px;border-radius:8px;font-family:var(--serif);font-size:16px;line-height:24px;color:var(--ink-2)}
+.B .dr .t{font:12px/16px var(--sans);color:var(--ink-3)}
+.B .dr.sel{background:var(--raised);color:var(--ink)}
+.B .ar{display:grid;grid-template-columns:16px minmax(0,1fr) 64px 76px;column-gap:12px;align-items:center;height:36px;padding:0 8px;margin:0 -8px;border-radius:8px}
+.B .ar .x{font-family:var(--serif);font-size:16px;line-height:24px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.B .ar .w{font-size:13px;color:var(--ink-2)}
+.B .ar .d{font-size:13px;color:var(--ink-3);text-align:right}
+.B .ar.done .x,.B .ar.done .w{color:var(--ink-3)}
+.B .ar+.ar{border-top:1px solid var(--hair);border-radius:0}
+.B .rh{display:flex;align-items:center;justify-content:space-between;height:44px;margin-top:4px;font-size:13px;color:var(--ink-3)}
+.B .rh a{color:var(--ink-2);display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 6px;margin-right:-6px}
+.B .ln{display:grid;grid-template-columns:44px minmax(0,1fr);padding:6px 8px;margin:0 -8px;border-radius:8px}
+.B .ln .t{font:12px/20px var(--sans);color:var(--ink-3)}
+.B .ln .s{font:12px/20px var(--sans);color:var(--ink-3)}
+.B .ln .s.me{color:var(--ink-2)}
+.B .ln p{font-family:var(--serif);font-size:15px;line-height:22px;font-variation-settings:"opsz" 15;color:var(--ink-2)}
+.B .ln.src{background:var(--raised)}
+.B .ln.src p{color:var(--ink)}
+.B .ln.src .s{color:var(--ink-2)}
+.B .fade{position:absolute;left:0;right:0;bottom:0;height:56px;background:linear-gradient(to bottom,rgba(26,26,25,0),var(--pan))}
+</style>
+</head>
+<body>
+
+<!-- ============ 1a ============ -->
+<p class="cap"><b>1a</b>Lancer : une entrée dans le panneau compact, ou le raccourci</p>
+<div class="screen s1a">
+  <div class="menubar"><div class="l"><b>Visio</b><span>Fichier</span><span>Édition</span><span>Fenêtre</span></div><div class="r"><span class="q on">”</span><span>lun. 9 nov.</span><span>14:02</span></div></div>
+  <div class="cam"></div>
+  <div class="panel">
+    <div class="pv">
+      <label class="field"><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><span class="cr"></span><span style="margin-left:-6px">Rechercher</span></label>
+      <div class="pa"><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg><span>Noter la réunion</span><span class="k">⌥⌘N</span></div>
+      <div class="pdiv"></div>
+      <div class="row"><span class="t">14:41</span><span class="x">On se voit mercredi pour parler du devis.</span><span class="a">Mail</span></div>
+      <div class="row"><span class="t">14:12</span><span class="x">Bonjour Madame Martin, suite à notre échange…</span><span class="a">Mail</span></div>
+      <div class="row"><span class="t">13:55</span><span class="x">J’arrive dans dix minutes.</span><span class="a">WhatsApp</span></div>
+      <div class="row"><span class="t">11:30</span><span class="x">Reprends le tableau des factures.</span><span class="a">Claude</span></div>
+    </div>
+    <div class="pn"><b>Dictées</b><span>Réunions</span><span>Mots</span><span>Réglages</span></div>
+  </div>
+</div>
+
+<!-- ============ 1b ============ -->
+<p class="cap"><b>1b</b>Pendant l’appel : l’encoche garde l’état, le reste de l’écran est libre</p>
+<div class="screen s1b">
+  <div class="menubar"><div class="l"><b>Visio</b><span>Fichier</span><span>Édition</span><span>Fenêtre</span></div><div class="r"><span class="q">”</span><span>lun. 9 nov.</span><span>14:02</span></div></div>
+  <div class="notch"><div class="band">
+    <div class="wl"><span class="dot"></span><span class="timer">12:48</span></div><div></div>
+    <div class="wr"><div class="trace" id="tr"><div></div><div></div></div><button class="nb" aria-label="Arrêter"><span class="stop"></span></button></div>
+  </div></div>
+  <div class="vis"><div class="d"><i></i><i></i><i></i></div>
+    <div class="tile"><span>Nathalie Garnier</span></div><div class="tile"><span>Paul Roche</span></div><div class="tile"><span>Moi</span></div></div>
+</div>
+
+<!-- ============ 1c ============ -->
+<p class="cap"><b>1c</b>Au survol : pause et arrêt dans le ruban. Après l’arrêt : la note est prête</p>
+<div class="duo">
+  <div class="screen s1c">
+    <div class="menubar"><div class="l"><b>Visio</b></div><div class="r"><span class="q">”</span><span>14:15</span></div></div>
+    <div class="notch"><div class="band">
+      <div class="wl"><span class="dot"></span><span class="timer">12:48</span></div><div></div>
+      <div class="wr"><div class="trace"><div></div><div></div></div><button class="nb"><span class="stop"></span></button></div></div>
+      <div class="rib"><span>Micro et son de l’appel</span><div class="ac"><span>Pause</span><span class="h">Arrêter <i class="k">⌥⌘N</i></span></div></div>
+    </div>
+  </div>
+  <div class="screen s1c">
+    <div class="menubar"><div class="l"><b>Visio</b></div><div class="r"><span class="q">”</span><span>14:40</span></div></div>
+    <div class="notch"><div class="band">
+      <div class="wl"><span class="timer off">38:12</span></div><div></div><div class="wr"></div></div>
+      <div class="rib"><span>Note prête</span><div class="ac"><span class="h">Ouvrir <i class="k">↵</i></span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 2 · variante A ============ -->
+<p class="cap"><b>2 · A</b>Le carnet : une page qui se lit de haut en bas, la transcription repliée en bas</p>
+<div class="win">
+  <div class="tb"><div class="tl"><i></i><i></i><i></i></div><span class="q">”</span><span>Verbe</span></div>
+  <div class="bd">
+    <div class="top"><button class="back"><svg width="14" height="14" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg>Réunions</button>
+      <div class="acts"><button class="btn">Copier</button><button class="btn on">Exporter<svg width="12" height="12" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button><button class="btn q3">Effacer</button>
+        <div class="menu"><div class="h">Notion</div><div>Airtable</div><div>Fichier Markdown<span>.md</span></div></div></div></div>
+    <div class="A">
+      <h2>Appel Garnier &amp; Fils, offre et calendrier<span class="cr"></span></h2>
+      <p class="meta"><span>lun. 9 nov. 2026, 14:02</span> · 38 min<br>Camille Martin (moi), Nathalie Garnier, Paul Roche</p>
+
+      <div class="lab">Résumé</div>
+      <div class="tx sum"><p>Nathalie veut équiper ses deux ateliers avant janvier. Le prix reste le point sensible : elle en parle à son associé jeudi et attend deux options chiffrées.</p></div>
+
+      <div class="lab">Décisions</div>
+      <div class="tx dec"><p>Offre complète retenue, sans l’option formation.</p><p>Paiement en deux fois.</p><p>Signature visée avant le 20 novembre.</p></div>
+
+      <div class="lab">À faire</div>
+      <div class="tx">
+        <div class="todo"><span class="cb"></span><p><em>Camille</em> envoie la proposition chiffrée, deux options, jeudi 12 nov.</p></div>
+        <div class="todo"><span class="cb"></span><p><em>Nathalie</em> valide le budget avec son associé, jeudi 12 nov.</p></div>
+        <div class="todo"><span class="cb"></span><p><em>Paul</em> transmet les volumes de commande, vendredi 13 nov.</p></div>
+        <div class="todo done"><span class="cb y"><svg width="10" height="10" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><p><em>Camille</em> envoie la fiche technique, lun. 9 nov.</p></div>
+      </div>
+
+      <div class="lab">Transcription</div>
+      <div class="tx"><div class="fold"><svg width="12" height="12" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Afficher<span>38 min, 3 voix</span></div></div>
+    </div>
+  </div>
+  <div class="ft"><nav><span>Dictées</span><b>Réunions</b><span>Mots</span><span>Réglages</span></nav>
+    <div class="r"><span><svg class="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Gardé sur ce Mac</span></div></div>
+</div>
+
+<!-- ============ 2 · variante B ============ -->
+<p class="cap"><b>2 · B</b>La note et sa source : la transcription reste ouverte à droite, chaque décision renvoie à sa phrase</p>
+<div class="win">
+  <div class="tb"><div class="tl"><i></i><i></i><i></i></div><span class="q">”</span><span>Verbe</span></div>
+  <div class="bd" style="padding:0">
+    <div class="B">
+      <div class="Bl">
+        <div class="top"><button class="back"><svg width="14" height="14" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg>Réunions</button>
+          <div class="acts"><button class="btn">Copier</button><button class="btn">Exporter<svg width="12" height="12" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button><button class="btn q3">Effacer</button></div></div>
+        <h2>Appel Garnier &amp; Fils, offre et calendrier</h2>
+        <p class="meta"><span>lun. 9 nov. 2026, 14:02</span> · 38 min · Camille Martin (moi), Nathalie Garnier, Paul Roche</p>
+
+        <div class="lab">Résumé</div>
+        <p class="sm" style="color:var(--ink-2)">Deux ateliers à équiper avant janvier. Le prix bloque : Nathalie en parle à son associé jeudi et attend deux options chiffrées.</p>
+
+        <div class="lab">Décisions</div>
+        <div class="dr sel"><span class="t">21:04</span><span>Offre complète retenue, sans l’option formation.</span></div>
+        <div class="dr"><span class="t">24:40</span><span>Paiement en deux fois.</span></div>
+        <div class="dr"><span class="t">31:15</span><span>Signature visée avant le 20 novembre.</span></div>
+
+        <div class="lab">À faire</div>
+        <div class="ar"><span class="cb"></span><span class="x">Envoyer la proposition chiffrée, deux options</span><span class="w">Camille</span><span class="d">jeu. 12 nov.</span></div>
+        <div class="ar"><span class="cb"></span><span class="x">Valider le budget avec son associé</span><span class="w">Nathalie</span><span class="d">jeu. 12 nov.</span></div>
+        <div class="ar"><span class="cb"></span><span class="x">Transmettre les volumes de commande</span><span class="w">Paul</span><span class="d">ven. 13 nov.</span></div>
+        <div class="ar done"><span class="cb y"><svg width="10" height="10" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span class="x">Envoyer la fiche technique</span><span class="w">Camille</span><span class="d">lun. 9 nov.</span></div>
+      </div>
+      <div class="Br">
+        <div class="rh"><span>Transcription</span><a>Replier<svg width="12" height="12" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></div>
+        <div class="ln"><span class="t">20:38</span><div><span class="s">Nathalie</span><p>Donc si je résume, c’est l’offre complète pour Lyon et Annecy, avec la maintenance.</p></div></div>
+        <div class="ln"><span class="t">20:52</span><div><span class="s me">Moi</span><p>Oui, et la formation en option, si vous voulez former l’équipe sur place.</p></div></div>
+        <div class="ln src"><span class="t">21:04</span><div><span class="s">Nathalie</span><p>La formation, on la fera nous-mêmes. Prenons l’offre complète sans l’option.</p></div></div>
+        <div class="ln"><span class="t">21:16</span><div><span class="s me">Moi</span><p>Très bien, je note : offre complète, sans formation.</p></div></div>
+        <div class="ln"><span class="t">21:31</span><div><span class="s">Paul</span><p>Pour les volumes, je peux vous donner les chiffres vendredi.</p></div></div>
+        <div class="ln"><span class="t">21:45</span><div><span class="s me">Moi</span><p>Parfait, ça me suffit pour chiffrer les deux options.</p></div></div>
+        <div class="fade"></div>
+      </div>
+    </div>
+  </div>
+  <div class="ft"><nav><span>Dictées</span><b>Réunions</b><span>Mots</span><span>Réglages</span></nav>
+    <div class="r"><span><svg class="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Gardé sur ce Mac</span></div></div>
+</div>
+
+<!-- ============ 3 ============ -->
+<p class="cap"><b>3</b>Les réunions passées : même densité que la liste des dictées</p>
+<div class="win">
+  <div class="tb"><div class="tl"><i></i><i></i><i></i></div><span class="q">”</span><span>Verbe</span></div>
+  <div class="bd">
+    <div class="sr">
+      <label class="srf"><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><span class="cr"></span><span style="margin-left:-4px">Rechercher dans les réunions</span><span class="k">⌘K</span></label>
+      <button class="new"><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg>Noter la réunion<span class="k">⌥⌘N</span></button>
+    </div>
+    <div class="day">Aujourd’hui</div>
+    <div class="mr sel"><span class="t">14:02</span><span class="x">Appel Garnier &amp; Fils, offre et calendrier</span><span class="a">38 min</span>
+      <span class="ic"><span class="ib"><svg width="16" height="16" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 9V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9"/></svg></span><span class="ib"><svg width="16" height="16" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></span></div>
+    <div class="mr"><span class="t">09:30</span><span class="x">Point de la semaine avec l’équipe</span><span class="a">24 min</span></div>
+    <div class="day">Semaine dernière</div>
+    <div class="mr"><span class="t">ven. 6</span><span class="x">Visio Atelier Roche, premier cadrage</span><span class="a">52 min</span></div>
+    <div class="mr"><span class="t">jeu. 5</span><span class="x">Rendez-vous banque, prêt pour le matériel</span><span class="a">31 min</span></div>
+    <div class="mr"><span class="t">mer. 4</span><span class="x">Appel fournisseur, délais de livraison</span><span class="a">17 min</span></div>
+    <div class="day">Octobre</div>
+    <div class="mr"><span class="t">ven. 30</span><span class="x">Démonstration au cabinet Lefort</span><span class="a">45 min</span></div>
+    <div class="mr"><span class="t">mar. 27</span><span class="x">Lancement du site vitrine</span><span class="a">1 h 12</span></div>
+  </div>
+  <div class="ft"><nav><span>Dictées</span><b>Réunions</b><span>Mots</span><span>Réglages</span></nav>
+    <div class="r"><span>↑ ↓ choisir</span><span>↵ ouvrir</span></div></div>
+</div>
+
+<script>
+/* traces du son : rangée du haut = micro, rangée du bas = appel (valeurs fixes) */
+(function(){
+  var up=[3,5,8,6,4,7,8,5,3,6,4,2], dn=[2,2,3,5,7,8,6,4,3,2,2,3];
+  document.querySelectorAll('.trace').forEach(function(t){
+    var rows=t.querySelectorAll('div');
+    [up,dn].forEach(function(a,i){
+      a.forEach(function(h){var b=document.createElement('i');b.style.height=h+'px';rows[i].appendChild(b)});
+    });
+  });
+})();
+</script>
+</body>
+</html>

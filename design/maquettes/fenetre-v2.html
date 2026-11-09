@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=1190">
+<title>Verbe — fenêtre principale, version 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --desk:#0b0b0b; --pan:#1a1a19; --side:#141413; --raised:#262624; --raised-2:#2f2f2d;
+  --ink:#ece9e3; --ink-2:#a8a59e; --ink-3:#88857e;
+  --hair:rgba(236,233,227,.10); --hair-2:rgba(236,233,227,.16);
+  --caret:#e6a04a;
+  --serif:"Newsreader","New York",ui-serif,Charter,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--desk);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;padding:32px 45px 64px;width:1190px}
+.top{font-size:14px;color:var(--ink-2);padding:0 0 28px}
+.top b{color:var(--ink);font-weight:500}
+.scene{margin-bottom:56px}
+.cap{font-size:14px;line-height:20px;color:var(--ink-2);margin-bottom:12px;display:flex;gap:12px;align-items:baseline}
+.cap i{font-style:normal;font-weight:500;color:var(--ink);min-width:20px}
+.win{width:1100px;height:680px;background:var(--pan);border-radius:14px;box-shadow:0 0 0 1px rgba(255,255,255,.10);overflow:hidden;position:relative;display:flex;flex-direction:column}
+svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+svg.s{width:16px;height:16px}
+.app{width:24px;height:24px;flex:none;display:block}
+.lights{display:flex;gap:8px}
+.lights span{width:12px;height:12px;border-radius:50%;background:#4a4a47}
+
+/* contrôles communs */
+.kbd{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:6px;background:var(--raised-2);font-size:13px;color:var(--ink);font-weight:500}
+.btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:8px;background:var(--raised);box-shadow:inset 0 0 0 1px var(--hair-2);font-size:14px;color:var(--ink);white-space:nowrap}
+.btn.primary{background:var(--ink);color:#0b0b0b;font-weight:500;box-shadow:none}
+.btn.primary .kbd{background:rgba(0,0,0,.12);color:#0b0b0b;height:20px;padding:0 6px;font-size:12px}
+.btn.quiet{background:none;box-shadow:none;color:var(--ink-2);padding:0 8px}
+.sel{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 10px 0 14px;border-radius:8px;background:var(--raised);box-shadow:inset 0 0 0 1px var(--hair-2);font-size:15px;color:var(--ink);white-space:nowrap}
+.sel svg{color:var(--ink-2);width:16px;height:16px}
+.tg{width:44px;height:26px;border-radius:13px;background:var(--ink);position:relative;flex:none}
+.tg::after{content:"";position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:var(--pan)}
+.tg.off{background:#3a3a38}
+.tg.off::after{right:auto;left:3px;background:#8a877f}
+.ok{display:inline-flex;align-items:center;gap:8px;font-size:15px;color:var(--ink);white-space:nowrap}
+.ok svg{color:var(--ink)}
+.field{display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;border-radius:10px;background:var(--raised);box-shadow:inset 0 0 0 1px var(--hair);color:var(--ink-2);position:relative;font-size:16px}
+.field .ph{color:var(--ink-2);display:flex;align-items:center}
+.field .ph::before{content:"";display:inline-block;width:2px;height:20px;border-radius:1px;background:var(--caret);margin-right:2px}
+.field .r{margin-left:auto;display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-3)}
+.tag{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;font-size:12px;color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--hair-2)}
+.n{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--raised-2);font-size:12px;color:var(--ink);font-weight:500}
+.serif{font-family:var(--serif);font-variation-settings:"opsz" 17}
+.hint{color:var(--ink-2);font-size:13px;display:inline-flex;gap:8px;align-items:center}
+.hint .kbd{height:22px;font-size:12px;padding:0 6px;background:var(--raised)}
+
+/* ===== A ===== */
+.a-bar{height:60px;display:flex;align-items:center;padding:0 20px 0 20px;gap:24px;border-bottom:1px solid var(--hair);flex:none}
+.a-tabs{display:flex;gap:4px;margin-left:8px}
+.tab{display:flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:8px;font-size:15px;color:var(--ink-2);font-weight:500}
+.tab.on{background:var(--raised-2);color:var(--ink)}
+.tab.soon{color:var(--ink-3);font-weight:400}
+.tab svg{width:18px;height:18px}
+.a-bar .sp{flex:1}
+.a-status{display:flex;align-items:center;justify-content:space-between;height:48px;padding:0 40px;font-size:14px;color:var(--ink-2);flex:none}
+.a-status b{color:var(--ink);font-weight:500}
+.a-status .st{display:flex;gap:24px}
+.a-status .st span{display:inline-flex;align-items:center;gap:8px}
+.a-body{padding:0 40px;flex:1;min-height:0;overflow:hidden}
+.a-list{margin-top:8px}
+.day{display:flex;justify-content:space-between;height:40px;align-items:flex-end;padding:0 16px 8px 16px;font-size:13px;color:var(--ink-2)}
+.day b{color:var(--ink);font-weight:500}
+.row{display:grid;grid-template-columns:56px 24px minmax(0,1fr) auto;column-gap:16px;align-items:center;height:52px;padding:0 16px;border-radius:10px}
+.row .t{font-size:14px;color:var(--ink-2)}
+.row .x{font-family:var(--serif);font-size:18px;line-height:26px;font-variation-settings:"opsz" 18;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .a{font-size:13px;color:var(--ink-2);min-width:64px;text-align:right}
+.row.open{display:block;height:auto;padding:0;background:var(--raised);box-shadow:inset 0 0 0 1px var(--hair-2);margin:4px 0}
+.row.open .head{display:grid;grid-template-columns:56px 24px minmax(0,1fr) auto;column-gap:16px;align-items:center;height:52px;padding:0 16px}
+.row.open .full{padding:0 16px 0 128px;font-family:var(--serif);font-size:18px;line-height:28px;font-variation-settings:"opsz" 18;color:var(--ink);margin-top:-8px}
+.row.open .act{display:flex;align-items:center;gap:8px;padding:16px 16px 16px 128px}
+.row.open .act .m{margin-left:auto;font-size:13px;color:var(--ink-2)}
+.a-foot{height:48px;border-top:1px solid var(--hair);display:flex;align-items:center;gap:24px;padding:0 40px;flex:none}
+
+.sec h3{font-size:18px;font-weight:500;color:var(--ink);line-height:24px}
+.sec .sub{font-size:13px;color:var(--ink-2);line-height:20px;margin-top:2px}
+.sec .hd{padding-bottom:12px;border-bottom:1px solid var(--hair-2)}
+.sec .hd .c{color:var(--ink-3);font-weight:400;margin-left:8px;font-size:15px}
+.set{display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:56px;padding:8px 0;border-bottom:1px solid var(--hair)}
+.set:last-child{border-bottom:0}
+.set .l{font-size:15px;line-height:20px;color:var(--ink)}
+.set .d{font-size:13px;line-height:18px;color:var(--ink-2);margin-top:2px;max-width:350px}
+.set .c{display:flex;align-items:center;gap:12px;flex:none}
+.cols{display:grid;grid-template-columns:1fr 1fr;column-gap:56px;padding-top:20px}
+.cols>div>.sec+.sec{margin-top:28px}
+.links{display:flex;gap:24px;margin-top:16px;font-size:14px;color:var(--ink-2)}
+
+/* Mots A */
+.a-add{margin-top:4px}
+.prop{display:flex;align-items:center;gap:16px;height:56px;margin-top:16px;padding:0 16px 0 16px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--hair-2);background:var(--raised)}
+.prop .q{font-size:15px;color:var(--ink)}
+.prop .q span{color:var(--ink-2)}
+.prop .sp{flex:1}
+.wrow{display:flex;align-items:center;justify-content:space-between;height:44px;border-bottom:1px solid var(--hair);font-family:var(--serif);font-size:19px;font-variation-settings:"opsz" 19;color:var(--ink)}
+.wrow:last-child{border-bottom:0}
+.wrow .rm{color:var(--ink-3)}
+.srow{display:grid;grid-template-columns:150px 20px minmax(0,1fr);column-gap:12px;align-items:center;height:44px;border-bottom:1px solid var(--hair)}
+.srow .k{font-size:15px;color:var(--ink-2)}
+.srow .ar{color:var(--ink-3)}
+.srow .v{font-family:var(--serif);font-size:18px;font-variation-settings:"opsz" 18;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.addline{display:grid;grid-template-columns:150px 20px minmax(0,1fr) auto;column-gap:12px;align-items:center;height:52px;margin-top:4px}
+.inp{height:36px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--hair-2);padding:0 12px;display:flex;align-items:center;font-size:14px;color:var(--ink-3)}
+
+/* ===== B ===== */
+.b{flex-direction:row}
+.side{width:232px;background:var(--side);border-right:1px solid var(--hair);display:flex;flex-direction:column;flex:none;padding:0 12px 16px}
+.side .lights{height:60px;align-items:center;padding-left:8px}
+.nav{display:flex;align-items:center;gap:12px;height:36px;padding:0 12px;border-radius:8px;font-size:15px;color:var(--ink-2);margin-bottom:2px}
+.nav.on{background:var(--raised-2);color:var(--ink);font-weight:500}
+.nav.soon{color:var(--ink-3)}
+.nav .e{margin-left:auto;font-size:13px;color:var(--ink-3);font-weight:400}
+.nav.on .e{color:var(--ink-2)}
+.nav .tag{margin-left:auto}
+.nlabel{font-size:13px;color:var(--ink-3);padding:20px 12px 8px}
+.sfoot{margin-top:auto;border-top:1px solid var(--hair);padding:16px 12px 0;display:flex;flex-direction:column;gap:12px;font-size:13px;color:var(--ink-2)}
+.sfoot div{display:flex;align-items:center;gap:10px}
+.sfoot svg{color:var(--ink-2)}
+.sfoot .good{color:var(--ink)}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.b-head{height:60px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid var(--hair)}
+.b-head .ti{font-size:17px;font-weight:500;color:var(--ink)}
+.b-head .su{font-size:13px;color:var(--ink-2);margin-left:12px;font-weight:400}
+.b-head .ti{display:flex;align-items:baseline}
+.srch{width:260px;height:36px;border-radius:8px;background:var(--raised);box-shadow:inset 0 0 0 1px var(--hair);display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--ink-2);font-size:14px}
+.srch .ph{display:flex;align-items:center}
+.srch .ph::before{content:"";display:inline-block;width:2px;height:16px;border-radius:1px;background:var(--caret);margin-right:2px}
+.srch .kbd{margin-left:auto;height:20px;font-size:12px;padding:0 6px;background:var(--raised-2)}
+.split{display:flex;flex:1;min-height:0}
+.lst{width:376px;border-right:1px solid var(--hair);padding:0 8px;overflow:hidden;flex:none}
+.lst .day{padding:0 12px 8px;height:44px}
+.li{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:12px;align-items:center;height:60px;padding:0 12px;border-radius:10px}
+.li .x{font-family:var(--serif);font-size:17px;line-height:22px;font-variation-settings:"opsz" 17;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .m{font-size:13px;color:var(--ink-2);line-height:18px;margin-top:0}
+.li.on{background:var(--raised);box-shadow:inset 0 0 0 1px var(--hair-2)}
+.det{flex:1;padding:32px 40px 28px;display:flex;flex-direction:column;min-width:0}
+.det .who{display:flex;align-items:center;gap:12px}
+.det .who .app{width:32px;height:32px}
+.det .who .a{font-size:15px;font-weight:500}
+.det .who .w{font-size:13px;color:var(--ink-2);margin-top:2px}
+.det .txt{font-family:var(--serif);font-size:25px;line-height:38px;font-variation-settings:"opsz" 24;color:var(--ink);margin-top:28px}
+.det .stats{display:flex;gap:24px;margin-top:24px;font-size:14px;color:var(--ink-2)}
+.det .stats b{color:var(--ink);font-weight:500}
+.det .acts{margin-top:auto;display:flex;gap:8px;padding-top:24px;border-top:1px solid var(--hair)}
+.det .acts .sp{flex:1}
+.pane{flex:1;min-height:0;overflow:hidden;padding:28px 40px;width:100%;max-width:820px}
+.pane .ptitle{font-size:26px;font-weight:500;line-height:32px;color:var(--ink)}
+.pane .psub{font-size:14px;color:var(--ink-2);margin-top:4px;line-height:20px}
+.grp{margin-top:24px}
+.grp .gt{font-size:13px;color:var(--ink-2);padding:0 4px 8px}
+.grp .box{background:#212120;border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:0 16px}
+.grp .box .set{min-height:64px;padding:10px 0}
+.grp .box .set .d{max-width:420px}
+.grp .box .wrow{height:48px}
+.grp .box .srow{height:48px;grid-template-columns:160px 20px minmax(0,1fr)}
+.grp .box .addline{height:56px;margin:0;grid-template-columns:160px 20px minmax(0,1fr) auto}
+.grp .box .prop{margin:0;box-shadow:none;background:none;padding:0;height:64px}
+.b-link{display:flex;gap:24px;margin-top:20px;font-size:14px;color:var(--ink-2);padding:0 4px}
+</style></head><body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+<symbol id="search" viewBox="0 0 20 20"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2L17 17"/></symbol>
+<symbol id="copy" viewBox="0 0 20 20"><rect x="7" y="7" width="9" height="9" rx="2"/><path d="M4 13V6a2 2 0 0 1 2-2h7"/></symbol>
+<symbol id="paste" viewBox="0 0 20 20"><path d="M16 5v5a2 2 0 0 1-2 2H5"/><path d="M8 9l-3 3 3 3"/></symbol>
+<symbol id="check" viewBox="0 0 20 20"><path d="M4.5 10.5l3.5 3.5 7.5-8.5"/></symbol>
+<symbol id="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></symbol>
+<symbol id="plus" viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></symbol>
+<symbol id="sliders" viewBox="0 0 20 20"><path d="M3 6h14M3 14h14"/><circle cx="7" cy="6" r="2" fill="#262624"/><circle cx="13" cy="14" r="2" fill="#262624"/></symbol>
+<symbol id="mic" viewBox="0 0 20 20"><rect x="8" y="3" width="4" height="8" rx="2"/><path d="M5 9a5 5 0 0 0 10 0M10 14v3"/></symbol>
+<symbol id="kb" viewBox="0 0 20 20"><rect x="2" y="5" width="16" height="10" rx="2"/><path d="M5.5 8.5h.01M8.5 8.5h.01M11.5 8.5h.01M14.5 8.5h.01M6 11.5h8"/></symbol>
+<symbol id="trash" viewBox="0 0 20 20"><path d="M4.5 6h11M8 6V4h4v2M6 6l.8 10h6.4L14 6"/></symbol>
+<symbol id="arrow" viewBox="0 0 20 20"><path d="M4 10h12M12 6l4 4-4 4"/></symbol>
+<symbol id="x" viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></symbol>
+<symbol id="lines" viewBox="0 0 20 20"><path d="M4 6h12M4 10h12M4 14h7"/></symbol>
+<symbol id="mark" viewBox="0 0 20 20"><path d="M5.5 3.5h9v13l-4.5-3-4.5 3z"/></symbol>
+<symbol id="cal" viewBox="0 0 20 20"><rect x="3" y="4.5" width="14" height="12.5" rx="2"/><path d="M3 8.5h14M7 2.5v3M13 2.5v3"/></symbol>
+<symbol id="pen" viewBox="0 0 20 20"><path d="M4 16l.8-3.6 8-8 2.8 2.8-8 8z"/></symbol>
+<symbol id="vol" viewBox="0 0 20 20"><path d="M4 8h3l4-3v10l-4-3H4z"/><path d="M14 7.5a3.5 3.5 0 0 1 0 5"/></symbol>
+<symbol id="lock" viewBox="0 0 20 20"><rect x="5" y="9" width="10" height="7.5" rx="2"/><path d="M7.5 9V7a2.5 2.5 0 0 1 5 0v2"/></symbol>
+
+<symbol id="a-mail" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#3b82f6"/><rect x="5" y="7.5" width="14" height="9.5" rx="1.8" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M5.8 8.8l6.2 4.6 6.2-4.6" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+<symbol id="a-wa" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#25b862"/><path d="M12 5.5a6.5 6.5 0 0 0-5.5 9.9L5.5 18.5l3.2-1A6.5 6.5 0 1 0 12 5.5z" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+<symbol id="a-notes" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#f2f0ea"/><path d="M0 6a6 6 0 0 1 6-6h12a6 6 0 0 1 6 6v2.5H0z" fill="#f5c642"/><path d="M6 13h12M6 16.5h12M6 20h7" stroke="#9a978f" stroke-width="1.3" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="a-claude" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#d97757"/><g stroke="#fff" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14M7.1 7.1l9.8 9.8M16.9 7.1l-9.8 9.8"/></g></symbol>
+<symbol id="a-msg" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#30c15a"/><path d="M12 6c-3.6 0-6.5 2.3-6.5 5.2 0 1.5.8 2.9 2.1 3.8-.1 1-.6 1.9-1.4 2.6 1.4-.1 2.7-.6 3.6-1.3.7.2 1.4.3 2.2.3 3.6 0 6.5-2.3 6.5-5.2S15.600 6 12 6z" fill="#fff"/></symbol>
+</defs></svg>
+
+<div class="top"><b>Verbe · fenêtre principale v2</b> — variante A, trois onglets plus Réunions à venir (maquettes, rien n’est branché).</div>
+<section class="scene"><div class="cap"><i>A1</i><span>Dictées — onglet actif en pastille, ligne d’état, dictée dépliée avec son action, Réunions déjà prévue.</span></div><div class="win"><div class="a-bar"><div class="lights"><span></span><span></span><span></span></div>
+<div class="a-tabs"><div class="tab on">Dictées</div><div class="tab">Mots<span class="n">1</span></div><div class="tab soon">Réunions <span class="tag">bientôt</span></div></div>
+<div class="sp"></div>
+<div class="a-tabs"><div class="tab">Réglages</div></div></div>
+<div class="a-status"><span><b>195</b> dictées · <b>4 120</b> mots aujourd’hui</span>
+<span class="st"><span><svg class="i s"><use href="#check"/></svg> Groq</span><span><svg class="i s"><use href="#mic"/></svg> Micro du MacBook</span><span><svg class="i s"><use href="#kb"/></svg> fn · Français</span></span></div>
+<div class="a-body"><div class="field"><svg class="i"><use href="#search"/></svg><span class="ph">Rechercher dans les dictées</span><span class="r"><span class="kbd">⌘ K</span></span></div>
+<div class="a-list"><div class="day"><span><b>Aujourd’hui</b> · lundi 9 novembre</span><span>5 dictées</span></div><div class="row"><span class="t">14:41</span><svg class="app"><use href="#a-msg"/></svg><span class="x">On se voit mercredi pour parler du devis.</span><span class="a">Messages</span></div><div class="row open"><div class="head"><span class="t" style="color:var(--ink)">14:12</span><svg class="app"><use href="#a-mail"/></svg><span></span><span class="a" style="color:var(--ink)">Mail</span></div>
+<div class="full">Bonjour Madame Martin, suite à notre échange de ce matin, je vous transmets la proposition avec les deux options chiffrées. Je reste disponible demain pour en discuter et ajuster le calendrier si besoin.</div>
+<div class="act"><span class="btn primary"><svg class="i s"><use href="#paste"/></svg> Recoller dans Mail <span class="kbd">↵</span></span><span class="btn"><svg class="i s"><use href="#copy"/></svg> Copier</span><span class="btn quiet"><svg class="i s"><use href="#trash"/></svg> Supprimer</span><span class="m">41 mots · 14 s</span></div></div><div class="row"><span class="t">13:55</span><svg class="app"><use href="#a-wa"/></svg><span class="x">J’arrive dans dix minutes, commande-moi un café.</span><span class="a">WhatsApp</span></div><div class="row"><span class="t">11:30</span><svg class="app"><use href="#a-claude"/></svg><span class="x">Reprends le tableau des factures, ajoute une colonne pour la date de relance et trie par montant.</span><span class="a">Claude</span></div><div class="row"><span class="t">10:08</span><svg class="app"><use href="#a-notes"/></svg><span class="x">Penser à envoyer la proposition avant jeudi.</span><span class="a">Notes</span></div>
+<div class="day"><span><b>Hier</b> · dimanche 8 novembre</span><span>2 dictées</span></div><div class="row"><span class="t">18:02</span><svg class="app"><use href="#a-mail"/></svg><span class="x">Peux-tu m’envoyer le récapitulatif avant jeudi ?</span><span class="a">Mail</span></div><div class="row"><span class="t">16:24</span><svg class="app"><use href="#a-notes"/></svg><span class="x">Le rendez-vous est confirmé pour dix heures.</span><span class="a">Notes</span></div></div></div>
+<div class="a-foot"><span class="hint"><span class="kbd">↑</span><span class="kbd">↓</span> choisir</span><span class="hint"><span class="kbd">↵</span> recoller</span><span class="hint"><span class="kbd">espace</span> déplier</span><span class="hint"><span class="kbd">⌘ C</span> copier</span></div></div></section>
+<section class="scene"><div class="cap"><i>A2</i><span>Mots — proposition à valider en tête (pastille 1 sur l’onglet), noms et raccourcis côte à côte.</span></div><div class="win"><div class="a-bar"><div class="lights"><span></span><span></span><span></span></div>
+<div class="a-tabs"><div class="tab">Dictées</div><div class="tab on">Mots<span class="n">1</span></div><div class="tab soon">Réunions <span class="tag">bientôt</span></div></div>
+<div class="sp"></div>
+<div class="a-tabs"><div class="tab">Réglages</div></div></div>
+<div class="a-body" style="padding-top:20px"><div class="field a-add"><svg class="i"><use href="#plus"/></svg><span class="ph">Ajouter un mot</span><span class="r"><span class="kbd">↵</span></span></div>
+<div class="prop"><span class="n">1</span><span class="q">À valider : <b style="font-weight:500">Brume</b> <span>revient dans tes corrections</span></span><span class="sp"></span><span class="btn primary">Ajouter</span><span class="btn quiet">Ignorer</span></div>
+<div class="cols">
+<div class="sec"><div class="hd"><h3>Noms à retenir<span class="c">4</span></h3><div class="sub">Verbe les écrit toujours avec cette orthographe.</div></div><div class="wrow"><span>Anaïs Morel</span></div><div class="wrow"><span>Brume & Fils</span></div><div class="wrow"><span>Villeurbanne</span></div><div class="wrow"><span>Marchetti</span></div></div>
+<div class="sec"><div class="hd"><h3>Raccourcis vocaux<span class="c">3</span></h3><div class="sub">Dis la phrase de gauche, Verbe écrit le texte de droite.</div></div><div class="srow"><span class="k">ma signature</span><span class="ar"><svg class="i s"><use href="#arrow"/></svg></span><span class="v">Camille Roussel</span></div><div class="srow"><span class="k">mon mail</span><span class="ar"><svg class="i s"><use href="#arrow"/></svg></span><span class="v">camille@exemple.fr</span></div><div class="srow"><span class="k">mes dispos</span><span class="ar"><svg class="i s"><use href="#arrow"/></svg></span><span class="v">Mardi ou jeudi après-midi</span></div><div class="addline"><span class="inp">Quand je dis…</span><span></span><span class="inp">Verbe écrit…</span><span class="btn">Ajouter</span></div></div>
+</div></div></div></section>
+<section class="scene"><div class="cap"><i>A3</i><span>Réglages — quatre sections titrées, une phrase par réglage, états lisibles à droite.</span></div><div class="win"><div class="a-bar"><div class="lights"><span></span><span></span><span></span></div>
+<div class="a-tabs"><div class="tab">Dictées</div><div class="tab">Mots<span class="n">1</span></div><div class="tab soon">Réunions <span class="tag">bientôt</span></div></div>
+<div class="sp"></div>
+<div class="a-tabs"><div class="tab on">Réglages</div></div></div>
+<div class="a-body"><div class="cols">
+<div><div class="sec"><div class="hd"><h3>Dictée</h3><div class="sub">Comment tu lances la dictée.</div></div><div class="set"><div><div class="l">Dicter</div><div class="d">Maintiens fn, parle, relâche : le texte s’écrit au curseur.</div></div><div class="c"><span style="color:var(--ink-2);font-size:15px">Maintenir</span><span class="kbd">fn</span></div></div><div class="set"><div><div class="l">Mains libres</div><div class="d">Deux appuis lancent la dictée, un appui la termine.</div></div><div class="c"><span style="color:var(--ink-2);font-size:15px">Deux appuis</span><span class="kbd">fn</span></div></div><div class="set"><div><div class="l">Micro</div><div class="d">Automatique : le micro du Mac quand un casque Bluetooth est branché.</div></div><div class="c"><span class="sel">Micro du MacBook<svg class="i"><use href="#chev"/></svg></span></div></div><div class="set"><div><div class="l">Langue</div><div class="d">La langue que tu parles pendant la dictée.</div></div><div class="c"><span class="sel">Français<svg class="i"><use href="#chev"/></svg></span></div></div></div><div class="sec"><div class="hd"><h3>Écriture</h3><div class="sub">Ce que Verbe fait du texte avant de l’écrire.</div></div><div class="set"><div><div class="l">Remettre au propre</div><div class="d">Ajoute la ponctuation et retire les « euh ».</div></div><div class="c"><span class="tg"></span></div></div><div class="set"><div><div class="l">Adapter le ton à l’app</div><div class="d">Plus soigné dans Mail, plus court dans WhatsApp.</div></div><div class="c"><span class="tg"></span></div></div><div class="set"><div><div class="l">Secours</div><div class="d">Si Groq ne répond pas, la dictée d’Apple prend le relais.</div></div><div class="c"><span class="sel">Apple<svg class="i"><use href="#chev"/></svg></span></div></div></div></div>
+<div><div class="sec"><div class="hd"><h3>Retours</h3><div class="sub">Ce que tu sens et entends.</div></div><div class="set"><div><div class="l">Sons</div><div class="d">Un petit son au début, au texte collé et à l’annulation.</div></div><div class="c"><span class="tg"></span></div></div><div class="set"><div><div class="l">Vibration</div><div class="d">Se sent seulement avec un doigt posé sur le trackpad.</div></div><div class="c"><span class="tg"></span></div></div></div><div class="sec"><div class="hd"><h3>Compte & données</h3><div class="sub">État de la connexion et de ce Mac.</div></div><div class="set"><div><div class="l">Clé Groq</div><div class="d">Sert à transcrire ta voix.</div></div><div class="c"><span class="ok"><svg class="i s"><use href="#check"/></svg>Enregistrée</span><span class="btn">Modifier</span></div></div><div class="set"><div><div class="l">Autorisations</div><div class="d">Micro, accessibilité, saisie au clavier.</div></div><div class="c"><span class="ok"><svg class="i s"><use href="#check"/></svg>3 sur 3</span><span class="btn">Voir</span></div></div><div class="set"><div><div class="l">Ouvrir au démarrage</div><div class="d">Verbe est prêt dès que le Mac s’allume.</div></div><div class="c"><span class="tg off"></span></div></div><div class="set"><div><div class="l">Historique</div><div class="d">195 dictées gardées sur ce Mac.</div></div><div class="c"><span class="btn">Effacer…</span></div></div></div>
+<div class="links"><span>Revoir la prise en main</span><span>Désinstaller Verbe</span></div></div>
+</div></div></div></section>
+<section class="scene"><div class="cap"><i>A4</i><span>Réunions — la barre du haut est déjà prête ; l’onglet est grisé « bientôt » sur les trois autres écrans.</span></div><div class="win"><div class="a-bar"><div class="lights"><span></span><span></span><span></span></div>
+<div class="a-tabs"><div class="tab">Dictées</div><div class="tab">Mots<span class="n">1</span></div><div class="tab on">Réunions <span class="tag">bientôt</span></div></div>
+<div class="sp"></div>
+<div class="a-tabs"><div class="tab">Réglages</div></div></div>
+<div class="a-body" style="display:flex;align-items:center;justify-content:center"><div style="text-align:left;width:440px"><div style="font-size:18px;font-weight:500">Réunions</div>
+<div style="font-size:15px;line-height:22px;color:var(--ink-2);margin-top:8px">Pas encore là. Verbe y rangera plus tard les réunions enregistrées, avec leur texte complet.</div>
+</div></div></div></section>
+</body></html>
