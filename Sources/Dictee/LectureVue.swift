@@ -521,14 +521,23 @@ struct IlotVue: View, Animatable {
 
             barreEtTemps(dy: dy)
 
-            HStack(spacing: 14) {
-                BoutonLecture(symbole: "gobackward.10", diametre: 52, taillePictogramme: 22, etiquette: "Reculer de 10 secondes") { m.surSaut(-10) }
-                BoutonLecture(symbole: m.joue ? "pause.fill" : "play.fill", diametre: 62, taillePictogramme: 26, plein: true, etiquette: m.joue ? "Pause" : "Lecture") { m.surBascule() }
-                BoutonLecture(symbole: "goforward.10", diametre: 52, taillePictogramme: 22, etiquette: "Avancer de 10 secondes") { m.surSaut(10) }
-                BoutonLecture(symbole: "forward.end.fill", diametre: 52, taillePictogramme: 20, etiquette: "Suivant") { m.surSuivant() }
+            // Commandes (Hugues : « pas bien dimensionnées ni bien placées », et « passer à la musique d'avant ») :
+            // musique = précédent · lecture · suivant ; vidéo = −10 s · lecture · +10 s · suivant. Tailles proches d'Apple,
+            // une marge sous la rangée, rangée centrée sous le titre.
+            HStack(spacing: 18) {
+                if m.genre == .musique {
+                    BoutonLecture(symbole: "backward.fill", diametre: 42, taillePictogramme: 18, etiquette: "Précédent") { m.surPrecedent() }
+                    BoutonLecture(symbole: m.joue ? "pause.fill" : "play.fill", diametre: 50, taillePictogramme: 21, plein: true, etiquette: m.joue ? "Pause" : "Lecture") { m.surBascule() }
+                    BoutonLecture(symbole: "forward.fill", diametre: 42, taillePictogramme: 18, etiquette: "Suivant") { m.surSuivant() }
+                } else {
+                    BoutonLecture(symbole: "gobackward.10", diametre: 42, taillePictogramme: 18, etiquette: "Reculer de 10 secondes") { m.surSaut(-10) }
+                    BoutonLecture(symbole: m.joue ? "pause.fill" : "play.fill", diametre: 50, taillePictogramme: 21, plein: true, etiquette: m.joue ? "Pause" : "Lecture") { m.surBascule() }
+                    BoutonLecture(symbole: "goforward.10", diametre: 42, taillePictogramme: 18, etiquette: "Avancer de 10 secondes") { m.surSaut(10) }
+                    BoutonLecture(symbole: "forward.end.fill", diametre: 42, taillePictogramme: 16, etiquette: "Suivant") { m.surSuivant() }
+                }
             }
-            .frame(width: 376, height: 62)
-            .offset(x: 196, y: 166 + dy - 2)
+            .frame(width: 376, height: 50)
+            .offset(x: 196, y: 160 + dy)
         }
     }
 
