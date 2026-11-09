@@ -144,6 +144,9 @@ enum RenduFenetre {
         // 1180 × 760 = fenêtre de 1100 × 680 (comme la maquette) sur un fond de bureau
         let taille = CGSize(width: 1180, height: 760)
 
+        let storeReunions = ReunionStore(dossier: FileManager.default.temporaryDirectory.appendingPathComponent("dictee-rendu-reunions"), lire: false)
+        let controleur = ReunionController(store: storeReunions)
+        let reunions = ReunionsModele(store: storeReunions)
         func fenetre(_ nom: String, onglet: Onglet, store: HistoriqueStore, mots: MotsModele, reglages: ReglagesModele? = nil, requete: String = "",
                      deplier: Bool = false, taille: CGSize = taille, suppression: Bool = false) {
             let nav = NavigationFenetre(); nav.onglet = onglet
@@ -156,7 +159,7 @@ enum RenduFenetre {
                 if suppression { d.suppressionEnAttente = e.id }
             }
             let vue = Cadre(taille: taille) {
-                FenetreVue(nav: nav, dictees: d, store: store, mots: mots, reglages: reglages ?? ReglagesModele(reel: false), curseurFactice: true)
+                FenetreVue(nav: nav, dictees: d, store: store, mots: mots, reglages: reglages ?? ReglagesModele(reel: false), reunions: reunions, controleur: controleur, curseurFactice: true)
             }
             ok = RenduVues.ecrire(RenduVues.png(vue, taille: taille), url.appendingPathComponent("\(nom).png")) && ok
         }

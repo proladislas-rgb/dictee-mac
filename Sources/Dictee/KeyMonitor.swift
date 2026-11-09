@@ -26,6 +26,10 @@ final class KeyMonitor {
     private(set) var frappes = 0
 
     var onAction: ((GestureAction) -> Void)?
+    /// ⌥⌘N : noter la réunion (lancer / arrêter). La touche est avalée : l'app au premier plan ne la reçoit pas.
+    var onReunion: (() -> Void)?
+    private var reunionAvalee = false
+    private let codeN: Int64 = 45
     private(set) var detector = FnGestureDetector()
 
     private var tap: CFMachPort?
@@ -109,6 +113,11 @@ final class KeyMonitor {
             let code = event.getIntegerValueField(.keyboardEventKeycode)
             // La touche fn / 🌐 elle-même peut émettre un keyDown : ni une frappe, ni « une autre touche ».
             guard FnGestureDetector.evenement(pourToucheCode: code) != nil else { return false }
+            if code == codeN, event.flags.contains(.maskAlternate), event.flags.contains(.maskCommand),
+               !event.flags.contains(.maskControl), !event.flags.contains(.maskShift), onReunion != nil {
+                if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { reunionAvalee = true; onReunion?() }
+                return true
+            }
             frappes += 1
             // Les répétitions de touche ne comptent pas comme de nouvelles frappes.
             if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return echapAvale && code == keyCodeEchap }
@@ -123,6 +132,7 @@ final class KeyMonitor {
             return false
 
         case .keyUp:
+            if event.getIntegerValueField(.keyboardEventKeycode) == codeN, reunionAvalee { reunionAvalee = false; return true }
             if event.getIntegerValueField(.keyboardEventKeycode) == keyCodeEchap, echapAvale {
                 echapAvale = false
                 return true

@@ -14,7 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let filet = FiletPanneau()
     private let priseEnMain = PriseEnMain()
     private var microDejaPrepare = false
-    private lazy var fenetrePrincipale = FenetrePrincipale(dictees: ModeleDictees())
+    private lazy var reunionControleur = ReunionController()
+    private lazy var fenetrePrincipale = FenetrePrincipale(dictees: ModeleDictees(), controleurReunions: reunionControleur)
     private var survolStatus: SurvolStatus?
     private var derniereAppExterne: NSRunningApplication?
 
@@ -71,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Task { await self.dictee.recoller(texte, dans: app) }
         }
         configurerFenetre()
+        configurerReunions()
         installerMenuPrincipal()
         panneauCompact.surChangementEtat = { [weak self] ouvert in self?.survolStatus?.panneauOuvert = ouvert }
         dictee.surDebut = { [weak self] in
@@ -207,6 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard !dictee.enCours else { return }
         filet.fermer(animee: false, rendreLeFocus: false)
         let cible = NSWorkspace.shared.frontmostApplication.flatMap { $0.bundleIdentifier == Bundle.main.bundleIdentifier ? nil : $0 } ?? derniereAppExterne
+        panneauCompact.modele.reunionEnCours = reunionControleur.enregistre
         panneauCompact.basculer(cible: cible)
     }
 
@@ -254,6 +257,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fenetrePrincipale.surDesinstaller = { InstallationApp.desinstaller() }
     }
 
+    /// Notes de réunion : ⌥⌘N, entrée du panneau compact, note prête qui ouvre l'onglet Réunions, proposition « Noter cet appel ? ».
+    private func configurerReunions() {
+        reunionControleur.surOuvrirNote = { [weak self] id in self?.fenetrePrincipale.ouvrirNote(id) }
+        fenetrePrincipale.reunions.surNoter = { [weak self] in self?.reunionControleur.basculer() }
+        fenetrePrincipale.reunions.surRefaireLaNote = { [weak self] id in self?.reunionControleur.refaireLaNote(id: id) }
+        panneauCompact.modele.surNoterLaReunion = { [weak self] in
+            self?.panneauCompact.fermer(animee: false, rendreLeFocus: true)
+            self?.reunionControleur.basculer()
+        }
+        clavier.onReunion = { [weak self] in self?.reunionControleur.basculer() }
+        reunionControleur.demarrerSurveillanceDesAppels()
+    }
+
+    @objc private func noterLaReunion() { reunionControleur.basculer() }
+
     /// Menu de l'app (invisible tant qu'elle n'a pas de Dock, mais ses raccourcis servent la fenêtre) :
     /// ⌘, ouvre la fenêtre, ⌘1-3 changent d'onglet, ⌘W ferme, Édition rend ⌘C ⌘V aux champs de texte.
     private func installerMenuPrincipal() {
@@ -264,6 +282,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         sousMenu("Verbe") { m in
             m.addItem(withTitle: "Ouvrir Verbe", action: #selector(ouvrirVerbe), keyEquivalent: ",").target = self
+            let noter = m.addItem(withTitle: "Noter la réunion", action: #selector(noterLaReunion), keyEquivalent: "n")
+            noter.keyEquivalentModifierMask = [.command, .option]; noter.target = self
             m.addItem(.separator())
             m.addItem(withTitle: "Quitter Verbe", action: #selector(quitter), keyEquivalent: "q").target = self
         }
@@ -304,6 +324,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ligne("Accessibilité (coller le texte)", ok: Permissions.accessibiliteOK)
         ligne("Surveillance de l'entrée (touche fn)", ok: Permissions.surveillanceOK)
         menu.addItem(.separator())
+        let noter = menu.addItem(withTitle: reunionControleur.enregistre ? "Arrêter la réunion" : "Noter la réunion", action: #selector(noterLaReunion), keyEquivalent: "n")
+        noter.keyEquivalentModifierMask = [.command, .option]; noter.target = self
         let ouvrir = menu.addItem(withTitle: "Ouvrir Verbe", action: #selector(ouvrirVerbe), keyEquivalent: ",")
         ouvrir.target = self
         if !HistoriqueStore.shared.historique.estVide {

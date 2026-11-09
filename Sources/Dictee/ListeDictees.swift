@@ -35,6 +35,9 @@ final class ModeleDictees: ObservableObject {
     var surOuvrirFenetre: () -> Void = {}
     /// L'app où « recoller » écrira (la dernière utilisée avant Verbe) ; `nil` = inconnue.
     var nomDestination: () -> String? = { nil }
+    /// Panneau compact : la ligne « Noter la réunion » sous la recherche (nil : pas de ligne). `reunionEnCours` change son libellé.
+    var surNoterLaReunion: (() -> Void)?
+    @Published var reunionEnCours = false
 
     init(store: HistoriqueStore? = nil) { self.store = store ?? HistoriqueStore.shared }
 
@@ -116,6 +119,7 @@ struct DicteesVue: View {
         let liste = m.affichees
         VStack(spacing: 0) {
             champ
+            if m.surNoterLaReunion != nil { ligneReunion }
             if store.historique.estVide {
                 vide("Aucune dictée pour l\u{2019}instant.", detail: "Maintenez fn, parlez, relâchez.")
             } else if liste.isEmpty {
@@ -162,6 +166,28 @@ struct DicteesVue: View {
         .frame(height: metriques.hauteurChamp)
         .background(metriques.ligne > 40 ? RoundedRectangle(cornerRadius: 8).fill(Palette.selection.opacity(0.55)) : nil)
         .padding(.bottom, metriques.ligne > 40 ? 6 : 0)
+    }
+
+    /// « Noter la réunion  ⌥⌘N » : une ligne d'action, au fond relevé, sous la recherche du panneau compact (maquette reunions.html, 1a).
+    private var ligneReunion: some View {
+        VStack(spacing: 0) {
+            Button { m.surNoterLaReunion?() } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: m.reunionEnCours ? "stop.circle" : "record.circle").font(.system(size: 14, weight: .regular)).foregroundStyle(Palette.texte2).frame(width: 16)
+                    Text(m.reunionEnCours ? "Arrêter la réunion" : "Noter la réunion").font(Polices.commande(metriques.meta + 1)).foregroundStyle(Palette.texte)
+                    Spacer(minLength: 8)
+                    Touche(texte: "\u{2325}\u{2318}N", petit: true)
+                }
+                .padding(.horizontal, metriques.marge)
+                .frame(height: metriques.ligne)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Palette.selection))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+            .accessibilityLabel(m.reunionEnCours ? "Arrêter la réunion" : "Noter la réunion")
+            Rectangle().fill(Palette.filet).frame(height: 1).padding(.horizontal, metriques.marge).padding(.top, 8).padding(.bottom, 4)
+        }
     }
 
     private func vide(_ titre: String, detail: String?) -> some View {

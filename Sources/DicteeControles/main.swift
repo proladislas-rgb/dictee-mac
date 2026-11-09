@@ -1028,5 +1028,233 @@ do {
     verifier(mots.proposer("Brillonia", motsConnus: []) == false, "une proposition déjà en attente n'est pas répétée")
 }
 
+
+// MARK: Notes de réunion
+
+groupe("Réunion : formats, Markdown, archive")
+do {
+    verifier(FormatReunion.duree(2280) == "38 min" && FormatReunion.duree(4320) == "1 h 12" && FormatReunion.duree(45) == "45 s" && FormatReunion.duree(7200) == "2 h", "durées à la française")
+    verifier(FormatReunion.horloge(768) == "12:48" && FormatReunion.horloge(3735) == "1:02:15", "minuterie")
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/Paris")!
+    let debut = cal.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 14, minute: 2))!
+    let r = Reunion(id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!, debut: debut, duree: 2280, titre: "Appel Garnier", participants: ["Moi", "Nathalie"],
+                    dit: ["Nathalie veut équiper ses ateliers."], decisions: ["Offre complète retenue."],
+                    actions: [ActionReunion(qui: "Moi", quoi: "Envoyer la proposition", quand: "jeudi"), ActionReunion(qui: nil, quoi: "Valider le budget", fait: true)],
+                    segments: [SegmentReunion(debut: 12, fin: 20, locuteur: .moi, texte: "Bonjour."), SegmentReunion(debut: 30, fin: 40, locuteur: .eux, texte: "Bonjour, on commence ?")], etat: .prete)
+    let md = ReunionMarkdown.rendre(r, calendrier: cal)
+    verifier(md.hasPrefix("# Appel Garnier\n"), "Markdown : titre")
+    verifier(md.contains("- [ ] **Moi** : Envoyer la proposition (jeudi)") && md.contains("- [x] Valider le budget"), "Markdown : actions cochables avec qui et quand")
+    verifier(md.contains("## Ce qui a été dit") && md.contains("## Ce qui a été décidé") && md.contains("## Ce qu'il reste à faire") && md.contains("**Moi** (14:02) : Bonjour.") && md.contains("**Eux** (14:02) : Bonjour, on commence ?"), "Markdown : transcription avec l'heure")
+    verifier(!ReunionMarkdown.rendre(Reunion(debut: debut, titre: "Vide"), calendrier: cal).contains("## "), "Markdown : une réunion vide n'a aucune section")
+    verifier(ArchiveReunions.decoder(ArchiveReunions.encoder(r)!) == r, "JSON aller-retour")
+    verifier(ArchiveReunions.decoder(Data("pas du json".utf8)) == nil, "JSON abîmé : nil")
+    verifier(ArchiveReunions.nomDeBase(r, calendrier: cal) == "2026-11-09_1402_11111111", "nom de fichier stable")
+    verifier(Reunion(debut: debut).titreAffiche.hasPrefix("Réunion du "), "titre de repli d'après le jour")
+    verifier(r.voix == 2 && r.motsTranscrits == 5, "voix et mots transcrits")
+    var enCours = r; enCours.etat = .transcription
+    verifier(ArchiveReunions.reprendreApresArret(enCours).etat == .sansNote && ArchiveReunions.reprendreApresArret(enCours).avertissements.count == 1, "arrêt brutal : sans note + avertissement, transcription gardée")
+    verifier(ArchiveReunions.reprendreApresArret(r) == r, "une réunion finie n'est pas touchée")
+}
+
+groupe("Réunion : fusion des pistes Moi / Eux")
+do {
+    func s(_ d: Double, _ f: Double, _ l: Locuteur, _ t: String) -> SegmentReunion { SegmentReunion(debut: d, fin: f, locuteur: l, texte: t) }
+    let moi = [s(10, 14, .moi, "Bonjour Nathalie, merci de me recevoir."), s(40, 44, .moi, "Je vous envoie la proposition jeudi.")]
+    let eux = [s(2, 8, .eux, "Bonjour Camille."), s(20, 30, .eux, "Alors le prix reste le point sensible pour mon associé.")]
+    let f = FusionPistes.fusionner(moi: moi, eux: eux)
+    verifier(f.map(\.locuteur) == [.eux, .moi, .eux, .moi], "fusion : ordre chronologique")
+    verifier(FusionPistes.fusionner(moi: [s(5, 6, .moi, "a")], eux: [s(5, 6, .eux, "b")]).map(\.locuteur) == [.eux, .moi], "même instant : Eux avant Moi")
+    // écho : la voix des autres captée par le micro
+    let echo = [s(21, 31, .moi, "alors le prix reste le point sensible pour mon associé")]
+    let r = FusionPistes.retirerEchos(moi: moi + echo, eux: eux)
+    verifier(r.retires == 1 && r.moi.count == 2, "écho du haut-parleur retiré de la piste Moi")
+    verifier(FusionPistes.retirerEchos(moi: [s(21, 31, .moi, "Oui, d'accord avec ça.")], eux: eux).retires == 0, "une vraie réponse pendant que l'autre parle est gardée")
+    verifier(FusionPistes.retirerEchos(moi: [s(100, 110, .moi, "alors le prix reste le point sensible pour mon associé")], eux: eux).retires == 0, "même texte mais bien plus tard : gardé")
+    verifier(FusionPistes.retirerEchos(moi: [s(21, 22, .moi, "le prix")], eux: eux).retires == 0, "phrase de moins de 4 mots : jamais retirée")
+    let mele = FusionPistes.retirerEchos(moi: [s(18, 40, .moi, "Je vous écoute attentivement. Alors le prix reste le point sensible pour mon associé. Oui je comprends très bien.")], eux: eux)
+    verifier(mele.retires == 1 && mele.moi.count == 1 && mele.moi[0].texte == "Je vous écoute attentivement. Oui je comprends très bien.", "écho mêlé à la vraie voix dans un même morceau : seule la phrase d'écho est retirée")
+    verifier(FusionPistes.phrases("Bonjour. Ça va ? Oui!Non. Fin") == ["Bonjour.", "Ça va ?", "Oui!Non.", "Fin"], "découpe en phrases")
+    let g = FusionPistes.regrouper([s(0, 10, .moi, "Je pense que"), s(11, 20, .moi, "oui."), s(30, 35, .moi, "Plus tard."), s(36, 40, .eux, "Ok.")])
+    verifier(g.count == 3 && g[0].texte == "Je pense que oui." && g[0].fin == 20, "regroupement : même locuteur, silence court")
+    verifier(g[1].debut == 30 && g[2].locuteur == .eux, "regroupement : silence long ou autre locuteur = nouveau passage")
+    let t = FusionPistes.transcription(moi: moi + echo, eux: eux)
+    verifier(t.echos == 1 && t.segments.count == 4, "transcription complète : écho retiré, fusion, regroupement")
+    verifier(FusionPistes.mots("L'été, c'est Ça !") == ["l", "ete", "c", "est", "ca"], "mots sans accents ni ponctuation")
+}
+
+groupe("Réunion : découpe du son et de la transcription")
+do {
+    let c = DecoupeReunion.configurationSon()
+    verifier(c.minChunkFrames == 500 && c.forcedCutFrames == 1500, "morceaux de 10 à 30 s")
+    // un découpeur fait à la main : 25 s de parole continue, puis 1 s de silence, puis 12 s de parole, silence
+    var d = VoiceChunker(config: c)
+    var coupes: [VoiceChunker.Range] = []
+    func nourrir(_ secondes: Double, _ db: Float) { for _ in 0..<Int(secondes * 50) { if let r = d.feed(levelDb: db) { coupes.append(r) } } }
+    nourrir(1, -70); nourrir(25, -20); nourrir(1, -70); nourrir(12, -20); nourrir(2, -70)
+    verifier(coupes.count == 2, "25 s de parole, 1 s de silence, 12 s de parole, silence : deux morceaux (\(coupes.count))")
+    if let r = coupes.first { verifier(r.count / 16000 >= 24 && r.count / 16000 <= 26, "premier morceau de ~25 s (micro-pause après 20 s)") }
+    if coupes.count > 1 { verifier(coupes[1].count / 16000 >= 12 && coupes[1].count / 16000 <= 14, "second morceau de ~12 s (pause de 0,6 s après 10 s)") }
+    var d2 = VoiceChunker(config: c)
+    var forcees = 0
+    for _ in 0..<(40 * 50) { if d2.feed(levelDb: -20) != nil { forcees += 1 } }
+    verifier(forcees == 1, "40 s de parole d'une traite : une coupe forcée vers 30 s")
+    var d3 = VoiceChunker(config: c)
+    var longueurs: [Int] = []
+    for _ in 0..<5 { for _ in 0..<(2 * 50) { if let r = d3.feed(levelDb: -20) { longueurs.append(r.count / 16000) } }; for _ in 0..<(1 * 50) { if let r = d3.feed(levelDb: -70) { longueurs.append(r.count / 16000) } } }
+    verifier(longueurs.count == 1 && longueurs[0] >= 9, "des phrases de 2 s séparées de 1 s : un seul morceau d'au moins 10 s, pas un par phrase (\(longueurs))")
+    func s(_ d: Double, _ t: String) -> SegmentReunion { SegmentReunion(debut: d, fin: d + 5, locuteur: .moi, texte: t) }
+    let segs = (0..<10).map { s(Double($0) * 6, String(repeating: "mot ", count: 50)) }
+    let p = DecoupeReunion.parties(segs, maxCaracteres: 700)
+    verifier(p.count > 1 && p.flatMap { $0 }.count == 10 && p.allSatisfy { !$0.isEmpty }, "transcription longue : plusieurs parties, aucun passage perdu")
+    verifier(DecoupeReunion.parties(Array(segs.prefix(2))).count == 1, "transcription courte : une seule partie")
+    verifier(DecoupeReunion.parties([]).isEmpty, "aucun passage : aucune partie")
+    verifier(DecoupeReunion.ligne(SegmentReunion(debut: 764, fin: 770, locuteur: .eux, texte: "Oui.")) == "[12:44] Eux : Oui.", "ligne de transcription pour la rédaction")
+}
+
+groupe("Réunion : budgets (requêtes, audio, jetons)")
+do {
+    let b = BudgetRequetes(limiteMinute: 18, margeAnticipation: 8, margeSecours: 4)
+    verifier(b.delaiAvantDePermettre(.anticipation, a: 100) == 0, "budget vide : la réunion envoie tout de suite")
+    for i in 0..<11 { b.noterEnvoi(a: 100 + Double(i)) }   // 11 envois dans la minute : il reste 7 < 8
+    verifier(!b.permet(.anticipation, a: 112), "dictée active : la réunion cède (marge de 8 gardée pour la dictée)")
+    let attente = b.delaiAvantDePermettre(.anticipation, a: 112)
+    verifier(attente > 0 && attente <= 60, "elle sait attendre : \(Int(attente)) s")
+    verifier(b.delaiAvantDePermettre(.anticipation, a: 112 + attente + 0.01) == 0 || b.permet(.anticipation, a: 112 + attente + 0.01), "après ce délai, elle peut partir")
+    b.noter429(retryAfter: 40, a: 112)
+    verifier(b.delaiAvantDePermettre(.anticipation, a: 113) >= 39, "après un 429 : elle attend la fin de la pause")
+    let a = BudgetAudio(limiteHeure: 7200, reserveDictee: 1500)
+    verifier(BudgetAudio.facture(duree: 3) == 10 && BudgetAudio.facture(duree: 25) == 25, "Groq compte au moins 10 s par requête")
+    verifier(a.delaiAvant(duree: 25, a: 0) == 0 && a.restantPourReunion(a: 0) == 5700, "5 700 s par heure pour la réunion, 1 500 s gardées pour la dictée")
+    for i in 0..<228 { a.noter(duree: 25, a: Double(i)) }   // 5 700 s
+    verifier(a.delaiAvant(duree: 25, a: 300) > 0, "quota d'audio atteint : elle attend")
+    verifier(a.delaiAvant(duree: 25, a: 300) <= 3600, "…mais pas plus d'une heure")
+    verifier(a.restantPourReunion(a: 300) == 0, "rien de plus pour la réunion")
+    verifier(a.delaiAvant(duree: 25, a: 3601) == 0, "une heure plus tard : de la place")
+    let j = BudgetJetons(limiteMinute: 8000)
+    verifier(j.delaiAvant(jetons: 5000, a: 0) == 0, "note : première requête tout de suite")
+    j.noter(jetons: 5000, a: 0)
+    verifier(j.delaiAvant(jetons: 5000, a: 5) > 40, "note : la suivante attend la fin de la minute")
+    verifier(j.delaiAvant(jetons: 5000, a: 61) == 0, "note : une minute plus tard, tout de suite")
+    verifier(DecoupeReunion.jetons(String(repeating: "a", count: 3000)) == 1001, "estimation des jetons")
+}
+
+groupe("Réunion : note (lecture de la réponse, garde anti-invention)")
+do {
+    let json = """
+    ```json
+    {"titre": "Offre Garnier et calendrier", "dit": ["Nathalie veut équiper deux ateliers.", "Le prix reste sensible."], "decisions": ["Offre complète retenue, sans formation."],
+     "actions": [{"qui": "Moi", "quoi": "Envoyer la proposition chiffrée", "quand": "jeudi"}, {"qui": "Nathalie", "quoi": "Valider le budget", "quand": null}, "Transmettre les volumes"],
+     "participants": ["Nathalie", "Paul", "Moi"]}
+    ```
+    """
+    let n = NoteReunion.analyser(json)
+    verifier(n?.titre == "Offre Garnier et calendrier" && n?.decisions.count == 1 && n?.actions.count == 3, "lecture d'un JSON entouré de ```")
+    verifier(n?.actions[0].qui == "Moi" && n?.actions[0].quand == "jeudi" && n?.actions[1].quand == nil && n?.actions[2].quoi == "Transmettre les volumes", "actions : qui, quoi, quand ou rien")
+    verifier(NoteReunion.analyser("Voici la note : pas de JSON") == nil && NoteReunion.analyser("{pas du json}") == nil, "réponse sans JSON exploitable : nil")
+    verifier(NoteReunion.analyser("{\"points\": [\"a\", \"b\"], \"decisions\": [], \"actions\": []}")?.dit == ["a", "b"] && NoteReunion.analyser("{\"resume\": \"Un texte.\"}")?.dit == ["Un texte."], "« points » ou un « resume » en texte : lus comme des points")
+    verifier(NoteReunion.analyser("{\"titre\": \"null\", \"resume\": \"  \", \"decisions\": [\"\", \"x\"]}")?.decisions == ["x"] && NoteReunion.analyser("{\"titre\": \"null\"}")?.titre == "", "valeurs vides ou « null » ignorées")
+    func s(_ t: String, _ l: Locuteur = .eux) -> SegmentReunion { SegmentReunion(debut: 0, fin: 1, locuteur: l, texte: t) }
+    let dit = [s("Bonjour, c'est Nathalie. On prend l'offre complète pour Lyon, sans la formation, et on signe avant le vingt novembre."),
+               s("Je valide le budget avec mon associé jeudi.", .moi), s("Paul vous donnera les volumes vendredi, environ 1200 pièces.")]
+    let garde = GardeInvention(segments: dit)
+    verifier(garde.soutenu("Offre complète retenue pour Lyon, sans la formation"), "garde : phrase soutenue par la transcription")
+    verifier(!garde.soutenu("Rendez-vous chez Garnier à Annecy"), "garde : noms propres jamais dits refusés")
+    verifier(garde.soutenu("Paul transmet les volumes"), "garde : un prénom dit est accepté")
+    verifier(garde.soutenu("Signature avant le 20 novembre") && garde.soutenu("1200 pièces") && !garde.soutenu("Budget de 45000 euros"), "garde : nombres en chiffres ou en lettres, mais jamais inventés")
+    verifier(garde.dit("Nathalie") && garde.dit("Nathali") && !garde.dit("Camille"), "garde : écriture presque pareille acceptée")
+    let brute = NoteBrute(titre: "Appel avec Garnier à Annecy", dit: ["Nathalie prend l'offre complète.", "Le rendez-vous est chez Morel à Paris."], decisions: ["Offre complète sans formation", "Livraison à Annecy en mars"],
+                          actions: [ActionReunion(qui: "Camille", quoi: "Envoyer la proposition", quand: "jeudi 12 novembre"), ActionReunion(qui: "Paul", quoi: "Donner les volumes", quand: "vendredi"),
+                                    ActionReunion(qui: "Moi", quoi: "Valider le budget", quand: "mardi"), ActionReunion(quoi: "Appeler Dupont")], participants: ["Nathalie", "Paul", "Camille", "Moi"])
+    let (propre, retraits) = garde.nettoyer(brute)
+    verifier(propre.titre == "", "garde : titre avec un nom inventé retiré")
+    verifier(propre.dit == ["Nathalie prend l'offre complète."], "garde : le point avec des noms inventés est retiré")
+    verifier(propre.decisions == ["Offre complète sans formation"], "garde : décision inventée retirée, vraie décision gardée")
+    verifier(propre.actions.count == 3 && !propre.actions.contains { $0.quoi.contains("Dupont") }, "garde : action avec un nom inventé retirée")
+    verifier(propre.actions[0].qui == nil && propre.actions[0].quand == nil, "garde : « qui » inventé et « quand » non dit retirés, la tâche reste")
+    verifier(propre.actions[1].qui == "Paul" && propre.actions[1].quand == "vendredi", "garde : qui et quand dits sont gardés")
+    verifier(propre.actions[2].quand == nil && propre.actions[2].qui == "Moi", "garde : « mardi » jamais dit est retiré, « Moi » reste")
+    verifier(propre.participants == ["Nathalie", "Paul"], "garde : participants dits seulement, sans Moi (ajouté ailleurs)")
+    verifier(!retraits.isEmpty, "garde : ce qui a été retiré est listé pour le journal")
+    let rien = GardeInvention(segments: dit).nettoyer(NoteBrute(titre: "Offre complète et signature", dit: ["On signe avant le vingt novembre."], decisions: [], actions: [], participants: []))
+    verifier(rien.retraits.isEmpty && rien.note.titre == "Offre complète et signature", "garde : une note fidèle n'est pas touchée")
+}
+
+groupe("Réunion : état de l'encoche")
+do {
+    var m = MachineReunion()
+    verifier(m.phase == .repos && !m.arreter() && !m.pause(), "au repos : arrêter et pause n'ont aucun effet")
+    verifier(m.lancer() && m.enregistre && !m.lancer(), "lancer : une seule réunion à la fois")
+    verifier(m.pause() && m.enPause && !m.pause(), "pause")
+    verifier(m.reprendre() && !m.enPause && !m.reprendre(), "reprendre")
+    verifier(m.proposer(app: "Zoom") == false, "jamais de proposition pendant l'enregistrement")
+    verifier(m.arreter() && m.phase == .traitement && m.enTraitement == 1, "arrêter : traitement en arrière-plan")
+    let id = UUID()
+    m.traitementFini(note: id)
+    verifier(m.phase == .prete(id) && m.enTraitement == 0, "note prête annoncée")
+    m.acquitter()
+    verifier(m.phase == .repos, "Ouvrir ou délai : retour au repos")
+    var n = MachineReunion()
+    n.lancer(); n.arreter(); n.lancer()
+    verifier(n.enregistre && n.enTraitement == 1, "on peut en relancer une pendant le traitement de la précédente")
+    let id2 = UUID()
+    n.traitementFini(note: id2)
+    verifier(n.enregistre && n.noteEnAttente == id2, "note prête pendant un nouvel enregistrement : mise de côté")
+    n.arreter()
+    verifier(n.phase == .traitement, "arrêt de la seconde")
+    n.annoncerNoteEnAttente()
+    verifier(n.phase == .prete(id2), "à l'arrêt, la première note est annoncée")
+    var p = MachineReunion()
+    verifier(p.proposer(app: "Zoom") && p.phase == .proposition(app: "Zoom"), "proposition au repos")
+    p.refuserProposition()
+    verifier(p.phase == .repos, "« Non » : retour au repos")
+    verifier(p.proposer(app: "Teams") && p.lancer() && p.enregistre, "« Noter » : l'enregistrement part")
+    var q = MachineReunion(); q.lancer(); q.arreter(); q.traitementFini(note: nil)
+    verifier(q.phase == .repos, "échec du traitement sans note : retour au repos")
+    var r = MachineReunion(); r.message("Micro seul"); verifier(r.phase == .message("Micro seul"), "message court au repos")
+    r.lancer(); r.message("autre"); verifier(r.enregistre, "un message ne remplace jamais l'enregistrement")
+}
+
+groupe("Réunion : horloge")
+do {
+    let h = HorlogeReunion(maintenant: 100)
+    verifier(h.temps(a: 160) == 60, "horloge : 60 s après 60 s")
+    h.pause(a: 160)
+    verifier(h.temps(a: 400) == 60, "horloge : arrêtée pendant la pause")
+    h.reprendre(a: 400)
+    verifier(h.temps(a: 430) == 90, "horloge : la pause n'est pas comptée")
+    h.pause(a: 430); h.pause(a: 500); h.reprendre(a: 530); h.reprendre(a: 600)
+    verifier(h.temps(a: 540) == 100, "horloge : pauses et reprises répétées sans effet")
+}
+
+groupe("Réunion : détection d'un appel")
+do {
+    verifier(DetectionAppel.reconnaitre(bundleID: "us.zoom.xos")?.nom == "Zoom", "Zoom reconnu")
+    verifier(DetectionAppel.reconnaitre(bundleID: "com.microsoft.teams2")?.nom == "Teams", "Teams reconnu")
+    verifier(DetectionAppel.reconnaitre(bundleID: "com.google.Chrome.helper")?.nom == "Chrome", "processus auxiliaire de Chrome reconnu (Meet dans un navigateur)")
+    verifier(DetectionAppel.reconnaitre(bundleID: "com.apple.FaceTime")?.nom == "FaceTime", "FaceTime reconnu")
+    verifier(DetectionAppel.reconnaitre(bundleID: "io.aircall.workspace")?.nom == "Aircall" && DetectionAppel.reconnaitre(bundleID: "net.whatsapp.WhatsApp.ServiceExtension")?.nom == "WhatsApp" && DetectionAppel.reconnaitre(bundleID: "com.hnc.Discord")?.nom == "Discord", "identifiants lus sur les apps installées ici : Aircall, WhatsApp, Discord")
+    verifier(DetectionAppel.reconnaitre(bundleID: "com.anthropic.claudefordesktop") == nil && DetectionAppel.reconnaitre(bundleID: "com.apple.Siri") == nil && DetectionAppel.reconnaitre(bundleID: "com.apple.Terminal") == nil && DetectionAppel.reconnaitre(bundleID: "com.apple.corespeechd_system") == nil, "Claude, Siri, Terminal, reconnaissance vocale du système : jamais de proposition")
+    verifier(DetectionAppel.reconnaitre(bundleID: "com.apple.Notes") == nil, "une app inconnue ne propose rien")
+    verifier(DetectionAppel.reconnaitre(bundleID: "com.electron.wispr-flow") == nil && DetectionAppel.reconnaitre(bundleID: "com.apple.assistant_service") == nil, "dictée et assistant vocal ne proposent rien")
+    verifier(DetectionAppel.appEnAppel(bundleIDs: ["com.hugues.dictee", "com.apple.FaceTime"])?.nom == "FaceTime", "Verbe lui-même est ignoré")
+    verifier(DetectionAppel.appEnAppel(bundleIDs: ["com.hugues.dictee"]) == nil, "Verbe seul : rien")
+    verifier(DetectionAppel.appEnAppel(bundleIDs: ["com.google.Chrome.helper", "us.zoom.xos"])?.nom == "Zoom", "l'app d'appel passe avant le navigateur")
+    var s = SuiveurAppel()
+    let zoom = DetectionAppel.reconnaitre(bundleID: "us.zoom.xos")
+    verifier(s.observer(app: zoom, reunionEnCours: false, maintenant: 0) == nil, "début d'écoute : rien tout de suite")
+    verifier(s.observer(app: zoom, reunionEnCours: false, maintenant: 4) == nil, "4 s : encore rien (test de micro)")
+    verifier(s.observer(app: zoom, reunionEnCours: false, maintenant: 6)?.nom == "Zoom", "6 s d'écoute continue : proposition")
+    verifier(s.observer(app: zoom, reunionEnCours: false, maintenant: 8) == nil && s.observer(app: zoom, reunionEnCours: false, maintenant: 600) == nil, "une seule proposition par appel")
+    verifier(s.observer(app: nil, reunionEnCours: false, maintenant: 700) == nil, "fin de l'appel")
+    verifier(s.observer(app: zoom, reunionEnCours: false, maintenant: 800) == nil && s.observer(app: zoom, reunionEnCours: false, maintenant: 806)?.nom == "Zoom", "un nouvel appel : une nouvelle proposition")
+    var t = SuiveurAppel()
+    _ = t.observer(app: zoom, reunionEnCours: true, maintenant: 0)
+    verifier(t.observer(app: zoom, reunionEnCours: false, maintenant: 10) == nil, "réunion déjà en cours dans l'épisode : jamais de proposition")
+    var u = SuiveurAppel()
+    _ = u.observer(app: zoom, reunionEnCours: false, maintenant: 0)
+    _ = u.observer(app: nil, reunionEnCours: false, maintenant: 3)
+    verifier(u.observer(app: zoom, reunionEnCours: false, maintenant: 7)?.nom == "Zoom", "coupure brève du micro : l'épisode continue")
+}
+
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)

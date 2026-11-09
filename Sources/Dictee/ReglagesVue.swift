@@ -20,10 +20,10 @@ struct ReglagesVue: View {
                     if g.size.width >= Self.largeurDeuxColonnes {
                         HStack(alignment: .top, spacing: 56) {
                             VStack(alignment: .leading, spacing: 28) { dictee; ecriture }.frame(maxWidth: .infinity, alignment: .top)
-                            VStack(alignment: .leading, spacing: 28) { retours; compte }.frame(maxWidth: .infinity, alignment: .top)
+                            VStack(alignment: .leading, spacing: 28) { retours; reunions; compte }.frame(maxWidth: .infinity, alignment: .top)
                         }
                     } else {
-                        VStack(alignment: .leading, spacing: 28) { dictee; ecriture; retours; compte }
+                        VStack(alignment: .leading, spacing: 28) { dictee; ecriture; retours; reunions; compte }
                     }
                 }
                 .padding(.top, 20)
@@ -81,6 +81,18 @@ struct ReglagesVue: View {
             }
             LigneReglage(libelle: "Vibration", note: "Se sent seulement avec un doigt posé sur le trackpad.") {
                 Interrupteur(actif: $r.vibration, etiquette: "Vibration")
+            }
+        }
+    }
+
+    private var reunions: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            EnteteSection(titre: "Réunions", phrase: "Noter une réunion ou un appel : \u{2325}\u{2318}N.", compte: nil)
+            LigneReglage(libelle: "Proposer de noter les appels", note: "Quand Zoom, Teams, FaceTime… utilise le micro. Rien ne s\u{2019}enregistre sans ton clic.", premiere: true) {
+                Interrupteur(actif: $r.proposerLesAppels, etiquette: "Proposer de noter les appels")
+            }
+            LigneReglage(libelle: "Garder le son des réunions", note: r.garderSonReunions ? "Le son est gardé à côté de la note, sur ce Mac." : "Le son est effacé dès que la note est prête.") {
+                Interrupteur(actif: $r.garderSonReunions, etiquette: "Garder le son des réunions")
             }
         }
     }

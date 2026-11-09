@@ -202,3 +202,51 @@ final class GroqClient: @unchecked Sendable {
         return contenu
     }
 }
+
+extension GroqClient {
+    /// Une complétion pour la note de réunion : réponse en JSON, modèle de raisonnement (effort réglable), longue attente permise.
+    /// Renvoie le texte et le nombre de jetons utilisés (pour espacer les requêtes sous le plafond par minute de Groq).
+    /// En cas de 429, `GroqErreur.http(429)` est levée et `retryApres` donne l'attente demandée par Groq.
+    func completerNote(modele: String, systeme: String, texte: String, maxSortie: Int, effort: String, delai: Double = 120) async throws -> (texte: String, jetons: Int, retryApres: Double?) {
+        guard let cle = CleGroq.lire() else { throw GroqErreur.pasDeCle }
+        var corps: [String: Any] = [
+            "model": modele,
+            "temperature": 0.2,
+            "stream": false,
+            "max_completion_tokens": maxSortie,
+            "response_format": ["type": "json_object"],
+            "messages": [["role": "system", "content": systeme], ["role": "user", "content": texte]],
+        ]
+        if modele.hasPrefix("openai/gpt-oss") { corps["reasoning_effort"] = effort; corps["include_reasoning"] = false }
+        var req = URLRequest(url: URL(string: "https://api.groq.com/openai/v1/chat/completions")!)
+        req.httpMethod = "POST"
+        req.timeoutInterval = delai
+        req.setValue("Bearer \(cle)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: corps)
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = delai
+        config.timeoutIntervalForResource = delai
+        let data: Data, reponse: URLResponse
+        do { (data, reponse) = try await URLSession(configuration: config).data(for: req) }
+        catch is CancellationError { throw CancellationError() }
+        catch let e as URLError where e.code == .cancelled { throw CancellationError() }
+        catch { throw GroqErreur.reseau((error as? URLError).map { "code \($0.code.rawValue)" } ?? "inconnu") }
+        guard let http = reponse as? HTTPURLResponse else { throw GroqErreur.reponseIllisible }
+        if http.statusCode == 429 {
+            let attente = BudgetRequetes.secondes(deEnTete: http.value(forHTTPHeaderField: "retry-after"))
+            Log.ecrire("Groq (note de réunion) : limite atteinte (429), attente demandée \(Int(attente ?? 0)) s")
+            throw NoteLimite(retryApres: attente)
+        }
+        guard http.statusCode == 200 else { throw GroqErreur.http(http.statusCode) }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let choix = (json["choices"] as? [[String: Any]])?.first,
+              let message = choix["message"] as? [String: Any],
+              let contenu = message["content"] as? String else { throw GroqErreur.reponseIllisible }
+        let jetons = ((json["usage"] as? [String: Any])?["total_tokens"] as? Int) ?? 0
+        return (contenu, jetons, nil)
+    }
+}
+
+/// La limite de Groq est atteinte pendant la rédaction de la note : il faut attendre `retryApres` secondes.
+struct NoteLimite: Error { var retryApres: Double? }

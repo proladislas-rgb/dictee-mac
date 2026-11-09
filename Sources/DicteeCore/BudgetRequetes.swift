@@ -73,6 +73,26 @@ public final class BudgetRequetes: @unchecked Sendable {
         return maintenant < pauseJusqua
     }
 
+    /// Secondes avant qu'une requête de confort (`usage`) puisse partir : 0 si elle le peut tout de suite. Sert à la réunion, qui
+    /// attend son tour au lieu de renoncer, et ne prend jamais la place d'une dictée.
+    public func delaiAvantDePermettre(_ usage: Usage, a maintenant: Double = BudgetRequetes.maintenant()) -> Double {
+        if permet(usage, a: maintenant) { return 0 }
+        verrou.lock(); defer { verrou.unlock() }
+        if maintenant < pauseJusqua { return max(1, pauseJusqua - maintenant) }
+        elaguer(maintenant)
+        let marge = usage == .anticipation ? margeAnticipation : margeSecours
+        let admis = limiteMinute - marge
+        var attente = 0.0
+        if envois.count > admis {
+            // Il faut que (nombre - admis) envois les plus anciens sortent de la minute : le dernier d'entre eux fixe l'attente.
+            let k = envois.count - admis
+            attente = max(attente, envois.sorted()[k - 1] + 60 - maintenant)
+        }
+        // Quota du jour ou des jetons trop bas : on ne sait pas quand il remontera, on revient voir dans 30 s.
+        if attente <= 0 { attente = 30 }
+        return max(1, attente)
+    }
+
     /// Une requête de confort peut-elle partir ?
     public func permet(_ usage: Usage, a maintenant: Double = BudgetRequetes.maintenant()) -> Bool {
         verrou.lock(); defer { verrou.unlock() }

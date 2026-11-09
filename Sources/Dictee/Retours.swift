@@ -51,6 +51,12 @@ enum Retours {
         motif([(0, .legere)])
     }
 
+    /// Début d'une réunion : une frappe légère, jamais de son (un son pourrait être capté par le micro, ou gêner un appel en cours).
+    static func reunionDebut() { motif([(0, .legere)]) }
+
+    /// Fin de la réunion : deux frappes légères, sans son.
+    static func reunionFin() { motif([(0, .legere), (0.06, .legere)]) }
+
     /// Une suite de frappes datées (secondes après maintenant), calée sur le rythme du son qui l'accompagne.
     private static func motif(_ frappes: [(Double, ActionneurTrackpad.Force)]) {
         guard Settings.vibration else { return }

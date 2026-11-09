@@ -63,7 +63,9 @@ cat > "$ASSEMBLAGE/Contents/Info.plist" <<PLIST
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Verbe écoute ta voix seulement pendant que tu tiens la touche fn, pour écrire ce que tu dis.</string>
+  <string>Verbe écoute ta voix quand tu tiens la touche fn pour dicter, et pendant que tu notes une réunion.</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>Verbe écoute le son de ton Mac (la voix des autres pendant un appel) seulement quand tu notes une réunion.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Verbe utilise la reconnaissance vocale du Mac, sur l'appareil, pour afficher ton texte en direct et en secours.</string>
 </dict>

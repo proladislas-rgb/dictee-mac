@@ -59,7 +59,9 @@ Chaque lot : construit, essayé pour de vrai sur le Mac, poussé sur GitHub.
 - [ ] Publication de la 0.2.0 par Hugues : `gh release create v0.2.0 dist/Verbe-0.2.0.dmg --target main --title "Verbe 0.2.0" --notes-file dist/notes-v0.2.0.md` ; puis réinstallation propre chez lui depuis le DMG (quitter Dictée d'abord) et les 5 points « À vérifier en vrai » de la spec (section Verbe 0.2.0).
 
 ## Après Verbe 0.2.0 (décidé le 09/11)
-- [ ] Notes de réunion et d'appel DANS Verbe : enregistrement (micro + son du Mac), texte complet, résumé, actions, export Airtable/Notion ; tout stocké en local ; option « tout sur le Mac » (dictée Apple) au lieu de Groq.
+- [x] Notes de réunion DANS Verbe (09/11 soir) : ⌥⌘N, micro (Moi) + son du Mac (Eux, process tap), transcription au fil de l'eau avec budgets partagés, note « dit / décidé / reste à faire » sans invention, onglet Réunions (maquette A), export Markdown, stockage local 0600, proposition « Noter cet appel ? ». Détail et « À vérifier en vrai » : docs/spec-v1.md (« Notes de réunion »).
+  - [ ] Hugues : essayer en vrai (autorisation « Enregistrement du son du système », appel réel, AirPods, dictée fn pendant une réunion) — 8 points dans la spec.
+  - [ ] Plus tard : export Airtable, option « tout sur le Mac » (dictée Apple) au lieu de Groq, suppression d'écho par traitement du signal (aujourd'hui : par le texte), noms des participants Eux.
 - [ ] Pistes suivantes à discuter (s'inspirer de l'idée, tout réécrire) : retouche de texte sélectionné à la voix (façon Grammarly), raccourcis tapés (façon TextExpander), historique du presse-papiers dans l'encoche (façon Paste), captures annotées (façon CleanShot X).
 
 ## Étapes

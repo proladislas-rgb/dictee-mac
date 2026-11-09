@@ -16,6 +16,15 @@ if let i = arguments.firstIndex(of: "--transcrire") {
     exit(Transcrire.executer(chemin: arguments[i + 1], arguments: arguments))
 }
 
+// Dictee --reunion-test moi.wav eux.wav [--sortie DOSSIER] [--sans-note]  (deux pistes -> transcription Moi / Eux -> note ; réseau seulement)
+if let i = arguments.firstIndex(of: "--reunion-test") {
+    guard i + 2 < arguments.count, !arguments[i + 1].hasPrefix("--"), !arguments[i + 2].hasPrefix("--") else {
+        FileHandle.standardError.write(Data("Usage : Dictee --reunion-test moi.wav eux.wav [--sortie DOSSIER] [--sans-note]\n".utf8))
+        exit(2)
+    }
+    exit(ReunionTest.executer(moi: arguments[i + 1], eux: arguments[i + 2], arguments: arguments))
+}
+
 // Dictee --nettoyer "texte" --app com.apple.mail  (remise au propre, réseau seulement)
 if arguments.contains("--nettoyer") {
     exit(Nettoyer.executer(arguments: arguments))
@@ -35,6 +44,11 @@ if arguments.contains("--verifier-collage") {
 // Dictee --rendu-encoche dossier  (dessine l'encoche en PNG, sans fenêtre)
 if let i = arguments.firstIndex(of: "--rendu-encoche"), i + 1 < arguments.count {
     exit(MainActor.assumeIsolated { RenduEncoche.executer(dossier: arguments[i + 1]) })
+}
+
+// Dictee --rendu-reunion dossier  (encoche des réunions, liste et note en PNG, sans fenêtre)
+if let i = arguments.firstIndex(of: "--rendu-reunion"), i + 1 < arguments.count {
+    exit(MainActor.assumeIsolated { RenduReunions.executer(dossier: arguments[i + 1]) })
 }
 
 // Dictee --rendu-icones dossier  (icône d'app + planches de contrôle en PNG, sans fenêtre)

@@ -118,6 +118,27 @@ enum Settings {
         set { defaults.set(newValue, forKey: "secoursApple") }
     }
 
+    // MARK: Notes de réunion
+
+    /// Garder le son brut des réunions (deux fichiers WAV, un par piste) à côté de la note. Désactivé par défaut : le son n'existe alors
+    /// que le temps de la transcription, en mémoire. Exemple : defaults write com.hugues.dictee garderSonReunions -bool true
+    static var garderSonReunions: Bool {
+        get { defaults.object(forKey: "garderSonReunions") as? Bool ?? false }
+        set { defaults.set(newValue, forKey: "garderSonReunions") }
+    }
+
+    /// Proposer « Noter cet appel ? » quand une app d'appel utilise le micro (jamais d'enregistrement sans clic). Activé par défaut.
+    static var proposerLesAppels: Bool {
+        get { defaults.object(forKey: "proposerLesAppels") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "proposerLesAppels") }
+    }
+
+    /// Modèle de langue de Groq pour la note de réunion (nom vérifié avec GET /openai/v1/models le 09/11 : le plus gros disponible).
+    static var modeleNoteReunion: String {
+        ProcessInfo.processInfo.environment["DICTEE_MODELE_NOTE"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? defaults.string(forKey: "modeleNoteReunion").flatMap { $0.isEmpty ? nil : $0 } ?? "openai/gpt-oss-120b"
+    }
+
     /// Langue choisie dans les Réglages (`fr`, `en`) ou `nil` pour la détection automatique.
     static func choisirLangue(_ code: String?) { defaults.set(code ?? "auto", forKey: "langue") }
 

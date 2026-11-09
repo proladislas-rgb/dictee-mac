@@ -17,6 +17,8 @@ final class ReglagesModele: ObservableObject {
     @Published var adapterLeTon: Bool { didSet { if !installe { return }; Settings.adapterLeTon = adapterLeTon } }
     @Published var sons: Bool { didSet { if !installe { return }; Settings.sons = sons } }
     @Published var vibration: Bool { didSet { if !installe { return }; Settings.vibration = vibration } }
+    @Published var garderSonReunions: Bool { didSet { if !installe { return }; Settings.garderSonReunions = garderSonReunions } }
+    @Published var proposerLesAppels: Bool { didSet { if !installe { return }; Settings.proposerLesAppels = proposerLesAppels } }
     @Published var secoursApple: Bool { didSet { if !installe { return }; Settings.secoursApple = secoursApple } }
     @Published var langue: String { didSet { if !installe { return }; Settings.choisirLangue(langue == ChoixLangue.automatique ? nil : langue) } }
     @Published var micro: String { didSet { if !installe { return }; Settings.micro = micro.isEmpty ? nil : micro; rafraichirMicroUtilise() } }
@@ -46,6 +48,8 @@ final class ReglagesModele: ObservableObject {
         remettreAuPropre = reel ? Settings.remettreAuPropre : true
         adapterLeTon = reel ? Settings.adapterLeTon : true
         secoursApple = reel ? Settings.secoursApple : true
+        garderSonReunions = reel ? Settings.garderSonReunions : false
+        proposerLesAppels = reel ? Settings.proposerLesAppels : true
         sons = reel ? Settings.sons : true
         vibration = reel ? Settings.vibration : true
         langue = reel ? Settings.langueReglage : ChoixLangue.defaut

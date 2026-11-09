@@ -322,3 +322,52 @@ Lecture honnête :
 2. Dicter en tenant fn, dans Notes ou Mail, une phrase avec un nom de ses notes mal prononcé : lire dans le journal (`~/Library/Logs/Dictee/dictee.log`) les lignes `correction à l'oreille : "…" → "…"`. Si une correction est fausse, relever la ligne.
 3. Corriger un mot à la main dans les 15 secondes qui suivent une dictée (Notes, Mail, Pages ; l'app relit le champ à 6 s et à 15 s) : le mot corrigé doit apparaître dans l'onglet Mots, en proposition ; l'accepter doit l'écrire dans `mots.txt`. Dans un terminal, ou une app qui ne laisse pas lire le champ, rien ne doit apparaître (le journal dit « apprentissage impossible »).
 4. Comparer 10 dictées avec `defaults write com.hugues.dictee lexiquePourWhisper -bool false` (et `correctionALOreille -bool false`) puis avec les réglages par défaut.
+
+## Notes de réunion (09/11 soir)
+
+Demande de Hugues : « l'enregistrement de la réunion, c'est comme Wispr Flow » (le micro **et** le son du Mac), puis la note : « selon la réunion, il y a ça qui a été dit, ça qui a été fait ». Maquette validée : `design/maquettes/reunions.html`, version A « Le carnet ». Rendus hors écran : `design/rendus-reunions/` (`Verbe --rendu-reunion DOSSIER`).
+
+### Lancer, arrêter
+- ⌥⌘N (globale, avalée par l'écoute du clavier existante) lance ou arrête ; entrée « Noter la réunion » sous la recherche du panneau compact, et dans le menu de la barre des menus (« Arrêter la réunion » pendant l'enregistrement) ; bouton dans l'onglet Réunions. Arrêt aussi par le carré de l'encoche ou « Arrêter » du ruban (au survol).
+- Proposition « Noter cet appel ? » : toutes les 2 s, lecture seule des processus audio (`kAudioProcessPropertyIsRunningInput`, aucune autorisation, aucun son capté) ; liste blanche d'apps d'appel (Zoom, Teams, FaceTime, Skype, WhatsApp, Aircall, Webex, Slack, Discord, Telegram, navigateurs pour Meet) ; une proposition par appel, après 6 s d'écoute continue, jamais pendant une réunion ; « Non » ou 15 s = elle disparaît. **Jamais d'enregistrement sans clic.** Réglage : « Proposer de noter les appels ».
+- Écart de nommage : l'ordre des onglets suit la maquette (Dictées, Réunions, Mots, Réglages) ; le panneau compact ne montre plus l'aide « ↑↓ choisir ↵ recoller » (quatre onglets + aide ne tiennent pas dans 352 pt ; la maquette n'en montre pas).
+
+### Capture : deux pistes
+- **Moi** = le micro, par un moteur AVAudioEngine **à lui** (`MicroReunion`), même choix de micro que la dictée (`ChoixMicro` : micro du Mac quand un casque Bluetooth est le micro par défaut). Tout appel passe par `VerbeEssayer`.
+- **Eux** = le son du Mac par un *process tap* Core Audio (`SonSysteme` : `CATapDescription` mono global sauf Verbe lui-même, `AudioHardwareCreateProcessTap`, appareil agrégé privé, lecture par `AudioDeviceCreateIOProcIDWithBlock`) ; macOS 14.4+, API vérifiées dans les en-têtes du SDK (typecheck + build). Réinstallé si la sortie audio change. Si macOS refuse : le micro seul continue et la note le dit (« À savoir »). Un son du Mac resté à zéro 15 s n'est **pas** pris pour une preuve de refus : journal + phrase prudente dans la note (rien ne jouait, ou autorisation manquante).
+- **Dictée pendant une réunion** : la touche fn reste possible (moteur micro séparé, aucune pause) ; l'encoche de la dictée passe devant celle de la réunion. Ce qu'on dicte étant dit à voix haute, il se retrouve aussi dans la piste Moi. Choix fait parce que c'est le plus sûr : on ne touche pas au moteur de la dictée.
+- Retours : vibration légère au début (1 frappe) et à la fin (2 frappes), **sans son** (un son serait capté ou gênerait un appel).
+- Pistes : `PisteReunion` (conversion 16 kHz mono, niveau, `VoiceChunker` réglé pour les réunions : coupe à une pause de 0,6 s après 10 s, micro-pause 0,24 s après 20 s, coupe forcée après 30 s ; seul le morceau en cours reste en mémoire). Pause : le dernier morceau part, l'horloge s'arrête (`HorlogeReunion`).
+
+### Transcription au fil de l'eau
+- `TranscriptionReunion` : un morceau à la fois, Whisper large v3 turbo, français par défaut, prompt avec les mots du lexique (`PreparationLexique`) + la fin du texte précédent de la même piste, correction à l'oreille. Retentée 5 fois (réseau, 429, 5xx).
+- **Budget partagé avec la dictée** : requêtes via `BudgetRequetes.partage` (la réunion n'envoie que si elle laisse la marge de 8 requêtes sur 18 à la dictée ; elle attend sinon, `delaiAvantDePermettre`) ; audio via `BudgetAudio` (5 700 des 7 200 s/heure pour la réunion, 1 500 gardées pour la dictée ; Groq compte 10 s minimum par requête).
+- Son brut : en mémoire seulement, jusqu'à la transcription. Réglage « Garder le son des réunions » (désactivé) : deux WAV `*-moi.wav` / `*-eux.wav` à côté de la note, droits 0600.
+- Fusion (`FusionPistes`) : classement par heure, « Eux » avant « Moi » à égalité, regroupement des passages d'un même locuteur à moins de 3 s. **Écho** : sans casque, le micro entend les haut-parleurs ; chaque phrase « Moi » qui reprend ≥ 80 % de ses mots (4 mots au moins) d'un passage « Eux » qui chevauche est retirée, le reste du morceau est gardé.
+
+### La note
+- Groq `openai/gpt-oss-120b` (le plus gros modèle de `GET /openai/v1/models` le 09/11 ; `qwen/qwen3.8-27b` existe aussi ; réglage `modeleNoteReunion`). Plafond de 8 000 jetons par minute : une longue réunion est lue **par parties** de ~10 000 caractères (une note partielle chacune), puis une note finale ; `BudgetJetons` espace les appels. Réponse en JSON.
+- Sections (demande de Hugues) : **Ce qui a été dit** (un point court par sujet), **Ce qui a été décidé** (décisions, choses convenues ou faites), **Ce qu'il reste à faire** (qui, quoi, quand si dit ; cases à cocher), puis **Transcription** repliée. Une section vide est omise. Titre proposé, participants entendus (+ « Moi »).
+- **Sans rien inventer** : consigne explicite + garde (`GardeInvention`) : tout nom propre, nombre ou repère de temps de la note doit figurer dans la transcription (orthographe presque pareille ou même prononciation acceptée) ; sinon l'élément (ou le « qui » / « quand ») est retiré et listé au journal.
+- Note impossible (réseau, quota) : la transcription est gardée, état « sans note », bouton « Refaire la note ». Réunion sans parole (ou < 3 s) : non gardée.
+
+### Fenêtre et stockage
+- Onglet **Réunions** (élément NSToolbar, comme les autres) : liste par jour (heure, titre en Newsreader, durée), recherche, « Noter la réunion ⌥⌘N », ↑↓ ↵ ; la note A : titre modifiable, date/durée, participants, sections, cases à cocher (enregistrées), transcription repliée, Copier, Exporter (Fichier Markdown…, Copier pour Notion = Markdown à coller, Airtable « plus tard »), Effacer (avec confirmation), « Gardé sur ce Mac ».
+- Stockage : `~/Library/Application Support/Dictee/Reunions/` (dossier 0700, JSON + Markdown en 0600, `AAAA-MM-JJ_HHMM_id8`), jamais dans git. Une réunion restée « en cours » après un arrêt brutal passe en « sans note » au lancement, transcription gardée. « Désinstaller Verbe » efface ce dossier avec le reste.
+- Permissions : micro (déjà), **« Enregistrement du son du système »** (nouvelle ; `NSAudioCaptureUsageDescription` ajouté par `build.sh`, texte du micro mis à jour). Rien d'autre (la détection d'appel est une lecture sans autorisation).
+
+### Vérifié
+- `swift run DicteeControles` : 665/665 (fusion, écho, découpe, budgets, note et garde, états de l'encoche, horloge, détection d'appel, Markdown, archive).
+- Test de dialogue sans micro : `python3 scripts/dialogue-reunion.py DOSSIER [--echo]` (3 voix `say`, deux pistes alignées, 2 min 09) puis `Verbe --reunion-test DOSSIER/moi.wav DOSSIER/eux.wav [--sortie D] [--sans-note]` (réseau seulement) : 17 morceaux, 0 échec, note correcte, rien d'inventé ; avec écho à −18 dB dans la piste Moi : 20 phrases d'écho retirées, vraie voix gardée. Limite constatée : deux fois le modèle a un peu trop conclu (« livraison prioritaire à Lyon » décidé alors que c'était un souhait) — la garde ne voit que les noms, nombres et repères de temps.
+- Détection d'appel testée sur les vrais processus de ce Mac (lecture seule) : l'identifiant d'Aircall est `io.aircall.workspace` (corrigé), Claude, Siri, Terminal, reconnaissance vocale : jamais de proposition ; Zoom et Teams ne sont pas installés ici (identifiants non vérifiés).
+- Rendus PNG : `design/rendus-reunions/` (encoche en enregistrement, au survol, en pause, micro seul, proposition, traitement, note prête ; liste, note, transcription, sans note, effacer, vide, petite fenêtre ; panneau compact).
+
+### À vérifier en vrai (par Hugues, app installée) — non testable depuis le shell
+1. Première réunion : macOS demande « Enregistrement du son du système » (puis, si besoin, Réglages Système › Confidentialité et sécurité). Pendant un appel réel (Zoom, FaceTime…) : l'encoche montre le point ambre, la minuterie et les deux traces ; la trace du bas (Eux) bouge quand l'autre parle. Après l'arrêt : « Note prête · Ouvrir ».
+2. Vérifier dans la transcription que « Eux » contient bien la voix des autres et « Moi » la sienne, avec et sans casque (sans casque : peu d'écho résiduel, quelques mots courts possibles).
+3. AirPods : la réunion prend le micro intégré (comme la dictée) ; brancher/débrancher un casque en cours de réunion ne doit pas la couper (reconstruction du micro et du son du Mac, journal « réunion : »).
+4. Dicter avec fn pendant une réunion : la dictée marche, la réunion continue.
+5. ⌥⌘N depuis une app en plein écran ; survol de l'encoche (ruban Pause / Arrêter) ; Pause puis Reprendre.
+6. « Noter cet appel ? » : s'affiche une seule fois par appel, après ~6 s, jamais pendant une réunion ; « Non » la retire.
+7. Réunion d'une heure : la note se fait par parties (3-4 min après l'arrêt), quota Groq respecté (journal « en attente de budget »).
+8. Export Markdown et « Copier pour Notion » (coller dans une page Notion).

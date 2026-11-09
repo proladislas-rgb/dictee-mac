@@ -14,6 +14,8 @@ struct FenetreVue: View {
     @ObservedObject var store: HistoriqueStore
     @ObservedObject var mots: MotsModele
     @ObservedObject var reglages: ReglagesModele
+    @ObservedObject var reunions: ReunionsModele
+    @ObservedObject var controleur: ReunionController
     var surRevoirPriseEnMain: () -> Void = {}
     var surAutorisations: () -> Void = {}
     var surCle: () -> Void = {}
@@ -29,6 +31,8 @@ struct FenetreVue: View {
                 switch nav.onglet {
                 case .dictees:
                     DicteesFenetreVue(m: dictees, store: store, reglages: reglages, curseurFactice: curseurFactice)
+                case .reunions:
+                    ReunionsVue(m: reunions, store: reunions.store, controleur: controleur, curseurFactice: curseurFactice)
                 case .mots:
                     MotsVue(m: mots, curseurFactice: curseurFactice).padding(.horizontal, DicteesFenetreVue.margeH)
                 case .reglages:
@@ -51,8 +55,8 @@ struct BarreOngletsVue: View {
     var body: some View {
         HStack(spacing: 4) {
             OngletBarre(titre: Onglet.dictees.rawValue, actif: nav.onglet == .dictees) { nav.onglet = .dictees }
+            OngletBarre(titre: Onglet.reunions.rawValue, actif: nav.onglet == .reunions) { nav.onglet = .reunions }
             OngletBarre(titre: Onglet.mots.rawValue, actif: nav.onglet == .mots, pastille: mots.propositions.enAttente.count) { nav.onglet = .mots }
-            OngletBientot(titre: "Réunions")
         }
         .padding(.leading, 8)
         .fixedSize()
@@ -102,31 +106,13 @@ struct OngletBarre: View {
     }
 }
 
-/// « Réunions · bientôt » : grisé, non cliquable pour l'instant.
-struct OngletBientot: View {
-    var titre: String
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(titre).font(Polices.commande(14))
-            Text("bientôt").font(Polices.commande(12))
-                .padding(.horizontal, 8).frame(height: 20)
-                .overlay(Capsule().strokeBorder(Palette.contour, lineWidth: 1))
-        }
-        .foregroundStyle(Palette.texte3)
-        .padding(.horizontal, 12)
-        .frame(height: 32)
-        .fixedSize()
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(titre), bientôt disponible")
-        .accessibilityAddTraits(.isStaticText)
-    }
-}
-
 /// Fenêtre de l'app : ~960 × 640 (réduite pour les petits écrans), sombre, titre intégré.
 @MainActor
 final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
     let nav = NavigationFenetre()
     let dictees: ModeleDictees
+    let reunions = ReunionsModele()
+    let controleurReunions: ReunionController
     private(set) lazy var reglages = ReglagesModele.partage
     private var fenetre: NSWindow?
     var surRevoirPriseEnMain: () -> Void = {}
@@ -134,7 +120,7 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
     var surCle: () -> Void = {}
     var surDesinstaller: () -> Void = {}
 
-    init(dictees: ModeleDictees) { self.dictees = dictees; super.init() }
+    init(dictees: ModeleDictees, controleurReunions: ReunionController) { self.dictees = dictees; self.controleurReunions = controleurReunions; super.init() }
 
     var estOuverte: Bool { fenetre?.isVisible == true }
 
@@ -144,6 +130,7 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
         if fenetre == nil { creer() }
         guard let f = fenetre else { return }
         if onglet == .dictees { dictees.reinitialiser() }
+        if onglet == .reunions, reunions.ouverte == nil { reunions.reinitialiser() }
         // Verbe reste une app d'arrière-plan (pas d'icône « active » dans le Dock) même fenêtre ouverte : une app « normale »
         // ne peut plus afficher l'encoche par-dessus une app en plein écran (constaté dans le Terminal en plein écran).
         // Pour l'ouvrir : icône gardée dans le Dock, Applications, Launchpad ou Spotlight (réouverture gérée par l'AppDelegate).
@@ -151,7 +138,7 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
         f.makeKeyAndOrderFront(nil)
     }
 
-    /// Fenêtre fermée : Verbe redevient discret (plus d'icône dans le Dock), il reste dans l'encoche et la barre des menus.
+    /// Fenêtre fermée : Verbe reste discret dans l'encoche et la barre des menus (par sécurité, on garde la politique d'arrière-plan).
     func windowWillClose(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
     }
@@ -179,6 +166,12 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
 
     func fermer() { fenetre?.close() }
 
+    /// Ouvre la note d'une réunion dans l'onglet Réunions.
+    func ouvrirNote(_ id: UUID) {
+        reunions.ouvrir(id)
+        afficher(.reunions)
+    }
+
     private func creer() {
         let ecran = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1280, height: 800)
         let taille = CGSize(width: min(FenetreVue.tailleParDefaut.width, ecran.width * 0.92), height: min(FenetreVue.tailleParDefaut.height, ecran.height * 0.92))
@@ -204,7 +197,7 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
         // S'ouvre sur le bureau où l'on se trouve, pas sur celui où la fenêtre était la dernière fois.
         f.collectionBehavior.insert(.moveToActiveSpace)
         f.minSize = NSSize(width: 560, height: 420)
-        f.contentView = NSHostingView(rootView: FenetreVue(nav: nav, dictees: dictees, store: dictees.store, mots: MotsModele.partage, reglages: reglages,
+        f.contentView = NSHostingView(rootView: FenetreVue(nav: nav, dictees: dictees, store: dictees.store, mots: MotsModele.partage, reglages: reglages, reunions: reunions, controleur: controleurReunions,
                                                            surRevoirPriseEnMain: { [weak self] in self?.surRevoirPriseEnMain() },
                                                            surAutorisations: { [weak self] in self?.surAutorisations() },
                                                            surCle: { [weak self] in self?.surCle() },

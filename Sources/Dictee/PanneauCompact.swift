@@ -3,7 +3,7 @@ import SwiftUI
 import DicteeCore
 
 enum Onglet: String, CaseIterable, Identifiable {
-    case dictees = "Dictées", mots = "Mots", reglages = "Réglages"
+    case dictees = "Dictées", reunions = "Réunions", mots = "Mots", reglages = "Réglages"
     var id: String { rawValue }
 }
 
@@ -89,7 +89,7 @@ struct PanneauVue: View {
             DicteesVue(m: m, store: store, metriques: .panneau, curseurFactice: curseurFactice)
                 .padding(8)
                 .frame(maxHeight: .infinity, alignment: .top)
-            NavigationBasse(courant: .dictees, surChoix: surOnglet) { AideTouches() }
+            NavigationBasse(courant: .dictees, surChoix: surOnglet) { EmptyView() }
         }
         .frame(width: Self.taille.width, height: Self.taille.height)
         .background(Palette.surface)
