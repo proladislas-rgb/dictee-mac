@@ -1,0 +1,102 @@
+Interface de l’app de dictée Mac
+Design et interactions pour Claude Code · Version 3 · 9 novembre 2026
+Construire une app de dictée à partir du panneau v3 B : un fond sombre, des phrases en police de livre, les heures dans la marge et une navigation réduite à trois mots. Cette direction s’applique à la fenêtre de l’app, au panneau de l’encoche et au petit contrôle de la barre des menus.
+
+Vue Dictées. La fenêtre étend le panneau B en conservant sa hiérarchie et son caractère. « Dictée » reste un libellé de travail.
+Retrouver et réutiliser ses mots
+Une ligne par dictée : heure à gauche, phrase au centre, app de destination à droite. Le texte long est tronqué dans la liste et reste consultable intégralement. La ligne sélectionnée prend un fond légèrement plus clair ; les actions Copier et Recoller remplacent alors le nom de l’app.
+La recherche filtre le contenu et l’app de destination. Les groupes Aujourd’hui et Hier facilitent le repérage. Les touches ↑ et ↓ déplacent la sélection ; Entrée recolle dans la destination précédente quand elle est disponible. Échap ferme le panneau sans perdre le texte.
+
+Mots et réglages
+Les trois vues partagent la même surface et la même navigation basse. Les deux fenêtres ci-dessous montrent des états alternatifs de l’app, et non deux fenêtres à ouvrir simultanément.
+
+Mots
+Le champ Ajouter un mot précède les noms à retenir. Les raccourcis associent une expression prononcée à son texte de remplacement. Les propositions issues des corrections apparaissent comme une phrase discrète avec l’action Ajouter ; elles ne sont pas acceptées automatiquement. Les contenus des maquettes sont des exemples.
+Réglages
+Afficher les gestes de dictée et de mains libres, le micro, la langue, la remise au propre, l’adaptation à l’app et l’ouverture au démarrage. Les interrupteurs restent monochromes. Préserver le réglage du moteur du panneau B ; un libellé grand public peut masquer les détails techniques dans une vue secondaire.
+Le secours Apple ne doit être présenté comme disponible hors ligne qu’après vérification de sa disponibilité sur la configuration utilisée. Un réglage indisponible doit l’expliquer sobrement, sans laisser croire qu’il fonctionne.
+
+La barre des menus et l’encoche
+Un petit signe en guillemets identifie l’app en haut à droite, à gauche du Wi-Fi et de la batterie. Il reprend le logo et reste discret. Cette version affine la bande et ses raccords : ruban d’une seule ligne, courbes plus retenues et hauteur réduite. Le panneau d’historique reprend exactement le langage de l’app.
+
+Un détail vivant mais discret
+Au repos, les guillemets sont monochromes, sans fond permanent. Au survol ou lorsque le panneau est ouvert, un fond anthracite doux matérialise le contrôle. Pendant la capture, un fin trait ambre peut apparaître à côté du symbole. Aucun clignotement continu ni animation décorative au repos.
+Une zone pour deux usages
+Un clic sur les guillemets ouvre ou ferme le panneau compact. Au lancement de la dictée, le panneau cède la place à la bande et au ruban. La caméra physique reste entièrement vide : icône de destination à gauche, visualisation sonore à droite, texte en dessous. Les deux modes ne se superposent pas. Dans l’historique, ne conserver ni niveau sonore ni icône de destination : seuls la recherche, les dictées et la navigation sont utiles.
+Le détail est ancré dans la barre des menus et ne flotte pas sur le bureau. Adapter son emplacement à l’espace réellement disponible. Sans encoche, prévoir un ancrage supérieur centré pour le panneau et la dictée.
+
+Les mouvements et leurs états
+Le mouvement accompagne le geste, puis s’efface. Les temps proposés ci-dessous sont à régler sur l’app réelle ; ils ne doivent jamais ralentir l’insertion du texte.
+
+Déclencheur
+Résultat à montrer
+Repère
+Clic sur le signe
+Le panneau descend depuis l’encoche ; la recherche reçoit le focus.
+180 à 220 ms
+Maintenir fn
+La bande noire s’ouvre ; icône de destination et niveau sonore apparaissent.
+180 à 220 ms
+Parler
+Le ruban apparaît et suit les mots. Les derniers mots incertains restent gris.
+En direct
+Relâcher fn
+Les barres se calment. À réception du résultat final, texte blanc et ponctuation stabilisée.
+Fondu 100 à 140 ms
+Insertion réussie
+Le texte est écrit dans l’app cible ; le ruban et la bande se replient.
+180 à 220 ms
+Deux appuis sur fn
+La bande s’élargit : croix pour annuler, coche pour valider.
+180 à 220 ms
+Transitions et confort
+Employer un ressort amorti, interruptible, ancré à l’encoche. Une nouvelle action repart de l’état courant. Avec Réduire les animations, remplacer l’expansion par un fondu bref. Prévoir des sons de début et de fin facultatifs, très courts et désactivables.
+L’insertion réussie n’appelle ni confettis ni notification. Si elle échoue, conserver le résultat récupérable dans l’historique. Dans le Terminal, ne jamais envoyer Entrée automatiquement.
+
+Le logo et le langage visuel
+Conserver les deux guillemets comme signe de l’app. Les adapter à chaque taille sans modifier leur identité : icône de lancement sur carré noir arrondi, symbole monochrome seul dans la barre des menus et petit signe dans la fenêtre.
+
+Redessiner le symbole en vectoriel et vérifier son équilibre à 16, 32 et 128 px. Garder la même orientation des guillemets sur toutes les surfaces. Les images restent des références de dessin.
+Rôle
+Valeur du panneau B
+Application
+Fond extérieur
+#0B0B0B
+Bureau de maquette
+Surface
+#1A1A19
+Fenêtre et panneau
+Sélection
+#262624
+Ligne active et survol
+Texte principal
+#ECE9E3
+Contenu actif et logo
+Texte secondaire
+#A8A59E
+Valeurs et texte au repos
+Texte discret
+#88857E
+Heures et métadonnées
+Accent
+#E6A04A
+Curseur actif et indicateur de capture
+Encoche
+#000000
+Bande et ruban de dictée
+Typographie
+SF Pro ou la police système pour les commandes et la transcription en direct. Newsreader pour les phrases de l’historique, les noms à retenir et les valeurs des raccourcis. La serif porte le contenu ; les commandes restent sobres et sans empattements.
+Utiliser des surfaces unies et un contraste contrôlé. L’ambre n’est pas une couleur de bouton. Aucun dégradé, effet de verre, halo, badge décoratif ou carte superflue. Les valeurs de cette page remplacent la palette approximative de la première version du document.
+
+La référence et les règles de réalisation
+Le fichier panneau-v3-B.html du ZIP est la référence de style. Ses valeurs et ses comportements explicites priment sur les écarts de rendu des images. Les nouvelles vues montrent l’extension de ce langage à une app complète et à son accès depuis la barre des menus.
+
+Deux tailles cohérentes
+Le panneau original mesure 352 × 320 px, avec un rayon de 14 px, une navigation de 40 px et des lignes de 36 px. Conserver cette densité pour l’accès rapide. Pour la fenêtre principale, partir d’environ 960 × 640 px, de lignes de 44 à 48 px et d’un texte dicté de 17 à 18 px. Ces dimensions de fenêtre sont proposées ; elles doivent s’adapter à l’écran.
+Premier lancement en trois étapes
+Montrer le geste « Maintenez fn. Parlez. Relâchez. », expliquer les accès micro et accessibilité, puis faire réussir une première dictée. Chaque étape reprend la même surface sombre et descend sous l’encoche. La réussite repose sur du texte effectivement inséré, pas sur une animation seule.
+États utiles
+Prévoir un historique vide, une recherche sans résultat, un mot déjà enregistré et une destination d’insertion indisponible. Afficher « Dictée Apple active » seulement après activation effective du secours. Pour un champ protégé : « Écriture impossible ici ». Les messages restent courts et n’effacent pas le texte récupérable.
+Périmètre du produit téléchargeable
+Le design cible une app installée sur Mac, distribuée depuis un site web. Une interface en technologies web reste envisageable ; le choix d’architecture est à confirmer. Les raccourcis globaux, l’écriture dans les autres apps et l’intégration à l’encoche sont des capacités à valider dans le client installé. Ce document ne fixe pas un framework et ne constitue pas une page de téléchargement.
+Livrer des éléments d’interface réels et adaptables, avec navigation clavier et focus visible. Vérifier les trois vues, le contrôle de la barre des menus, les deux modes de l’encoche et les états d’échec. Ne pas reconstruire l’app à partir de captures utilisées comme fonds.
