@@ -1,0 +1,316 @@
+<!doctype html>
+<!--
+DIRECTION : la lecture en cours (YouTube, série, musique) dans l'encoche de Verbe.
+Le centre de l'encoche (200 px) est la caméra : rien n'y est affiché. Tout vit dans les ailes et sous l'encoche.
+Même noir, mêmes congés de 8 px et mêmes rayons que la dictée (encoche-v5) : une seule silhouette.
+Jouable : scène 1 de chaque variante, survol pour ouvrir (A, B), clic pour ouvrir/fermer (C).
+Vignettes : aplats dessinés en CSS, aucune affiche réelle, aucun logo.
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbe — lecture dans l'encoche</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --desk:#0b0b0b; --bar:#141413; --pan:#1a1a19; --raised:#262624; --hov:#2a2a2d;
+  --ink:#ece9e3; --ink-2:#a8a59e; --ink-3:#88857e;
+  --hair:rgba(236,233,227,.09); --amber:#e6a04a;
+  --serif:"Newsreader","New York",ui-serif,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--desk);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;padding:20px 24px 72px}
+.wrap{max-width:1142px;margin:0 auto}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+
+h1{font-size:15px;line-height:20px;font-weight:500;color:var(--ink)}
+.lede{margin-top:4px;font-size:13px;line-height:20px;color:var(--ink-3)}
+.sec{margin-top:48px;padding-top:16px;border-top:1px solid var(--hair)}
+.sec>h2{display:flex;align-items:baseline;gap:12px;font-size:15px;line-height:20px;font-weight:500;color:var(--ink)}
+.sec>h2 span{font-size:13px;font-weight:400;color:var(--ink-3)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:4px}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+figcaption{margin:20px 0 8px;font-size:13px;line-height:20px;color:var(--ink-3)}
+figcaption b{color:var(--ink);font-weight:500;margin-right:8px}
+
+/* ---------- écran : barre des menus + fenêtre du navigateur ---------- */
+.screen{position:relative;height:176px;overflow:hidden;border-radius:12px;background:#0f0f0e;box-shadow:0 0 0 1px var(--hair)}
+.menubar{height:32px;background:var(--bar);display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:13px;color:var(--ink-2)}
+.menubar b{font-weight:600;color:var(--ink)}
+.menubar .r{display:flex;gap:14px;align-items:center}
+.q{font:700 17px/1 Georgia,serif;color:var(--ink-2)}
+.screen.nm .menubar>*{visibility:hidden}
+.win{position:absolute;left:36px;right:36px;top:84px;bottom:0;background:var(--pan);border-radius:10px 10px 0 0;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
+.win i{position:absolute;left:14px;right:14px;top:14px;bottom:0;background:#212120;border-radius:6px 6px 0 0}
+
+/* ---------- l'encoche : une silhouette noire ---------- */
+.n{--lw:0px;--rw:0px;--h:32px;--r:10px;
+  position:absolute;top:0;z-index:5;
+  left:calc(50% - 100px - var(--lw));width:calc(200px + var(--lw) + var(--rw));height:var(--h);
+  transition:left .22s cubic-bezier(.2,.8,.2,1),width .22s cubic-bezier(.2,.8,.2,1),height .22s cubic-bezier(.2,.8,.2,1)}
+.n>.k{position:absolute;inset:0;background:#000;overflow:hidden;border-radius:0 0 var(--r) var(--r);transition:border-radius .22s}
+/* congés : la forme se raccorde au bord de l'écran */
+.n::before,.n::after{content:"";position:absolute;top:0;width:8px;height:8px;opacity:0;transition:opacity .15s}
+.n::before{left:-8px;background:radial-gradient(circle at 0 100%,transparent 7.5px,#000 8px)}
+.n::after{right:-8px;background:radial-gradient(circle at 100% 100%,transparent 7.5px,#000 8px)}
+.n.fl::before,.n.fr::after{opacity:1}
+
+.n.A.rest{--lw:44px;--rw:44px}
+.n.A.open{--lw:90px;--rw:90px;--r:12px}
+.n.B.rest{--lw:40px}
+.n.B.open{--lw:32px;--rw:32px;--h:150px;--r:20px}
+.n.C.rest{--rw:36px}
+.n.C.open{--lw:90px;--rw:90px;--r:12px}
+.n.dict,.n.meet{--lw:90px;--rw:90px;--r:12px}
+.n.filet{--lw:140px;--rw:140px;--r:14px}
+
+/* ruban : collé sous la bande, même noir */
+.rb{--rbw:332px;--rbh:28px;position:absolute;top:31px;z-index:5;left:calc(50% - var(--rbw)/2);width:var(--rbw);height:0;visibility:hidden;
+  transition:height .22s cubic-bezier(.2,.8,.2,1),visibility 0s .22s}
+.rb.show{height:var(--rbh);visibility:visible;transition:height .22s cubic-bezier(.2,.8,.2,1)}
+.rb>.k{position:absolute;inset:0;background:#000;overflow:hidden;border-radius:0 0 12px 12px;display:flex;align-items:center}
+.rb::before,.rb::after{content:"";position:absolute;top:1px;width:8px;height:8px;opacity:0;transition:opacity .15s}
+.rb::before{left:-8px;background:radial-gradient(circle at 0 100%,transparent 7.5px,#000 8px)}
+.rb::after{right:-8px;background:radial-gradient(circle at 100% 100%,transparent 7.5px,#000 8px)}
+.rb.show::before,.rb.show::after{opacity:1}
+
+/* ailes */
+.wl,.wr{position:absolute;top:0;height:32px;display:flex;align-items:center}
+.wl{left:12px}
+.wr{right:12px}
+
+/* contenus visibles au repos seulement / à l'ouverture seulement */
+.r{opacity:1;transition:opacity .12s}
+.o{opacity:0;pointer-events:none;transition:opacity .15s}
+.n.open .r{opacity:0}
+.n.open .o{opacity:1;pointer-events:auto;transition-delay:.1s}
+.rb .o{opacity:1;pointer-events:auto}
+
+/* vignettes : aplats neutres, pas d'affiche */
+.th{--s:20px;position:relative;display:block;flex:none;width:var(--s);height:var(--s);border-radius:calc(var(--s)*.22);background:#3a3936;overflow:hidden}
+.th::before,.th::after{content:"";position:absolute}
+.th.s::before{left:0;right:0;bottom:0;height:38%;background:#4f4c47}
+.th.s::after{right:18%;top:18%;width:28%;height:28%;border-radius:50%;background:#8a867d}
+.th.v::before{left:0;bottom:0;width:56%;height:62%;background:#55524c}
+.th.v::after{right:12%;top:14%;width:30%;height:30%;border-radius:2px;background:#8a867d}
+.th.m::before{left:19%;top:19%;width:62%;height:62%;border-radius:50%;border:max(1.5px,calc(var(--s)*.06)) solid #6e6a63}
+.th.m::after{left:43%;top:43%;width:14%;height:14%;border-radius:50%;background:#8a867d}
+.th.dim{opacity:.5}
+/* icône de destination de la dictée (Notes) */
+.app{display:block;flex:none;width:20px;height:20px;border-radius:5px;background:linear-gradient(#e8c24a 0 30%,#f4f1ea 30%)}
+
+/* barres de lecture : trois barres, t2 ; la voix : cinq barres blanches */
+.eq{display:flex;align-items:center;gap:3px;height:12px;color:var(--ink-2)}
+.eq i{display:block;width:2px;height:12px;border-radius:1px;background:currentColor;transform-origin:50% 50%;animation:eq 1.1s ease-in-out infinite alternate}
+.eq i:nth-child(2){animation-duration:.8s;animation-delay:-.4s}
+.eq i:nth-child(3){animation-duration:1.35s;animation-delay:-.8s}
+.eq.flat i{animation:none;transform:scaleY(.25)}
+@keyframes eq{from{transform:scaleY(.25)}to{transform:scaleY(1)}}
+.voice{display:flex;align-items:center;gap:3px;height:20px}
+.voice i{display:block;width:2px;height:16px;border-radius:1px;background:var(--ink);transform-origin:50% 50%;animation:vc .7s ease-in-out infinite alternate}
+.voice i:nth-child(1){animation-delay:-.1s;animation-duration:.62s}
+.voice i:nth-child(2){animation-delay:-.35s;animation-duration:.5s}
+.voice i:nth-child(3){animation-delay:-.2s;animation-duration:.78s}
+.voice i:nth-child(4){animation-delay:-.5s;animation-duration:.58s}
+.voice i:nth-child(5){animation-delay:-.05s;animation-duration:.7s}
+@keyframes vc{from{transform:scaleY(.2)}to{transform:scaleY(.9)}}
+
+/* commandes */
+.b{flex:none;width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--ink-2);transition:background-color .12s,color .12s}
+.b.main{color:var(--ink)}
+.b:hover,.b.hv{background:var(--hov);color:var(--ink)}
+.b svg text{font:600 9px var(--sans);fill:currentColor;stroke:none;text-anchor:middle}
+
+/* progression fine */
+.pg{position:absolute;height:2px;border-radius:1px;background:rgba(236,233,227,.16);overflow:hidden}
+.pg i{display:block;height:100%;background:var(--ink);transform-origin:0 50%;transform:scaleX(.38);animation:pg 240s linear forwards}
+.pg.fz i{animation:none;background:var(--ink-3)}
+@keyframes pg{from{transform:scaleX(.38)}to{transform:scaleX(1)}}
+
+/* texte du ruban */
+.tt{font-size:12.5px;line-height:16px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tx{font-size:13px;line-height:16px;color:var(--ink);white-space:nowrap}
+.tx .g{color:var(--ink-3)}
+
+/* A : ruban */
+.rbA .k{padding:0 6px 3px 14px}
+.rbA .tt{flex:1}
+.rbA .pg{left:14px;right:14px;bottom:4px}
+.hintA{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--ink-3);padding-right:2px}
+
+/* B : languette */
+.lg{position:absolute;left:18px;right:18px;top:42px;display:flex;gap:12px;align-items:flex-start}
+.lg .t1{font-size:13px;line-height:17px;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.lg .t2{margin-top:3px;font-size:11px;line-height:14px;color:var(--ink-3)}
+.lc{position:absolute;left:0;right:0;top:102px;display:flex;justify-content:center;gap:6px}
+.lp{position:absolute;left:20px;right:20px;top:132px;display:flex;align-items:center;gap:8px;font-size:11px;line-height:12px;color:var(--ink-3)}
+.lp .pgw{position:relative;flex:1;height:2px}
+.lp .pgw .pg{left:0;right:0;top:0}
+
+/* B : ruban de dictée, trait figé */
+.rbB .k{padding:0 14px 4px}
+.rbB .pg{left:14px;right:14px;bottom:4px}
+
+/* C : ailes = commandes, ruban = titre */
+.wlC{left:8px;gap:2px}
+.wrC{right:8px;gap:2px;justify-content:flex-end}
+.rbC .k{justify-content:center;padding:0 14px 3px}
+.rbC .pg{left:14px;right:14px;bottom:4px}
+.n.C .wr .eqwrap{position:absolute;right:4px;top:0;height:32px;display:flex;align-items:center}
+
+/* réunion et filet : repris des maquettes existantes */
+.trace{display:flex;flex-direction:column;gap:3px}
+.trace div{display:flex;align-items:center;gap:2px;height:8px}
+.trace i{display:block;width:2px;border-radius:1px;background:var(--ink)}
+.trace div+div i{background:var(--ink-3)}
+.dot6{width:6px;height:6px;border-radius:50%;background:var(--amber);flex:none}
+.tm{font-size:13px;line-height:16px;color:var(--ink);margin-left:8px}
+.stop{width:8px;height:8px;border-radius:2px;background:var(--ink);margin-left:10px}
+.rbF .k{display:block;padding:10px 16px 0}
+.rbF p{font-family:var(--serif);font-size:14px;line-height:20px;color:var(--ink)}
+.rbF .acts{position:absolute;right:12px;bottom:10px;display:flex;gap:6px}
+.btn{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:6px;font-size:12px;color:var(--ink);background:#1d1d1c}
+.kb{margin-left:6px;font:500 10.5px/14px var(--sans);color:var(--ink-3);border:1px solid var(--hair);border-bottom-width:2px;border-radius:4px;padding:0 4px}
+.mark{width:6px;height:6px;border-radius:50%;background:var(--amber)}
+
+.prio{margin-top:8px;font-size:13px;line-height:20px;color:var(--ink-3)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Lecture dans l'encoche</h1>
+  <p class="lede">Trois variantes, quatre états chacune. Scène 1 jouable : survol pour ouvrir (A, B), clic (C)</p>
+  <div id="root"></div>
+</div>
+
+<script>
+/* icônes : un seul trait, couleur du rôle de texte */
+const ic={
+  back:`<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 5a8 8 0 1 1-8 8"/><path d="M15 2l-3 3 3 3"/><text x="12" y="16.3">10</text></svg>`,
+  fwd:`<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 5a8 8 0 1 0 8 8"/><path d="M9 2l3 3-3 3"/><text x="12" y="16.3">10</text></svg>`,
+  pause:`<svg width="20" height="20" viewBox="0 0 24 24"><rect x="7" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="13.4" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/></svg>`,
+  next:`<svg width="20" height="20" viewBox="0 0 24 24"><path d="M6.5 6l9 6-9 6z" fill="currentColor" stroke="none"/><path d="M18.5 6v12"/></svg>`,
+  pz:`<svg width="12" height="12" viewBox="0 0 24 24"><rect x="6" y="4" width="4.2" height="16" rx="1" fill="currentColor" stroke="none"/><rect x="13.8" y="4" width="4.2" height="16" rx="1" fill="currentColor" stroke="none"/></svg>`
+};
+const lab={back:'Reculer de 10 secondes',fwd:'Avancer de 10 secondes',pause:'Pause',next:'Suivant'};
+const btn=(k,c='')=>`<button type="button" class="b ${c}" aria-label="${lab[k]}">${ic[k]}</button>`;
+const TH={A:'s',B:'v',C:'m'};
+const th=(v,s,c='')=>`<i class="th ${TH[v]} ${c}" style="--s:${s}px"></i>`;
+const eq=(c='')=>`<span class="eq ${c}"><i></i><i></i><i></i></span>`;
+const voice=`<span class="voice"><i></i><i></i><i></i><i></i><i></i></span>`;
+const app=`<i class="app"></i>`;
+const pg=(c='')=>`<span class="pg ${c}"><i></i></span>`;
+const TXT='On se voit mercredi pour parler <i class="g">du devis</i>';
+
+const menu=`<div class="menubar"><b>Chrome</b><div class="r"><span class="q">”</span><span>18:42</span></div></div><div class="win"><i></i></div>`;
+
+/* un écran = notch + (ruban) ; flags = congés (l, r) */
+function screen(cfg){
+  const {v,cls,fl,n,rb,rbc='',rbvars='',show=false}=cfg;
+  const flags=(fl.includes('l')?' fl':'')+(fl.includes('r')?' fr':'');
+  return `<div class="screen" data-v="${v}" data-fl="${fl}" ${cfg.play?'data-play="1"':''}>${menu}
+    <div class="n ${v} ${cls}${flags}"><div class="k">${n}</div></div>
+    ${rb?`<div class="rb ${rbc}${show?' show':''}" style="${rbvars}"><div class="k">${rb}</div></div>`:''}
+  </div>`;
+}
+const fig=(num,txt,scr)=>`<figure><figcaption><b>${num}</b>${txt}</figcaption>${scr}</figure>`;
+
+/* ===== A · Ailes ===== */
+const A={
+  rest:(open=false,play=false)=>screen({v:'A',cls:open?'open':'rest',fl:'lr',play,
+    n:`<div class="wl">${th('A',20)}</div><div class="wr">${eq()}</div>`,
+    rb:`<span class="tt">Série — S2 É4</span>${btn('back')}${btn('pause','main'+(open?' hv':''))}${btn('fwd')}${btn('next')}${pg()}`,
+    rbc:'rbA',rbvars:'--rbw:332px;--rbh:38px',show:open}),
+  dict:()=>screen({v:'A',cls:'dict',fl:'lr',
+    n:`<div class="wl">${app}</div><div class="wr">${voice}</div>`,
+    rb:`<span class="tx">${TXT}</span><span class="hintA">${th('A',12,'dim')}${ic.pz}</span>`,
+    rbc:'rbA',rbvars:'--rbw:332px;--rbh:28px',show:true}),
+  none:()=>screen({v:'A',cls:'none',fl:'',n:''})
+};
+/* ===== B · Goutte ===== */
+const Bopen=`<div class="lg">${th('B',52)}<div><div class="t1">Un titre de vidéo assez long, sur deux lignes</div><div class="t2">Vidéo YouTube</div></div></div>
+  <div class="lc">${btn('back')}${btn('pause','main hv')}${btn('fwd')}${btn('next')}</div>
+  <div class="lp"><span>18:20</span><span class="pgw">${pg()}</span><span>−23:50</span></div>`;
+const B={
+  rest:(open=false,play=false)=>screen({v:'B',cls:open?'open':'rest',fl:open?'lr':'l',play,
+    n:`<div class="wl r">${th('B',22)}</div><div class="o">${Bopen}</div>`}),
+  dict:()=>screen({v:'B',cls:'dict',fl:'lr',
+    n:`<div class="wl">${app}</div><div class="wr">${voice}</div>`,
+    rb:`<span class="tx">${TXT}</span>${pg('fz')}`,
+    rbc:'rbB',rbvars:'--rbw:332px;--rbh:30px',show:true}),
+  none:()=>screen({v:'B',cls:'none',fl:'',n:''})
+};
+/* ===== C · Minimal ===== */
+const C={
+  rest:(open=false,play=false)=>screen({v:'C',cls:open?'open':'rest',fl:open?'lr':'r',play,
+    n:`<div class="wl wlC o">${btn('back')}${btn('pause','main'+(open?' hv':''))}</div>
+       <div class="wr wrC o">${btn('fwd')}${btn('next')}</div>
+       <div class="wr r" style="right:14px">${eq()}</div>`,
+    rb:`<span class="tt">Musique — Titre du morceau</span>${pg()}`,
+    rbc:'rbC',rbvars:'--rbw:332px;--rbh:30px',show:open}),
+  dict:()=>screen({v:'C',cls:'dict',fl:'lr',
+    n:`<div class="wl">${app}</div><div class="wr">${voice}</div>`,
+    rb:`<span style="margin-right:8px;display:flex">${eq('flat')}</span><span class="tx" style="margin-right:auto">${TXT}</span>`,
+    rbc:'rbC',rbvars:'--rbw:332px;--rbh:28px',show:true}),
+  none:()=>screen({v:'C',cls:'none',fl:'',n:''})
+};
+/* règles de la page : le rubans de dictée de C est aligné à gauche */
+const grid4=(V,t)=>`<div class="grid">
+  ${fig('1',t[0],V.rest(false,true))}
+  ${fig('2',t[1],V.rest(true))}
+  ${fig('3',t[2],V.dict())}
+  ${fig('4',t[3],V.none())}
+</div>`;
+const sec=(id,h,sub,body)=>`<section class="sec" id="${id}"><h2>${h}<span>${sub}</span></h2>${body}</section>`;
+
+/* cohabitation */
+const trace=`<span class="trace"><div><i style="height:3px"></i><i style="height:6px"></i><i style="height:8px"></i><i style="height:5px"></i><i style="height:7px"></i><i style="height:4px"></i><i style="height:3px"></i><i style="height:6px"></i></div><div><i style="height:5px"></i><i style="height:3px"></i><i style="height:7px"></i><i style="height:4px"></i><i style="height:6px"></i><i style="height:8px"></i><i style="height:4px"></i><i style="height:3px"></i></div></span>`;
+const meetScreen=screen({v:'A',cls:'meet',fl:'lr',
+  n:`<div class="wl"><span class="dot6"></span><span class="tm">12:48</span></div><div class="wr">${trace}<span class="stop"></span></div>`});
+const filetScreen=(h=>h.replace('class="screen"','class="screen nm"'))(screen({v:'A',cls:'filet',fl:'lr',
+  n:`<div class="wl" style="left:16px">${app}</div><div class="wr" style="right:18px"><span class="mark"></span></div>`,
+  rb:`<p>Bonjour Madame Martin, je vous confirme le rendez-vous de jeudi à dix heures. À plus tard.</p><div class="acts"><span class="btn">Coller ici<i class="kb">↵</i></span><span class="btn">Copier<i class="kb">⌘C</i></span></div>`,
+  rbc:'rbF',rbvars:'--rbw:428px;--rbh:92px',show:true}));
+
+document.getElementById('root').innerHTML=
+ sec('a','A · Ailes','tout dans les ailes ; ouvert, un ruban sous l\'encoche',
+   grid4(A,['Au repos — vignette à gauche, barres à droite, rien d\'autre','Ouvert — le ruban porte titre, commandes et progression','Dictée — les ailes reviennent à la dictée, pause signalée en bout de ruban','Rien ne joue — l\'encoche normale']))+
+ sec('b','B · Goutte','une vignette seule au repos ; ouvert, une languette qui tombe de l\'encoche',
+   grid4(B,['Au repos — une goutte à gauche, la vignette seule','Ouvert — grande vignette, titre sur 2 lignes, commandes, temps','Dictée — la goutte rentre, un trait de progression figé sous le texte','Rien ne joue — l\'encoche normale']))+
+ sec('c','C · Minimal','trois barres et rien d\'autre ; ouvert au clic seulement',
+   grid4(C,['Au repos — trois barres dans l\'aile droite (clic pour ouvrir)','Ouvert au clic — commandes dans les ailes, titre dans le ruban','Dictée — trois barres à plat au début du ruban','Rien ne joue — l\'encoche normale']))+
+ sec('d','Cohabitation','valable pour A, B et C ; priorité : dictée, réunion, filet, lecture',
+   `<div class="grid">
+     ${fig('5','Réunion en cours — la réunion garde l\'encoche, la lecture ne s\'affiche pas',meetScreen)}
+     ${fig('6','Filet de sécurité ouvert — le ruban sert au filet, la lecture attend',filetScreen)}
+   </div>`);
+
+/* jouable : scène 1 de chaque variante */
+document.querySelectorAll('.screen[data-play]').forEach(sc=>{
+  const n=sc.querySelector('.n'), rb=sc.querySelector('.rb'), v=sc.dataset.v, base=sc.dataset.fl;
+  let t=0;
+  const set=on=>{
+    n.classList.toggle('open',on); n.classList.toggle('rest',!on);
+    const f=on?'lr':base; n.classList.toggle('fl',f.includes('l')); n.classList.toggle('fr',f.includes('r'));
+    if(rb) rb.classList.toggle('show',on);
+  };
+  if(v==='C'){ n.addEventListener('click',e=>{e.stopPropagation();set(!n.classList.contains('open'))}); sc.addEventListener('click',()=>set(false)); }
+  else{
+    const enter=()=>{clearTimeout(t);set(true)}, leave=()=>{clearTimeout(t);t=setTimeout(()=>set(false),160)};
+    [n,rb].forEach(e=>{if(e){e.addEventListener('mouseenter',enter);e.addEventListener('mouseleave',leave)}});
+  }
+});
+/* aperçu partiel : ?only=cd montre les sections c et d ; b3 = scène 3 de b */
+(()=>{const o=new URLSearchParams(location.search).get('only');if(!o)return;
+  document.querySelectorAll('.sec').forEach(e=>{if(!o.includes(e.id))e.style.display='none'});
+  if(o.includes('b3'))document.querySelectorAll('#b figure').forEach((f,i)=>{if(i!==2)f.style.display='none'});
+  document.querySelector('.lede').style.display='none';})();
+</script>
+</body>
+</html>

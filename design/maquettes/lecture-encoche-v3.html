@@ -1,0 +1,499 @@
+<!doctype html>
+<!--
+DIRECTION v3 « A + C » : la lecture en cours dans l'encoche de Verbe, façon Dynamic Island.
+Mélange voulu par Hugues : pochette et mise en page de A, trace sonore + lueur + bulle détachée de C.
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbe — lecture dans l'encoche, v3</title>
+<style>
+:root{
+  --desk:#0b0b0b; --ink:#ece9e3; --ink-2:#a8a59e; --ink-3:#88857e; --hair:rgba(236,233,227,.09);
+  --amber:#e6a04a;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--desk);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;padding:20px 24px 80px}
+.wrap{max-width:1142px;margin:0 auto}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block}
+h1{font-size:15px;line-height:20px;font-weight:500}
+.lede{margin-top:4px;font-size:13px;line-height:20px;color:var(--ink-3)}
+.dir{margin-top:44px;padding-top:16px;border-top:1px solid var(--hair)}
+.dir>h2{display:flex;align-items:baseline;gap:12px;font-size:17px;line-height:22px;font-weight:600}
+.dir>h2 span{font-size:13px;font-weight:400;color:var(--ink-3)}
+figure{margin-top:0}
+figcaption{margin:22px 0 8px;font-size:13px;line-height:20px;color:var(--ink-3)}
+figcaption b{color:var(--ink);font-weight:500;margin-right:8px}
+.lb{margin-top:6px;font-size:12px;line-height:16px;color:var(--ink-3);text-align:center}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+
+/* ---------- l'écran : fond d'écran + barre des menus + fenêtre Chrome ---------- */
+.scr-f{position:relative;height:var(--fh,120px);overflow:hidden;border-radius:14px;
+  background:radial-gradient(120% 100% at 14% 0%,#34456a 0,transparent 58%),radial-gradient(90% 90% at 92% 100%,#4a3560 0,transparent 55%),#181c27;
+  box-shadow:0 0 0 1px var(--hair)}
+.mb{position:absolute;left:0;right:0;top:0;height:32px;background:rgba(0,0,0,.30);display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:12.5px;color:rgba(236,233,227,.78)}
+.mb b{font-weight:600;color:#fff;margin-right:16px}
+.mb span{margin-right:14px}
+.mb .rt{margin:0;color:rgba(236,233,227,.7)}
+.narrow .mb>*{visibility:hidden}
+.narrow .win{top:58px}
+.narrow .win::after{display:none}
+.win{position:absolute;left:28px;right:28px;top:70px;bottom:0;border-radius:12px 12px 0 0;background:rgba(14,16,22,.62);box-shadow:0 0 0 1px rgba(255,255,255,.07)}
+.win::before{content:"";position:absolute;left:0;right:0;top:0;height:30px;border-radius:12px 12px 0 0;background:rgba(255,255,255,.05)}
+.win::after{content:"";position:absolute;left:14px;top:11px;width:44px;height:8px;border-radius:4px;background:
+  radial-gradient(circle at 4px 4px,#6b6f78 3.5px,transparent 4px),radial-gradient(circle at 20px 4px,#6b6f78 3.5px,transparent 4px),radial-gradient(circle at 36px 4px,#6b6f78 3.5px,transparent 4px);opacity:.7}
+.st{position:absolute;left:16px;bottom:10px;z-index:2;font-size:12px;line-height:16px;color:var(--ink-2);display:flex;align-items:center;gap:7px}
+.st i{display:block;width:6px;height:6px;border-radius:50%;background:var(--ink-3)}
+.st.on i{background:#6ccf8a}
+
+/* ---------- l'îlot : une seule forme noire ---------- */
+.isl{position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:5;width:312px;height:38px;color:#fff;--t:#4aa3ff;--t2:#2f6fe0}
+.isl::before{content:"";position:absolute;inset:-8px -14px -10px;}
+.shape{position:absolute;inset:0;background:#000;overflow:hidden;border-radius:0 0 19px 19px;
+  box-shadow:0 0 0 .5px rgba(255,255,255,.08),0 18px 44px -8px rgba(0,0,0,.6)}
+.ear{position:absolute;top:0;width:10px;height:10px;opacity:0}
+.ear.l{left:-10px;background:radial-gradient(circle at 0 100%,transparent 9.5px,#000 10px)}
+.ear.r{right:-10px;background:radial-gradient(circle at 100% 100%,transparent 9.5px,#000 10px)}
+.abs{position:absolute}
+
+.amb{position:absolute;inset:0;opacity:0;pointer-events:none;filter:blur(26px) saturate(1.5)}
+.amb svg{position:absolute;width:100%;height:100%;transform:scale(1.5)}
+.v-M .amb{-webkit-mask-image:radial-gradient(55% 120% at 15% 50%,#000,transparent 80%);mask-image:radial-gradient(55% 120% at 15% 50%,#000,transparent 80%)}
+
+.art{position:absolute;overflow:hidden;background:#1b1b1b;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10);transform:translateZ(0)}
+.art svg{width:100%;height:100%}
+.art.pop{animation:pop .42s cubic-bezier(.3,1.6,.5,1)}
+@keyframes pop{from{transform:scale(.86)}to{transform:scale(1)}}
+.v-M.alb.playing .art svg{animation:spin 26s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.isl.resume .art{animation:ring 1.3s ease-out}
+@keyframes ring{0%{box-shadow:inset 0 0 0 1px rgba(255,255,255,.1),0 0 0 0 var(--t)}100%{box-shadow:inset 0 0 0 1px rgba(255,255,255,.1),0 0 0 11px transparent}}
+
+/* trace sonore au repos : teintée par la pochette */
+.wv{position:absolute;display:flex;align-items:center;justify-content:center;gap:3px;height:22px;filter:drop-shadow(0 0 5px var(--t))}
+.wv i{display:block;width:3.5px;height:100%;border-radius:2px;background:linear-gradient(to top,var(--t2),var(--t));transform:scaleY(.3);animation:eq 1.05s ease-in-out infinite alternate}
+.wv i:nth-child(2){animation-duration:.74s;animation-delay:-.3s}
+.wv i:nth-child(3){animation-duration:1.3s;animation-delay:-.7s}
+.wv i:nth-child(4){animation-duration:.86s;animation-delay:-.5s}
+.wv i:nth-child(5){animation-duration:1.15s;animation-delay:-.15s}
+.wv i:nth-child(6){animation-duration:.7s;animation-delay:-.6s}
+.wv i:nth-child(7){animation-duration:1.25s;animation-delay:-.2s}
+.wv i:nth-child(8){animation-duration:.95s;animation-delay:-.45s}
+.wv i:nth-child(9){animation-duration:.8s;animation-delay:-.1s}
+@keyframes eq{from{transform:scaleY(.22)}to{transform:scaleY(1)}}
+.wv.sine{display:block;width:50px;height:24px;overflow:hidden}
+.wv.sine svg{width:100%;height:100%;overflow:visible}
+.wv.sine .fl{animation:flow 1.5s linear infinite}
+.wv.sine .am{transform-origin:50% 50%;animation:amp 1.2s ease-in-out infinite alternate}
+@keyframes flow{to{transform:translateX(-30px)}}
+@keyframes amp{from{transform:scaleY(.35)}to{transform:scaleY(1)}}
+.isl:not(.playing) .wv i,.isl:not(.playing) .wv.sine .fl,.isl:not(.playing) .wv.sine .am{animation-play-state:paused}
+.isl:not(.playing) .wv i{transform:scaleY(.25)}
+
+/* ---------- contenu déplié ---------- */
+.oc{position:absolute;top:0;left:50%;opacity:0;pointer-events:none;transform-origin:50% 0}
+.oc .abs{white-space:nowrap}
+.wl,.wr{position:absolute;top:0;height:38px;display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+.live{display:block;width:6px;height:6px;border-radius:50%;background:var(--t);box-shadow:0 0 9px var(--t);animation:lv 1.6s ease-in-out infinite}
+@keyframes lv{50%{opacity:.35}}
+.isl:not(.playing) .live{animation:none;opacity:.4}
+.ttl{font-size:18px;line-height:24px;font-weight:600;letter-spacing:-.012em;color:#fff;overflow:hidden;text-overflow:ellipsis}
+.sub{font-size:13px;line-height:18px;color:var(--ink-2);display:flex;align-items:center;gap:6px}
+.sub u{display:block;width:11px;height:11px;border-radius:50%;border:1.5px solid var(--ink-3);text-decoration:none}
+.scr{position:absolute;height:28px;cursor:pointer;touch-action:none}
+.trk{position:absolute;left:0;right:0;top:11px;height:6px;border-radius:3px;background:rgba(255,255,255,.18);transition:height .15s,top .15s}
+.trk i{display:block;height:100%;border-radius:inherit;background:#fff;transform-origin:0 50%}
+.scr:hover .trk,.scr.drag .trk{height:10px;top:9px}
+.kn{position:absolute;top:6px;width:16px;height:16px;border-radius:50%;background:#fff;margin-left:-8px;opacity:0;transform:scale(.4);transition:opacity .15s,transform .15s;box-shadow:0 1px 6px rgba(0,0,0,.5)}
+.scr:hover .kn,.scr.drag .kn{opacity:1;transform:scale(1)}
+.tm{position:absolute;display:flex;justify-content:space-between;font-size:12px;line-height:16px;color:var(--ink-3)}
+.tm b{font-weight:400}
+/* barre de lecture en trace sonore (C) */
+.wf{height:34px;cursor:pointer}
+.wf .bars{position:absolute;inset:0;display:flex;align-items:center;gap:2px}
+.wf .bars s{display:block;flex:1;border-radius:1.5px;background:rgba(255,255,255,.2);min-width:2px}
+.wf .bars.on{clip-path:inset(0 calc(100% - var(--pr,0%)) 0 0)}
+.wf .bars.on s{background:linear-gradient(to top,var(--t2),var(--t))}
+.wf .bars.on{filter:drop-shadow(0 0 4px var(--t))}
+.wf .cur{position:absolute;top:-1px;bottom:-1px;width:2px;border-radius:1px;background:#fff;margin-left:-1px;opacity:0;transition:opacity .15s}
+.wf:hover .cur,.wf.drag .cur{opacity:1}
+.wf.drag .bars{transform:scaleY(1.12)}
+.wf .bars{transition:transform .15s}
+
+.ctl{position:absolute;display:flex;align-items:center;justify-content:center}
+.bt{display:grid;place-items:center;border-radius:50%;background:rgba(255,255,255,.09);color:#fff;transition:background-color .12s,transform .1s}
+.bt:hover{background:rgba(255,255,255,.18)}
+.bt:active{transform:scale(.9)}
+.bt.pl{background:#fff;color:#000}
+.bt.pl:hover{background:#e9e9e9}
+.bt svg{pointer-events:none}
+.ic-pause{display:none}
+.isl.playing .ip{display:none}
+.isl.playing .ic-pause{display:block}
+
+/* ---------- dictée : prend la place de la lecture ---------- */
+.dl{position:absolute;inset:0;opacity:0;pointer-events:none}
+.notes{position:absolute;left:14px;top:6px;width:26px;height:26px;border-radius:7px;background:linear-gradient(#e8c24a 0 30%,#f4f1ea 30%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.notes::after{content:"";position:absolute;left:5px;right:5px;top:13px;height:2px;border-radius:1px;background:#c9c5bb;box-shadow:0 5px 0 #c9c5bb}
+.vc{position:absolute;right:18px;top:9px;display:flex;align-items:center;gap:3px;height:20px}
+.vc i{display:block;width:2px;height:16px;border-radius:1px;background:#fff;animation:vc .7s ease-in-out infinite alternate}
+.vc i:nth-child(1){animation-delay:-.1s;animation-duration:.62s}
+.vc i:nth-child(2){animation-delay:-.35s;animation-duration:.5s}
+.vc i:nth-child(3){animation-delay:-.2s;animation-duration:.78s}
+.vc i:nth-child(4){animation-delay:-.5s;animation-duration:.58s}
+.vc i:nth-child(5){animation-delay:-.05s;animation-duration:.7s}
+@keyframes vc{from{transform:scaleY(.2)}to{transform:scaleY(.95)}}
+.dtx{position:absolute;left:20px;right:20px;top:43px;font-size:13px;line-height:18px;color:#fff;white-space:nowrap;overflow:hidden}
+.dtx .g{color:#7d7a74}
+.dtx .cr{display:inline-block;width:1.5px;height:13px;vertical-align:-2px;margin-left:2px;background:var(--amber);animation:cr 1s steps(2) infinite}
+@keyframes cr{50%{opacity:0}}
+.pz{position:absolute;right:16px;top:44px;width:18px;height:18px;border-radius:5px;overflow:hidden}
+.pz svg.a{width:100%;height:100%;opacity:.45}
+.pz .pp{position:absolute;inset:0;display:grid;place-items:center}
+.has-pz .dtx{right:46px}
+.bub{position:absolute;top:1px;z-index:5;width:36px;height:36px;border-radius:50%;background:#000;opacity:0;box-shadow:0 0 0 .5px rgba(255,255,255,.08),0 12px 28px -6px rgba(0,0,0,.6);overflow:hidden;pointer-events:none}
+.bub .a2{position:absolute;inset:4px;border-radius:50%;overflow:hidden}
+.bub .a2 svg{width:100%;height:100%;opacity:.5}
+.bub .pp{position:absolute;inset:0;display:grid;place-items:center}
+
+/* ---------- positions du contenu déplié (A + C) ---------- */
+.v-M .wl{left:28px}
+.v-M .wr{right:30px}
+.v-M .ttl{left:196px;top:52px;width:376px}
+.v-M .sub{left:196px;top:78px}
+.v-M .wf{left:196px;top:106px;width:376px}
+.v-M .tm{left:196px;top:144px;width:376px}
+.v-M .ctl{left:196px;top:166px;width:376px;height:58px;gap:14px}
+.v-M .bt{width:52px;height:52px}.v-M .bt.pl{width:62px;height:62px}
+
+/* ---------- commandes de la page ---------- */
+.row{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;font-size:13px;color:var(--ink-3)}
+.chip{padding:5px 12px;border-radius:999px;background:#161616;box-shadow:0 0 0 1px var(--hair);color:var(--ink-2);font-size:12.5px;line-height:18px;cursor:pointer;transition:background-color .12s,color .12s}
+.chip:hover{background:#202020;color:var(--ink)}
+.chip.on{background:var(--ink);color:#0b0b0b}
+.chip:active{transform:scale(.96)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:300px;height:4px;border-radius:2px;background:#2a2a28;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--ink);cursor:pointer}
+label.sw{display:flex;align-items:center;gap:6px;cursor:pointer}
+</style>
+</head>
+<body>
+
+<!-- Contenus fictifs : formes, lumière, couleurs. Aucune marque, aucune affiche réelle. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+  <linearGradient id="gs1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050d1b"/><stop offset=".5" stop-color="#12406c"/><stop offset="1" stop-color="#0a2037"/></linearGradient>
+  <radialGradient id="gs2" cx=".68" cy=".3" r=".5"><stop offset="0" stop-color="#cdeaff" stop-opacity=".95"/><stop offset=".3" stop-color="#4aa3ff" stop-opacity=".5"/><stop offset="1" stop-color="#4aa3ff" stop-opacity="0"/></radialGradient>
+  <linearGradient id="gs3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fd0ff" stop-opacity=".0"/><stop offset="1" stop-color="#8fd0ff" stop-opacity=".28"/></linearGradient>
+  <linearGradient id="gy1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2a0c66"/><stop offset=".5" stop-color="#ff2e88"/><stop offset="1" stop-color="#ffa22e"/></linearGradient>
+  <linearGradient id="gy2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6b0"/><stop offset=".55" stop-color="#ff9a3a"/><stop offset="1" stop-color="#ff3f7f"/></linearGradient>
+  <radialGradient id="ga1" cx=".5" cy=".28" r=".85"><stop offset="0" stop-color="#ffd48f"/><stop offset=".45" stop-color="#ee7a3d"/><stop offset="1" stop-color="#6e1f2c"/></radialGradient>
+  <radialGradient id="ga2" cx=".5" cy=".4" r=".6"><stop offset="0" stop-color="#fff4da"/><stop offset="1" stop-color="#ffc98a"/></radialGradient>
+
+  <symbol id="art-s" viewBox="0 0 160 160" preserveAspectRatio="xMidYMid slice">
+    <rect width="160" height="160" fill="url(#gs1)"/>
+    <rect width="160" height="160" fill="url(#gs2)"/>
+    <circle cx="108" cy="47" r="9" fill="#eef8ff"/>
+    <path d="M0 106 L26 82 L50 100 L84 66 L118 98 L142 84 L160 96 V160 H0Z" fill="#0b2744"/>
+    <path d="M0 106 L26 82 L50 100 L84 66 L118 98 L142 84 L160 96 V112 H0Z" fill="url(#gs3)"/>
+    <path d="M0 130 L34 106 L68 126 L104 100 L160 132 V160 H0Z" fill="#06182b"/>
+    <path d="M52 140 L52 128 L62 121 L72 128 L72 140Z" fill="#050f1c"/>
+    <rect x="58" y="130" width="5" height="5" fill="#ffb347"/>
+    <ellipse cx="80" cy="150" rx="90" ry="14" fill="#4aa3ff" opacity=".13"/>
+  </symbol>
+  <symbol id="art-y" viewBox="0 0 160 160" preserveAspectRatio="xMidYMid slice">
+    <rect width="160" height="160" fill="url(#gy1)"/>
+    <circle cx="80" cy="78" r="46" fill="url(#gy2)"/>
+    <g fill="#c4287a" opacity=".92"><rect x="30" y="86" width="100" height="3"/><rect x="30" y="96" width="100" height="4.5"/><rect x="30" y="107" width="100" height="6"/></g>
+    <path d="M0 118 H12 V100 H26 V122 H34 V92 H48 V126 H60 V108 H72 V128 H86 V96 H98 V124 H112 V104 H124 V130 H138 V112 H160 V160 H0Z" fill="#14052f"/>
+    <g fill="#00e5ff"><rect x="16" y="106" width="3" height="3"/><rect x="38" y="100" width="3" height="3"/><rect x="38" y="112" width="3" height="3"/><rect x="90" y="104" width="3" height="3"/><rect x="90" y="114" width="3" height="3"/><rect x="116" y="112" width="3" height="3"/><rect x="64" y="116" width="3" height="3"/></g>
+    <path d="M-4 34 L72 12" stroke="#00e5ff" stroke-width="2.4" stroke-linecap="round" opacity=".9"/>
+    <path d="M96 20 L170 42" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>
+    <path d="M110 30 L164 62" stroke="#00e5ff" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+  </symbol>
+  <symbol id="art-a" viewBox="0 0 160 160" preserveAspectRatio="xMidYMid slice">
+    <rect width="160" height="160" fill="url(#ga1)"/>
+    <g fill="none" stroke="#fff1d6" stroke-opacity=".38"><circle cx="80" cy="84" r="34" stroke-width="1.4"/><circle cx="80" cy="84" r="50" stroke-width="1.2"/><circle cx="80" cy="84" r="66" stroke-width="1"/><circle cx="80" cy="84" r="84" stroke-width=".9"/></g>
+    <circle cx="80" cy="84" r="24" fill="url(#ga2)"/>
+    <path d="M0 132 C26 116 52 142 82 126 S134 112 160 128 V160 H0Z" fill="#3a1220" opacity=".62"/>
+    <path d="M0 144 C30 132 56 152 88 140 S138 128 160 142 V160 H0Z" fill="#240a16" opacity=".8"/>
+  </symbol>
+</defs>
+</svg>
+
+<div class="wrap">
+  <h1>Verbe — la lecture en cours dans l'encoche, v3 (A + C)</h1>
+  <p class="lede">Un seul îlot : pochette de A, trace sonore, lueur et bulle de dictée de C. Survolez ou cliquez la scène « Transition ».</p>
+  <div id="app"></div>
+</div>
+
+<script>
+/* =========================================================
+   Données
+   ========================================================= */
+const CONTENTS=[
+  {k:'s',art:'art-s',kind:'Série',title:'Série · S2 É4 · Le Retour',src:'Chrome · YouTube',dur:2530,t:724,t1:'#5ab0ff',t2:'#2a6ee0',alb:false},
+  {k:'y',art:'art-y',kind:'Vidéo',title:'Vlog — Tokyo la nuit',src:'Chrome · YouTube',dur:1126,t:312,t1:'#ff4d9a',t2:'#ff9a2e',alb:false},
+  {k:'a',art:'art-a',kind:'Album',title:'Album · Titre 3',src:'Chrome · Musique',dur:214,t:96,t1:'#ff9d52',t2:'#e8453c',alb:true}
+];
+const CFG={
+  M:{rest:{w:332,h:38,r:19,art:{x:12,y:4,w:30,h:30,r:9},wave:{rx:12,top:7}},
+     open:{w:600,h:228,r:48,art:{x:30,y:60,w:140,h:140,r:30},wave:{rx:12,top:7}},
+     dict:{w:344,h:70,r:26},W1:600,waveStays:true,amb:.42,sub:'src',pz:false}
+};
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let SLOW=1;
+
+/* =========================================================
+   Ressort : part toujours de la valeur affichée, garde la vitesse
+   ========================================================= */
+class Spring{
+  constructor(v,r,z){this.x=v;this.v=0;this.t=v;this.r=RM?.16:r;this.z=RM?1:z}
+  step(dt){
+    const w=2*Math.PI/this.r,k=w*w,c=2*this.z*w,n=Math.max(1,Math.ceil(dt*240)),h=dt/n;
+    for(let i=0;i<n;i++){const a=k*(this.t-this.x)-c*this.v;this.v+=a*h;this.x+=this.v*h}
+  }
+  get done(){return Math.abs(this.t-this.x)<.0004&&Math.abs(this.v)<.002}
+  jump(v){this.x=this.t=v;this.v=0}
+}
+const clamp=(v,a=0,b=1)=>Math.min(b,Math.max(a,v));
+const sm=v=>{v=clamp(v);return v*v*(3-2*v)};
+const fmt=s=>{s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+
+/* =========================================================
+   Icônes
+   ========================================================= */
+const IC={
+  back:'<svg viewBox="0 0 28 28" width="28" height="28"><path d="M14 6.5V3L8.5 7.5 14 12V8.5a7 7 0 1 1-7 7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><text x="14" y="19.4" text-anchor="middle" font-size="8.4" font-weight="700" fill="currentColor" font-family="-apple-system,system-ui">10</text></svg>',
+  fwd:'<svg viewBox="0 0 28 28" width="28" height="28"><path d="M14 6.5V3l5.5 4.5L14 12V8.5a7 7 0 1 0 7 7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><text x="14" y="19.4" text-anchor="middle" font-size="8.4" font-weight="700" fill="currentColor" font-family="-apple-system,system-ui">10</text></svg>',
+  play:'<svg viewBox="0 0 28 28" width="30" height="30"><path class="ip" d="M10 6.6v14.8a1 1 0 0 0 1.5.86l12-7.4a1 1 0 0 0 0-1.72l-12-7.4A1 1 0 0 0 10 6.6z" fill="currentColor"/><g class="ic-pause" fill="currentColor"><rect x="7.5" y="6" width="4.6" height="16" rx="1.6"/><rect x="15.9" y="6" width="4.6" height="16" rx="1.6"/></g></svg>',
+  next:'<svg viewBox="0 0 28 28" width="28" height="28"><path d="M6.5 7v14a1 1 0 0 0 1.5.86l11-7a1 1 0 0 0 0-1.72l-11-7A1 1 0 0 0 6.5 7z" fill="currentColor"/><rect x="20.5" y="6.5" width="3" height="15" rx="1.4" fill="currentColor"/></svg>',
+  pause:'<svg viewBox="0 0 10 10" width="9" height="9"><rect x="1.6" y="1" width="2.3" height="8" rx=".9" fill="#fff"/><rect x="6.1" y="1" width="2.3" height="8" rx=".9" fill="#fff"/></svg>'
+};
+const useArt=id=>`<svg viewBox="0 0 160 160" preserveAspectRatio="xMidYMid slice"><use href="#${id}"/></svg>`;
+
+/* =========================================================
+   L'îlot
+   ========================================================= */
+const ISLANDS=[];
+class Island{
+  constructor(host,v,o){
+    this.v=v;this.c=CFG[v];this.host=host;this.live=!!o.live;this.pinned=false;this.hover=false;
+    this.playing=o.playing!==false;this.ci=o.content||0;this.dragging=false;this.press=null;
+    const c=this.c;
+    const wv=v==='M'
+      ?'<div class="wv sine"><svg viewBox="0 0 30 24" preserveAspectRatio="none"><g class="am"><g class="fl"><path d="M0 12 C3.75 -2 11.25 -2 15 12 S26.25 26 30 12 S41.25 -2 45 12 S56.25 26 60 12" fill="none" stroke="var(--t)" stroke-width="2.4" stroke-linecap="round"/></g></g></svg></div>'
+      :'<div class="wv">'+'<i></i>'.repeat(v==='A'?5:9)+'</div>';
+    let bars='';for(let i=0;i<54;i++){const h=.22+.78*Math.abs(Math.sin(i*1.7)*Math.cos(i*.43)+.15*Math.sin(i*5.1));bars+=`<s style="height:${Math.min(100,h*100).toFixed(0)}%"></s>`}
+    const scrub=v==='M'
+      ?`<div class="scr wf abs"><div class="bars"><!--b-->${bars}</div><div class="bars on">${bars}</div><div class="cur"></div></div>`
+      :`<div class="scr abs"><div class="trk"><i></i></div><u class="kn"></u></div>`;
+    const oc=`<div class="oc" style="width:${c.W1}px;height:${c.open.h}px;margin-left:${-c.W1/2}px">
+      <div class="wl"><i class="live"></i><span>En lecture</span></div>
+      
+      <div class="ttl abs"></div><div class="sub abs"></div>
+      ${scrub}
+      <div class="tm"><b class="el"></b><b class="rm"></b></div>
+      <div class="ctl"><button class="bt" data-a="back" aria-label="Reculer de 10 secondes">${IC.back}</button><button class="bt pl" data-a="pl" aria-label="Lecture / pause">${IC.play}</button><button class="bt" data-a="fwd" aria-label="Avancer de 10 secondes">${IC.fwd}</button><button class="bt" data-a="next" aria-label="Suivant">${IC.next}</button></div>
+    </div>`;
+    const dl=`<div class="dl"><i class="notes"></i><div class="vc"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="dtx">Je te rappelle demain pour <span class="g">confirmer</span><i class="cr"></i></div>
+      ${c.pz?`<div class="pz"><div class="a"></div><div class="pp">${IC.pause}</div></div>`:''}</div>`;
+    host.insertAdjacentHTML('beforeend',`<div class="isl v-${v}"><i class="ear l"></i><i class="ear r"></i>
+      <div class="shape"><div class="amb"></div><div class="art"></div><div class="wvh"></div>${oc}${dl}</div></div>
+      ${v==='M'?`<div class="bub"><div class="a2"></div><div class="pp">${IC.pause}</div></div>`:''}`);
+    this.el=host.querySelector('.isl');
+    this.shape=this.el.querySelector('.shape');
+    this.ears=this.el.querySelectorAll('.ear');
+    this.amb=this.el.querySelector('.amb');
+    this.art=this.el.querySelector('.art');
+    this.wvh=this.el.querySelector('.wvh');this.wvh.outerHTML=wv;
+    this.wv=this.el.querySelector('.wv');
+    this.oc=this.el.querySelector('.oc');
+    this.dl=this.el.querySelector('.dl');
+    this.pz=this.el.querySelector('.pz .a');
+    this.bub=host.querySelector('.bub');
+    this.q=s=>this.oc.querySelector(s);
+    this.st=host.querySelector('.st');
+    // ressorts : forme (avec un peu de rebond à l'ouverture), dictée
+    this.p=new Spring(o.state==='open'?1:0,.5,.72);
+    this.d=new Spring(o.state==='dict'?1:0,.42,.82);
+    this.p.t=this.p.x;this.d.t=this.d.x;
+    this.setContent(this.ci,true);
+    this.bind();
+    ISLANDS.push(this);this.render();
+  }
+  setContent(i,silent){
+    this.ci=i;const k=CONTENTS[i];this.k=k;this.t=k.t;
+    this.el.style.setProperty('--t',k.t1);this.el.style.setProperty('--t2',k.t2);
+    const a=useArt(k.art);
+    this.art.innerHTML=a;this.amb.innerHTML=a;if(this.pz)this.pz.innerHTML=a;
+    const a2=this.bub&&this.bub.querySelector('.a2');if(a2)a2.innerHTML=a;
+    this.q('.ttl').textContent=k.title;
+    this.q('.sub').innerHTML=this.c.sub==='kind'?k.kind:'<u></u>'+k.src;
+    const wr=this.q('.wr');if(wr)wr.textContent=k.src;
+    this.el.classList.toggle('alb',k.alb);
+    this.el.classList.toggle('playing',this.playing);
+    if(!silent){this.art.classList.remove('pop');void this.art.offsetWidth;this.art.classList.add('pop')}
+    this.fresh=0;this.tick(0);
+  }
+  setPlaying(b){this.playing=b;this.el.classList.toggle('playing',b)}
+  open(b){this.p.t=b?1:0;this.p.z=RM?1:(b?.7:.86)}
+  setDict(b){this.d.t=b?1:0}
+  tick(dt){
+    if(this.playing&&!this.dragging)this.t=Math.min(this.k.dur,this.t+dt);
+    const f=this.t/this.k.dur;
+    this.q('.el').textContent=fmt(this.t);
+    this.q('.rm').textContent='−'+fmt(this.k.dur-this.t);
+    const fl=this.q('.trk i');
+    if(fl){fl.style.transform=`scaleX(${f})`;this.q('.kn').style.left=(f*100)+'%'}
+    const on=this.q('.bars.on');
+    if(on){on.style.setProperty('--pr',(f*100)+'%');this.q('.cur').style.left=(f*100)+'%'}
+  }
+  render(){
+    const c=this.c,r=c.rest,o=c.open,P=this.p.x,D=this.d.x;
+    const L=(a,b)=>a+(b-a)*P;
+    let w=L(r.w,o.w),h=L(r.h,o.h),rad=L(r.r,o.r);
+    w+=(c.dict.w-w)*D;h+=(c.dict.h-h)*D;rad+=(c.dict.r-rad)*D;
+    w=Math.max(w,r.w*.96);h=Math.max(h,r.h*.96);
+    this.el.style.width=w+'px';this.el.style.height=h+'px';
+    this.shape.style.borderRadius=`0 0 ${Math.min(rad,h/2+12)}px ${Math.min(rad,h/2+12)}px`;
+    const A=this.art.style;
+    A.left=L(r.art.x,o.art.x)+'px';A.top=L(r.art.y,o.art.y)+'px';A.width=L(r.art.w,o.art.w)+'px';A.height=L(r.art.h,o.art.h)+'px';
+    const ar=this.k.alb?L(r.art.w/2,o.art.w/2):L(r.art.r,o.art.r);A.borderRadius=ar+'px';A.opacity=1-sm(D*1.8);
+    const W=this.wv.style;W.right=L(r.wave.rx,o.wave.rx)+'px';W.top=L(r.wave.top,o.wave.top)+'px';
+    W.opacity=c.waveStays?1-sm(D*2):(1-sm(D*2))*(1-sm(P/.3));
+    const oc=sm((P-.5)/.35)*(1-sm(D*2.4));
+    const O=this.oc.style;O.opacity=oc;O.pointerEvents=oc>.6?'auto':'none';
+    O.filter=oc<.98?`blur(${((1-oc)*9).toFixed(1)}px)`:'none';
+    O.transform=`scale(${.94+.06*oc})`;
+    this.dl.style.opacity=sm((D-.45)/.4);
+    const e=clamp(P*3+D*3);this.ears.forEach(x=>x.style.opacity=e);
+    this.amb.style.opacity=c.amb*sm((P-.1)/.6)*(1-sm(D*2));
+    if(this.bub){const b=this.bub.style;b.opacity=sm((D-.3)/.5);b.left=`calc(50% + ${w/2+14}px)`;b.transform=`scale(${.4+.6*sm(D)})`}
+  }
+  bind(){
+    const el=this.el;
+    el.addEventListener('click',e=>{
+      const b=e.target.closest('.bt');
+      if(b){this.act(b.dataset.a);return}
+      if(this.live&&!e.target.closest('.scr')){this.pinned=!this.pinned;this.open(this.pinned||this.hover)}
+    });
+    if(this.live){
+      el.addEventListener('pointerenter',()=>{this.hover=true;clearTimeout(this.lv);this.open(true)});
+      el.addEventListener('pointerleave',()=>{this.hover=false;this.lv=setTimeout(()=>{if(!this.pinned&&!this.hover&&!this.dragging)this.open(false)},160)});
+    }
+    const sc=el.querySelector('.scr');
+    const seek=e=>{const rc=sc.getBoundingClientRect();this.t=clamp((e.clientX-rc.left)/rc.width)*this.k.dur;this.tick(0)};
+    sc.addEventListener('pointerdown',e=>{this.dragging=true;sc.classList.add('drag');sc.setPointerCapture(e.pointerId);seek(e)});
+    sc.addEventListener('pointermove',e=>{if(this.dragging)seek(e)});
+    const end=()=>{this.dragging=false;sc.classList.remove('drag')};
+    sc.addEventListener('pointerup',end);sc.addEventListener('pointercancel',end);
+  }
+  act(a){
+    if(a==='pl')this.setPlaying(!this.playing);
+    if(a==='back'){this.t=Math.max(0,this.t-10);this.tick(0)}
+    if(a==='fwd'){this.t=Math.min(this.k.dur,this.t+10);this.tick(0)}
+    if(a==='next')this.setContent((this.ci+1)%CONTENTS.length);
+    this.syncChips();
+  }
+  syncChips(){if(this.chips)this.chips.forEach((c,i)=>c.classList.toggle('on',i===this.ci))}
+}
+
+/* boucle */
+let last=performance.now();
+function loop(ts){
+  const real=Math.min((ts-last)/1000,.05);last=ts;
+  const dt=real/SLOW;
+  for(const I of ISLANDS){
+    const moving=!(I.p.done&&I.d.done);
+    if(moving){I.p.step(dt);I.d.step(dt);if(I.p.done)I.p.jump(I.p.t);if(I.d.done)I.d.jump(I.d.t);}
+    I.tick(real);
+    if(moving||I.fresh!==1){I.render();I.fresh=1}
+  }
+  requestAnimationFrame(loop);
+}
+
+/* =========================================================
+   La page
+   ========================================================= */
+const DIRS=[
+ {v:'M',name:'A + C · Îlot',tag:'Pochette et commandes de A, barre sonore, lueur et bulle de dictée de C.',openH:256,openC:1}
+];
+const win='<div class="win"></div>';
+const mbar='<div class="mb"><div><b>Chrome</b><span>Fichier</span><span>Édition</span><span>Présentation</span><span>Fenêtre</span></div><div class="rt">Lun. 9 nov.  14:32</div></div>';
+const frame=(id,h,extra='',cls='')=>`<div class="scr-f ${cls}" id="${id}" style="--fh:${h}px">${mbar}${win}${extra}</div>`;
+
+let html='';
+const SC=[]; // scènes à instancier
+DIRS.forEach(d=>{
+  const v=d.v;
+  html+=`<section class="dir" id="dir${v}"><h2>${d.name}<span>${d.tag}</span></h2>`;
+  // 1. repos
+  html+=`<figure><figcaption><b>1 · Au repos</b>pochette lisible, trace sonore teintée par la pochette — série, YouTube, album.</figcaption><div class="g3">`;
+  CONTENTS.forEach((c,i)=>{html+=`<div>${frame(`${v}-r${i}`,92,'','narrow')}<div class="lb">${c.kind}</div></div>`});
+  html+=`</div></figure>`;
+  // 2. ouvert
+  if(v==='B'){
+    html+=`<figure><figcaption><b>2 · Ouvert</b>glisser la barre, reculer / avancer 10 s, lecture-pause, suivant : tout répond.</figcaption><div class="g3">`;
+    CONTENTS.forEach((c,i)=>{html+=frame(`${v}-o${i}`,d.openH,'','narrow')});
+    html+=`</div></figure>`;
+  }else{
+    html+=`<figure><figcaption><b>2 · Ouvert</b>glisser la barre, reculer / avancer 10 s, lecture-pause, suivant : tout répond.</figcaption>${frame(`${v}-o0`,d.openH)}<div class="row" id="${v}-oc"><span>Contenu</span>${CONTENTS.map((c,i)=>`<button class="chip" data-i="${i}">${c.kind}</button>`).join('')}</div></figure>`;
+  }
+  // 3. dictée
+  html+=`<figure><figcaption><b>3 · Pendant une dictée</b>la dictée prend la place, la lecture se met en pause, puis reprend là où elle s'était arrêtée.</figcaption>${frame(`${v}-d0`,128,'<div class="st" id="'+v+'-dst"><i></i><span></span></div>')}<div class="row" id="${v}-dc"><button class="chip" data-p="lecture">Lecture</button><button class="chip on" data-p="dictee">Dictée</button><button class="chip" data-p="reprise">Reprise</button><button class="chip" data-p="play">▶ Jouer l'enchaînement</button></div></figure>`;
+  // 4. transition
+  html+=`<figure><figcaption><b>4 · Transition repos → ouvert</b>survolez l'îlot ou cliquez pour l'épingler ; la glissière déplie à la main, le ressort reprend la vitesse au lâcher.</figcaption>${frame(`${v}-t0`,d.openH)}<div class="row"><span>Déplier à la main</span><input type="range" min="0" max="1000" value="0" id="${v}-sl" aria-label="Déplier"><label class="sw"><input type="checkbox" id="${v}-slow"> Ralenti ×4</label></div></figure>`;
+  html+=`</section>`;
+});
+document.getElementById('app').innerHTML=html;
+
+/* instanciation */
+const byId=id=>document.getElementById(id);
+DIRS.forEach(d=>{
+  const v=d.v;
+  // repos : trois contenus
+  CONTENTS.forEach((c,i)=>{const h=byId(`${v}-r${i}`);new Island(h,v,{content:i,state:'rest'})});
+  // ouvert
+  if(v==='B'){CONTENTS.forEach((c,i)=>{new Island(byId(`${v}-o${i}`),v,{content:i,state:'open'})})}
+  else{
+    const I=new Island(byId(`${v}-o0`),v,{content:d.openC,state:'open'});
+    I.chips=[...byId(`${v}-oc`).querySelectorAll('.chip')];I.syncChips();
+    I.chips.forEach((ch,i)=>ch.addEventListener('click',()=>{I.setContent(i);I.syncChips()}));
+  }
+  // dictée
+  const D=new Island(byId(`${v}-d0`),v,{content:2,state:'dict',playing:false});
+  const stEl=byId(`${v}-dst`),stT=stEl.querySelector('span'),dchips=[...byId(`${v}-dc`).querySelectorAll('.chip[data-p]')].filter(x=>x.dataset.p!=='play');
+  const phase=p=>{
+    dchips.forEach(c=>c.classList.toggle('on',c.dataset.p===p));
+    stEl.classList.toggle('on',p!=='dictee');
+    const tm=fmt(D.t);
+    if(p==='lecture'){D.setDict(false);D.setPlaying(true);D.el.classList.remove('resume');stT.textContent='Lecture en cours · '+tm}
+    if(p==='dictee'){D.setDict(true);D.setPlaying(false);D.el.classList.remove('resume');stT.textContent='Lecture en pause pendant la dictée · '+tm}
+    if(p==='reprise'){D.setDict(false);D.setPlaying(true);D.el.classList.remove('resume');void D.el.offsetWidth;D.el.classList.add('resume');stT.textContent='La lecture reprend à '+tm}
+  };
+  phase('dictee');
+  byId(`${v}-dc`).addEventListener('click',async e=>{
+    const b=e.target.closest('.chip');if(!b)return;
+    const p=b.dataset.p;
+    if(p!=='play'){phase(p);return}
+    const w=ms=>new Promise(r=>setTimeout(r,ms));
+    phase('lecture');await w(1500);phase('dictee');await w(3800);phase('reprise');
+  });
+  // transition jouable
+  const T=new Island(byId(`${v}-t0`),v,{content:0,state:'rest',live:true});
+  const sl=byId(`${v}-sl`);
+  sl.addEventListener('input',()=>{const x=sl.value/1000;T.p.x=x;T.p.v=0;T.p.t=x;T.pinned=false;T.fresh=0;T.render()});
+  sl.addEventListener('change',()=>{const x=sl.value/1000;T.p.t=x>.5?1:0;T.p.z=.72;T.pinned=x>.5;T.hover=false;sl.value=x>.5?1000:0});
+  byId(`${v}-slow`).addEventListener('change',e=>{SLOW=e.target.checked?4:1});
+  // la glissière suit le ressort
+  setInterval(()=>{if(document.activeElement!==sl)sl.value=Math.round(clamp(T.p.x,0,1)*1000)},60);
+});
+requestAnimationFrame(t=>{last=t;loop(t)});
+</script>
+</body>
+</html>
