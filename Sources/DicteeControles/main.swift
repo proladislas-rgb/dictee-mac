@@ -358,5 +358,67 @@ verifier(TextFormatter.prepare("Où manger ?", for: .browser) == "Où manger ?",
 verifier(TextFormatter.nombreDeMots("un deux  trois\nquatre") == 4, "comptage des mots")
 verifier(TextFormatter.prepare("", for: .terminal) == "" && TextFormatter.prepare("   \n ", for: .other) == "", "texte vide")
 
+groupe("Désinstallation (sur un faux dossier personnel)")
+do {
+    let fm = FileManager.default
+    let maison = fm.temporaryDirectory.appendingPathComponent("dictee-controle-\(UUID().uuidString)", isDirectory: true)
+    defer { try? fm.removeItem(at: maison) }
+    func creer(_ relatif: String, dossier: Bool = false) {
+        let u = maison.appendingPathComponent(relatif)
+        if dossier { try? fm.createDirectory(at: u, withIntermediateDirectories: true) }
+        else { try? fm.createDirectory(at: u.deletingLastPathComponent(), withIntermediateDirectories: true); fm.createFile(atPath: u.path, contents: Data("x".utf8)) }
+    }
+    let liste = Desinstallation.elements(maison: maison).map { $0.path.replacingOccurrences(of: maison.path + "/", with: "") }
+    verifier(liste.contains("Library/Application Support/Dictee") && liste.contains("Library/Logs/Dictee") && liste.contains("Library/Preferences/com.hugues.dictee.plist"), "la liste couvre données, journal et préférences")
+    verifier(liste.allSatisfy { $0.hasPrefix("Library/") && !$0.contains("..") }, "tout est rangé sous Library, aucun ..")
+    verifier(!liste.contains { $0.contains(".config") || $0.contains("groq") || $0.hasSuffix(".env") }, "~/.config/groq/.env n'est jamais dans la liste")
+    verifier(!liste.contains { $0 == "Library" || $0 == "Library/Application Support" || $0 == "Library/Logs" || $0 == "Library/Preferences" || $0 == "Library/Caches" }, "jamais un dossier système en entier")
+    verifier(Desinstallation.serviceTrousseau == "com.hugues.dictee" && Desinstallation.compteTrousseau == "groq", "l'élément du Trousseau visé est celui de la clé Groq")
+
+    creer("Library/Application Support/Dictee/historique.json"); creer("Library/Application Support/Dictee/mots.txt"); creer("Library/Application Support/Dictee/raccourcis.json")
+    creer("Library/Logs/Dictee/dictee.log"); creer("Library/Preferences/com.hugues.dictee.plist"); creer("Library/Caches/com.hugues.dictee/Cache.db")
+    // Des voisins qu'il ne faut surtout pas toucher :
+    creer(".config/groq/.env"); creer("Library/Application Support/AutreApp/donnees.json"); creer("Library/Preferences/com.autre.app.plist"); creer("Documents/lettre.txt")
+    let r = Desinstallation.effacer(maison: maison)
+    func existe(_ relatif: String) -> Bool { fm.fileExists(atPath: maison.appendingPathComponent(relatif).path) }
+    verifier(!existe("Library/Application Support/Dictee") && !existe("Library/Logs/Dictee") && !existe("Library/Preferences/com.hugues.dictee.plist") && !existe("Library/Caches/com.hugues.dictee"), "historique, mots, raccourcis, journal, réglages effacés")
+    verifier(existe(".config/groq/.env"), "~/.config/groq/.env est conservé")
+    verifier(existe("Library/Application Support/AutreApp/donnees.json") && existe("Library/Preferences/com.autre.app.plist") && existe("Documents/lettre.txt"), "les autres apps et documents sont intacts")
+    verifier(r.effaces.count == 4 && r.echecs.isEmpty && r.absents.count == Desinstallation.cheminsRelatifs.count - 4, "compte rendu : 4 effacés, le reste absent, aucun échec")
+    let r2 = Desinstallation.effacer(maison: maison)
+    verifier(r2.effaces.isEmpty && r2.echecs.isEmpty, "rejouable sans erreur")
+    verifier(Desinstallation.effacer(maison: URL(fileURLWithPath: "/")).effaces.isEmpty, "refuse la racine comme dossier personnel")
+}
+
+groupe("Installation")
+do {
+    verifier(Installation.doitProposerDeplacement(chemin: "/Volumes/Dictee/Dictee.app", volumeEnLectureSeule: true), "lancée depuis l'image disque : proposer")
+    verifier(Installation.doitProposerDeplacement(chemin: "/private/var/folders/ab/T/AppTranslocation/ABC/d/Dictee.app", volumeEnLectureSeule: true), "app translocalisée : proposer")
+    verifier(!Installation.doitProposerDeplacement(chemin: "/Applications/Dictee.app", volumeEnLectureSeule: false), "dans /Applications : rien à proposer")
+    verifier(!Installation.doitProposerDeplacement(chemin: "/tmp/maison-exemple/Applications/Dictee.app", volumeEnLectureSeule: false), "dans ~/Applications : rien à proposer")
+    verifier(!Installation.doitProposerDeplacement(chemin: "/Volumes/DisqueExterne/Dictee.app", volumeEnLectureSeule: false), "disque externe inscriptible : on ne dérange pas")
+    let maison = URL(fileURLWithPath: "/tmp/maison-exemple", isDirectory: true)
+    verifier(Installation.dossierDestination(maison: maison, applicationsEcrivable: true).path == "/Applications", "destination : /Applications si possible")
+    verifier(Installation.dossierDestination(maison: maison, applicationsEcrivable: false).path == "/tmp/maison-exemple/Applications", "destination : ~/Applications sinon")
+
+    let fm = FileManager.default
+    let racine = fm.temporaryDirectory.appendingPathComponent("dictee-install-\(UUID().uuidString)", isDirectory: true)
+    defer { try? fm.removeItem(at: racine) }
+    let source = racine.appendingPathComponent("dmg/Dictee.app/Contents", isDirectory: true)
+    try? fm.createDirectory(at: source, withIntermediateDirectories: true)
+    try? Data("v2".utf8).write(to: source.appendingPathComponent("version.txt"))
+    let app = racine.appendingPathComponent("dmg/Dictee.app")
+    let dest = racine.appendingPathComponent("Applications", isDirectory: true)
+    let copie = try? Installation.copier(app: app, dansDossier: dest)
+    verifier(copie?.path == dest.appendingPathComponent("Dictee.app").path && fm.fileExists(atPath: dest.appendingPathComponent("Dictee.app/Contents/version.txt").path), "copie dans un dossier créé au besoin")
+    // une ancienne version déjà installée est remplacée, sans reste
+    try? Data("v1".utf8).write(to: dest.appendingPathComponent("Dictee.app/Contents/version.txt"))
+    try? Data("v3".utf8).write(to: source.appendingPathComponent("version.txt"))
+    _ = try? Installation.copier(app: app, dansDossier: dest)
+    verifier((try? String(contentsOf: dest.appendingPathComponent("Dictee.app/Contents/version.txt"), encoding: .utf8)) == "v3", "remplace l'ancienne version")
+    verifier((try? fm.contentsOfDirectory(atPath: dest.path))?.filter { $0.contains("installation") }.isEmpty == true, "aucun fichier temporaire laissé")
+    verifier((try? Installation.copier(app: racine.appendingPathComponent("absente.app"), dansDossier: dest)) == nil, "source absente : erreur, pas de plantage")
+}
+
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)

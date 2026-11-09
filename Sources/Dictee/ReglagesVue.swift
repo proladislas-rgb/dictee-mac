@@ -8,6 +8,7 @@ struct ReglagesVue: View {
     var surRevoirPriseEnMain: () -> Void = {}
     var surAutorisations: () -> Void = {}
     var surCle: () -> Void = {}
+    var surDesinstaller: () -> Void = {}
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -29,7 +30,7 @@ struct ReglagesVue: View {
                     Interrupteur(actif: .constant(r.ouvrirAuDemarrage), etiquette: "Ouvrir au démarrage") { r.choisirOuvertureAuDemarrage($0) }
                 }
 
-                Rectangle().fill(Palette.filet).frame(height: 1).padding(.vertical, 14)
+                Rectangle().fill(Palette.filet).frame(height: 1).padding(.vertical, 10)
 
                 LigneReglage(libelle: "Clé Groq", note: nil, hauteur: 34) {
                     HStack(spacing: 14) {
@@ -59,6 +60,7 @@ struct ReglagesVue: View {
                     }
                 }
                 LigneReglage(libelle: "Prise en main", note: nil, hauteur: 34) { LienTexte(titre: "Revoir", action: surRevoirPriseEnMain) }
+                LigneReglage(libelle: "Désinstaller", note: nil, hauteur: 34) { LienTexte(titre: "Désinstaller Dictée…", action: surDesinstaller) }
             }
             .padding(.vertical, 4)
         }

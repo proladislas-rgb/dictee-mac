@@ -39,7 +39,7 @@ Technique : Swift 6.2 (outils en ligne de commande, pas d'Xcode), paquet Swift +
   [x] 7d premier lancement en 3 étapes + états vides et d'échec.
 - [ ] (ancien) Lot 7 — Panneau (style B, sorti de l'encoche) : dictées, mots, réglages ; historique enregistré sur le Mac.
 - [ ] Lot 8 — Dictionnaire qui apprend (corrections, Contacts), ouverture au démarrage.
-- [ ] Lot 9 — Vraie app à installer / désinstaller (demande de Hugues 09/11 : « je peux pas l'ajouter comme une app que je télécharge, je la supprime ») :
+- [x] Lot 9 (fait le 09/11 ; essais réels en attente de Hugues, voir spec) — Vraie app à installer / désinstaller (demande de Hugues 09/11 : « je peux pas l'ajouter comme une app que je télécharge, je la supprime ») :
   fichier d'installation Dictee.dmg (glisser dans Applications), icône provisoire en attendant le logo ChatGPT, premier lancement qui demande la clé Groq (rangée dans le Trousseau) et les autorisations,
   menu « Désinstaller Dictée… » qui efface aussi réglages, historique, journal et clé ; versions publiées sur GitHub (Releases). Pas de compte Apple payant (décision de Hugues 09/11) : signature ad hoc stable, mode d'emploi « clic droit › Ouvrir » pour un ami.
 - [x] Passage en open source (Hugues 09/11) : sortir docs/etude-apps.md du dépôt (copie dans le second cerveau), remplacer le mail perso des maquettes, licence MIT, historique repris à neuf (sauvegarde locale de l'ancien), dépôt passé en public.

@@ -9,6 +9,17 @@ App de dictée vocale native pour Mac. Tu cliques n'importe où (mail, document,
 
 > État : version 0.x, en construction. Mac Apple Silicon avec macOS 26 requis.
 
+## Télécharger
+
+1. Télécharge `Dictee-<version>.dmg` sur la [page des versions](https://github.com/proladislas-rgb/dictee-mac/releases/latest).
+2. Ouvre le fichier, glisse **Dictee** sur le dossier **Applications**.
+3. Ouvre Dictée depuis Applications. La première fois, fais clic droit › **Ouvrir** (voir ci-dessous).
+4. Colle ta clé Groq gratuite quand Dictée la demande ([console.groq.com](https://console.groq.com)), puis accepte les autorisations.
+
+**Première ouverture.** Dictée n'est pas signée par un compte développeur Apple (c'est payant, le projet reste gratuit). macOS affiche donc un avertissement : clic droit sur l'app › Ouvrir › Ouvrir, ou Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ». Une seule fois suffit. Règle aussi Réglages Système › Clavier › « Appuyer sur 🌐 pour » sur « Ne rien faire ».
+
+**Désinstaller.** Clic droit sur les guillemets dans la barre des menus › **Désinstaller Dictée…** (ou Réglages › Désinstaller). Cela efface l'historique, les mots, les raccourcis, le journal, les réglages et la clé Groq du Trousseau, puis place l'app à la corbeille. Ton éventuel fichier `~/.config/groq/.env` n'est jamais touché.
+
 ## Installer depuis le code
 
 Il faut les outils en ligne de commande d'Apple (`xcode-select --install`). Xcode n'est pas nécessaire.
@@ -40,7 +51,8 @@ Ton dictionnaire (noms propres, jargon) se trouve dans `~/Library/Application Su
 | Où | Quoi |
 |---|---|
 | `Sources/` | Le code Swift (`Dictee` : l'app, `DicteeCore` : la logique testée, `DicteeControles` : les contrôles) |
-| `build.sh` | Fabrication et installation |
+| `build.sh` | Fabrication et installation dans `~/Applications` |
+| `release.sh` | Fabrique `dist/Dictee-<version>.dmg` (version lue dans `VERSION`) |
 | `docs/spec-v1.md` | La spécification technique |
 | `design/` | Les maquettes validées et les captures |
 | `LIS-MOI-CHATGPT.md` | Le brief design (nom, logo, animations) |

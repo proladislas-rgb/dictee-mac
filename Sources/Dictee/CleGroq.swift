@@ -10,8 +10,8 @@ enum CleGroq {
     /// Les modes en ligne de commande (--transcrire, --nettoyer) ne touchent jamais au Trousseau : seulement le fichier .env.
     nonisolated(unsafe) static var utiliserTrousseau = true
 
-    private static let service = "com.hugues.dictee"
-    private static let compte = "groq"
+    private static let service = Desinstallation.serviceTrousseau
+    private static let compte = Desinstallation.compteTrousseau
 
     private static func requete() -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: compte]

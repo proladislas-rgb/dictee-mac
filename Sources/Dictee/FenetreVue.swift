@@ -17,6 +17,7 @@ struct FenetreVue: View {
     var surRevoirPriseEnMain: () -> Void = {}
     var surAutorisations: () -> Void = {}
     var surCle: () -> Void = {}
+    var surDesinstaller: () -> Void = {}
     var curseurFactice = false
     static let tailleParDefaut = CGSize(width: 960, height: 640)
 
@@ -38,7 +39,7 @@ struct FenetreVue: View {
                 case .mots:
                     MotsVue(m: mots, curseurFactice: curseurFactice)
                 case .reglages:
-                    ReglagesVue(r: reglages, store: store, surRevoirPriseEnMain: surRevoirPriseEnMain, surAutorisations: surAutorisations, surCle: surCle)
+                    ReglagesVue(r: reglages, store: store, surRevoirPriseEnMain: surRevoirPriseEnMain, surAutorisations: surAutorisations, surCle: surCle, surDesinstaller: surDesinstaller)
                 }
             }
             .padding(.horizontal, 28)
@@ -62,6 +63,7 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
     var surRevoirPriseEnMain: () -> Void = {}
     var surAutorisations: () -> Void = {}
     var surCle: () -> Void = {}
+    var surDesinstaller: () -> Void = {}
 
     init(dictees: ModeleDictees) { self.dictees = dictees; super.init() }
 
@@ -95,7 +97,8 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         f.contentView = NSHostingView(rootView: FenetreVue(nav: nav, dictees: dictees, store: dictees.store, mots: MotsModele.partage, reglages: reglages,
                                                            surRevoirPriseEnMain: { [weak self] in self?.surRevoirPriseEnMain() },
                                                            surAutorisations: { [weak self] in self?.surAutorisations() },
-                                                           surCle: { [weak self] in self?.surCle() }))
+                                                           surCle: { [weak self] in self?.surCle() },
+                                                           surDesinstaller: { [weak self] in self?.surDesinstaller() }))
         f.setFrameAutosaveName("DicteeFenetrePrincipale")
         if !f.setFrameUsingName("DicteeFenetrePrincipale") { f.center() }
         f.delegate = self

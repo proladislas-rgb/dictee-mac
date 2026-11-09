@@ -1,15 +1,26 @@
 #!/bin/zsh
 # Fabrique Dictee.app : compile, assemble, signe, installe dans ~/Applications.
-#   ./build.sh            compile + assemble + signe + installe
-#   ./build.sh --sans-installer   s'arrête après l'assemblage (dans .build/Dictee.app)
+#   ./build.sh                     compile + assemble + signe + installe dans ~/Applications
+#   ./build.sh --sans-installer    s'arrête après l'assemblage (dans .build/Dictee.app)
+#   ./build.sh --sortie DOSSIER    assemble dans DOSSIER/Dictee.app, sans rien installer (utilisé par release.sh)
+# La version vient du fichier VERSION, seul endroit où elle s'écrit.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="0.1.0"
+VERSION="$(tr -d '[:space:]' < VERSION)"
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION illisible : « $VERSION »"; exit 1; }
 NOM_APP="Dictee"
 BUNDLE_ID="com.hugues.dictee"
 DEST="$HOME/Applications/$NOM_APP.app"
 ASSEMBLAGE=".build/$NOM_APP.app"
+SANS_INSTALLER=0
+case "${1:-}" in
+  --sans-installer) SANS_INSTALLER=1 ;;
+  --sortie) [[ -n "${2:-}" ]] || { echo "--sortie demande un dossier"; exit 2; }
+            ASSEMBLAGE="$2/$NOM_APP.app"; SANS_INSTALLER=1 ;;
+  "") ;;
+  *) echo "Option inconnue : $1"; exit 2 ;;
+esac
 
 echo "==> Compilation (release)"
 swift build -c release
@@ -44,7 +55,7 @@ cat > "$ASSEMBLAGE/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>$NOM_APP</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleVersion</key><string>$VERSION</string>
   <key>LSMinimumSystemVersion</key><string>26.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
@@ -64,7 +75,7 @@ codesign --force --sign - --identifier "$BUNDLE_ID" \
   --requirements "=designated => identifier \"$BUNDLE_ID\"" "$ASSEMBLAGE"
 codesign --verify --strict "$ASSEMBLAGE"
 
-if [[ "${1:-}" == "--sans-installer" ]]; then
+if [[ "$SANS_INSTALLER" == 1 ]]; then
   echo "==> Assemblée dans $ASSEMBLAGE"
   exit 0
 fi

@@ -52,6 +52,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
+        // Lancée depuis l'image disque : propose de se placer dans Applications (et de se relancer de là).
+        if InstallationApp.proposerDeplacementSiBesoin() { return }
+
         Polices.enregistrer()
         suivreLesApps()
         panneauCompact.surRecoller = { [weak self] entree, cible in
@@ -206,6 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fenetrePrincipale.surAutorisations = { [weak self] in self?.ouvrirAutorisations() }
         fenetrePrincipale.surRevoirPriseEnMain = { [weak self] in self?.ouvrirPriseEnMain() }
         fenetrePrincipale.surCle = { [weak self] in self?.ouvrirPriseEnMain(etape: .acces, forcerCle: true) }
+        fenetrePrincipale.surDesinstaller = { InstallationApp.desinstaller() }
     }
 
     /// Menu de l'app (invisible tant qu'elle n'a pas de Dock, mais ses raccourcis servent la fenêtre) :
@@ -265,6 +269,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: "Autorisations…", action: #selector(ouvrirAutorisations), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Ouvrir le journal", action: #selector(ouvrirJournal), keyEquivalent: "").target = self
         menu.addItem(.separator())
+        menu.addItem(withTitle: "Désinstaller Dictée…", action: #selector(desinstaller), keyEquivalent: "").target = self
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Quitter", action: #selector(quitter), keyEquivalent: "q").target = self
     }
 
@@ -291,6 +297,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func revoirPriseEnMain() { ouvrirPriseEnMain() }
     @objc private func ouvrirDictee() { ouvrirFenetre(.dictees) }
     @objc private func ouvrirJournal() { NSWorkspace.shared.open(Log.url) }
+    @objc private func desinstaller() { InstallationApp.desinstaller() }
     @objc private func quitter() { NSApp.terminate(nil) }
 }
 

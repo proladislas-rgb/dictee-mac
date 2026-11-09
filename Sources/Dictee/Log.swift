@@ -19,9 +19,14 @@ enum Log {
     }()
     private static let maxBytes = 1_000_000
 
+    /// Faux après une désinstallation : plus rien ne doit recréer le dossier du journal.
+    nonisolated(unsafe) private static var actif = true
+
     static func ecrire(_ message: String) {
+        guard actif else { return }
         let ligne = "\(formatter.string(from: Date())) | \(message)\n"
         queue.async {
+            guard actif else { return }
             let fm = FileManager.default
             if let attrs = try? fm.attributesOfItem(atPath: url.path), let size = attrs[.size] as? Int, size > maxBytes {
                 let old = url.deletingLastPathComponent().appendingPathComponent("dictee.log.1")
@@ -41,4 +46,7 @@ enum Log {
 
     /// Attend que les écritures en attente soient faites (avant de quitter).
     static func vider() { queue.sync {} }
+
+    /// Vide les écritures en attente puis arrête le journal pour de bon (désinstallation).
+    static func desactiver() { queue.sync { actif = false } }
 }
