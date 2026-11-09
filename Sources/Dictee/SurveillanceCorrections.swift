@@ -68,6 +68,8 @@ enum LecteurCorrection {
 /// jamais sans le geste de Hugues. Rien n'est lu si l'app n'expose pas le champ, ni dans un terminal, ni dans un champ protégé.
 @MainActor
 enum SurveillanceCorrections {
+    /// Identifie ce lancement de l'app : une correction lue 6 s puis 15 s après la même dictée ne compte qu'une fois.
+    nonisolated static let lancement = Int(Date().timeIntervalSince1970)
     nonisolated static let delais: [Double] = [6, 9]   // 6 s après le collage, puis 15 s
 
     static func lancer(texte: String, cible: NSRunningApplication?, genre: AppKind, idDictee: Int) {
@@ -85,10 +87,10 @@ enum SurveillanceCorrections {
                 let mots = await MainActor.run { ApprentissageCorrections.propositions(inseree: texte, avant: avant, apres: apres, estConnu: Orthographe.estConnu) }
                 for mot in mots {
                     await MainActor.run {
-                        let avantNb = MotsModele.partage.propositions.enAttente.count
-                        MotsModele.partage.proposer(mot)
-                        if MotsModele.partage.propositions.enAttente.count > avantNb {
-                            Log.ecrire("dictée \(idDictee) : mot corrigé par Hugues proposé dans Mots : \"\(Log.apercu(mot))\"")
+                        switch MotsModele.partage.noterCorrection(mot, dictee: "\(lancement)-\(idDictee)") {
+                        case .proposee: Log.ecrire("dictée \(idDictee) : mot corrigé par Hugues proposé dans Mots : \"\(Log.apercu(mot))\"")
+                        case .apprise: Log.ecrire("dictée \(idDictee) : la même correction revient : \"\(Log.apercu(mot))\" appris tout seul (ajouté à tes mots)")
+                        case .dejaVue, .ignoree: break
                         }
                     }
                 }

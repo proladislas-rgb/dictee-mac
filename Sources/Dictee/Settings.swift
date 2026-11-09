@@ -89,6 +89,9 @@ enum Settings {
     /// Apprendre des corrections de Hugues juste après une dictée (propositions dans « Mots »). `defaults write ... apprentissageDesCorrections -bool false`.
     static var apprentissageDesCorrections: Bool { reglage("DICTEE_APPRENTISSAGE", "apprentissageDesCorrections", defaut: true, faux: "non") }
 
+    /// Les expressions personnelles de Hugues sont données à Whisper et à la relecture. `DICTEE_EXPRESSIONS=non` ou `defaults write ... expressionsPourWhisper -bool false`.
+    static var expressionsPourWhisper: Bool { reglage("DICTEE_EXPRESSIONS", "expressionsPourWhisper", defaut: true, faux: "non") }
+
     /// Interrupteur de vitesse : la variable d'environnement (mesures en ligne de commande) l'emporte sur le réglage.
     private static func reglage(_ variable: String, _ cle: String, defaut: Bool, faux: String) -> Bool {
         if let v = ProcessInfo.processInfo.environment[variable] { return v != faux }

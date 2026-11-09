@@ -92,8 +92,55 @@ public struct PropositionsMots: Codable, Equatable, Sendable {
     public private(set) var enAttente: [String] = []
     /// Mots refusés : on ne les repropose pas.
     public private(set) var ignores: [String] = []
+    /// Combien de dictées différentes ont vu corriger ce mot (par mot plié) : au deuxième retour de la même correction, le mot est appris tout seul.
+    public private(set) var vus: [String: Int] = [:]
+    private var derniereDictee: [String: String] = [:]
 
     public init() {}
+
+    private enum CodingKeys: String, CodingKey { case enAttente, ignores, vus, derniereDictee }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enAttente = try c.decodeIfPresent([String].self, forKey: .enAttente) ?? []
+        ignores = try c.decodeIfPresent([String].self, forKey: .ignores) ?? []
+        vus = try c.decodeIfPresent([String: Int].self, forKey: .vus) ?? [:]
+        derniereDictee = try c.decodeIfPresent([String: String].self, forKey: .derniereDictee) ?? [:]
+    }
+
+    public enum Issue: Equatable, Sendable {
+        /// Déjà connu, déjà refusé, ou vide.
+        case ignoree
+        /// Première fois : proposé dans Mots.
+        case proposee
+        /// Même dictée, ou deuxième fois pas encore atteinte : rien de plus.
+        case dejaVue
+        /// La même correction revient dans une autre dictée : le mot est appris tout seul (à ajouter à mots.txt par l'appelant).
+        case apprise
+    }
+
+    /// Une correction vue dans la dictée `dictee` (un identifiant unique par dictée : lue deux fois, elle ne compte qu'une fois).
+    /// Au `seuil`-ième retour dans des dictées différentes, le mot sort de la liste d'attente et doit être ajouté par l'appelant.
+    public mutating func noter(_ mot: String, dictee: String, motsConnus: [String], seuil: Int = 2) -> Issue {
+        let propre = mot.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !propre.isEmpty else { return .ignoree }
+        let cle = Historique.plier(propre)
+        if (motsConnus + ignores).contains(where: { Historique.plier($0) == cle }) { return .ignoree }
+        if enAttente.contains(where: { Historique.plier($0) == cle }) {
+            if derniereDictee[cle] == dictee { return .dejaVue }
+            let n = (vus[cle] ?? 1) + 1
+            derniereDictee[cle] = dictee
+            if n >= seuil {
+                enAttente.removeAll { Historique.plier($0) == cle }
+                vus[cle] = nil; derniereDictee[cle] = nil
+                return .apprise
+            }
+            vus[cle] = n
+            return .dejaVue
+        }
+        enAttente.append(propre)
+        vus[cle] = 1; derniereDictee[cle] = dictee
+        return .proposee
+    }
 
     /// Propose un mot, sauf s'il est déjà connu, déjà en attente ou déjà refusé. Renvoie `true` si la proposition est nouvelle.
     @discardableResult

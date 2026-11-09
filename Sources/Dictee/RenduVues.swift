@@ -174,7 +174,10 @@ enum RenduFenetre {
             let m = MotsModele(persistant: false, mots: ["Anaïs Morel", "Brume & Fils", "Villeurbanne", "Marchetti"],
                                raccourcis: [RaccourciVocal(expression: "ma signature", texte: "Camille Roussel"),
                                             RaccourciVocal(expression: "mon mail", texte: "camille@exemple.fr"),
-                                            RaccourciVocal(expression: "mes dispos", texte: "Mardi ou jeudi après-midi")], propositions: p)
+                                            RaccourciVocal(expression: "mes dispos", texte: "Mardi ou jeudi après-midi")], propositions: p,
+                               expressions: [ExpressionPerso(texte: "t\u{2019}inquiète", dictees: 14), ExpressionPerso(texte: "on se capte", dictees: 9),
+                                             ExpressionPerso(texte: "c\u{2019}est lourd", dictees: 6), ExpressionPerso(texte: "du coup", manuelle: true)],
+                               apprisCetteSemaine: 3)
             if avecMessage { m.ajouterMot("villeurbanne") }
             return m
         }

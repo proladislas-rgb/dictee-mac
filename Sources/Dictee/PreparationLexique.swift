@@ -8,10 +8,11 @@ enum PreparationLexique {
     /// `champ` donne, au moment de l'envoi, ce que l'Accessibilité a lu (titre de la fenêtre, texte avant le curseur).
     static func promptPour(langue: String?, genre: AppKind, champ: @escaping @Sendable () -> ContexteChamp?, recents: [String]) -> @Sendable (String?) -> String {
         let motsChoisis = Dictionnaire.mots()
+        let expressions = ExpressionsStore.partage.pourWhisper()
         return { texteDavant in
             let c = champ()
             let contexte = ContexteMots(genre: genre, titreFenetre: c?.titreFenetre, texteAutour: c?.precedent, recents: recents, dejaDicte: texteDavant)
-            return ChoixMotsPrompt.prompt(motsChoisis: motsChoisis, lexique: LexiqueStore.partage.entrees(), contexte: contexte,
+            return ChoixMotsPrompt.prompt(motsChoisis: motsChoisis, expressions: expressions, lexique: LexiqueStore.partage.entrees(), contexte: contexte,
                                           texteDavant: texteDavant, ancre: ChoixLangue.phraseAncre(langue: langue))
         }
     }

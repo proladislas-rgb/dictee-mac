@@ -94,7 +94,10 @@ public enum ChoixMotsPrompt {
 
     /// Le texte du prompt : ancre de langue, mots (mots.txt d'abord, puis le lexique), fin du texte précédent.
     /// Le total reste sous `budget` jetons estimés ; le texte précédent garde toujours un peu de place (continuité de la ponctuation).
-    public static func prompt(motsChoisis: [String], lexique: [EntreeLexique], contexte: ContexteMots, texteDavant: String?,
+    /// Part du budget réservée aux expressions de Hugues (« t'inquiète, on se capte ») : assez pour que Whisper reconnaisse son style, pas plus.
+    public static let budgetExpressions = 45
+
+    public static func prompt(motsChoisis: [String], expressions: [String] = [], lexique: [EntreeLexique], contexte: ContexteMots, texteDavant: String?,
                               ancre: String?, budget: Int = budgetParDefaut, maxMots: Int = 60, maxGeneraux: Int = 10, maxSiglesGeneraux: Int = 2) -> String {
         let debut = (ancre ?? "").trimmingCharacters(in: .whitespaces)
         var fin = (texteDavant ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -114,6 +117,15 @@ public enum ChoixMotsPrompt {
             return true
         }
         for m in motsChoisis { if !essayer(m) { break } }
+        // Les expressions de Hugues juste après ses mots : dans leur propre budget de jetons, jamais au détriment de l'ancre ni du texte précédent.
+        var placeExpressions = min(budgetExpressions, max(0, place - 40))
+        for e in expressions {
+            let cout = coutDuMot(e.trimmingCharacters(in: .whitespaces))
+            guard cout <= placeExpressions, cout <= place, retenus.count < maxMots else { continue }
+            let avant = retenus.count
+            _ = essayer(e)
+            if retenus.count > avant { placeExpressions -= cout }
+        }
         // Sans rien qui désigne un mot (ni titre, ni texte, ni historique), une longue liste de mots rares ne fait pas mieux et peut nuire
         // (Whisper en imite le style : capitales partout si beaucoup de sigles). On garde donc : les mots cités par le contexte (jusqu'à
         // `maxMots`), puis quelques mots parmi les plus fréquents, dont très peu de sigles.

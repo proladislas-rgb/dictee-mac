@@ -13,6 +13,8 @@ struct MotsVue: View {
     @State private var jetonMot = 0
     @State private var jetonRemplacement = 0
     @State private var jetonExpression = 0
+    @State private var nouvelleExpression = ""
+    @State private var jetonNouvelleExpression = 0
     /// En dessous de cette largeur de contenu, les deux colonnes passent en une.
     static let largeurDeuxColonnes: CGFloat = 680
 
@@ -26,6 +28,7 @@ struct MotsVue: View {
                             .accessibilityLabel(message)
                     }
                     ForEach(m.propositions.enAttente, id: \.self) { mot in proposition(mot) }
+                    ligneApprentissage
                     if g.size.width >= Self.largeurDeuxColonnes {
                         HStack(alignment: .top, spacing: 56) {
                             noms.frame(maxWidth: .infinity, alignment: .topLeading)
@@ -35,6 +38,7 @@ struct MotsVue: View {
                     } else {
                         VStack(alignment: .leading, spacing: 28) { noms; raccourcis }.padding(.top, 28)
                     }
+                    tesExpressions.padding(.top, 28)
                 }
                 .padding(.vertical, 20)
                 .padding(.horizontal, marge)
@@ -103,6 +107,41 @@ struct MotsVue: View {
         }
     }
 
+    // MARK: apprentissage automatique et expressions
+
+    /// « Verbe a appris 3 mots et expressions cette semaine » : sobre, sans bouton (l'apprentissage est automatique).
+    private var ligneApprentissage: some View {
+        let n = m.apprisCetteSemaine
+        let phrase = n == 0 ? "Verbe apprend tout seul de tes dictées et de tes corrections."
+                            : "Verbe a appris \(n) mot\(n > 1 ? "s" : "") et expression\(n > 1 ? "s" : "") cette semaine."
+        return Text(phrase).font(Polices.commande(13)).foregroundStyle(Palette.texte2).padding(.top, 10).padding(.leading, 4)
+            .accessibilityLabel(phrase)
+    }
+
+    private var tesExpressions: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            EnteteSection(titre: "Tes expressions", phrase: "Ce que tu dis souvent. Verbe le repère tout seul dans tes dictées ; retire ce qui n\u{2019}a rien à faire ici.", compte: m.expressions.count)
+            if m.expressions.isEmpty {
+                Text("Pas encore d\u{2019}expression : Verbe les cherche une fois par jour dans tes dictées.").font(Polices.commande(14)).foregroundStyle(Palette.texte2).padding(.vertical, 12)
+            }
+            ForEach(Array(m.expressions.enumerated()), id: \.element.texte) { i, e in
+                LigneExpression(e: e, premiere: i == 0) { m.retirerExpression(e.texte) }
+            }
+            HStack(spacing: 12) {
+                champEncadre($nouvelleExpression, invite: "Ajouter une expression", jeton: jetonNouvelleExpression) { c in
+                    if c == .entree { ajouterExpression(); return true }
+                    return false
+                }
+                BoutonCadre("Ajouter", action: ajouterExpression)
+            }
+            .padding(.top, 12)
+        }
+    }
+
+    private func ajouterExpression() {
+        if m.ajouterExpression(nouvelleExpression) { nouvelleExpression = ""; jetonNouvelleExpression += 1 }
+    }
+
     // MARK: raccourcis vocaux
 
     private var raccourcis: some View {
@@ -154,6 +193,26 @@ struct LigneMot: View {
             Text(mot).font(Polices.texte(19)).foregroundStyle(Palette.texte).lineLimit(1)
             Spacer()
             BoutonIcone(symbole: "xmark", etiquette: "Retirer \u{00AB}\u{00A0}\(mot)\u{00A0}\u{00BB}", taille: 28, action: retirer).opacity(survol ? 1 : 0)
+        }
+        .frame(height: 44)
+        .overlay(alignment: .top) { if !premiere { Rectangle().fill(Palette.filet).frame(height: 1) } }
+        .contentShape(Rectangle())
+        .onHover { survol = $0 }
+    }
+}
+
+struct LigneExpression: View {
+    var e: ExpressionPerso
+    var premiere = false
+    var retirer: () -> Void
+    @State private var survol = false
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(e.texte).font(Polices.texte(19)).foregroundStyle(Palette.texte).lineLimit(1)
+            Spacer()
+            if e.manuelle { Text("ajoutée par toi").font(Polices.commande(12)).foregroundStyle(Palette.texte3) }
+            else if e.dictees > 0 { Text("\(e.dictees) dictées").font(Polices.commande(12)).foregroundStyle(Palette.texte3) }
+            BoutonIcone(symbole: "xmark", etiquette: "Retirer \u{00AB}\u{00A0}\(e.texte)\u{00A0}\u{00BB}", taille: 28, action: retirer).opacity(survol ? 1 : 0)
         }
         .frame(height: 44)
         .overlay(alignment: .top) { if !premiere { Rectangle().fill(Palette.filet).frame(height: 1) } }

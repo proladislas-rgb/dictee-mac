@@ -75,6 +75,10 @@ final class DictationController {
         panneau.modele.surValider = { [weak self] in self?.validerParBouton() }
         Dictionnaire.creerSiAbsent()
         Orthographe.prechauffer()
+        // Apprentissage automatique (une fois par jour au plus) : hors du chemin de la dictée.
+        Task { @MainActor in
+            MotsModele.partage.apprendreDeLHistorique()
+        }
         // Le premier codage FLAC de la session coûte ~20 ms de plus : on le fait à vide, tout de suite.
         Task.detached(priority: .utility) { _ = EncodeurAudio.flacEnMemoire(Array(repeating: 0, count: 3200)) }
         Retours.preparer()
@@ -324,6 +328,7 @@ final class DictationController {
                 signalerEchec(texteFinal, cible: s.appCible, raison: raison, ancienMessage: "Texte non écrit, voir l\u{2019}historique", idDictee: s.id)
             } else {
                 garder(inseree: true)
+                MotsModele.partage.apprendreDeLHistorique()
                 surInsertion?(texteFinal, s.appCible?.bundleIdentifier)
                 SurveillanceCorrections.lancer(texte: texte, cible: s.appCible, genre: kind, idDictee: s.id)
                 memoire = MemoireInsertion(appId: s.appCible?.bundleIdentifier ?? "", queue: MemoireInsertion.queue(de: texte),
