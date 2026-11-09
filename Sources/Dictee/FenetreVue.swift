@@ -57,7 +57,7 @@ struct FenetreVue: View {
 final class FenetrePrincipale: NSObject, NSWindowDelegate {
     let nav = NavigationFenetre()
     let dictees: ModeleDictees
-    let reglages = ReglagesModele.partage
+    private(set) lazy var reglages = ReglagesModele.partage
     private var fenetre: NSWindow?
     var surRevoirPriseEnMain: () -> Void = {}
     var surAutorisations: () -> Void = {}

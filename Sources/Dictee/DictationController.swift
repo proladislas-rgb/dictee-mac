@@ -43,6 +43,12 @@ final class DictationController {
     /// Appelé au début d'une dictée : le panneau compact se ferme (les deux ne se superposent jamais).
     var surDebut: (() -> Void)?
     var enCours: Bool { etat != .repos }
+    /// Appelé quand un texte vient d'être collé : (texte, identifiant de l'app cible). Sert à la première dictée réussie.
+    var surInsertion: ((String, String?) -> Void)?
+    /// Appelé quand le texte n'a pas pu être écrit (champ protégé, accessibilité manquante).
+    var surEchecInsertion: ((String) -> Void)?
+    /// À appeler quand le micro vient d'être autorisé : prépare le moteur pour un départ instantané.
+    func microAutorise() { audio.preparer() }
     /// Appelé quand la capture commence (`true`) ou finit (`false`) : l'icône de la barre des menus montre un trait ambre.
     var surCapture: ((Bool) -> Void)?
     /// Nombre de frappes au clavier depuis le lancement (fourni par l'écoute du clavier).
@@ -72,7 +78,8 @@ final class DictationController {
         guard etat == .repos else { return }
         guard Permissions.microOK else {
             Log.ecrire("dictée refusée : micro non autorisé")
-            Task { await Permissions.demanderLePremierManquant() }
+            panneau.afficherMessage("Micro non autorisé, voir les Réglages", app: NSWorkspace.shared.frontmostApplication)
+            if Settings.premierLancementFait { Task { await Permissions.demanderLePremierManquant() } }
             return
         }
         compteur += 1
@@ -233,16 +240,19 @@ final class DictationController {
         switch issue {
         case .colle:
             garder(inseree: true)
+            surInsertion?(texteFinal, s.appCible?.bundleIdentifier)
             memoire = MemoireInsertion(appId: s.appCible?.bundleIdentifier ?? "", queue: MemoireInsertion.queue(de: texte),
                                        instant: ProcessInfo.processInfo.systemUptime, frappes: compteurFrappes())
             Log.ecrire("dictée \(s.id) : collé dans \(s.appCible?.bundleIdentifier ?? "?") (\(kind)), collage \(collageMs) ms, \(total) ms après le relâchement")
         case .champProtege:
             Log.ecrire("dictée \(s.id) : champ protégé, texte copié sans collage")
             garder(inseree: false, raison: "champ protégé")
+            surEchecInsertion?("Écriture impossible ici, le texte est copié.")
             if courante == nil { panneau.afficherMessage("Écriture impossible ici, texte copié", app: s.appCible) }
         case .copieSeulement(let raison):
             Log.ecrire("dictée \(s.id) : texte copié mais pas collé (\(raison))")
             garder(inseree: false, raison: raison)
+            surEchecInsertion?("Le collage n\u{2019}est pas autorisé, le texte est copié.")
             fermerSiLibre()
             if courante == nil { panneau.afficherMessage("Texte copié, collage non autorisé", app: s.appCible) }
         case .vide:

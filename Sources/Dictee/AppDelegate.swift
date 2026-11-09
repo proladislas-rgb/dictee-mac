@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let clavier = KeyMonitor()
     private let dictee = DictationController()
     private let panneauCompact = PanneauCompact()
+    private let priseEnMain = PriseEnMain()
+    private var microDejaPrepare = false
     private lazy var fenetrePrincipale = FenetrePrincipale(dictees: ModeleDictees())
     private var survolStatus: SurvolStatus?
     private var derniereAppExterne: NSRunningApplication?
@@ -67,8 +69,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dictee.surFinIndependante = { [weak self] in self?.clavier.reinitialiserGeste() }
         Task.detached { await PrechauffageParole.lancer() }
         dictee.preparer()
+        microDejaPrepare = Permissions.microOK
         clavier.demarrer()
         installerIcone()
+        dictee.surInsertion = { [weak self] texte, appId in
+            guard appId == Bundle.main.bundleIdentifier else { return }
+            self?.priseEnMain.modele.texteInsere(texte)
+        }
+        dictee.surEchecInsertion = { [weak self] raison in self?.priseEnMain.modele.insertionImpossible(raison) }
+        demarrerPriseEnMainSiBesoin()
         Task { await verifierAutorisations() }
         // Tant qu'il manque quelque chose, on surveille (l'accord se donne dans les Réglages, app ouverte).
         pollTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
@@ -89,7 +98,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: autorisations
 
+    /// Premier lancement : trois étapes sous l'encoche. Une install déjà complète (accès accordés et clé présente) n'en a pas besoin.
+    private func demarrerPriseEnMainSiBesoin() {
+        guard !Settings.premierLancementFait else { return }
+        if Permissions.toutesOK && CleGroq.etat != .absente {
+            Settings.premierLancementFait = true
+            Log.ecrire("prise en main : installation déjà complète, non affichée (relançable depuis les Réglages)")
+            return
+        }
+        priseEnMain.ouvrir()
+    }
+
+    func ouvrirPriseEnMain(etape: PriseEnMainModele.Etape = .geste, forcerCle: Bool = false) {
+        panneauCompact.fermer(animee: false, rendreLeFocus: false)
+        priseEnMain.ouvrir(etape: etape, forcerCle: forcerCle)
+    }
+
     private func verifierAutorisations() async {
+        // Pendant la prise en main, c'est elle qui guide : pas de volet des Réglages ouvert tout seul.
+        guard Settings.premierLancementFait else { return }
         if let volet = await Permissions.demanderLePremierManquant() { voletsDejaOuverts.insert(volet.rawValue) }
     }
 
@@ -98,10 +125,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Le tap clavier n'a pu être créé qu'une fois les autorisations données : on réessaie.
         if !clavier.actif { clavier.demarrer() }
         let situation = Permissions.resume() + " clavier=\(clavier.actif ? "oui" : "non")"
+        if Permissions.microOK, !microDejaPrepare { microDejaPrepare = true; dictee.microAutorise() }
         guard situation != derniereSituation else { return }
         derniereSituation = situation
         Log.ecrire("autorisations : \(situation)")
         // Quelque chose vient d'être accordé : on passe à la suite sans rouvrir ce qui est déjà fait.
+        guard Settings.premierLancementFait else { return }
         if let manquant = Permissions.premierManquant, !voletsDejaOuverts.contains(manquant.rawValue) {
             voletsDejaOuverts.insert(manquant.rawValue)
             Task { await Permissions.demanderLePremierManquant() }
@@ -175,8 +204,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         m.surEchap = {}
         fenetrePrincipale.surAutorisations = { [weak self] in self?.ouvrirAutorisations() }
-        fenetrePrincipale.surRevoirPriseEnMain = { Log.ecrire("prise en main demandée") }
-        fenetrePrincipale.surCle = { Log.ecrire("clé Groq : saisie demandée") }
+        fenetrePrincipale.surRevoirPriseEnMain = { [weak self] in self?.ouvrirPriseEnMain() }
+        fenetrePrincipale.surCle = { [weak self] in self?.ouvrirPriseEnMain(etape: .acces, forcerCle: true) }
     }
 
     /// Menu de l'app (invisible tant qu'elle n'a pas de Dock, mais ses raccourcis servent la fenêtre) :
@@ -232,6 +261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let ouvrir = menu.addItem(withTitle: "Ouvrir Dictée", action: #selector(ouvrirDictee), keyEquivalent: ",")
         ouvrir.target = self
         menu.addItem(.separator())
+        menu.addItem(withTitle: "Prise en main…", action: #selector(revoirPriseEnMain), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Autorisations…", action: #selector(ouvrirAutorisations), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Ouvrir le journal", action: #selector(ouvrirJournal), keyEquivalent: "").target = self
         menu.addItem(.separator())
@@ -258,6 +288,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    @objc private func revoirPriseEnMain() { ouvrirPriseEnMain() }
     @objc private func ouvrirDictee() { ouvrirFenetre(.dictees) }
     @objc private func ouvrirJournal() { NSWorkspace.shared.open(Log.url) }
     @objc private func quitter() { NSApp.terminate(nil) }

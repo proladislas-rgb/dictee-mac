@@ -36,6 +36,29 @@ enum Permissions {
         return "micro=\(micro) accessibilite=\(accessibiliteOK ? "oui" : "non") surveillance=\(surveillanceOK ? "oui" : "non")"
     }
 
+    /// Demande une autorisation précise (bouton « Autoriser » de la prise en main) et ouvre son volet si le système
+    /// ne peut plus la demander lui-même.
+    @MainActor
+    static func demander(_ volet: Volet) async {
+        switch volet {
+        case .micro:
+            if microStatut == .notDetermined {
+                let accorde = await AVCaptureDevice.requestAccess(for: .audio)
+                Log.ecrire("micro : demande faite, réponse = \(accorde ? "accordé" : "refusé")")
+                if accorde { return }
+            }
+            ouvrir(.micro)
+        case .accessibilite:
+            _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+            ouvrir(.accessibilite)
+        case .surveillance:
+            _ = CGRequestListenEventAccess()
+            ouvrir(.surveillance)
+        case .reconnaissance:
+            ouvrir(.reconnaissance)
+        }
+    }
+
     /// Demande ce qui manque, une chose à la fois (le système affiche sa propre fenêtre),
     /// et ouvre le bon volet des Réglages Système. Renvoie le volet ouvert, s'il y en a un.
     @MainActor

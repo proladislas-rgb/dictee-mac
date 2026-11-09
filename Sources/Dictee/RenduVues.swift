@@ -174,3 +174,38 @@ enum RenduFenetre {
         return ok ? 0 : 1
     }
 }
+
+/// `Dictee --rendu-premier-lancement dossier` : les trois étapes et leurs états en PNG, sans fenêtre.
+enum RenduPremierLancement {
+    @MainActor
+    static func executer(dossier: String) -> Int32 {
+        _ = NSApplication.shared
+        Polices.enregistrer()
+        let url = URL(fileURLWithPath: (dossier as NSString).expandingTildeInPath, isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        var ok = true
+        let taille = CGSize(width: 700, height: 560)
+
+        func etape(_ nom: String, _ e: PriseEnMainModele.Etape, micro: Bool = false, refuse: Bool = false, access: Bool = false, surv: Bool = false,
+                   cle: CleGroq.Etat = .absente, essai: String = "", reussie: Bool = false, echec: String? = nil) {
+            let m = PriseEnMainModele(reel: false, micro: micro, accessibilite: access, surveillance: surv, cle: cle)
+            m.etape = e
+            m.essai = essai
+            m.setEtatPourRendu(refuse: refuse, reussie: reussie, echec: echec)
+            let app = ApparitionPanneau(); app.visible = true
+            let vue = RenduVues.Bureau(taille: taille, camera: 180) {
+                PriseEnMainVue(m: m, apparition: app, curseurFactice: true).padding(.top, PriseEnMain.ecartHaut - 6)
+            }
+            ok = RenduVues.ecrire(RenduVues.png(vue, taille: taille), url.appendingPathComponent("\(nom).png")) && ok
+        }
+        etape("premier-1-geste", .geste)
+        etape("premier-2-acces-rien", .acces)
+        etape("premier-2-acces-partiel", .acces, micro: true, access: true)
+        etape("premier-2-micro-refuse", .acces, refuse: true, access: true, surv: true, cle: .fichier)
+        etape("premier-2-acces-complets", .acces, micro: true, access: true, surv: true, cle: .trousseau)
+        etape("premier-3-attente", .premiere, micro: true, access: true, surv: true, cle: .trousseau)
+        etape("premier-3-reussie", .premiere, micro: true, access: true, surv: true, cle: .trousseau, essai: "On se voit mercredi pour parler du devis.", reussie: true)
+        etape("premier-3-echec", .premiere, micro: true, access: true, surv: true, cle: .trousseau, echec: "Écriture impossible ici, le texte est copié.")
+        return ok ? 0 : 1
+    }
+}

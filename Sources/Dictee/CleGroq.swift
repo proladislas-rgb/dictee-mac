@@ -52,7 +52,7 @@ enum CleGroq {
 
     static func effacer() { SecItemDelete(requete() as CFDictionary) }
 
-    /// Une clé Groq ressemble à « gsk_… » ; on refuse seulement ce qui est évidemment autre chose (vide, avec espaces).
+    /// Une clé Groq est une longue chaîne sans espace ; on refuse seulement ce qui est évidemment autre chose (vide, avec espaces).
     static func vraisemblable(_ saisie: String) -> Bool {
         let s = saisie.trimmingCharacters(in: .whitespacesAndNewlines)
         return s.count >= 20 && !s.contains(where: { $0.isWhitespace })
