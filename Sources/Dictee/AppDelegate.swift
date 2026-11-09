@@ -48,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         clavier.onAction = { [weak self] action in self?.dictee.recevoir(action) }
         dictee.compteurFrappes = { [weak self] in self?.clavier.frappes ?? 0 }
+        dictee.surCapture = { [weak self] actif in self?.mettreIcone(capture: actif) }
         dictee.surFinIndependante = { [weak self] in self?.clavier.reinitialiserGeste() }
         Task.detached { await PrechauffageParole.lancer() }
         dictee.preparer()
@@ -92,12 +93,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // MARK: icône provisoire de la barre des menus (disparaît au lot 7)
+    // MARK: icône de la barre des menus (guillemets ; trait ambre pendant la capture)
+
+    func mettreIcone(capture: Bool) {
+        statusItem?.button?.image = IconeBarre.image(capture: capture)
+    }
+
 
     private func installerIcone() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let bouton = item.button {
-            bouton.image = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Dictée")
+            bouton.image = IconeBarre.image(capture: false)
         }
         let menu = NSMenu()
         menu.delegate = self

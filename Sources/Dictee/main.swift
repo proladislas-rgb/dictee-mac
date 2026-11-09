@@ -30,6 +30,11 @@ if let i = arguments.firstIndex(of: "--rendu-encoche"), i + 1 < arguments.count 
     exit(MainActor.assumeIsolated { RenduEncoche.executer(dossier: arguments[i + 1]) })
 }
 
+// Dictee --rendu-icones dossier  (icône d'app + planches de contrôle en PNG, sans fenêtre)
+if let i = arguments.firstIndex(of: "--rendu-icones"), i + 1 < arguments.count {
+    exit(MainActor.assumeIsolated { RenduIcones.executer(dossier: arguments[i + 1]) })
+}
+
 // Une option inconnue ne doit jamais lancer la vraie app depuis un shell.
 let connues: Set<String> = ["--sans-interface"]
 if let inconnue = arguments.dropFirst().first(where: { $0.hasPrefix("--") && !connues.contains($0) && !$0.hasPrefix("--duree=") && !$0.hasPrefix("--verifier-parole=") }) {

@@ -20,45 +20,35 @@ final class EnclochePanneau {
     let modele = EncocheModele()
     private var fenetre: PanneauSansFocus?
     private var fermeture: DispatchWorkItem?
-    private var ouvertureRuban: DispatchWorkItem?
 
     static func tailleFenetre(pour g: GeometrieEncoche) -> CGSize {
         let largeurMax = g.largeur + 2 * GeometrieEncoche.aile + GeometrieEncoche.rallongeMainsLibres + 2 * 16
         return CGSize(width: ceil(largeurMax), height: g.hauteur + GeometrieEncoche.hauteurRuban + 12)
     }
 
-    /// Mesures de l'écran principal (celui de la barre des menus) : encoche réelle si elle existe, sinon une caméra fictive.
-    private func mesurer(_ ecran: NSScreen) -> (GeometrieEncoche, centreX: CGFloat) {
-        var g = GeometrieEncoche()
-        var centre = ecran.frame.midX
-        if let gauche = ecran.auxiliaryTopLeftArea, let droite = ecran.auxiliaryTopRightArea, ecran.safeAreaInsets.top > 0 {
-            g.largeur = max(100, ecran.frame.width - gauche.width - droite.width)
-            g.hauteur = ecran.safeAreaInsets.top
-            centre = ecran.frame.minX + gauche.width + g.largeur / 2
-        } else {
-            g.hauteur = max(24, ecran.frame.maxY - ecran.visibleFrame.maxY)
-        }
-        return (g, centre)
-    }
+    private func mesurer(_ ecran: NSScreen) -> (GeometrieEncoche, centreX: CGFloat) { GeometrieEncoche.mesurer(ecran) }
 
     private var reduireLesAnimations: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
-    private func ressort(_ reponse: Double, _ amortissement: Double) -> Animation? {
-        reduireLesAnimations ? nil : .spring(response: reponse, dampingFraction: amortissement)
+    /// Ressort amorti de 200 ms, interruptible : une nouvelle animation repart de l'état courant. Sans expansion
+    /// quand « Réduire les animations » est actif (l'apparition est alors un fondu).
+    private func ressort(rebond: Double) -> Animation? {
+        reduireLesAnimations ? nil : .spring(duration: GeometrieEncoche.dureeMouvement, bounce: rebond)
     }
 
     // MARK: ouvrir / fermer
 
     func ouvrir(app: NSRunningApplication?, mainsLibres: Bool) {
-        fermeture?.cancel(); ouvertureRuban?.cancel()
+        fermeture?.cancel()
         guard let ecran = NSScreen.screens.first else { return }
         let (g, centre) = mesurer(ecran)
         let dejaAffichee = fenetre?.isVisible == true
         modele.geometrie = g
+        modele.reduire = reduireLesAnimations
         modele.icone = app?.icon
         modele.texte = ""
         modele.fige = false
         modele.message = nil
-        if !dejaAffichee { modele.calmerLesBarres() }
+        if !dejaAffichee { modele.calmerLesBarres(); modele.ruban = false }
 
         let taille = Self.tailleFenetre(pour: g)
         let cadre = NSRect(x: centre - taille.width / 2, y: ecran.frame.maxY - taille.height, width: taille.width, height: taille.height)
@@ -83,54 +73,50 @@ final class EnclochePanneau {
         f.ignoresMouseEvents = !mainsLibres
         f.orderFrontRegardless()
 
-        withAnimation(ressort(0.32, 0.9)) {
+        withAnimation(ressort(rebond: 0.12)) {
             modele.ouverte = true
             modele.mainsLibres = mainsLibres
         }
-        let item = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            withAnimation(self.ressort(0.34, 0.9)) { self.modele.ruban = true }
-        }
-        ouvertureRuban = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + (reduireLesAnimations ? 0 : 0.11), execute: item)
+        // Le ruban sort avec les premiers mots (voir `mettreAJourTexte`) : pas de ruban vide.
     }
 
     func passerEnMainsLibres() {
         guard modele.ouverte else { return }
         fenetre?.ignoresMouseEvents = false
-        withAnimation(ressort(0.32, 0.9)) { modele.mainsLibres = true }
+        withAnimation(ressort(rebond: 0.12)) { modele.mainsLibres = true }
     }
 
-    func mettreAJourTexte(_ texte: String) { modele.texte = texte }
+    func mettreAJourTexte(_ texte: String) {
+        modele.texte = texte
+        if !texte.isEmpty, modele.ouverte, !modele.ruban, modele.message == nil {
+            withAnimation(ressort(rebond: 0.1)) { modele.ruban = true }
+        }
+    }
     func niveau(_ n: Float) { modele.nouveauNiveau(n) }
 
-    /// Finalisation : les mots passent en blanc, les barres se calment.
+    /// Finalisation : les mots passent en blanc (fondu), les barres se calment.
     func figer() {
         modele.fige = true
         modele.calmerLesBarres()
     }
 
-    /// Referme l'encoche (fermeture plus vive que l'ouverture), puis retire la fenêtre.
+    /// Referme l'encoche (bande et ruban ensemble, 200 ms), puis retire la fenêtre. N'attend jamais rien : l'insertion
+    /// du texte ne dépend pas de cette animation.
     func fermer() {
-        ouvertureRuban?.cancel(); fermeture?.cancel()
+        fermeture?.cancel()
         fenetre?.ignoresMouseEvents = true
         modele.calmerLesBarres()
-        withAnimation(ressort(0.2, 1)) { modele.ruban = false }
-        let item = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            withAnimation(self.ressort(0.26, 1)) {
-                self.modele.ouverte = false
-                self.modele.mainsLibres = false
-            }
-            let retrait = DispatchWorkItem { [weak self] in
-                guard let self, !self.modele.ouverte else { return }
-                self.fenetre?.orderOut(nil)
-            }
-            self.fermeture = retrait
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: retrait)
+        withAnimation(ressort(rebond: 0)) {
+            modele.ruban = false
+            modele.ouverte = false
+            modele.mainsLibres = false
         }
-        fermeture = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + (reduireLesAnimations ? 0 : 0.07), execute: item)
+        let retrait = DispatchWorkItem { [weak self] in
+            guard let self, !self.modele.ouverte else { return }
+            self.fenetre?.orderOut(nil)
+        }
+        fermeture = retrait
+        DispatchQueue.main.asyncAfter(deadline: .now() + GeometrieEncoche.dureeMouvement + 0.1, execute: retrait)
     }
 
     /// Affiche un court message dans le ruban (ex. « Champ protégé, texte copié »), puis referme.
@@ -138,6 +124,7 @@ final class EnclochePanneau {
         ouvrir(app: app, mainsLibres: false)
         modele.message = texte
         modele.calmerLesBarres()
+        withAnimation(ressort(rebond: 0.1)) { modele.ruban = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + duree) { [weak self] in
             guard let self, self.modele.message == texte else { return }
             self.fermer()

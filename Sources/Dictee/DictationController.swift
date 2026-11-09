@@ -40,6 +40,8 @@ final class DictationController {
     /// Appelé quand une dictée finit sans passer par la touche fn (boutons ✕ / ✓, micro impossible) :
     /// la machine de la touche fn doit alors être remise à zéro.
     var surFinIndependante: (() -> Void)?
+    /// Appelé quand la capture commence (`true`) ou finit (`false`) : l'icône de la barre des menus montre un trait ambre.
+    var surCapture: ((Bool) -> Void)?
     /// Nombre de frappes au clavier depuis le lancement (fourni par l'écoute du clavier).
     var compteurFrappes: () -> Int = { 0 }
     /// Dernière insertion : sert de repli pour savoir ce qu'il y a avant le curseur.
@@ -75,6 +77,7 @@ final class DictationController {
         let s = Session(id: compteur, mainsLibres: mainsLibres, appCible: NSWorkspace.shared.frontmostApplication, transcripteur: transcripteur)
         courante = s
         etat = .ecoute(mainsLibres: mainsLibres)
+        surCapture?(true)
         Log.ecrire("dictée \(s.id) : appui fn (\(mainsLibres ? "mains libres" : "tenu")), app cible = \(s.appCible?.bundleIdentifier ?? "inconnue")")
 
         s.pipeline.surMorceau = { wav, duree in transcripteur.envoyer(wav: wav, duree: duree) }
@@ -124,6 +127,7 @@ final class DictationController {
         s.relachement = t
         etat = .repos
         courante = nil
+        surCapture?(false)
         Log.ecrire("dictée \(s.id) : relâchement après \(ms(t - s.debut)) ms")
         if let pid = s.appCible?.processIdentifier, Permissions.accessibiliteOK {
             s.champ = Task.detached(priority: .userInitiated) { LecteurCurseur.lire(pid: pid) }
@@ -262,6 +266,7 @@ final class DictationController {
         Log.ecrire("dictée \(s.id) : annulée après \(ms(ProcessInfo.processInfo.systemUptime - s.debut)) ms, rien n'est écrit")
         etat = .repos
         courante = nil
+        surCapture?(false)
         s.transcripteur.annuler()
         s.direct?.annuler()
         ouvertureRetardee?.cancel()

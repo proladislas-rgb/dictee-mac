@@ -22,6 +22,12 @@ rm -rf "$ASSEMBLAGE"
 mkdir -p "$ASSEMBLAGE/Contents/MacOS" "$ASSEMBLAGE/Contents/Resources"
 cp "$BIN" "$ASSEMBLAGE/Contents/MacOS/$NOM_APP"
 
+# Icône d'app : dessinée en vectoriel par l'app elle-même (--rendu-icones : PNG seulement, ni micro ni clavier), puis iconutil.
+echo "==> Icône (AppIcon.icns)"
+rm -rf .build/icones
+"$BIN" --rendu-icones .build/icones >/dev/null
+iconutil -c icns .build/icones/AppIcon.iconset -o "$ASSEMBLAGE/Contents/Resources/AppIcon.icns"
+
 cat > "$ASSEMBLAGE/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -30,6 +36,7 @@ cat > "$ASSEMBLAGE/Contents/Info.plist" <<PLIST
   <key>CFBundleDevelopmentRegion</key><string>fr</string>
   <key>CFBundleExecutable</key><string>$NOM_APP</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleName</key><string>$NOM_APP</string>
   <key>CFBundleDisplayName</key><string>$NOM_APP</string>
   <key>CFBundlePackageType</key><string>APPL</string>
