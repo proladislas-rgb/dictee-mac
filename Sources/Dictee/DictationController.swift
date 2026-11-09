@@ -140,12 +140,16 @@ final class DictationController {
         let idSession = s.id
         audio.demarrer(pipeline: s.pipeline) { resultat in
             switch resultat {
-            case .success(let ms): Log.ecrire("dictée \(idSession) : micro prêt après \(ms) ms")
+            case .success(let ms): Log.ecrire("dictée \(idSession) : micro prêt, premier son \(ms) ms après l'appui")
             case .failure(let e):
                 Log.ecrire("dictée \(idSession) : micro impossible (\(e.localizedDescription))")
                 DispatchQueue.main.async { [weak self] in
                     MainActor.assumeIsolated {
-                        if self?.courante?.id == idSession { self?.annuler(); self?.surFinIndependante?() }
+                        if self?.courante?.id == idSession {
+                            let app = self?.courante?.appCible
+                            self?.annuler(); self?.surFinIndependante?()
+                            self?.panneau.afficherMessage("Micro indisponible", app: app)
+                        }
                     }
                 }
             }

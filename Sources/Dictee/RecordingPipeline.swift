@@ -16,6 +16,10 @@ final class RecordingPipeline: @unchecked Sendable {
     /// Le tampon d'origine, tel que reçu du micro (pour la reconnaissance en direct). Valable le temps de l'appel.
     var surTamponBrut: ((AVAudioPCMBuffer) -> Void)?
 
+    /// Appelé une seule fois, au premier tampon reçu (sur le fil audio) : le format réel du micro. Preuve que le micro marche.
+    var surPremierTampon: ((AVAudioFormat) -> Void)?
+    private var premierRecu = false
+
     private let lock = NSLock()
     private var echantillons: [Int16] = []
     private var chunker: VoiceChunker
@@ -34,6 +38,7 @@ final class RecordingPipeline: @unchecked Sendable {
     var dureeEnregistree: Double { lock.lock(); defer { lock.unlock() }; return Double(echantillons.count) / 16_000 }
 
     func traiter(_ tampon: AVAudioPCMBuffer) {
+        if !premierRecu { premierRecu = true; surPremierTampon?(tampon.format) }
         surTamponBrut?(tampon)
         guard let converti = convertir(tampon), converti.frameLength > 0, let canal = converti.int16ChannelData else { return }
         let nouveaux = UnsafeBufferPointer(start: canal[0], count: Int(converti.frameLength))

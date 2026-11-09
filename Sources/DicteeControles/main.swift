@@ -504,6 +504,22 @@ do {
     verifier(BudgetRequetes.secondes(deEnTete: nil) == nil && BudgetRequetes.secondes(deEnTete: "abc") == nil, "en-tête absent ou illisible : rien")
 }
 
+groupe("ChoixMicro")
+do {
+    let mac = PeripheriqueEntree(uid: "BuiltInMic", nom: "Micro du MacBook Air", transport: .integre)
+    let airpods = PeripheriqueEntree(uid: "AP-1", nom: "AirPods de Hugues", transport: .bluetooth)
+    let usb = PeripheriqueEntree(uid: "USB-1", nom: "Shure MV7", transport: .usb)
+    let tous = [mac, airpods, usb]
+    verifier(ChoixMicro.decider(reglage: nil, peripheriques: tous, defautUID: "AP-1") == .impose(mac, raison: "casque Bluetooth connecté (AirPods de Hugues) : micro intégré préféré"), "Automatique + AirPods par défaut : micro intégré")
+    verifier(ChoixMicro.decider(reglage: "", peripheriques: tous, defautUID: "BuiltInMic").raison.hasPrefix("micro par défaut"), "Automatique + micro intégré par défaut : on laisse le système")
+    verifier(ChoixMicro.decider(reglage: nil, peripheriques: tous, defautUID: "USB-1") == .systeme(raison: "micro par défaut du système (Shure MV7)"), "Automatique + micro USB par défaut : on le garde")
+    verifier(ChoixMicro.decider(reglage: "AP-1", peripheriques: tous, defautUID: "BuiltInMic") == .impose(airpods, raison: "micro choisi dans les Réglages"), "AirPods choisis explicitement : respectés")
+    verifier(ChoixMicro.decider(reglage: ChoixMicro.systeme, peripheriques: tous, defautUID: "AP-1") == .systeme(raison: "Micro du système choisi dans les Réglages"), "« Micro du système » : jamais d'imposition, même avec AirPods")
+    verifier(ChoixMicro.decider(reglage: "AP-9", peripheriques: tous, defautUID: "AP-1").raison.hasPrefix("micro choisi absent, casque Bluetooth"), "micro choisi débranché : retour à l'automatique")
+    verifier(ChoixMicro.decider(reglage: nil, peripheriques: [airpods], defautUID: "AP-1") == .systeme(raison: "micro par défaut du système (AirPods de Hugues)"), "AirPods seuls (Mac sans micro intégré) : on les utilise")
+    verifier(ChoixMicro.decider(reglage: nil, peripheriques: [], defautUID: nil) == .systeme(raison: "micro par défaut du système"), "aucun périphérique connu : le système décide")
+}
+
 groupe("Coupe forcée")
 verifier(TextAssembler.sansPonctuationDeCoupe(" Il reste à tester. ") == "Il reste à tester", "le point de fin d'un morceau coupé en pleine parole est retiré")
 verifier(TextAssembler.sansPonctuationDeCoupe("Tu viens ?") == "Tu viens ?" && TextAssembler.sansPonctuationDeCoupe("Super !") == "Super !", "? et ! sont gardés")

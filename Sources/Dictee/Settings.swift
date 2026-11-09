@@ -77,7 +77,8 @@ enum Settings {
     /// Langue choisie dans les Réglages (`fr`, `en`) ou `nil` pour la détection automatique.
     static func choisirLangue(_ code: String?) { defaults.set(code ?? "auto", forKey: "langue") }
 
-    /// Micro choisi (identifiant CoreAudio). `nil` = micro par défaut du système.
+    /// Micro choisi : `nil` = Automatique (micro intégré du Mac quand un casque Bluetooth est le micro par défaut, sinon le micro par défaut),
+    /// `"systeme"` = micro du système tel quel, sinon l'identifiant CoreAudio d'un micro précis (AirPods compris). Voir `ChoixMicro`.
     static var micro: String? {
         get { defaults.string(forKey: "microUID").flatMap { $0.isEmpty ? nil : $0 } }
         set { defaults.set(newValue ?? "", forKey: "microUID") }

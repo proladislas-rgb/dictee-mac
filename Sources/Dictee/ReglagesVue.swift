@@ -15,7 +15,7 @@ struct ReglagesVue: View {
             VStack(spacing: 0) {
                 LigneReglage(libelle: "Dicter", note: nil) { HStack(spacing: 6) { Text("Maintenir"); ToucheFn() } }
                 LigneReglage(libelle: "Mains libres", note: nil) { HStack(spacing: 6) { Text("Deux appuis"); ToucheFn() } }
-                LigneReglage(libelle: "Micro", note: nil) {
+                LigneReglage(libelle: "Micro", note: "Automatique : le micro du Mac quand un casque Bluetooth est branché.") {
                     ChoixReglage(libelle: "Micro", valeur: $r.micro, options: r.micros.map { ($0.id, $0.nom) })
                 }
                 LigneReglage(libelle: "Langue", note: nil) {

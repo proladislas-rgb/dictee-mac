@@ -4,7 +4,7 @@ import ServiceManagement
 import DicteeCore
 
 struct MicroChoix: Identifiable, Equatable {
-    var id: String        // identifiant CoreAudio ; vide = micro du système
+    var id: String        // identifiant CoreAudio ; vide = Automatique ; "systeme" = micro du système
     var nom: String
 }
 
@@ -38,7 +38,7 @@ final class ReglagesModele: ObservableObject {
         langue = reel ? (Settings.langue ?? "auto") : "auto"
         micro = reel ? (Settings.micro ?? "") : ""
         ouvrirAuDemarrage = reel ? SMAppService.mainApp.status == .enabled : false
-        micros = [MicroChoix(id: "", nom: "Micro du système")]
+        micros = [MicroChoix(id: ChoixMicro.automatique, nom: "Automatique"), MicroChoix(id: ChoixMicro.systeme, nom: "Micro du système")]
         installe = true
         if reel { rafraichir() } else { micros.append(MicroChoix(id: "exemple", nom: "Micro du MacBook")); disponibiliteSecours = .pret; cle = .trousseau }
     }
@@ -47,8 +47,8 @@ final class ReglagesModele: ObservableObject {
     func rafraichir() {
         guard reel else { return }
         let decouverte = AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone, .external], mediaType: .audio, position: .unspecified)
-        micros = [MicroChoix(id: "", nom: "Micro du système")] + decouverte.devices.map { MicroChoix(id: $0.uniqueID, nom: $0.localizedName) }
-        if !micro.isEmpty, !micros.contains(where: { $0.id == micro }) { micros.append(MicroChoix(id: micro, nom: "Micro absent")) }
+        micros = [MicroChoix(id: ChoixMicro.automatique, nom: "Automatique"), MicroChoix(id: ChoixMicro.systeme, nom: "Micro du système")] + decouverte.devices.map { MicroChoix(id: $0.uniqueID, nom: $0.localizedName) }
+        if !micro.isEmpty, micro != ChoixMicro.systeme, !micros.contains(where: { $0.id == micro }) { micros.append(MicroChoix(id: micro, nom: "Micro absent")) }
         disponibiliteSecours = PrechauffageParole.disponibilite
         cle = CleGroq.etat
         autorisationsCompletes = Permissions.toutesOK
