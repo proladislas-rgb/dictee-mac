@@ -187,6 +187,32 @@ final class GroqClient: @unchecked Sendable {
     /// Une complétion de texte (remise au propre). Température basse, sortie = le texte seul.
     /// `delai` : durée maximale en secondes ; au-delà, l'appel est abandonné (`GroqErreur.reseau`).
     func completer(modele: String, systeme: String, texte: String, delai: Double) async throws -> String {
+        // Les deux gpt-oss de Groq ont chacun leurs limites gratuites (200 000 jetons par jour chacun : une remise au propre en coûte ~1 000).
+        // Quand l'un est à sec (429), l'autre prend le relais tout de suite, et le premier n'est pas réessayé avant la fin de la pause demandée.
+        let debut = ProcessInfo.processInfo.systemUptime
+        let candidats = ModelesTexte.ordre(prefere: modele, pauses: pausesModeles())
+        var derniere: Error = GroqErreur.http(429)
+        for (i, m) in candidats.enumerated() {
+            let reste = delai - (ProcessInfo.processInfo.systemUptime - debut)
+            if reste < 0.15 { break }
+            do {
+                if i > 0 { Log.ecrire("remise au propre : \(candidats[0]) à sec (429), \(m) prend le relais") }
+                return try await completerUnModele(modele: m, systeme: systeme, texte: texte, delai: reste)
+            } catch GroqErreur.http(429) { derniere = GroqErreur.http(429); continue }
+        }
+        throw derniere
+    }
+
+    private var pausesModelesTexte: [String: Double] = [:]
+    private func pausesModeles() -> [String: Double] {
+        verrou.lock(); defer { verrou.unlock() }
+        return pausesModelesTexte
+    }
+    private func mettreEnPause(_ modele: String, secondes: Double) {
+        verrou.lock(); pausesModelesTexte[modele] = ProcessInfo.processInfo.systemUptime + max(5, min(secondes, 3600)); verrou.unlock()
+    }
+
+    private func completerUnModele(modele: String, systeme: String, texte: String, delai: Double) async throws -> String {
         guard let cle else { throw GroqErreur.pasDeCle }
         var corps: [String: Any] = [
             "model": modele,
@@ -195,7 +221,7 @@ final class GroqClient: @unchecked Sendable {
             "max_completion_tokens": 300 + texte.count,
             "messages": [["role": "system", "content": systeme], ["role": "user", "content": texte]],
         ]
-        if modele.hasPrefix("openai/gpt-oss") { corps["reasoning_effort"] = "low"; corps["include_reasoning"] = false }
+        if let effort = ModelesTexte.effortDeRaisonnement(modele) { corps["reasoning_effort"] = effort; if modele.hasPrefix("openai/") { corps["include_reasoning"] = false } }
         var req = URLRequest(url: base.appendingPathComponent("chat/completions"))
         req.httpMethod = "POST"
         req.timeoutInterval = delai
@@ -216,8 +242,11 @@ final class GroqClient: @unchecked Sendable {
         BudgetRequetes.nettoyage.noterRestantJour(http.value(forHTTPHeaderField: "x-ratelimit-remaining-requests").flatMap { Int($0) })
         BudgetRequetes.nettoyage.noterRestantJetons(http.value(forHTTPHeaderField: "x-ratelimit-remaining-tokens").flatMap { Int($0) })
         if http.statusCode == 429 {
-            BudgetRequetes.nettoyage.noter429(retryAfter: BudgetRequetes.secondes(deEnTete: http.value(forHTTPHeaderField: "retry-after")))
-            Log.ecrire("Groq (remise au propre) : limite atteinte (429)")
+            let attente = BudgetRequetes.secondes(deEnTete: http.value(forHTTPHeaderField: "retry-after"))
+            mettreEnPause(modele, secondes: attente ?? 30)
+            // Si l'autre modèle est aussi en pause, plus aucune requête de confort pendant l'attente.
+            if ModelesTexte.ordre(prefere: modele, pauses: pausesModeles()).isEmpty { BudgetRequetes.nettoyage.noter429(retryAfter: attente) }
+            Log.ecrire("Groq (\(modele)) : limite atteinte (429), nouvelle tentative possible dans \(Int(attente ?? 0)) s")
         }
         guard http.statusCode == 200 else { throw GroqErreur.http(http.statusCode) }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

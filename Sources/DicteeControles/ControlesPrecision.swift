@@ -26,6 +26,15 @@ func controlesPrecision() {
         verifier(precis.enPause(a: t + 10) && !turbo.enPause(a: t + 10), "429 sur le précis : en pause, pas le turbo")
     }
 
+    groupe("Précision : modèles de langue de secours (qwen / gpt-oss 120b / 20b)")
+    verifier(ModelesTexte.ordre(prefere: ModelesTexte.petit, pauses: [:], maintenant: 100) == [ModelesTexte.petit, ModelesTexte.rapide, ModelesTexte.grand], "20b d'abord, puis qwen, puis le 120b")
+    verifier(ModelesTexte.ordre(prefere: ModelesTexte.rapide, pauses: [:], maintenant: 100) == [ModelesTexte.rapide, ModelesTexte.grand, ModelesTexte.petit], "relecture : qwen d'abord")
+    verifier(ModelesTexte.ordre(prefere: ModelesTexte.petit, pauses: [ModelesTexte.petit: 150], maintenant: 100) == [ModelesTexte.rapide, ModelesTexte.grand], "20b en pause (429) : directement le suivant")
+    verifier(ModelesTexte.ordre(prefere: ModelesTexte.petit, pauses: [ModelesTexte.petit: 90], maintenant: 100).first == ModelesTexte.petit, "pause finie : le 20b revient")
+    verifier(ModelesTexte.ordre(prefere: ModelesTexte.petit, pauses: Dictionary(uniqueKeysWithValues: [ModelesTexte.petit, ModelesTexte.grand, ModelesTexte.rapide].map { ($0, 150.0) }), maintenant: 100).isEmpty, "tous à sec : aucun")
+    verifier(ModelesTexte.ordre(prefere: "autre/modele", pauses: [:], maintenant: 100) == ["autre/modele"], "modèle inconnu : pas de relais")
+    verifier(ModelesTexte.effortDeRaisonnement(ModelesTexte.rapide) == "none" && ModelesTexte.effortDeRaisonnement(ModelesTexte.petit) == "low" && ModelesTexte.effortDeRaisonnement("autre") == nil, "raisonnement coupé pour qwen, « low » pour gpt-oss")
+
     groupe("Précision : latences mesurées")
     do {
         var l = SuiviLatence()
