@@ -64,15 +64,23 @@ final class ChunkTranscriber: @unchecked Sendable {
     private let langue: String?
     private let groq: GroqClient
     private let vitesse: Vitesse
+    /// Construit le prompt de Whisper à partir de la fin du texte précédent (mots choisis dans le lexique selon le contexte).
+    /// Sans lui : mots.txt seul, comme avant le lexique.
+    private let promptPour: (@Sendable (String?) -> String)?
+    /// Correction « à l'oreille » du texte d'un morceau, juste après la réponse de Groq (le numéro du morceau va au journal).
+    private let correcteur: (@Sendable (String, Int) async -> String)?
     private(set) var anticipesReutilises = 0
     private(set) var anticipesJetes = 0
     private(set) var secoursLances = 0
 
-    init(groq: GroqClient = .shared, mots: [String], langue: String?, vitesse: Vitesse = Vitesse()) {
+    init(groq: GroqClient = .shared, mots: [String], langue: String?, vitesse: Vitesse = Vitesse(),
+         promptPour: (@Sendable (String?) -> String)? = nil, correcteur: (@Sendable (String, Int) async -> String)? = nil) {
         self.groq = groq
         self.mots = mots
         self.langue = langue
         self.vitesse = vitesse
+        self.promptPour = promptPour
+        self.correcteur = correcteur
     }
 
     var nombreDeMorceaux: Int { lock.lock(); defer { lock.unlock() }; return morceaux.count }
@@ -126,10 +134,10 @@ final class ChunkTranscriber: @unchecked Sendable {
 
     /// La requête Whisper d'un morceau : codage du son, envoi, journal. Sert aussi à la requête de secours.
     private func lancerRequete(_ m: Morceau, secours: Bool = false) -> Task<Sortie, Never> {
-        let (groq, mots, langue) = (self.groq, self.mots, self.langue)
+        let (groq, mots, langue, promptPour, correcteur) = (self.groq, self.mots, self.langue, self.promptPour, self.correcteur)
         return Task { [weak self] () -> Sortie in
             guard self != nil else { return Sortie(texte: nil, erreur: "annulé") }
-            let prompt = TextAssembler.prompt(mots: mots, contexte: m.contexte, ancre: ChoixLangue.phraseAncre(langue: langue))
+            let prompt = promptPour?(m.contexte) ?? TextAssembler.prompt(mots: mots, contexte: m.contexte, ancre: ChoixLangue.phraseAncre(langue: langue))
             let t0 = ProcessInfo.processInfo.systemUptime
             let fichier = await m.fichier.value
             let codage = Int((ProcessInfo.processInfo.systemUptime - t0) * 1000)
@@ -138,6 +146,9 @@ final class ChunkTranscriber: @unchecked Sendable {
             do {
                 var texte = try await groq.transcrire(fichier: fichier, prompt: prompt, langue: langue, autorisees: Settings.languesAutorisees, etiquette: nom)
                 let ms = Int((ProcessInfo.processInfo.systemUptime - debut) * 1000)
+                // Correction « à l'oreille » (mots du lexique mal entendus) : avant tout le reste, pour que la remise au propre,
+                // l'envoi anticipé et le contexte du morceau suivant partent tous du texte corrigé.
+                if let correcteur { texte = await correcteur(texte, m.numero) }
                 // Coupé en pleine parole : le point que Whisper met à la fin du morceau n'existe pas dans la phrase.
                 if !m.finParPause { texte = TextAssembler.sansPonctuationDeCoupe(texte) }
                 Log.ecrire("\(nom) : \(String(format: "%.1f", m.duree)) s de son, \(fichier.nom.hasSuffix("flac") ? "FLAC" : "WAV") \(fichier.donnees.count / 1024) Ko (codage \(codage) ms) -> Groq en \(ms) ms, \"\(Log.apercu(texte))\"")

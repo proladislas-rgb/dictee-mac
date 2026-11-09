@@ -59,6 +59,16 @@ enum Settings {
     /// Remise au propre par unités de phrases pendant les longues dictées. `DICTEE_UNITES=non` pour revenir au texte entier d'un coup.
     static var nettoyageParUnites: Bool { reglage("DICTEE_UNITES", "nettoyageParUnites", defaut: true, faux: "non") }
 
+    /// Le grand lexique local (lexique.json) choisit les mots envoyés à Whisper à chaque dictée. `DICTEE_LEXIQUE=non` (mesures) ou
+    /// `defaults write com.hugues.dictee lexiquePourWhisper -bool false` pour revenir à mots.txt seul.
+    static var lexiquePourWhisper: Bool { reglage("DICTEE_LEXIQUE", "lexiquePourWhisper", defaut: true, faux: "non") }
+
+    /// Correction « à l'oreille » après Whisper (« Brionia » → « Brillonia »). `DICTEE_OREILLE=non` ou `defaults write ... correctionALOreille -bool false`.
+    static var correctionALOreille: Bool { reglage("DICTEE_OREILLE", "correctionALOreille", defaut: true, faux: "non") }
+
+    /// Apprendre des corrections de Hugues juste après une dictée (propositions dans « Mots »). `defaults write ... apprentissageDesCorrections -bool false`.
+    static var apprentissageDesCorrections: Bool { reglage("DICTEE_APPRENTISSAGE", "apprentissageDesCorrections", defaut: true, faux: "non") }
+
     /// Interrupteur de vitesse : la variable d'environnement (mesures en ligne de commande) l'emporte sur le réglage.
     private static func reglage(_ variable: String, _ cle: String, defaut: Bool, faux: String) -> Bool {
         if let v = ProcessInfo.processInfo.environment[variable] { return v != faux }

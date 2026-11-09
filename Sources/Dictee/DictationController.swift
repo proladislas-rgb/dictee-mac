@@ -23,14 +23,14 @@ final class DictationController {
         var direct: (any ReconnaissanceDirecte)?
         var secours: Task<String, Never>?
         /// Lecture du champ focalisé (Accessibilité), lancée à l'appui puis au relâchement, pendant que Groq travaille.
-        let champ = LectureChamp()
+        let champ: LectureChamp
         let transcripteur: ChunkTranscriber
         /// Remise au propre lancée pendant la pause d'avant le relâchement, sur le texte qu'on aurait si la parole s'arrêtait là.
         /// Remise au propre par unités de phrases pendant les longues dictées.
         var unites: NettoyageParUnites?
         var nettoyageAnticipe: (brut: String, contexte: ContexteMiseEnForme, tache: Task<Nettoyage.Resultat, Never>)?
-        init(id: Int, mainsLibres: Bool, appCible: NSRunningApplication?, transcripteur: ChunkTranscriber) {
-            self.id = id; self.mainsLibres = mainsLibres; self.appCible = appCible; self.transcripteur = transcripteur
+        init(id: Int, mainsLibres: Bool, appCible: NSRunningApplication?, transcripteur: ChunkTranscriber, champ: LectureChamp) {
+            self.id = id; self.mainsLibres = mainsLibres; self.appCible = appCible; self.transcripteur = transcripteur; self.champ = champ
             // Le son de début est capté par le micro : la détection de parole ignore ses premières tranches (0,2 s en mains libres, 0,32 s en mode « tenir » où il part à 0,12 s).
             pipeline = RecordingPipeline(tranchesIgnorees: Settings.sons ? (mainsLibres ? 10 : 16) : 0)
         }
@@ -70,6 +70,7 @@ final class DictationController {
         panneau.modele.surAnnuler = { [weak self] in self?.annulerParBouton() }
         panneau.modele.surValider = { [weak self] in self?.validerParBouton() }
         Dictionnaire.creerSiAbsent()
+        Orthographe.prechauffer()
         // Le premier codage FLAC de la session coûte ~20 ms de plus : on le fait à vide, tout de suite.
         Task.detached(priority: .utility) { _ = EncodeurAudio.flacEnMemoire(Array(repeating: 0, count: 3200)) }
         Retours.preparer()
@@ -96,8 +97,14 @@ final class DictationController {
             return
         }
         compteur += 1
-        let transcripteur = ChunkTranscriber(mots: Dictionnaire.mots(), langue: Settings.langue)
-        let s = Session(id: compteur, mainsLibres: mainsLibres, appCible: NSWorkspace.shared.frontmostApplication, transcripteur: transcripteur)
+        let appCible = NSWorkspace.shared.frontmostApplication
+        let champ = LectureChamp()
+        let recents = HistoriqueStore.shared.historique.entrees.prefix(20).map(\.texte)
+        let transcripteur = ChunkTranscriber(mots: Dictionnaire.mots(), langue: Settings.langue,
+                                             promptPour: PreparationLexique.promptPour(langue: Settings.langue, genre: TextFormatter.kind(bundleID: appCible?.bundleIdentifier),
+                                                                                       champ: { champ.dejaConnu() }, recents: Array(recents)),
+                                             correcteur: PreparationLexique.correcteur())
+        let s = Session(id: compteur, mainsLibres: mainsLibres, appCible: appCible, transcripteur: transcripteur, champ: champ)
         courante = s
         let champLu = s.champ, bundle = s.appCible?.bundleIdentifier
         let unites = NettoyageParUnites(mots: Dictionnaire.mots()) {
@@ -312,6 +319,7 @@ final class DictationController {
             } else {
                 garder(inseree: true)
                 surInsertion?(texteFinal, s.appCible?.bundleIdentifier)
+                SurveillanceCorrections.lancer(texte: texte, cible: s.appCible, genre: kind, idDictee: s.id)
                 memoire = MemoireInsertion(appId: s.appCible?.bundleIdentifier ?? "", queue: MemoireInsertion.queue(de: texte),
                                            instant: ProcessInfo.processInfo.systemUptime, frappes: compteurFrappes())
             }

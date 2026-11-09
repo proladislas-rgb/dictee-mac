@@ -38,14 +38,18 @@ Technique : Swift 6.2 (outils en ligne de commande, pas d'Xcode), paquet Swift +
   [x] 7c fenêtre principale Dictées / Mots / Réglages (planches 01-02), raccourcis vocaux ;
   [x] 7d premier lancement en 3 étapes + états vides et d'échec.
 - [ ] (ancien) Lot 7 — Panneau (style B, sorti de l'encoche) : dictées, mots, réglages ; historique enregistré sur le Mac.
-- [ ] Lot 8 — Dictionnaire qui apprend (corrections, Contacts), ouverture au démarrage.
+- [x] Lot 8 — Dictionnaire qui apprend : corrections proposées dans Mots (fait avec le Lot 8 bis), ouverture au démarrage (faite au Lot 7c) ; import des Contacts non fait (autorisation Contacts à demander, décision de Hugues).
 - [x] Lot 9 (fait le 09/11 ; essais réels en attente de Hugues, voir spec) — Vraie app à installer / désinstaller (demande de Hugues 09/11 : « je peux pas l'ajouter comme une app que je télécharge, je la supprime ») :
   fichier d'installation Dictee.dmg (glisser dans Applications), icône provisoire en attendant le logo ChatGPT, premier lancement qui demande la clé Groq (rangée dans le Trousseau) et les autorisations,
   menu « Désinstaller Dictée… » qui efface aussi réglages, historique, journal et clé ; versions publiées sur GitHub (Releases). Pas de compte Apple payant (décision de Hugues 09/11) : signature ad hoc stable, mode d'emploi « clic droit › Ouvrir » pour un ami.
 - [x] Passage en open source (Hugues 09/11) : sortir docs/etude-apps.md du dépôt (copie dans le second cerveau), remplacer le mail perso des maquettes, licence MIT, historique repris à neuf (sauvegarde locale de l'ancien), dépôt passé en public.
-- [ ] Lot 8 bis — « Entraînement » (demande de Hugues 09/11 : « l'alimenter avec un dictionnaire… un tas de mots compliqués, dans différentes langues ») :
-  grand lexique local (milliers de mots) construit depuis les sources de Hugues ; à chaque dictée, ~50 mots les plus probables envoyés à Whisper (limite ≈ 224 jetons) ;
-  correction phonétique après Groq (« Sionia » → « Sillonia ») sur tout le lexique ; banc d'essai mesuré (phrases difficiles FR/EN/autres langues, voix de synthèse + vraies dictées) avant/après.
+- [x] Lot 8 bis — « Entraînement » (demande de Hugues 09/11 : « l'alimenter avec un dictionnaire… un tas de mots compliqués, dans différentes langues »), fait le 09/11 soir, détail et chiffres dans docs/spec-v1.md (« Lot 8 bis ») :
+  [x] 1. lexique local `lexique.json` (jamais dans git) construit par `Verbe --construire-lexique` depuis second-cerveau (sans moi/) et les dossiers de projets ;
+  [x] 2. choix des mots pour Whisper à chaque dictée (`ChoixMotsPrompt` : mots.txt devant, puis lexique selon app, titre, texte autour du curseur, historique ; budget 200 jetons) ;
+  [x] 3. correction « à l'oreille » après Groq (`CorrectionOreille`, `ClePhonetique`, journalisée) ;
+  [x] 4. apprentissage des corrections (`SurveillanceCorrections` : relecture du champ 6 s et 15 s après le collage, propositions dans Mots) ;
+  [x] 5. banc d'essai chiffré avant/après (`Verbe --banc-lexique`, `scripts/banc-lexique.sh`, 80 phrases de synthèse en 3 lots : mots du lexique justes 36,5 % → 53,9 %, 0 fausse correction) ;
+  [ ] Hugues : essayer en vrai (voir « À vérifier en vrai » du Lot 8 bis dans la spec) ; relancer `Verbe --construire-lexique` de temps en temps (le lexique ne se met pas à jour tout seul).
 Chaque lot : construit, essayé pour de vrai sur le Mac, poussé sur GitHub.
 
 ## Nom

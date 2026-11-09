@@ -848,5 +848,185 @@ do {
     verifier(lue == nil || (0...3).contains(lue!), "lecture réelle du réglage : \(lue.map(String.init) ?? "absent")")
 }
 
+groupe("ClePhonetique")
+do {
+    verifier(ClePhonetique.plier("\u{00C9}co-Distrib") == "ecodistrib", "plier : casse, accents, trait d'union")
+    verifier(ClePhonetique.plier("Fran\u{00E7}ois") == "fransois", "plier : ç se prononce s")
+    verifier(ClePhonetique.cle("Philippe") == ClePhonetique.cle("Filip") || ClePhonetique.distance(ClePhonetique.cle("Philippe"), ClePhonetique.cle("Filip")) <= 1, "ph = f")
+    verifier(ClePhonetique.cle("quatre") == ClePhonetique.cle("katre"), "qu = k")
+    verifier(ClePhonetique.cle("Brillonia") != "" && ClePhonetique.distance(ClePhonetique.cle("Brillonia"), ClePhonetique.cle("Brionia")) <= 1, "ll écrasé : Brillonia ~ Brionia")
+    verifier(ClePhonetique.cle("Ladomir") == ClePhonetique.cle("Ladomirs"), "s final muet")
+    verifier(ClePhonetique.cle("") == "" && ClePhonetique.cle("123") == "123", "mot vide ou chiffres")
+    verifier(ClePhonetique.distance("chat", "chats") == 1 && ClePhonetique.distance("abc", "abc") == 0 && ClePhonetique.distance("", "ab") == 2, "distance d'édition")
+    verifier(ClePhonetique.distance("abcdef", "uvwxyz", plafond: 2) == 3, "distance : arrêt au plafond")
+}
+
+groupe("ExtractionLexique")
+do {
+    var e = ExtractionLexique()
+    let inconnus: Set<String> = ["ecoverdix", "brillonia", "zorbaltech", "supabasix", "cee", "iphonix"]
+    let connu: (String) -> Bool = { !inconnus.contains(ClePhonetique.plier($0)) }
+    let doc1 = """
+    # R\u{00E9}union avec Ecoverdix
+    Nous avons vu Brillonia hier. Le projet avec Ecoverdix avance, merci. On parle de la fiche TRA-SE-104 et du CEE.
+    ```swift
+    let zorbaltech = HistoriqueStoreVueModele()
+    ```
+    Voir https://exemple.zorbaltech.fr/page et /Users/moi/dossier/fichier.md ou contact@zorbaltech.fr.
+    Le d\u{00E9}p\u{00F4}t Supabasix est pr\u{00EA}t. Il utilise zorbaltech, iPhonix et monObjetCode. Id: 3f2a9c1b7d4e5a60.
+    Aujourd'hui, pour l'Ecoverdix, nous parlons de supabasix et de tableaux.
+    """
+    e.ajouter(texte: doc1, source: "projet-a", document: 1)
+    e.ajouter(texte: "Brillonia et Ecoverdix reviennent. Bonjour. La fiche TRA-SE-104 est la suivante, CEE, CEE, supabasix ! iPhonix encore.", source: "projet-b", document: 2)
+    e.ajouter(texte: "Bonjour tout le monde. Bonjour encore. iPhonix supabasix zorbaltech zorbaltech zorbaltech", source: "projet-b", document: 3)
+    for (i, texte) in ["Un iPhonix de plus. iPhonix partout.", "Voir iPhonix ici.", "Et iPhonix encore, iPhonix toujours."].enumerated() { e.ajouter(texte: texte, source: "projet-c", document: 10 + i) }
+    var seuils = ExtractionLexique.Seuils(); seuils.sigleFrequence = 2
+    let c = e.candidats(seuils: seuils, estConnu: connu)
+    let mots = Set(c.map(\.mot))
+    verifier(mots.contains("Ecoverdix") && mots.contains("Brillonia"), "noms propres retenus")
+    verifier(mots.contains("TRA-SE-104") && mots.contains("CEE"), "sigles retenus (TRA-SE-104, CEE)")
+    verifier(mots.contains("supabasix") && mots.contains("zorbaltech"), "jargon en minuscules retenu")
+    verifier(mots.contains("iPhonix"), "majuscule intérieure retenue")
+    verifier(!mots.contains("Bonjour") && !mots.contains("Nous") && !mots.contains("merci"), "mots courants écartés (début de phrase compris)")
+    verifier(!mots.contains("HistoriqueStoreVueModele") && !mots.contains("monObjetCode"), "identifiants de code écartés")
+    verifier(!c.contains { $0.mot.lowercased().contains("3f2a") || $0.mot.contains("fichier") || $0.mot.contains("exemple") }, "adresses, chemins et hexadécimaux écartés")
+    verifier(c.first?.frequence ?? 0 >= (c.last?.frequence ?? 0), "classé par fréquence décroissante")
+    verifier(c.first(where: { $0.mot == "Ecoverdix" })?.type == .nom && c.first(where: { $0.mot == "CEE" })?.type == .sigle && c.first(where: { $0.mot == "supabasix" })?.type == .technique, "types : nom, sigle, technique")
+    verifier((c.first(where: { $0.mot == "Ecoverdix" })?.documents ?? 0) == 2, "documents distincts comptés")
+    var f = ExtractionLexique(); f.ajouterImposes(["Abidjanix"], source: "base"); f.ajouterImposes(["Yamoussoukrix"], source: "base")
+    let b = f.candidats(estConnu: connu)
+    verifier(b.count == 2 && b.allSatisfy { $0.source == "base" }, "mots imposés gardés malgré une fréquence de 1")
+    var g = ExtractionLexique(); g.ajouter(texte: "Le Zorbaltech arrive. Le Zorbaltech repart.", source: "x", document: 1)
+    verifier(g.candidats(estConnu: connu).isEmpty == false, "un nom toujours en début de phrase mais inconnu reste candidat")
+    var h = ExtractionLexique(); h.ajouter(texte: "Pour moi. Pour toi. Pour nous. Pour eux.", source: "x", document: 1)
+    verifier(h.candidats(estConnu: { _ in true }).isEmpty, "tout connu du correcteur : rien")
+    var k = ExtractionLexique(); k.ajouter(texte: "Un cree zorbaltech zorbaltech zorbaltech. Un cr\u{00E9}\u{00E9} cr\u{00E9}\u{00E9} cr\u{00E9}\u{00E9} cree cree cree.", source: "x", document: 1); k.ajouter(texte: "cree cr\u{00E9}\u{00E9} zorbaltech", source: "y", document: 2)
+    verifier(!k.candidats(estConnu: { ClePhonetique.plier($0) != "zorbaltech" }).contains { $0.mot.hasPrefix("cr") }, "« cree » sans accent n'est pas un mot nouveau si « créé » est connu")
+}
+
+groupe("CorrectionOreille")
+do {
+    let lex = [EntreeLexique(mot: "Brillonia", frequence: 40, source: "a", type: .nom), EntreeLexique(mot: "Ladomir", frequence: 30, source: "a", type: .nom),
+               EntreeLexique(mot: "Ecoverdix", frequence: 20, source: "a", type: .nom), EntreeLexique(mot: "CEE", frequence: 50, source: "a", type: .sigle),
+               EntreeLexique(mot: "Abidjanix", frequence: 5, source: "base", type: .nom)]
+    let index = IndexCorrection(motsChoisis: ["Zorbaltech"], lexique: lex)
+    let communs: Set<String> = ["on", "parle", "de", "avec", "demain", "bonjour", "le", "la", "dossier", "merci", "pour", "rendez", "vous", "hier", "ce", "matin", "mon", "ami", "avons", "vu", "et", "du", "nous", "sommes", "chez", "elle", "est", "venue"]
+    let connu: (String) -> Bool = { communs.contains(ClePhonetique.plier($0)) }
+    func c(_ t: String) -> (String, [Correction]) { let r = CorrectionOreille.corriger(t, index: index, estConnu: connu); return (r.texte, r.corrections) }
+    verifier(c("On parle de Brionia demain.").0 == "On parle de Brillonia demain.", "« Brionia » devient « Brillonia »")
+    verifier(c("On parle de Brionia demain.").1 == [Correction(original: "Brionia", remplacement: "Brillonia")], "la correction est journalisée")
+    verifier(c("Bonjour Ladomire, merci.").0 == "Bonjour Ladomir, merci.", "« Ladomire » devient « Ladomir »")
+    verifier(c("Rendez-vous avec Eco verdix demain.").0 == "Rendez-vous avec Ecoverdix demain.", "deux mots collés : « Eco verdix » devient « Ecoverdix »")
+    verifier(c("Rendez-vous avec ecoverdix demain.").0 == "Rendez-vous avec ecoverdix demain.", "un nom du lexique en minuscules est laissé tel quel")
+    verifier(c("Chez zorbaltech demain.").0 == "Chez Zorbaltech demain.", "un mot choisi par Hugues retrouve sa majuscule")
+    let casse = IndexCorrection(motsChoisis: [], lexique: [EntreeLexique(mot: "iPhonix", frequence: 9, source: "a", type: .technique)])
+    verifier(CorrectionOreille.corriger("Avec un iphonix demain", index: casse, estConnu: connu).texte == "Avec un iPhonix demain", "majuscule intérieure imposée (iPhonix)")
+    verifier(c("Les Brillonias sont venues.").0 == "Les Brillonias sont venues.", "pluriel déjà juste : rien à faire")
+    verifier(c("Les brillonias sont venues.").0 == "Les Brillonias sont venues.", "pluriel en minuscules : casse corrigée")
+    verifier(c("de l'Brionia").0 == "de l'Brillonia", "élision conservée")
+    verifier(c("Zorbaltek est chez nous.").0 == "Zorbaltech est chez nous.", "les mots choisis (mots.txt) servent aussi")
+    verifier(c("Merci à l'adomir demain.").0 == "Merci à Ladomir demain.", "le « l' » entendu était la première lettre du nom (l'adomir → Ladomir)")
+    verifier(c("Merci à la Domir demain.").0 == "Merci à Ladomir demain.", "mot coupé en deux par Whisper (la Domir → Ladomir)")
+    verifier(c("Avec brionia demain").0 == "Avec brillonia demain", "une minuscule de Whisper est gardée pour un nom du lexique")
+    verifier(c("Avec Brionia demain").0 == "Avec Brillonia demain", "une majuscule de Whisper est gardée")
+    let unelettre = IndexCorrection(motsChoisis: [], lexique: [EntreeLexique(mot: "Vermiflow", frequence: 9, source: "a", type: .nom)])
+    verifier(CorrectionOreille.corriger("Chez Vermflow demain", index: unelettre, estConnu: connu).texte == "Chez Vermiflow demain", "une seule lettre de différence dans un mot assez long")
+    verifier(CorrectionOreille.corriger("Chez Vermflaw demain", index: unelettre, estConnu: connu).corrections.isEmpty, "deux lettres de différence et sons éloignés : rien")
+    let multi = IndexCorrection(motsChoisis: [], lexique: [EntreeLexique(mot: "Prime Zorba", frequence: 9, source: "a", type: .nom)])
+    verifier(CorrectionOreille.corriger("Chez Prime Zorba demain", index: multi, estConnu: connu).corrections.isEmpty, "expression de plusieurs mots déjà juste : aucune « correction »")
+    // prudence
+    let tout: (String) -> Bool = { _ in true }
+    verifier(CorrectionOreille.corriger("On parle de Brionia demain.", index: index, estConnu: tout).corrections.isEmpty, "mot connu du correcteur : jamais remplacé")
+    verifier(c("La cee est venue, cee.").0 == "La cee est venue, cee.", "moins de 4 lettres : jamais")
+    verifier(c("Mon ami Brillonia.").1.isEmpty, "déjà bien écrit : rien")
+    verifier(c("contact brionia.fr et @brionia et brionia_test").0 == "contact brionia.fr et @brionia et brionia_test", "adresses et identifiants intouchés")
+    verifier(c("Elle est venue pour Marseille.").1.isEmpty, "mot inconnu mais sans ressemblance : rien")
+    let ambigu = IndexCorrection(motsChoisis: [], lexique: [EntreeLexique(mot: "Ladomir", frequence: 3, source: "a", type: .nom), EntreeLexique(mot: "Ladomic", frequence: 3, source: "a", type: .nom)])
+    verifier(CorrectionOreille.corriger("Bonjour Ladomis", index: ambigu, estConnu: connu).corrections.isEmpty, "deux candidats aussi proches : aucun remplacement")
+    verifier(CorrectionOreille.corriger("Bonjour Ladomar", index: IndexCorrection(motsChoisis: [], lexique: []), estConnu: connu).corrections.isEmpty, "lexique vide : rien")
+    verifier(c("").0 == "" && c("   ").0 == "   ", "texte vide")
+    verifier(Correction(original: String(repeating: "a", count: 100), remplacement: "b").ligneDeJournal.count < 150, "ligne de journal bornée à 60 caractères par côté")
+    verifier(c("Bonjour Brionia et Brionia").1.count == 2, "plusieurs occurrences")
+}
+
+groupe("ChoixMotsPrompt")
+do {
+    var lex: [EntreeLexique] = []
+    for i in 0..<3000 { lex.append(EntreeLexique(mot: "Mot" + String(repeating: "x", count: i % 9) + String(i), frequence: 3000 - i, documents: 1 + i % 4, source: i % 2 == 0 ? "a" : "b", type: i % 3 == 0 ? .nom : (i % 3 == 1 ? .sigle : .technique))) }
+    lex.append(EntreeLexique(mot: "Zorbaltech", frequence: 2, documents: 1, source: "c", type: .nom))
+    lex.append(EntreeLexique(mot: "Ecoverdix", frequence: 1, documents: 1, source: "c", type: .nom))
+    let ancre = ChoixLangue.phraseAncre(langue: "fr")
+    let sans = ChoixMotsPrompt.prompt(motsChoisis: ["Groq", "Whisper"], lexique: [], contexte: ContexteMots(), texteDavant: "La fin du morceau pr\u{00E9}c\u{00E9}dent.", ancre: ancre)
+    verifier(sans.hasPrefix(ancre!) && sans.contains("Groq, Whisper.") && sans.hasSuffix("La fin du morceau pr\u{00E9}c\u{00E9}dent."), "sans lexique : ancre, mots choisis, puis fin du texte précédent")
+    let p = ChoixMotsPrompt.prompt(motsChoisis: ["Groq", "Whisper"], lexique: lex, contexte: ContexteMots(), texteDavant: nil, ancre: ancre)
+    verifier(p.contains("Groq, Whisper,") && p.range(of: "Groq")!.lowerBound < p.range(of: "Mot")!.lowerBound, "mots.txt toujours devant")
+    verifier(ChoixMotsPrompt.jetons(p) <= ChoixMotsPrompt.budgetParDefaut, "sous le budget de jetons")
+    verifier(!p.contains("Zorbaltech"), "sans contexte, un mot rare du lexique n'entre pas")
+    let motsDuPrompt = p.components(separatedBy: ". ").dropFirst().first.map { $0.components(separatedBy: ", ") } ?? []
+    verifier(motsDuPrompt.count <= 2 + 10 + 1, "sans contexte : mots.txt et une dizaine de mots fréquents seulement (\(motsDuPrompt.count))")
+    let types = Dictionary(uniqueKeysWithValues: lex.map { ($0.mot, $0.type) })
+    verifier(motsDuPrompt.filter { types[$0.trimmingCharacters(in: CharacterSet(charactersIn: ".")) ] == .sigle }.count <= 2, "sans contexte : deux sigles au plus (Whisper en imite le style)")
+    let t = ChoixMotsPrompt.prompt(motsChoisis: [], lexique: lex, contexte: ContexteMots(titreFenetre: "Brouillon pour Zorbaltech \u{2014} Mail"), texteDavant: nil, ancre: ancre)
+    verifier(t.contains("Zorbaltech"), "le titre de la fenêtre fait remonter un mot rare")
+    let u = ChoixMotsPrompt.prompt(motsChoisis: [], lexique: lex, contexte: ContexteMots(texteAutour: "Bonjour, je reviens vers vous au sujet de l'Ecoverdix et de la suite."), texteDavant: nil, ancre: ancre)
+    verifier(u.contains("Ecoverdix"), "le texte autour du curseur fait remonter un mot rare")
+    let r = ChoixMotsPrompt.prompt(motsChoisis: [], lexique: lex, contexte: ContexteMots(recents: ["Rien de sp\u{00E9}cial.", "On a parl\u{00E9} de Zorbaltech hier."]), texteDavant: nil, ancre: ancre)
+    verifier(r.contains("Zorbaltech"), "les dictées récentes font remonter un mot rare")
+    let v = ChoixMotsPrompt.prompt(motsChoisis: [], lexique: lex, contexte: ContexteMots(dejaDicte: "On parle de Zorbaltech"), texteDavant: nil, ancre: ancre)
+    verifier(v.contains("Zorbaltech"), "ce qui vient d'être dicté compte aussi")
+    var mauvais = 0
+    for taille in [0, 5, 80, 400] {
+        let longueTexte = String(repeating: "Un texte assez long pour remplir le contexte pr\u{00E9}c\u{00E9}dent. ", count: taille)
+        for genre in [AppKind.terminal, .browser, .other] {
+            let motsLongs = (0..<(taille / 2)).map { "MotChoisiTresLong\($0)" }
+            let q = ChoixMotsPrompt.prompt(motsChoisis: motsLongs, lexique: lex, contexte: ContexteMots(genre: genre, recents: [longueTexte]), texteDavant: longueTexte, ancre: ancre)
+            if ChoixMotsPrompt.jetons(q) > ChoixMotsPrompt.budgetParDefaut { mauvais += 1 }
+        }
+    }
+    verifier(mauvais == 0, "jamais au-dessus du budget, même avec un énorme texte précédent et beaucoup de mots choisis")
+    let long = ChoixMotsPrompt.prompt(motsChoisis: [], lexique: lex, contexte: ContexteMots(), texteDavant: String(repeating: "mot ", count: 300), ancre: ancre)
+    verifier(long.contains(". mot") || long.hasSuffix("mot"), "un long texte précédent est tronqué en gardant sa fin")
+    let term = ChoixMotsPrompt.classer(lexique: lex, contexte: ContexteMots(genre: .terminal)).prefix(10)
+    let mail = ChoixMotsPrompt.classer(lexique: lex, contexte: ContexteMots(genre: .other)).prefix(10)
+    verifier(term.filter { $0.type == .technique }.count > mail.filter { $0.type == .technique }.count, "terminal : plus de termes techniques ; mail : plus de noms")
+    verifier(ChoixMotsPrompt.classer(lexique: lex, contexte: ContexteMots(), exclus: [lex[0].mot]).first?.mot != lex[0].mot, "un mot déjà choisi n'est pas répété")
+    var grand: [EntreeLexique] = []
+    for i in 0..<6000 { grand.append(EntreeLexique(mot: "Terme\(i)x", frequence: 1 + i % 50, documents: 1 + i % 7, source: "s\(i % 9)", type: .nom)) }
+    let t0 = ProcessInfo.processInfo.systemUptime
+    for _ in 0..<5 { _ = ChoixMotsPrompt.prompt(motsChoisis: ["Groq"], lexique: grand, contexte: ContexteMots(titreFenetre: "Une page quelconque", texteAutour: String(repeating: "du texte avant le curseur ", count: 8), recents: Array(repeating: "une dictée récente avec des mots", count: 20)), texteDavant: "la fin du morceau", ancre: ancre) }
+    let ms = (ProcessInfo.processInfo.systemUptime - t0) * 1000 / 5
+    verifier(ms < 150, "choix des mots pour un lexique de 6 000 mots : \(Int(ms)) ms par dictée (version de contrôle non optimisée)")
+    let index6000 = IndexCorrection(motsChoisis: ["Groq"], lexique: grand)
+    let t1 = ProcessInfo.processInfo.systemUptime
+    for _ in 0..<5 { _ = CorrectionOreille.corriger(String(repeating: "Bonjour, nous parlons de Terme12x et de Termx5y avec Ladomir demain matin chez nous. ", count: 5), index: index6000, estConnu: { _ in false }) }
+    let ms2 = (ProcessInfo.processInfo.systemUptime - t1) * 1000 / 5
+    verifier(ms2 < 400, "correction à l'oreille d'un texte de 70 mots avec 6 000 mots du lexique : \(Int(ms2)) ms (version de contrôle non optimisée)")
+    verifier(ChoixMotsPrompt.prompt(motsChoisis: ["Groq"], lexique: lex, contexte: ContexteMots(), texteDavant: nil, ancre: nil, maxMots: 3).split(separator: ",").count <= 3, "nombre de mots borné")
+}
+
+groupe("ApprentissageCorrections")
+do {
+    let inseree = "Rendez-vous avec Brionia demain matin pour le dossier."
+    let fin = " Et ensuite on continue la journ\u{00E9}e comme pr\u{00E9}vu avec tout le monde."
+    let avant = inseree + fin
+    let inconnu: (String) -> Bool = { ["brillonia", "ecoverdix", "brionia", "ecoverdi"].contains(ClePhonetique.plier($0)) ? false : true }
+    verifier(ApprentissageCorrections.remplacements(inseree: inseree, avant: avant, apres: avant.replacingOccurrences(of: "Brionia", with: "Brillonia")) == [.init(ancien: "Brionia", nouveau: "Brillonia")], "mot corrigé détecté")
+    verifier(ApprentissageCorrections.propositions(inseree: inseree, avant: avant, apres: avant.replacingOccurrences(of: "Brionia", with: "Brillonia"), estConnu: inconnu) == ["Brillonia"], "le mot corrigé est proposé")
+    verifier(ApprentissageCorrections.propositions(inseree: inseree, avant: avant, apres: avant, estConnu: inconnu).isEmpty, "rien changé : rien proposé")
+    verifier(ApprentissageCorrections.propositions(inseree: inseree, avant: avant, apres: avant.replacingOccurrences(of: "demain", with: "lundi"), estConnu: inconnu).isEmpty, "mot remplacé par un mot sans rapport : rien proposé")
+    verifier(ApprentissageCorrections.propositions(inseree: inseree, avant: avant, apres: "Tout autre chose a \u{00E9}t\u{00E9} \u{00E9}crit ici, bien loin de la dict\u{00E9}e d'avant.", estConnu: inconnu).isEmpty, "champ devenu autre chose : rien proposé")
+    verifier(ApprentissageCorrections.propositions(inseree: inseree, avant: avant, apres: avant.replacingOccurrences(of: "Brionia", with: "Brillonia"), estConnu: { _ in true }).isEmpty, "mot connu du correcteur : pas de proposition")
+    let ajout = avant + " Je tape encore une suite de mots apr\u{00E8}s."
+    verifier(ApprentissageCorrections.propositions(inseree: inseree, avant: avant, apres: ajout, estConnu: inconnu).isEmpty, "du texte tapé après la dictée : rien proposé")
+    let fusion = avant.replacingOccurrences(of: "Brionia demain", with: "Ecoverdix demain")
+    verifier(ApprentissageCorrections.propositions(inseree: inseree, avant: avant, apres: fusion, estConnu: inconnu).isEmpty, "mot remplacé par un mot trop différent : rien proposé")
+    let colles = "Parlons d'Eco verdi avec elle."
+    let a2 = colles + fin
+    verifier(ApprentissageCorrections.propositions(inseree: colles, avant: a2, apres: a2.replacingOccurrences(of: "Eco verdi", with: "Ecoverdi"), estConnu: inconnu) == ["Ecoverdi"], "deux mots réunis en un : proposé")
+    verifier(ApprentissageCorrections.propositions(inseree: inseree, avant: avant, apres: avant.replacingOccurrences(of: "Rendez-vous", with: "Rendez-vous").replacingOccurrences(of: "dossier", with: "Dossier"), estConnu: { _ in true }).isEmpty, "simple majuscule sur un mot courant : rien")
+    var mots = PropositionsMots(); _ = mots.proposer("Brillonia", motsConnus: [])
+    verifier(mots.proposer("Brillonia", motsConnus: []) == false, "une proposition déjà en attente n'est pas répétée")
+}
+
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)

@@ -56,7 +56,7 @@ Une app construite sur ton Mac n'est pas mise en quarantaine : pas d'avertisseme
 
 Un petit son et une vibration du trackpad marquent le début, la fin (texte collé) et l'annulation. Réglages › **Sons** et **Vibration** les coupent séparément. La vibration ne se sent que si un doigt est posé sur le trackpad.
 
-Les dossiers internes gardent l'ancien nom `Dictee`, pour que rien ne se perde en changeant de nom. Ton dictionnaire (noms propres, jargon) se trouve dans `~/Library/Application Support/Dictee/mots.txt`, un mot par ligne. Le journal est dans `~/Library/Logs/Dictee/dictee.log`. On n'y écrit jamais tes textes en entier.
+Les dossiers internes gardent l'ancien nom `Dictee`, pour que rien ne se perde en changeant de nom. Ton dictionnaire (noms propres, jargon) se trouve dans `~/Library/Application Support/Dictee/mots.txt`, un mot par ligne. Pour aller plus loin, `Verbe --construire-lexique` (dans le Terminal, ni micro ni réseau) lit tes notes et tes dossiers de projets (`.md` et `.txt`) et fabrique un grand lexique local (`lexique.json`, qui ne quitte jamais ton Mac) : à chaque dictée Verbe en glisse les mots les plus probables à Whisper, corrige à l'oreille les mots du lexique qu'il a mal entendus, et te propose dans l'onglet Mots les mots que tu viens de corriger à la main. Le journal est dans `~/Library/Logs/Dictee/dictee.log`. On n'y écrit jamais tes textes en entier.
 
 ## Dans ce dépôt
 
