@@ -1179,6 +1179,116 @@ do {
     verifier(rien.retraits.isEmpty && rien.note.titre == "Offre complète et signature", "garde : une note fidèle n'est pas touchée")
 }
 
+groupe("Réunion : « D'un coup d'œil » (échéances, tri, liste, citations)")
+do {
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/Paris")!
+    let lundi = cal.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 14, minute: 2))!   // lundi 9 novembre 2026
+    func quand(_ t: String) -> Echeance.Analyse { Echeance.analyser(t, depuis: lundi, calendrier: cal) }
+    verifier(quand("jeudi").date == "2026-11-12" && quand("vendredi").date == "2026-11-13", "échéance : un nom de jour = le jour suivant la réunion (lundi + jeudi = le 12)")
+    verifier(quand("lundi").date == "2026-11-16", "échéance : le jour même de la réunion = la semaine suivante, pas aujourd'hui")
+    verifier(quand("mercredi soir").date == "2026-11-11" && quand("mercredi soir").moment == "soir" && quand("jeudi matin").moment == "matin" && quand("vendredi après-midi").moment == "après-midi", "échéance : moment de la journée gardé")
+    verifier(quand("avant le vingt novembre").date == "2026-11-20" && quand("avant le vingt novembre").avant && !quand("jeudi").avant, "échéance : « avant le vingt novembre » = limite le 20")
+    verifier(quand("le 20 novembre").date == "2026-11-20" && quand("jeudi 12 novembre").date == "2026-11-12" && quand("le vingt et un novembre").date == "2026-11-21" && quand("le premier décembre").date == "2026-12-01" && quand("1er décembre").date == "2026-12-01", "échéance : jour et mois en chiffres ou en lettres")
+    verifier(quand("le trois novembre").date == "2027-11-03" && quand("le 3 novembre 2026").date == "2026-11-03", "échéance : une date déjà passée = l'an prochain, sauf année dite")
+    verifier(quand("le 31 novembre").date == nil, "échéance : un jour qui n'existe pas ne donne rien")
+    verifier(quand("demain").date == "2026-11-10" && quand("après-demain").date == "2026-11-11" && quand("ce soir").date == "2026-11-09" && quand("aujourd'hui").date == "2026-11-09", "échéance : demain, après-demain, ce soir")
+    verifier(quand("dans trois jours").date == "2026-11-12" && quand("dans huit jours").date == "2026-11-16" && quand("dans deux semaines").date == "2026-11-23" && quand("dans un mois").date == "2026-12-09", "échéance : « dans … »")
+    verifier(quand("d'ici la fin du mois").date == "2026-11-30" && quand("d'ici la fin du mois").avant && quand("fin de semaine").date == "2026-11-13", "échéance : fin du mois, fin de semaine")
+    verifier(quand("bientôt").date == nil && quand("la semaine prochaine").date == nil && quand("").date == nil && quand("en novembre").date == nil, "échéance : trop vague = pas de date")
+    verifier(Echeance.date("2026-11-12", calendrier: cal) != nil && Echeance.date("2026-02-30", calendrier: cal) == nil && Echeance.date("pas une date", calendrier: cal) == nil, "date lue ou refusée")
+    verifier(Echeance.etiquette(quand: "mercredi soir", date: "2026-11-11", calendrier: cal).texte == "mer. 11 nov. · soir" && Echeance.etiquette(quand: "mercredi soir", date: "2026-11-11", court: true, calendrier: cal).texte == "mer. 11 · soir", "étiquette : jour, date et moment")
+    verifier(Echeance.etiquette(quand: "avant le vingt novembre", date: "2026-11-20", calendrier: cal).texte == "avant le 20 nov." && Echeance.etiquette(quand: "avant le premier décembre", date: "2026-12-01", calendrier: cal).texte == "avant le 1er déc.", "étiquette : limite « avant le 20 nov. »")
+    verifier(Echeance.etiquette(quand: nil, date: nil).sansDate && Echeance.etiquette(quand: nil, date: nil).texte == "sans date" && Echeance.etiquette(quand: "  ", date: nil).sansDate, "étiquette : « sans date » quand rien n'est dit")
+    verifier(Echeance.etiquette(quand: "la semaine prochaine", date: nil).texte == "la semaine prochaine" && !Echeance.etiquette(quand: "la semaine prochaine", date: nil).sansDate, "étiquette : l'expression dite quand elle ne donne pas de date")
+
+    let a1 = ActionReunion(qui: "Moi", quoi: "Proposition", quand: "mercredi soir", echeance: "2026-11-11")
+    let a2 = ActionReunion(qui: "Nathalie", quoi: "Budget", quand: "jeudi", echeance: "2026-11-12")
+    let a3 = ActionReunion(qui: "Paul", quoi: "Volumes", quand: "vendredi", echeance: "2026-11-13")
+    let a4 = ActionReunion(qui: "Moi", quoi: "Livraison")
+    let a5 = ActionReunion(qui: "Moi", quoi: "Fiche", fait: true)
+    let a6 = ActionReunion(qui: "Paul", quoi: "Contrat", quand: "la semaine prochaine")
+    let a7 = ActionReunion(qui: "Moi", quoi: "Matin", quand: "mercredi matin", echeance: "2026-11-11")
+    let t = ActionsReunion.triees([a4, a3, a5, a6, a2, a1, a7])
+    verifier(t.aFaire.map(\.quoi) == ["Matin", "Proposition", "Budget", "Volumes", "Contrat", "Livraison"], "tri : par date, le matin avant le soir, puis l'échéance en texte, puis « sans date »")
+    verifier(t.faites.map(\.quoi) == ["Fiche"], "tri : les actions faites à part")
+    verifier(ActionsReunion.triees([]).aFaire.isEmpty && ActionsReunion.triees([a4, a6]).aFaire.map(\.quoi) == ["Contrat", "Livraison"], "tri : sans date");
+
+    var garnier = Reunion(debut: lundi, duree: 2280, titre: "Appel Garnier", dit: ["Deux ateliers, Lyon et Annecy"], actions: [a1, a2, a5], etat: .prete)
+    var r = ResumeReunion.de(garnier)
+    verifier(r.aFaire == 2 && r.faites == 1 && r.premiere == "2026-11-11" && !r.toutFait && r.noteEcrite, "liste : « 2 à faire dès mer. 11 »")
+    verifier(r.enBref == "Deux ateliers, Lyon et Annecy", "liste : une ancienne note sans « En bref » montre son premier point")
+    garnier.enBref = "Offre retenue."
+    verifier(ResumeReunion.de(garnier).enBref == "Offre retenue.", "liste : « En bref » quand il existe")
+    garnier.actions = [a5]
+    r = ResumeReunion.de(garnier)
+    verifier(r.toutFait && r.aFaire == 0 && r.premiere == nil, "liste : tout fait")
+    var sans = Reunion(debut: lundi, etat: .sansNote)
+    verifier(!ResumeReunion.de(sans).noteEcrite && !ResumeReunion.de(sans).toutFait, "liste : sans note")
+    sans.etat = .prete
+    let liste = [Reunion(debut: lundi, actions: [a1], etat: .prete), Reunion(debut: lundi, actions: [a5], etat: .prete), Reunion(debut: lundi, actions: [a1, a2], etat: .sansNote), Reunion(debut: lundi, actions: [a1, a2, a3], etat: .prete)]
+    verifier(ListeReunions.avecActions(liste).count == 2 && ListeReunions.totalActions(liste) == 4, "liste : filtre « avec des actions à faire » et total (les réunions sans note ne comptent pas)")
+    let cherche = Reunion(debut: lundi, titre: "Appel Garnier", segments: [SegmentReunion(debut: 0, fin: 5, locuteur: .eux, texte: "La livraison à Annecy")], etat: .prete, enBref: "Signature visée avant le 20 novembre")
+    verifier(ListeReunions.correspond(cherche, requete: "signature NOVEMBRE") && ListeReunions.correspond(cherche, requete: "garnier annecy") && ListeReunions.correspond(cherche, requete: "") && !ListeReunions.correspond(cherche, requete: "lyon"), "recherche : titre, « En bref » et transcription, sans casse ni accents")
+
+    // citations
+    let seg = [SegmentReunion(debut: 12, fin: 30, locuteur: .moi, texte: "Bonjour Nathalie. Je propose qu'on reprenne l'offre point par point, et qu'on finisse avec le calendrier."),
+               SegmentReunion(debut: 1300, fin: 1320, locuteur: .eux, texte: "Le prix reste le point sensible. J'en parle à mon associé jeudi, et j'aurais besoin de la proposition chiffrée avant."),
+               SegmentReunion(debut: 1500, fin: 1510, locuteur: .moi, texte: "D'accord, je vous envoie la proposition avec les deux options mercredi soir.")]
+    let c1 = CitationsReunion.trouver(point: "Prix sensible", proposee: "j'en parle à mon associé jeudi", segments: seg)
+    verifier(c1?.segment == 1 && c1?.texte == "J'en parle à mon associé jeudi", "citation : la phrase proposée est rendue telle qu'elle est dans la transcription (casse, majuscule)")
+    let c2 = CitationsReunion.trouver(point: "x", proposee: "« Le prix reste le point SENSIBLE. »", segments: seg)
+    verifier(c2?.segment == 1 && c2?.texte == "Le prix reste le point sensible.", "citation : guillemets et casse du modèle ignorés, ponctuation de la phrase gardée")
+    verifier(CitationsReunion.trouver(point: "Offre à reprendre", proposee: "on reprenne l’offre point par point", segments: seg)?.texte == "on reprenne l'offre point par point", "citation : apostrophe typographique ou droite")
+    let c3 = CitationsReunion.trouver(point: "Envoi de la proposition avec deux options mercredi soir", proposee: "Le modèle a inventé cette phrase entièrement", segments: seg)
+    verifier(c3?.segment == 2 && c3?.texte == "D'accord, je vous envoie la proposition avec les deux options mercredi soir.", "citation : phrase inventée refusée, la vraie phrase la plus proche est prise à la place")
+    verifier(CitationsReunion.trouver(point: "Troisième atelier l'an prochain", proposee: nil, segments: seg) == nil, "citation : rien de proche dans la transcription = pas de citation")
+    verifier(CitationsReunion.trouver(point: "Prix sensible", proposee: "prix", segments: seg)?.segment == 1, "citation : proposition trop courte ignorée, recherche du plus proche")
+    verifier(CitationsReunion.trouver(point: "", proposee: nil, segments: seg) == nil && CitationsReunion.trouver(point: "Prix", proposee: nil, segments: []) == nil, "citation : cas vides")
+    let toutes = seg.map(\.texte)
+    for (point, proposee) in [("Prix", "Le prix reste le point sensible"), ("Calendrier", "Qu'on finisse avec le calendrier."), ("Envoi", "je vous envoie la proposition"), ("Prix sensible, associé", nil), ("Proposition mercredi", "inventée de toutes pièces ici")] as [(String, String?)] {
+        if let c = CitationsReunion.trouver(point: point, proposee: proposee, segments: seg) { verifier(toutes[c.segment].contains(c.texte), "citation « \(c.texte) » : portion exacte de la transcription") }
+    }
+
+    // la note rédigée -> la réunion
+    let json = """
+    {"titre": "Offre Garnier", "en_bref": "Offre complète retenue, signature avant le vingt novembre.",
+     "dit": [{"point": "Prix sensible, associé jeudi", "citation": "J'en parle à mon associé jeudi"}, {"point": "Calendrier", "citation": null}, "Un point en texte seul"],
+     "decisions": [{"quoi": "Signature visée", "quand": "avant le vingt novembre"}, {"quoi": "Paiement en deux fois", "quand": null}, "Offre complète"],
+     "actions": [{"qui": "Moi", "quoi": "Envoyer la proposition", "quand": "mercredi soir"}, {"qui": "Nathalie", "quoi": "Valider le budget", "quand": "jeudi"}, {"qui": "Moi", "quoi": "Vérifier la livraison", "quand": null}],
+     "participants": ["Nathalie"]}
+    """
+    let brute = NoteReunion.analyser(json)
+    verifier(brute?.enBref == "Offre complète retenue, signature avant le vingt novembre." && brute?.dit.count == 3 && brute?.citations == ["J'en parle à mon associé jeudi", "", ""], "note : « En bref » et points avec citation (objet, null ou texte seul)")
+    verifier(brute?.decisions == ["Signature visée", "Paiement en deux fois", "Offre complète"] && brute?.decisionsQuand == ["avant le vingt novembre", "", ""], "note : décisions avec échéance (objet ou texte)")
+    var reunion = Reunion(debut: lundi, duree: 2280, segments: seg, etat: .prete)
+    if let brute { NoteReunion.appliquer(brute, a: &reunion, segments: seg, calendrier: cal) }
+    verifier(reunion.enBref != nil && reunion.dit.count == 3 && reunion.participants == ["Moi", "Nathalie"], "appliquer : titre, « En bref », participants")
+    verifier(reunion.citation(point: 0)?.texte == "J'en parle à mon associé jeudi" && reunion.citation(point: 0)?.locuteur == .eux && reunion.citation(point: 0)?.debut == 1300 && reunion.citation(point: 2) == nil, "appliquer : citation, qui et heure pris dans le passage de la transcription ; pas de citation quand rien n'est proche")
+    verifier(reunion.citation(point: 1)?.texte.contains("calendrier") == true && reunion.citation(point: 1)?.locuteur == .moi && reunion.citation(point: 1)?.debut == 12, "appliquer : sans citation donnée par le modèle, la phrase la plus proche de la transcription")
+    verifier(reunion.echeance(decision: 0)?.date == "2026-11-20" && reunion.echeance(decision: 1) == nil && reunion.echeance(decision: 2) == nil, "appliquer : échéance de la décision en vraie date")
+    verifier(reunion.actions.map(\.echeance) == ["2026-11-11", "2026-11-12", nil], "appliquer : échéances des actions en vraies dates (mercredi = le 11, jeudi = le 12, rien = rien)")
+    verifier(ArchiveReunions.decoder(ArchiveReunions.encoder(reunion)!) == reunion, "JSON aller-retour avec les nouveaux champs")
+    // une ancienne note (sans aucun nouveau champ) se lit encore
+    let ancien = """
+    {"id": "11111111-2222-3333-4444-555555555555", "debut": "2026-11-09T13:02:00Z", "duree": 600, "titre": "Ancienne", "participants": ["Moi"], "dit": ["Un point"], "decisions": ["Une décision"],
+     "actions": [{"id": "11111111-2222-3333-4444-555555555556", "quoi": "Faire", "quand": "jeudi", "fait": false}], "segments": [], "etat": "prete", "avertissements": [], "sonGarde": false}
+    """
+    let vieille = ArchiveReunions.decoder(Data(ancien.utf8))
+    verifier(vieille != nil && vieille?.enBref == nil && vieille?.citations == nil && vieille?.actions.first?.echeance == nil && vieille?.citation(point: 0) == nil && vieille?.echeance(decision: 0) == nil, "ancienne note sans les nouveaux champs : lue sans erreur")
+    if let vieille {
+        verifier(ResumeReunion.de(vieille).enBref == "Un point" && ResumeReunion.de(vieille).aFaire == 1, "ancienne note : liste dégradée proprement")
+        verifier(Echeance.etiquette(quand: vieille.actions[0].quand, date: vieille.actions[0].echeance).texte == "jeudi", "ancienne note : l'échéance reste telle que dite")
+    }
+    // la garde garde l'alignement points / citations
+    let g = GardeInvention(segments: seg).nettoyer(NoteBrute(titre: "", dit: ["Point inventé chez Morel", "Prix sensible"], decisions: ["Signature chez Dupont", "Paiement"], participants: [], enBref: "Un résumé chez Morel", citations: ["x", "J'en parle à mon associé jeudi"], decisionsQuand: ["avant le vingt", "mardi"]))
+    verifier(g.note.dit == ["Prix sensible"] && g.note.citations == ["J'en parle à mon associé jeudi"] && g.note.decisions == ["Paiement"] && g.note.decisionsQuand == [""] && g.note.enBref == "", "garde : points, citations et décisions restent alignés ; « En bref » inventé retiré ; « quand » jamais dit retiré")
+    // consigne : un souhait n'est pas une décision
+    verifier(NoteReunion.consigneNote.contains("n'est PAS une décision") && NoteReunion.consigneNote.contains("on aimerait") && NoteReunion.consigneNote.contains("en_bref") && NoteReunion.consigneNote.contains("MOT POUR MOT"), "consigne : souhait ≠ décision (avec exemple), « En bref » et citation exacte demandés")
+    verifier(NoteReunion.consigneAssemblage.contains("en_bref") && NoteReunion.consignePartie.contains("citation"), "consignes de partie et d'assemblage : citations, « En bref » à l'assemblage")
+    let md = ReunionMarkdown.rendre(reunion, calendrier: cal)
+    verifier(md.contains("**En bref** : Offre complète retenue") && md.contains("- Signature visée (avant le vingt novembre)"), "Markdown : « En bref » et échéance des décisions")
+}
+
 groupe("Réunion : état de l'encoche")
 do {
     var m = MachineReunion()

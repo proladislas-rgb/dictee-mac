@@ -25,12 +25,38 @@ public struct ActionReunion: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var qui: String?
     public var quoi: String
+    /// L'échéance telle qu'elle a été dite (« jeudi », « avant le vingt novembre »).
     public var quand: String?
     public var fait: Bool
+    /// L'échéance en date réelle (« 2026-11-12 »), calculée à partir de la date de la réunion quand « quand » le permet.
+    /// Absente dans les anciennes notes et quand « quand » est trop vague (« bientôt »).
+    public var echeance: String?
 
-    public init(id: UUID = UUID(), qui: String? = nil, quoi: String, quand: String? = nil, fait: Bool = false) {
-        self.id = id; self.qui = qui; self.quoi = quoi; self.quand = quand; self.fait = fait
+    public init(id: UUID = UUID(), qui: String? = nil, quoi: String, quand: String? = nil, fait: Bool = false, echeance: String? = nil) {
+        self.id = id; self.qui = qui; self.quoi = quoi; self.quand = quand; self.fait = fait; self.echeance = echeance
     }
+}
+
+/// Une phrase exacte de la transcription qui appuie un point de « Dit » : qui l'a dite et quand dans l'appel.
+/// `texte` est toujours une portion de la transcription, jamais une reformulation.
+public struct CitationReunion: Codable, Equatable, Sendable {
+    /// Rang du point dans `Reunion.dit`.
+    public var point: Int
+    public var texte: String
+    public var locuteur: Locuteur
+    /// Secondes depuis le début de la réunion (début du passage où la phrase a été dite).
+    public var debut: Double
+    public var fin: Double
+    public init(point: Int, texte: String, locuteur: Locuteur, debut: Double, fin: Double) {
+        self.point = point; self.texte = texte; self.locuteur = locuteur; self.debut = debut; self.fin = max(fin, debut)
+    }
+}
+
+/// L'échéance d'une décision (« avant le vingt novembre ») : ce qui a été dit et, si on peut, la date réelle.
+public struct EcheanceReunion: Codable, Equatable, Sendable {
+    public var quand: String
+    public var date: String?
+    public init(quand: String, date: String? = nil) { self.quand = quand; self.date = date }
 }
 
 /// Où en est une réunion : de l'enregistrement à la note prête.
@@ -59,13 +85,42 @@ public struct Reunion: Codable, Equatable, Identifiable, Sendable {
     /// Ce que la réunion a rencontré de gênant (son du Mac absent, passages non transcrits…), dit simplement.
     public var avertissements: [String]
     public var sonGarde: Bool
+    // Ajouts de la présentation « D'un coup d'œil » : tous facultatifs, les anciennes notes se lisent sans eux.
+    /// « En bref » : une phrase.
+    public var enBref: String?
+    /// Une citation exacte par point de « Dit » quand la transcription l'a permis (les autres points n'en ont pas).
+    public var citations: [CitationReunion]?
+    /// Une échéance (ou rien) par décision, dans l'ordre de `decisions`.
+    public var decisionsEcheances: [EcheanceReunion?]?
 
     public init(id: UUID = UUID(), debut: Date = Date(), duree: Double = 0, titre: String = "", participants: [String] = [],
                 dit: [String] = [], decisions: [String] = [], actions: [ActionReunion] = [], segments: [SegmentReunion] = [],
-                etat: EtatNote = .enregistrement, avertissements: [String] = [], sonGarde: Bool = false) {
+                etat: EtatNote = .enregistrement, avertissements: [String] = [], sonGarde: Bool = false,
+                enBref: String? = nil, citations: [CitationReunion]? = nil, decisionsEcheances: [EcheanceReunion?]? = nil) {
         self.id = id; self.debut = debut; self.duree = duree; self.titre = titre; self.participants = participants
         self.dit = dit; self.decisions = decisions; self.actions = actions; self.segments = segments
         self.etat = etat; self.avertissements = avertissements; self.sonGarde = sonGarde
+        self.enBref = enBref; self.citations = citations; self.decisionsEcheances = decisionsEcheances
+    }
+
+    /// La même réunion avec les échéances que la note n'a pas enregistrées calculées depuis le jour de la réunion (les anciennes notes
+    /// gardent seulement « jeudi » : « jeudi » devient la date du jeudi suivant). Ce qui est déjà calculé n'est pas touché.
+    public func echeancesCalculees(calendrier: Calendar = .current) -> Reunion {
+        var r = self
+        r.actions = actions.map { a in
+            guard a.echeance == nil, let q = a.quand else { return a }
+            var b = a; b.echeance = Echeance.analyser(q, depuis: debut, calendrier: calendrier).date; return b
+        }
+        return r
+    }
+
+    /// La citation d'un point de « Dit », s'il y en a une.
+    public func citation(point: Int) -> CitationReunion? { citations?.first { $0.point == point } }
+
+    /// L'échéance d'une décision, si elle en a une.
+    public func echeance(decision i: Int) -> EcheanceReunion? {
+        guard let e = decisionsEcheances, e.indices.contains(i) else { return nil }
+        return e[i]
     }
 
     /// Titre à afficher : celui de la note, sinon un titre simple d'après le jour.
@@ -124,8 +179,9 @@ public enum ReunionMarkdown {
         var meta = "\(FormatReunion.jourHeure(r.debut, calendrier: calendrier)) · \(FormatReunion.duree(r.duree))"
         if !r.participants.isEmpty { meta += "\nParticipants : \(r.participants.joined(separator: ", "))" }
         l.append(meta)
+        if let b = r.enBref, !b.isEmpty { l += ["", "**En bref** : \(b)"] }
         if !r.dit.isEmpty { l += ["", "## Ce qui a été dit", ""] + r.dit.map { "- \($0)" } }
-        if !r.decisions.isEmpty { l += ["", "## Ce qui a été décidé", ""] + r.decisions.map { "- \($0)" } }
+        if !r.decisions.isEmpty { l += ["", "## Ce qui a été décidé", ""] + r.decisions.enumerated().map { i, d in "- \(d)" + (r.echeance(decision: i).map { " (\($0.quand))" } ?? "") } }
         if !r.actions.isEmpty {
             l += ["", "## Ce qu'il reste à faire", ""]
             for a in r.actions {
