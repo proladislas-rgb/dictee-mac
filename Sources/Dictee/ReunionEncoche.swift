@@ -224,9 +224,13 @@ final class VueHebergeeSurvol<Contenu: View>: NSHostingView<Contenu> {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         for a in trackingAreas { removeTrackingArea(a) }
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .cursorUpdate, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
     }
-    override func mouseEntered(with event: NSEvent) { surSurvol?(true) }
+    // Au-dessus de l'encoche, toujours la flèche : sans cela, la fenêtre de dessous (Terminal, éditeur) garde son curseur
+    // de texte (le « I » de sélection), car ce panneau ne devient jamais la fenêtre active.
+    override func mouseEntered(with event: NSEvent) { NSCursor.arrow.set(); surSurvol?(true) }
+    override func mouseMoved(with event: NSEvent) { NSCursor.arrow.set() }
+    override func cursorUpdate(with event: NSEvent) { NSCursor.arrow.set() }
     override func mouseExited(with event: NSEvent) { surSurvol?(false) }
 }
 
