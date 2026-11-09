@@ -23,18 +23,7 @@ struct FenetreVue: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Barre du haut, comme dans les apps du Mac : la place des boutons de fenêtre, puis les onglets, « Réglages » à droite.
-            HStack(spacing: 4) {
-                Color.clear.frame(width: 84, height: 1)
-                OngletBarre(titre: Onglet.dictees.rawValue, actif: nav.onglet == .dictees) { nav.onglet = .dictees }
-                OngletBarre(titre: Onglet.mots.rawValue, actif: nav.onglet == .mots, pastille: mots.propositions.enAttente.count) { nav.onglet = .mots }
-                OngletBientot(titre: "Réunions")
-                Spacer(minLength: 8)
-                OngletBarre(titre: Onglet.reglages.rawValue, actif: nav.onglet == .reglages) { nav.onglet = .reglages }
-            }
-            .padding(.horizontal, 20)
-            .frame(height: 52)
-            .overlay(alignment: .bottom) { Rectangle().fill(Palette.filet).frame(height: 1) }
+            Rectangle().fill(Palette.filet).frame(height: 1)
 
             Group {
                 switch nav.onglet {
@@ -49,11 +38,32 @@ struct FenetreVue: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        // La barre des onglets occupe la zone de titre (même ligne que les boutons rouge/jaune/vert) au lieu de se placer dessous.
-        .ignoresSafeArea(.container, edges: .top)
         .background(Palette.surface)
         // Le micro réellement utilisé peut changer (casque branché) : relu de temps en temps tant que la fenêtre est ouverte.
         .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in reglages.rafraichirMicroUtilise() }
+    }
+}
+
+/// Les onglets de gauche de la barre du haut (posés dans la barre d'outils de la fenêtre, pour recevoir les clics).
+struct BarreOngletsVue: View {
+    @ObservedObject var nav: NavigationFenetre
+    @ObservedObject var mots: MotsModele
+    var body: some View {
+        HStack(spacing: 4) {
+            OngletBarre(titre: Onglet.dictees.rawValue, actif: nav.onglet == .dictees) { nav.onglet = .dictees }
+            OngletBarre(titre: Onglet.mots.rawValue, actif: nav.onglet == .mots, pastille: mots.propositions.enAttente.count) { nav.onglet = .mots }
+            OngletBientot(titre: "Réunions")
+        }
+        .padding(.leading, 8)
+        .fixedSize()
+    }
+}
+
+/// « Réglages », à droite de la barre du haut.
+struct BarreReglagesVue: View {
+    @ObservedObject var nav: NavigationFenetre
+    var body: some View {
+        OngletBarre(titre: Onglet.reglages.rawValue, actif: nav.onglet == .reglages) { nav.onglet = .reglages }.fixedSize()
     }
 }
 
@@ -114,7 +124,7 @@ struct OngletBientot: View {
 
 /// Fenêtre de l'app : ~960 × 640 (réduite pour les petits écrans), sombre, titre intégré.
 @MainActor
-final class FenetrePrincipale: NSObject, NSWindowDelegate {
+final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
     let nav = NavigationFenetre()
     let dictees: ModeleDictees
     private(set) lazy var reglages = ReglagesModele.partage
@@ -145,6 +155,27 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         NSApp.setActivationPolicy(.accessory)
     }
 
+    // MARK: barre d'outils (onglets)
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] { [.ongletsVerbe, .flexibleSpace, .reglagesVerbe] }
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] { [.ongletsVerbe, .flexibleSpace, .reglagesVerbe] }
+
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        let item = NSToolbarItem(itemIdentifier: id)
+        let vue: NSView
+        switch id {
+        case .ongletsVerbe: vue = NSHostingView(rootView: BarreOngletsVue(nav: nav, mots: MotsModele.partage))
+        case .reglagesVerbe: vue = NSHostingView(rootView: BarreReglagesVue(nav: nav))
+        default: return nil
+        }
+        // Largeur avec marge : la pastille de nombre peut apparaître après coup.
+        let taille = vue.fittingSize
+        vue.frame = NSRect(x: 0, y: 0, width: taille.width + (id == .ongletsVerbe ? 32 : 0), height: max(taille.height, 32))
+        item.view = vue
+        item.isBordered = false
+        return item
+    }
+
     func fermer() { fenetre?.close() }
 
     private func creer() {
@@ -160,7 +191,13 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         f.appearance = NSAppearance(named: .darkAqua)
         f.isReleasedWhenClosed = false
         // Barre de titre « unifiée » de 52 px : les boutons rouge/jaune/vert sont centrés sur la ligne des onglets.
-        f.toolbar = NSToolbar(identifier: "VerbeBarre")
+        // Les onglets sont de vrais éléments de la barre d'outils : posés sous la barre de titre en SwiftUI, leurs clics
+        // étaient avalés par la zone de titre (on ne pouvait plus changer d'onglet).
+        let barre = NSToolbar(identifier: "VerbeBarre")
+        barre.delegate = self
+        barre.displayMode = .iconOnly
+        barre.allowsUserCustomization = false
+        f.toolbar = barre
         f.toolbarStyle = .unified
         f.titlebarSeparatorStyle = .none
         // S'ouvre sur le bureau où l'on se trouve, pas sur celui où la fenêtre était la dernière fois.
@@ -176,4 +213,9 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         f.delegate = self
         fenetre = f
     }
+}
+
+extension NSToolbarItem.Identifier {
+    static let ongletsVerbe = NSToolbarItem.Identifier("verbe.onglets")
+    static let reglagesVerbe = NSToolbarItem.Identifier("verbe.reglages")
 }
