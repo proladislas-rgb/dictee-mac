@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dictée — panneau v2</title>
+<style>
+  /* Direction (méthode Unslop)
+     Produit   : dictée vocale pour Mac, pour quelqu'un qui écrit presque tout en parlant
+     Caractère : immédiat, discret, parlé
+     Monde     : le Mac lui-même (barre des menus, encoche, réglages système) et la trace de la voix
+     Moment    : chaque dictée garde la vraie trace de ta voix, qu'on peut réécouter
+     Signature : l'encoche noire et sa trace, reprises nulle part ailleurs
+     Codes natifs macOS (mode sombre de Hugues, couleur d'accent système bleue), pas de look web */
+  :root{
+    --desk:#16171a; --page:#111113;
+    --label:rgba(255,255,255,.88); --label2:rgba(255,255,255,.56); --label3:rgba(255,255,255,.34);
+    --sep:rgba(255,255,255,.09); --fill:rgba(255,255,255,.06); --fill2:rgba(255,255,255,.10);
+    --accent:#0a84ff; --red:#ff453a;
+    --ease:cubic-bezier(.22,1,.36,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{background:var(--page)}
+  body{color:var(--label);font:13px/1.38 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;-webkit-font-smoothing:antialiased}
+  ::selection{background:rgba(10,132,255,.4)}
+  .wrap{max-width:1100px;margin:0 auto;padding:40px 16px 96px}
+  .intro{max-width:640px}
+  .intro h1{font-size:20px;font-weight:600;letter-spacing:-.01em}
+  .intro p{color:var(--label2);font-size:14px;margin-top:8px;line-height:1.5}
+  h2{font-size:15px;font-weight:600;margin:48px 0 4px}
+  .cap{color:var(--label2);font-size:13px;margin-bottom:16px;max-width:640px;line-height:1.5}
+
+  /* ---------- bureau ---------- */
+  .desk{position:relative;height:620px;border-radius:12px;overflow:hidden;background:var(--desk);
+    box-shadow:inset 0 0 0 1px var(--sep)}
+  .menubar{position:absolute;inset:0 0 auto;height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 16px;
+    background:rgba(20,20,22,.55);backdrop-filter:blur(30px) saturate(160%);-webkit-backdrop-filter:blur(30px) saturate(160%);font-size:13px;z-index:3}
+  .menubar .l{display:flex;gap:20px}.menubar .l b{font-weight:600}
+  .menubar .r{display:flex;align-items:center;gap:4px}
+  .extra{height:22px;min-width:28px;padding:0 6px;border-radius:5px;display:grid;place-items:center;color:var(--label)}
+  .extra svg{width:16px;height:16px}
+  .extra.on{background:rgba(255,255,255,.18)}
+  .clock{padding:0 6px;font-variant-numeric:tabular-nums}
+  .notch{position:absolute;left:50%;top:0;transform:translateX(-50%);width:200px;height:32px;background:#000;border-radius:0 0 12px 12px;z-index:4}
+
+  /* fenêtre Notes derrière */
+  .bgwin{position:absolute;left:48px;top:76px;width:560px;height:420px;border-radius:12px;background:#1f1f21;
+    box-shadow:0 0 0 1px rgba(255,255,255,.08),0 24px 60px rgba(0,0,0,.5)}
+  .bgwin .tb{height:44px;display:flex;align-items:center;gap:8px;padding:0 16px}
+  .tl{width:12px;height:12px;border-radius:50%}
+  .tl.r{background:#ff5f57}.tl.y{background:#febc2e}.tl.g{background:#28c840}
+  .bgwin .doc{padding:12px 32px;color:var(--label2);font-size:14px;line-height:1.6}
+  .bgwin .doc b{display:block;color:var(--label);font-size:20px;font-weight:600;margin-bottom:8px}
+
+  /* ---------- le panneau (popover de la barre des menus) ---------- */
+  .panel{position:absolute;top:34px;right:120px;width:372px;border-radius:14px;z-index:5;
+    background:rgba(32,32,35,.72);backdrop-filter:blur(40px) saturate(170%);-webkit-backdrop-filter:blur(40px) saturate(170%);
+    box-shadow:0 0 0 .5px rgba(0,0,0,.6),inset 0 0 0 .5px rgba(255,255,255,.14),0 16px 48px rgba(0,0,0,.45);padding:6px}
+  .search{margin:6px 6px 4px;height:28px;border-radius:7px;background:var(--fill);display:flex;align-items:center;gap:6px;padding:0 8px;color:var(--label3)}
+  .search svg{width:14px;height:14px}
+  .sh{display:flex;justify-content:space-between;align-items:baseline;padding:12px 12px 4px;font-size:11px;font-weight:600;color:var(--label3)}
+  .sh span:last-child{font-weight:400;font-variant-numeric:tabular-nums}
+  .row{display:block;padding:8px 10px 8px;border-radius:8px;cursor:default}
+  .row:hover,.row.sel{background:var(--fill2)}
+  .rmeta{display:flex;gap:8px;color:var(--label3);font-size:11px;font-variant-numeric:tabular-nums}
+  .rtxt{margin-top:2px;color:var(--label);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .trace{display:flex;align-items:center;gap:8px;margin-top:6px}
+  .play{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--fill2);color:var(--label);flex:none;opacity:0;transition:opacity .15s var(--ease)}
+  .play svg{width:8px;height:8px}
+  .row:hover .play,.row.sel .play{opacity:1}
+  .wave{flex:1;height:20px;display:block}
+  .dur{font-size:11px;color:var(--label3);font-variant-numeric:tabular-nums;width:28px;text-align:right}
+  .sep{height:1px;background:var(--sep);margin:6px 10px}
+  .mi{display:flex;justify-content:space-between;align-items:center;height:24px;padding:0 10px;border-radius:5px}
+  .mi:hover{background:var(--accent)}
+  .mi kbd{font:inherit;color:var(--label3);letter-spacing:.06em}
+  .mi:hover kbd{color:rgba(255,255,255,.8)}
+
+  /* ---------- fenêtre Réglages ---------- */
+  .stage{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,500px),1fr));gap:24px}
+  .win{border-radius:12px;background:#1e1e20;box-shadow:0 0 0 1px rgba(255,255,255,.09),0 24px 60px rgba(0,0,0,.5);overflow:hidden}
+  .wtb{position:relative;padding:10px 16px 8px;background:#262628;border-bottom:1px solid rgba(0,0,0,.5)}
+  .wtb .tls{position:absolute;left:16px;top:16px;display:flex;gap:8px}
+  .wtitle{text-align:center;font-size:13px;font-weight:600;color:var(--label2);height:20px}
+  .tabs{display:flex;justify-content:center;gap:4px;margin-top:4px}
+  .tab{width:72px;height:48px;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--label2);font-size:11px}
+  .tab svg{width:20px;height:20px}
+  .tab.on{background:var(--fill2);color:var(--accent)}
+  .wbody{padding:20px}
+  .group{background:var(--fill);border-radius:10px;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.06)}
+  .group + .group{margin-top:16px}
+  .gl{font-size:13px;font-weight:600;color:var(--label);margin:20px 4px 8px}
+  .gl:first-child{margin-top:0}
+  .f{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:40px;padding:8px 12px}
+  .f + .f{border-top:1px solid var(--sep)}
+  .f small{display:block;color:var(--label2);font-size:11px;margin-top:2px;line-height:1.35}
+  .keycap{font:500 11px -apple-system,sans-serif;min-width:28px;height:22px;padding:0 8px;display:inline-grid;place-items:center;border-radius:5px;
+    background:rgba(255,255,255,.12);box-shadow:inset 0 -1px 0 rgba(0,0,0,.4),0 0 0 .5px rgba(255,255,255,.08);color:var(--label)}
+  .kc{display:flex;align-items:center;gap:8px;color:var(--label2);white-space:nowrap}
+  .popup{height:22px;display:flex;align-items:center;gap:6px;padding:0 4px 0 8px;border-radius:5px;background:rgba(255,255,255,.12);
+    box-shadow:0 .5px 0 rgba(255,255,255,.08) inset,0 1px 1px rgba(0,0,0,.25);white-space:nowrap}
+  .popup i{width:16px;height:16px;border-radius:4px;background:var(--accent);display:grid;place-items:center}
+  .popup i svg{width:8px;height:10px}
+  .sw{width:32px;height:18px;border-radius:9px;background:rgba(255,255,255,.16);position:relative;flex:none}
+  .sw::after{content:"";position:absolute;left:1px;top:1px;width:16px;height:16px;border-radius:50%;background:#e9e9ea;box-shadow:0 1px 2px rgba(0,0,0,.35)}
+  .sw.on{background:var(--accent)}.sw.on::after{left:15px;background:#fff}
+
+  /* tableau Mots */
+  .tbl{border-radius:8px;overflow:hidden;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.08);background:#1a1a1c}
+  .th,.tr{display:grid;grid-template-columns:150px 1fr;align-items:center;height:28px;padding:0 12px}
+  .tbl.one .th,.tbl.one .tr{grid-template-columns:1fr}
+  .th{font-size:11px;color:var(--label2);border-bottom:1px solid var(--sep);background:#232325}
+  .tr:nth-child(odd){background:rgba(255,255,255,.03)}
+  .tr.sel{background:#0058d0}
+  .tr .v{color:var(--label2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tr.sel .v{color:rgba(255,255,255,.85)}
+  .pm{display:flex;height:22px;border-top:1px solid var(--sep);background:#232325}
+  .pm span{width:24px;display:grid;place-items:center;color:var(--label2);border-right:1px solid var(--sep);font-size:14px}
+  .hint{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding:8px 12px;border-radius:8px;background:var(--fill);color:var(--label2)}
+  .btn{height:22px;padding:0 10px;border-radius:5px;background:rgba(255,255,255,.14);color:var(--label);display:grid;place-items:center;white-space:nowrap;box-shadow:inset 0 .5px 0 rgba(255,255,255,.1)}
+
+  @media (max-width:720px){ .bgwin{display:none} .panel{right:8px;left:8px;width:auto} .menubar .l span{display:none} .notch{width:120px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="intro">
+    <h1>Dictée — le panneau, version 2</h1>
+    <p>Refait en suivant les quatre dépôts de ton kit (Unslop, Impeccable, Emil Kowalski). L'app ressemble à un morceau de ton Mac : mode sombre comme chez toi, couleurs et commandes d'Apple, aucun décor. Le seul élément riche, c'est la trace de ta voix sous chaque dictée.</p>
+  </div>
+
+  <h2>1 · Le panneau, sous l'icône de la barre des menus</h2>
+  <p class="cap">Ce que tu vois en cliquant sur l'icône. L'historique d'abord, parce que c'est ce dont tu te sers. Survole une dictée : un clic la recolle, la flèche la fait réécouter.</p>
+  <div class="desk">
+    <div class="menubar">
+      <div class="l"><b>Notes</b><span>Fichier</span><span>Édition</span><span>Format</span><span>Présentation</span><span>Fenêtre</span></div>
+      <div class="r">
+        <span class="extra on" title="Dictée"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 7v2M5 5v6M8 3v10M11 5.5v5M14 7v2"/></svg></span>
+        <span class="extra"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1.8 6.2a9 9 0 0 1 12.4 0M4 8.6a5.8 5.8 0 0 1 8 0M6.2 11a2.6 2.6 0 0 1 3.6 0"/></svg></span>
+        <span class="extra"><svg viewBox="0 0 20 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.5" y="4.5" width="15" height="7" rx="2"/><rect x="3" y="6" width="9" height="4" rx="1" fill="currentColor" stroke="none"/><path d="M18 7v2" stroke-linecap="round"/></svg></span>
+        <span class="clock">lun. 9 nov. 14:42</span>
+      </div>
+    </div>
+    <div class="notch"></div>
+    <div class="bgwin"><div class="tb"><i class="tl r"></i><i class="tl y"></i><i class="tl g"></i></div>
+      <div class="doc"><b>Rendez-vous client</b>Appel ce matin, il est intéressé par l'offre complète. Il veut revoir le prix avant de signer.<br><br>On se voit mercredi pour parler du devis, je t'envoie le lien juste après.</div></div>
+
+    <div class="panel">
+      <div class="search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5" stroke-linecap="round"/></svg>Rechercher</div>
+      <div class="sh"><span>Aujourd'hui</span><span>17 dictées · 1 284 mots</span></div>
+      <div class="row sel" data-seed="3" data-p=".42"><div class="rmeta"><span>14:41</span><span>Notes</span></div>
+        <div class="rtxt">On se voit mercredi pour parler du devis, je t'envoie le lien juste après.</div>
+        <div class="trace"><span class="play"><svg viewBox="0 0 8 10" fill="currentColor"><path d="M0 0l8 5-8 5z"/></svg></span><svg class="wave"></svg><span class="dur">0:04</span></div></div>
+      <div class="row" data-seed="11" data-len="1"><div class="rmeta"><span>14:12</span><span>Mail</span></div>
+        <div class="rtxt">Bonjour Madame Martin, suite à notre échange de ce matin, je vous transmets la proposition avec les deux options dont on a parlé.</div>
+        <div class="trace"><span class="play"><svg viewBox="0 0 8 10" fill="currentColor"><path d="M0 0l8 5-8 5z"/></svg></span><svg class="wave"></svg><span class="dur">0:21</span></div></div>
+      <div class="row" data-seed="27"><div class="rmeta"><span>13:55</span><span>WhatsApp</span></div>
+        <div class="rtxt">J'arrive dans dix minutes, commande-moi un café.</div>
+        <div class="trace"><span class="play"><svg viewBox="0 0 8 10" fill="currentColor"><path d="M0 0l8 5-8 5z"/></svg></span><svg class="wave"></svg><span class="dur">0:03</span></div></div>
+      <div class="row" data-seed="41" data-len="1"><div class="rmeta"><span>11:30</span><span>Claude</span></div>
+        <div class="rtxt">Reprends le tableau des factures, ajoute une colonne pour la date de relance et trie par montant.</div>
+        <div class="trace"><span class="play"><svg viewBox="0 0 8 10" fill="currentColor"><path d="M0 0l8 5-8 5z"/></svg></span><svg class="wave"></svg><span class="dur">0:48</span></div></div>
+      <div class="sep"></div>
+      <div class="mi"><span>Mots et raccourcis…</span></div>
+      <div class="mi"><span>Réglages…</span><kbd>⌘,</kbd></div>
+      <div class="sep"></div>
+      <div class="mi"><span>Quitter Dictée</span><kbd>⌘Q</kbd></div>
+    </div>
+  </div>
+
+  <h2>2 · Les réglages, dans une vraie fenêtre Réglages de Mac</h2>
+  <p class="cap">Deux onglets seulement. Les mêmes commandes que dans les Réglages Système, pour que rien ne paraisse étranger.</p>
+  <div class="stage">
+    <div class="win">
+      <div class="wtb"><div class="tls"><i class="tl r"></i><i class="tl y"></i><i class="tl g"></i></div>
+        <div class="wtitle">Général</div>
+        <div class="tabs">
+          <div class="tab on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h9M15 6h2M3 14h2M8 14h9"/><circle cx="13.5" cy="6" r="1.8"/><circle cx="6.5" cy="14" r="1.8"/></svg>Général</div>
+          <div class="tab"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16 8.5 4h1L14 16M5.8 12h6.4"/><path d="M15 9.5h2.5M16.25 8.25v2.5"/></svg>Mots</div>
+        </div>
+      </div>
+      <div class="wbody">
+        <div class="gl">Parler</div>
+        <div class="group">
+          <div class="f"><span>Raccourci</span><span class="kc">maintenir <span class="keycap">fn</span></span></div>
+          <div class="f"><span>Mains libres<small>Deux appuis sur fn pour parler sans tenir la touche</small></span><span class="sw on"></span></div>
+          <div class="f"><span>Micro</span><span class="popup">MacBook Air<i><svg viewBox="0 0 8 10" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5 4 1l2.5 2.5M1.5 6.5 4 9l2.5-2.5"/></svg></i></span></div>
+        </div>
+        <div class="gl">Texte</div>
+        <div class="group">
+          <div class="f"><span>Langue</span><span class="popup">Détection auto<i><svg viewBox="0 0 8 10" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5 4 1l2.5 2.5M1.5 6.5 4 9l2.5-2.5"/></svg></i></span></div>
+          <div class="f"><span>Remettre au propre<small>Ponctuation, hésitations retirées, corrections dites à voix haute</small></span><span class="sw on"></span></div>
+          <div class="f"><span>Adapter le ton à l'app<small>Plus soigné dans Mail, plus direct dans Messages</small></span><span class="sw on"></span></div>
+        </div>
+        <div class="gl">Système</div>
+        <div class="group">
+          <div class="f"><span>Moteur<small>Si Groq ne répond pas, la dictée d'Apple prend le relais</small></span><span class="popup">Groq<i><svg viewBox="0 0 8 10" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5 4 1l2.5 2.5M1.5 6.5 4 9l2.5-2.5"/></svg></i></span></div>
+          <div class="f"><span>Ouvrir au démarrage du Mac</span><span class="sw on"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="win">
+      <div class="wtb"><div class="tls"><i class="tl r"></i><i class="tl y"></i><i class="tl g"></i></div>
+        <div class="wtitle">Mots</div>
+        <div class="tabs">
+          <div class="tab"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h9M15 6h2M3 14h2M8 14h9"/><circle cx="13.5" cy="6" r="1.8"/><circle cx="6.5" cy="14" r="1.8"/></svg>Général</div>
+          <div class="tab on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16 8.5 4h1L14 16M5.8 12h6.4"/><path d="M15 9.5h2.5M16.25 8.25v2.5"/></svg>Mots</div>
+        </div>
+      </div>
+      <div class="wbody">
+        <div class="gl">Noms toujours bien écrits</div>
+        <div class="tbl one">
+          <div class="th"><span>Nom</span></div>
+          <div class="tr"><span>Ladislas</span></div>
+          <div class="tr"><span>Sillonia</span></div>
+          <div class="tr"><span>Ecodistrib</span></div>
+          <div class="tr"><span>Abidjan</span></div>
+          <div class="pm"><span>+</span><span>−</span></div>
+        </div>
+        <div class="hint"><span>« Premium CI » revient dans tes corrections</span><span class="btn">Ajouter</span></div>
+        <div class="gl">Raccourcis dits à voix haute</div>
+        <div class="tbl">
+          <div class="th"><span>Tu dis</span><span>Ça écrit</span></div>
+          <div class="tr sel"><span>ma signature</span><span class="v">Camille Martin</span></div>
+          <div class="tr"><span>mon mail</span><span class="v">camille@exemple.fr</span></div>
+          <div class="tr"><span>mes dispos</span><span class="v">Je suis disponible mardi ou jeudi après-midi</span></div>
+          <div class="pm"><span>+</span><span>−</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Trace de voix : rafales de parole et pauses, comme un vrai enregistrement (sera la vraie trace dans l'app)
+function rng(s){ return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+document.querySelectorAll('.row').forEach(row => {
+  const r = rng(+row.dataset.seed + 7), svg = row.querySelector('.wave');
+  const W = 300, H = 20, step = 3, n = Math.floor(W / step), played = parseFloat(row.dataset.p || 0);
+  let env = 0, speaking = true, left = 8 + r() * 14, out = '';
+  for (let i = 0; i < n; i++) {
+    if (--left <= 0) { speaking = !speaking; left = speaking ? 10 + r() * 22 : 2 + r() * 5; }
+    env += ((speaking ? .35 + r() * .65 : .04) - env) * .45;
+    const h = Math.max(2, env * H * (.55 + r() * .45));
+    const c = i / n < played ? 'var(--accent)' : 'var(--label3)';
+    out += `<rect x="${i*step}" y="${((H-h)/2).toFixed(1)}" width="2" height="${h.toFixed(1)}" rx="1" fill="${c}"/>`;
+  }
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('preserveAspectRatio','none'); svg.innerHTML = out;
+});
+</script>
+</body>
+</html>

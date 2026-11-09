@@ -1,0 +1,45 @@
+import AppKit
+
+let arguments = CommandLine.arguments
+
+// Modes de vérification en ligne de commande. Aucun ne touche au micro, à la reconnaissance vocale,
+// à l'accessibilité ni à la surveillance du clavier (sinon macOS attribuerait ces autorisations au Terminal).
+
+// Dictee --transcrire fichier.wav  (Groq seulement)
+if let i = arguments.firstIndex(of: "--transcrire") {
+    guard i + 1 < arguments.count else {
+        FileHandle.standardError.write(Data("Usage : Dictee --transcrire fichier.wav\n".utf8))
+        exit(2)
+    }
+    exit(Transcrire.executer(chemin: arguments[i + 1]))
+}
+
+// Dictee --nettoyer "texte" --app com.apple.mail  (remise au propre, réseau seulement)
+if arguments.contains("--nettoyer") {
+    exit(Nettoyer.executer(arguments: arguments))
+}
+
+// Dictee --verifier-collage  (presse-papiers privé, faux ⌘V)
+if arguments.contains("--verifier-collage") {
+    Task { @MainActor in exit(await VerifierCollage.executer()) }
+    RunLoop.main.run()
+}
+
+// Dictee --rendu-encoche dossier  (dessine l'encoche en PNG, sans fenêtre)
+if let i = arguments.firstIndex(of: "--rendu-encoche"), i + 1 < arguments.count {
+    exit(MainActor.assumeIsolated { RenduEncoche.executer(dossier: arguments[i + 1]) })
+}
+
+// Une option inconnue ne doit jamais lancer la vraie app depuis un shell.
+let connues: Set<String> = ["--sans-interface"]
+if let inconnue = arguments.dropFirst().first(where: { $0.hasPrefix("--") && !connues.contains($0) && !$0.hasPrefix("--duree=") && !$0.hasPrefix("--verifier-parole=") }) {
+    FileHandle.standardError.write(Data("Option inconnue : \(inconnue)\n".utf8))
+    exit(2)
+}
+
+let options = Options(arguments)
+let app = NSApplication.shared
+let delegate = MainActor.assumeIsolated { AppDelegate(options: options) }
+app.delegate = delegate
+app.setActivationPolicy(.accessory)
+app.run()

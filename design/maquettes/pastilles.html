@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dictée — pastilles</title>
+<style>
+  :root{
+    --page:#F4F1EB; --ink:#1E1C19; --muted:#857E74; --line:rgba(30,28,25,.12);
+    --paper:#FFFDF9; --accent:#E4572E;
+    --wall:#E6E0D6; --win:#FBFAF7; --bar:rgba(251,250,247,.82);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--page);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1060px;margin:0 auto;padding:40px 16px 80px}
+  .intro h1{font-size:22px;font-weight:600;letter-spacing:-.01em}
+  .intro p{color:var(--muted);max-width:640px;margin-top:6px}
+  .variant{margin-top:56px}
+  .variant header{display:flex;align-items:baseline;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .variant header p{width:100%}
+  .letter{font-size:13px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 8px}
+  .variant h2{font-size:18px;font-weight:600}
+  .variant header p{color:var(--muted);flex-basis:100%;max-width:none;padding-right:20%}
+
+  /* écran Mac simulé */
+  .screen{position:relative;aspect-ratio:16/10;max-height:72vh;width:100%;border-radius:12px;overflow:hidden;
+    background:linear-gradient(160deg,#EAE4DA 0%,#DCD5C9 100%);border:1px solid var(--line)}
+  .menubar{position:absolute;inset:0 0 auto 0;height:26px;background:var(--bar);backdrop-filter:blur(12px);
+    display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:12.5px;color:var(--ink)}
+  .menubar .l{display:flex;gap:16px}.menubar .l b{font-weight:600}
+  .menubar .r{display:flex;gap:14px;align-items:center;color:#3a3732}
+  .appicon{width:15px;height:15px;display:grid;place-items:center}
+  .appicon svg{width:13px;height:13px}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:180px;height:26px;background:#000;
+    border-radius:0 0 10px 10px;z-index:5}
+
+  .window{position:absolute;left:11%;top:13%;width:62%;height:72%;background:var(--win);border-radius:10px;
+    border:1px solid var(--line);box-shadow:0 18px 50px -20px rgba(40,30,20,.35)}
+  .titlebar{height:34px;display:flex;align-items:center;gap:7px;padding:0 13px;border-bottom:1px solid var(--line)}
+  .titlebar i{width:11px;height:11px;border-radius:50%;background:#D9D3C9}
+  .titlebar span{margin-left:10px;font-size:12.5px;color:var(--muted)}
+  .doc{padding:22px 30px;font-size:14.5px;line-height:1.65;color:#2b2925}
+  .doc h3{font-size:19px;font-weight:600;margin-bottom:10px;color:var(--ink)}
+  .typed{border-radius:3px;transition:background-color 1.4s ease}
+  .typed.new{background:rgba(228,87,46,.13);transition:none}
+  .caret{display:inline-block;width:1.5px;height:1.15em;background:var(--ink);vertical-align:-.2em;margin-left:1px;animation:blink 1.05s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+
+  /* touche fn (aide à la lecture) */
+  .fn{position:absolute;right:16px;bottom:14px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+  .fn kbd{font:500 12px -apple-system,sans-serif;min-width:34px;height:28px;display:grid;place-items:center;
+    background:var(--paper);border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;color:var(--ink);transition:transform .08s, border-width .08s}
+  .screen.listening .fn kbd{transform:translateY(1px);border-bottom-width:1px;background:#F1ECE4}
+
+  .bars{display:flex;align-items:center;gap:2px;height:100%}
+  .bars i{display:block;width:2px;border-radius:2px;height:3px;background:currentColor;transition:height .07s linear}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none}
+  .screen.listening .dot{animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.45}}
+
+  /* A — le fil : capsule claire en bas d'écran */
+  .pA{position:absolute;left:50%;bottom:7%;transform:translate(-50%,10px) scale(.96);opacity:0;
+    height:34px;padding:0 14px;border-radius:17px;background:var(--paper);border:1px solid var(--line);
+    box-shadow:0 6px 18px -8px rgba(40,30,20,.35);display:flex;align-items:center;gap:10px;color:var(--ink);
+    transition:opacity .18s ease, transform .22s cubic-bezier(.2,.9,.3,1.2), width .2s ease}
+  .pA .bars{height:18px}
+  .pA .work{display:none;width:86px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--ink),transparent);background-size:60px 2px;background-repeat:no-repeat;animation:sweep .6s linear infinite}
+  @keyframes sweep{from{background-position:-60px 0}to{background-position:90px 0}}
+  .screen.listening .pA,.screen.working .pA{opacity:1;transform:translate(-50%,0) scale(1)}
+  .screen.working .pA .bars,.screen.working .pA .dot{display:none}
+  .screen.working .pA .work{display:block}
+
+  /* B — l'encoche : prolonge l'encoche noire du Mac */
+  .pB{position:absolute;top:0;left:50%;transform:translateX(-50%);width:180px;height:26px;background:#000;
+    border-radius:0 0 12px 12px;z-index:6;display:flex;align-items:center;justify-content:space-between;padding:0 14px;color:#F4F1EB;
+    transition:width .28s cubic-bezier(.2,.9,.3,1.1),height .28s cubic-bezier(.2,.9,.3,1.1),border-radius .28s}
+  .pB .side{display:flex;align-items:center;gap:8px;opacity:0;transition:opacity .15s}
+  .pB .bars{height:14px}
+  .pB .bars i{width:2px}
+  .pB .lbl{font-size:11px;color:#a8a39b;font-variant-numeric:tabular-nums}
+  .screen.listening .pB,.screen.working .pB{width:300px;height:34px;border-radius:0 0 16px 16px}
+  .screen.listening .pB .side,.screen.working .pB .side{opacity:1;transition-delay:.12s}
+  .pB .work{display:none;width:60px;height:2px;background:linear-gradient(90deg,transparent,#F4F1EB,transparent);background-size:40px 2px;background-repeat:no-repeat;animation:sweep .6s linear infinite}
+  .screen.working .pB .bars{display:none}.screen.working .pB .work{display:block}
+
+  /* C — au curseur : minuscule, collé à l'endroit où le texte va arriver */
+  .pC{display:inline-flex;align-items:center;gap:6px;vertical-align:-.25em;margin-left:6px;height:20px;padding:0 7px;
+    border-radius:10px;background:var(--paper);border:1px solid var(--line);color:var(--ink);opacity:0;width:0;padding:0;overflow:hidden;border-width:0;
+    transition:opacity .15s, width .2s ease}
+  .pC .dot{width:6px;height:6px}
+  .pC .bars{height:12px}
+  .pC .work{display:none;width:28px;height:2px;background:linear-gradient(90deg,transparent,var(--ink),transparent);background-size:20px 2px;background-repeat:no-repeat;animation:sweep .5s linear infinite}
+  .screen.listening .pC,.screen.working .pC{opacity:1;width:auto;padding:0 7px;border-width:1px}
+  .screen.working .pC .bars,.screen.working .pC .dot{display:none}.screen.working .pC .work{display:block}
+
+  .legend{display:flex;gap:18px;margin-top:10px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+  .legend span.on{color:var(--ink)}
+  .legend span::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--line);margin-right:6px;vertical-align:1px}
+  .legend span.on::before{background:var(--accent)}
+
+  @media (max-width:640px){ .window{left:4%;width:92%} .doc{padding:14px 16px;font-size:12.5px} .menubar .l span:nth-child(n+3){display:none} }
+  @media (prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="intro">
+    <h1>La pastille pendant que tu parles — 3 propositions</h1>
+    <p>Chaque écran rejoue la même scène en boucle : tu tiens <b>fn</b>, tu parles, tu relâches, le texte arrive au curseur. Seul l'endroit et la forme de la pastille changent. Dis-moi A, B ou C (ou ce qui te gêne).</p>
+  </div>
+
+  <section class="variant">
+    <header><span class="letter">A</span><h2>Le fil</h2>
+      <p>Une capsule claire et fine en bas de l'écran, toujours au même endroit. Le point rouge dit « j'écoute », les traits suivent ta voix. Le plus classique, le plus lisible.</p></header>
+    <div class="screen" data-v="A"></div>
+    <div class="legend"></div>
+  </section>
+
+  <section class="variant">
+    <header><span class="letter">B</span><h2>L'encoche</h2>
+      <p>L'encoche noire en haut de ton MacBook s'élargit pendant que tu parles, puis se referme. Rien ne recouvre ton travail. On dirait que ça fait partie du Mac.</p></header>
+    <div class="screen" data-v="B"></div>
+    <div class="legend"></div>
+  </section>
+
+  <section class="variant">
+    <header><span class="letter">C</span><h2>Au curseur</h2>
+      <p>Une toute petite marque collée au curseur, là où le texte va s'écrire. Ton regard ne bouge pas. La plus discrète, mais la plus petite à voir.</p></header>
+    <div class="screen" data-v="C"></div>
+    <div class="legend"></div>
+  </section>
+</div>
+
+<script>
+const SENTENCE = "On se voit mercredi pour parler du devis, je t'envoie le lien juste après.";
+const N = {A:22, B:14, C:7};
+const mic = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><rect x="5.5" y="1.5" width="5" height="9" rx="2.5"/><path d="M3 8a5 5 0 0 0 10 0M8 13v2"/></svg>';
+const bars = n => '<span class="bars">' + '<i></i>'.repeat(n) + '</span>';
+
+function build(el){
+  const v = el.dataset.v;
+  const pill = {
+    A:`<div class="pA"><span class="dot"></span>${bars(N.A)}<span class="work"></span></div>`,
+    B:`<div class="pB"><span class="side"><span class="dot"></span><span class="lbl t">0:00</span></span><span class="side">${bars(N.B)}<span class="work"></span></span></div>`,
+    C:``
+  }[v];
+  el.innerHTML = `
+    <div class="menubar"><div class="l"><b></b><b>Notes</b><span>Fichier</span><span>Édition</span><span>Format</span></div>
+      <div class="r"><span class="appicon">${mic}</span><span>lun. 9 nov. 18:42</span></div></div>
+    ${v==='B' ? '<div class="notch"></div>' : ''}
+    <div class="window"><div class="titlebar"><i></i><i></i><i></i><span>Notes</span></div>
+      <div class="doc"><h3>Rendez-vous client</h3>
+        <p>Appel ce matin, il est intéressé par l'offre complète. Il veut revoir le prix avant de signer.</p><br>
+        <p><span class="typed"></span><span class="caret"></span>${v==='C' ? `<span class="pC"><span class="dot"></span>${bars(N.C)}<span class="work"></span></span>` : ''}</p>
+      </div></div>
+    ${pill}
+    <div class="fn"><span class="hint">tenir</span><kbd>fn</kbd></div>`;
+  return el;
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+async function run(el){
+  const typed = el.querySelector('.typed');
+  const is = [...el.querySelectorAll('.bars i')];
+  const max = el.dataset.v === 'A' ? 18 : el.dataset.v === 'B' ? 14 : 12;
+  const timer = el.querySelector('.t');
+  const legend = el.parentElement.querySelector('.legend');
+  legend.innerHTML = '<span>attente</span><span>tu parles (fn tenue)</span><span>transcription ~0,45 s</span><span>texte collé</span>';
+  const L = [...legend.children];
+  const mark = i => L.forEach((s,k)=>s.classList.toggle('on',k===i));
+  let raf, t0, level = .3;
+  const wave = () => { const now = performance.now();
+    level += (Math.random() - .5) * .5; level = Math.min(1, Math.max(.35, level));
+    is.forEach((b,k) => {
+      const env = Math.sin((k + 1) / (is.length + 1) * Math.PI);
+      const h = 3 + (max - 3) * Math.pow(env, .6) * level * (.35 + Math.random() * .65);
+      b.style.height = h.toFixed(1) + 'px';
+    });
+    if (timer) timer.textContent = '0:0' + Math.floor((now - t0) / 1000);
+  };
+  for(;;){
+    el.className = 'screen'; mark(0); typed.textContent = ''; typed.classList.remove('new');
+    await sleep(1400);
+    el.classList.add('listening'); mark(1); t0 = performance.now();
+    if (!reduced) raf = setInterval(wave, 70);
+    await sleep(3200);
+    clearInterval(raf); is.forEach(b => b.style.height = '3px');
+    el.classList.replace('listening','working'); mark(2);
+    await sleep(450);
+    el.classList.remove('working'); mark(3);
+    typed.textContent = SENTENCE; typed.classList.add('new');
+    await sleep(60); typed.classList.remove('new');
+    await sleep(2600);
+  }
+}
+
+document.querySelectorAll('.screen').forEach((el, i) => { build(el); setTimeout(() => run(el), i * 500); });
+</script>
+</body>
+</html>

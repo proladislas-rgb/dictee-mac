@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dictée — panneau</title>
+<style>
+  :root{
+    --page:#F4F1EB; --ink:#1E1C19; --muted:#857E74; --faint:#B3ACA1; --line:rgba(30,28,25,.10);
+    --paper:#FFFDF9; --soft:#F3EFE8; --accent:#E4572E;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--page);color:var(--ink);font:13px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:40px 16px 80px}
+  h1{font-size:22px;font-weight:600;letter-spacing:-.01em}
+  .intro p{color:var(--muted);font-size:15px;max-width:680px;margin-top:6px}
+
+  /* barre de menus + encoche, pour situer */
+  .strip{margin-top:28px;height:30px;border-radius:10px 10px 0 0;background:rgba(251,250,247,.9);border:1px solid var(--line);border-bottom:0;
+    display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:12.5px;position:relative}
+  .strip .notch{position:absolute;left:50%;top:-1px;transform:translateX(-50%);width:190px;height:30px;background:#000;border-radius:0 0 11px 11px}
+  .strip .r{display:flex;gap:14px;align-items:center}
+  .mi{width:22px;height:20px;border-radius:5px;display:grid;place-items:center;background:rgba(30,28,25,.09)}
+  .mi svg{width:13px;height:13px}
+  .stage{background:linear-gradient(160deg,#EAE4DA 0%,#DCD5C9 100%);border:1px solid var(--line);border-radius:0 0 10px 10px;padding:26px 22px 30px;
+    display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+  .cap{font-size:12px;color:#6d675e;margin:0 0 8px 4px}
+
+  /* le panneau */
+  .panel{background:var(--paper);border-radius:12px;border:1px solid var(--line);box-shadow:0 20px 50px -24px rgba(40,30,20,.45);overflow:hidden}
+  .ph{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 10px}
+  .ph b{font-size:13px;font-weight:600}
+  .status{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+  .status i{width:6px;height:6px;border-radius:50%;background:#7FA36B}
+  .tabs{display:flex;gap:2px;margin:0 12px;padding:2px;background:var(--soft);border-radius:8px}
+  .tabs span{flex:1;text-align:center;padding:4px 0;border-radius:6px;color:var(--muted);font-weight:500}
+  .tabs span.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 2px rgba(30,28,25,.12)}
+  .body{padding:10px 12px 12px;height:420px;overflow:hidden;display:flex;flex-direction:column}
+
+  .search{display:flex;align-items:center;gap:7px;height:28px;padding:0 9px;border-radius:7px;background:var(--soft);color:var(--faint)}
+  .search svg{width:12px;height:12px}
+  .stats{display:flex;justify-content:space-between;color:var(--muted);font-size:11.5px;margin:12px 2px 6px;font-variant-numeric:tabular-nums}
+  .stats b{color:var(--ink);font-weight:600}
+  .item{padding:9px 8px;border-radius:8px;position:relative}
+  .item + .item{border-top:1px solid var(--line)}
+  .item.hover{background:var(--soft);border-top-color:transparent}
+  .item.hover + .item{border-top-color:transparent}
+  .meta{display:flex;gap:8px;color:var(--faint);font-size:11px;margin-bottom:2px;font-variant-numeric:tabular-nums}
+  .meta .app{color:var(--muted)}
+  .txt{color:#34312c;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .acts{position:absolute;right:8px;top:7px;display:flex;gap:4px}
+  .acts span{font-size:11px;padding:1px 7px;border-radius:5px;background:var(--paper);border:1px solid var(--line);color:var(--ink)}
+  .day{font-size:11px;color:var(--faint);margin:10px 2px 2px;text-transform:uppercase;letter-spacing:.04em}
+
+  .add{display:flex;gap:6px}
+  .add .in{flex:1;height:28px;border-radius:7px;background:var(--soft);color:var(--faint);display:flex;align-items:center;padding:0 9px}
+  .add .bt{height:28px;padding:0 10px;border-radius:7px;background:var(--ink);color:var(--paper);display:flex;align-items:center;font-weight:500}
+  .sec{font-size:11px;color:var(--faint);margin:14px 2px 6px;text-transform:uppercase;letter-spacing:.04em}
+  .words{display:flex;flex-wrap:wrap;gap:6px}
+  .words span{padding:3px 9px;border-radius:6px;border:1px solid var(--line);background:var(--paper)}
+  .words span.auto{color:var(--muted);border-style:dashed}
+  .rep{display:grid;grid-template-columns:auto 14px 1fr;gap:6px 8px;align-items:center;padding:7px 2px;border-bottom:1px solid var(--line)}
+  .rep .k{padding:2px 8px;border-radius:5px;background:var(--soft);font-weight:500}
+  .rep .a{color:var(--faint);text-align:center}
+  .rep .v{color:#34312c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .note{color:var(--muted);font-size:11.5px;margin-top:auto}
+
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 2px;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:0}
+  .row .l small{display:block;color:var(--muted);font-size:11.5px}
+  .val{color:var(--muted);display:flex;align-items:center;gap:4px;white-space:nowrap}
+  .val kbd{font:500 11px -apple-system,sans-serif;padding:1px 7px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;color:var(--ink);background:var(--paper)}
+  .tg{width:30px;height:18px;border-radius:9px;background:#D8D2C8;position:relative;flex:none}
+  .tg::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+  .tg.on{background:var(--ink)}.tg.on::after{left:14px}
+  .foot{display:flex;justify-content:space-between;color:var(--muted);font-size:11.5px;margin-top:auto;padding-top:8px}
+
+  @media (max-width:900px){ .stage{grid-template-columns:1fr} .strip .l span:nth-child(n+2){display:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="intro">
+    <h1>Le panneau de l'app — historique, mots, réglages</h1>
+    <p>Un seul panneau, qui s'ouvre en cliquant sur la petite icône micro en haut à droite. Pas de grande fenêtre. Voici ses trois onglets côte à côte, avec le même style sobre que l'encoche.</p>
+  </div>
+
+  <div class="strip"><div class="l"><b>Notes</b>&nbsp;&nbsp;<span>Fichier</span></div><div class="notch"></div>
+    <div class="r"><span class="mi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><rect x="5.5" y="1.5" width="5" height="9" rx="2.5"/><path d="M3 8a5 5 0 0 0 10 0M8 13v2"/></svg></span><span>lun. 9 nov. 18:42</span></div></div>
+  <div class="stage">
+
+    <!-- 1. Historique -->
+    <div><div class="cap">1 · Historique : tout ce que tu as dicté</div>
+    <div class="panel">
+      <div class="ph"><b>Dictée</b><span class="status"><i></i>prêt · 0,41 s en moyenne</span></div>
+      <div class="tabs"><span class="on">Historique</span><span>Mots</span><span>Réglages</span></div>
+      <div class="body">
+        <div class="search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>Chercher dans tes dictées</div>
+        <div class="stats"><span>Aujourd'hui <b>1 284</b> mots</span><span><b>17</b> dictées</span><span><b>148</b> mots/min</span></div>
+        <div class="item hover"><div class="meta"><span>18:41</span><span class="app">Notes</span><span>0:04</span></div>
+          <div class="txt">On se voit mercredi pour parler du devis, je t'envoie le lien juste après.</div>
+          <div class="acts"><span>Copier</span><span>Réécouter</span></div></div>
+        <div class="item"><div class="meta"><span>18:12</span><span class="app">Gmail</span><span>0:21</span></div>
+          <div class="txt">Bonjour Madame Martin, suite à notre échange de ce matin, je vous transmets la proposition avec les deux options dont on a parlé.</div></div>
+        <div class="item"><div class="meta"><span>17:55</span><span class="app">WhatsApp</span><span>0:03</span></div>
+          <div class="txt">J'arrive dans dix minutes, commande-moi un café.</div></div>
+        <div class="day">Hier</div>
+        <div class="item"><div class="meta"><span>21:30</span><span class="app">Claude</span><span>0:48</span></div>
+          <div class="txt">Reprends le tableau des factures et ajoute une colonne pour la date de relance, puis trie par montant.</div></div>
+      </div>
+    </div></div>
+
+    <!-- 2. Mots -->
+    <div><div class="cap">2 · Mots : noms à bien écrire, raccourcis</div>
+    <div class="panel">
+      <div class="ph"><b>Dictée</b><span class="status"><i></i>prêt</span></div>
+      <div class="tabs"><span>Historique</span><span class="on">Mots</span><span>Réglages</span></div>
+      <div class="body">
+        <div class="add"><span class="in">Ajouter un mot ou un nom…</span><span class="bt">Ajouter</span></div>
+        <div class="sec">Toujours bien écrits</div>
+        <div class="words"><span>Ladislas</span><span>Sillonia</span><span>Ecodistrib</span><span>Abidjan</span><span>Wispr</span><span>Groq</span><span class="auto">Premium CI ?</span></div>
+        <div class="sec">Raccourcis dits à voix haute</div>
+        <div class="rep"><span class="k">ma signature</span><span class="a">→</span><span class="v">Camille Martin · 06 …</span></div>
+        <div class="rep"><span class="k">mon mail</span><span class="a">→</span><span class="v">camille@exemple.fr</span></div>
+        <div class="rep"><span class="k">dispo semaine</span><span class="a">→</span><span class="v">Je suis disponible mardi ou jeudi après-midi…</span></div>
+        <p class="note">Le mot en pointillés a été repéré dans tes corrections : un clic pour le garder.</p>
+      </div>
+    </div></div>
+
+    <!-- 3. Réglages -->
+    <div><div class="cap">3 · Réglages : le strict nécessaire</div>
+    <div class="panel">
+      <div class="ph"><b>Dictée</b><span class="status"><i></i>prêt</span></div>
+      <div class="tabs"><span>Historique</span><span>Mots</span><span class="on">Réglages</span></div>
+      <div class="body">
+        <div class="row"><span class="l">Parler<small>tenir, ou double appui = mains libres</small></span><span class="val"><kbd>fn</kbd></span></div>
+        <div class="row"><span class="l">Langue<small>reconnue toute seule</small></span><span class="val">Français, anglais ›</span></div>
+        <div class="row"><span class="l">Micro</span><span class="val">Micro du MacBook ›</span></div>
+        <div class="row"><span class="l">Remettre au propre<small>ponctuation, « euh », corrections</small></span><span class="tg on"></span></div>
+        <div class="row"><span class="l">Adapter le ton à l'app<small>plus soigné dans Gmail, plus court dans WhatsApp</small></span><span class="tg on"></span></div>
+        <div class="row"><span class="l">Ouvrir au démarrage du Mac</span><span class="tg on"></span></div>
+        <div class="row"><span class="l">Moteur<small>Groq · secours : dictée Apple</small></span><span class="val">Auto ›</span></div>
+        <div class="foot"><span>Version 0.1</span><span>Quitter</span></div>
+      </div>
+    </div></div>
+
+  </div>
+</div>
+</body>
+</html>

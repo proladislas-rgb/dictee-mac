@@ -1,0 +1,194 @@
+<!doctype html>
+<!--
+Direction (méthode Unslop), version épurée
+Produit : une app Mac où l'on tient fn, on parle, et le texte s'écrit au curseur ; le panneau, de la taille d'un menu, sert à retrouver une dictée et à régler le strict nécessaire.
+Caractère : posé, lisible, retenu.
+Monde : la page écrite ; encre claire sur papier gris-chaud passé en sombre, une ligne par dictée comme dans un carnet.
+Moments : les dictées elles-mêmes, en vraie typographie à empattements (Newsreader) sur une seule ligne, l'heure en marge ; tout le reste (Mots, Réglages) en texte seul, sans cartes, sans onglets en pilule, sans légendes.
+Signature : le curseur de texte en ambre, une barre de 2 px dans le champ de recherche (et d'ajout de mot), reprise comme couleur de sélection du texte.
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dictée — panneau, version 3 B</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --desk:#0b0b0b;
+  --pan:#1a1a19;
+  --raised:#262624;
+  --ink:#ece9e3;
+  --ink-2:#a8a59e;
+  --ink-3:#88857e;
+  --hair:rgba(236,233,227,.09);
+  --caret:#e6a04a;
+  --serif:"Newsreader","New York",ui-serif,Charter,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--desk);font-family:var(--sans);color:var(--ink);overflow:hidden;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+::selection{background:rgba(230,160,74,.34);color:#fff}
+button,input{font:inherit;color:inherit;background:none;border:0;outline:0;cursor:default;text-align:left}
+button:focus-visible,.row:focus-visible{outline:1.5px solid var(--ink-3);outline-offset:-1.5px;border-radius:8px}
+
+/* barre des menus : presque vide */
+.menubar{height:28px;display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:0 16px;font-size:13px;color:var(--ink-2)}
+.menubar .mic{display:grid;place-items:center;width:24px;height:20px;border-radius:5px;background:var(--raised);color:var(--ink)}
+
+/* bureau */
+.stage{position:absolute;left:0;right:0;top:28px;bottom:0;display:flex;align-items:center;justify-content:center;gap:24px}
+
+/* panneau */
+.panel{width:352px;height:320px;border-radius:14px;background:var(--pan);box-shadow:0 0 0 1px rgba(255,255,255,.1);display:grid;grid-template-rows:minmax(0,1fr) 40px;overflow:hidden}
+.view{padding:8px;min-height:0;overflow-y:auto;scrollbar-width:none}
+.view::-webkit-scrollbar{display:none}
+.view[hidden]{display:none}
+
+.field{display:flex;align-items:center;gap:8px;height:36px;padding:0 8px;color:var(--ink-3);position:relative}
+.field svg{flex:none}
+.field input{flex:1;min-width:0;font-size:13px;line-height:20px;color:var(--ink);caret-color:var(--caret);padding-left:8px}
+.field input::placeholder{color:var(--ink-3)}
+.field .caret{position:absolute;left:35px;top:10px;width:2px;height:16px;border-radius:1px;background:var(--caret);pointer-events:none}
+.field input:not(:placeholder-shown)~.caret,.field input:focus~.caret{display:none}
+
+/* lignes de dictées */
+.row{display:grid;grid-template-columns:36px minmax(0,1fr) auto;column-gap:8px;align-items:center;height:36px;padding:0 8px;border-radius:8px;outline:none;transition:background-color .14s var(--ease)}
+.row[hidden]{display:none}
+.row:hover,.row[aria-selected=true]{background:var(--raised)}
+.row .t{font-size:12px;line-height:16px;color:var(--ink-3)}
+.row .x{font-family:var(--serif);font-size:15px;line-height:20px;font-variation-settings:"opsz" 15;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .14s var(--ease)}
+.row:hover .x,.row[aria-selected=true] .x{color:var(--ink)}
+.row .a{font-size:12px;line-height:16px;color:var(--ink-3);text-align:right;min-width:48px}
+.row .acts{display:none;gap:0;margin-right:-4px}
+.row:hover .a,.row[aria-selected=true] .a{display:none}
+.row:hover .acts,.row[aria-selected=true] .acts{display:flex}
+.ib{display:grid;place-items:center;width:28px;height:28px;border-radius:6px;color:var(--ink-2);transition:color .12s var(--ease),transform .1s var(--ease),background-color .12s var(--ease)}
+.ib:hover{color:var(--ink);background:rgba(255,255,255,.08)}
+.ib:active{transform:scale(.94)}
+.day{height:32px;padding:8px 8px 0 52px;font-size:12px;line-height:16px;color:var(--ink-3);margin-top:4px}
+.none{padding:8px 8px 0 52px;font-family:var(--serif);font-size:15px;line-height:20px;color:var(--ink-3)}
+
+/* mots */
+.names{padding:8px 8px 0;font-family:var(--serif);font-size:15px;line-height:24px;font-variation-settings:"opsz" 15;color:var(--ink)}
+.say{display:grid;grid-template-columns:96px minmax(0,1fr);column-gap:8px;padding:0 8px;margin-top:16px}
+.say dt,.say dd{height:32px;line-height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.say dt{font-size:13px;color:var(--ink-2)}
+.say dd{font-family:var(--serif);font-size:15px;font-variation-settings:"opsz" 15;color:var(--ink)}
+.sugg{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 8px;margin-top:16px;font-size:13px;color:var(--ink-3)}
+.sugg b{font-weight:400;color:var(--ink)}
+.sugg button{flex:none;color:var(--ink);text-decoration:underline;text-decoration-color:var(--ink-3);text-underline-offset:4px;transition:text-decoration-color .14s var(--ease)}
+.sugg button:hover{text-decoration-color:var(--ink)}
+
+/* réglages */
+.set{display:flex;align-items:center;justify-content:space-between;gap:12px;height:32px;padding:0 8px;font-size:13px;line-height:20px}
+.set .l{color:var(--ink)}
+.set .v{color:var(--ink-2);display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:color .14s var(--ease)}
+button.v:hover{color:var(--ink)}
+.key{font-size:11px;line-height:16px;font-weight:500;color:var(--ink);padding:0 6px;border-radius:4px;background:var(--raised);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+.sw{position:relative;width:28px;height:16px;border-radius:8px;background:#2f2f2d;transition:background-color .2s var(--ease);flex:none}
+.sw::after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--ink-2);transition:transform .22s var(--ease),background-color .2s var(--ease)}
+.sw[aria-checked=true]{background:var(--ink)}
+.sw[aria-checked=true]::after{transform:translateX(12px);background:#1a1a19}
+
+/* navigation : trois mots */
+.nav{display:flex;align-items:center;gap:20px;padding:0 16px;border-top:1px solid var(--hair);font-size:13px}
+.nav button{color:var(--ink-3);height:40px;transition:color .14s var(--ease)}
+.nav button:hover{color:var(--ink-2)}
+.nav button[aria-current=true]{color:var(--ink)}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="menubar"><span class="mic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span><span>lun. 9 nov. 14:42</span></div>
+<div class="stage" id="stage"></div>
+
+<script>
+(function(){
+  var I={
+    search:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+    plus:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>',
+    paste:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="12" height="16" rx="2"/><path d="M9 5V4h6v1M9 11h6M9 15h4"/></svg>',
+    copy:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+    play:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M7 4.5v15l12-7.5z"/></svg>',
+    down:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
+  };
+  var today=[
+    ['14:41','Notes','On se voit mercredi pour parler du devis, je t’envoie le lien juste après.'],
+    ['14:12','Mail','Bonjour Madame Martin, suite à notre échange de ce matin, je vous transmets la proposition avec les deux options dont on a parlé.'],
+    ['13:55','WhatsApp','J’arrive dans dix minutes, commande-moi un café.'],
+    ['11:30','Claude','Reprends le tableau des factures, ajoute une colonne pour la date de relance et trie par montant.']
+  ];
+  var hier=[['18:02','Mail','Peux-tu m’envoyer le récapitulatif avant jeudi, merci.']];
+  function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+  function row(r,sel){return '<div class="row" tabindex="0" aria-selected="'+(sel?'true':'false')+'" data-t="'+esc(r[2])+'" data-app="'+r[1]+'"><span class="t">'+r[0]+'</span><span class="x">'+esc(r[2])+'</span><span class="a">'+r[1]+'</span><span class="acts"><button class="ib" data-a="paste" title="Recoller" aria-label="Recoller">'+I.paste+'</button><button class="ib" data-a="copy" title="Copier" aria-label="Copier">'+I.copy+'</button><button class="ib" data-a="play" title="Réécouter" aria-label="Réécouter">'+I.play+'</button></span></div>'}
+  function sw(on,l){return '<div class="set"><span class="l">'+l+'</span><button class="sw" role="switch" aria-checked="'+on+'" aria-label="'+l+'"></button></div>'}
+  function sel(l,v){return '<div class="set"><span class="l">'+l+'</span><button class="v">'+v+I.down+'</button></div>'}
+
+  function build(start){
+    var p=document.createElement('div');p.className='panel';
+    p.innerHTML=
+    '<div class="view" data-v="d">'+
+      '<label class="field">'+I.search+'<input class="q" type="text" placeholder="Rechercher" autocomplete="off" spellcheck="false"><span class="caret"></span></label>'+
+      today.map(function(r,i){return row(r,i===0)}).join('')+
+      '<div class="day">Hier</div>'+hier.map(function(r){return row(r,false)}).join('')+
+      '<p class="none" hidden></p>'+
+    '</div>'+
+    '<div class="view" data-v="m" hidden>'+
+      '<label class="field">'+I.plus+'<input type="text" placeholder="Ajouter un mot" autocomplete="off" spellcheck="false"><span class="caret"></span></label>'+
+      '<p class="names">Ladislas, Sillonia, Ecodistrib, Abidjan</p>'+
+      '<dl class="say"><dt>ma signature</dt><dd>Camille Martin</dd><dt>mon mail</dt><dd>camille@exemple.fr</dd><dt>mes dispos</dt><dd>Je suis disponible mardi ou jeudi après-midi</dd></dl>'+
+      '<div class="sugg"><span><b>Premium CI</b> revient dans tes corrections</span><button>Ajouter</button></div>'+
+    '</div>'+
+    '<div class="view" data-v="r" hidden>'+
+      '<div class="set"><span class="l">Dicter</span><span class="v">Maintenir <span class="key">fn</span></span></div>'+
+      '<div class="set"><span class="l">Mains libres</span><span class="v">Deux appuis <span class="key">fn</span></span></div>'+
+      sel('Micro','Micro du MacBook')+sel('Langue','Détection auto')+
+      sw(true,'Remettre au propre')+sw(true,'Adapter le ton à l’app')+
+      sel('Moteur','Groq, secours Apple')+sw(false,'Ouvrir au démarrage')+
+    '</div>'+
+    '<nav class="nav"><button data-n="d">Dictées</button><button data-n="m">Mots</button><button data-n="r">Réglages</button></nav>';
+    function show(v){
+      p.querySelectorAll('.view').forEach(function(x){x.hidden=x.getAttribute('data-v')!==v});
+      p.querySelectorAll('.nav button').forEach(function(b){b.setAttribute('aria-current',b.getAttribute('data-n')===v?'true':'false')});
+    }
+    show(start);
+    p.querySelectorAll('.nav button').forEach(function(b){b.addEventListener('click',function(){show(b.getAttribute('data-n'))})});
+    var rows=[].slice.call(p.querySelectorAll('.row'));
+    function pick(r){rows.forEach(function(x){x.setAttribute('aria-selected',x===r?'true':'false')})}
+    rows.forEach(function(r){
+      r.addEventListener('pointerdown',function(){pick(r)});
+      r.addEventListener('focus',function(){pick(r)});
+      r.addEventListener('keydown',function(ev){
+        var i=rows.indexOf(r),vis=rows.filter(function(x){return !x.hidden}),j=vis.indexOf(r),n=null;
+        if(ev.key==='ArrowDown')n=vis[j+1];else if(ev.key==='ArrowUp')n=vis[j-1];
+        if(n){ev.preventDefault();n.focus()}
+      });
+    });
+    p.addEventListener('click',function(ev){
+      var b=ev.target.closest('[data-a]');if(!b||b.getAttribute('data-a')==='play')return;
+      var t=b.closest('.row').getAttribute('data-t');
+      try{navigator.clipboard&&navigator.clipboard.writeText(t)}catch(_){}
+      var o=b.innerHTML;b.style.color='var(--ink)';b.innerHTML='<span style="font-size:12px">OK</span>';
+      setTimeout(function(){b.innerHTML=o;b.style.color=''},1000);
+    });
+    p.querySelectorAll('.sw').forEach(function(s){s.addEventListener('click',function(){s.setAttribute('aria-checked',s.getAttribute('aria-checked')==='true'?'false':'true')})});
+    var q=p.querySelector('.q'),none=p.querySelector('.none'),day=p.querySelector('.day');
+    q.addEventListener('input',function(){
+      var v=q.value.trim().toLowerCase(),n=0;
+      rows.forEach(function(r){var hit=!v||(r.getAttribute('data-t')+' '+r.getAttribute('data-app')).toLowerCase().indexOf(v)>-1;r.hidden=!hit;if(hit)n++});
+      day.hidden=!!v;none.hidden=n>0;none.textContent=n?'':'Aucune dictée';
+    });
+    return p;
+  }
+  var st=document.getElementById('stage');
+  ['d','m','r'].forEach(function(v){st.appendChild(build(v))});
+})();
+</script>
+</body>
+</html>

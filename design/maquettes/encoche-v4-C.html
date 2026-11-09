@@ -1,0 +1,294 @@
+<!doctype html>
+<!--
+DIRECTION (v4, piste C, « tout dans une ligne »)
+Produit : la dictée sur l'encoche du Mac, pendant qu'on parle : l'app visée, ce qui s'écrit, le son capté.
+Caractère : sec, rapide, tenu. L'encoche grandit à peine : 180 à 380 px de large, 32 à 36 px de haut, rien ne dépasse dessous.
+Monde : noir d'écran éteint. Une seule bande : icône de l'app à gauche, texte au centre (une ligne, mots récents à droite, anciens qui s'effacent à gauche), cinq barres de voix à droite.
+Moments : l'ouverture (ressort sobre qui sort du noir), les derniers mots plus pâles jusqu'à ce qu'ils soient définitifs, la finalisation (barres au repos, point final, 0,4 s), la fermeture.
+Mains libres : la bande s'élargit de 64 px et laisse apparaître ✕ à gauche et ✓ à droite, deux boutons de 24 px sans fond. Aucun accent de couleur, sauf la trace orange dans Notes quand le texte arrive.
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dictée, encoche v4 C</title>
+<style>
+:root{
+  --wall:#1b1c1e; --win:#262628;
+  --k0:#000; --k2:#1b1b1d; --k3:#2a2a2d;
+  --line:rgba(237,237,237,.08);
+  --t1:#ededed; --t2:#a1a1a6; --t3:#85858b;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--wall);color:var(--t1);font:13px/16px var(--font);-webkit-font-smoothing:antialiased;overflow:hidden}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+::selection{background:rgba(237,237,237,.22)}
+svg{display:block;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+
+.stage{position:relative;width:100%;height:100%;min-width:1190px;min-height:650px;overflow:hidden}
+
+/* barre des menus : du texte posé sur le bureau, l'encoche passe devant */
+.menu{position:absolute;top:0;left:0;right:0;height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;color:var(--t2)}
+.menu .l,.menu .r{display:flex;align-items:center;gap:18px;white-space:nowrap}
+.menu b{font-weight:600;color:var(--t1)}
+.menu .r{font-variant-numeric:tabular-nums}
+
+/* fenêtre Notes */
+.win{position:absolute;left:50%;margin-left:-320px;top:88px;width:640px;height:440px;background:var(--win);border-radius:10px;overflow:hidden}
+.win i{position:absolute;top:12px;width:10px;height:10px;border-radius:50%;background:#3d3d40}
+.win i:nth-child(1){left:12px}.win i:nth-child(2){left:28px}.win i:nth-child(3){left:44px}
+.doc{position:absolute;left:36px;right:36px;top:56px;color:var(--t2);font-size:15px;line-height:24px}
+.doc h3{font-size:22px;line-height:30px;font-weight:600;color:var(--t1);margin-bottom:14px}
+.doc p+p{margin-top:12px}
+.doc .new{background:rgba(228,87,46,.2);border-radius:3px;transition:background-color 1.6s ease}
+.doc .new.old{background:transparent}
+.caret{display:inline-block;width:1.5px;height:18px;background:var(--t1);vertical-align:-4px;margin-left:1px;animation:blink 1.1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* l'encoche */
+.notch{position:absolute;top:0;left:50%;z-index:5;width:180px;height:32px;transform:translateX(-50%)}
+.notch::before,.notch::after{content:"";position:absolute;top:0;width:8px;height:8px;opacity:var(--sh,0)}
+.notch::before{left:-8px;background:radial-gradient(circle at 0 100%,transparent 7.5px,#000 8px)}
+.notch::after{right:-8px;background:radial-gradient(circle at 100% 100%,transparent 7.5px,#000 8px)}
+.clip{position:absolute;inset:0;background:var(--k0);overflow:hidden;border-radius:0 0 10px 10px}
+
+/* la ligne : [✕] icône · texte · barres [✓] */
+.in{position:absolute;top:0;left:0;right:0;height:36px;display:flex;align-items:center;padding:0 14px;opacity:0;pointer-events:none}
+.slot{flex:none;height:24px;overflow:hidden;opacity:0;width:0}
+.slot.l button{margin-right:8px}
+.slot.r{display:flex;justify-content:flex-end}
+.slot.r button{margin-left:8px}
+.slot button{flex:none;width:24px;height:24px;display:grid;place-items:center;border-radius:6px;color:var(--t2);transition:background-color .12s ease,color .12s ease,transform .1s ease}
+.slot.r button{color:var(--t1)}
+.hf .slot button:hover{background:var(--k3);color:var(--t1)}
+.slot button:active,.slot button.press{transform:scale(.94);background:var(--k3);color:var(--t1)}
+.hf .slot button{pointer-events:auto}
+.app{flex:none;width:24px;height:24px;margin:0 10px 0 -2px;display:block}
+.txt{position:relative;flex:1;min-width:0;height:36px;overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 var(--f,0px));mask-image:linear-gradient(90deg,transparent 0,#000 var(--f,0px))}
+.line{position:absolute;left:0;top:10px;white-space:nowrap;will-change:transform;transition:opacity .2s ease}
+.line.gone{opacity:0}
+.w{color:var(--t1);transition:color .3s ease;animation:wi .16s ease-out}
+.w.v{color:var(--t3)}
+@keyframes wi{from{opacity:0}to{opacity:1}}
+.snd{flex:none;display:flex;align-items:center;gap:3px;height:20px;margin-left:12px}
+.snd i{display:block;width:2px;height:3px;border-radius:1px;background:var(--t1)}
+
+/* touche fn, seule indication, hors de l'encoche */
+.hint{position:absolute;left:0;right:0;bottom:44px;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--t3);font-size:12px;line-height:20px;height:20px}
+.kc{display:inline-grid;place-items:center;min-width:24px;height:20px;padding:0 6px;border-radius:5px;background:var(--k3);color:var(--t2);
+  font:500 12px/1 var(--font);box-shadow:inset 0 1px 0 rgba(255,255,255,.1);transition:transform .08s ease,background-color .08s ease,color .08s ease}
+.kc.down{transform:translateY(1px) scale(.95);background:#3a3a3e;color:var(--t1)}
+.hint .lb{margin-left:4px;min-width:0}
+
+:focus-visible{outline:2px solid var(--t2);outline-offset:1px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.caret{animation:none}}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="menu"><div class="l"><b>Notes</b><span>Fichier</span><span>Édition</span><span>Format</span><span>Fenêtre</span></div>
+    <div class="r"><span>lun. 9 nov.</span><span>18:42</span></div></div>
+
+  <div class="win"><i></i><i></i><i></i>
+    <div class="doc"><h3>Rendez-vous client</h3>
+      <p>Appel ce matin, il est intéressé par l'offre complète. Il veut revoir le prix avant de signer.</p>
+      <p id="end"><span class="caret"></span></p></div></div>
+
+  <div class="notch" id="notch"><div class="clip" id="clip">
+    <div class="in" id="in">
+      <div class="slot l" id="sl"><button type="button" id="bx" aria-label="Annuler"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <img class="app" src="notes.png" alt="Notes" width="24" height="24">
+      <div class="txt" id="txt"><div class="line" id="line"></div></div>
+      <div class="snd" id="snd"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="slot r" id="sr"><button type="button" id="bv" aria-label="Valider"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></button></div>
+    </div>
+  </div></div>
+
+  <div class="hint" id="hint"><span class="kc" id="k1">fn</span><span class="kc" id="k2" hidden>fn</span><span class="lb" id="lb"></span></div>
+</div>
+
+<script>
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const NW=180, NH=32, DW=380, DH=36, HFX=64;
+
+/* ressort : repart de la valeur affichée, garde sa vitesse, interruptible */
+class Spring{
+  constructor(x){this.x=x;this.v=0;this.t=x;this.z=1;this.r=.3}
+  to(t,z,r){this.t=t;this.z=z;this.r=r;if(reduce){this.x=t;this.v=0}}
+  step(dt){const w=2*Math.PI/this.r;this.v+=(-w*w*(this.x-this.t)-2*this.z*w*this.v)*dt;this.x+=this.v*dt}
+  get rest(){return Math.abs(this.x-this.t)<.05&&Math.abs(this.v)<.05}
+}
+const $=id=>document.getElementById(id);
+const notch=$('notch'),clip=$('clip'),inn=$('in'),txt=$('txt'),line=$('line'),snd=$('snd'),sl=$('sl'),sr=$('sr'),bx=$('bx'),bv=$('bv');
+const bars=[...snd.children];
+const sw=new Spring(NW), sh=new Spring(NH), hs=new Spring(0), xs=new Spring(0);
+const lv=bars.map(()=>0);
+let listening=false, kick=0, timer=0, last=0;
+
+/* l'horloge : setInterval, démarre seulement quand quelque chose bouge */
+function run(){ if(!timer){ last=performance.now(); timer=setInterval(tick,16) } }
+function tick(){
+  const now=performance.now(); let dt=(now-last)/1000; last=now; if(!(dt>0)) dt=1/60; dt=Math.min(dt,.05);
+  for(let t=0;t<dt;t+=1/240){sw.step(1/240);sh.step(1/240);hs.step(1/240);xs.step(1/240)}
+  let busy=false;
+  for(const s of [sw,sh,hs,xs]){ if(s.rest){s.x=s.t;s.v=0}else busy=true }
+  /* texte : la ligne glisse pour garder la fin visible */
+  const bw=txt.clientWidth, lw=line.offsetWidth;
+  xs.to(Math.min(0,bw-lw-4),1,.2);
+  apply();
+  /* son */
+  kick*=.86;
+  const amp=listening?(.3+.5*Math.abs(Math.sin(now/410)*Math.sin(now/137+1))+.5*kick):0;
+  let flat=true;
+  bars.forEach((b,i)=>{
+    const env=[.6,.85,1,.85,.6][i];
+    lv[i]=lv[i]*.55+(listening?Math.random()*amp*.45:0);
+    const h=3+13*clamp(lv[i]*env*1.5);
+    if(h>3.2)flat=false;
+    b.style.height=h.toFixed(1)+'px';
+  });
+  if(listening||!flat||kick>.01)busy=true;
+  if(!busy){clearInterval(timer);timer=0}
+}
+function apply(){
+  const w=sw.x,h=sh.x,f=clamp(hs.x);
+  const uw=clamp((w-NW)/(DW-NW)),uh=clamp((h-NH)/(DH-NH)),u=Math.min(uw,uh);
+  notch.style.width=w+'px';notch.style.height=h+'px';
+  clip.style.borderRadius=`0 0 ${10+4*uw}px ${10+4*uw}px`;
+  clip.style.boxShadow=`0 ${6*uw}px ${16*uw}px -6px rgba(0,0,0,${.5*uw})`;
+  notch.style.setProperty('--sh',clamp((w-NW)/30));
+  const op=clamp((u-.62)/.3);
+  inn.style.opacity=op;
+  inn.style.filter=op<1?`blur(${(1-op)*4}px)`:'none';
+  const sx=32*f;
+  sl.style.width=sx+'px';sr.style.width=sx+'px';sl.style.opacity=sr.style.opacity=clamp(f*1.4-.2);
+  line.style.transform=`translateX(${xs.x.toFixed(2)}px)`;
+  txt.style.setProperty('--f',clamp(-xs.x,0,36).toFixed(1)+'px');
+}
+
+/* états de la bande */
+let st='rest', hf=false;
+function openBand(hands){
+  st='listen';hf=hands;listening=true;
+  line.classList.remove('gone');line.innerHTML='';xs.x=xs.t=0;
+  document.body.classList.toggle('hf',hands);
+  notch.classList.add('open');
+  sw.to(DW+(hands?HFX:0),.9,.32);sh.to(DH,.9,.32);hs.to(hands?1:0,1,.3);run();
+}
+function closeBand(){
+  st='closing';listening=false;document.body.classList.remove('hf');
+  sw.to(NW,1,.26);sh.to(NH,1,.26);hs.to(0,1,.2);run();
+  setTimeout(()=>{if(st==='closing'){st='rest';line.innerHTML='';xs.x=xs.t=0;apply()}},reduce?0:520);
+}
+function addWord(w){
+  const s=document.createElement('span');s.className='w';s.textContent=w;
+  line.append(s,' ');
+  const all=line.querySelectorAll('.w');
+  all.forEach((e,i)=>e.classList.toggle('v',i>=all.length-2));
+  kick=1;run();
+}
+function fixWords(){
+  const all=line.querySelectorAll('.w');
+  all.forEach(e=>e.classList.remove('v'));
+  const l=all[all.length-1];
+  if(l&&!/[.!?]$/.test(l.textContent)&&!l.dataset.f){l.textContent=l.textContent.replace(/[,;]$/,'')+'.';l.dataset.f=1}
+  run();
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function paste(){
+  const text=[...line.querySelectorAll('.w')].map(e=>e.textContent).join(' ');
+  const end=$('end'),s=document.createElement('span');
+  s.className='new';s.textContent=(end.querySelector('.new')?' ':'')+text;
+  end.insertBefore(s,end.querySelector('.caret'));
+  requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(()=>s.classList.add('old'),60)));
+}
+/* finalisation : barres au repos, mots définitifs, puis le texte part dans Notes */
+async function commit(){
+  if(st!=='listen')return;
+  st='final';listening=false;fixWords();
+  await sleep(reduce?0:400);
+  closeBand();await sleep(reduce?0:200);paste();
+}
+async function discard(){
+  if(st!=='listen')return;
+  st='final';listening=false;line.classList.add('gone');
+  await sleep(reduce?0:160);closeBand();
+}
+
+/* la scène */
+const SENT=[
+ ["On","se","voit","mercredi","pour","parler","du","devis,","je","t'envoie","le","lien","juste","après"],
+ ["Je","te","rappelle","demain","matin","pour","confirmer","l'horaire","de","la","visite"],
+ ["Ajoute","Abidjan","à","la","liste","des","déplacements"]];
+const CANCEL={};
+let T=0;
+const wait=(ms,my)=>new Promise((res,rej)=>setTimeout(()=>T===my?res():rej(CANCEL),ms));
+const k1=$('k1'),k2=$('k2'),lb=$('lb');
+const press=async(k,my,ms=110)=>{k.classList.add('down');await wait(ms,my);k.classList.remove('down')};
+async function say(words,my,from=0){
+  for(let i=from;i<words.length;i++){ addWord(words[i]); await wait(120+30*words[i].length,my) }
+}
+function reset(){ const e=$('end'); e.querySelectorAll('.new').forEach(n=>n.remove()) }
+async function autoplay(){
+  const my=++T;
+  try{
+    for(;;){
+      reset(); lb.textContent='';k2.hidden=true;
+      await wait(1300,my);
+      /* 1. fn tenue */
+      lb.textContent='tenir';k1.classList.add('down');await wait(420,my);
+      openBand(false);await wait(420,my);
+      await say(SENT[0],my);
+      await wait(300,my);
+      k1.classList.remove('down');
+      await commit();
+      await wait(2500,my);
+      /* 2. mains libres, validé par ✓ */
+      lb.textContent='deux appuis';k2.hidden=false;
+      await press(k1,my);await wait(90,my);await press(k2,my);
+      openBand(true);await wait(420,my);
+      await say(SENT[1],my);
+      await wait(350,my);
+      bv.classList.add('press');await wait(150,my);bv.classList.remove('press');
+      commit(); await wait(1500,my);
+      await wait(1500,my);
+      /* 3. mains libres, annulé par ✕ */
+      k1.classList.remove('down');
+      await press(k1,my);await wait(90,my);await press(k2,my);
+      openBand(true);await wait(420,my);
+      await say(SENT[2],my);
+      await wait(450,my);
+      bx.classList.add('press');await wait(150,my);bx.classList.remove('press');
+      discard(); await wait(2200,my);
+    }
+  }catch(e){ if(e!==CANCEL)throw e }
+}
+
+/* jouable : tenir la touche D pour dicter, ✕ et ✓ cliquables en mains libres */
+let held=false, resume=0;
+function later(){ clearTimeout(resume); resume=setTimeout(()=>{ if(st==='rest'&&!held){ reset(); autoplay() } },4000) }
+addEventListener('keydown',async e=>{
+  if(e.key.toLowerCase()!=='d'||e.metaKey||e.ctrlKey||e.altKey||e.repeat||held||st!=='rest')return;
+  held=true;const my=++T;clearTimeout(resume);
+  lb.textContent='tenir';k2.hidden=true;k1.classList.add('down');
+  openBand(false);
+  try{ await wait(420,my); for(let i=0;;i=(i+1)%SENT.length){ await say(SENT[i],my); await wait(250,my) } }catch(x){ if(x!==CANCEL)throw x }
+});
+addEventListener('keyup',async e=>{
+  if(e.key.toLowerCase()!=='d'||!held)return;
+  held=false;T++;k1.classList.remove('down');
+  await commit();later();
+});
+bv.addEventListener('click',async()=>{ if(st!=='listen')return; T++; await commit(); later() });
+bx.addEventListener('click',async()=>{ if(st!=='listen')return; T++; await discard(); later() });
+
+apply();
+autoplay();
+</script>
+</body>
+</html>
