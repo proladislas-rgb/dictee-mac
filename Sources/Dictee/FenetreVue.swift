@@ -50,6 +50,8 @@ struct FenetreVue: View {
             .padding(.top, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+        // La barre des onglets occupe la zone de titre (même ligne que les boutons rouge/jaune/vert) au lieu de se placer dessous.
+        .ignoresSafeArea(.container, edges: .top)
         .background(Palette.surface)
     }
 }
@@ -105,6 +107,8 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         f.toolbar = NSToolbar(identifier: "VerbeBarre")
         f.toolbarStyle = .unified
         f.titlebarSeparatorStyle = .none
+        // S'ouvre sur le bureau où l'on se trouve, pas sur celui où la fenêtre était la dernière fois.
+        f.collectionBehavior.insert(.moveToActiveSpace)
         f.minSize = NSSize(width: 560, height: 420)
         f.contentView = NSHostingView(rootView: FenetreVue(nav: nav, dictees: dictees, store: dictees.store, mots: MotsModele.partage, reglages: reglages,
                                                            surRevoirPriseEnMain: { [weak self] in self?.surRevoirPriseEnMain() },
