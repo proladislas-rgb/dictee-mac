@@ -3,8 +3,8 @@ import Foundation
 /// Les petits sons de l'app, fabriqués ici de toutes pièces (sinus avec enveloppe douce) : aucun fichier son, rien
 /// n'est copié ni extrait d'une autre app. Logique sans interface, vérifiée par `DicteeControles`.
 ///
-/// - début de dictée : deux notes brèves montantes (120 ms en tout) ;
-/// - texte collé : une note brève qui descend (90 ms) ;
+/// - début de dictée : un « bump » grave et chaud qui monte (300 ms, dont l'essentiel dans les 150 premières) ;
+/// - texte collé : le même grain, qui redescend (320 ms) ;
 /// - annulation : un tic grave étouffé (50 ms).
 public enum SonSynthese {
     public static let frequenceEchantillonnage = 44_100
@@ -26,11 +26,12 @@ public enum SonSynthese {
 
     public static func notes(_ son: Son) -> [Note] {
         switch son {
-        case .debut:       // mi5 puis la5, qui se chevauchent un peu
-            return [Note(frequenceDebut: 659.25, depart: 0, duree: 0.060, amplitude: 0.16),
-                    Note(frequenceDebut: 880.0, depart: 0.045, duree: 0.075, amplitude: 0.16)]
-        case .fin:         // sol5 qui descend vers mi5
-            return [Note(frequenceDebut: 783.99, frequenceFin: 659.25, duree: 0.090, amplitude: 0.16)]
+        case .debut:       // un « bump » grave et chaud qui monte (≈ ré4 → fa#4), avec une harmonique douce
+            return [Note(frequenceDebut: 285, frequenceFin: 360, duree: 0.30, amplitude: 0.30),
+                    Note(frequenceDebut: 570, frequenceFin: 720, duree: 0.22, amplitude: 0.07)]
+        case .fin:         // le même grain, qui redescend doucement
+            return [Note(frequenceDebut: 345, frequenceFin: 300, duree: 0.32, amplitude: 0.28),
+                    Note(frequenceDebut: 690, frequenceFin: 600, duree: 0.22, amplitude: 0.06)]
         case .annulation:  // tic grave, étouffé : peu d'aigus, très court
             return [Note(frequenceDebut: 175.0, frequenceFin: 140.0, duree: 0.050, amplitude: 0.22)]
         }

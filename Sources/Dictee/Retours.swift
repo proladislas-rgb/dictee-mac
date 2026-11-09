@@ -3,59 +3,61 @@ import AVFoundation
 import DicteeCore
 
 /// Les retours sensibles de la dictée : un petit son et une vibration du trackpad au début, au texte collé et à l'annulation.
-/// Les sons sont fabriqués par `SonSynthese` (aucun fichier, rien de copié) et gardés prêts en mémoire : jouer un son ne
-/// fait que lancer la lecture, sans jamais attendre, donc rien ne retarde la dictée ni le collage.
+/// Les sons sont ceux du Mac (« Pop » au début et au collage), chargés au lancement : jouer un son ne fait que lancer
+/// la lecture, sans jamais attendre, donc rien ne retarde la dictée ni le collage.
 ///
 /// Réglages séparés : `Settings.sons` et `Settings.vibration` (tous deux activés par défaut).
 /// Le Mac n'a pas d'interrupteur « silencieux » : le volume coupé du système coupe aussi ces sons.
 /// La vibration ne se sent que si un doigt est posé sur un trackpad Force Touch (c'est une limite du matériel).
 @MainActor
 enum Retours {
-    private static var lecteurs: [SonSynthese.Son: AVAudioPlayer] = [:]
-    /// Volume de lecture par son (l'amplitude de base est déjà basse : pic d'environ -20 dBFS).
-    private static let volumes: [SonSynthese.Son: Float] = [.debut: 0.8, .fin: 0.75, .annulation: 0.6]
+    /// Sons choisis par Hugues à l'écoute (09/11) parmi les sons intégrés à macOS, lus par leur nom (rien n'est copié dans l'app) :
+    /// « Pop » au début de la dictée et quand le texte est collé (« le pop, c'est le mieux ») ; l'annulation reste silencieuse (vibration seule).
+    private static let nomsSystem: [SonSynthese.Son: String] = [.debut: "Pop", .fin: "Pop"]
+    private static var lecteurs: [SonSynthese.Son: NSSound] = [:]
 
-    /// À appeler une fois au lancement : fabrique les sons et les précharge.
+    /// À appeler une fois au lancement : charge les sons du système pour une lecture immédiate.
     static func preparer() {
-        for son in SonSynthese.Son.allCases where lecteurs[son] == nil {
-            guard let lecteur = try? AVAudioPlayer(data: SonSynthese.wav(son), fileTypeHint: AVFileType.wav.rawValue) else {
-                Log.ecrire("sons : lecteur impossible pour \(son)")
+        for (son, nom) in nomsSystem where lecteurs[son] == nil {
+            guard let s = NSSound(named: NSSound.Name(nom)) else {
+                Log.ecrire("sons : son système « \(nom) » introuvable")
                 continue
             }
-            lecteur.volume = volumes[son] ?? 0.5
-            lecteur.prepareToPlay()
-            lecteurs[son] = lecteur
+            s.volume = 0.7
+            lecteurs[son] = s
         }
     }
 
-    /// Début de la dictée : (son facultatif) et une vibration longue et franche, 4 frappes.
+    /// Début de la dictée : « Pop » et une vibration calée sur ses deux attaques (0 et 70 ms), toutes deux franches.
     static func debut() {
         jouer(.debut)
-        rafale(.levelChange, coups: 4)
+        motif([(0, .franche), (0.07, .franche)])
     }
 
-    /// Texte collé : (son facultatif) et une vibration de 3 frappes.
+    /// Texte collé : « Pop » et la même vibration calée sur ses deux attaques, un cran plus douce qu'au début.
     static func fin() {
         jouer(.fin)
-        rafale(.alignment, coups: 3)
+        motif([(0, .moyenne), (0.07, .moyenne)])
     }
 
-    /// Annulation : (son facultatif) et une vibration courte de 2 frappes.
+    /// Annulation : pas de son, deux frappes légères.
     static func annulation() {
         jouer(.annulation)
-        rafale(.generic, coups: 2)
+        motif([(0, .legere), (0.06, .legere)])
     }
 
-    /// Le texte n'est pas arrivé : une seule frappe légère, pour dire « regarde l'encoche ».
+    /// Filet de sécurité : le texte n'a pas pu être écrit, l'encoche reste ouverte. Une frappe légère, pas de son.
     static func filet() {
-        vibrer(.generic)
+        motif([(0, .legere)])
     }
 
-    /// Une vibration plus longue : plusieurs frappes rapprochées (35 ms) qui se fondent en un bourdonnement court.
-    private static func rafale(_ motif: NSHapticFeedbackManager.FeedbackPattern, coups: Int) {
+    /// Une suite de frappes datées (secondes après maintenant), calée sur le rythme du son qui l'accompagne.
+    private static func motif(_ frappes: [(Double, ActionneurTrackpad.Force)]) {
         guard Settings.vibration else { return }
-        for i in 0..<coups {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.035 * Double(i)) { vibrer(motif) }
+        for (instant, force) in frappes {
+            if instant <= 0 { vibrer(force) } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + instant) { vibrer(force) }
+            }
         }
     }
 
@@ -63,21 +65,16 @@ enum Retours {
         guard Settings.sons else { return }
         if lecteurs.isEmpty { preparer() }
         guard let lecteur = lecteurs[son] else { return }
-        lecteur.currentTime = 0
+        lecteur.stop()
         lecteur.play()
     }
 
     /// L'actionneur du trackpad d'abord (il marche même quand Verbe est en arrière-plan, ce que `NSHapticFeedbackManager`
     /// ne fait pas) ; la vibration standard d'AppKit seulement en repli.
-    private static func vibrer(_ motif: NSHapticFeedbackManager.FeedbackPattern) {
+    static func vibrer(_ force: ActionneurTrackpad.Force) {
         guard Settings.vibration else { return }
-        let force: ActionneurTrackpad.Force
-        switch motif {
-        case .levelChange: force = .franche
-        case .alignment: force = .moyenne
-        default: force = .legere
-        }
         if ActionneurTrackpad.taper(force) { return }
-        NSHapticFeedbackManager.defaultPerformer.perform(motif, performanceTime: .now)
+        let motifStandard: NSHapticFeedbackManager.FeedbackPattern = force == .franche ? .levelChange : (force == .moyenne ? .alignment : .generic)
+        NSHapticFeedbackManager.defaultPerformer.perform(motifStandard, performanceTime: .now)
     }
 }

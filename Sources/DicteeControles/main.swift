@@ -662,17 +662,17 @@ do {
         let e = SonSynthese.echantillons(n)
         let d = Double(e.count) / Double(SonSynthese.frequenceEchantillonnage)
         let pic = Double(e.map { abs(Int($0)) }.max() ?? 0) / Double(Int16.max)
-        verifier(d >= 0.04 && d <= 0.125, "\(son) : durée \(Int(d * 1000)) ms (entre 40 et 125 ms)")
-        verifier(pic > 0.05 && pic <= 0.25, "\(son) : volume bas (pic \(String(format: "%.2f", pic)) de la pleine échelle)")
+        verifier(d >= 0.04 && d <= 0.35, "\(son) : durée \(Int(d * 1000)) ms (entre 40 et 350 ms)")
+        verifier(pic > 0.05 && pic <= 0.40, "\(son) : volume modéré (pic \(String(format: "%.2f", pic)) de la pleine échelle, 0,40 au plus)")
         verifier(abs(Int(e.first ?? 0)) < 40 && abs(Int(e.last ?? 0)) < 40, "\(son) : départ et arrivée à zéro, pas de clic")
         let wav = SonSynthese.wav(son)
         verifier(wav.count == 44 + e.count * 2 && wav.prefix(4) == Data("RIFF".utf8), "\(son) : fichier WAV valide en mémoire")
     }
     let debut = SonSynthese.notes(.debut), fin2 = SonSynthese.notes(.fin), annul = SonSynthese.notes(.annulation)
-    verifier(debut.count == 2 && debut[1].frequenceDebut > debut[0].frequenceDebut, "début : deux notes, la seconde plus haute")
-    verifier(fin2.count == 1 && fin2[0].frequenceFin < fin2[0].frequenceDebut, "fin : une note qui descend")
+    verifier(debut[0].frequenceFin > debut[0].frequenceDebut && debut[0].frequenceDebut < 400, "début : un son grave qui monte")
+    verifier(fin2[0].frequenceFin < fin2[0].frequenceDebut && fin2[0].frequenceDebut < 400, "fin : un son grave qui descend")
     verifier(annul.count == 1 && annul[0].frequenceDebut < 250, "annulation : un tic grave")
-    verifier(SonSynthese.duree(.debut) <= 0.12 + 1e-9, "début : 120 ms au plus")
+    verifier(SonSynthese.duree(.debut) <= 0.30 + 1e-9, "début : 300 ms au plus")
 }
 
 groupe("Adresses dictées")
