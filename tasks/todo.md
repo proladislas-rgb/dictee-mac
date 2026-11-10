@@ -143,3 +143,15 @@ Demande de Hugues : mieux transcrire (« un peu meilleurs sur la transcription �
 - [x] 4. Test sur la vraie voix : réglage « Garder le son des 50 prochaines dictées… » (désactivé), `Verbe --comparer-precision`.
 - [ ] Hugues : activer le test de précision et dicter 50 dictées, puis lancer `Verbe --comparer-precision` ; essayer en vrai (5 points « À vérifier en vrai » de la spec).
 - [ ] À surveiller : la remise au propre coûte ~1 000 jetons par dictée (200 000 par jour et par gpt-oss) ; raccourcir la consigne ou garder qwen en 3e secours si les 429 reviennent.
+
+## Îlot Apple Pro (10/11 soir)
+Hugues : « il déconne, c'est horrible », « je retrouve pas du tout l'expérience Dynamic Island ». Cible au pixel et à la milliseconde : `design/maquettes/ilot-pro-A.html` (gagnante du jury) + greffes de B (cou étroit, accueil en liste, mini-miniature 16:9 dans l'aile, rappel titre puis heure, fond clair dans les rendus).
+- [x] 1. Forme (DicteeCore) : 7 valeurs comme la maquette (cou, corps, hauteur, épaule, coin bas, coin haut du corps, congé), coins continus (portée 1,6 r, poignées 0,18), corps qui s'élargit dès qu'il existe sous la barre (plus de couplage largeur/hauteur tardif), ressorts avec attente (largeur puis hauteur à l'ouverture, hauteur puis largeur à la fermeture).
+- [x] 2. Moteur : ressorts de la maquette (ouverture 0,40/0,80 et 0,48/0,75, alerte 0,38/0,74 et 0,46/0,70, fermeture 0,40 puis 0,45 sans rebond), horloge d'animation pour le contenu (arrive 0,12 s après la forme, 35 ms par bloc ; part avant la forme), boucle calée sur l'écran (CADisplayLink), « Réduire les animations » lu en direct (fondu 0,15 s).
+- [x] 3. Contenu : un arbre par activité sur une grille (marge 16 pt, mesurée sur la vraie caméra), la pochette et l'anneau du minuteur voyagent ; titre + source, barre fine teintée, boutons nus centrés ; égaliseur 5 barres (Core Animation) ; suppression des étiquettes, du liseré, des lueurs, des tuiles colorées et des disques.
+- [x] 4. Pastille qui « goutte » sous la barre (métaballe pendant la chute), accueil en liste à filets fins.
+- [x] 5. Contrôles : `swift build -c release`, `swift run DicteeControles`, rendus (titre très long, 16:9, carré, sans image, caméras 179 et 200, fond clair et sombre, mi-course), `--ilot-essai`.
+  → 1 310 contrôles verts, `--ilot-essai` 58/58, 52 rendus dans design/rendus-ilot (5 Mo). Écarts voulus avec A : fermeture d'un seul tenant (pas de bandeau plat), cou de la lecture = cou du repos (caméra + 44), pastille plus grande (13 pt), boutons « +1 min » et « suivant » gardés.
+- [x] Le vide de la fenêtre (à côté du cou, marge du compact) laisse passer les clics vers les menus.
+- [ ] Hugues : essayer en vrai (point 11 de « À vérifier en vrai » de la section Îlot de docs/spec-v1.md). Non vérifié d'ici : le rendu animé réel à l'écran, le passage des clics à travers la fenêtre, le pont liquide de la pastille en mouvement.
+- [ ] Plus tard (non fait) : retirer une lecture en pause depuis longtemps ; survol filtré selon la vitesse de la souris.

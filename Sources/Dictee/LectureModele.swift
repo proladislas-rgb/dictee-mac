@@ -51,6 +51,12 @@ final class LectureModele: ObservableObject {
         SourceLecture.libelle(bundle: morceau?.app, nomApp: nomApp, artiste: morceau?.artiste, album: morceau?.album, site: site)
     }
     var joue: Bool { morceau?.joue ?? false }
+    /// La deuxième ligne de l'îlot déplié : l'artiste ou la chaîne d'abord, puis le site ou l'app (« Le Coin Tech · YouTube »).
+    var sousTitre: String {
+        let qui = [morceau?.artiste, morceau?.album].compactMap { $0 }.first { !$0.isEmpty && $0 != morceau?.titre }
+        let ou = site ?? SourceLecture.nomCourt(bundle: morceau?.app, nomApp: nomApp)
+        return [qui, ou].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
+    }
 
     /// Position affichée à l'instant `date` : celle de la barre pendant qu'on la glisse, sinon celle calculée à partir du dernier état.
     func positionAffichee(a date: Date) -> Double? {

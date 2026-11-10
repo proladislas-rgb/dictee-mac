@@ -3,101 +3,64 @@ import SwiftUI
 import QuartzCore
 import DicteeCore
 
-// Les petites pièces de l'îlot « centre d'activités » (maquette design/maquettes/ilot-activites.html) : couleurs, tuiles d'icône,
-// anneaux, boutons, pilules, onde de la lecture, trace sonore. Les écrans eux-mêmes sont dans IlotVues.swift.
+// Les petites pièces de l'îlot (maquette design/maquettes/ilot-pro-A.html) : la forme noire, les couleurs, les boutons nus, les
+// pilules, l'égaliseur de la lecture, la barre de progression, le titre qui défile. Les écrans eux-mêmes sont dans IlotVues.swift.
+// Règle : noir opaque, une seule teinte tirée de la pochette, des symboles SF sans fond ; aucune lueur, aucune tuile, aucun liseré.
 
 enum CouleursIlot {
-    static let ambre = Color(hex: 0xF2A33C)
-    static let corail = Color(hex: 0xFF6B5E)
-    static let vert = Color(hex: 0x4FD37D)
-    static let bleu = Color(hex: 0x5AB0FF)
-    static let rouge = Color(hex: 0xFF5A4E)
-    static let encre2 = Color(hex: 0xA8A59E)
-    static let encre3 = Color(hex: 0x88857E)
+    // couleurs système d'Apple en mode sombre
+    static let ambre = Color(hex: 0xFF9F0A)
+    static let jaune = Color(hex: 0xFFD60A)
+    static let vert = Color(hex: 0x30D158)
+    static let rouge = Color(hex: 0xFF453A)
+    static let bleu = Color(hex: 0x0A84FF)
+    static let encre2 = Color.white.opacity(0.6)
+    static let encre3 = Color.white.opacity(0.42)
 }
 
 func lisseIlot(_ v: CGFloat) -> CGFloat { let x = min(1, max(0, v)); return x * x * (3 - 2 * x) }
-func teinteIlot(_ c: CouleurRVB) -> Color { Color(.sRGB, red: c.r, green: c.g, blue: c.b, opacity: 1) }
+/// La teinte de la pochette, assez lumineuse pour se lire sur le noir (au moins 60 % de luminosité).
+func teinteIlot(_ c: CouleurRVB) -> Color {
+    let m = max(c.r, c.g, c.b)
+    let k = m < 0.6 && m > 0.001 ? 0.6 / m : 1
+    return Color(.sRGB, red: min(1, c.r * k), green: min(1, c.g * k), blue: min(1, c.b * k), opacity: 1)
+}
+
+extension View {
+    /// Pose la vue dans la zone de dessin de l'îlot : `r` en points depuis le centre de l'encoche (x) et le haut de l'écran (y).
+    func cadreIlot(_ r: CGRect, _ al: Alignment = .topLeading) -> some View {
+        frame(width: max(0, r.width), height: max(0, r.height), alignment: al)
+            .offset(x: IlotMoteur.largeur / 2 + r.minX, y: r.minY)
+    }
+    /// L'aspect d'un élément pendant son arrivée ou son départ (fondu, flou, zoom ancré en haut).
+    func aspectIlot(_ a: AspectIlot, ancre: UnitPoint = .top) -> some View {
+        scaleEffect(a.echelle, anchor: ancre)
+            .blur(radius: a.flou)
+            .opacity(a.opacite)
+            .allowsHitTesting(a.opacite > 0.6)
+    }
+}
 
 // MARK: forme noire
 
-/// La forme noire, tracée à partir des points de `TraceIlot` (quarts de cercle remplacés par des courbes de Bézier). Origine : centre de
-/// l'encoche en haut du rectangle.
+/// La forme noire, tracée à partir des commandes de `TraceIlot` (coins continus). Origine : centre du rectangle en x, haut en y.
 struct FormeNoire: Shape {
     var points: TraceIlot.Points
 
     func path(in rect: CGRect) -> Path {
-        let k = 0.5522847498
         let ox = Double(rect.midX), oy = Double(rect.minY)
         func P(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: ox + x, y: oy + y) }
         var p = Path()
-        p.move(to: P(points.departX, points.departY))
-        var courant = (x: points.departX, y: points.departY)
-        var dir = (x: 1.0, y: 0.0)
-        for s in points.segments {
-            switch s.genre {
-            case .ligne:
-                let dx = s.x - courant.x, dy = s.y - courant.y, n = (dx * dx + dy * dy).squareRoot()
-                if n > 1e-6 { dir = (dx / n, dy / n) }
-                p.addLine(to: P(s.x, s.y))
-            case .arc:
-                guard s.rayon > 1e-6 else { p.addLine(to: P(s.x, s.y)); courant = (s.x, s.y); continue }
-                let r = s.rayon
-                let t1 = ((s.x - courant.x) / r - dir.x, (s.y - courant.y) / r - dir.y)
-                let c1 = P(courant.x + dir.x * k * r, courant.y + dir.y * k * r)
-                let c2 = P(s.x - t1.0 * k * r, s.y - t1.1 * k * r)
-                p.addCurve(to: P(s.x, s.y), control1: c1, control2: c2)
-                dir = (t1.0, t1.1)
+        for c in points.commandes {
+            switch c {
+            case let .deplacer(x, y): p.move(to: P(x, y))
+            case let .ligne(x, y): p.addLine(to: P(x, y))
+            case let .quad(cx, cy, x, y): p.addQuadCurve(to: P(x, y), control: P(cx, cy))
+            case let .cubique(ax, ay, bx, by, x, y): p.addCurve(to: P(x, y), control1: P(ax, ay), control2: P(bx, by))
             }
-            courant = (s.x, s.y)
         }
         p.closeSubpath()
         return p
-    }
-}
-
-// MARK: tuiles d'icône
-
-struct TuileIlot: View {
-    enum Genre { case minuteur, rappel, messages, fait, calendrier, dictee, notes, horloge }
-    var genre: Genre
-    var taille: CGFloat
-    var jour = Calendar.current.component(.day, from: Date())
-
-    private var rayon: CGFloat { (taille * 0.3).rounded() }
-    private func glyphe(_ nom: String, _ k: CGFloat = 0.62) -> some View {
-        Image(systemName: nom).font(.system(size: taille * k, weight: .semibold)).foregroundStyle(.white)
-    }
-
-    var body: some View {
-        ZStack {
-            switch genre {
-            case .minuteur: CouleursIlot.ambre; glyphe("timer")
-            case .rappel: CouleursIlot.corail; glyphe("bell.fill", 0.56)
-            case .horloge: CouleursIlot.corail; glyphe("clock", 0.62)
-            case .fait: CouleursIlot.vert; glyphe("checkmark", 0.6)
-            case .messages: Color(hex: 0x3FCF6C); glyphe("message.fill", 0.58)
-            case .notes: Color(hex: 0x2D6CDF); glyphe("note.text", 0.58)
-            case .calendrier:
-                VStack(spacing: 0) {
-                    CouleursIlot.rouge.frame(height: taille * 0.32)
-                    Color(hex: 0xF4F1EA).overlay(Text("\(jour)").font(.system(size: taille * 0.5, weight: .bold)).foregroundStyle(Color(hex: 0x15130F)))
-                }
-            case .dictee:
-                VStack(spacing: 0) {
-                    Color(hex: 0xE8C24A).frame(height: taille * 0.30)
-                    Color(hex: 0xF4F1EA).overlay(
-                        VStack(spacing: taille * 0.1) {
-                            RoundedRectangle(cornerRadius: 1).fill(Color(hex: 0xC9C5BB)).frame(height: taille * 0.07)
-                            RoundedRectangle(cornerRadius: 1).fill(Color(hex: 0xC9C5BB)).frame(height: taille * 0.07)
-                        }.padding(.horizontal, taille * 0.22))
-                }
-            }
-        }
-        .frame(width: taille, height: taille)
-        .clipShape(RoundedRectangle(cornerRadius: rayon, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: rayon, style: .continuous).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
-        .accessibilityHidden(true)
     }
 }
 
@@ -112,7 +75,7 @@ struct AnneauIlot<Contenu: View>: View {
     @ViewBuilder var contenu: () -> Contenu
     var body: some View {
         ZStack {
-            Circle().stroke(Color.white.opacity(0.15), lineWidth: trait)
+            Circle().stroke(couleur.opacity(0.26), lineWidth: trait)
             Circle().trim(from: 0, to: CGFloat(min(1, max(0, fraction))))
                 .stroke(couleur.opacity(enPause ? 0.55 : 1), style: StrokeStyle(lineWidth: trait, lineCap: .round))
                 .rotationEffect(.degrees(-90))
@@ -125,185 +88,345 @@ struct AnneauIlot<Contenu: View>: View {
 
 // MARK: boutons
 
-/// Les pilules de la maquette : 42 pt (grande), 32 pt (petite), 26 pt (toute petite).
-struct PiluleIlot: View {
-    enum Style { case neutre, blanc, vert }
-    var titre: String
-    var icone: String?
-    var style: Style = .neutre
-    var hauteur: CGFloat = 42
-    var largeur: CGFloat?
-    var action: () -> Void
-    @State private var survol = false
-
-    private var taille: CGFloat { hauteur >= 42 ? 14.5 : (hauteur >= 32 ? 13 : 12) }
-    private var marge: CGFloat { hauteur >= 42 ? 18 : (hauteur >= 32 ? 14 : 11) }
-    private var fond: Color {
-        switch style {
-        case .neutre: return Color.white.opacity(survol ? 0.2 : 0.12)
-        case .blanc: return Color(white: survol ? 0.91 : 1)
-        case .vert: return survol ? Color(hex: 0x68DD90) : CouleursIlot.vert
-        }
-    }
-    private var texte: Color { style == .blanc ? .black : (style == .vert ? Color(hex: 0x04210F) : .white) }
-
-    private struct Appui: ButtonStyle {
-        func makeBody(configuration: Configuration) -> some View {
-            configuration.label.scaleEffect(configuration.isPressed ? 0.96 : 1).animation(.easeOut(duration: 0.1), value: configuration.isPressed)
-        }
-    }
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 7) {
-                if let icone { Image(systemName: icone).font(.system(size: taille + 1.5, weight: .semibold)) }
-                Text(titre).font(.system(size: taille, weight: .semibold)).tracking(-0.09).lineLimit(1)
-            }
-            .foregroundStyle(texte)
-            .padding(.horizontal, marge)
-            .frame(width: largeur, height: hauteur)
-            .frame(minWidth: largeur == nil ? nil : 0)
-            .background(Capsule().fill(fond))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(Appui())
-        .onHover { survol = $0 }
-        .animation(.easeOut(duration: 0.12), value: survol)
+/// L'appui des boutons de l'îlot : réduit pendant l'appui, retour par un ressort vif.
+struct AppuiIlot: ButtonStyle {
+    var echelle: CGFloat = 0.88
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? echelle : 1)
+            .animation(configuration.isPressed ? .easeOut(duration: 0.08) : .spring(response: 0.38, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 
-/// Un bouton rond de l'étendu (minuteur : pause, arrêt).
-struct RondIlot: View {
+/// Un bouton nu, façon lecteur d'Apple : le symbole seul, 40 pt de zone cliquable, un léger fond au survol.
+struct BoutonNu: View {
     var symbole: String
-    var diametre: CGFloat
-    var rouge = false
+    var taille: CGFloat = 20
+    var discret = false
     var etiquette: String
     var action: () -> Void
     @State private var survol = false
-    private struct Appui: ButtonStyle {
-        func makeBody(configuration: Configuration) -> some View {
-            configuration.label.scaleEffect(configuration.isPressed ? 0.9 : 1).animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbole)
+                .font(.system(size: taille, weight: .semibold))
+                .foregroundStyle(discret ? Color.white.opacity(survol ? 0.9 : 0.55) : .white)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(Color.white.opacity(survol ? 0.07 : 0)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(AppuiIlot(echelle: 0.86))
+        .onHover { survol = $0 }
+        .animation(.easeOut(duration: 0.15), value: survol)
+        .accessibilityLabel(etiquette)
+    }
+}
+
+/// Les pilules de la maquette (« Plus tard », « Fait », « Rejoindre », « 5 min »…) : 32 pt de haut, texte de 13,5 pt semi-gras.
+struct CapIlot: View {
+    enum Style { case gris, jaune, vert, ambre }
+    var titre: String
+    var icone: String?
+    var style: Style = .gris
+    var hauteur: CGFloat = 32
+    var etiquette: String?
+    var action: () -> Void
+    @State private var survol = false
+
+    private var fond: Color {
+        switch style {
+        case .gris: return Color.white.opacity(survol ? 0.2 : 0.15)
+        case .jaune: return CouleursIlot.jaune.opacity(survol ? 0.88 : 1)
+        case .vert: return CouleursIlot.vert.opacity(survol ? 0.88 : 1)
+        case .ambre: return CouleursIlot.ambre.opacity(survol ? 0.88 : 1)
+        }
+    }
+    private var encre: Color {
+        switch style {
+        case .gris: return .white
+        case .jaune: return Color(hex: 0x1A1400)
+        case .vert: return Color(hex: 0x04210D)
+        case .ambre: return Color(hex: 0x231300)
         }
     }
     var body: some View {
         Button(action: action) {
-            ZStack {
-                Circle().fill(rouge ? CouleursIlot.rouge.opacity(survol ? 0.32 : 0.2) : Color.white.opacity(survol ? 0.2 : 0.11))
-                Image(systemName: symbole).font(.system(size: diametre * 0.4, weight: .semibold))
-                    .foregroundStyle(rouge ? Color(hex: 0xFF7C70) : .white)
+            HStack(spacing: 6) {
+                if let icone { Image(systemName: icone).font(.system(size: hauteur >= 32 ? 13 : 11.5, weight: .semibold)) }
+                Text(titre).font(.system(size: hauteur >= 32 ? 13.5 : 12.5, weight: .semibold)).lineLimit(1).fixedSize()
             }
-            .frame(width: diametre, height: diametre)
+            .foregroundStyle(encre)
+            .padding(.horizontal, hauteur >= 32 ? 14 : 11)
+            .frame(height: hauteur)
+            .background(Capsule().fill(fond))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(AppuiIlot(echelle: 0.92))
+        .onHover { survol = $0 }
+        .animation(.easeOut(duration: 0.12), value: survol)
+        .accessibilityLabel(etiquette ?? titre)
+    }
+}
+
+/// Un bouton rond de 44 pt (minuteur : pause sur l'anneau, arrêt en gris).
+struct RondIlot: View {
+    var symbole: String
+    var ambre = false
+    var etiquette: String
+    var action: () -> Void
+    @State private var survol = false
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                if ambre { Circle().fill(CouleursIlot.ambre.opacity(survol ? 0.32 : 0.24)).padding(5) }
+                else { Circle().fill(Color.white.opacity(survol ? 0.22 : 0.16)) }
+                Image(systemName: symbole).font(.system(size: ambre ? 17 : 15, weight: .bold))
+                    .foregroundStyle(ambre ? CouleursIlot.ambre : .white)
+                    .contentTransition(.symbolEffect(.replace))
+            }
+            .frame(width: 44, height: 44)
             .contentShape(Circle())
         }
-        .buttonStyle(Appui())
+        .buttonStyle(AppuiIlot(echelle: 0.86))
         .onHover { survol = $0 }
         .accessibilityLabel(etiquette)
     }
 }
 
-// MARK: onde de la lecture (aile droite)
+// MARK: égaliseur de la lecture (aile droite)
 
-/// Une onde qui défile, teintée par la pochette (maquette : 50 × 24, 1,5 s par motif, amplitude qui respire en 1,2 s). Core Animation :
-/// tout tourne dans le serveur d'affichage, aucune charge pour l'app. En pause : figée, à 45 %. « Réduire les animations » : figée.
-struct OndeLecture: NSViewRepresentable {
-    var teinte: CouleurRVB
+/// Cinq barres arrondies teintées par la pochette (maquette : 2,6 × 14 pt, 0,74 à 1,18 s par cycle, décalées). Core Animation : tout
+/// tourne dans le serveur d'affichage, aucune charge pour l'app. En pause et avec « Réduire les animations » : barres basses, immobiles.
+struct EgaliseurLecture: NSViewRepresentable {
+    var teinte: Color
     var joue: Bool
     var animer: Bool
+    static let durees: [Double] = [0.82, 1.06, 0.74, 0.95, 1.18]
+    static let decalages: [Double] = [0.3, 0.7, 0.1, 0.5, 0.2]
 
     final class Vue: NSView {
-        private let masque = CALayer()
-        private let defile = CALayer()
-        private let onde = CAShapeLayer()
+        private var barres: [CALayer] = []
         private var etat = -1
-        override init(frame: NSRect) {
+        private let largeurBarre: CGFloat
+        init(frame: NSRect, barres nombre: Int = 5, largeur: CGFloat = 2.6) {
+            largeurBarre = largeur
             super.init(frame: frame)
             wantsLayer = true
-            layer?.addSublayer(masque)
-            masque.masksToBounds = false
-            masque.addSublayer(defile)
-            defile.addSublayer(onde)
-            let p = CGMutablePath(), k: CGFloat = 50.0 / 30.0
-            func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x * k, y: 24 - y) }
-            p.move(to: pt(0, 12))
-            p.addCurve(to: pt(15, 12), control1: pt(3.75, -2), control2: pt(11.25, -2))
-            p.addCurve(to: pt(30, 12), control1: pt(18.75, 26), control2: pt(26.25, 26))
-            p.addCurve(to: pt(45, 12), control1: pt(33.75, -2), control2: pt(41.25, -2))
-            p.addCurve(to: pt(60, 12), control1: pt(48.75, 26), control2: pt(56.25, 26))
-            onde.path = p
-            onde.fillColor = nil
-            onde.lineWidth = 2.4
-            onde.lineCap = .round
-            onde.frame = CGRect(x: 0, y: 0, width: 100, height: 24)
-            defile.frame = CGRect(x: 0, y: 0, width: 100, height: 24)
+            for _ in 0..<nombre { let b = CALayer(); b.cornerRadius = largeur / 2; layer?.addSublayer(b); barres.append(b) }
         }
+        override convenience init(frame: NSRect) { self.init(frame: frame, barres: 5, largeur: 2.6) }
         required init?(coder: NSCoder) { fatalError() }
+        override var isFlipped: Bool { true }
         override func layout() {
             super.layout()
             CATransaction.begin(); CATransaction.setDisableActions(true)
-            masque.frame = bounds
-            masque.masksToBounds = true
+            let l = largeurBarre, n = CGFloat(barres.count)
+            let ecart = (bounds.width - n * l) / (n - 1)
+            for (i, b) in barres.enumerated() {
+                b.bounds = CGRect(x: 0, y: 0, width: l, height: bounds.height)
+                b.position = CGPoint(x: CGFloat(i) * (l + ecart) + l / 2, y: bounds.midY)
+            }
             CATransaction.commit()
         }
-        func appliquer(teinte: CouleurRVB, joue: Bool, animer: Bool) {
-            let c = CGColor(srgbRed: teinte.r, green: teinte.g, blue: teinte.b, alpha: 1)
+        func appliquer(teinte: Color, joue: Bool, animer: Bool) {
+            let c = NSColor(teinte).cgColor
             CATransaction.begin(); CATransaction.setDisableActions(true)
-            onde.strokeColor = c
-            layer?.shadowColor = c; layer?.shadowOpacity = 0.7; layer?.shadowRadius = 4; layer?.shadowOffset = .zero
-            masque.opacity = joue ? 1 : 0.45
+            for b in barres { b.backgroundColor = c }
             CATransaction.commit()
             let voulu = (joue && animer) ? 1 : 0
             guard voulu != etat else { return }
             etat = voulu
-            defile.removeAllAnimations(); onde.removeAllAnimations()
-            guard voulu == 1 else { return }
-            let x = CABasicAnimation(keyPath: "position.x")
-            x.fromValue = 50; x.toValue = 0; x.duration = 1.5; x.repeatCount = .infinity; x.timingFunction = CAMediaTimingFunction(name: .linear)
-            defile.add(x, forKey: "defile")
-            let a = CABasicAnimation(keyPath: "transform.scale.y")
-            a.fromValue = 0.35; a.toValue = 1; a.duration = 1.2; a.autoreverses = true; a.repeatCount = .infinity
-            a.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            onde.add(a, forKey: "amp")
+            for (i, b) in barres.enumerated() {
+                b.removeAllAnimations()
+                if voulu == 1 {
+                    let a = CAKeyframeAnimation(keyPath: "transform.scale.y")
+                    a.values = [0.28, 0.95, 0.5, 1, 0.36, 0.28]
+                    a.keyTimes = [0, 0.22, 0.41, 0.63, 0.82, 1]
+                    a.timingFunctions = Array(repeating: CAMediaTimingFunction(name: .easeInEaseOut), count: 5)
+                    a.duration = EgaliseurLecture.durees[i]
+                    a.timeOffset = EgaliseurLecture.decalages[i]
+                    a.repeatCount = .infinity
+                    b.add(a, forKey: "eq")
+                } else {
+                    b.transform = CATransform3DMakeScale(1, joue ? 0.5 : 0.2, 1)
+                }
+            }
+            if voulu == 1 { for b in barres { b.transform = CATransform3DIdentity } }
         }
     }
-    func makeNSView(context: Context) -> Vue { Vue(frame: CGRect(x: 0, y: 0, width: 50, height: 24)) }
+    func makeNSView(context: Context) -> Vue { Vue(frame: CGRect(x: 0, y: 0, width: 19.4, height: 14)) }
     func updateNSView(_ v: Vue, context: Context) { v.appliquer(teinte: teinte, joue: joue, animer: animer) }
 }
 
-// MARK: trace sonore (barre de progression de la lecture)
-
-/// 54 barres : la part écoutée teintée (avec sa lueur), un trait blanc au survol ou pendant le glissement.
-struct TraceIlotVue: View {
-    var fraction: Double
-    var teinte: TeintePochette
-    var actif: Bool
-    static let hauteurs: [CGFloat] = (0..<54).map { i in
-        let x = Double(i)
-        let h = 0.22 + 0.78 * abs(sin(x * 1.7) * cos(x * 0.43) + 0.15 * sin(x * 5.1))
-        return CGFloat(min(1, h))
-    }
+/// L'égaliseur immobile (rendus PNG : ImageRenderer ne dessine pas Core Animation).
+struct EgaliseurFixe: View {
+    var teinte: Color
+    var joue: Bool
+    var nombre = 5
+    var largeurBarre: CGFloat = 2.6
+    static let hauteurs: [CGFloat] = [0.45, 0.95, 0.6, 1, 0.4]
     var body: some View {
-        Canvas { ctx, taille in
-            let n = Self.hauteurs.count, ecart: CGFloat = 2
-            let l = (taille.width - CGFloat(n - 1) * ecart) / CGFloat(n)
-            func barre(_ i: Int) -> Path {
-                let h = max(3, taille.height * Self.hauteurs[i])
-                return Path(roundedRect: CGRect(x: CGFloat(i) * (l + ecart), y: (taille.height - h) / 2, width: l, height: h), cornerRadius: 1.5)
-            }
-            for i in 0..<n { ctx.fill(barre(i), with: .color(.white.opacity(0.2))) }
-            let x = taille.width * CGFloat(min(1, max(0, fraction)))
-            if x > 0.5 {
-                ctx.drawLayer { couche in
-                    couche.clip(to: Path(CGRect(x: 0, y: -4, width: x, height: taille.height + 8)))
-                    couche.addFilter(.shadow(color: teinteIlot(teinte.clair).opacity(0.8), radius: 4))
-                    for i in 0..<n {
-                        couche.fill(barre(i), with: .linearGradient(Gradient(colors: [teinteIlot(teinte.profond), teinteIlot(teinte.clair)]),
-                                                                    startPoint: CGPoint(x: 0, y: taille.height), endPoint: CGPoint(x: 0, y: 0)))
-                    }
-                }
-            }
-            if actif {
-                ctx.fill(Path(roundedRect: CGRect(x: min(max(0, x - 1), taille.width - 2), y: -1, width: 2, height: taille.height + 2), cornerRadius: 1), with: .color(.white))
+        GeometryReader { g in
+            let n = CGFloat(nombre), ecart = (g.size.width - n * largeurBarre) / max(1, n - 1)
+            ForEach(0..<nombre, id: \.self) { i in
+                let h = g.size.height * (joue ? Self.hauteurs[i % 5] : 0.2)
+                Capsule().fill(teinte).frame(width: largeurBarre, height: h)
+                    .position(x: CGFloat(i) * (largeurBarre + ecart) + largeurBarre / 2, y: g.size.height / 2)
             }
         }
         .accessibilityHidden(true)
+    }
+}
+
+// MARK: barre de progression
+
+/// La barre de la lecture : une capsule fine (5 pt), la part écoutée teintée, le reste en blanc 20 % ; elle grossit à 9 pt au survol et
+/// pendant le glissement. Temps écoulé et restant aux deux bouts, en chiffres fixes.
+struct BarreLecture: View {
+    @ObservedObject var lecture: LectureModele
+    var largeur: CGFloat
+    var teinte: Color
+    @State private var survol = false
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.25)) { ctx in
+            let duree = lecture.morceau?.duree
+            let position = lecture.positionAffichee(a: ctx.date)
+            let fraction = (position != nil && duree != nil) ? TempsLecture.fraction(position: position!, duree: duree!) : 0
+            if lecture.morceau?.positionnable == true, let duree {
+                let actif = survol || lecture.fractionGlissee != nil
+                // les temps prennent leur largeur (« −1:02:15 » compris), la piste prend le reste : rien n'est jamais coupé
+                HStack(spacing: 6) {
+                    temps(TempsLecture.format(position ?? 0), .leading)
+                    GeometryReader { geo in
+                        let piste = geo.size.width
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.white.opacity(0.2))
+                            Capsule().fill(teinte).frame(width: max(actif ? 9 : 5, piste * CGFloat(fraction)))
+                        }
+                        .frame(width: piste, height: actif ? 9 : 5)
+                        .frame(maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                            .onChanged { v in lecture.fractionGlissee = TempsLecture.fractionSousSouris(x: v.location.x, largeur: piste) }
+                            .onEnded { v in
+                                let f = TempsLecture.fractionSousSouris(x: v.location.x, largeur: piste)
+                                lecture.fractionGlissee = nil
+                                lecture.surPosition(TempsLecture.position(fraction: f, duree: duree))
+                                lecture.surFinGlissement()
+                            })
+                    }
+                    .frame(height: 20)
+                    .animation(.spring(response: 0.32, dampingFraction: 0.78), value: actif)
+                    .onHover { survol = $0 }
+                    .accessibilityElement()
+                    .accessibilityLabel("Position")
+                    .accessibilityValue("\(TempsLecture.format(position ?? 0)) sur \(TempsLecture.format(duree))")
+                    .accessibilityAdjustableAction { sens in
+                        let p = position ?? 0
+                        lecture.surPosition(min(duree, max(0, p + (sens == .increment ? 10 : -10))))
+                    }
+                    temps(TempsLecture.restant(position: position ?? 0, duree: duree), .trailing)
+                }
+                .frame(width: largeur, height: 20)
+            } else {
+                Text(lecture.morceau?.joue == true ? "En direct" : "Durée inconnue")
+                    .font(.system(size: 11.5, weight: .medium)).foregroundStyle(Color.white.opacity(0.55))
+                    .frame(width: largeur, height: 20, alignment: .leading)
+            }
+        }
+    }
+    private func temps(_ s: String, _ al: Alignment) -> some View {
+        Text(s).font(.system(size: 11.5, weight: .medium).monospacedDigit()).foregroundStyle(Color.white.opacity(0.55))
+            .lineLimit(1).fixedSize().frame(minWidth: 38, alignment: al)
+    }
+}
+
+// MARK: titre qui défile
+
+/// Un titre sur une ligne. S'il est trop long : « … » au repos, et il défile deux fois (après 1,6 s), bord droit estompé, puis revient.
+/// Aucun défilement avec « Réduire les animations » ni dans les rendus PNG.
+struct TitreDefilant: View {
+    var texte: String
+    var police: Font
+    var largeur: CGFloat
+    var defiler: Bool
+    @State private var mesure: CGFloat = 0
+    @State private var lancer = false
+
+    var body: some View {
+        let trop = mesure - largeur
+        ZStack(alignment: .leading) {
+            // sert à mesurer la largeur naturelle, invisible
+            Text(texte).font(police).lineLimit(1).fixedSize().hidden()
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { mesure = $0 }
+            if trop > 1, defiler {
+                let dist = trop + 22
+                let duree = max(5, dist / 26 + 2.4)
+                Text(texte).font(police).foregroundStyle(.white).lineLimit(1).fixedSize()
+                    .keyframeAnimator(initialValue: 0.0, trigger: lancer) { v, x in
+                        v.offset(x: x)
+                    } keyframes: { _ in
+                        KeyframeTrack {
+                            LinearKeyframe(0, duration: 1.6)
+                            LinearKeyframe(-dist, duration: duree * 0.76)
+                            LinearKeyframe(-dist, duration: 1.2)
+                            CubicKeyframe(0, duration: 0.5)
+                            LinearKeyframe(0, duration: 1.6)
+                            LinearKeyframe(-dist, duration: duree * 0.76)
+                            LinearKeyframe(-dist, duration: 1.2)
+                            CubicKeyframe(0, duration: 0.5)
+                        }
+                    }
+                    .frame(width: largeur, alignment: .leading)
+                    .clipped()
+                    .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: max(0, 1 - 18 / max(1, largeur))), .init(color: .clear, location: 1)], startPoint: .leading, endPoint: .trailing))
+                    .onAppear { lancer.toggle() }
+                    .onChange(of: texte) { lancer.toggle() }
+            } else {
+                Text(texte).font(police).foregroundStyle(.white).lineLimit(1).truncationMode(.tail)
+                    .frame(width: largeur, alignment: .leading)
+            }
+        }
+        .frame(width: largeur, alignment: .leading)
+        .accessibilityLabel(texte)
+    }
+}
+
+// MARK: cloche
+
+/// La cloche du rappel qui sonne : elle se secoue deux fois (14°, −12°, 9°, −6°, 3°) après 0,18 s, puis se repose. Rien ne tourne ensuite.
+struct ClocheSecouee: View {
+    var taille: CGFloat
+    var secouer: Bool
+    @State private var lancer = false
+    var body: some View {
+        Image(systemName: "bell.fill").font(.system(size: taille, weight: .semibold)).foregroundStyle(CouleursIlot.jaune)
+            .keyframeAnimator(initialValue: 0.0, trigger: lancer) { v, a in
+                v.rotationEffect(.degrees(a), anchor: UnitPoint(x: 0.5, y: 0.12))
+            } keyframes: { _ in
+                KeyframeTrack {
+                    LinearKeyframe(0, duration: 0.18)
+                    CubicKeyframe(14, duration: 0.108); CubicKeyframe(-12, duration: 0.126); CubicKeyframe(9, duration: 0.126)
+                    CubicKeyframe(-6, duration: 0.126); CubicKeyframe(3, duration: 0.126); CubicKeyframe(0, duration: 0.108)
+                    LinearKeyframe(0, duration: 0.18)
+                    CubicKeyframe(14, duration: 0.108); CubicKeyframe(-12, duration: 0.126); CubicKeyframe(9, duration: 0.126)
+                    CubicKeyframe(-6, duration: 0.126); CubicKeyframe(3, duration: 0.126); CubicKeyframe(0, duration: 0.108)
+                }
+            }
+            .onAppear { if secouer { lancer.toggle() } }
+            .accessibilityHidden(true)
+    }
+}
+
+/// Un symbole SF de l'îlot, sans fond (cloche, calendrier, minuteur…).
+struct GlypheIlot: View {
+    var nom: String
+    var couleur: Color
+    var taille: CGFloat
+    var body: some View {
+        Image(systemName: nom).font(.system(size: taille, weight: .semibold)).foregroundStyle(couleur)
+            .accessibilityHidden(true)
     }
 }

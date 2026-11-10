@@ -38,6 +38,7 @@ final class IlotPanneau {
     private var reduction: DispatchWorkItem?
     private var moniteurClic: Any?
     private var surveilleEcran: NSObjectProtocol?
+    private var surveilleReduire: NSObjectProtocol?
     private var sousForme = false
     private var sousPastille = false
     /// Mode d'essai : fenêtre transparente qui ne reçoit aucun clic, pour tester sans rien montrer à l'écran.
@@ -63,14 +64,23 @@ final class IlotPanneau {
                 MainActor.assumeIsolated { self?.recaler() }
             }
         }
+        // « Réduire les animations » lu en direct (pas seulement au démarrage)
+        if surveilleReduire == nil {
+            surveilleReduire = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { guard let self else { return }; self.moteur.reduire = self.reduire; self.moteur.lecture.reduire = self.reduire; self.moteur.demarrerBoucle() }
+            }
+        }
         moteur.donneesChangees()
         ajuster()
     }
 
     func fermer() {
         retirerMoniteur()
+        laisserPasser(false)
         if let surveilleEcran { NotificationCenter.default.removeObserver(surveilleEcran) }
         surveilleEcran = nil
+        if let surveilleReduire { NSWorkspace.shared.notificationCenter.removeObserver(surveilleReduire) }
+        surveilleReduire = nil
         fenetre?.orderOut(nil)
     }
 
@@ -114,7 +124,8 @@ final class IlotPanneau {
         guard let f = fenetre, let ecran else { return }
         let veut = moteur.cache || (!encocheReelle && moteur.resolution.principal == .repos && moteur.pastille == nil)
         if veut {
-            if f.isVisible, moteur.poids[VueIlot.repos]?.cible == 1, moteur.geo[4].fini { f.orderOut(nil) }
+            laisserPasser(false)
+            if f.isVisible, moteur.courante == .repos, moteur.geo.allSatisfy(\.fini) { f.orderOut(nil) }
             else if f.isVisible { retarderMasquage() }
             return
         }
@@ -128,7 +139,7 @@ final class IlotPanneau {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.65, execute: item)
         }
         f.alphaValue = invisible ? 0 : 1
-        f.ignoresMouseEvents = invisible
+        f.ignoresMouseEvents = invisible || moniteurTraversee != nil
         if !f.isVisible { f.orderFrontRegardless() }
         _ = ecran
     }
@@ -171,10 +182,40 @@ final class IlotPanneau {
             if sousPastille { sousPastille = false; moteur.survolPastille(false) }
             return
         }
-        let surForme = moteur.rectActuel().insetBy(dx: -1, dy: -1).contains(p)
+        // la forme elle-même : le vide à côté du cou (où sont les menus) ne compte pas
+        let surForme = moteur.contient(p)
         let surPastille = moteur.rectPastille()?.contains(p) ?? false
         if surForme != sousForme { sousForme = surForme; moteur.survolForme(surForme) }
         if surPastille != sousPastille { sousPastille = surPastille; moteur.survolPastille(surPastille) }
+        laisserPasser(!(surForme || surPastille))
+    }
+
+    // MARK: clics qui traversent
+
+    /// Le vide de la fenêtre (à côté du cou quand l'îlot est déplié, la petite marge autour du compact) laisse passer les clics vers les
+    /// menus et les onglets dessous. Pendant que la souris y est, la fenêtre ignore la souris et un moniteur global (installé seulement
+    /// à ce moment-là) guette son retour sur la forme ou sa sortie de la fenêtre : rien ne tourne le reste du temps.
+    private var moniteurTraversee: Any?
+    private func laisserPasser(_ oui: Bool) {
+        guard let f = fenetre, !invisible else { return }
+        if oui {
+            guard moniteurTraversee == nil else { return }
+            f.ignoresMouseEvents = true
+            moniteurTraversee = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] _ in
+                MainActor.assumeIsolated { self?.souris(NSEvent.mouseLocation) }
+            }
+        } else {
+            if let m = moniteurTraversee { NSEvent.removeMonitor(m) }
+            moniteurTraversee = nil
+            f.ignoresMouseEvents = false
+        }
+    }
+    /// La souris vue par le moniteur global (fenêtre traversée) : position en points depuis le centre de l'encoche et le haut de l'écran.
+    private func souris(_ ecranPt: NSPoint) {
+        guard let f = fenetre, let ecran else { return }
+        guard f.frame.contains(ecranPt) else { laisserPasser(false); pointeur(nil); return }
+        let p = CGPoint(x: ecranPt.x - centre, y: ecran.frame.maxY - ecranPt.y)
+        if moteur.contient(p) || (moteur.rectPastille()?.contains(p) ?? false) { laisserPasser(false); pointeur(p) }
     }
 
     /// Pour les essais : simule la souris sur la forme ou ailleurs.

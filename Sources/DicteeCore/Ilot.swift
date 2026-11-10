@@ -24,34 +24,48 @@ public enum VueIlot: String, CaseIterable, Sendable {
     public var estAlerte: Bool { self == .minuteurFini || self == .rappelEtendu || self == .agendaDebut }
 }
 
-/// Géométrie de la forme : [aile gauche, aile droite, corps gauche, corps droit, hauteur, rayon].
-/// Les ailes (≤ 66 pt) sont ce qui touche la barre des menus ; le corps, plus large, vit SOUS la barre. Hauteurs données pour une barre de
-/// 32 pt (celle de la maquette) : `GeoIlot.valeurs` ajoute la différence avec la vraie barre.
+/// Géométrie de la forme (maquette design/maquettes/ilot-pro-A.html), sept valeurs :
+/// [cou, corps, hauteur, épaule, coin bas, coin haut du corps, congé du cou].
+/// - cou : demi-largeur dans la barre des menus, AU-DELÀ de la demi-caméra (jamais plus de 66 pt avec l'épaule ou le congé) ;
+/// - corps : demi-largeur sous la barre, au-delà de la demi-caméra (le corps n'existe que sous la barre) ;
+/// - hauteur : depuis le haut de l'écran. La table donne la profondeur SOUS la barre ; `valeurs` ajoute la vraie barre ;
+/// - épaule : le creux du haut, où la forme s'évase pour rejoindre le bord de l'écran ;
+/// - coin bas, coin haut du corps : coins continus (pas des arcs de cercle) ; congé : le raccord creux entre le cou et le corps.
+/// Tout est exprimé depuis la vraie caméra et la vraie barre : aucune mesure de la maquette n'est copiée telle quelle.
 public enum GeoIlot {
     public static let aileMax: Double = 66
-    static let comp: [Double] = [66, 66, 66, 66, 32, 12]
-    static let ban: [Double] = [66, 66, 110, 110, 84, 28]
+    /// Repos d'une activité : rien sous la barre, le cou serré contre la caméra (la place de la pochette, de l'anneau, de l'heure).
+    static func compact(_ cou: Double) -> [Double] { [cou, cou, 0, 6, 10, 0, 0] }
+    /// Bandeau passager : cou étroit (les menus restent visibles), corps de 2 × (caméra / 2 + 110) sous la barre, deux lignes.
+    static let bandeau: [Double] = [14, 110, 72, 6, 28, 16, 10]
+    static let alerte: [Double] = [14, 130, 79, 6, 30, 16, 10]
     static let table: [VueIlot: [Double]] = [
-        .repos: [0, 0, 0, 0, 32, 10],
-        .minuteurMinimal: [44, 0, 44, 0, 32, 12], .minuteurCompact: comp, .minuteurEtendu: [66, 66, 130, 130, 162, 34],
-        .minuteurLance: ban, .minuteurFini: [66, 66, 130, 130, 154, 34],
-        .lectureCompact: comp, .lectureEtendu: [66, 66, 130, 130, 182, 34],
-        .rappelEtendu: [66, 66, 130, 130, 158, 34], .rappelCompact: comp, .rappelAjoute: ban,
-        .rappelFait: [66, 66, 110, 110, 84, 28], .rappelReporte: ban, .rappelListe: [66, 66, 130, 130, 178, 34],
-        .agendaAvant: ban, .agendaCompact: comp, .agendaEtendu: [66, 66, 130, 130, 180, 34], .agendaDebut: ban,
-        .notification: ban, .notifications: ban,
-        .accueil: [66, 66, 130, 130, 222, 36],
+        // repos : exactement l'encoche (pas d'épaule : rien ne déborde sur la barre autour de la caméra)
+        .repos: [0, 0, 0, 0, 8, 0, 0],
+        .minuteurMinimal: compact(36), .minuteurCompact: compact(48), .minuteurEtendu: [48, 112, 91, 6, 30, 16, 10],
+        .minuteurLance: bandeau, .minuteurFini: alerte,
+        .lectureCompact: compact(44), .lectureEtendu: [44, 144, 175, 6, 34, 18, 10],
+        .rappelEtendu: alerte, .rappelCompact: compact(48), .rappelAjoute: bandeau,
+        .rappelFait: bandeau, .rappelReporte: bandeau, .rappelListe: [14, 144, 136, 6, 34, 18, 10],
+        .agendaAvant: bandeau, .agendaCompact: compact(50), .agendaEtendu: [50, 140, 130, 6, 34, 18, 10], .agendaDebut: [14, 124, 72, 6, 28, 16, 10],
+        .notification: bandeau, .notifications: bandeau,
+        .accueil: [14, 144, 190, 6, 34, 18, 10],
     ]
-    public static let barreMaquette: Double = 32
+    /// Indices des valeurs : largeurs (cou, corps) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur mène ; à la
+    /// fermeture la hauteur se replie d'abord.
+    public static let largeurs = [0, 1]
+    public static let hauteurs = [2, 3, 4, 5, 6]
 
-    /// Les six valeurs pour une vue, la hauteur ajustée à la vraie barre des menus (`hauteurBarre`). Le repos épouse exactement la barre.
+    /// Les sept valeurs pour une vue, la hauteur comptée depuis le haut de l'écran avec la vraie barre des menus.
     public static func valeurs(_ v: VueIlot, hauteurBarre: Double) -> [Double] {
         var g = table[v] ?? table[.repos]!
-        g[4] += hauteurBarre - barreMaquette
+        g[2] += hauteurBarre
         return g
     }
-    /// Vrai quand la forme est plus grande que la précédente (ouverture : ressort plus vif, un peu de rebond).
-    public static func ouvre(de a: [Double], vers b: [Double]) -> Bool { b[4] > a[4] + 4 || b[3] > a[3] + 4 }
+    /// Profondeur sous la barre (0 pour un repos ou un compact).
+    public static func profondeur(_ v: VueIlot) -> Double { (table[v] ?? table[.repos]!)[2] }
+    /// Vrai quand la forme est plus grande que la précédente (ouverture : la largeur mène, un petit rebond).
+    public static func ouvre(de a: [Double], vers b: [Double]) -> Bool { b[2] > a[2] + 4 || b[1] > a[1] + 4 }
 }
 
 /// Une « activité » : ce qui peut occuper l'îlot ou la pastille.
@@ -130,73 +144,110 @@ public enum ArbitrageIlot {
 }
 
 /// Un ressort amorti (comme celui de la maquette) : part toujours de la valeur affichée et garde sa vitesse, donc interruptible.
-/// `reponse` en secondes ; `amortissement` 1 = sans rebond.
+/// `reponse` en secondes ; `amortissement` 1 = sans rebond. Une cible peut attendre (`viser(..., attente:)`) : pendant l'attente, le ressort
+/// continue vers l'ancienne cible (la maquette fait partir la largeur avant la hauteur à l'ouverture, et l'inverse à la fermeture).
 public struct RessortIlot: Equatable, Sendable {
     public var x: Double
     public var v: Double = 0
     public var cible: Double
     public var reponse: Double
     public var amortissement: Double
+    public private(set) var attente: Double = 0
+    private var cibleFuture: Double?
+    private var reponseFuture = 0.0, amortissementFuture = 1.0
     public init(_ valeur: Double, reponse: Double, amortissement: Double) {
         x = valeur; cible = valeur; self.reponse = reponse; self.amortissement = amortissement
     }
     public mutating func regler(reponse: Double, amortissement: Double) { self.reponse = reponse; self.amortissement = amortissement }
-    public mutating func avancer(_ dt: Double) {
+    /// La cible où le ressort finira (celle qui attend, sinon la cible courante).
+    public var cibleFinale: Double { cibleFuture ?? cible }
+    /// Nouvelle cible, tout de suite ou après `attente` secondes. Valeur et vitesse sont gardées : jamais de saut.
+    public mutating func viser(_ c: Double, reponse r: Double, amortissement z: Double, attente a: Double = 0) {
+        if a > 0 { cibleFuture = c; reponseFuture = r; amortissementFuture = z; attente = a; return }
+        cibleFuture = nil; attente = 0; cible = c; reponse = r; amortissement = z
+    }
+    private mutating func simuler(_ dt: Double) {
+        guard dt > 0 else { return }
         let w = 2 * Double.pi / reponse, k = w * w, c = 2 * amortissement * w
         let n = max(1, Int((dt * 240).rounded(.up))), h = dt / Double(n)
         for _ in 0..<n { let a = k * (cible - x) - c * v; v += a * h; x += v * h }
     }
-    /// Posé : à moins d'un centième de point (ou de pour cent) de sa cible et pratiquement immobile : rien de visible ne change plus.
-    public var fini: Bool { abs(cible - x) < 0.01 && abs(v) < 0.05 }
-    public mutating func poser() { x = cible; v = 0 }
+    private mutating func prendreLaCibleFuture() {
+        if let c = cibleFuture { cible = c; reponse = reponseFuture; amortissement = amortissementFuture }
+        cibleFuture = nil; attente = 0
+    }
+    public mutating func avancer(_ dt: Double) {
+        var dt = dt
+        if cibleFuture != nil {
+            if dt < attente { attente -= dt; simuler(dt); return }
+            simuler(attente); dt -= attente
+            prendreLaCibleFuture()
+        }
+        simuler(dt)
+    }
+    /// Posé : à moins d'un centième de point (ou de pour cent) de sa cible, pratiquement immobile, et plus rien n'attend.
+    public var fini: Bool { cibleFuture == nil && abs(cible - x) < 0.01 && abs(v) < 0.05 }
+    public mutating func poser() { prendreLaCibleFuture(); x = cible; v = 0 }
 }
 
-/// La forme noire : le chemin de la maquette, calculé en points. Origine = centre de l'encoche, y = haut de l'écran.
+/// La forme noire : le chemin de la maquette (fonctions `calculer` et `chemin` de ilot-pro-A.html), en points. Origine = centre de
+/// l'encoche, y = haut de l'écran. Coins continus : chaque coin s'étend sur 1,6 fois son rayon, poignées à 0,18 de cette portée (courbure
+/// nulle aux deux bouts, comme les coins d'Apple, et non un quart de cercle).
 public enum TraceIlot {
-    public struct Segment: Equatable, Sendable {
-        public enum Genre: Sendable { case ligne, arc }
-        public var genre: Genre
-        public var x: Double, y: Double
-        public var rayon: Double = 0
-        public var sens: Bool = false   // pour un arc : sens horaire (true) ou non
+    public enum Commande: Equatable, Sendable {
+        case deplacer(Double, Double)
+        case ligne(Double, Double)
+        case quad(Double, Double, Double, Double)                         // contrôle, point
+        case cubique(Double, Double, Double, Double, Double, Double)     // contrôle 1, contrôle 2, point
     }
 
     public struct Points: Equatable, Sendable {
-        public var departX: Double, departY: Double
-        public var segments: [Segment]
-        /// Largeur de la forme dans la hauteur de la barre (jamais plus que les ailes).
-        public var xGauche: Double, xDroite: Double, basGauche: Double, basDroite: Double
+        public var commandes: [Commande]
+        /// Plus grande demi-largeur dans la hauteur de la barre (cou + épaule ou congé) : jamais plus que les ailes.
+        public var bande: Double
+        /// Demi-largeur du corps sous la barre.
+        public var corps: Double
+        public var hauteur: Double
+        /// Largeur dans la barre (gauche, droite) et largeur du bas (gauche, droite).
+        public var xGauche: Double { -bande }
+        public var xDroite: Double { bande }
+        public var basGauche: Double { -corps }
+        public var basDroite: Double { corps }
     }
 
-    static func lisse(_ v: Double) -> Double { let x = min(1, max(0, v)); return x * x * (3 - 2 * x) }
+    public static let portee = 1.6, poignee = 0.18
 
-    /// `demiCamera` : la moitié de la vraie caméra ; `barre` : la hauteur de la barre des menus.
+    /// `g` : les sept valeurs de `GeoIlot.valeurs` ; `demiCamera` : la moitié de la vraie caméra ; `barre` : la hauteur de la barre.
     public static func calculer(_ g: [Double], demiCamera: Double, barre: Double) -> Points {
-        let tl = g[0], tr = g[1], bl = g[2], br = g[3], h = g[4]
-        let r = max(0, min(g[5], h / 2))
-        // le corps ne s'élargit qu'une fois assez haut : jamais plus large que les ailes dans la bande de la barre des menus
-        let wf = lisse((h - r - (barre - 6)) / 12)
-        let dl = max(0, bl - tl) * wf, dr = max(0, br - tr) * wf
-        let xl = -demiCamera - tl, xr = demiCamera + tr, xbl = xl - dl, xbr = xr + dr
-        let fL = min(10, dl * 0.45), fR = min(10, dr * 0.45), cL = min(12, dl * 0.55), cR = min(12, dr * 0.55)
-        let b = max(0, min(barre, h - r - max(cL, cR) - 1))
-        var s: [Segment] = []
-        func L(_ x: Double, _ y: Double) { s.append(Segment(genre: .ligne, x: x, y: y)) }
-        func A(_ ra: Double, _ x: Double, _ y: Double, _ sens: Bool) { s.append(Segment(genre: .arc, x: x, y: y, rayon: ra, sens: sens)) }
-        L(xr, 0)
-        L(xr, b - fR)
-        A(fR, xr + fR, b, false)
-        L(xbr - cR, b)
-        A(cR, xbr, b + cR, true)
-        L(xbr, h - r)
-        A(r, xbr - r, h, true)
-        L(xbl + r, h)
-        A(r, xbl, h - r, true)
-        L(xbl, b + cL)
-        A(cL, xbl + cL, b, true)
-        L(xl - fL, b)
-        A(fL, xl, b - fL, false)
-        return Points(departX: xl, departY: 0, segments: s, xGauche: xl, xDroite: xr, basGauche: xbl, basDroite: xbr)
+        let n = demiCamera + max(0, g[0]), bw = demiCamera + max(0, g[1]), h = max(1, g[2])
+        let rs = max(0, g[3]), rb = max(0, g[4]), rt = max(0, g[5]), f = max(0, g[6])
+        let B = barre
+        let sousBarre = max(0, h - B)
+        // le corps s'élargit dès qu'il existe sous la barre (pas de languette qui tombe avant de s'ouvrir)
+        let u = min(sousBarre, 40) / 40
+        let e = 1 - pow(1 - u, 2.5)
+        let d = max(0, bw - n) * e
+        let W = n + d
+        let fe = max(0, min(f, d * 0.45, B - rs - 2, sousBarre * 0.6))
+        let rte = max(0, min(rt, (d - fe) / portee, sousBarre / 3.2))
+        let lam = min(1, d / 6)
+        let dispo = (1 - lam) * (h - rs) + lam * (h - B - portee * rte)
+        let rbe = max(0, min(rb, dispo / portee, W / portee))
+        let a1 = portee * rte, c1 = poignee * a1, a2 = portee * rbe, c2 = poignee * a2
+        var c: [Commande] = []
+        c.append(.deplacer(-n - rs, -1)); c.append(.ligne(-n - rs, 0)); c.append(.quad(-n, 0, -n, rs))
+        if d > 0.5 {
+            c.append(.ligne(-n, B - fe)); c.append(.quad(-n, B, -n - fe, B))
+            c.append(.ligne(-W + a1, B)); c.append(.cubique(-W + c1, B, -W, B + c1, -W, B + a1))
+        }
+        c.append(.ligne(-W, h - a2)); c.append(.cubique(-W, h - c2, -W + c2, h, -W + a2, h))
+        c.append(.ligne(W - a2, h)); c.append(.cubique(W - c2, h, W, h - c2, W, h - a2))
+        if d > 0.5 {
+            c.append(.ligne(W, B + a1)); c.append(.cubique(W, B + c1, W - c1, B, W - a1, B))
+            c.append(.ligne(n + fe, B)); c.append(.quad(n, B, n, B - fe))
+        }
+        c.append(.ligne(n, rs)); c.append(.quad(n, 0, n + rs, 0)); c.append(.ligne(n + rs, -1))
+        return Points(commandes: c, bande: max(n + rs, n + fe), corps: W, hauteur: h)
     }
 
     /// Plus grande demi-largeur de la forme à la hauteur `y` (pour vérifier que rien ne dépasse dans la barre des menus).

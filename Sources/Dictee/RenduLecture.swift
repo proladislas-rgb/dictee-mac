@@ -119,34 +119,49 @@ enum RenduLecture {
             return m
         }
 
-        /// Un faux bureau (fond sombre bleu-violet, barre des menus, fenêtre) de la largeur de la maquette.
-        func bureau<Contenu: View>(hauteur: CGFloat, @ViewBuilder _ contenu: () -> Contenu) -> some View {
-            ZStack(alignment: .top) {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(hex: 0x1F2A44), Color(hex: 0x181C27), Color(hex: 0x2A2038)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .overlay(RadialGradient(colors: [Color(hex: 0x34456A).opacity(0.9), .clear], center: UnitPoint(x: 0.14, y: 0), startRadius: 0, endRadius: 520))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.09)))
-                HStack(spacing: 16) {
-                    Text("Chrome").bold().foregroundStyle(.white)
-                    Text("Fichier"); Text("Édition"); Text("Présentation"); Text("Fenêtre")
-                    Spacer()
-                    Text("lun. 9 nov.  14:32")
-                }
-                .font(.system(size: 12.5)).foregroundStyle(Color.white.opacity(0.7))
-                .padding(.horizontal, 16).frame(height: geometrie.hauteur)
-                .background(Color.black.opacity(0.3))
-                RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(hex: 0x0E1016).opacity(0.62))
-                    .overlay(alignment: .topLeading) {
-                        HStack(spacing: 8) { ForEach(0..<3, id: \.self) { _ in Circle().fill(Color(hex: 0x6B6F78)).frame(width: 7, height: 7) } }.padding(.leading, 14).padding(.top, 11)
+        /// Un faux bureau de la largeur utile de l'îlot. Clair par défaut (page blanche d'un lecteur vidéo, barre des menus claire) : la
+        /// silhouette noire, ses épaules creuses et son ombre s'y jugent bien ; sombre comme le Chrome de Hugues pour comparer.
+        func bureau<Contenu: View>(hauteur: CGFloat, clair: Bool = true, geo: GeometrieEncoche? = nil, @ViewBuilder _ contenu: () -> Contenu) -> some View {
+            let gg = geo ?? geometrie
+            let encre = clair ? Color(hex: 0x1D1D1F) : Color.white.opacity(0.88)
+            return ZStack(alignment: .top) {
+                (clair ? Color(hex: 0xF5F5F7) : Color(hex: 0x18181A))
+                // la page : une grande miniature jaune (une vidéo) et une colonne de suggestions
+                HStack(alignment: .top, spacing: 18) {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(LinearGradient(colors: clair ? [Color(hex: 0xFFD54A), Color(hex: 0xF29A1F)] : [Color(hex: 0x0F0F11), Color(hex: 0x111114)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 380)
+                    VStack(spacing: 10) {
+                        ForEach(0..<4, id: \.self) { _ in RoundedRectangle(cornerRadius: 9, style: .continuous).fill(clair ? Color(hex: 0xE4E4E8) : Color(hex: 0x222225)).frame(height: 54) }
                     }
-                    .frame(height: max(0, hauteur - geometrie.hauteur - 30))
-                    .padding(.horizontal, 28).padding(.top, geometrie.hauteur + 30).frame(maxHeight: .infinity, alignment: .top)
+                }
+                .padding(.horizontal, 28).padding(.top, gg.hauteur + 52)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                // onglets du navigateur, sous la barre
+                HStack(spacing: 8) {
+                    ForEach(0..<3, id: \.self) { _ in Circle().fill(clair ? Color(hex: 0xC9C9CE) : Color(hex: 0x4A4A4F)).frame(width: 9, height: 9) }
+                    RoundedRectangle(cornerRadius: 7).fill(clair ? Color.white : Color(hex: 0x26262A)).frame(width: 190, height: 24).padding(.leading, 18)
+                    Spacer()
+                }
+                .padding(.leading, 14).frame(height: 40).frame(maxWidth: .infinity)
+                .background(clair ? Color(hex: 0xE8E8EC) : Color(hex: 0x141416))
+                .padding(.top, gg.hauteur)
+                HStack(spacing: 18) {
+                    Image(systemName: "apple.logo").font(.system(size: 13, weight: .semibold))
+                    Text("Chrome").fontWeight(.bold)
+                    Text("Fichier"); Text("Édition"); Text("Présentation"); Text("Historique"); Text("Aide")
+                    Spacer()
+                    Image(systemName: "wifi"); Image(systemName: "magnifyingglass")
+                    Text("Mar. 10 nov.  14:32")
+                }
+                .font(.system(size: 12.5, weight: .medium)).foregroundStyle(encre)
+                .padding(.horizontal, 16).frame(height: gg.hauteur)
+                .background(clair ? Color.white.opacity(0.78) : Color(hex: 0x161618).opacity(0.85))
                 contenu()
             }
             .frame(width: 640, height: hauteur, alignment: .top)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-
 
         var ok = true
         func ecrire<V: View>(_ vue: V, _ nom: String) {
@@ -159,67 +174,94 @@ enum RenduLecture {
             print("écrit \(fichier.path) (\(rep.pixelsWide)×\(rep.pixelsHigh))")
         }
 
-        // ---- l'îlot « centre d'activités » : un moteur par scène, ressorts posés, aucun temps réel ----
+        // ---- l'îlot : un moteur par scène, ressorts posés, aucun temps réel ----
         let cal = Calendar.current
         let t0 = cal.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: 14, minute: 32))!
         let rdv = EvenementAgenda(id: "r", titre: "Point équipe", debut: t0.addingTimeInterval(600), fin: t0.addingTimeInterval(2580), lieu: nil, lien: URL(string: "https://meet.exemple.fr/pt-eq-93"))
         let rappelExemple = Rappel(texte: "Appeler Paul", echeance: t0, sonneLe: t0, cree: t0.addingTimeInterval(-3600))
-        func scene(lecture: LectureModele? = nil, _ config: (IlotMoteur) -> Void) -> IlotMoteur {
-            let m = IlotMoteur(lecture: lecture ?? modele(contenus[2]))
-            m.geometrie = geometrie; m.statique = true; m.maintenant = { t0 }; m.horloge = "14:32"; m.calendrierActif = true
+        func scene(lecture: LectureModele? = nil, geo: GeometrieEncoche? = nil, poser: Bool = true, _ config: (IlotMoteur) -> Void) -> IlotMoteur {
+            let gg = geo ?? geometrie
+            let lec = lecture ?? modele(contenus[2])
+            lec.geometrie = gg
+            let m = IlotMoteur(lecture: lec)
+            m.geometrie = gg; m.statique = true; m.maintenant = { t0 }; m.horloge = "14:32"; m.calendrierActif = true
             config(m)
-            m.donneesChangees(); m.poser()
+            m.donneesChangees()
+            if poser { m.poser() }
             return m
         }
         func ilot(_ m: IlotMoteur) -> some View { IlotVue(m: m).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }
         let petitBureau: CGFloat = geometrie.hauteur + 70, moyenBureau: CGFloat = geometrie.hauteur + 130, grandBureau: CGFloat = geometrie.hauteur + 240
         func minut(_ min: Double, restant: Double? = nil) -> MinuteurIlot { MinuteurIlot(minutes: min, depuis: t0.addingTimeInterval(-(min * 60 - (restant ?? min * 60)))) }
-        let lectureSerie = modele(contenus[2])
-        // 1 · les états
+        let musique = modele(contenus[2])
+        let videoLongue = modele(Contenu(nom: "ipod", morceau: MorceauEnCours(titre: "Je détestais la mode des iPods, donc j\u{2019}en ai racheté un en 2026", artiste: "Le Coin Tech", app: "com.google.Chrome", joue: true, duree: 774, position: 202),
+                                         site: "YouTube", art: image(ArtVideo(), cote: 480, hauteur: 270)))
+        let video = modele(contenus[1])
+        /// Une image à mi-course : on part de la scène posée, on change l'état, on avance de `t` secondes.
+        func miCourse(_ m: IlotMoteur, _ t: Double, _ changer: (IlotMoteur) -> Void) -> IlotMoteur {
+            changer(m); m.donneesChangees()
+            var r = t; while r > 0.0001 { let d = min(1.0 / 120, r); m.avancer(d); r -= d }
+            return m
+        }
+        // 1 · lecture et minuteur
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { _ in }) }, "ilot-1a-vide")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.minuteur = minut(10, restant: 392) }) }, "ilot-1b-compact-minuteur")
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: lectureSerie) { $0.lecturePresente = true }) }, "ilot-1c-compact-lecture")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: musique) { $0.lecturePresente = true }) }, "ilot-1c-compact-musique")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true }) }, "ilot-1c2-compact-video")
         ecrire(bureau(hauteur: moyenBureau) { ilot(scene { $0.minuteur = minut(10, restant: 392); $0.survole = true }) }, "ilot-1d-etendu-minuteur")
-        ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: lectureSerie) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1e-etendu-lecture")
-        ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: modele(contenus[1])) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1f-etendu-lecture-video")
-        ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: modele(contenus[0], direct: true)) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1g-etendu-lecture-direct")
-        // 2 · deux activités à la fois
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: lectureSerie) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 372) }) }, "ilot-2a-lecture-et-pastille-minuteur")
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: lectureSerie) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 372); $0.pastilleOuverte.cible = 1 }) }, "ilot-2b-pastille-depliee")
-        // 3 · minuteur
-        ecrire(bureau(hauteur: grandBureau) { ilot(scene { $0.epingle = true; $0.survole = true }) }, "ilot-3a-accueil-epingle")
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .minuteurLance, jusqua: t0, ligne1: "Minuteur lancé", ligne2: "10 min \u{00B7} fin à 14:42"); $0.minuteur = minut(10) }) }, "ilot-3b-minuteur-lance")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: musique) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1e-etendu-musique")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1f-etendu-video-titre-long")
+        ecrire(bureau(hauteur: grandBureau, clair: false) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1f2-etendu-video-fond-sombre")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: modele(contenus[0], direct: true)) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1g-etendu-direct")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: modele(contenus[2], joue: false)) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1m-etendu-en-pause")
+        for (cam, barre) in [(179.0, 33.0), (200.0, 32.0)] {
+            let gg = GeometrieEncoche(largeur: CGFloat(cam), hauteur: CGFloat(barre))
+            // une vidéo de plus d'une heure : les temps (« −1:05:12 ») ne sont jamais coupés
+            let longue = modele(Contenu(nom: "heure", morceau: MorceauEnCours(titre: "Je détestais la mode des iPods, donc j\u{2019}en ai racheté un en 2026", artiste: "Le Coin Tech", app: "com.google.Chrome", joue: true, duree: 4523, position: 1211),
+                                        site: "YouTube", art: image(ArtVideo(), cote: 480, hauteur: 270)))
+            ecrire(bureau(hauteur: barre + 240, geo: gg) { ilot(scene(lecture: longue, geo: gg) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1j-etendu-video-camera-\(Int(cam))")
+            ecrire(bureau(hauteur: barre + 70, geo: gg) { ilot(scene(lecture: video, geo: gg) { $0.lecturePresente = true }) }, "ilot-1k-compact-video-camera-\(Int(cam))")
+        }
+        // 2 · deux activités à la fois : la deuxième goutte sous la barre
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: musique) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 372) }) }, "ilot-2a-lecture-et-pastille-minuteur")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.minuteur = minut(10, restant: 372); m.donneesChangees(); m.poser(); m.cliquerPastille(); m.poser(); m.pastilleOuverte.cible = 1 }) }, "ilot-2b-minuteur-et-pastille-lecture-survolee")
+        for (t, nom) in [(0.20, "c"), (0.26, "d"), (0.32, "e")] {
+            ecrire(bureau(hauteur: petitBureau) { ilot(miCourse(scene(lecture: musique) { $0.lecturePresente = true }, t) { $0.minuteur = minut(10, restant: 372) }) }, "ilot-2\(nom)-goutte-\(Int(t * 1000))ms")
+        }
+        // 3 · accueil et minuteur
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene { $0.epingle = true; $0.survole = true; $0.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); $0.rendezVousSuivant = rdv }) }, "ilot-3a-accueil")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene { $0.calendrierActif = false; $0.epingle = true; $0.survole = true }) }, "ilot-3a2-accueil-vide")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.bandeau = BandeauIlot(vue: .minuteurLance, jusqua: t0, ligne1: "Minuteur lancé", ligne2: "10 min \u{00B7} fin à 14:42"); $0.minuteur = minut(10) }) }, "ilot-3b-minuteur-lance")
         ecrire(bureau(hauteur: moyenBureau) { ilot(scene { $0.alerte = AlerteIlot(vue: .minuteurFini, jusqua: nil, libelle: "10 min") }) }, "ilot-3d-minuteur-fini")
         ecrire(bureau(hauteur: moyenBureau) { ilot(scene { var x = minut(10, restant: 392); x.pause(a: t0); $0.minuteur = x; $0.survole = true }) }, "ilot-3e-minuteur-en-pause")
         // 4 · rappels
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelAjoute, jusqua: t0, ligne1: "Rappel ajouté", ligne2: "Appeler Paul \u{00B7} aujourd\u{2019}hui", meta: "15:00") }) }, "ilot-4a-rappel-ajoute")
-        ecrire(bureau(hauteur: grandBureau) { ilot(scene { let r = Rappel(texte: "Appeler Paul", echeance: t0.addingTimeInterval(1700), cree: t0); let r2 = Rappel(texte: "Envoyer le devis", echeance: t0.addingTimeInterval(10000), cree: t0); $0.rappelsAVenir = [r, r2]; $0.ouvrirFormulaireRappel() }) }, "ilot-4b-rappels-liste")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelAjoute, jusqua: t0, ligne1: "Rappel ajouté", ligne2: "Appeler Paul \u{00B7} aujourd\u{2019}hui", meta: "15:00") }) }, "ilot-4a-rappel-ajoute")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene { let r = Rappel(texte: "Appeler Paul", echeance: t0.addingTimeInterval(1700), cree: t0); let r2 = Rappel(texte: "Envoyer le devis à la mairie avant la réunion de jeudi", echeance: t0.addingTimeInterval(10000), cree: t0); $0.rappelsAVenir = [r, r2]; $0.ouvrirFormulaireRappel() }) }, "ilot-4b-rappels-liste")
         ecrire(bureau(hauteur: moyenBureau) { ilot(scene { $0.alerte = AlerteIlot(vue: .rappelEtendu, jusqua: nil, rappel: rappelExemple); $0.rappelsSonnes = [rappelExemple] }) }, "ilot-4c-rappel-arrive")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.rappelsSonnes = [rappelExemple] }) }, "ilot-4d-cloche-sans-reponse")
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelFait, jusqua: t0, ligne1: "Fait", ligne2: "Appeler Paul") }) }, "ilot-4e-fait")
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelReporte, jusqua: t0, ligne1: "Je vous le redis dans 10 min", ligne2: "Appeler Paul", meta: "15:10") }) }, "ilot-4f-plus-tard")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelFait, jusqua: t0, ligne1: "Fait", ligne2: "Appeler Paul") }) }, "ilot-4e-fait")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelReporte, jusqua: t0, ligne1: "Je vous le redis dans 10 min", ligne2: "Appeler Paul", meta: "15:10") }) }, "ilot-4f-plus-tard")
         // 5 · calendrier
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.rendezVous = rdv; $0.rendezVousProche = true; $0.bandeau = BandeauIlot(vue: .agendaAvant, jusqua: t0, ligne1: "Point équipe", ligne2: "Dans 10 min \u{00B7} Visio", evenement: rdv) }) }, "ilot-5a-rendez-vous-10-min")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.rendezVous = rdv; $0.rendezVousProche = true; $0.bandeau = BandeauIlot(vue: .agendaAvant, jusqua: t0, ligne1: "Point équipe", ligne2: "Dans 10 min \u{00B7} Visio", evenement: rdv) }) }, "ilot-5a-rendez-vous-10-min")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.rendezVous = rdv; $0.rendezVousProche = true }) }, "ilot-5a2-rendez-vous-compact")
         ecrire(bureau(hauteur: grandBureau) { ilot(scene { $0.rendezVous = rdv; $0.rendezVousProche = true; $0.survole = true }) }, "ilot-5b-rendez-vous-etendu")
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.rendezVous = rdv; $0.alerte = AlerteIlot(vue: .agendaDebut, jusqua: nil, evenement: rdv) }) }, "ilot-5c-rendez-vous-commence")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.rendezVous = rdv; $0.alerte = AlerteIlot(vue: .agendaDebut, jusqua: nil, evenement: rdv) }) }, "ilot-5c-rendez-vous-commence")
         // 6 · notifications
-        let n1 = NotificationRecue(app: "Messages", titre: "Camille", corps: "On se retrouve à 19 h devant le cinéma ?", date: t0)
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.notifications = [n1]; $0.bandeau = BandeauIlot(vue: .notification, jusqua: t0, ligne1: "Camille", ligne2: n1.corps) }) }, "ilot-6a-notification")
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.notifications = [n1, NotificationRecue(app: "Banque", titre: "Banque", corps: "", date: t0), NotificationRecue(app: "Slack", titre: "Équipe projet", corps: "", date: t0)]; $0.bandeau = BandeauIlot(vue: .notifications, jusqua: t0, ligne1: "", ligne2: "") }) }, "ilot-6b-notifications-groupees")
-        // 7 · accueil
-        ecrire(bureau(hauteur: grandBureau) { ilot(scene { $0.epingle = true; $0.survole = true; $0.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); $0.rendezVousSuivant = rdv }) }, "ilot-7-accueil")
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene { _ in }) }, "ilot-7b-ilot-vide")
-        // 8 · priorités : une alerte arrive, la lecture patiente en pastille
-        ecrire(bureau(hauteur: moyenBureau) { ilot(scene(lecture: lectureSerie) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 372); $0.alerte = AlerteIlot(vue: .rappelEtendu, jusqua: nil, rappel: rappelExemple); $0.rappelsSonnes = [rappelExemple] }) }, "ilot-8-alerte-et-pastille")
-        // mi-course : la forme entre le compact et l'étendu
-        do {
-            let m = scene { $0.minuteur = minut(10, restant: 392) }
-            m.survole = true; m.donneesChangees()
-            for _ in 0..<9 { m.avancer(1.0 / 60) }
-            ecrire(bureau(hauteur: moyenBureau) { ilot(m) }, "ilot-9-mi-course")
+        let n1 = NotificationRecue(app: "Messages", titre: "Camille", corps: "On se retrouve à 19 h devant le cinéma ? Je réserve les places si tu confirmes avant ce soir", date: t0)
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.notifications = [n1]; $0.bandeau = BandeauIlot(vue: .notification, jusqua: t0, ligne1: "Camille", ligne2: n1.corps) }) }, "ilot-6a-notification")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.notifications = [n1, NotificationRecue(app: "Banque", titre: "Banque", corps: "", date: t0), NotificationRecue(app: "Slack", titre: "Équipe projet", corps: "", date: t0)]; $0.bandeau = BandeauIlot(vue: .notifications, jusqua: t0, ligne1: "", ligne2: "") }) }, "ilot-6b-notifications-groupees")
+        // 8 · priorités : une alerte arrive, la lecture patiente (la pastille rentre dans l'îlot)
+        ecrire(bureau(hauteur: moyenBureau) { ilot(scene(lecture: musique) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 372); $0.alerte = AlerteIlot(vue: .rappelEtendu, jusqua: nil, rappel: rappelExemple); $0.rappelsSonnes = [rappelExemple] }) }, "ilot-8-alerte-et-pastille")
+        // 9 · à mi-course : la forme se gonfle, la pochette voyage, le contenu arrive après
+        for (t, nom) in [(0.08, "a"), (0.16, "b"), (0.26, "c"), (0.40, "d")] {
+            ecrire(bureau(hauteur: grandBureau) { ilot(miCourse(scene(lecture: videoLongue) { $0.lecturePresente = true }, t) { $0.survole = true }) }, "ilot-9\(nom)-ouverture-\(Int(t * 1000))ms")
         }
+        for (t, nom) in [(0.08, "e"), (0.20, "f")] {
+            ecrire(bureau(hauteur: grandBureau) { ilot(miCourse(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.survole = true }, t) { $0.survole = false }) }, "ilot-9\(nom)-fermeture-\(Int(t * 1000))ms")
+        }
+        ecrire(bureau(hauteur: moyenBureau) { ilot(miCourse(scene { $0.minuteur = minut(10, restant: 392) }, 0.2) { $0.survole = true }) }, "ilot-9g-minuteur-mi-course")
         // la dictée prend la place : tout est effacé, il ne reste que l'encoche de la dictée
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: lectureSerie) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 372); $0.dictee = true }) }, "ilot-10-dictee-efface-tout")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: musique) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 372); $0.dictee = true }) }, "ilot-10-dictee-efface-tout")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)
