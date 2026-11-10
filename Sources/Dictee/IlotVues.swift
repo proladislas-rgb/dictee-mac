@@ -17,7 +17,7 @@ extension View {
     /// Pose la vue à la place de la maquette : x depuis le centre, y depuis le haut.
     func place(_ c: Cx, _ z: ZoneIlot = .corps, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, _ al: Alignment = .leading) -> some View {
         frame(width: w, height: h, alignment: al)
-            .offset(x: c.cx + x + (z == .gauche ? -c.dAile : (z == .droite ? c.dAile : 0)), y: y + (z == .corps ? c.dy : c.dyA))
+            .offset(x: c.cx + x + (z == .gauche ? -c.dAile : (z == .droite ? c.dAile : 0)), y: y + (z == .corps ? c.dy : c.dyA - 3))
     }
 }
 
@@ -613,7 +613,7 @@ struct IlotVue: View {
         let ombre = Double(min(1, max(0, (hauteur - g.hauteur) / 40)))
         ZStack(alignment: .topLeading) {
             forme.fill(Color.black)
-                .overlay(forme.stroke(Color.white.opacity(0.1), lineWidth: 0.5))
+                .overlay(forme.stroke(Color.white.opacity(0.1 * ombre), lineWidth: 0.5))
                 .shadow(color: .black.opacity(0.5 * ombre), radius: 14, x: 0, y: 10)
             IlotCalques(m: m, cx: cx)
                 .clipShape(forme)

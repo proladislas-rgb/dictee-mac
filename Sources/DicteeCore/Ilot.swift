@@ -29,11 +29,11 @@ public enum VueIlot: String, CaseIterable, Sendable {
 /// 32 pt (celle de la maquette) : `GeoIlot.valeurs` ajoute la différence avec la vraie barre.
 public enum GeoIlot {
     public static let aileMax: Double = 66
-    static let comp: [Double] = [66, 66, 66, 66, 38, 19]
+    static let comp: [Double] = [66, 66, 66, 66, 32, 12]
     static let ban: [Double] = [66, 66, 110, 110, 84, 28]
     static let table: [VueIlot: [Double]] = [
         .repos: [0, 0, 0, 0, 32, 10],
-        .minuteurMinimal: [44, 0, 44, 0, 38, 19], .minuteurCompact: comp, .minuteurEtendu: [66, 66, 130, 130, 162, 34],
+        .minuteurMinimal: [44, 0, 44, 0, 32, 12], .minuteurCompact: comp, .minuteurEtendu: [66, 66, 130, 130, 162, 34],
         .minuteurLance: ban, .minuteurFini: [66, 66, 130, 130, 154, 34],
         .lectureCompact: comp, .lectureEtendu: [66, 66, 130, 130, 182, 34],
         .rappelEtendu: [66, 66, 130, 130, 158, 34], .rappelCompact: comp, .rappelAjoute: ban,

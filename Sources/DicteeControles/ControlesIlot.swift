@@ -16,7 +16,7 @@ func controlesIlot() {
         verifier(p.xGauche >= -demi - GeoIlot.aileMax - 0.001 && p.xDroite <= demi + GeoIlot.aileMax + 0.001, "\(v.rawValue) : haut de la forme dans les ailes de l'encoche")
     }
     verifier(GeoIlot.valeurs(.repos, hauteurBarre: 37)[4] == 37, "le repos épouse exactement la barre (37)")
-    verifier(GeoIlot.valeurs(.minuteurCompact, hauteurBarre: 32)[4] == 38 && GeoIlot.valeurs(.minuteurCompact, hauteurBarre: 37)[4] == 43, "compact : 6 pt sous la barre, quelle que soit la barre")
+    verifier(GeoIlot.valeurs(.minuteurCompact, hauteurBarre: 32)[4] == 32 && GeoIlot.valeurs(.minuteurCompact, hauteurBarre: 37)[4] == 37, "compact : exactement la hauteur de la barre, rien ne dépasse dessous")
     verifier(GeoIlot.valeurs(.minuteurMinimal, hauteurBarre: 32)[1] == 0, "minimal : une seule aile")
     let etendu = TraceIlot.calculer(GeoIlot.valeurs(.accueil, hauteurBarre: barre), demiCamera: demi, barre: barre)
     verifier(etendu.basGauche < etendu.xGauche - 50 && etendu.basDroite > etendu.xDroite + 50, "étendu : le corps est plus large que les ailes, sous la barre")
