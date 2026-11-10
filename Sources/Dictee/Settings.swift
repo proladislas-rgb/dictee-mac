@@ -211,6 +211,35 @@ enum Settings {
         set { defaults.set(newValue, forKey: "pauseLecturePendantDictee") }
     }
 
+    // MARK: Îlot (centre d'activités)
+
+    /// Minuteur dans l'îlot (depuis l'accueil, ou en le dictant quand l'accueil est ouvert). Activé par défaut.
+    static var ilotMinuteur: Bool {
+        get { defaults.object(forKey: "ilotMinuteur") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "ilotMinuteur") }
+    }
+    /// Rappels dans l'îlot, gardés localement (Application Support/Dictee/rappels.json). Activé par défaut.
+    static var ilotRappels: Bool {
+        get { defaults.object(forKey: "ilotRappels") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "ilotRappels") }
+    }
+    /// Rendez-vous des calendriers du Mac dans l'îlot. ÉTEINT par défaut : l'autorisation n'est demandée qu'à l'activation, jamais au lancement.
+    static var ilotCalendrier: Bool {
+        get { defaults.object(forKey: "ilotCalendrier") as? Bool ?? false }
+        set { defaults.set(newValue, forKey: "ilotCalendrier") }
+    }
+    /// Notifications des autres apps dans l'îlot (lecture du Centre de notifications par l'Accessibilité). ÉTEINT par défaut : expérimental.
+    static var ilotNotifications: Bool {
+        get { defaults.object(forKey: "ilotNotifications") as? Bool ?? false }
+        set { defaults.set(newValue, forKey: "ilotNotifications") }
+    }
+    /// Le son de la fin d'un minuteur : le nom d'un son du Mac (« Pop » par défaut, celui de la dictée), ou « Aucun ».
+    static var sonFinMinuteur: String {
+        get { defaults.string(forKey: "sonFinMinuteur").flatMap { $0.isEmpty ? nil : $0 } ?? "Pop" }
+        set { defaults.set(newValue, forKey: "sonFinMinuteur") }
+    }
+    static let sonsDisponibles = ["Pop", "Glass", "Ping", "Hero", "Tink", "Submarine", "Aucun"]
+
     // MARK: Mise à jour automatique
 
     /// Vérifier GitHub une fois par jour s'il existe une nouvelle version. Activé par défaut.

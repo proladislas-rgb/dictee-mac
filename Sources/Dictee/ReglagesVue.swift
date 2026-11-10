@@ -19,11 +19,11 @@ struct ReglagesVue: View {
                 Group {
                     if g.size.width >= Self.largeurDeuxColonnes {
                         HStack(alignment: .top, spacing: 56) {
-                            VStack(alignment: .leading, spacing: 28) { dictee; ecriture; lecture }.frame(maxWidth: .infinity, alignment: .top)
+                            VStack(alignment: .leading, spacing: 28) { dictee; ecriture; lecture; ilot }.frame(maxWidth: .infinity, alignment: .top)
                             VStack(alignment: .leading, spacing: 28) { retours; reunions; compte }.frame(maxWidth: .infinity, alignment: .top)
                         }
                     } else {
-                        VStack(alignment: .leading, spacing: 28) { dictee; ecriture; lecture; retours; reunions; compte }
+                        VStack(alignment: .leading, spacing: 28) { dictee; ecriture; lecture; ilot; retours; reunions; compte }
                     }
                 }
                 .padding(.top, 20)
@@ -87,6 +87,28 @@ struct ReglagesVue: View {
             }
             .opacity(r.afficherLaLecture ? 1 : 0.45)
             .disabled(!r.afficherLaLecture)
+        }
+    }
+
+    private var ilot: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            EnteteSection(titre: "Îlot", phrase: "Le minuteur, les rappels et les rendez-vous dans l\u{2019}encoche.", compte: nil)
+            LigneReglage(libelle: "Minuteur", note: "Depuis l\u{2019}accueil de l\u{2019}îlot (clic sur l\u{2019}encoche vide), ou en dictant « minuteur 10 minutes » quand l\u{2019}accueil est ouvert.", premiere: true) {
+                Interrupteur(actif: $r.ilotMinuteur, etiquette: "Minuteur")
+            }
+            LigneReglage(libelle: "Son de fin du minuteur", note: "Joué quand un minuteur ou un rappel sonne ; le volume du Mac le coupe.") {
+                ChoixReglage(libelle: "Son de fin du minuteur", valeur: $r.sonFinMinuteur, options: Settings.sonsDisponibles.map { ($0, $0) })
+                BoutonCadre("Écouter") { Retours.sonIlot(r.sonFinMinuteur) }
+            }
+            LigneReglage(libelle: "Rappels", note: "Gardés sur ce Mac seulement. Ils reviennent après un redémarrage.") {
+                Interrupteur(actif: $r.ilotRappels, etiquette: "Rappels")
+            }
+            LigneReglage(libelle: "Calendrier", note: r.phraseCalendrier) {
+                Interrupteur(actif: $r.ilotCalendrier, etiquette: "Calendrier")
+            }
+            LigneReglage(libelle: "Notifications (expérimental)", note: "Montre dans l\u{2019}encoche les notifications des autres apps, en lisant le Centre de notifications avec l\u{2019}Accessibilité déjà accordée. Peut cesser de marcher avec une mise à jour de macOS.") {
+                Interrupteur(actif: $r.ilotNotifications, etiquette: "Notifications")
+            }
         }
     }
 

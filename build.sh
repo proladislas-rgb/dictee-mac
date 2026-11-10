@@ -76,6 +76,8 @@ cat > "$ASSEMBLAGE/Contents/Info.plist" <<PLIST
   <string>Verbe écoute ta voix quand tu tiens la touche fn pour dicter, et pendant que tu notes une réunion.</string>
   <key>NSAudioCaptureUsageDescription</key>
   <string>Verbe écoute le son de ton Mac (la voix des autres pendant un appel) seulement quand tu notes une réunion.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>Verbe lit tes rendez-vous (10 minutes avant, au début) pour les montrer dans l'encoche. Rien n'est enregistré ni envoyé : il relit seulement les prochaines heures.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Verbe utilise la reconnaissance vocale du Mac, sur l'appareil, pour afficher ton texte en direct et en secours.</string>
 </dict>

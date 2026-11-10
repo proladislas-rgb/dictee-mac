@@ -57,6 +57,40 @@ enum Retours {
     /// Fin de la réunion : deux frappes légères, sans son.
     static func reunionFin() { motif([(0, .legere), (0.06, .legere)]) }
 
+    // MARK: îlot (minuteur, rappels, rendez-vous, notifications)
+
+    private static var sonsIlot: [String: NSSound] = [:]
+    /// Le son choisi dans les réglages (nom d'un son du Mac), joué `fois` fois, espacées de `ecart` secondes. « Aucun » : silence.
+    static func sonIlot(_ nom: String, fois: Int = 1, ecart: Double = 0.55, volume: Float = 0.7) {
+        guard nom != "Aucun" else { return }
+        for i in 0..<max(1, fois) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * ecart) {
+                guard let s = sonsIlot[nom] ?? NSSound(named: NSSound.Name(nom)) else { return }
+                sonsIlot[nom] = s
+                s.volume = volume
+                s.stop(); s.play()
+            }
+        }
+    }
+
+    /// Fin d'un minuteur : le son choisi trois fois, et trois frappes du trackpad.
+    static func minuteurFini() {
+        sonIlot(Settings.sonFinMinuteur, fois: 3, ecart: 0.6)
+        motif([(0, .franche), (0.23, .moyenne), (0.46, .moyenne)])
+    }
+    /// Un rappel arrive à l'heure, ou un rendez-vous commence : deux sons, deux frappes.
+    static func rappelSonne() {
+        sonIlot(Settings.sonFinMinuteur, fois: 2, ecart: 0.5)
+        motif([(0, .moyenne), (0.2, .legere)])
+    }
+    /// Un bandeau (notification, rendez-vous qui approche) : jamais de son fort.
+    static func bandeauDoux() {
+        sonIlot(Settings.sonFinMinuteur, fois: 1, volume: 0.35)
+        motif([(0, .legere)])
+    }
+    /// Une alerte qui arrive pendant une réunion : vibration seulement (un son pourrait être capté par le micro).
+    static func alerteSilencieuse() { motif([(0, .legere), (0.2, .legere)]) }
+
     /// Une suite de frappes datées (secondes après maintenant), calée sur le rythme du son qui l'accompagne.
     private static func motif(_ frappes: [(Double, ActionneurTrackpad.Force)]) {
         guard Settings.vibration else { return }

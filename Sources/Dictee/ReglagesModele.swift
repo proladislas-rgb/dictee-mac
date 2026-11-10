@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import ServiceManagement
+import EventKit
 import DicteeCore
 
 struct MicroChoix: Identifiable, Equatable {
@@ -22,6 +23,16 @@ final class ReglagesModele: ObservableObject {
     @Published var secoursApple: Bool { didSet { if !installe { return }; Settings.secoursApple = secoursApple } }
     @Published var afficherLaLecture: Bool { didSet { if !installe { return }; Settings.afficherLaLecture = afficherLaLecture; NotificationCenter.default.post(name: .verbeLectureReglages, object: nil) } }
     @Published var pauseLecturePendantDictee: Bool { didSet { if !installe { return }; Settings.pauseLecturePendantDictee = pauseLecturePendantDictee } }
+    @Published var ilotMinuteur: Bool { didSet { if !installe { return }; Settings.ilotMinuteur = ilotMinuteur; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
+    @Published var ilotRappels: Bool { didSet { if !installe { return }; Settings.ilotRappels = ilotRappels; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
+    /// Activer le calendrier est le seul moment où macOS demande l'autorisation (jamais au lancement) ; refusée, l'interrupteur se remet sur éteint.
+    @Published var ilotCalendrier: Bool { didSet { if !installe { return }; Settings.ilotCalendrier = ilotCalendrier; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
+    @Published var ilotNotifications: Bool { didSet { if !installe { return }; Settings.ilotNotifications = ilotNotifications; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
+    @Published var sonFinMinuteur: String { didSet { if !installe { return }; Settings.sonFinMinuteur = sonFinMinuteur } }
+    var phraseCalendrier: String {
+        if reel, !ilotCalendrier, EKAutorisation.refusee { return "L\u{2019}accès est refusé : à autoriser dans Réglages Système › Confidentialité et sécurité › Calendriers." }
+        return "10 minutes avant et au début d\u{2019}un rendez-vous, avec « Rejoindre ». Lit les calendriers du Mac ; la demande d\u{2019}accès n\u{2019}apparaît qu\u{2019}ici."
+    }
     @Published var modeleWhisper: ModeleWhisper { didSet { if !installe { return }; Settings.modeleWhisper = modeleWhisper } }
     /// La phrase sous « Vitesse de transcription » (avec les latences mesurées chez Hugues).
     @Published private(set) var phraseVitesse = ""
@@ -69,6 +80,11 @@ final class ReglagesModele: ObservableObject {
         vibration = reel ? Settings.vibration : true
         afficherLaLecture = reel ? Settings.afficherLaLecture : true
         pauseLecturePendantDictee = reel ? Settings.pauseLecturePendantDictee : true
+        ilotMinuteur = reel ? Settings.ilotMinuteur : true
+        ilotRappels = reel ? Settings.ilotRappels : true
+        ilotCalendrier = reel ? Settings.ilotCalendrier : false
+        ilotNotifications = reel ? Settings.ilotNotifications : false
+        sonFinMinuteur = reel ? Settings.sonFinMinuteur : "Pop"
         modeleWhisper = reel ? Settings.modeleWhisper : ModeleWhisper.parDefaut
         testPrecision = reel ? Settings.testPrecisionRestant > 0 : false
         langue = reel ? Settings.langueReglage : ChoixLangue.defaut
@@ -76,6 +92,11 @@ final class ReglagesModele: ObservableObject {
         ouvrirAuDemarrage = reel ? SMAppService.mainApp.status == .enabled : false
         micros = [MicroChoix(id: ChoixMicro.automatique, nom: "Automatique"), MicroChoix(id: ChoixMicro.systeme, nom: "Micro du système")]
         installe = true
+        if reel {
+            NotificationCenter.default.addObserver(forName: .verbeIlotReglagesRelus, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { guard let self else { return }; if self.ilotCalendrier != Settings.ilotCalendrier { self.ilotCalendrier = Settings.ilotCalendrier } }
+            }
+        }
         if reel { rafraichir() } else { micros.append(MicroChoix(id: "exemple", nom: "Micro du MacBook")); disponibiliteSecours = .pret; cle = .trousseau }
     }
 
@@ -148,5 +169,12 @@ final class ReglagesModele: ObservableObject {
     /// Le nom de la langue réglée, pour la ligne d'état.
     var nomLangue: String {
         switch langue { case "fr": return "Français"; case "en": return "Anglais"; default: return "Automatique" }
+    }
+}
+
+/// L'état de l'autorisation du calendrier, lu sans jamais la demander.
+enum EKAutorisation {
+    static var refusee: Bool {
+        switch EKEventStore.authorizationStatus(for: .event) { case .denied, .restricted, .writeOnly: return true; default: return false }
     }
 }

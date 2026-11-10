@@ -14,7 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let panneauCompact = PanneauCompact()
     private let filet = FiletPanneau()
     private let priseEnMain = PriseEnMain()
-    private let lecture = LectureControleur()
+    private let ilot = IlotControleur()
+    private var lecture: LectureControleur { ilot.lecture }
     private var microDejaPrepare = false
     private lazy var reunionControleur = ReunionController()
     private lazy var fenetrePrincipale = FenetrePrincipale(dictees: ModeleDictees(), controleurReunions: reunionControleur)
@@ -81,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installerMenuPrincipal()
         panneauCompact.surChangementEtat = { [weak self] ouvert in
             self?.survolStatus?.panneauOuvert = ouvert
-            self?.lecture.occupationChangee()
+            self?.ilot.occupationChangee()
         }
         dictee.surDebut = { [weak self] in
             self?.panneauCompact.fermer(animee: false, rendreLeFocus: false)
@@ -120,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        lecture.arreter()
+        ilot.arreter()
         Log.ecrire("arrêt")
         Log.vider()
     }
@@ -299,7 +300,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Lecture en cours dans l'encoche : ce qui occupe l'encoche (dictée, réunion, filet, mise à jour, panneau compact, prise en main)
     /// est relu à chaque changement ; le programme d'aide ne démarre que si le réglage est actif.
     private func configurerLecture() {
-        lecture.occupation = { [weak self] in
+        ilot.occupation = { [weak self] in
             guard let self else { return OccupationEncoche() }
             return OccupationEncoche(dictee: self.dictee.panneau.modele.ouverte,
                                      reunion: self.reunionControleur.phase != .repos,
@@ -309,14 +310,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         lecture.rubanDictee = { [weak self] in self?.dictee.panneau.modele.ruban ?? false }
         lecture.reserveRuban = { [weak self] r in self?.dictee.panneau.modele.reserveRuban = r }
-        dictee.panneau.modele.$ruban.dropFirst().sink { [weak self] _ in self?.lecture.occupationChangee() }.store(in: &abonnements)
-        dictee.surChangementEtat = { [weak self] enCours in self?.lecture.dicteeChange(enCours: enCours) }
-        dictee.panneau.modele.$ouverte.dropFirst().sink { [weak self] _ in self?.lecture.occupationChangee() }.store(in: &abonnements)
-        reunionControleur.$phase.dropFirst().sink { [weak self] _ in self?.lecture.occupationChangee() }.store(in: &abonnements)
-        MiseAJourControleur.partage.bande.etat.$ouverte.dropFirst().sink { [weak self] _ in self?.lecture.occupationChangee() }.store(in: &abonnements)
-        filet.surChangementEtat = { [weak self] _ in self?.lecture.occupationChangee() }
-        priseEnMain.surChangementEtat = { [weak self] in self?.lecture.occupationChangee() }
-        lecture.demarrer()
+        dictee.panneau.modele.$ruban.dropFirst().sink { [weak self] _ in self?.ilot.occupationChangee() }.store(in: &abonnements)
+        dictee.surChangementEtat = { [weak self] enCours in self?.ilot.dicteeChange(enCours: enCours) }
+        dictee.panneau.modele.$ouverte.dropFirst().sink { [weak self] _ in self?.ilot.occupationChangee() }.store(in: &abonnements)
+        reunionControleur.$phase.dropFirst().sink { [weak self] _ in self?.ilot.occupationChangee() }.store(in: &abonnements)
+        MiseAJourControleur.partage.bande.etat.$ouverte.dropFirst().sink { [weak self] _ in self?.ilot.occupationChangee() }.store(in: &abonnements)
+        filet.surChangementEtat = { [weak self] _ in self?.ilot.occupationChangee() }
+        priseEnMain.surChangementEtat = { [weak self] in self?.ilot.occupationChangee() }
+        // Îlot : « Coller » de l'accueil, « Noter la réunion » d'un rendez-vous, commandes dictées (accueil ouvert seulement).
+        ilot.surColler = { [weak self] texte in
+            guard let self else { return }
+            let cible = self.derniereAppExterne
+            Task { await self.dictee.recoller(texte, dans: cible) }
+        }
+        ilot.surNoter = { [weak self] _ in
+            guard let self, self.reunionControleur.phase == .repos else { return }
+            self.reunionControleur.lancer()
+        }
+        dictee.surInterception = { [weak self] texte in self?.ilot.intercepter(texte) ?? false }
+        ilot.demarrer()
     }
 
     @objc private func rechercherLesMisesAJour() {

@@ -58,25 +58,20 @@ if let i = arguments.firstIndex(of: "--rendu-encoche"), i + 1 < arguments.count 
 }
 
 // Dictee --rendu-lecture dossier  (l'îlot de la lecture en cours et la bulle de dictée en PNG, sans fenêtre)
-if let i = arguments.firstIndex(of: "--rendu-lecture"), i + 1 < arguments.count {
+if let i = arguments.firstIndex(where: { $0 == "--rendu-lecture" || $0 == "--rendu-ilot" }), i + 1 < arguments.count {
     exit(MainActor.assumeIsolated { RenduLecture.executer(dossier: arguments[i + 1]) })
+}
+
+// Dictee --ilot-essai  (essai de bout en bout de l'îlot : priorités, pastille, minuteur, rappels, calendrier simulé ; fenêtre transparente ;
+// ni micro, ni clavier, ni Accessibilité, ni son, ni calendrier, ni notifications)
+if arguments.contains("--ilot-essai") {
+    exit(MainActor.assumeIsolated { IlotEssai.executer() })
 }
 
 // Dictee --lecture-test [secondes]  (lance le programme d'aide de la lecture en cours, affiche ce qui joue ; ni micro, ni clavier, ni Accessibilité)
 if let i = arguments.firstIndex(of: "--lecture-test") {
     let secondes = (i + 1 < arguments.count ? Double(arguments[i + 1]) : nil) ?? 6
     exit(MainActor.assumeIsolated { LectureTest.executer(secondes: secondes) })
-}
-
-// Dictee --lecture-essai [--app identifiant]  (essai de bout en bout de la lecture en cours, fenêtres transparentes ; ni micro, ni clavier, ni Accessibilité)
-if arguments.contains("--lecture-essai") {
-    exit(MainActor.assumeIsolated { LectureEssai.executer(arguments: arguments) })
-}
-
-// Dictee --lecture-mesure [secondes]  (processeur de l'îlot au repos, îlot visible ; aucune commande envoyée)
-if let i = arguments.firstIndex(of: "--lecture-mesure") {
-    let secondes = (i + 1 < arguments.count ? Double(arguments[i + 1]) : nil) ?? 30
-    exit(MainActor.assumeIsolated { LectureMesure.executer(secondes: secondes) })
 }
 
 // Dictee --miniature-essai [identifiant]  (téléchargement et cache de la miniature YouTube ; réseau seulement)

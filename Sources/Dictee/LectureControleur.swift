@@ -15,7 +15,6 @@ extension Notification.Name {
 @MainActor
 final class LectureControleur {
     let modele = LectureModele()
-    let panneau: LecturePanneau
     let miniature: LectureMiniature
     let systeme = LecteurSysteme()
 
@@ -23,12 +22,18 @@ final class LectureControleur {
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
 
     private var pause = PauseDictee()
-    private var dicteeConfirmee = false
+    private(set) var dicteeConfirmee = false
+    /// L'îlot (centre d'activités) montre ou retire la lecture (rempli par `IlotControleur`).
+    var surIlot: (Bool) -> Void = { _ in }
+    /// Les priorités viennent d'être recalculées (la dictée est confirmée ou finie) : l'îlot relit ses masques.
+    var surRecalcul: () -> Void = {}
+    /// Un nouveau morceau (ou une nouvelle image) : l'îlot se redessine.
+    var surNouveauMorceau: () -> Void = {}
     private var confirmation: DispatchWorkItem?
     private var recalcul: DispatchWorkItem?
     private(set) var affichage: AffichageLecture = .aucun
     /// Mode d'essai : fenêtres invisibles.
-    var essaiInvisible = false { didSet { panneau.invisible = essaiInvisible; miniature.invisible = essaiInvisible } }
+    var essaiInvisible = false { didSet { miniature.invisible = essaiInvisible } }
     private var cheminImage: String?
     private var appCharge: String?
     private var derniereRechercheDeSite = Date.distantPast
@@ -42,7 +47,6 @@ final class LectureControleur {
     static let delaiConfirmation: TimeInterval = 0.28
 
     init() {
-        panneau = LecturePanneau(modele: modele)
         miniature = LectureMiniature(modele: modele)
         modele.surReprise = { [weak self] in self?.reprendreParClic() }
         modele.surBascule = { [weak self] in self?.basculer() }
@@ -50,8 +54,6 @@ final class LectureControleur {
         modele.surPrecedent = { [weak self] in self?.systeme.envoyer(.precedent) }
         modele.surSaut = { [weak self] delta in self?.sauter(delta) }
         modele.surPosition = { [weak self] s in self?.aller(a: s) }
-        modele.surFinGlissement = { [weak self] in self?.panneau.apresGlissement() }
-        panneau.surDepliage = { [weak self] in self?.chercherLeSite(); self?.chercherLaMiniature() }
         systeme.surEvenement = { [weak self] e in self?.recevoir(e) }
         systeme.surAbandon = { [weak self] _ in self?.vider() }
     }
@@ -68,9 +70,11 @@ final class LectureControleur {
     /// Fermeture de l'app : le programme d'aide s'arrête, plus rien ne reste à l'écran.
     func arreter() {
         systeme.arreter()
-        panneau.fermer()
         miniature.fermer()
     }
+
+    /// L'îlot vient de se déplier : le site du navigateur et la miniature de la vidéo sont relus.
+    func ilotDeplie() { chercherLeSite(); chercherLaMiniature() }
 
     /// Le programme d'aide n'est lancé que si « Afficher la lecture en cours » est actif.
     private func appliquerLesReglages() {
@@ -111,6 +115,7 @@ final class LectureControleur {
             // l'image du système d'abord ; à défaut, la miniature de la vidéo ; à défaut, l'icône de l'app (dessinée par la vue)
             if nouveau { chercherLaMiniature(pour: m) }
             if m != modele.morceau { modele.morceau = m }
+            if nouveau { surNouveauMorceau() }
             recalculer()
         }
     }
@@ -281,16 +286,17 @@ final class LectureControleur {
         // Pendant la dictée, la mini-miniature n'existe que si c'est Verbe qui a mis la lecture en pause (c'est le geste pour la reprendre),
         // qu'elle est bien en pause, et que le ruban de texte de la dictée est sorti (c'est dedans qu'elle se loge).
         if voulu == .miniature, !(pause.pauseParNous && !modele.joue && rubanDictee()) { voulu = .aucun }
+        defer { surRecalcul() }
         guard voulu != affichage else { return }
         let avant = affichage
         affichage = voulu
         switch voulu {
         case .aucun:
-            panneau.retirer(); miniature.retirer(); reserveRuban(0)
+            surIlot(false); miniature.retirer(); reserveRuban(0)
         case .ilot:
-            miniature.retirer(); reserveRuban(0); panneau.afficher()
+            miniature.retirer(); reserveRuban(0); surIlot(true)
         case .miniature:
-            panneau.retirer(); reserveRuban(LectureMiniature.reserve); miniature.afficher()
+            surIlot(false); reserveRuban(LectureMiniature.reserve); miniature.afficher()
         }
         if avant != voulu { Log.ecrire("lecture : affichage \(avant) → \(voulu)") }
     }

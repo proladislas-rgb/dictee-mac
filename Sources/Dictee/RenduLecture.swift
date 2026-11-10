@@ -143,19 +143,15 @@ enum RenduLecture {
                     .padding(.horizontal, 28).padding(.top, geometrie.hauteur + 30).frame(maxHeight: .infinity, alignment: .top)
                 contenu()
             }
-            .frame(width: 1142, height: hauteur, alignment: .top)
+            .frame(width: 640, height: hauteur, alignment: .top)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
 
-        func ilot(_ m: LectureModele, p: CGFloat) -> some View {
-            IlotVue(p: p, absence: 0, m: m, tailleFenetre: LectureMesures.tailleVue(geometrie))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        }
 
         var ok = true
         func ecrire<V: View>(_ vue: V, _ nom: String) {
             let rendu = ImageRenderer(content: vue)
-            rendu.scale = 2
+            rendu.scale = 1.5
             guard let image = rendu.nsImage, let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
                   let png = rep.representation(using: .png, properties: [:]) else { print("échec du rendu \(nom)"); ok = false; return }
             let fichier = url.appendingPathComponent("\(nom).png")
@@ -163,20 +159,67 @@ enum RenduLecture {
             print("écrit \(fichier.path) (\(rep.pixelsWide)×\(rep.pixelsHigh))")
         }
 
-        let petitBureau: CGFloat = 132, grandBureau: CGFloat = geometrie.hauteur + 270
-        for c in contenus {
-            let m = modele(c)
-            print("teinte \(c.nom) : \(m.teinte.clair.hexa) / \(m.teinte.profond.hexa), genre \(m.genre), source « \(m.libelleSource) »")
-            ecrire(bureau(hauteur: petitBureau) { ilot(m, p: 0) }, "repos-\(c.nom)")
+        // ---- l'îlot « centre d'activités » : un moteur par scène, ressorts posés, aucun temps réel ----
+        let cal = Calendar.current
+        let t0 = cal.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: 14, minute: 32))!
+        let rdv = EvenementAgenda(id: "r", titre: "Point équipe", debut: t0.addingTimeInterval(600), fin: t0.addingTimeInterval(2580), lieu: nil, lien: URL(string: "https://meet.exemple.fr/pt-eq-93"))
+        let rappelExemple = Rappel(texte: "Appeler Paul", echeance: t0, sonneLe: t0, cree: t0.addingTimeInterval(-3600))
+        func scene(lecture: LectureModele? = nil, _ config: (IlotMoteur) -> Void) -> IlotMoteur {
+            let m = IlotMoteur(lecture: lecture ?? modele(contenus[2]))
+            m.geometrie = geometrie; m.statique = true; m.maintenant = { t0 }; m.horloge = "14:32"; m.calendrierActif = true
+            config(m)
+            m.donneesChangees(); m.poser()
+            return m
         }
-        for c in [contenus[0], contenus[2]] {
-            ecrire(bureau(hauteur: grandBureau) { ilot(modele(c), p: 1) }, "ouvert-\(c.nom)")
+        func ilot(_ m: IlotMoteur) -> some View { IlotVue(m: m).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }
+        let petitBureau: CGFloat = geometrie.hauteur + 70, moyenBureau: CGFloat = geometrie.hauteur + 130, grandBureau: CGFloat = geometrie.hauteur + 240
+        func minut(_ min: Double, restant: Double? = nil) -> MinuteurIlot { MinuteurIlot(minutes: min, depuis: t0.addingTimeInterval(-(min * 60 - (restant ?? min * 60)))) }
+        let lectureSerie = modele(contenus[2])
+        // 1 · les états
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.minuteur = minut(10, restant: 392) }) }, "ilot-1b-compact-minuteur")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: lectureSerie) { $0.lecturePresente = true }) }, "ilot-1c-compact-lecture")
+        ecrire(bureau(hauteur: moyenBureau) { ilot(scene { $0.minuteur = minut(10, restant: 392); $0.survole = true }) }, "ilot-1d-etendu-minuteur")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: lectureSerie) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1e-etendu-lecture")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: modele(contenus[1])) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1f-etendu-lecture-video")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: modele(contenus[0], direct: true)) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1g-etendu-lecture-direct")
+        // 2 · deux activités à la fois
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: lectureSerie) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 372) }) }, "ilot-2a-lecture-et-pastille-minuteur")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: lectureSerie) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 372); $0.pastilleOuverte.cible = 1 }) }, "ilot-2b-pastille-depliee")
+        // 3 · minuteur
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene { $0.epingle = true; $0.survole = true }) }, "ilot-3a-accueil-epingle")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .minuteurLance, jusqua: t0, ligne1: "Minuteur lancé", ligne2: "10 min \u{00B7} fin à 14:42"); $0.minuteur = minut(10) }) }, "ilot-3b-minuteur-lance")
+        ecrire(bureau(hauteur: moyenBureau) { ilot(scene { $0.alerte = AlerteIlot(vue: .minuteurFini, jusqua: nil, libelle: "10 min") }) }, "ilot-3d-minuteur-fini")
+        ecrire(bureau(hauteur: moyenBureau) { ilot(scene { var x = minut(10, restant: 392); x.pause(a: t0); $0.minuteur = x; $0.survole = true }) }, "ilot-3e-minuteur-en-pause")
+        // 4 · rappels
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelAjoute, jusqua: t0, ligne1: "Rappel ajouté", ligne2: "Appeler Paul \u{00B7} aujourd\u{2019}hui", meta: "15:00") }) }, "ilot-4a-rappel-ajoute")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene { let r = Rappel(texte: "Appeler Paul", echeance: t0.addingTimeInterval(1700), cree: t0); let r2 = Rappel(texte: "Envoyer le devis", echeance: t0.addingTimeInterval(10000), cree: t0); $0.rappelsAVenir = [r, r2]; $0.ouvrirFormulaireRappel() }) }, "ilot-4b-rappels-liste")
+        ecrire(bureau(hauteur: moyenBureau) { ilot(scene { $0.alerte = AlerteIlot(vue: .rappelEtendu, jusqua: nil, rappel: rappelExemple); $0.rappelsSonnes = [rappelExemple] }) }, "ilot-4c-rappel-arrive")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.rappelsSonnes = [rappelExemple] }) }, "ilot-4d-cloche-sans-reponse")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelFait, jusqua: t0, ligne1: "Fait", ligne2: "Appeler Paul") }) }, "ilot-4e-fait")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelReporte, jusqua: t0, ligne1: "Je vous le redis dans 10 min", ligne2: "Appeler Paul", meta: "15:10") }) }, "ilot-4f-plus-tard")
+        // 5 · calendrier
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.rendezVous = rdv; $0.rendezVousProche = true; $0.bandeau = BandeauIlot(vue: .agendaAvant, jusqua: t0, ligne1: "Point équipe", ligne2: "Dans 10 min \u{00B7} Visio", evenement: rdv) }) }, "ilot-5a-rendez-vous-10-min")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.rendezVous = rdv; $0.rendezVousProche = true }) }, "ilot-5a2-rendez-vous-compact")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene { $0.rendezVous = rdv; $0.rendezVousProche = true; $0.survole = true }) }, "ilot-5b-rendez-vous-etendu")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.rendezVous = rdv; $0.alerte = AlerteIlot(vue: .agendaDebut, jusqua: nil, evenement: rdv) }) }, "ilot-5c-rendez-vous-commence")
+        // 6 · notifications
+        let n1 = NotificationRecue(app: "Messages", titre: "Camille", corps: "On se retrouve à 19 h devant le cinéma ?", date: t0)
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.notifications = [n1]; $0.bandeau = BandeauIlot(vue: .notification, jusqua: t0, ligne1: "Camille", ligne2: n1.corps) }) }, "ilot-6a-notification")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.notifications = [n1, NotificationRecue(app: "Banque", titre: "Banque", corps: "", date: t0), NotificationRecue(app: "Slack", titre: "Équipe projet", corps: "", date: t0)]; $0.bandeau = BandeauIlot(vue: .notifications, jusqua: t0, ligne1: "", ligne2: "") }) }, "ilot-6b-notifications-groupees")
+        // 7 · accueil
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene { $0.epingle = true; $0.survole = true; $0.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); $0.rendezVousSuivant = rdv }) }, "ilot-7-accueil")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { _ in }) }, "ilot-7b-ilot-vide")
+        // 8 · priorités : une alerte arrive, la lecture patiente en pastille
+        ecrire(bureau(hauteur: moyenBureau) { ilot(scene(lecture: lectureSerie) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 372); $0.alerte = AlerteIlot(vue: .rappelEtendu, jusqua: nil, rappel: rappelExemple); $0.rappelsSonnes = [rappelExemple] }) }, "ilot-8-alerte-et-pastille")
+        // mi-course : la forme entre le compact et l'étendu
+        do {
+            let m = scene { $0.minuteur = minut(10, restant: 392) }
+            m.survole = true; m.donneesChangees()
+            for _ in 0..<9 { m.avancer(1.0 / 60) }
+            ecrire(bureau(hauteur: moyenBureau) { ilot(m) }, "ilot-9-mi-course")
         }
-        ecrire(bureau(hauteur: grandBureau) { ilot(modele(contenus[1], joue: false), p: 1) }, "ouvert-video-en-pause")
-        ecrire(bureau(hauteur: grandBureau) { ilot(modele(contenus[0], direct: true), p: 1) }, "ouvert-direct")
-        ecrire(bureau(hauteur: petitBureau) { ilot(modele(contenus[2], joue: false), p: 0) }, "repos-album-en-pause")
-        ecrire(bureau(hauteur: grandBureau) { ilot(modele(contenus[2]), p: 0.5) }, "transition-mi-course")
-
+        // la dictée prend la place : tout est effacé, il ne reste que l'encoche de la dictée
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: lectureSerie) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 372); $0.dictee = true }) }, "ilot-10-dictee-efface-tout")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)
@@ -184,12 +227,8 @@ enum RenduLecture {
             m.teinte = chrome.map { LectureControleur.teinte(de: $0) } ?? .neutre
             return m
         }
-        do {
-            let m = sansImage(contenus[1])
-            print("teinte (icône de l'app) : \(m.teinte.clair.hexa)")
-            ecrire(bureau(hauteur: petitBureau) { ilot(m, p: 0) }, "repos-sans-image")
-            ecrire(bureau(hauteur: grandBureau) { ilot(m, p: 1) }, "ouvert-sans-image")
-        }
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: sansImage(contenus[1])) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1h-etendu-sans-image")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: sansImage(contenus[1])) { $0.lecturePresente = true }) }, "ilot-1i-compact-sans-image")
 
         // la dictée prend la place : l'îlot s'efface ; la lecture (en pause) devient une mini-miniature DANS le ruban de texte, au bout, côté droit
         let tailleDictee = EnclochePanneau.tailleFenetre(pour: geometrie)
@@ -205,64 +244,24 @@ enum RenduLecture {
         }
         /// La dictée et, posée dessus à son vrai emplacement (celui du petit panneau cliquable), la mini-miniature.
         func scene(_ lecture: LectureModele?, mainsLibres: Bool = false) -> some View {
-            let finRuban = 1142 / 2 + (geometrie.largeur + 2 * GeometrieEncoche.aile) / 2 - GeometrieEncoche.retraitRuban
+            let finRuban = 640 / 2 + (geometrie.largeur + 2 * GeometrieEncoche.aile) / 2 - GeometrieEncoche.retraitRuban
             let droite = finRuban - LectureMiniature.retraitDroit + 4
             return ZStack(alignment: .topLeading) {
                 EncocheVue(m: dictee(mainsLibres: mainsLibres, avecMiniature: lecture != nil), tailleFenetre: tailleDictee)
-                    .frame(width: 1142, height: tailleDictee.height, alignment: .top)
+                    .frame(width: 640, height: tailleDictee.height, alignment: .top)
                 if let lecture {
                     MiniatureLectureVue(m: lecture, presence: 1)
                         .frame(width: LectureMiniature.tailleFenetre.width, height: LectureMiniature.tailleFenetre.height)
                         .offset(x: droite - LectureMiniature.tailleFenetre.width, y: geometrie.hauteur)
                 }
             }
-            .frame(width: 1142, height: tailleDictee.height, alignment: .topLeading)
+            .frame(width: 640, height: tailleDictee.height, alignment: .topLeading)
         }
         ecrire(bureau(hauteur: geometrie.hauteur + 80) { scene(nil).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }, "dictee-sans-lecture")
         ecrire(bureau(hauteur: geometrie.hauteur + 80) { scene(modele(contenus[2], joue: false)).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }, "dictee-miniature-musique")
         ecrire(bureau(hauteur: geometrie.hauteur + 80) { scene(modele(contenus[1], joue: false)).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }, "dictee-miniature-video")
         ecrire(bureau(hauteur: geometrie.hauteur + 80) { scene(sansImage(contenus[1], joue: false)).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }, "dictee-miniature-icone-app")
         ecrire(bureau(hauteur: geometrie.hauteur + 80) { scene(modele(contenus[0], joue: false), mainsLibres: true).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }, "dictee-mains-libres-miniature")
-
-        // la zone des icônes : barre des menus remplie d'icônes jusqu'à la caméra ; les repères en pointillé marquent la limite de la bande
-        // de la dictée (caméra + 90 pt de chaque côté). L'îlot, au repos comme déplié, ne doit rien cacher au-delà.
-        func zoneIcones(_ m: LectureModele, p: CGFloat, avecDictee: Bool = false, hauteur: CGFloat) -> some View {
-            let demiCamera = geometrie.largeur / 2, limite = demiCamera + GeometrieEncoche.aile
-            let symboles = ["wifi", "battery.100", "magnifyingglass", "switch.2", "speaker.wave.2.fill", "moon.fill", "bell.fill", "airplayvideo"]
-            let menus = ["Aide", "Fenêtre", "Signets", "Historique", "Présentation", "Édition", "Fichier"]
-            return ZStack(alignment: .top) {
-                RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: 0x3B5B8C))
-                    .overlay(LinearGradient(colors: [Color.white.opacity(0.18), .clear], startPoint: .top, endPoint: .bottom))
-                HStack(spacing: 0) {
-                    HStack(spacing: 14) { ForEach(menus, id: \.self) { Text($0).font(.system(size: 12.5)) } }
-                        .frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, 8)
-                    Color.clear.frame(width: geometrie.largeur)
-                    HStack(spacing: 16) { ForEach(symboles, id: \.self) { Image(systemName: $0).font(.system(size: 12.5)) } }
-                        .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 8)
-                }
-                .foregroundStyle(Color.white.opacity(0.92)).frame(height: geometrie.hauteur)
-                .background(Color.black.opacity(0.18))
-                // repères : limite de la bande de la dictée, de part et d'autre de la caméra
-                HStack(spacing: 0) {
-                    Rectangle().fill(Color.clear).frame(width: 1142 / 2 - limite)
-                    Rectangle().fill(Color(hex: 0xFF3B30)).frame(width: 1, height: hauteur)
-                    Spacer(minLength: 0)
-                    Rectangle().fill(Color(hex: 0xFF3B30)).frame(width: 1, height: hauteur)
-                    Rectangle().fill(Color.clear).frame(width: 1142 / 2 - limite)
-                }
-                .frame(width: 1142, height: hauteur)
-                if avecDictee {
-                    scene(m).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                } else {
-                    ilot(m, p: p)
-                }
-            }
-            .frame(width: 1142, height: hauteur, alignment: .top)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
-        ecrire(zoneIcones(modele(contenus[1]), p: 0, hauteur: geometrie.hauteur + 40), "zone-icones-repos")
-        ecrire(zoneIcones(modele(contenus[1]), p: 1, hauteur: grandBureau), "zone-icones-ouvert")
-        ecrire(zoneIcones(modele(contenus[1], joue: false), p: 0, avecDictee: true, hauteur: geometrie.hauteur + 40), "zone-icones-dictee")
 
         return ok ? 0 : 1
     }

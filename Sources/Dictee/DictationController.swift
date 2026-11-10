@@ -64,6 +64,8 @@ final class DictationController {
     var surEchecInsertion: ((String) -> Void)?
     /// Appelé quand le texte n'est pas arrivé dans l'app : (texte, app visée). L'encoche reste ouverte avec le texte à copier.
     var surFilet: ((String, NSRunningApplication?) -> Void)?
+    /// Appelé avec le texte final avant le collage : vrai si c'était une commande de l'îlot (le texte n'est alors pas collé).
+    var surInterception: ((String) -> Bool)?
     /// À appeler quand le micro vient d'être autorisé : prépare le moteur pour un départ instantané.
     func microAutorise() { audio.preparer() }
     /// Appelé quand la capture commence (`true`) ou finit (`false`) : l'icône de la barre des menus montre un trait ambre.
@@ -308,6 +310,13 @@ final class DictationController {
         let apresRaccourcis = RaccourcisVocaux.appliquer(apresAdresses, raccourcis: MotsModele.partage.raccourcis)
         let texteFinal = TextFormatter.prepare(apresRaccourcis, for: kind)
         if let comparaison = ComparaisonJournal.ligne(groq: brut, final: texteFinal) { Log.ecrire("dictée \(s.id) : \(comparaison)") }
+        // Commande de l'îlot (« minuteur 10 minutes ») : seulement si l'accueil de l'îlot était ouvert au début de la dictée ; sinon jamais touchée.
+        if surInterception?(texteFinal) == true {
+            Log.ecrire("dictée \(s.id) : commande de l\u{2019}îlot, rien n\u{2019}est collé")
+            fermerSiLibre()
+            Retours.fin()
+            return
+        }
         let texte = raccorder(texteFinal, kind: kind, session: s, champ: champ)
         TestPrecisionStore.enregistrerSiActif(echantillons: s.pipeline.echantillonsComplets(), appId: s.appCible?.bundleIdentifier, appNom: s.appCible?.localizedName,
                                               texteGroq: brut, texteFinal: texteFinal, duree: s.pipeline.dureeEnregistree, idDictee: s.id)
