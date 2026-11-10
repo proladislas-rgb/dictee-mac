@@ -142,7 +142,6 @@ final class IlotMoteur: ObservableObject {
     var derniereDictee: (texte: String, age: String)?
     /// Dit à l'accueil si le calendrier est branché (sinon la tuile propose de l'activer).
     var calendrierActif = false
-    var horloge = ""
 
     // MARK: masques (dictée, réunion, autres annonces : l'îlot s'efface)
     var dictee = false
@@ -237,34 +236,30 @@ final class IlotMoteur: ObservableObject {
         demarrerBoucle()
     }
 
-    private func cible(_ v: VueIlot) -> [Double] { GeoIlot.valeurs(v, hauteurBarre: Double(geometrie.hauteur)) }
+    /// Largeur mesurée du contenu des écrans qui s'y ajustent (bandeaux, alertes, rendez-vous déplié). Gardée après leur départ :
+    /// l'écran qui s'efface garde sa grille.
+    private(set) var contenus: [VueIlot: CGFloat] = [:]
+    private func cible(_ v: VueIlot) -> [Double] {
+        GeoIlot.valeurs(v, hauteurBarre: Double(geometrie.hauteur), demiCamera: Double(demiCamera), contenu: contenus[v].map(Double.init))
+    }
+    /// La grille du contenu (mêmes largeurs que la forme).
+    var grille: GrilleIlot { GrilleIlot(hc: demiCamera, barre: geometrie.hauteur, contenus: contenus) }
 
     /// Montre une vue. La forme se déforme vers sa géométrie avec les ressorts de la maquette ; le contenu nouveau arrive après la forme,
     /// l'ancien part avant elle ; ce qui appartient à la même activité (pochette, anneau, heure) voyage.
     private func afficher(_ v: VueIlot) {
+        // un écran qui épouse son contenu est mesuré à chaque changement de données (un 2e message arrive, un titre change…)
+        if GeoIlot.ajusteAuContenu(v), let l = largeurContenu(v) { contenus[v] = l }
         let c = cible(v)
         if v == courante, geo.enumerated().allSatisfy({ $0.element.cibleFinale == c[$0.offset] }) { return }
         let avant = courante
         let fa = FamilleIlot.de(avant), fv = FamilleIlot.de(v)
         let modeAvant = fa == .autre ? 0 : ouvertureCourante(fa)
-        let hNow = geo[2].x
-        let ouvre = c[2] > hNow + 1, ferme = c[2] < hNow - 1
         courante = v
-        if reduire {
-            for i in 0..<geo.count { geo[i].viser(c[i], reponse: 0.4, amortissement: 1); geo[i].poser() }
-        } else if ferme {
-            // le contenu part d'abord (0,06 s), puis la forme se dégonfle d'un seul tenant, sans rebond. La largeur suit la hauteur de
-            // près : un corps qui resterait large pendant que la hauteur tombe ferait un bandeau plat sous les menus (vu au jury).
-            for i in GeoIlot.hauteurs { geo[i].viser(c[i], reponse: 0.42, amortissement: 1, attente: 0.06) }
-            for i in GeoIlot.largeurs { geo[i].viser(c[i], reponse: 0.38, amortissement: 1, attente: 0.06) }
-        } else if ouvre {
-            // la largeur mène, la hauteur suit : la forme se gonfle (petit rebond, plus vif pour une alerte)
-            let a = v.estAlerte
-            for i in GeoIlot.largeurs { geo[i].viser(c[i], reponse: a ? 0.38 : 0.40, amortissement: a ? 0.74 : 0.80) }
-            for i in GeoIlot.hauteurs { geo[i].viser(c[i], reponse: a ? 0.46 : 0.48, amortissement: a ? 0.70 : 0.75) }
-        } else {
-            for i in 0..<geo.count { geo[i].viser(c[i], reponse: 0.36, amortissement: 0.86) }
-        }
+        // ouverture : la largeur mène, la hauteur suit (petit rebond) ; fermeture : le contenu part d'abord, puis la forme se dégonfle
+        // sans rebond, la largeur un peu devant (jamais de bandeau plat sous les menus). Les mêmes ressorts que les contrôles.
+        let passage = PassageIlot.viser(&geo, vers: c, alerte: v.estAlerte, reduire: reduire)
+        let ouvre = passage == .ouverture, ferme = passage == .fermeture
         // contenu : la famille (ce qui voyage) et l'écran (ce qui est propre à cet état)
         lien = fa == fv && fv != .autre
         let delai = ferme ? 0.22 : (ouvre ? 0.12 : 0.10)
@@ -571,7 +566,8 @@ final class IlotMoteur: ObservableObject {
         return chemin.contains(point) || chemin.contains(CGPoint(x: point.x, y: point.y + 1.5))
     }
 
-    /// La pastille : sous la barre, son bord gauche à 24 pt en deçà du bord droit de la caméra (maquette).
+    /// La pastille : sous la barre, son bord droit aligné sur le bord droit du cou de l'îlot (maquette A) ; elle s'ouvre vers la gauche
+    /// (sous la barre, rien ne gêne les icônes). Elle ne dépasse donc jamais de l'îlot à droite, ni posée ni pendant la goutte.
     func largeurPastille(_ a: ActiviteIlot) -> CGFloat {
         switch a {
         case .lecture: return 62
@@ -581,19 +577,31 @@ final class IlotMoteur: ObservableObject {
         case .alerte: return 30
         }
     }
-    func largeurPastilleOuverte(_ a: ActiviteIlot) -> CGFloat { a == .lecture ? 62 + 150 : largeurPastille(a) }
+    /// Ouverte au survol : la lecture montre son titre, le rappel le sien (à côté de la cloche et de l'heure).
+    func largeurPastilleOuverte(_ a: ActiviteIlot) -> CGFloat {
+        switch a {
+        case .lecture: return 62 + 150
+        case .rappel: return largeurPastille(a) + 6 + min(150, MesureIlot.texte(rappelVu?.texte ?? "", 12.5, .semibold))
+        default: return largeurPastille(a)
+        }
+    }
     static let hauteurPastille: CGFloat = 26
-    var xPastille: CGFloat { demiCamera - 24 }
+    /// Bord droit de la pastille (depuis le centre) : le cou de l'îlot tel qu'il est dessiné.
+    var bordPastille: CGFloat { CGFloat(trace.cou) }
+    func largeurPastilleActuelle(_ a: ActiviteIlot) -> CGFloat {
+        largeurPastille(a) + (largeurPastilleOuverte(a) - largeurPastille(a)) * CGFloat(min(1, max(0, pastilleOuverte.x)))
+    }
     func rectPastille() -> CGRect? {
         guard let p = pastille, pastilleMontree else { return nil }
-        let l = largeurPastille(p) + (largeurPastilleOuverte(p) - largeurPastille(p)) * CGFloat(min(1, max(0, pastilleOuverte.x)))
-        return CGRect(x: xPastille, y: geometrie.hauteur + 6, width: l, height: Self.hauteurPastille)
+        let l = largeurPastilleActuelle(p)
+        return CGRect(x: bordPastille - l, y: geometrie.hauteur + 6, width: l, height: Self.hauteurPastille)
     }
     /// Le rectangle que la fenêtre doit couvrir (centre = 0) : la forme voulue, la pastille et une marge pour l'ombre et la secousse.
     func fenetreVoulue() -> CGRect {
         var r = rectCible()
         if let p = rectPastille(), !cache {
-            r = r.union(CGRect(x: p.minX, y: p.minY, width: largeurPastilleOuverte(pastille ?? .minuteur), height: p.height))
+            let l = largeurPastilleOuverte(pastille ?? .minuteur)
+            r = r.union(CGRect(x: CGFloat(traceCible.cou) - l, y: p.minY, width: l, height: p.height))
         }
         // au repos ou en compact : à peine plus que la forme (aucun clic pris aux icônes voisines) ; déplié : de la place pour l'ombre
         let petit = r.height <= CGFloat(geometrie.hauteur) + 40

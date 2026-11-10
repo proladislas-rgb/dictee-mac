@@ -147,7 +147,7 @@ Demande de Hugues : mieux transcrire (« un peu meilleurs sur la transcription �
 ## Îlot Apple Pro (10/11 soir)
 Hugues : « il déconne, c'est horrible », « je retrouve pas du tout l'expérience Dynamic Island ». Cible au pixel et à la milliseconde : `design/maquettes/ilot-pro-A.html` (gagnante du jury) + greffes de B (cou étroit, accueil en liste, mini-miniature 16:9 dans l'aile, rappel titre puis heure, fond clair dans les rendus).
 - [x] 1. Forme (DicteeCore) : 7 valeurs comme la maquette (cou, corps, hauteur, épaule, coin bas, coin haut du corps, congé), coins continus (portée 1,6 r, poignées 0,18), corps qui s'élargit dès qu'il existe sous la barre (plus de couplage largeur/hauteur tardif), ressorts avec attente (largeur puis hauteur à l'ouverture, hauteur puis largeur à la fermeture).
-- [x] 2. Moteur : ressorts de la maquette (ouverture 0,40/0,80 et 0,48/0,75, alerte 0,38/0,74 et 0,46/0,70, fermeture 0,40 puis 0,45 sans rebond), horloge d'animation pour le contenu (arrive 0,12 s après la forme, 35 ms par bloc ; part avant la forme), boucle calée sur l'écran (CADisplayLink), « Réduire les animations » lu en direct (fondu 0,15 s).
+- [x] 2. Moteur : ressorts de la maquette (ouverture 0,40/0,80 et 0,48/0,75, alerte 0,38/0,74 et 0,46/0,70, fermeture hauteur 0,42 s et largeur 0,32 s, sans rebond), horloge d'animation pour le contenu (arrive 0,12 s après la forme, 35 ms par bloc ; part avant la forme), boucle calée sur l'écran (CADisplayLink), « Réduire les animations » lu en direct (fondu 0,15 s).
 - [x] 3. Contenu : un arbre par activité sur une grille (marge 16 pt, mesurée sur la vraie caméra), la pochette et l'anneau du minuteur voyagent ; titre + source, barre fine teintée, boutons nus centrés ; égaliseur 5 barres (Core Animation) ; suppression des étiquettes, du liseré, des lueurs, des tuiles colorées et des disques.
 - [x] 4. Pastille qui « goutte » sous la barre (métaballe pendant la chute), accueil en liste à filets fins.
 - [x] 5. Contrôles : `swift build -c release`, `swift run DicteeControles`, rendus (titre très long, 16:9, carré, sans image, caméras 179 et 200, fond clair et sombre, mi-course), `--ilot-essai`.
@@ -155,3 +155,16 @@ Hugues : « il déconne, c'est horrible », « je retrouve pas du tout l'expéri
 - [x] Le vide de la fenêtre (à côté du cou, marge du compact) laisse passer les clics vers les menus.
 - [ ] Hugues : essayer en vrai (point 11 de « À vérifier en vrai » de la section Îlot de docs/spec-v1.md). Non vérifié d'ici : le rendu animé réel à l'écran, le passage des clics à travers la fenêtre, le pont liquide de la pastille en mouvement.
 - [ ] Plus tard (non fait) : retirer une lecture en pause depuis longtemps ; survol filtré selon la vitesse de la souris.
+
+### Revue de l'îlot Apple Pro (10/11, nuit)
+- [x] Bandeaux et alertes : le corps épouse le contenu (mesuré), « Fait » centré, plus de vide à droite (`GeoIlot.corps`, `IlotAnnonces.swift`).
+- [x] Rendez-vous déplié : corps à la largeur du contenu, pilules de même largeur jusqu'à la marge.
+- [x] VoiceOver : le temps restant du minuteur est lu avec sa valeur.
+- [x] Détails : pastille alignée à droite sur le cou (rappel : titre au survol), calendrier au trait, « suivant » sur la marge, fermeture largeur devant, ressorts partagés moteur/contrôles (`PassageIlot`), aile du rendez-vous « 1 min » au lieu de « maintenant », titre défilant ≤ 20 s, cloche qui se resecoue, saut 16:9 animé, pictogramme sans image à l'échelle, ombre sous la barre seulement, heure morte de l'accueil retirée, spec remise d'accord.
+- [ ] Non fait : `minuteurMinimal` reste un écran sans arbitrage (le retirer touche l'énumération et les rendus, sans gain visible) ; la mi-fermeture reste un bandeau bas (la cible compacte fait elle-même 2 × (caméra / 2 + 44) pt de large).
+
+## Plus tard — idées de l'îlot (Hugues 10/11 soir : « on fera ça plus tard, il y a déjà des choses dessus »)
+- [ ] « Garder éveillé » ☕ dans l'îlot : 5e tuile de l'accueil (2 h / 4 h / ∞), tasse + temps restant dans l'aile, écran fermé compris (`pmset disablesleep` via règle sudoers limitée, `displaysleepnow` à la fermeture) ; veille TOUJOURS rendue si Verbe quitte ou plante ; option « tant que Claude ou Codex travaille ». Inspiration : LidAwake (sans licence → tout réécrire).
+- [ ] Réveils et minuteurs de l'app Horloge d'Apple affichés dans l'îlot (lecture seule, base `group.com.apple.mobiletimerd/local.sqlite`, non officiel).
+- [ ] Commande dictée « réveil / minuteur / réveille-moi à 9 h » (aujourd'hui seules les durées sont comprises) ; idéalement créer le vrai réveil dans Horloge via Raccourcis (à vérifier).
+- Maquette d'abord (tasse + réveil + phrase), puis construction.

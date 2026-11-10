@@ -71,8 +71,13 @@ struct PochetteLecture: View {
                         .position(x: geo.size.width / 2, y: geo.size.height / 2)
                 }
             } else {
-                Image(systemName: m.genre == .musique ? "music.note" : "play.rectangle.fill")
-                    .font(.system(size: 14, weight: .regular)).foregroundStyle(Palette.texte3)
+                // ni image ni icône d'app : un pictogramme à l'échelle de la case (40 % de sa hauteur), jamais un point perdu au milieu
+                GeometryReader { geo in
+                    Image(systemName: m.genre == .musique ? "music.note" : "play.rectangle.fill")
+                        .font(.system(size: max(9, min(geo.size.width, geo.size.height) * 0.4), weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.42))
+                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                }
             }
     }
 }

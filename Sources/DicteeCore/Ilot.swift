@@ -36,9 +36,10 @@ public enum GeoIlot {
     public static let aileMax: Double = 66
     /// Repos d'une activité : rien sous la barre, le cou serré contre la caméra (la place de la pochette, de l'anneau, de l'heure).
     static func compact(_ cou: Double) -> [Double] { [cou, cou, 0, 6, 10, 0, 0] }
-    /// Bandeau passager : cou étroit (les menus restent visibles), corps de 2 × (caméra / 2 + 110) sous la barre, deux lignes.
-    static let bandeau: [Double] = [14, 110, 72, 6, 28, 16, 10]
-    static let alerte: [Double] = [14, 130, 79, 6, 30, 16, 10]
+    /// Bandeau passager : cou étroit (les menus restent visibles), deux lignes sous la barre. Le corps s'ajuste à son contenu (comme la
+    /// Dynamic Island) : la table donne le plus large permis, `corps(_:contenu:demiCamera:)` la largeur voulue.
+    static let bandeau: [Double] = [14, 150, 72, 6, 28, 16, 10]
+    static let alerte: [Double] = [14, 150, 79, 6, 30, 16, 10]
     static let table: [VueIlot: [Double]] = [
         // repos : exactement l'encoche (pas d'épaule : rien ne déborde sur la barre autour de la caméra)
         .repos: [0, 0, 0, 0, 8, 0, 0],
@@ -47,7 +48,7 @@ public enum GeoIlot {
         .lectureCompact: compact(44), .lectureEtendu: [44, 144, 175, 6, 34, 18, 10],
         .rappelEtendu: alerte, .rappelCompact: compact(48), .rappelAjoute: bandeau,
         .rappelFait: bandeau, .rappelReporte: bandeau, .rappelListe: [14, 144, 136, 6, 34, 18, 10],
-        .agendaAvant: bandeau, .agendaCompact: compact(50), .agendaEtendu: [50, 140, 130, 6, 34, 18, 10], .agendaDebut: [14, 124, 72, 6, 28, 16, 10],
+        .agendaAvant: bandeau, .agendaCompact: compact(50), .agendaEtendu: [50, 150, 130, 6, 34, 18, 10], .agendaDebut: bandeau,
         .notification: bandeau, .notifications: bandeau,
         .accueil: [14, 144, 190, 6, 34, 18, 10],
     ]
@@ -56,16 +57,64 @@ public enum GeoIlot {
     public static let largeurs = [0, 1]
     public static let hauteurs = [2, 3, 4, 5, 6]
 
-    /// Les sept valeurs pour une vue, la hauteur comptée depuis le haut de l'écran avec la vraie barre des menus.
-    public static func valeurs(_ v: VueIlot, hauteurBarre: Double) -> [Double] {
+    /// Marge du contenu tout autour du corps (la grille de l'îlot).
+    public static let marge: Double = 16
+    /// Le corps s'évase toujours d'au moins 38 pt au-delà du cou : en deçà, le congé et le coin haut n'ont plus la place de se dessiner
+    /// (la forme deviendrait une languette).
+    public static let evasementMin: Double = 38
+
+    /// Écrans dont le corps épouse le contenu (bandeaux, alertes, rendez-vous déplié) : ni texte collé à gauche ni grand vide à droite.
+    public static func ajusteAuContenu(_ v: VueIlot) -> Bool { v.estBandeau || v.estAlerte || v == .agendaEtendu }
+
+    /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.
+    public static func corps(_ v: VueIlot, contenu largeur: Double, demiCamera: Double) -> Double {
+        let t = table[v] ?? table[.repos]!
+        return min(t[1], max(t[0] + evasementMin, (largeur / 2 + marge - demiCamera).rounded(.up)))
+    }
+
+    /// Les sept valeurs pour une vue, la hauteur comptée depuis le haut de l'écran avec la vraie barre des menus. `contenu` : la largeur
+    /// mesurée du contenu (pt) pour un écran qui s'y ajuste ; nil = le plus large de la table.
+    public static func valeurs(_ v: VueIlot, hauteurBarre: Double, demiCamera: Double = 0, contenu: Double? = nil) -> [Double] {
         var g = table[v] ?? table[.repos]!
         g[2] += hauteurBarre
+        if let contenu, ajusteAuContenu(v) { g[1] = corps(v, contenu: contenu, demiCamera: demiCamera) }
         return g
     }
     /// Profondeur sous la barre (0 pour un repos ou un compact).
     public static func profondeur(_ v: VueIlot) -> Double { (table[v] ?? table[.repos]!)[2] }
-    /// Vrai quand la forme est plus grande que la précédente (ouverture : la largeur mène, un petit rebond).
-    public static func ouvre(de a: [Double], vers b: [Double]) -> Bool { b[2] > a[2] + 4 || b[1] > a[1] + 4 }
+}
+
+/// Comment la forme passe d'un écran à l'autre : les ressorts du moteur, ici pour que les contrôles essaient exactement les mêmes.
+public enum PassageIlot: Equatable, Sendable {
+    case ouverture, fermeture, glissement
+
+    /// Ouverture si la forme doit descendre, fermeture si elle doit remonter (jugé sur la hauteur affichée : une interruption compte).
+    public static func de(hauteur h: Double, vers c: Double) -> PassageIlot { c > h + 1 ? .ouverture : (c < h - 1 ? .fermeture : .glissement) }
+
+    /// Vise la géométrie `c` depuis l'état affiché des ressorts (valeur et vitesse gardées).
+    /// - ouverture : la largeur mène (0,40 s / 0,80), la hauteur suit (0,48 s / 0,75) ; alerte plus vive (0,38 / 0,74 et 0,46 / 0,70) ;
+    /// - fermeture : le contenu part d'abord (0,06 s), puis la forme se dégonfle sans rebond, la largeur un peu plus vite que la hauteur
+    ///   (0,32 s contre 0,42 s) : à mi-course elle se resserre vers l'encoche au lieu de faire un bandeau plat sous les menus ;
+    /// - glissement (même hauteur) : 0,36 s / 0,86 ; « Réduire les animations » : tout saute à sa place.
+    @discardableResult
+    public static func viser(_ geo: inout [RessortIlot], vers c: [Double], alerte: Bool = false, reduire: Bool = false) -> PassageIlot {
+        let p = de(hauteur: geo[2].x, vers: c[2])
+        if reduire {
+            for i in geo.indices { geo[i].viser(c[i], reponse: 0.4, amortissement: 1); geo[i].poser() }
+            return p
+        }
+        switch p {
+        case .fermeture:
+            for i in GeoIlot.hauteurs { geo[i].viser(c[i], reponse: 0.42, amortissement: 1, attente: 0.06) }
+            for i in GeoIlot.largeurs { geo[i].viser(c[i], reponse: 0.32, amortissement: 1, attente: 0.06) }
+        case .ouverture:
+            for i in GeoIlot.largeurs { geo[i].viser(c[i], reponse: alerte ? 0.38 : 0.40, amortissement: alerte ? 0.74 : 0.80) }
+            for i in GeoIlot.hauteurs { geo[i].viser(c[i], reponse: alerte ? 0.46 : 0.48, amortissement: alerte ? 0.70 : 0.75) }
+        case .glissement:
+            for i in geo.indices { geo[i].viser(c[i], reponse: 0.36, amortissement: 0.86) }
+        }
+        return p
+    }
 }
 
 /// Une « activité » : ce qui peut occuper l'îlot ou la pastille.
@@ -205,6 +254,8 @@ public enum TraceIlot {
         public var commandes: [Commande]
         /// Plus grande demi-largeur dans la hauteur de la barre (cou + épaule ou congé) : jamais plus que les ailes.
         public var bande: Double
+        /// Demi-largeur du cou lui-même (le bord droit de l'îlot sous l'épaule, là où s'aligne la pastille).
+        public var cou: Double
         /// Demi-largeur du corps sous la barre.
         public var corps: Double
         public var hauteur: Double
@@ -247,7 +298,7 @@ public enum TraceIlot {
             c.append(.ligne(n + fe, B)); c.append(.quad(n, B, n, B - fe))
         }
         c.append(.ligne(n, rs)); c.append(.quad(n, 0, n + rs, 0)); c.append(.ligne(n + rs, -1))
-        return Points(commandes: c, bande: max(n + rs, n + fe), corps: W, hauteur: h)
+        return Points(commandes: c, bande: max(n + rs, n + fe), cou: n, corps: W, hauteur: h)
     }
 
     /// Plus grande demi-largeur de la forme à la hauteur `y` (pour vérifier que rien ne dépasse dans la barre des menus).

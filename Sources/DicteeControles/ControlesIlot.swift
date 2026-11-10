@@ -28,7 +28,24 @@ func controlesIlot() {
     verifier(compact.corps == demi + 48 && compact.hauteur == barre, "compact : pas de corps sous la barre, même largeur en bas")
     let lectureC = GeoIlot.valeurs(.lectureCompact, hauteurBarre: barre), lectureX = GeoIlot.valeurs(.lectureEtendu, hauteurBarre: barre)
     verifier(lectureC[0] == lectureX[0], "lecture : le cou ne bouge pas en se dépliant (l'égaliseur reste dans l'aile)")
-    verifier(GeoIlot.ouvre(de: GeoIlot.valeurs(.repos, hauteurBarre: barre), vers: GeoIlot.valeurs(.accueil, hauteurBarre: barre)) && !GeoIlot.ouvre(de: GeoIlot.valeurs(.accueil, hauteurBarre: barre), vers: GeoIlot.valeurs(.repos, hauteurBarre: barre)), "ouverture / fermeture reconnues")
+    verifier(PassageIlot.de(hauteur: barre, vers: GeoIlot.valeurs(.accueil, hauteurBarre: barre)[2]) == .ouverture
+             && PassageIlot.de(hauteur: GeoIlot.valeurs(.accueil, hauteurBarre: barre)[2], vers: barre) == .fermeture
+             && PassageIlot.de(hauteur: barre, vers: barre + 0.5) == .glissement, "ouverture / fermeture / glissement reconnus (ceux du moteur)")
+    // le corps épouse le contenu : un « Fait » court donne un corps étroit, un long message s'arrête au plus large de la table
+    for (cam, b) in [(179.0, 33.0), (200.0, 32.0)] {
+        let hc = cam / 2
+        for v in VueIlot.allCases where GeoIlot.ajusteAuContenu(v) {
+            let t = GeoIlot.valeurs(v, hauteurBarre: b)
+            let court = GeoIlot.valeurs(v, hauteurBarre: b, demiCamera: hc, contenu: 60)
+            let long = GeoIlot.valeurs(v, hauteurBarre: b, demiCamera: hc, contenu: 2000)
+            let juste = GeoIlot.valeurs(v, hauteurBarre: b, demiCamera: hc, contenu: 2 * (hc + t[0] + 60) - 32)
+            verifier(court[1] == t[0] + GeoIlot.evasementMin && long[1] == t[1] && abs(juste[1] - (t[0] + 60)) < 1.01 && court[0] == t[0] && court[2] == t[2],
+                     "\(v.rawValue) (caméra \(Int(cam))) : corps ajusté au contenu (court \(Int(court[1])), juste \(Int(juste[1])), long \(Int(long[1])) pt), cou et hauteur inchangés")
+            let p = TraceIlot.calculer(court, demiCamera: hc, barre: b)
+            verifier(p.bande <= hc + GeoIlot.aileMax + 0.001 && p.corps >= p.bande + 20, "\(v.rawValue) au plus court : le corps s'évase encore sous la barre, rien de plus large dans la barre")
+        }
+    }
+    verifier(GeoIlot.valeurs(.lectureEtendu, hauteurBarre: barre, demiCamera: demi, contenu: 10) == GeoIlot.valeurs(.lectureEtendu, hauteurBarre: barre), "la lecture dépliée garde sa largeur (elle remplit déjà son corps)")
     // coins continus : chaque coin du bas est une courbe cubique (pas un arc de cercle), le haut épouse le bord de l'écran
     verifier(etendu.commandes.filter { if case .cubique = $0 { return true }; return false }.count == 4, "étendu : quatre coins continus (courbes cubiques)")
     if case let .deplacer(_, y) = etendu.commandes.first { verifier(y <= 0, "la forme part du bord haut de l'écran") }
@@ -36,19 +53,30 @@ func controlesIlot() {
     let paires: [(VueIlot, VueIlot)] = [(.lectureCompact, .lectureEtendu), (.lectureEtendu, .lectureCompact), (.repos, .accueil), (.accueil, .repos),
                                          (.lectureCompact, .rappelEtendu), (.rappelEtendu, .lectureCompact), (.minuteurCompact, .minuteurEtendu),
                                          (.agendaCompact, .agendaEtendu), (.lectureEtendu, .minuteurFini), (.repos, .notification), (.agendaEtendu, .repos)]
+    // les ressorts sont ceux du moteur (`PassageIlot.viser`), y compris interrompus à mi-course vers un troisième écran
+    let tiers: [VueIlot] = [.repos, .accueil, .lectureCompact, .minuteurFini]
     for (de, vers) in paires {
-        var r = GeoIlot.valeurs(de, hauteurBarre: barre).map { RessortIlot($0, reponse: 0.4, amortissement: 1) }
-        let a = GeoIlot.valeurs(de, hauteurBarre: barre), c = GeoIlot.valeurs(vers, hauteurBarre: barre)
-        let ouvre = c[2] > a[2] + 1, ferme = c[2] < a[2] - 1
-        for i in GeoIlot.largeurs { r[i].viser(c[i], reponse: ouvre ? 0.38 : 0.38, amortissement: ouvre ? 0.74 : 1, attente: ferme ? 0.06 : 0) }
-        for i in GeoIlot.hauteurs { r[i].viser(c[i], reponse: ouvre ? 0.46 : 0.42, amortissement: ouvre ? 0.70 : 1, attente: ferme ? 0.06 : 0) }
         var bandeMax = 0.0, hauteurMin = 1e9
-        for _ in 0..<240 {
-            for i in 0..<r.count { r[i].avancer(1.0 / 120) }
-            let p = TraceIlot.calculer(r.map(\.x), demiCamera: demi, barre: barre)
-            bandeMax = max(bandeMax, p.bande); hauteurMin = min(hauteurMin, p.hauteur)
+        for interruption in [nil] + tiers.map(Optional.some) where interruption != vers {
+            var r = GeoIlot.valeurs(de, hauteurBarre: barre).map { RessortIlot($0, reponse: 0.4, amortissement: 1) }
+            PassageIlot.viser(&r, vers: GeoIlot.valeurs(vers, hauteurBarre: barre), alerte: vers.estAlerte)
+            for k in 0..<240 {
+                if k == 18, let x = interruption { PassageIlot.viser(&r, vers: GeoIlot.valeurs(x, hauteurBarre: barre), alerte: x.estAlerte) }
+                for i in 0..<r.count { r[i].avancer(1.0 / 120) }
+                let p = TraceIlot.calculer(r.map(\.x), demiCamera: demi, barre: barre)
+                bandeMax = max(bandeMax, p.bande); hauteurMin = min(hauteurMin, p.hauteur)
+            }
         }
-        verifier(bandeMax <= demi + GeoIlot.aileMax + 0.01 && hauteurMin >= barre - 0.01, "passage \(de.rawValue) → \(vers.rawValue) : bande max \(String(format: "%.1f", bandeMax - demi)) pt ≤ 66, jamais plus haut que la barre")
+        verifier(bandeMax <= demi + GeoIlot.aileMax + 0.01 && hauteurMin >= barre - 0.01, "passage \(de.rawValue) → \(vers.rawValue) (et interrompu) : bande max \(String(format: "%.1f", bandeMax - demi)) pt ≤ 66, jamais plus haut que la barre")
+    }
+    // à mi-fermeture, la forme se resserre vers l'encoche (pas de bandeau plat plus large que l'écran déplié n'était haut)
+    do {
+        var r = GeoIlot.valeurs(.lectureEtendu, hauteurBarre: barre).map { RessortIlot($0, reponse: 0.4, amortissement: 1) }
+        let fin = GeoIlot.valeurs(.lectureCompact, hauteurBarre: barre)
+        verifier(PassageIlot.viser(&r, vers: fin) == .fermeture, "lecture dépliée → compacte : une fermeture")
+        for _ in 0..<24 { for i in 0..<r.count { r[i].avancer(1.0 / 120) } }
+        let largeur = (r[1].x - fin[1]) / (144 - fin[1]), hauteur = (r[2].x - fin[2]) / (175)
+        verifier(largeur < hauteur, "à 200 ms de la fermeture, la largeur a fait plus de chemin que la hauteur (\(Int(largeur * 100)) % restant contre \(Int(hauteur * 100)) %)")
     }
 
     groupe("Îlot : priorité et pastille")
@@ -177,6 +205,7 @@ func controlesIlot() {
     verifier(PlanAgenda.etape(ev, a: debut) == .debut && PlanAgenda.etape(ev, a: debut.addingTimeInterval(119)) == .debut, "au début : alerte")
     verifier(PlanAgenda.etape(ev, a: debut.addingTimeInterval(121)) == .passe, "2 min après le début : on ne réveille plus personne")
     verifier(PlanAgenda.dans(600) == "dans 10 min" && PlanAgenda.dans(59) == "dans 1 min" && PlanAgenda.dans(10) == "maintenant", "libellé « dans N min »")
+    verifier(PlanAgenda.court(600) == "10 min" && PlanAgenda.court(59) == "1 min" && PlanAgenda.court(10) == "1 min" && PlanAgenda.court(0) == "1 min", "aile du rendez-vous : « 1 min » jusqu'au début, jamais « maintenant » (coupé dans 38 pt)")
     let journee = EvenementAgenda(id: "j", titre: "Anniversaire", debut: t0.addingTimeInterval(60), fin: t0.addingTimeInterval(86000), toutelaJournee: true)
     let passe = EvenementAgenda(id: "p", titre: "Fini", debut: t0.addingTimeInterval(-7200), fin: t0.addingTimeInterval(-3600))
     verifier(PlanAgenda.prochain([journee, passe, ev], a: t0)?.id == "a", "le prochain : ni journée entière, ni rendez-vous fini")

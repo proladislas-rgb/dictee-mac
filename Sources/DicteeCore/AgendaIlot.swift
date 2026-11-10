@@ -71,6 +71,9 @@ public enum PlanAgenda {
         if secondes <= 30 { return "maintenant" }
         return "dans \(max(1, Int((secondes / 60).rounded(.up)))) min"
     }
+    /// Le compte à rebours de l'aile et de la pastille : « 10 min », « 1 min ». Jamais « maintenant », qui ne tient pas dans l'aile
+    /// (38 pt) : au début, c'est l'alerte « … commence » qui prend le relais.
+    public static func court(_ secondes: Double) -> String { "\(max(1, Int((secondes / 60).rounded(.up)))) min" }
     /// « 14:42 – 15:15 ».
     public static func plage(_ e: EvenementAgenda, calendrier: Calendar = .current) -> String {
         FormatIlot.heure(e.debut, calendrier: calendrier) + " \u{2013} " + FormatIlot.heure(e.fin, calendrier: calendrier)

@@ -131,6 +131,8 @@ struct CapIlot: View {
     var style: Style = .gris
     var hauteur: CGFloat = 32
     var etiquette: String?
+    /// Prend toute la largeur proposée (rangée de pilules de même largeur), au lieu de sa largeur naturelle.
+    var remplir = false
     var action: () -> Void
     @State private var survol = false
 
@@ -158,6 +160,7 @@ struct CapIlot: View {
             }
             .foregroundStyle(encre)
             .padding(.horizontal, hauteur >= 32 ? 14 : 11)
+            .frame(maxWidth: remplir ? .infinity : nil)
             .frame(height: hauteur)
             .background(Capsule().fill(fond))
             .contentShape(Capsule())
@@ -348,6 +351,8 @@ struct BarreLecture: View {
 /// Un titre sur une ligne. S'il est trop long : « … » au repos, et il défile deux fois (après 1,6 s), bord droit estompé, puis revient.
 /// Aucun défilement avec « Réduire les animations » ni dans les rendus PNG.
 struct TitreDefilant: View {
+    /// Tout le défilement tient en 20 s (puis plus rien ne tourne).
+    static let budget = 20.0
     var texte: String
     var police: Font
     var largeur: CGFloat
@@ -363,7 +368,12 @@ struct TitreDefilant: View {
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { mesure = $0 }
             if trop > 1, defiler {
                 let dist = trop + 22
-                let duree = max(5, dist / 26 + 2.4)
+                // ~26 pt/s ; deux passages si cela tient en 20 s, sinon un seul, accéléré pour finir en 20 s (un titre YouTube de 200
+                // caractères faisait tourner l'animation 75 s). Les pauses font 3,3 s par passage.
+                let naturel = max(5, dist / 26 + 2.4)
+                let deux = 2 * (3.3 + 0.76 * naturel) <= TitreDefilant.budget
+                let duree = deux ? naturel : min(naturel, (TitreDefilant.budget - 3.3) / 0.76)
+                let d2 = deux ? 1.0 : 0
                 Text(texte).font(police).foregroundStyle(.white).lineLimit(1).fixedSize()
                     .keyframeAnimator(initialValue: 0.0, trigger: lancer) { v, x in
                         v.offset(x: x)
@@ -373,10 +383,10 @@ struct TitreDefilant: View {
                             LinearKeyframe(-dist, duration: duree * 0.76)
                             LinearKeyframe(-dist, duration: 1.2)
                             CubicKeyframe(0, duration: 0.5)
-                            LinearKeyframe(0, duration: 1.6)
-                            LinearKeyframe(-dist, duration: duree * 0.76)
-                            LinearKeyframe(-dist, duration: 1.2)
-                            CubicKeyframe(0, duration: 0.5)
+                            LinearKeyframe(0, duration: 1.6 * d2)
+                            LinearKeyframe(-dist * d2, duration: duree * 0.76 * d2)
+                            LinearKeyframe(-dist * d2, duration: 1.2 * d2)
+                            CubicKeyframe(0, duration: 0.5 * d2)
                         }
                     }
                     .frame(width: largeur, alignment: .leading)
@@ -397,9 +407,11 @@ struct TitreDefilant: View {
 // MARK: cloche
 
 /// La cloche du rappel qui sonne : elle se secoue deux fois (14°, −12°, 9°, −6°, 3°) après 0,18 s, puis se repose. Rien ne tourne ensuite.
+/// `sonnerie` : l'identifiant du rappel qui sonne (nil : aucun, ou « Réduire les animations »). Elle se secoue à son apparition ET à
+/// chaque nouveau rappel qui sonne pendant qu'elle est déjà là (la cloche d'un rappel sans réponse, restée dans l'aile).
 struct ClocheSecouee: View {
     var taille: CGFloat
-    var secouer: Bool
+    var sonnerie: UUID?
     @State private var lancer = false
     var body: some View {
         Image(systemName: "bell.fill").font(.system(size: taille, weight: .semibold)).foregroundStyle(CouleursIlot.jaune)
@@ -415,18 +427,44 @@ struct ClocheSecouee: View {
                     CubicKeyframe(-6, duration: 0.126); CubicKeyframe(3, duration: 0.126); CubicKeyframe(0, duration: 0.108)
                 }
             }
-            .onAppear { if secouer { lancer.toggle() } }
+            .onAppear { if sonnerie != nil { lancer.toggle() } }
+            .onChange(of: sonnerie) { _, n in if n != nil { lancer.toggle() } }
             .accessibilityHidden(true)
     }
 }
 
 /// Un symbole SF de l'îlot, sans fond (cloche, calendrier, minuteur…).
 struct GlypheIlot: View {
+    /// Le calendrier, dessiné au trait : le symbole « calendar » du système est devenu une tuile pleine (fond rouge, points découpés),
+    /// bien plus lourde que la cloche ou le minuteur.
+    static let calendrier = "îlot.calendrier"
     var nom: String
     var couleur: Color
     var taille: CGFloat
     var body: some View {
-        Image(systemName: nom).font(.system(size: taille, weight: .semibold)).foregroundStyle(couleur)
-            .accessibilityHidden(true)
+        Group {
+            if nom == Self.calendrier { CalendrierTrait(couleur: couleur, taille: taille) }
+            else { Image(systemName: nom).font(.system(size: taille, weight: .semibold)).foregroundStyle(couleur) }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// Un calendrier au trait, du poids du minuteur et de l'horloge : cadre arrondi, filet sous l'en-tête, deux anneaux, et la date du jour.
+struct CalendrierTrait: View {
+    var couleur: Color
+    var taille: CGFloat
+    var body: some View {
+        let l = taille * 0.92, h = taille * 0.84, t = max(1.2, taille * 0.085)
+        ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: taille * 0.2, style: .continuous).strokeBorder(couleur, lineWidth: t)
+                .frame(width: l, height: h).padding(.top, taille * 0.1)
+            Rectangle().fill(couleur).frame(width: l - t, height: t).padding(.top, taille * 0.1 + h * 0.3)
+            HStack(spacing: l * 0.36) {
+                Capsule().fill(couleur).frame(width: t, height: taille * 0.22)
+                Capsule().fill(couleur).frame(width: t, height: taille * 0.22)
+            }
+        }
+        .frame(width: taille, height: taille)
     }
 }

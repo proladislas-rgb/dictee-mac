@@ -190,10 +190,9 @@ final class IlotControleur {
 
     // MARK: déploiement
 
-    /// L'îlot se déplie : on relit ce que l'accueil montre (dernière dictée, prochain rendez-vous, heure) et le site de la lecture.
+    /// L'îlot se déplie : on relit ce que l'accueil montre (dernière dictée, prochain rendez-vous) et le site de la lecture. L'heure n'y
+    /// est plus : la barre des menus l'affiche déjà juste à côté.
     private func depliage() {
-        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "H:mm"
-        moteur.horloge = f.string(from: maintenant())
         if let e = HistoriqueStore.shared.historique.entrees.first(where: { $0.insere || !$0.texte.isEmpty }) {
             let texte = e.texte.trimmingCharacters(in: .whitespacesAndNewlines)
             moteur.derniereDictee = (String(texte.prefix(90)), ageLisible(e.date))

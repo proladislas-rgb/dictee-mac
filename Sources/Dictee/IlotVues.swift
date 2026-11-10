@@ -13,8 +13,12 @@ import DicteeCore
 struct GrilleIlot {
     var hc: CGFloat
     var barre: CGFloat
-    static let marge: CGFloat = 16
-    private func f(_ v: VueIlot) -> [Double] { GeoIlot.valeurs(v, hauteurBarre: Double(barre)) }
+    /// Largeur mesurée du contenu des écrans qui l'épousent (bandeaux, alertes, rendez-vous déplié) : la forme et la grille suivent.
+    var contenus: [VueIlot: CGFloat] = [:]
+    static let marge = CGFloat(GeoIlot.marge)
+    private func f(_ v: VueIlot) -> [Double] {
+        GeoIlot.valeurs(v, hauteurBarre: Double(barre), demiCamera: Double(hc), contenu: contenus[v].map(Double.init))
+    }
     /// Demi-largeur du corps (sous la barre) et du cou (dans la barre), depuis le centre.
     func corps(_ v: VueIlot) -> CGFloat { hc + CGFloat(f(v)[1]) }
     func cou(_ v: VueIlot) -> CGFloat { hc + CGFloat(f(v)[0]) }
@@ -23,6 +27,13 @@ struct GrilleIlot {
     func zone(_ v: VueIlot, haut: CGFloat = 16, bas: CGFloat = 16) -> CGRect {
         let w = corps(v)
         return CGRect(x: -w + Self.marge, y: barre + haut, width: 2 * w - 2 * Self.marge, height: hauteur(v) - barre - haut - bas)
+    }
+    /// La zone d'une annonce : exactement la largeur de son contenu, centrée. Elle ne diffère de `zone` que si le contenu est plus
+    /// étroit que le corps le plus serré (un « Fait » de deux mots) : le bloc est alors centré, jamais collé à gauche devant du vide.
+    func zoneAnnonce(_ v: VueIlot, haut: CGFloat = 16, bas: CGFloat = 16) -> CGRect {
+        let z = zone(v, haut: haut, bas: bas)
+        guard let c = contenus[v], c < z.width else { return z }
+        return z.insetBy(dx: ((z.width - c) / 2).rounded(), dy: 0)
     }
     /// Milieu d'une aile (entre la caméra et le cou) d'un écran compact.
     func centreAile(_ v: VueIlot, droite: Bool) -> CGFloat { let c = (hc + cou(v)) / 2; return droite ? c : -c }
@@ -93,45 +104,56 @@ struct IlotCalques: View {
         case .repos, .lectureCompact, .minuteurMinimal, .minuteurCompact: EmptyView()
         case .lectureEtendu: LectureEtendue(m: m, lecture: m.lecture, g: g)
         case .minuteurEtendu: minuteurEtendu
-        case .minuteurLance, .minuteurFini: annonceMinuteur(v)
-        case .rappelCompact: heureAile(.rappelCompact, FormatIlot.heure(rappelVu?.echeance ?? m.maintenant()), CouleursIlot.jaune)
-        case .rappelEtendu: rappelEtendu
-        case .rappelAjoute, .rappelFait, .rappelReporte: bandeauRappel(v)
+        case .minuteurLance, .minuteurFini, .rappelEtendu, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .agendaDebut,
+             .notification, .notifications:
+            if let c = m.contenuAnnonce(v) { annonce(v, c) }
+        case .rappelCompact: heureAile(.rappelCompact, FormatIlot.heure(m.rappelVu?.echeance ?? m.maintenant()), CouleursIlot.jaune)
         case .rappelListe: rappelListe
         case .agendaCompact:
             TimelineView(.periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: 15)) { _ in
-                heureAile(.agendaCompact, rdvVu.map { PlanAgenda.dans($0.debut.timeIntervalSince(m.maintenant())).replacingOccurrences(of: "dans ", with: "") } ?? "", .white)
+                heureAile(.agendaCompact, m.rdvVu.map { PlanAgenda.court($0.debut.timeIntervalSince(m.maintenant())) } ?? "", .white)
             }
         case .agendaEtendu: agendaEtendu
-        case .agendaAvant, .agendaDebut: annonceAgenda(v)
-        case .notification, .notifications: annonceNotification(v)
         case .accueil: accueil
         }
     }
 
     // MARK: lignes d'annonce (bandeaux et alertes)
 
-    /// Une annonce sur une ligne : [symbole] [titre / sous-titre] [actions]. Les trois blocs arrivent l'un après l'autre.
-    /// `glyphe` nil : la place est gardée pour une pièce qui voyage (la cloche, le calendrier).
-    private func annonce<G: View, D: View>(_ v: VueIlot, glyphe: G?, l1: String, l2: Text, @ViewBuilder droite: () -> D) -> some View {
-        let alerte = GeoIlot.profondeur(v) > 75
-        let z = g.zone(v, haut: alerte ? 20 : 16, bas: alerte ? 20 : 16)
-        return HStack(spacing: 12) {
-            Group { if let glyphe { glyphe } else { Color.clear } }
-                .frame(width: 26, height: 26).aspectIlot(m.aspect(v, rang: 0), ancre: .center)
+    /// Une annonce sur une ligne : [symbole] [titre / sous-titre] [actions]. Les trois blocs arrivent l'un après l'autre. La forme a
+    /// la largeur de ce contenu (`IlotMoteur.largeurContenu`, même description `ContenuAnnonce`) : rien n'est tassé à gauche.
+    /// Symbole nil : la place est gardée pour une pièce qui voyage (la cloche).
+    private func annonce(_ v: VueIlot, _ c: ContenuAnnonce) -> some View {
+        let z = g.zoneAnnonce(v, haut: v.estAlerte ? 20 : 16, bas: v.estAlerte ? 20 : 16)
+        return HStack(spacing: ContenuAnnonce.espace) {
+            Group { if let glyphe = c.glyphe { glyphe } else { Color.clear } }
+                .frame(width: ContenuAnnonce.cote, height: ContenuAnnonce.cote).aspectIlot(m.aspect(v, rang: 0), ancre: .center)
             VStack(alignment: .leading, spacing: 2) {
-                Text(l1).font(TexteIlot.l1).tracking(-0.2).foregroundStyle(.white).lineLimit(1).truncationMode(.tail)
-                l2.font(TexteIlot.l2).foregroundStyle(CouleursIlot.encre2).lineLimit(1).truncationMode(.tail)
+                Text(c.l1).font(TexteIlot.l1).tracking(ContenuAnnonce.interlettreL1).foregroundStyle(.white).lineLimit(1).truncationMode(.tail)
+                c.texteL2.font(TexteIlot.l2).foregroundStyle(CouleursIlot.encre2).lineLimit(1).truncationMode(.tail)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .aspectIlot(m.aspect(v, rang: 1), ancre: .topLeading)
-            droite().fixedSize().aspectIlot(m.aspect(v, rang: 2), ancre: .topTrailing)
+            switch c.droite {
+            case .rien: EmptyView()
+            case .meta(let t): meta(t).fixedSize().aspectIlot(m.aspect(v, rang: 2), ancre: .topTrailing)
+            case .temps:
+                tic { d in Text(tempsRestant(d)).font(ContenuAnnonce.policeTemps).foregroundStyle(CouleursIlot.ambre) }
+                    .fixedSize().aspectIlot(m.aspect(v, rang: 2), ancre: .topTrailing)
+            case .boutons(let bs):
+                HStack(spacing: ContenuAnnonce.espaceBoutons) {
+                    ForEach(Array(bs.enumerated()), id: \.offset) { _, b in
+                        CapIlot(titre: b.titre, icone: b.icone, style: b.style, etiquette: b.etiquette) { if let a = b.action { m.surAction(a) } }
+                    }
+                }
+                .fixedSize().aspectIlot(m.aspect(v, rang: 2), ancre: .topTrailing)
+            }
         }
         .frame(width: z.width, height: z.height)
         .offset(x: IlotMoteur.largeur / 2 + z.minX, y: z.minY)
     }
     private func meta(_ s: String) -> some View {
-        Text(s).font(.system(size: 13, weight: .semibold).monospacedDigit()).foregroundStyle(CouleursIlot.encre2).lineLimit(1)
+        Text(s).font(ContenuAnnonce.policeMeta).foregroundStyle(CouleursIlot.encre2).lineLimit(1)
     }
     /// Une heure ou une durée dans l'aile droite d'un compact, calée sur le bord extérieur (8 pt du coin).
     private func heureAile(_ v: VueIlot, _ s: String, _ c: Color) -> some View {
@@ -177,14 +199,15 @@ struct IlotCalques: View {
                 .posee(r, a, ancre: .center)
             if m.courante != .minuteurMinimal {
                 tic { d in
+                    // VoiceOver lit « Temps restant, 6:32 » : la valeur, pas seulement le nom
                     Text(tempsRestant(d)).font(.system(size: 40, weight: .semibold).monospacedDigit()).tracking(-0.4)
                         .foregroundStyle(CouleursIlot.ambre).lineLimit(1).fixedSize()
+                        .accessibilityLabel("Temps restant").accessibilityValue(tempsRestant(d))
                 }
                 .frame(width: 160, height: 48, alignment: .trailing)
                 .scaleEffect(fs / 40, anchor: .topTrailing)
                 .opacity(a.opacite).blur(radius: a.flou)
                 .offset(x: IlotMoteur.largeur / 2 + d - 160, y: haut)
-                .accessibilityLabel("Temps restant")
             }
         }
     }
@@ -208,26 +231,7 @@ struct IlotCalques: View {
         }
     }
 
-    @ViewBuilder private func annonceMinuteur(_ v: VueIlot) -> some View {
-        let glyphe = GlypheIlot(nom: "timer", couleur: CouleursIlot.ambre, taille: 22)
-        if v == .minuteurLance {
-            let b = m.bandeauVu
-            annonce(v, glyphe: glyphe, l1: b?.ligne1 ?? "Minuteur lancé", l2: Text(b?.ligne2 ?? "")) {
-                tic { d in Text(tempsRestant(d)).font(.system(size: 15, weight: .semibold).monospacedDigit()).foregroundStyle(CouleursIlot.ambre) }
-            }
-        } else {
-            annonce(v, glyphe: glyphe, l1: "Minuteur terminé", l2: Text((m.alerteVu?.libelle ?? "") + " \u{00B7} il est " + FormatIlot.heure(m.maintenant()))) {
-                HStack(spacing: 8) {
-                    CapIlot(titre: "Encore 5 min") { m.surAction(.minuteurRecommencer(minutes: 5)) }
-                    CapIlot(titre: "OK", style: .ambre) { m.surAction(.alerteOK) }
-                }
-            }
-        }
-    }
-
     // MARK: rappels
-
-    private var rappelVu: Rappel? { m.alerteVu?.rappel ?? m.rappelsSonnes.first ?? m.dernierRappel }
 
     /// La cloche (rappel) ou le calendrier (rendez-vous) : dans l'aile gauche au repos, à sa place dans l'annonce une fois déplié.
     private func voyageurGlyphe(_ f: FamilleIlot) -> some View {
@@ -236,48 +240,21 @@ struct IlotCalques: View {
         let (vc, vx) = f.vues!
         let c = g.centreAile(vc, droite: false)
         let compact = CGRect(x: c - 13, y: g.barre / 2 - 13, width: 26, height: 26)
-        let z = f == .rappel ? g.zone(vx, haut: 20, bas: 20) : g.zone(vx)
+        let z = f == .rappel ? g.zoneAnnonce(vx, haut: 20, bas: 20) : g.zone(vx)
         let etendu = CGRect(x: z.minX, y: f == .rappel ? z.midY - 13 : z.minY - 2, width: 26, height: 26)
         let (r, ts) = voyageIlot(compact, etendu, p)
         let echelle = lerp(15.0 / 22.0, 1, ts)
+        // la cloche se secoue à chaque rappel qui SONNE (alerte), même si elle était déjà dans l'aile ; jamais au simple survol
+        let sonne = m.alerte?.vue == .rappelEtendu ? m.alerte?.rappel?.id : nil
         return Group {
             if f == .rappel {
-                ClocheSecouee(taille: 22, secouer: m.courante == .rappelEtendu && !m.reduire && !m.statique)
+                ClocheSecouee(taille: 22, sonnerie: m.reduire || m.statique ? nil : sonne)
             } else {
-                GlypheIlot(nom: "calendar", couleur: CouleursIlot.rouge, taille: 22)
+                GlypheIlot(nom: GlypheIlot.calendrier, couleur: CouleursIlot.rouge, taille: 22)
             }
         }
         .scaleEffect(echelle)
         .posee(r, a, ancre: .center, .center)
-    }
-
-    private var rappelEtendu: some View {
-        let v = VueIlot.rappelEtendu, r = rappelVu
-        let quand = r?.echeance ?? m.maintenant()
-        return annonce(v, glyphe: Optional<EmptyView>.none, l1: r?.texte ?? "",
-                       l2: Text("Rappel \u{00B7} ") + Text(FormatIlot.heure(quand)).foregroundColor(.white) + Text(" \u{00B7} " + ListeRappels.retard(de: quand, maintenant: m.maintenant()))) {
-            HStack(spacing: 8) {
-                CapIlot(titre: "Plus tard", etiquette: "Plus tard, dans 10 minutes") { if let r { m.surAction(.rappelPlusTard(r.id)) } }
-                CapIlot(titre: "Fait", style: .jaune) { if let r { m.surAction(.rappelFait(r.id)) } }
-            }
-        }
-    }
-
-    @ViewBuilder private func bandeauRappel(_ v: VueIlot) -> some View {
-        let b = m.bandeauVu
-        switch v {
-        case .rappelAjoute:
-            annonce(v, glyphe: GlypheIlot(nom: "bell.fill", couleur: CouleursIlot.jaune, taille: 21), l1: b?.ligne1 ?? "Rappel ajouté",
-                    l2: Text([b?.ligne2 ?? "", b?.meta ?? ""].filter { !$0.isEmpty }.joined(separator: " \u{00B7} "))) {
-                CapIlot(titre: "Annuler") { if let id = b?.rappelId { m.surAction(.rappelAnnuler(id)) } }
-            }
-        case .rappelFait:
-            annonce(v, glyphe: GlypheIlot(nom: "checkmark.circle.fill", couleur: CouleursIlot.vert, taille: 22), l1: b?.ligne1 ?? "Fait", l2: Text(b?.ligne2 ?? "")) { EmptyView() }
-        default:
-            annonce(v, glyphe: GlypheIlot(nom: "clock.arrow.circlepath", couleur: CouleursIlot.jaune, taille: 21), l1: b?.ligne1 ?? "", l2: Text(b?.ligne2 ?? "")) {
-                meta(b?.meta ?? "")
-            }
-        }
     }
 
     private var rappelListe: some View {
@@ -312,12 +289,12 @@ struct IlotCalques: View {
 
     // MARK: agenda
 
-    private var rdvVu: EvenementAgenda? { m.alerteVu?.evenement ?? m.rendezVous ?? m.dernierRendezVous }
-
+    /// Le rendez-vous déplié : le corps a la largeur de son contenu, et les actions forment une rangée de pilules de même largeur
+    /// qui va jusqu'à la marge droite (comme les boutons d'une activité en direct) : plus de tiers droit vide.
     private var agendaEtendu: some View {
-        let v = VueIlot.agendaEtendu, e = rdvVu
+        let v = VueIlot.agendaEtendu, e = m.rdvVu
         let z = g.zone(v)
-        let x = z.minX + 38, l = z.maxX - x
+        let x = z.minX + ContenuAgenda.retrait, l = z.maxX - x
         let visio = e?.lien != nil
         return ZStack(alignment: .topLeading) {
             Text(e?.titre ?? "").font(TexteIlot.l1).tracking(-0.2).foregroundStyle(.white).lineLimit(1).truncationMode(.tail)
@@ -329,56 +306,18 @@ struct IlotCalques: View {
             .posee(CGRect(x: x, y: z.minY + 23, width: l, height: 16), m.aspect(v, rang: 1), ancre: .topLeading)
             HStack(spacing: 6) {
                 Image(systemName: visio ? "video.fill" : "mappin.and.ellipse").font(.system(size: 11, weight: .semibold))
-                Text(e.flatMap { $0.lien.map(adresseCourte) ?? $0.lieu } ?? "").font(TexteIlot.l2).lineLimit(1).truncationMode(.middle)
+                Text(e.map(ContenuAgenda.ligneLieu) ?? "").font(TexteIlot.l2).lineLimit(1).truncationMode(.middle)
             }
             .foregroundStyle(CouleursIlot.encre2)
             .posee(CGRect(x: x, y: z.minY + 41, width: l, height: 16), m.aspect(v, rang: 2), ancre: .topLeading)
             if let e {
-                HStack(spacing: 8) {
-                    if visio { CapIlot(titre: "Rejoindre", icone: "video.fill", style: .vert) { m.surAction(.rendezVousRejoindre(e)) } }
-                    CapIlot(titre: "Noter la réunion", icone: "note.text") { m.surAction(.rendezVousNoter(e)) }
-                    Spacer(minLength: 0)
+                HStack(spacing: ContenuAnnonce.espaceBoutons) {
+                    ForEach(Array(ContenuAgenda.boutons(e).enumerated()), id: \.offset) { _, b in
+                        CapIlot(titre: b.titre, icone: b.icone, style: b.style, etiquette: b.etiquette, remplir: true) { if let a = b.action { m.surAction(a) } }
+                    }
                 }
                 .posee(CGRect(x: x, y: z.minY + 68, width: l, height: 32), m.aspect(v, rang: 3), ancre: .topLeading)
             }
-        }
-    }
-    private func adresseCourte(_ u: URL) -> String { (u.host ?? "") + u.path }
-
-    @ViewBuilder private func annonceAgenda(_ v: VueIlot) -> some View {
-        let e = rdvVu
-        let glyphe = GlypheIlot(nom: "calendar", couleur: CouleursIlot.rouge, taille: 21)
-        if v == .agendaAvant {
-            let b = m.bandeauVu
-            annonce(v, glyphe: glyphe, l1: b?.ligne1 ?? e?.titre ?? "", l2: Text(b?.ligne2 ?? "")) { meta(e.map { FormatIlot.heure($0.debut) } ?? "") }
-        } else {
-            let visio = e?.lien != nil
-            annonce(v, glyphe: glyphe, l1: (e?.titre ?? "") + " commence", l2: Text("Maintenant" + (visio ? " \u{00B7} Visio" : ""))) {
-                if let e, visio { CapIlot(titre: "Rejoindre", icone: "video.fill", style: .vert) { m.surAction(.rendezVousRejoindre(e)) } }
-            }
-        }
-    }
-
-    // MARK: notifications
-
-    private func glypheApp(_ app: String) -> GlypheIlot {
-        let a = app.lowercased()
-        if a.contains("message") { return GlypheIlot(nom: "message.fill", couleur: CouleursIlot.vert, taille: 21) }
-        if a.contains("mail") { return GlypheIlot(nom: "envelope.fill", couleur: CouleursIlot.bleu, taille: 20) }
-        if a.contains("calend") { return GlypheIlot(nom: "calendar", couleur: CouleursIlot.rouge, taille: 21) }
-        if ["slack", "teams", "discord", "whatsapp", "telegram", "signal"].contains(where: a.contains) {
-            return GlypheIlot(nom: "bubble.left.and.bubble.right.fill", couleur: Color.white.opacity(0.85), taille: 19)
-        }
-        return GlypheIlot(nom: "app.badge.fill", couleur: Color.white.opacity(0.85), taille: 21)
-    }
-
-    @ViewBuilder private func annonceNotification(_ v: VueIlot) -> some View {
-        let n = m.notifications
-        if v == .notification, let x = n.last {
-            annonce(v, glyphe: glypheApp(x.app), l1: x.titre.isEmpty ? x.app : x.titre, l2: Text(x.corps.isEmpty ? x.app : x.corps)) { meta("maintenant") }
-        } else {
-            annonce(v, glyphe: GlypheIlot(nom: "bell.badge.fill", couleur: Color.white.opacity(0.85), taille: 21),
-                    l1: LectureNotifications.titreDeGroupe(max(2, n.count)), l2: Text(LectureNotifications.ligneDeGroupe(n))) { EmptyView() }
         }
     }
 
@@ -391,7 +330,7 @@ struct IlotCalques: View {
         let e = m.rendezVousSuivant
         let d = m.derniereDictee
         return VStack(spacing: 0) {
-            ligneAccueil(v, 0, glyphe: GlypheIlot(nom: "calendar", couleur: CouleursIlot.rouge, taille: 17),
+            ligneAccueil(v, 0, glyphe: GlypheIlot(nom: GlypheIlot.calendrier, couleur: CouleursIlot.rouge, taille: 17),
                          titre: e?.titre ?? (m.calendrierActif ? "Rien de prévu" : "Calendrier éteint"),
                          sous: e.map { FormatIlot.heure($0.debut) + " \u{00B7} " + PlanAgenda.dans($0.debut.timeIntervalSince(m.maintenant())) } ?? (m.calendrierActif ? "Aucun rendez-vous à venir" : "Activable dans les réglages")) {
                 if let e, e.lien != nil { CapIlot(titre: "Rejoindre", icone: "video.fill", style: .vert, hauteur: 28) { m.surAction(.rendezVousRejoindre(e)) } }
@@ -474,6 +413,8 @@ struct LectureVoyageurs: View {
             .posee(CGRect(x: ce - 9.7, y: g.barre / 2 - 7, width: 19.4, height: 14), a, ancre: .center)
             .accessibilityHidden(true)
         }
+        // carré → 16:9 (la miniature arrive après l'icône de l'app) : la pochette s'élargit au lieu de sauter
+        .animation(m.reduire || m.statique ? nil : .spring(response: 0.36, dampingFraction: 0.86), value: large)
     }
 }
 
@@ -514,11 +455,15 @@ struct LectureEtendue: View {
             }
             .posee(CGRect(x: -100, y: b + 125, width: 200, height: 40), m.aspect(v, rang: 3), ancre: .top, .center)
             if !musique {
+                // le glyphe (pas sa zone cliquable de 40 pt) finit sur la marge, comme le temps restant juste au-dessus
+                let gs = MesureIlot.symbole("forward.end.fill", 15)
                 BoutonNu(symbole: "forward.end.fill", taille: 15, discret: true, etiquette: "Suivant") { lecture.surSuivant() }
-                    .posee(CGRect(x: w - GrilleIlot.marge - 40, y: b + 125, width: 40, height: 40), m.aspect(v, rang: 3), ancre: .center)
+                    .posee(CGRect(x: w - GrilleIlot.marge - (40 + gs) / 2, y: b + 125, width: 40, height: 40), m.aspect(v, rang: 3), ancre: .center)
             }
         }
         .animation(m.reduire ? nil : .easeOut(duration: 0.24), value: titre)
+        // une miniature 16:9 qui arrive après l'icône carrée : le titre glisse au lieu de sauter de 56 pt
+        .animation(m.reduire || m.statique ? nil : .spring(response: 0.36, dampingFraction: 0.86), value: lecture.pochetteLarge)
     }
 }
 
@@ -552,15 +497,14 @@ struct PastilleVue: View {
         if let a = m.pastille, chute > 0.005 {
             let b = m.geometrie.hauteur
             let y = 6 + b * chute
-            let x0 = m.xPastille
-            let base = m.largeurPastille(a), large = m.largeurPastilleOuverte(a)
-            let l = base + (large - base) * ouv
+            let l = m.largeurPastilleActuelle(a)
+            let x0 = m.bordPastille - l
             let h = IlotMoteur.hauteurPastille
             let ilot = m.trace
             let ecart = y - CGFloat(ilot.hauteur)
             ZStack(alignment: .topLeading) {
                 if !m.reduire, ecart < 14, chute < 0.995 {
-                    goutte(x0: x0, y: y, l: l, ecart: ecart, cou: CGFloat(min(ilot.bande, Double(x0 + 62))), hauteurIlot: CGFloat(ilot.hauteur))
+                    goutte(x0: x0, y: y, l: l, ecart: ecart, cou: CGFloat(ilot.cou), hauteurIlot: CGFloat(ilot.hauteur))
                 }
                 Capsule().fill(Color.black)
                     .frame(width: l, height: h)
@@ -574,7 +518,7 @@ struct PastilleVue: View {
                     .frame(width: l, height: h, alignment: .leading)
                     .clipShape(Capsule())
                     .opacity(m.aspectPastille.opacite)
-                    .scaleEffect(a == .lecture ? 1 : 1 + 0.05 * ouv, anchor: .leading)
+                    .scaleEffect(a == .lecture || a == .rappel ? 1 : 1 + 0.05 * ouv, anchor: .trailing)
                     .allowsHitTesting(false)
                     .offset(x: IlotMoteur.largeur / 2 + x0, y: y)
             }
@@ -626,16 +570,21 @@ struct PastilleVue: View {
             .padding(.leading, 10)
         case .rendezVous:
             HStack(spacing: 6) {
-                GlypheIlot(nom: "calendar", couleur: CouleursIlot.rouge, taille: 12)
-                Text((m.rendezVous ?? m.dernierRendezVous).map { PlanAgenda.dans($0.debut.timeIntervalSince(m.maintenant())).replacingOccurrences(of: "dans ", with: "") } ?? "")
+                GlypheIlot(nom: GlypheIlot.calendrier, couleur: CouleursIlot.rouge, taille: 12)
+                Text((m.rendezVous ?? m.dernierRendezVous).map { PlanAgenda.court($0.debut.timeIntervalSince(m.maintenant())) } ?? "")
                     .font(.system(size: 12.5, weight: .semibold).monospacedDigit()).foregroundStyle(.white).lineLimit(1).fixedSize()
             }
             .padding(.leading, 10)
         case .rappel:
+            // la cloche et l'heure ; au survol, de quel rappel il s'agit
+            let r = m.rappelVu
             HStack(spacing: 6) {
                 GlypheIlot(nom: "bell.fill", couleur: CouleursIlot.jaune, taille: 12)
-                Text(FormatIlot.heure((m.rappelsSonnes.first ?? m.dernierRappel)?.echeance ?? m.maintenant()))
+                Text(FormatIlot.heure(r?.echeance ?? m.maintenant()))
                     .font(.system(size: 12.5, weight: .semibold).monospacedDigit()).foregroundStyle(CouleursIlot.jaune).lineLimit(1).fixedSize()
+                Text(r?.texte ?? "").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                    .frame(maxWidth: 150, alignment: .leading)
+                    .opacity(Double(lisseIlot((ouverture - 0.35) / 0.5)))
             }
             .padding(.leading, 10)
         case .alerte:
@@ -662,12 +611,15 @@ struct IlotVue: View {
 
     var body: some View {
         let _ = m.rev
-        let g = GrilleIlot(hc: m.demiCamera, barre: m.geometrie.hauteur)
+        let g = m.grille
         let forme = FormeNoire(points: m.trace)
         let s = Double(min(1, max(0, (CGFloat(m.geo[2].x) - g.barre) / 70)))
         ZStack(alignment: .topLeading) {
+            // l'ombre n'existe que SOUS la barre des menus : à côté du cou, elle aurait assombri les icônes voisines
             forme.fill(Color.black)
                 .shadow(color: .black.opacity(0.42 * s), radius: 10 * s, x: 0, y: 5 * s)
+                .mask(alignment: .top) { Color.black.padding(.top, g.barre) }
+            forme.fill(Color.black)
             IlotCalques(m: m, g: g)
                 .clipShape(forme)
                 .contentShape(forme)

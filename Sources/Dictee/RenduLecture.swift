@@ -184,7 +184,7 @@ enum RenduLecture {
             let lec = lecture ?? modele(contenus[2])
             lec.geometrie = gg
             let m = IlotMoteur(lecture: lec)
-            m.geometrie = gg; m.statique = true; m.maintenant = { t0 }; m.horloge = "14:32"; m.calendrierActif = true
+            m.geometrie = gg; m.statique = true; m.maintenant = { t0 }; m.calendrierActif = true
             config(m)
             m.donneesChangees()
             if poser { m.poser() }
@@ -271,6 +271,13 @@ enum RenduLecture {
         }
         ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: sansImage(contenus[1])) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1h-etendu-sans-image")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: sansImage(contenus[1])) { $0.lecturePresente = true }) }, "ilot-1i-compact-sans-image")
+        // ni image ni icône d'app (cas rare) : le pictogramme à l'échelle de la case
+        let sansRien = sansImage(contenus[2]); sansRien.iconeApp = nil
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: sansRien) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1h2-etendu-sans-image-ni-icone")
+        // 2e rappel qui sonne alors que la cloche d'un rappel sans réponse est dans l'aile ; pastille d'un rappel survolée (son titre)
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: musique) { m in
+            m.rendezVous = rdv; m.rendezVousProche = true; m.rappelsSonnes = [rappelExemple]; m.lecturePresente = true
+            m.donneesChangees(); m.poser(); m.pastilleOuverte.cible = 1 }) }, "ilot-4g-pastille-rappel-survolee")
 
         // la dictée prend la place : l'îlot s'efface ; la lecture (en pause) devient une mini-miniature DANS le ruban de texte, au bout, côté droit
         let tailleDictee = EnclochePanneau.tailleFenetre(pour: geometrie)
