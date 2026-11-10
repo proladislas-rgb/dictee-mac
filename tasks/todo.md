@@ -79,6 +79,18 @@ Choix de Hugues : « C1 avec un mélange du B2 et avec les fonctionnalités du C
 - [ ] Hugues : essayer en vrai (clics, ← →, Échap, cocher une action puis ouvrir la note, durée de parole dans historique.json) — 4 points dans la spec.
 - Écarts avec la maquette : les 7 derniers jours sont sous les trois colonnes (ça ne tient plus dans 770 px avec les En bref et 5 actions, la page défile) ; ⌘2 = Journée, Réunions passe en ⌘3 ; « Journée » apparaît aussi dans la navigation du panneau compact.
 
+## Îlot centre d'activités (10/11, branche `ilot-activites`)
+Maquette validée en entier par Hugues : `design/maquettes/ilot-activites.html`. Détail, mesures, écarts et « À vérifier en vrai » : docs/spec-v1.md (« Îlot centre d'activités »).
+- [x] Lot 1 socle : un seul îlot, trois tailles, priorités, pastille (survol = déplie, clic = échange), la lecture entre dans le système commun, dictée et réunion passent devant tout.
+- [x] Lot 2 minuteur (accueil, étendu, pause / +1 min / arrêt, fin = alerte + son réglable + vibration) ; commande dictée « minuteur 10 minutes » seulement si l'accueil de l'îlot est ouvert au début de la dictée.
+- [x] Lot 3 rappels locaux et persistants (Fait, Plus tard 10 min, la cloche reste dans l'aile).
+- [x] Lot 4 calendrier EventKit (autorisation demandée seulement à l'activation du réglage), 10 min avant / début / étendu avec Rejoindre et Noter la réunion.
+- [x] Lot 5 accueil (clic sur l'îlot vide : 4 tuiles).
+- [x] Lot 6 notifications : interface + source par l'Accessibilité sur le Centre de notifications, ÉTEINTE par défaut (expérimental, non testable depuis le shell).
+- [x] Lot 7 Réglages › Îlot.
+- [ ] Hugues : installer et essayer (10 points dans la spec) ; décider si les notifications restent en « expérimental ».
+- Limites assumées : le champ « Dire ou écrire » du rappel est vocal seulement (le panneau ne prend jamais le focus) ; réunion et dictée gardent leur encoche (pas dessinées dans l'îlot) ; pas de commande vocale de rappel hors accueil ouvert.
+
 ## Lecture en cours dans l'encoche (09/11 nuit, après la 0.3.1)
 Maquette validée par Hugues (« c'est très bien, moi j'adore ») : `design/maquettes/lecture-encoche-v3.html` (A + C). Une partie de Verbe, même encoche. Détail, mesures et « À vérifier en vrai » : docs/spec-v1.md (« Lecture en cours dans l'encoche »).
 - [x] Source : module natif `Resources/lecture/verbe-lecture.m` (MediaRemote, arm64e + arm64) chargé par `/usr/bin/perl` (`lanceur.pl`), lignes JSON, notifications seulement (0,00 s de processeur en 30 s), commandes lecture / pause / bascule / suivant / précédent / position ; relancé avec délai croissant, abandon silencieux si MediaRemote disparaît ; fabriqué par `build.sh`.

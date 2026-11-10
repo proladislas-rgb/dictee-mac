@@ -63,3 +63,9 @@ Format : [date] | ce qui a mal tourné | règle pour l'éviter
 [2026-11-10] | Un garde-fou de fidélité à 70 % de mots communs refusait « Ok, ok, Tuget. » → « Ok, t'inquiète. » (50 %) : sur un texte de 3 mots, un seul mot corrigé suffit à faire échouer le seuil | Un seuil en pourcentage ne vaut rien sur les textes très courts : le calculer en nombre de mots changés autorisés (ici les mots suspects désignés par la relecture, au plus 3)
 
 2026-11-10 | perl -0pi avec un caractère Unicode échappé ( {2019}) a double-encodé tout docs/spec-v1.md (é → Ã©) | modifier les fichiers français avec l'outil Edit, jamais perl/sed sans -CSD ; vérifier git diff --stat après toute retouche en ligne de commande
+
+[2026-11-10] | Îlot : le critère « ressort posé » à 0,0006 pt gardait la boucle d'animation à 60 Hz près d'une seconde de trop (le contrôle « plus de boucle après 0,9 s » échouait) | Un ressort est posé quand l'écart est sous ce qu'on peut voir (0,01 pt, vitesse < 0,05) ; chaque image de trop coûte du processeur au repos
+
+[2026-11-10] | Îlot : l'essai injectait un morceau et le retirait en mettant seulement l'indicateur « lecture présente » à faux : la fin de dictée recalculait les priorités et la lecture revenait toute seule | Dans un essai, retirer une source à sa racine (le morceau), pas son indicateur d'affichage ; ne pas confondre l'état dérivé et la donnée
+
+[2026-11-10] | Rendus PNG de l'îlot à 2 284 px de large : 24 Mo d'images dans un dépôt public | Un faux bureau de 640 pt (la largeur utile de l'îlot + sa pastille) et une échelle de 1,5 : 7 Mo ; vérifier `du -sh` du dossier de rendus avant de committer
