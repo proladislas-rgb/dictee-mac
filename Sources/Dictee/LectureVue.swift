@@ -48,9 +48,16 @@ struct PochetteLecture: View {
     @ObservedObject var m: LectureModele
     /// La mini-miniature de la dictée : l'image réduite à la main, jamais en rotation.
     var miniature = false
+    // Le fond donne la taille (exactement celle proposée par l'appelant) et l'image vit dans un calque par-dessus, rogné : une miniature
+    // de vidéo en 16:9 remplit la case sans l'élargir. Dans un ZStack, l'image en `.fill` dictait la taille (192 × 108 pour une case
+    // de 108) et débordait sur le titre, l'onde et le temps, le découpage de l'appelant suivant ce cadre élargi.
     var body: some View {
-        ZStack {
-            Color(white: 0.11)
+        Color(white: 0.11)
+            .overlay { contenu }
+            .clipped()
+    }
+
+    @ViewBuilder private var contenu: some View {
             if let image = m.image {
                 if miniature {
                     Image(nsImage: m.imageMini ?? image).resizable().interpolation(.high).aspectRatio(contentMode: .fill)
@@ -67,7 +74,6 @@ struct PochetteLecture: View {
                 Image(systemName: m.genre == .musique ? "music.note" : "play.rectangle.fill")
                     .font(.system(size: 14, weight: .regular)).foregroundStyle(Palette.texte3)
             }
-        }
     }
 }
 

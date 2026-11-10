@@ -69,8 +69,8 @@ enum RenduLecture {
     }
 
     @MainActor
-    static func image<V: View>(_ vue: V, cote: CGFloat) -> NSImage? {
-        let r = ImageRenderer(content: vue.frame(width: cote, height: cote))
+    static func image<V: View>(_ vue: V, cote: CGFloat, hauteur: CGFloat? = nil) -> NSImage? {
+        let r = ImageRenderer(content: vue.frame(width: cote, height: hauteur ?? cote).clipped())
         r.scale = 2
         return r.nsImage
     }
@@ -98,7 +98,7 @@ enum RenduLecture {
             Contenu(nom: "serie", morceau: MorceauEnCours(titre: "Série · S2 É4 · Le Retour", app: "com.google.Chrome", joue: true, duree: 2530, position: 725),
                     site: "YouTube", art: image(ArtSerie(), cote: 320)),
             Contenu(nom: "video", morceau: MorceauEnCours(titre: "Vlog — Tokyo la nuit", app: "com.google.Chrome", joue: true, duree: 1126, position: 312),
-                    site: "YouTube", art: image(ArtVideo(), cote: 320)),
+                    site: "YouTube", art: image(ArtVideo(), cote: 480, hauteur: 270)),  // 16:9, comme une vraie miniature YouTube
             Contenu(nom: "album", morceau: MorceauEnCours(titre: "Album · Titre 3", app: "com.google.Chrome", joue: true, duree: 214, position: 97),
                     site: "YouTube Music", art: image(ArtAlbum(), cote: 320)),
         ]
