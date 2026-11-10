@@ -1,0 +1,1140 @@
+<!doctype html>
+<!--
+Verbe — îlot « Apple Pro », angle A : fidèle à la Dynamic Island de l'iPhone 15/16 Pro, transposée au Mac.
+Un seul objet noir qui change de forme. La pochette voyage (elle grandit et glisse à sa place, elle ne
+disparaît jamais). Ce qui est nouveau (titre, barre, boutons) arrive APRÈS la forme : fondu + flou + zoom 0,92 → 1.
+À la fermeture, le contenu part AVANT la forme ; la hauteur se replie d'abord, la largeur en dernier.
+Ressorts interruptibles (valeur + vitesse gardées). Rien ne dépasse les ailes de 66 pt dans la hauteur
+de la barre des menus ; tout ce qui est plus large vit sous la barre.
+Fichier autonome : aucune ressource externe, polices système.
+Paramètres d'URL (contrôle) : ?etat=nom&fige=1  ·  ?depuis=a&etat=b&t=0.2 (image à mi-course)  ·  ?verif=1
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Îlot Verbe A</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --fond:#0e0e10;
+  --encre:#f5f5f7;
+  --encre2:rgba(245,245,247,.6);
+  --encre3:rgba(245,245,247,.4);
+  --filet:rgba(255,255,255,.08);
+  --ambre:#ff9f0a;
+  --jaune:#ffd60a;
+  --vert:#30d158;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--fond);color:var(--encre)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block;overflow:visible}
+
+/* ---------- le faux écran ---------- */
+#ecran{position:relative;height:372px;overflow:hidden;user-select:none;-webkit-user-select:none;
+  background:#232326}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(120% 140% at 50% -20%,#3a3a3e 0,#26262a 45%,#1b1b1e 100%)}
+/* fenêtre de navigateur, sous la barre */
+.fen{position:absolute;left:0;right:0;top:33px;bottom:0;background:#1d1d20}
+.onglets{height:40px;background:#141416;display:flex;align-items:flex-end;padding:0 0 0 84px;gap:2px}
+.feux{position:absolute;left:14px;top:14px;display:flex;gap:8px}
+.feux i{width:12px;height:12px;border-radius:50%;background:#4a4a4f}
+.ong{height:32px;width:228px;border-radius:9px 9px 0 0;display:flex;align-items:center;gap:8px;padding:0 12px;font-size:12px;color:rgba(255,255,255,.62);white-space:nowrap;overflow:hidden}
+.ong.act{background:#1d1d20;color:rgba(255,255,255,.88)}
+.ong .ic{width:15px;height:11px;border-radius:3px;background:#e53935;flex:none;position:relative}
+.ong .ic::after{content:"";position:absolute;left:5.5px;top:2.8px;border-left:5px solid #fff;border-top:2.7px solid transparent;border-bottom:2.7px solid transparent}
+.ong .ic2{width:13px;height:13px;border-radius:50%;border:1.5px solid rgba(255,255,255,.5);flex:none}
+.barre-adr{height:40px;display:flex;align-items:center;gap:14px;padding:0 14px}
+.barre-adr .fl{width:14px;height:14px;border-radius:3px;border:1.5px solid rgba(255,255,255,.28);border-width:0 0 1.6px 1.6px;transform:rotate(45deg) scale(.6)}
+.barre-adr .adr{flex:1;height:30px;border-radius:15px;background:#2a2a2e;display:flex;align-items:center;padding:0 14px;font-size:13px;color:rgba(255,255,255,.55)}
+.page{position:absolute;left:0;right:0;top:80px;bottom:0;background:
+  radial-gradient(60% 90% at 30% 110%,rgba(255,255,255,.05),transparent 70%),#18181a}
+.page .lecteur{position:absolute;left:5%;top:24px;width:min(58%,820px);aspect-ratio:16/9;border-radius:12px;background:#0f0f11;box-shadow:0 0 0 1px rgba(255,255,255,.05)}
+.page .col{position:absolute;right:5%;top:24px;width:28%;display:grid;gap:12px}
+.page .col i{display:block;height:70px;border-radius:10px;background:#202023}
+
+/* barre des menus */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;align-items:center;
+  background:rgba(22,22,24,.82);font-size:13px;color:rgba(255,255,255,.9);white-space:nowrap;z-index:2}
+.menus{display:flex;align-items:center;gap:19px;padding-left:18px;max-width:calc(50% - 170px);overflow:hidden}
+.menus b{font-weight:700}
+.menus span{font-weight:500}
+.etats{display:flex;align-items:center;gap:15px;padding-right:14px;max-width:calc(50% - 170px);overflow:hidden;justify-content:flex-end}
+.etats svg{width:16px;height:16px;flex:none;color:rgba(255,255,255,.88)}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums;margin-left:2px}
+
+/* repères 66 pt */
+.reperes{position:absolute;inset:0;pointer-events:none;z-index:9;opacity:0;transition:opacity .2s}
+.reperes.vu{opacity:1}
+.reperes i{position:absolute;top:0;height:60px;border-left:1px dashed rgba(255,90,80,.9)}
+.reperes i.c{border-left-color:rgba(255,255,255,.35)}
+.reperes em{position:absolute;top:40px;font:500 10.5px/14px var(--sans);font-style:normal;color:rgba(255,120,110,.95);transform:translateX(-50%)}
+
+/* calques de l'îlot */
+.calque{position:absolute;left:calc(50% - 400px);top:0;width:800px;height:372px;pointer-events:none}
+#forme-svg{z-index:5}
+#contenu{z-index:6}
+#encoche-svg{z-index:7}
+#forme-svg .clic{pointer-events:auto;cursor:default}
+
+/* ---------- éléments de contenu ---------- */
+.e{position:absolute;opacity:0;filter:blur(8px);transform:scale(.92);transform-origin:50% 0;
+  transition:opacity calc(.15s*var(--k)) ease, filter calc(.15s*var(--k)) ease, transform calc(.15s*var(--k)) ease;
+  pointer-events:none}
+.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+  transition:opacity calc(.26s*var(--k)) ease calc(var(--d,0s)*var(--k)),
+             filter calc(.30s*var(--k)) ease calc(var(--d,0s)*var(--k)),
+             transform calc(.46s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+.e.o-g{transform-origin:0 0}
+.e.o-d{transform-origin:100% 0}
+.e.voy{transform:none}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+html.rm .e{filter:none!important;transform:none!important;transition:opacity calc(.15s*var(--k)) ease!important}
+
+/* pochette */
+.art{border-radius:6px;overflow:hidden;background:#111;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.1)}
+.art svg{width:100%;height:100%}
+.art::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.12);pointer-events:none}
+
+/* égaliseur */
+.eq{display:flex;align-items:center;justify-content:space-between}
+.eq i{display:block;width:2.6px;height:14px;border-radius:1.3px;background:var(--teinte);transform:scaleY(.3);
+  animation:eq 1s ease-in-out infinite;transition:transform .25s ease}
+.eq i:nth-child(1){animation-duration:.82s;animation-delay:-.3s}
+.eq i:nth-child(2){animation-duration:1.06s;animation-delay:-.7s}
+.eq i:nth-child(3){animation-duration:.74s;animation-delay:-.1s}
+.eq i:nth-child(4){animation-duration:.95s;animation-delay:-.5s}
+.eq i:nth-child(5){animation-duration:1.18s;animation-delay:-.2s}
+@keyframes eq{0%{transform:scaleY(.28)}22%{transform:scaleY(.95)}41%{transform:scaleY(.5)}63%{transform:scaleY(1)}82%{transform:scaleY(.36)}100%{transform:scaleY(.28)}}
+.arret .eq i,html.rm .eq i{animation:none;transform:scaleY(.2)}
+
+/* texte */
+.titre{font-size:16.5px;line-height:21px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;letter-spacing:-.1px}
+.titre span{display:inline-block;padding-right:0}
+.titre.long{-webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 18px),transparent)}
+.titre.long.defile span{animation:defile calc(var(--duree,8s)*var(--k)) linear calc(1.6s*var(--k)) 2}
+@keyframes defile{0%,12%{transform:translateX(0)}88%,100%{transform:translateX(var(--dist,0))}}
+.source{font-size:13px;line-height:17px;font-weight:500;color:var(--encre2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* progression */
+.prog{height:20px}
+.prog .tps{position:absolute;top:0;font-size:11.5px;line-height:20px;font-weight:500;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums;width:40px}
+.prog .tps.g{left:0}
+.prog .tps.d{right:0;text-align:right}
+.prog .zone{position:absolute;left:44px;right:44px;top:0;height:20px;cursor:default}
+.prog .piste{position:absolute;left:0;right:0;top:7.5px;height:5px;border-radius:3px;background:rgba(255,255,255,.2);overflow:hidden;
+  transition:top calc(.32s*var(--k)) var(--ressort),height calc(.32s*var(--k)) var(--ressort),border-radius calc(.32s*var(--k))}
+.prog .plein{position:absolute;left:0;top:0;bottom:0;width:30%;background:var(--teinte);border-radius:inherit}
+.prog .zone:hover .piste,.prog.glisse .piste{top:5.5px;height:9px;border-radius:4.5px}
+
+/* boutons nus façon lecteur Apple */
+.bt{position:absolute;width:40px;height:40px;border-radius:20px;display:grid;place-items:center;color:#fff;
+  transition:transform calc(.38s*var(--k)) var(--ressort),background-color .15s}
+.bt:hover{background:rgba(255,255,255,.07)}
+.bt:active{transform:scale(.86);transition-duration:.08s}
+.bt svg{width:24px;height:24px}
+.bt.grand svg{width:28px;height:28px}
+
+/* minuteur */
+.temps{font-weight:600;color:var(--ambre);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;letter-spacing:-.2px}
+.lbl{font-size:13px;line-height:16px;font-weight:500;color:var(--encre2);text-align:right;white-space:nowrap}
+.rond{width:44px;height:44px;border-radius:22px;display:grid;place-items:center;transition:transform calc(.38s*var(--k)) var(--ressort),filter .15s}
+.rond:active{transform:scale(.86);transition-duration:.08s}
+.rond svg{width:18px;height:18px}
+.rond.gris{background:rgba(255,255,255,.16);color:#fff}
+.rond.ambre{color:var(--ambre)}
+.rond.ambre::before{content:"";position:absolute;inset:5px;border-radius:50%;background:rgba(255,159,10,.24)}
+.rond.ambre svg{position:relative}
+
+/* alerte */
+.cloche{color:var(--jaune)}
+.cloche.on svg{animation:secoue calc(.9s*var(--k)) ease-in-out calc(.18s*var(--k)) 2;transform-origin:50% 12%}
+@keyframes secoue{0%,100%{transform:rotate(0)}12%{transform:rotate(14deg)}26%{transform:rotate(-12deg)}40%{transform:rotate(9deg)}54%{transform:rotate(-6deg)}68%{transform:rotate(3deg)}80%{transform:rotate(0)}}
+.cap{position:absolute;height:32px;border-radius:16px;display:grid;place-items:center;font-size:13.5px;font-weight:600;padding:0 14px;white-space:nowrap;
+  transition:transform calc(.38s*var(--k)) var(--ressort),filter .15s}
+.cap:active{transform:scale(.92);transition-duration:.08s}
+.cap.gris{background:rgba(255,255,255,.15);color:#fff}
+.cap.gris:hover{background:rgba(255,255,255,.2)}
+.cap.jaune{background:var(--jaune);color:#1a1400}
+.cap.vert{background:var(--vert);color:#04210d}
+.cap .gl{display:flex;align-items:center;gap:6px}
+.cap .gl svg{width:14px;height:14px}
+.l1{font-size:17px;line-height:21px;font-weight:600;color:#fff;white-space:nowrap}
+.l2{font-size:12.5px;line-height:16px;font-weight:500;color:var(--encre2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.l15{font-size:15.5px;line-height:20px;font-weight:600;color:#fff;white-space:nowrap}
+.extrait{font-size:13.5px;line-height:18px;font-weight:500;color:rgba(255,255,255,.86);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* faux curseur (lecture automatique) */
+#curseur{position:absolute;left:0;top:0;width:18px;height:26px;z-index:20;pointer-events:none;opacity:0;
+  transition:transform calc(.75s*var(--k)) cubic-bezier(.3,.7,.2,1),opacity .25s}
+#curseur.vu{opacity:1}
+
+/* ---------- sous la scène ---------- */
+.dessous{max-width:1180px;margin:0 auto;padding:18px 20px 40px}
+.legende{min-height:44px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.legende b{font-size:15px;font-weight:600;letter-spacing:-.1px}
+.legende span{font-size:13.5px;color:var(--encre2);line-height:20px}
+.cmd{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.cmd button{height:32px;padding:0 14px;border-radius:9px;background:#1c1c1f;box-shadow:inset 0 0 0 1px var(--filet);font-size:13px;font-weight:500;color:rgba(255,255,255,.82);
+  transition:background-color .12s,transform .1s;cursor:pointer}
+.cmd button:hover{background:#26262a}
+.cmd button:active{transform:scale(.97)}
+.cmd button.actif{background:#f5f5f7;color:#0e0e10}
+.cmd .sep{width:1px;background:var(--filet);margin:4px 4px}
+.opts{display:flex;flex-wrap:wrap;gap:20px;margin-top:14px;font-size:13px;color:var(--encre2)}
+.opts label{display:flex;align-items:center;gap:7px;cursor:pointer}
+.opts input{accent-color:#f5f5f7}
+.notes{margin-top:22px;padding-top:14px;border-top:1px solid var(--filet);display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 28px;font-size:12.5px;line-height:18px;color:var(--encre3)}
+.notes b{color:var(--encre2);font-weight:600}
+#verif{display:none;white-space:pre-wrap;font:11px/1.4 ui-monospace,Menlo,monospace;color:#9f9;padding:12px 20px}
+html.verif #verif{display:block}
+@media (max-width:720px){#ecran{height:340px}.page .col{display:none}}
+</style>
+</head>
+<body>
+<section id="ecran" aria-label="Faux écran de MacBook, échelle réelle">
+  <div class="papier"></div>
+  <div class="fen" aria-hidden="true">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="onglets">
+      <div class="ong act"><span class="ic"></span>Je détestais la mode des iPods…</div>
+      <div class="ong"><span class="ic2"></span>Nouvel onglet</div>
+    </div>
+    <div class="barre-adr"><span class="fl"></span><span class="fl" style="transform:rotate(225deg) scale(.6)"></span><div class="adr">youtube.com/watch?v=ipod2026</div></div>
+    <div class="page"><div class="lecteur"></div><div class="col"><i></i><i></i><i></i></div></div>
+  </div>
+  <div class="mb" id="mb" aria-hidden="true">
+    <div class="menus" id="menus">
+      <svg width="14" height="17" viewBox="0 0 14 17" style="flex:none"><path fill="#fff" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>
+      <b>Safari</b><span>Fichier</span><span>Édition</span><span>Présentation</span><span>Historique</span><span>Aide</span>
+    </div>
+    <div class="etats" id="etats"></div>
+  </div>
+  <div class="reperes" id="reperes"></div>
+
+  <svg id="forme-svg" class="calque" viewBox="-400 0 800 372" aria-hidden="true">
+    <defs>
+      <filter id="goo" x="-40%" y="-60%" width="180%" height="220%" color-interpolation-filters="sRGB">
+        <feGaussianBlur id="gooFlou" in="SourceGraphic" stdDeviation="4"/>
+        <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10"/>
+      </filter>
+    </defs>
+    <g id="gooCalque" filter="url(#goo)" style="display:none">
+      <rect id="gooIlot" x="60" y="-14" width="68" height="47" rx="10" fill="#000"/>
+      <rect id="gooPast" x="67" y="39" width="60" height="22" rx="11" fill="#000"/>
+    </g>
+    <g id="ombre"><path id="forme" class="clic" fill="#000" d=""/></g>
+    <g id="pastille" class="clic" style="display:none">
+      <rect id="pastFond" x="66" y="39" width="62" height="24" rx="12" fill="#000"/>
+      <g id="pastCont" style="opacity:0">
+        <circle id="pastPiste" cx="79" cy="51" r="5.6" fill="none" stroke="rgba(255,159,10,.28)" stroke-width="2"/>
+        <circle id="pastAnneau" cx="79" cy="51" r="5.6" fill="none" stroke="#ff9f0a" stroke-width="2" stroke-linecap="round" pathLength="100" stroke-dasharray="100" transform="rotate(-90 79 51)"/>
+        <text id="pastTemps" x="91" y="55.2" fill="#ff9f0a" font-size="12" font-weight="600" style="font-variant-numeric:tabular-nums;font-family:var(--sans)">9:42</text>
+      </g>
+    </g>
+  </svg>
+
+  <div id="contenu" class="calque"></div>
+
+  <svg id="encoche-svg" class="calque" viewBox="-400 0 800 372" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/>
+    <circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+
+  <svg id="curseur" viewBox="0 0 18 26" aria-hidden="true"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>
+</section>
+
+<div class="dessous">
+  <div class="legende" id="legende"><b>Îlot de Verbe</b><span>Survolez l'encoche, ou choisissez un état.</span></div>
+  <div class="cmd" id="cmd">
+    <button data-s="lectureC">1 · Repos</button>
+    <button data-s="videoX">2 · Vidéo dépliée</button>
+    <button data-s="musiqueX">2b · Musique dépliée</button>
+    <button data-s="replier">3 · Replier</button>
+    <span class="sep"></span>
+    <button data-s="minuteurC">4 · Minuteur</button>
+    <button data-s="minuteurX">4b · Minuteur déplié</button>
+    <button data-s="alerte">5 · Rappel</button>
+    <button data-s="deux">6 · Deux activités</button>
+    <button data-s="accueil">7 · Accueil</button>
+    <span class="sep"></span>
+    <button id="auto">▶ Lecture automatique</button>
+  </div>
+  <div class="opts">
+    <label><input type="checkbox" id="lent"> Ralenti ×4</label>
+    <label><input type="checkbox" id="reduire"> Réduire les animations</label>
+    <label><input type="checkbox" id="rep"> Montrer les limites de 66 pt</label>
+  </div>
+  <div class="notes">
+    <div><b>Forme.</b> Noir pur, sans liseré. Haut collé à la barre, épaules creuses, coins du bas continus (pas des arcs de cercle). Les rayons grandissent avec la forme : 10 pt replié, 34 pt déplié.</div>
+    <div><b>Mouvement.</b> Ouverture : largeur 0,40 s puis hauteur 0,48 s, petit rebond (≈ 3 %). Fermeture : hauteur 0,40 s puis largeur 0,45 s, sans rebond. Tout peut être interrompu.</div>
+    <div><b>Contenu.</b> La pochette voyage. Le nouveau arrive 0,12 s après la forme (fondu, flou, zoom), un bloc toutes les 35 ms. Il repart avant que la forme se replie.</div>
+    <div><b>Barre des menus.</b> Dans ses 33 pt, la forme ne dépasse jamais 66 pt de chaque côté de la caméra. Plus large seulement en dessous.</div>
+  </div>
+  <pre id="verif"></pre>
+</div>
+
+<script>
+'use strict';
+/* =========================================================
+   Constantes de l'écran (MacBook) — 1 px CSS = 1 pt
+   ========================================================= */
+const B = 33;            // hauteur de la barre des menus
+const CAM = 180;         // largeur de la caméra (encoche)
+const HC = CAM / 2;      // demi-caméra
+const LIM = HC + 66;     // demi-largeur maximale dans la bande de la barre
+const OX = 400;          // décalage des calques (centre)
+let K = 1;               // ralenti
+let reduire = false;
+
+/* =========================================================
+   Glyphes (dessinés à la main, façon symboles SF)
+   ========================================================= */
+const G = {
+  play:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M6.6 4.3c0-1.1 1.2-1.8 2.1-1.2l12 7.6c.9.6.9 1.9 0 2.5l-12 7.6c-.9.6-2.1-.1-2.1-1.2z"/></svg>',
+  pause:'<svg viewBox="0 0 24 24"><rect fill="currentColor" x="5.2" y="3.4" width="4.9" height="17.2" rx="1.5"/><rect fill="currentColor" x="13.9" y="3.4" width="4.9" height="17.2" rx="1.5"/></svg>',
+  avance:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M1.8 6.6c0-1 1.1-1.5 1.9-.9l7.9 5.5c.7.5.7 1.4 0 1.9l-7.9 5.5c-.8.6-1.9 0-1.9-.9zM12.3 6.6c0-1 1.1-1.5 1.9-.9l7.9 5.5c.7.5.7 1.4 0 1.9l-7.9 5.5c-.8.6-1.9 0-1.9-.9z"/></svg>',
+  recule:'<svg viewBox="0 0 24 24"><g transform="translate(24 0) scale(-1 1)"><path fill="currentColor" d="M1.8 6.6c0-1 1.1-1.5 1.9-.9l7.9 5.5c.7.5.7 1.4 0 1.9l-7.9 5.5c-.8.6-1.9 0-1.9-.9zM12.3 6.6c0-1 1.1-1.5 1.9-.9l7.9 5.5c.7.5.7 1.4 0 1.9l-7.9 5.5c-.8.6-1.9 0-1.9-.9z"/></g></svg>',
+  moins10:'<svg viewBox="0 0 24 24"><path d="M12 3.9a8.3 8.3 0 1 1-7.9 5.7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path fill="currentColor" d="M12.9 1.2 8.4 3.9l4.5 2.7z"/><text x="12" y="15.6" text-anchor="middle" font-size="7.6" font-weight="700" fill="currentColor" font-family="-apple-system,sans-serif">10</text></svg>',
+  plus10:'<svg viewBox="0 0 24 24"><path d="M12 3.9a8.3 8.3 0 1 0 7.9 5.7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path fill="currentColor" d="M11.1 1.2l4.5 2.7-4.5 2.7z"/><text x="12" y="15.6" text-anchor="middle" font-size="7.6" font-weight="700" fill="currentColor" font-family="-apple-system,sans-serif">10</text></svg>',
+  croix:'<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>',
+  cloche:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.4c-3.4 0-6 2.7-6 6.1v3.7l-1.6 3c-.5.9.1 1.9 1.1 1.9h13c1 0 1.6-1 1.1-1.9l-1.6-3V8.5c0-3.4-2.6-6.1-6-6.1zM9.3 18.6a2.8 2.8 0 0 0 5.4 0z"/></svg>',
+  micro:'<svg viewBox="0 0 24 24"><rect fill="currentColor" x="8.6" y="2.4" width="6.8" height="12" rx="3.4"/><path d="M5.6 11.2a6.4 6.4 0 0 0 12.8 0M12 17.8v3.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  minuteur:'<svg viewBox="0 0 24 24"><circle cx="12" cy="13.4" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 13.4V9M9.6 2.6h4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  camera:'<svg viewBox="0 0 24 24"><rect fill="currentColor" x="2" y="6" width="13.5" height="12" rx="3"/><path fill="currentColor" d="M16.8 10.4l4.1-2.7c.5-.3 1.1 0 1.1.6v7.4c0 .6-.6.9-1.1.6l-4.1-2.7z"/></svg>'
+};
+
+/* Icônes de la barre des menus (droite) */
+(function(){
+  const s = (d)=>`<svg viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg>`;
+  const ic = [
+    s('<path d="M3 5.5h10M3 8h10M3 10.5h6"/>'),
+    s('<circle cx="8" cy="8" r="5.6"/><path d="M8 4.6v3.6l2.2 1.4"/>'),
+    s('<path d="M4 12.5c-1.7 0-2.6-1.2-2.6-2.5 0-1.4 1.1-2.4 2.4-2.4C4.2 5.4 6 4 8 4c2.4 0 4 1.7 4.1 3.8 1.5.1 2.5 1.2 2.5 2.4 0 1.3-1 2.3-2.4 2.3z"/>'),
+    s('<path d="M8 2.2l1.7 3.6 3.9.5-2.9 2.7.8 3.9L8 11l-3.5 1.9.8-3.9-2.9-2.7 3.9-.5z"/>'),
+    s('<rect x="2.5" y="4" width="11" height="8.5" rx="2"/><path d="M5.6 7.2l1.9 1.6 3-2.6"/>'),
+    s('<circle cx="8" cy="8" r="5.6"/><path d="M6.8 5.8l3.4 2.2-3.4 2.2z" fill="currentColor"/>'),
+    s('<circle cx="8" cy="5.6" r="2.4"/><path d="M3.4 13.4c.6-2.4 2.4-3.6 4.6-3.6s4 1.2 4.6 3.6"/>'),
+    '<svg viewBox="0 0 16 16" style="width:26px"><rect x=".7" y="4.4" width="12.6" height="7.2" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".55"/><rect x="2" y="5.7" width="8.4" height="4.6" rx="1.1" fill="currentColor"/><path d="M14.4 6.6v2.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".55"/></svg>',
+    s('<path d="M1.8 6.4a9 9 0 0 1 12.4 0M3.9 8.7a6 6 0 0 1 8.2 0M6 11a3 3 0 0 1 4 0"/><circle cx="8" cy="13" r=".6" fill="currentColor"/>'),
+    s('<circle cx="7" cy="7" r="4.4"/><path d="M10.3 10.3l3.4 3.4"/>'),
+    s('<rect x="2" y="3" width="12" height="4.2" rx="2.1"/><rect x="2" y="9" width="12" height="4.2" rx="2.1"/><circle cx="5.2" cy="5.1" r=".9" fill="currentColor"/><circle cx="10.8" cy="11.1" r=".9" fill="currentColor"/>')
+  ];
+  document.getElementById('etats').innerHTML = ic.join('') + '<span class="heure">Mar. 10 nov.&nbsp; 20:30</span>';
+})();
+
+/* =========================================================
+   Images dessinées (pochettes et miniature)
+   ========================================================= */
+const ART = {
+  ipod:`<svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice">
+    <defs><radialGradient id="yt-f" cx="72%" cy="40%" r="85%"><stop offset="0" stop-color="#ffd54a"/><stop offset=".55" stop-color="#ffab1f"/><stop offset="1" stop-color="#e2620c"/></radialGradient>
+    <linearGradient id="yt-e" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fd0ff"/><stop offset="1" stop-color="#2f6fd0"/></linearGradient>
+    <linearGradient id="yt-c" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dcdde2"/></linearGradient></defs>
+    <rect width="160" height="90" fill="url(#yt-f)"/>
+    <circle cx="118" cy="44" r="44" fill="#fff" opacity=".18"/>
+    <g transform="rotate(-9 112 48)">
+      <rect x="92" y="12" width="44" height="72" rx="8" fill="#000" opacity=".22" transform="translate(3 4)"/>
+      <rect x="92" y="12" width="44" height="72" rx="8" fill="url(#yt-c)"/>
+      <rect x="97" y="17" width="34" height="25" rx="2.5" fill="url(#yt-e)"/>
+      <rect x="100" y="21" width="15" height="2.2" rx="1" fill="#fff" opacity=".9"/>
+      <rect x="100" y="25.5" width="22" height="2.2" rx="1" fill="#fff" opacity=".55"/>
+      <rect x="100" y="30" width="18" height="2.2" rx="1" fill="#fff" opacity=".55"/>
+      <circle cx="114" cy="62" r="14" fill="#e9e9ed"/><circle cx="114" cy="62" r="5" fill="#fbfbfc"/>
+      <text x="114" y="52" text-anchor="middle" font-size="3.6" font-weight="700" fill="#9a9aa2" font-family="-apple-system,sans-serif">MENU</text>
+    </g>
+    <text x="8" y="40" font-size="25" font-weight="900" fill="#fff" stroke="#111" stroke-width="2.4" paint-order="stroke" font-family="-apple-system,sans-serif" letter-spacing="-.6">L'iPod</text>
+    <rect x="8" y="47" width="58" height="17" rx="2.5" fill="#111"/>
+    <text x="12" y="60" font-size="13" font-weight="800" fill="#ffd54a" font-family="-apple-system,sans-serif">en 2026 ?</text>
+    <rect x="133" y="77" width="23" height="9.5" rx="2" fill="#000" opacity=".78"/>
+    <text x="144.5" y="84" text-anchor="middle" font-size="6.6" font-weight="600" fill="#fff" font-family="-apple-system,sans-serif">12:54</text>
+  </svg>`,
+  aout:`<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
+    <defs><linearGradient id="ao-c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8502c"/><stop offset=".62" stop-color="#f7a35c"/><stop offset="1" stop-color="#f9c98a"/></linearGradient>
+    <clipPath id="ao-s"><circle cx="50" cy="62" r="25"/></clipPath></defs>
+    <rect width="100" height="100" fill="url(#ao-c)"/>
+    <g clip-path="url(#ao-s)"><rect x="20" y="30" width="60" height="40" fill="#fff3dc"/>
+      <rect x="20" y="58" width="60" height="2.2" fill="#f4a76a"/><rect x="20" y="63.5" width="60" height="2.8" fill="#f4a76a"/><rect x="20" y="69.5" width="60" height="3.4" fill="#f4a76a"/></g>
+    <path d="M0 74c14-6 22-12 34-10s18 8 30 6 24-9 36-7v37H0z" fill="#3a2220"/>
+    <path d="M0 84c18-4 30-2 46 1s30 2 54-3v18H0z" fill="#24120f"/>
+    <text x="50" y="16" text-anchor="middle" font-size="6" font-weight="700" letter-spacing="2.4" fill="#3a1a12" opacity=".8" font-family="-apple-system,sans-serif">MIRA SOLEN</text>
+  </svg>`,
+  maree:`<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
+    <defs><linearGradient id="ma-c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d3b4a"/><stop offset="1" stop-color="#1c8a98"/></linearGradient></defs>
+    <rect width="100" height="100" fill="url(#ma-c)"/>
+    <circle cx="70" cy="30" r="11" fill="#f4e7c8"/>
+    <g fill="none" stroke="#e9f6f4" stroke-width="2.6" stroke-linecap="round" opacity=".9">
+      <path d="M-4 58c9-7 17-7 26 0s17 7 26 0 17-7 26 0 17 7 26 0"/>
+      <path d="M-4 70c9-7 17-7 26 0s17 7 26 0 17-7 26 0 17 7 26 0" opacity=".7"/>
+      <path d="M-4 82c9-7 17-7 26 0s17 7 26 0 17-7 26 0 17 7 26 0" opacity=".5"/></g>
+    <text x="10" y="17" font-size="6" font-weight="700" letter-spacing="2.4" fill="#e9f6f4" opacity=".85" font-family="-apple-system,sans-serif">MARÉE HAUTE</text>
+  </svg>`
+};
+const MEDIAS = {
+  video:   {art:'ipod',  ratio:'16:9', teinte:'#ffb21f', titre:'Je détestais la mode des iPods, donc j’en ai racheté un en 2026', source:'Le Coin Tech · YouTube', duree:774, pos:202, cmd:['moins10','pp','plus10']},
+  musique: {art:'aout',  ratio:'1:1',  teinte:'#ff8c52', titre:'Lumière d’août', source:'Mira Solen · Musique', duree:214, pos:61, cmd:['recule','pp','avance']},
+  musique2:{art:'maree', ratio:'1:1',  teinte:'#5fd0dc', titre:'Marée haute', source:'Mira Solen · Musique', duree:247, pos:0, cmd:['recule','pp','avance']}
+};
+
+/* =========================================================
+   Géométrie : les états de la forme (demi-largeurs depuis le centre)
+   n = cou dans la barre, bw = corps sous la barre, h = hauteur,
+   rs = épaule creuse en haut, rb = coin bas, rt = coin haut du corps, f = congé du cou
+   ========================================================= */
+const GEO = {
+  vide:      {n:90,  bw:90,  h:33,  rs:4, rb:8,  rt:0,  f:0},
+  lectureC:  {n:128, bw:128, h:33,  rs:6, rb:10, rt:0,  f:0},
+  lectureX:  {n:144, bw:234, h:208, rs:6, rb:34, rt:18, f:10},
+  minuteurC: {n:132, bw:132, h:33,  rs:6, rb:10, rt:0,  f:0},
+  minuteurX: {n:144, bw:196, h:124, rs:6, rb:30, rt:16, f:10},
+  alerte:    {n:144, bw:214, h:112, rs:6, rb:30, rt:16, f:10},
+  accueil:   {n:144, bw:222, h:196, rs:6, rb:34, rt:18, f:10}
+};
+const NOTCH = {n:HC, bw:HC, h:B, rs:4, rb:8, rt:0, f:0};
+
+/* Coin continu (courbure nulle aux extrémités) : portée 1,6 r, poignées à 0,18 de la portée */
+const PORTEE = 1.6, POIGNEE = 0.18;
+
+function calculer(g){
+  const corps = Math.max(0, g.h - B);
+  const u = Math.min(corps, 40) / 40;
+  const e = 1 - Math.pow(1 - u, 2.5);           // le corps s'élargit dès qu'il existe sous la barre
+  const d = Math.max(0, g.bw - g.n) * e;
+  const W = g.n + d;
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - g.rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6);
+  const dispo = (1 - lam) * (g.h - g.rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(g.rb, dispo / PORTEE, W / PORTEE));
+  return {n:g.n, W, d, fe, rte, rbe, h:g.h, rs:g.rs, bande:Math.max(g.n + g.rs, g.n + fe)};
+}
+const f2 = v => (Math.round(v * 100) / 100);
+function chemin(g, ox){
+  const c = calculer(g), o = ox || 0;
+  const n = c.n, W = c.W, h = c.h, rs = c.rs;
+  const a1 = PORTEE * c.rte, c1 = POIGNEE * a1, a2 = PORTEE * c.rbe, c2 = POIGNEE * a2;
+  const X = x => f2(x + o), Y = y => f2(y);
+  let p = `M${X(-n-rs)} ${Y(-1)}L${X(-n-rs)} 0Q${X(-n)} 0 ${X(-n)} ${Y(rs)}`;
+  if (c.d > 0.5){
+    p += `L${X(-n)} ${Y(B-c.fe)}Q${X(-n)} ${B} ${X(-n-c.fe)} ${B}L${X(-W+a1)} ${B}C${X(-W+c1)} ${B} ${X(-W)} ${Y(B+c1)} ${X(-W)} ${Y(B+a1)}`;
+  }
+  p += `L${X(-W)} ${Y(h-a2)}C${X(-W)} ${Y(h-c2)} ${X(-W+c2)} ${Y(h)} ${X(-W+a2)} ${Y(h)}`;
+  p += `L${X(W-a2)} ${Y(h)}C${X(W-c2)} ${Y(h)} ${X(W)} ${Y(h-c2)} ${X(W)} ${Y(h-a2)}`;
+  if (c.d > 0.5){
+    p += `L${X(W)} ${Y(B+a1)}C${X(W)} ${Y(B+c1)} ${X(W-c1)} ${B} ${X(W-a1)} ${B}L${X(n+c.fe)} ${B}Q${X(n)} ${B} ${X(n)} ${Y(B-c.fe)}`;
+  }
+  p += `L${X(n)} ${Y(rs)}Q${X(n)} 0 ${X(n+rs)} 0L${X(n+rs)} ${Y(-1)}Z`;
+  return p;
+}
+
+/* =========================================================
+   Ressorts (réponse en s, amortissement ζ) — interruptibles :
+   une nouvelle cible part de la valeur ET de la vitesse courantes.
+   ========================================================= */
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = 1; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){
+      this.attente -= dt;
+      if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; }
+    }
+    const w = 2 * Math.PI / this.rep, k = w * w, c = 2 * this.z * w;
+    const a = k * (this.cible - this.x) - c * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+const CLES = ['n','bw','h','rs','rb','rt','f'];
+const LARG = ['n','bw'], HAUT = ['h','rs','rb','rt','f'];
+const R = {};
+CLES.forEach(k => R[k] = new Ressort(GEO.vide[k]));
+const RP = new Ressort(6);      // haut de la pastille (6 = rentrée dans l'îlot, 39 = posée sous la barre)
+const geoCourante = () => { const g = {}; CLES.forEach(k => g[k] = R[k].x); return g; };
+
+/* Courbe CSS « ressort » (même formule) pour les zooms d'entrée */
+(function(){
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){
+    const t = T * i / N;
+    pts.push(x);
+    const steps = Math.round((T / N) / dt);
+    for (let s = 0; s < steps; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; }
+  }
+  pts[pts.length - 1] = 1;
+  document.documentElement.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+/* =========================================================
+   Contenu : un arbre par activité, posé sur une grille commune
+   (marge 16 pt tout autour, sous la barre).
+   ========================================================= */
+const contenu = document.getElementById('contenu');
+function el(html){ const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
+function place(node, r){
+  if (r.x != null) node.style.left = (OX + r.x) + 'px';
+  if (r.y != null) node.style.top = r.y + 'px';
+  if (r.w != null) node.style.width = r.w + 'px';
+  if (r.h != null) node.style.height = r.h + 'px';
+}
+const VUES = {};
+function vue(nom){ const v = el(`<div class="vue" data-vue="${nom}"></div>`); contenu.appendChild(v); VUES[nom] = {node:v, els:[]}; return v; }
+function ajoute(nomVue, html, r, opts){
+  const n = el(html); place(n, r);
+  n.classList.add('e');
+  n.dataset.m = opts.m;                 // c = replié, x = déplié, cx = les deux
+  n.dataset.i = opts.i != null ? opts.i : 0; // rang dans la cascade
+  if (opts.voy) n.classList.add('voy');
+  if (opts.o) n.classList.add(opts.o);
+  if (opts.k) n.dataset.k = opts.k;
+  VUES[nomVue].node.appendChild(n); VUES[nomVue].els.push(n);
+  return n;
+}
+
+/* ---- Lecture ---- */
+const L_ART_C = {x:-119, y:5.5, w:22, h:22, r:6};
+const L_ART_X = {'1:1':{x:-218, y:49, w:72, h:72, r:12}, '16:9':{x:-218, y:49, w:128, h:72, r:10}};
+vue('lecture');
+const lArt  = ajoute('lecture', `<div class="art"></div>`, L_ART_C, {m:'cx', voy:true, k:'art'});
+const lEq   = ajoute('lecture', `<div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>`, {x:100, y:9.5, w:19.4, h:14}, {m:'cx', k:'eq'});
+const lTitre= ajoute('lecture', `<div class="titre"><span></span></div>`, {x:0, y:64, w:0, h:21}, {m:'x', i:0, o:'o-g', k:'titre'});
+const lSrc  = ajoute('lecture', `<div class="source"></div>`, {x:0, y:87, w:0, h:17}, {m:'x', i:1, o:'o-g', k:'source'});
+const lProg = ajoute('lecture', `<div class="prog" role="slider" aria-label="Position de lecture" tabindex="0"><span class="tps g">0:00</span><div class="zone"><div class="piste"><div class="plein"></div></div></div><span class="tps d">0:00</span></div>`, {x:-218, y:131, w:436, h:20}, {m:'x', i:2, k:'prog'});
+const lCmd  = ajoute('lecture', `<div class="cmds"></div>`, {x:-100, y:158, w:200, h:40}, {m:'x', i:3, k:'cmd'});
+
+/* ---- Minuteur ---- */
+const M_ANN_C = {x:-121, y:8, w:17, h:17}, M_ANN_X = {x:-180, y:56.5, w:44, h:44};
+const M_TPS_C = {d:122, cy:16.5, fs:14}, M_TPS_X = {d:180, top:68, fs:40};
+vue('minuteur');
+const mAnn = ajoute('minuteur', `<div><svg viewBox="0 0 44 44" width="100%" height="100%"><circle cx="22" cy="22" r="19" fill="none" stroke="rgba(255,159,10,.26)" stroke-width="2.4" vector-effect="non-scaling-stroke"/><circle class="arc" cx="22" cy="22" r="19" fill="none" stroke="#ff9f0a" stroke-width="2.4" stroke-linecap="round" pathLength="100" stroke-dasharray="100" transform="rotate(-90 22 22)" vector-effect="non-scaling-stroke"/></svg></div>`, M_ANN_C, {m:'cx', voy:true, k:'anneau'});
+const mTps = ajoute('minuteur', `<div class="temps">9:42</div>`, {}, {m:'cx', voy:true, k:'temps'});
+const mPause = ajoute('minuteur', `<button class="rond ambre" aria-label="Pause">${G.pause}</button>`, M_ANN_X, {m:'x', i:1, k:'pauseM'});
+const mStop = ajoute('minuteur', `<button class="rond gris" aria-label="Arrêter le minuteur">${G.croix}</button>`, {x:-126, y:56.5, w:44, h:44}, {m:'x', i:2, k:'stop'});
+const mLbl = ajoute('minuteur', `<div class="lbl">Minuteur · 10 min</div>`, {x:20, y:52, w:160, h:16}, {m:'x', i:0, o:'o-d', k:'lbl'});
+mPause.style.borderRadius = '22px';
+
+/* ---- Alerte : rappel ---- */
+vue('alerte');
+ajoute('alerte', `<div class="cloche">${G.cloche.replace('<svg','<svg width="26" height="26"')}</div>`, {x:-198, y:59.5, w:26, h:26}, {m:'x', i:0, k:'cloche'});
+ajoute('alerte', `<div><div class="l2">Rappel · 15:00</div><div class="l1">Appeler Paul</div></div>`, {x:-160, y:53, w:170, h:39}, {m:'x', i:1, o:'o-g', k:'txtA'});
+const aBt = ajoute('alerte', `<div></div>`, {x:38, y:56.5, w:160, h:32}, {m:'x', i:2, k:'btA'});
+aBt.innerHTML = `<button class="cap gris" style="left:0;width:88px" data-a="plustard">Plus tard</button><button class="cap jaune" style="left:96px;width:64px" data-a="fait">Fait</button>`;
+
+/* ---- Accueil ---- */
+vue('accueil');
+ajoute('accueil', `<div><div class="l15">Point équipe</div><div class="l2" style="margin-top:2px">14:42 · dans 12 min · Google Meet</div></div>`, {x:-206, y:48, w:260, h:38}, {m:'x', i:0, o:'o-g', k:'rdv'});
+ajoute('accueil', `<button class="cap vert" style="position:absolute"><span class="gl">${G.camera}Rejoindre</span></button>`, {x:94, y:51, w:112, h:32}, {m:'x', i:0, o:'o-d', k:'rejoindre'});
+const qRow = ajoute('accueil', `<div></div>`, {x:-206, y:99, w:412, h:32}, {m:'x', i:1, o:'o-g', k:'rapides'});
+qRow.innerHTML = `<span style="position:absolute;left:0;top:7px;width:18px;height:18px;color:var(--ambre)">${G.minuteur}</span>
+  <button class="cap gris" style="left:26px;width:64px" data-a="m5">5 min</button>
+  <button class="cap gris" style="left:96px;width:70px" data-a="m10">10 min</button>
+  <button class="cap gris" style="left:172px;width:70px" data-a="m25">25 min</button>
+  <button class="cap gris" style="right:0;width:136px"><span class="gl">${G.micro}Dire un rappel</span></button>`;
+ajoute('accueil', `<div><div class="l2">Dernière dictée · il y a 3 min</div><div class="extrait">Je te rappelle demain pour confirmer l’heure.</div></div>`, {x:-206, y:144, w:318, h:35}, {m:'x', i:2, o:'o-g', k:'dictee'});
+ajoute('accueil', `<button class="cap gris" style="position:absolute">Coller</button>`, {x:134, y:147, w:72, h:32}, {m:'x', i:2, o:'o-d', k:'coller'});
+
+/* =========================================================
+   Données vivantes (lecture, minuteur)
+   ========================================================= */
+const monde = {lecture:'video', jeu:true, minuteur:false, alerte:false, accueil:false, ouvert:false, prioMinuteur:false};
+const minut = {total:600, reste:582, jeu:true};
+const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+
+function remplirLecture(){
+  const m = MEDIAS[monde.lecture || 'video'];
+  lArt.innerHTML = ART[m.art];
+  VUES.lecture.node.style.setProperty('--teinte', m.teinte);
+  const xArt = L_ART_X[m.ratio];
+  const tx = xArt.x + xArt.w + 14, tw = 218 - tx;
+  place(lTitre, {x:tx, w:tw}); place(lSrc, {x:tx, w:tw});
+  const sp = lTitre.firstChild; sp.textContent = m.titre;
+  lTitre.classList.remove('long','defile'); sp.style.animation = 'none';
+  lSrc.textContent = m.source;
+  requestAnimationFrame(() => {
+    const trop = sp.scrollWidth - tw;
+    if (trop > 1){
+      lTitre.classList.add('long');
+      lTitre.style.setProperty('--dist', -(trop + 22) + 'px');
+      lTitre.style.setProperty('--duree', Math.max(5, (trop + 22) / 26 + 2.4) + 's');
+      sp.style.animation = '';
+      if (lTitre.classList.contains('on')) lTitre.classList.add('defile');
+    } else sp.style.animation = '';
+  });
+  lCmd.innerHTML = m.cmd.map((c, i) => {
+    const x = [16, 80, 144][i];
+    if (c === 'pp') return `<button class="bt grand" style="left:${x}px;top:0" data-a="pp" aria-label="${monde.jeu ? 'Pause' : 'Lecture'}">${monde.jeu ? G.pause : G.play}</button>`;
+    const lab = {moins10:'Reculer de 10 secondes', plus10:'Avancer de 10 secondes', recule:'Précédent', avance:'Suivant'}[c];
+    return `<button class="bt" style="left:${x}px;top:0" data-a="${c}" aria-label="${lab}">${G[c]}</button>`;
+  }).join('');
+  majProg();
+}
+function majProg(){
+  if (!monde.lecture) return;
+  const m = MEDIAS[monde.lecture];
+  lProg.querySelector('.plein').style.width = (100 * m.pos / m.duree) + '%';
+  lProg.querySelector('.g').textContent = fmt(m.pos);
+  lProg.querySelector('.d').textContent = '−' + fmt(m.duree - m.pos);
+  lProg.setAttribute('aria-valuetext', fmt(m.pos) + ' sur ' + fmt(m.duree));
+  VUES.lecture.node.classList.toggle('arret', !monde.jeu);
+}
+function majMinuteur(){
+  const frac = minut.reste / minut.total;
+  mAnn.querySelector('.arc').setAttribute('stroke-dashoffset', (100 * (1 - frac)).toFixed(2));
+  mTps.textContent = fmt(minut.reste);
+  document.getElementById('pastAnneau').setAttribute('stroke-dashoffset', (100 * (1 - frac)).toFixed(2));
+  document.getElementById('pastTemps').textContent = fmt(minut.reste);
+  mPause.innerHTML = minut.jeu ? G.pause : G.play;
+  mPause.setAttribute('aria-label', minut.jeu ? 'Pause' : 'Reprendre');
+}
+setInterval(() => {
+  if (modeFige) return;
+  if (monde.lecture && monde.jeu){ const m = MEDIAS[monde.lecture]; if (!glisse) m.pos = Math.min(m.duree, m.pos + 1); majProg(); }
+  if (monde.minuteur && minut.jeu){ minut.reste = Math.max(0, minut.reste - 1); majMinuteur(); }
+}, 1000);
+
+/* Changement de morceau : la pochette fait un petit « pop », le titre se remplace en fondu flou */
+function changerMorceau(vers){
+  const pop = [{transform:'scale(.9)'},{transform:'scale(1)'}];
+  monde.lecture = vers; MEDIAS[vers].pos = 0;
+  remplirLecture();
+  if (reduire) return;
+  lArt.animate(pop, {duration:420 * K, easing:getComputedStyle(document.documentElement).getPropertyValue('--ressort')});
+  [lTitre, lSrc].forEach(n => n.classList.contains('on') && n.animate([{opacity:0, filter:'blur(4px)'},{opacity:1, filter:'blur(0)'}], {duration:240 * K, easing:'ease-out'}));
+}
+
+/* =========================================================
+   Choix de l'écran et transitions
+   ========================================================= */
+let cur = {vue:null, mode:'c'}, lien = false;
+function voulu(){
+  if (monde.alerte) return {vue:'alerte', mode:'x', geo:'alerte'};
+  if (monde.accueil) return {vue:'accueil', mode:'x', geo:'accueil'};
+  let prim = monde.lecture ? 'lecture' : (monde.minuteur ? 'minuteur' : null);
+  if (monde.lecture && monde.minuteur && monde.prioMinuteur) prim = 'minuteur';
+  if (!prim) return {vue:null, mode:'c', geo:'vide'};
+  const mode = monde.ouvert ? 'x' : 'c';
+  return {vue:prim, mode, geo:prim + (mode === 'x' ? 'X' : 'C')};
+}
+function pastilleVoulue(){
+  if (monde.alerte || monde.accueil) return false;
+  return !!(monde.lecture && monde.minuteur && !monde.prioMinuteur);
+}
+
+let jeton = 0;
+function appliquer(opts){
+  opts = opts || {};
+  const v = voulu();
+  const g = GEO[v.geo];
+  lien = (cur.vue === v.vue);
+  const ancien = cur;
+  cur = v;
+  const hNow = R.h.x;
+  const ferme = g.h < hNow - 1;
+  const ouvre = g.h > hNow + 1;
+  const snap = opts.snap || reduire;
+  jeton++;
+
+  if (snap){
+    CLES.forEach(k => R[k].poser(g[k]));
+  } else if (ferme){
+    // le contenu part d'abord, puis la hauteur se replie, la largeur en dernier — sans rebond
+    HAUT.forEach(k => R[k].viser(g[k], .40, 1, .06));
+    LARG.forEach(k => R[k].viser(g[k], .45, 1, .11));
+  } else if (ouvre){
+    const alerte = v.vue === 'alerte';
+    LARG.forEach(k => R[k].viser(g[k], alerte ? .38 : .40, alerte ? .74 : .80, 0));
+    HAUT.forEach(k => R[k].viser(g[k], alerte ? .46 : .48, alerte ? .70 : .75, 0));
+  } else {
+    CLES.forEach(k => R[k].viser(g[k], .36, .86, 0));
+  }
+
+  // pastille : elle « goutte » de l'îlot, ou y rentre
+  const pv = pastilleVoulue() && v.mode === 'c';
+  const past = document.getElementById('pastille');
+  if (pv || pastilleVoulue()) past.style.display = '';
+  if (snap) RP.poser(pv ? 39 : 6);
+  else RP.viser(pv ? 39 : 6, pv ? .5 : .34, pv ? .62 : 1, pv ? .16 : 0);
+  past.dataset.voulue = pv ? '1' : (pastilleVoulue() ? '0' : 'non');
+  document.getElementById('pastCont').style.transition = snap ? 'none' : `opacity ${(pv ? .22 : .12) * K}s ease ${(pv ? .42 : 0) * K}s`;
+  document.getElementById('pastCont').style.opacity = pv ? 1 : 0;
+  if (!pastilleVoulue()) past.dataset.voulue = 'non';
+
+  majContenu(v, ouvre || (!ferme && ancien.vue !== v.vue), ferme);
+  demarrer();
+}
+
+function majContenu(v, ouverture, fermeture){
+  for (const [nom, V] of Object.entries(VUES)){
+    for (const n of V.els){
+      const m = n.dataset.m;
+      const vis = nom === v.vue && (m === 'cx' || m === v.mode);
+      let d = 0;
+      if (vis){
+        const deja = n.classList.contains('on');
+        if (!deja){
+          // le nouveau arrive après la forme : 0,12 s puis 35 ms par bloc
+          d = fermeture ? .22 : (ouverture ? .12 + .035 * (+n.dataset.i) : .1);
+        }
+      }
+      n.style.setProperty('--d', d + 's');
+      n.classList.toggle('on', vis);
+    }
+  }
+  const t = lTitre;
+  t.classList.toggle('defile', t.classList.contains('on') && t.classList.contains('long'));
+  if (t.classList.contains('defile')){ const sp = t.firstChild; sp.style.animation = 'none'; void sp.offsetWidth; sp.style.animation = ''; }
+}
+
+/* =========================================================
+   Boucle d'animation : ne tourne que tant qu'un ressort bouge
+   ========================================================= */
+let enCours = false, tPrec = 0, modeFige = false;
+/* en contrôle sans écran (Chrome sans tête), l'image suivante est cadencée par une minuterie */
+const prochaine = new URLSearchParams(location.search).has('survol') ? (f => setTimeout(() => f(performance.now()), 16)) : (f => requestAnimationFrame(f));
+const forme = document.getElementById('forme');
+const ombre = document.getElementById('ombre');
+function demarrer(){
+  if (modeFige) { rendu(); return; }
+  if (!enCours){ enCours = true; tPrec = performance.now(); prochaine(boucle); }
+}
+function avancer(dt){
+  const N = Math.max(1, Math.ceil(dt * 240)), h = dt / N;
+  for (let i = 0; i < N; i++){ CLES.forEach(k => R[k].pas(h)); RP.pas(h); }
+  let bouge = false;
+  CLES.forEach(k => { if (!R[k].pose()) bouge = true; });
+  if (!RP.pose()) bouge = true;
+  return bouge;
+}
+function boucle(t){
+  const dt = Math.min(.05, (t - tPrec) / 1000) / K; tPrec = t;
+  const bouge = avancer(dt);
+  rendu();
+  if (bouge) prochaine(boucle);
+  else { enCours = false; finRepos(); }
+}
+function finRepos(){
+  const past = document.getElementById('pastille');
+  if (past.dataset.voulue === 'non') past.style.display = 'none';
+  document.getElementById('gooCalque').style.display = past.style.display === 'none' ? 'none' : '';
+}
+
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+/* Cadre d'un élément qui voyage, en fonction de l'ouverture p (0 replié → 1 déplié).
+   La descente mène, la taille suit, le glissement de côté vient en dernier :
+   la pochette ne passe jamais sous la caméra ni hors de la forme. */
+function voyage(a, b, p){
+  const q = clamp(p, 0, 1), over = Math.max(0, p - 1);
+  const ty = 1 - Math.pow(1 - q, 3) + over;
+  const ts = Math.pow(clamp((q - .15) / .85, 0, 1), 1.1) + over;
+  const tx = Math.pow(q, 1.4) + over;
+  return {x:lerp(a.x, b.x, tx), y:lerp(a.y, b.y, ty), w:lerp(a.w, b.w, ts), h:lerp(a.h, b.h, ts), r:lerp(a.r || 0, b.r || 0, ts), t:ts};
+}
+function ouverture(nomVue){
+  const hc = B, hx = GEO[nomVue + 'X'].h;
+  if (!lien) return cur.mode === 'x' ? 1 : 0;
+  return (R.h.x - hc) / (hx - hc);
+}
+function cadreArt(p){
+  const m = MEDIAS[monde.lecture || 'video'];
+  return voyage(L_ART_C, L_ART_X[m.ratio], p);
+}
+function cadreTemps(p){
+  const q = clamp(p, 0, 1.1);
+  const ty = 1 - Math.pow(1 - clamp(q, 0, 1), 3) + Math.max(0, q - 1);
+  const ts = Math.pow(clamp((q - .15) / .85, 0, 1), 1.1) + Math.max(0, q - 1);
+  const fs = lerp(M_TPS_C.fs, M_TPS_X.fs, ts);
+  const lh = fs * 1.1;
+  const topC = M_TPS_C.cy - lh / 2;
+  const d = lerp(M_TPS_C.d, M_TPS_X.d, Math.pow(q, 1.4));
+  return {d, top:lerp(topC, M_TPS_X.top, ty), fs, lh};
+}
+function rendu(){
+  const g = geoCourante();
+  const d = chemin(g, 0);
+  forme.setAttribute('d', d);
+  contenu.style.clipPath = `path('${chemin(g, OX)}')`;
+  const s = clamp((g.h - B) / 70, 0, 1);
+  ombre.style.filter = s > 0.01 ? `drop-shadow(0 ${(5 * s).toFixed(1)}px ${(16 * s).toFixed(1)}px rgba(0,0,0,${(.42 * s).toFixed(3)}))` : 'none';
+
+  if (cur.vue === 'lecture'){
+    const c = cadreArt(ouverture('lecture'));
+    place(lArt, c); lArt.style.borderRadius = c.r.toFixed(2) + 'px';
+  }
+  if (cur.vue === 'minuteur'){
+    const p = ouverture('minuteur');
+    const a = voyage(M_ANN_C, M_ANN_X, p);
+    place(mAnn, a);
+    mAnn.querySelectorAll('circle').forEach(ci => ci.setAttribute('stroke-width', lerp(2.2, 3, clamp(a.t, 0, 1)).toFixed(2)));
+    const t = cadreTemps(p);
+    mTps.style.right = (800 - (OX + t.d)) + 'px'; mTps.style.left = 'auto';
+    mTps.style.top = t.top.toFixed(2) + 'px';
+    mTps.style.fontSize = t.fs.toFixed(2) + 'px'; mTps.style.lineHeight = t.lh.toFixed(2) + 'px';
+  }
+  // pastille + goutte
+  const py = RP.x;
+  const past = document.getElementById('pastille');
+  if (past.style.display !== 'none'){
+    document.getElementById('gooCalque').style.display = '';
+    const gapBas = py - g.h;   // écart entre le bas de l'îlot et le haut de la pastille
+    const flou = gapBas < 3 ? 5 : clamp(5 - (gapBas - 3) * .55, .4, 5);
+    document.getElementById('gooFlou').setAttribute('stdDeviation', flou.toFixed(2));
+    const gi = document.getElementById('gooIlot');
+    gi.setAttribute('width', Math.max(0, Math.min(g.n, 128) - 60).toFixed(2));
+    gi.setAttribute('height', (14 + g.h).toFixed(2));
+    gi.setAttribute('rx', Math.min(10, R.rb.x).toFixed(2));
+    document.getElementById('pastFond').setAttribute('y', py.toFixed(2));
+    document.getElementById('gooPast').setAttribute('y', (py + 1).toFixed(2));
+    document.getElementById('pastCont').setAttribute('transform', `translate(0 ${(py - 39).toFixed(2)})`);
+    const op = past.dataset.voulue === 'non' ? clamp((RP.x - 6) / 30, 0, 1) : 1;
+    past.style.opacity = op; document.getElementById('gooCalque').style.opacity = op;
+  }
+}
+
+/* =========================================================
+   Pointeur : survol avec intention, clic, interruption
+   ========================================================= */
+const svgForme = document.getElementById('forme-svg');
+let survol = false, tOuvre = 0, tFerme = 0, glisse = false;
+function versIlot(e){ const r = svgForme.getBoundingClientRect(); return {x:e.clientX - r.left - OX, y:e.clientY - r.top}; }
+function surIlot(p){
+  if (p.y < 0 || p.y > 372) return false;
+  try { if (forme.isPointInFill(new DOMPoint(p.x, p.y))) return true; } catch (_) {}
+  return false;
+}
+document.addEventListener('pointermove', e => {
+  if (autoActif && e.isTrusted && (Math.abs(e.movementX) + Math.abs(e.movementY) > 0)) {/* le survol réel reprend la main */}
+  const dedans = surIlot(versIlot(e)) || glisse;
+  if (dedans === survol) return;
+  survol = dedans;
+  if (dedans){
+    if (autoActif) arreterAuto();
+    clearTimeout(tFerme);
+    if (!monde.ouvert && voulu().vue && !monde.alerte && !monde.accueil){
+      clearTimeout(tOuvre);
+      // revenue pendant une fermeture : on repart vers l'ouvert tout de suite, depuis la vitesse courante
+      if (R.h.x > R.h.cible + 2) { monde.ouvert = true; appliquer(); }
+      else tOuvre = setTimeout(() => { monde.ouvert = true; appliquer(); }, 240 * K);
+    }
+  } else {
+    clearTimeout(tOuvre);
+    if (monde.ouvert || monde.accueil || monde.prioMinuteur){
+      clearTimeout(tFerme);
+      tFerme = setTimeout(() => { monde.ouvert = false; monde.accueil = false; monde.prioMinuteur = false; appliquer(); }, 320 * K);
+    }
+  }
+});
+document.getElementById('ecran').addEventListener('pointerdown', e => {
+  const p = versIlot(e);
+  const surPast = e.target.closest && e.target.closest('#pastille');
+  if (surPast){ if (autoActif) arreterAuto(); monde.prioMinuteur = true; monde.ouvert = true; appliquer(); return; }
+  if (e.target.closest('button,.prog')) return;
+  if (!surIlot(p)) {
+    if (monde.ouvert || monde.accueil){ monde.ouvert = false; monde.accueil = false; monde.prioMinuteur = false; appliquer(); }
+    return;
+  }
+  if (autoActif) arreterAuto();
+  clearTimeout(tOuvre);
+  if (!voulu().vue && !monde.alerte){ monde.accueil = true; appliquer(); return; }
+  if (monde.accueil){ monde.accueil = false; appliquer(); return; }
+  if (!monde.alerte){ monde.ouvert = !monde.ouvert; appliquer(); }
+});
+
+/* actions dans l'îlot */
+contenu.addEventListener('click', e => {
+  const b = e.target.closest('[data-a]'); if (!b) return;
+  if (autoActif) arreterAuto();
+  action(b.dataset.a);
+});
+function action(a){
+  const m = monde.lecture && MEDIAS[monde.lecture];
+  if (a === 'pp'){ monde.jeu = !monde.jeu; remplirLecture(); }
+  else if (a === 'moins10' && m){ m.pos = Math.max(0, m.pos - 10); majProg(); }
+  else if (a === 'plus10' && m){ m.pos = Math.min(m.duree, m.pos + 10); majProg(); }
+  else if (a === 'avance' && m){ changerMorceau(monde.lecture === 'musique' ? 'musique2' : 'musique'); }
+  else if (a === 'recule' && m){ if (m.pos > 3){ m.pos = 0; majProg(); } else changerMorceau(monde.lecture === 'musique' ? 'musique2' : 'musique'); }
+  else if (a === 'fait' || a === 'plustard'){ monde.alerte = false; appliquer(); }
+  else if (/^m\d+$/.test(a)){ minut.total = +a.slice(1) * 60; minut.reste = minut.total; minut.jeu = true; majMinuteur(); monde.accueil = false; monde.minuteur = true; appliquer(); }
+}
+mPause.addEventListener('click', () => { minut.jeu = !minut.jeu; majMinuteur(); });
+mStop.addEventListener('click', () => { monde.minuteur = false; monde.ouvert = false; monde.prioMinuteur = false; appliquer(); });
+
+/* barre de progression glissable */
+const zone = lProg.querySelector('.zone');
+function posDepuis(e){ const r = zone.getBoundingClientRect(); return clamp((e.clientX - r.left) / r.width, 0, 1); }
+zone.addEventListener('pointerdown', e => {
+  if (!monde.lecture) return;
+  e.stopPropagation(); glisse = true; lProg.classList.add('glisse'); zone.setPointerCapture(e.pointerId);
+  const m = MEDIAS[monde.lecture]; m.pos = posDepuis(e) * m.duree; majProg();
+});
+zone.addEventListener('pointermove', e => { if (!glisse) return; const m = MEDIAS[monde.lecture]; m.pos = posDepuis(e) * m.duree; majProg(); });
+const finGlisse = () => { glisse = false; lProg.classList.remove('glisse'); };
+zone.addEventListener('pointerup', finGlisse); zone.addEventListener('pointercancel', finGlisse);
+lProg.addEventListener('keydown', e => {
+  const m = monde.lecture && MEDIAS[monde.lecture]; if (!m) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowUp'){ m.pos = Math.min(m.duree, m.pos + 5); majProg(); e.preventDefault(); }
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowDown'){ m.pos = Math.max(0, m.pos - 5); majProg(); e.preventDefault(); }
+});
+
+/* =========================================================
+   Scènes (boutons, lecture automatique, contrôles)
+   ========================================================= */
+const SCENES = {
+  vide:      () => Object.assign(monde, {lecture:null, minuteur:false, alerte:false, accueil:false, ouvert:false, prioMinuteur:false}),
+  lectureC:  () => { Object.assign(monde, {lecture:'video', jeu:true, minuteur:false, alerte:false, accueil:false, ouvert:false, prioMinuteur:false}); remplirLecture(); },
+  videoX:    () => { Object.assign(monde, {lecture:'video', jeu:true, minuteur:false, alerte:false, accueil:false, ouvert:true, prioMinuteur:false}); remplirLecture(); },
+  musiqueC:  () => { Object.assign(monde, {lecture:'musique', jeu:true, minuteur:false, alerte:false, accueil:false, ouvert:false, prioMinuteur:false}); remplirLecture(); },
+  musiqueX:  () => { Object.assign(monde, {lecture:'musique', jeu:true, minuteur:false, alerte:false, accueil:false, ouvert:true, prioMinuteur:false}); remplirLecture(); },
+  replier:   () => { monde.ouvert = false; monde.accueil = false; monde.alerte = false; monde.prioMinuteur = false; },
+  minuteurC: () => { Object.assign(monde, {lecture:null, minuteur:true, alerte:false, accueil:false, ouvert:false, prioMinuteur:false}); },
+  minuteurX: () => { Object.assign(monde, {lecture:null, minuteur:true, alerte:false, accueil:false, ouvert:true, prioMinuteur:false}); },
+  alerte:    () => { monde.alerte = true; monde.accueil = false; monde.ouvert = false; if (!monde.lecture && !monde.minuteur) monde.minuteur = true; },
+  deux:      () => { Object.assign(monde, {lecture:'musique', jeu:true, minuteur:true, alerte:false, accueil:false, ouvert:false, prioMinuteur:false}); remplirLecture(); },
+  accueil:   () => Object.assign(monde, {lecture:null, minuteur:false, alerte:false, accueil:true, ouvert:false, prioMinuteur:false})
+};
+const LEGENDES = {
+  vide:['Repos vide','L’îlot n’existe pas : seule la caméra.'],
+  lectureC:['1 · Repos de la lecture','Pochette à gauche, onde teintée à droite. Rien au-delà des ailes de 66 pt.'],
+  videoX:['2 · Survol : la vidéo se déplie','La miniature grandit et glisse à sa place ; le titre, la barre et les boutons arrivent après la forme.'],
+  musiqueC:['Changement de source','La pochette carrée remplace la miniature dans l’aile.'],
+  musiqueX:['2b · Musique dépliée','Pochette carrée, titre et artiste, barre glissable, précédent / pause / suivant.'],
+  replier:['3 · Retour au repos','Le contenu part d’abord, la hauteur se replie, la largeur en dernier. Aucun rebond.'],
+  minuteurC:['4 · Minuteur','L’anneau à gauche, le temps restant à droite, en chiffres fixes.'],
+  minuteurX:['4b · Minuteur déplié','Le temps grossit et glisse ; l’anneau devient le bouton pause.'],
+  alerte:['5 · Rappel','L’îlot se gonfle de lui-même, la cloche bouge, puis il se replie.'],
+  deux:['6 · Deux activités','La lecture garde l’îlot ; le minuteur goutte et devient une pastille sous la barre.'],
+  accueil:['7 · Accueil','Clic sur l’encoche vide : prochain rendez-vous, minuteurs, rappel, dernière dictée.']
+};
+function legende(cle){ const l = LEGENDES[cle]; if (l) document.getElementById('legende').innerHTML = `<b>${l[0]}</b><span>${l[1]}</span>`; }
+function jouer(cle){
+  SCENES[cle](); appliquer(); legende(cle);
+  document.querySelectorAll('#cmd [data-s]').forEach(b => b.classList.toggle('actif', b.dataset.s === cle));
+}
+document.querySelectorAll('#cmd [data-s]').forEach(b => b.addEventListener('click', () => { arreterAuto(); jouer(b.dataset.s); }));
+
+/* lecture automatique, avec un faux curseur */
+const curseur = document.getElementById('curseur');
+let autoActif = false, autoJeton = 0;
+function curseurVers(dx, y, vu){
+  const cx = document.getElementById('ecran').clientWidth / 2;
+  curseur.style.transform = `translate(${cx + dx}px, ${y}px)`;
+  curseur.classList.toggle('vu', vu !== false);
+}
+const attendre = (s, j) => new Promise((ok, ko) => setTimeout(() => (j === autoJeton ? ok() : ko('stop')), s * 1000 * K));
+async function auto(){
+  const j = ++autoJeton; autoActif = true;
+  document.getElementById('auto').textContent = '■ Arrêter';
+  document.getElementById('auto').classList.add('actif');
+  try {
+    while (true){
+      curseurVers(300, 250);
+      minut.total = 600; minut.reste = 582; minut.jeu = true; majMinuteur();
+      MEDIAS.video.pos = 202;
+      jouer('lectureC'); await attendre(2.2, j);
+      curseurVers(52, 14); await attendre(.95, j);
+      jouer('videoX'); await attendre(3.4, j);
+      curseurVers(330, 270); await attendre(.25, j);
+      jouer('replier'); await attendre(1.5, j);
+      jouer('musiqueC'); await attendre(1.4, j);
+      curseurVers(-48, 16); await attendre(.95, j);
+      jouer('musiqueX'); await attendre(1.6, j);
+      curseurVers(64, 176); await attendre(.9, j);
+      changerMorceau('musique2'); legende('musiqueX'); await attendre(2.0, j);
+      curseurVers(-340, 280); await attendre(.25, j);
+      jouer('replier'); await attendre(1.5, j);
+      jouer('minuteurC'); await attendre(1.9, j);
+      curseurVers(70, 12); await attendre(.95, j);
+      jouer('minuteurX'); await attendre(2.6, j);
+      curseurVers(320, 260); await attendre(.25, j);
+      jouer('replier'); await attendre(1.4, j);
+      jouer('alerte'); await attendre(3.4, j);
+      monde.alerte = false; appliquer(); legende('minuteurC'); await attendre(1.3, j);
+      jouer('deux'); await attendre(3.2, j);
+      jouer('vide'); await attendre(1.2, j);
+      curseurVers(30, 12); await attendre(.95, j);
+      jouer('accueil'); await attendre(3.4, j);
+      curseurVers(-300, 270); await attendre(.25, j);
+      jouer('vide'); await attendre(1.6, j);
+    }
+  } catch (_) {}
+}
+function arreterAuto(){
+  if (!autoActif) return;
+  autoActif = false; autoJeton++;
+  curseur.classList.remove('vu');
+  document.getElementById('auto').textContent = '▶ Lecture automatique';
+  document.getElementById('auto').classList.remove('actif');
+}
+document.getElementById('auto').addEventListener('click', () => autoActif ? arreterAuto() : auto());
+
+/* options */
+document.getElementById('lent').addEventListener('change', e => { K = e.target.checked ? 4 : 1; document.documentElement.style.setProperty('--k', K); });
+const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+function majReduire(v){ reduire = v; document.documentElement.classList.toggle('rm', v); document.getElementById('reduire').checked = v; }
+document.getElementById('reduire').addEventListener('change', e => majReduire(e.target.checked));
+mq.addEventListener && mq.addEventListener('change', e => majReduire(e.matches));
+majReduire(mq.matches);
+(function(){
+  const r = document.getElementById('reperes');
+  r.innerHTML = `<i style="left:calc(50% - ${LIM}px)"></i><i style="left:calc(50% + ${LIM}px)"></i><i class="c" style="left:calc(50% - ${HC}px)"></i><i class="c" style="left:calc(50% + ${HC}px)"></i>
+    <em style="left:calc(50% - ${HC + 33}px)">66 pt</em><em style="left:calc(50% + ${HC + 33}px)">66 pt</em>`;
+  document.getElementById('rep').addEventListener('change', e => r.classList.toggle('vu', e.target.checked));
+})();
+
+/* =========================================================
+   Démarrage, images figées, contrôle automatique
+   ========================================================= */
+document.getElementById('encoche').setAttribute('d', chemin(NOTCH, 0));
+remplirLecture(); majMinuteur();
+const Q = new URLSearchParams(location.search);
+
+function figer(){ document.documentElement.classList.add('snap'); }
+if (Q.has('survol')){
+  document.documentElement.classList.add('verif');
+  setTimeout(testSurvol, 100);
+} else if (Q.has('verif')){
+  document.documentElement.classList.add('verif');
+  modeFige = true; figer();
+  setTimeout(verifier, 50);
+} else if (Q.has('etat') && Q.has('t')){
+  // image à mi-course : on part de « depuis » posé, on lance « etat », on avance de t secondes
+  modeFige = true;
+  const de = Q.get('depuis') || 'lectureC';
+  figer(); SCENES[de](); appliquer({snap:true}); rendu();
+  setTimeout(() => {
+    document.documentElement.classList.remove('snap'); void document.body.offsetWidth; getComputedStyle(document.body).opacity;
+    SCENES[Q.get('etat')](); appliquer();
+    const t = parseFloat(Q.get('t'));
+    avancer(t); rendu();
+    document.getAnimations().forEach(a => { try { a.pause(); a.currentTime = t * 1000; } catch (_) {} });
+    legende(Q.get('etat'));
+  }, 120);
+} else if (Q.has('etat')){
+  modeFige = Q.has('fige');
+  if (modeFige) figer();
+  SCENES[Q.get('etat')](); appliquer({snap:modeFige}); rendu(); legende(Q.get('etat'));
+  if (modeFige) finRepos();
+} else {
+  jouer('lectureC'); appliquer({snap:true}); rendu();
+  setTimeout(() => auto(), 900);
+}
+
+/* ---------- contrôle du geste : survol avec intention, interruption, repos ---------- */
+async function testSurvol(){
+  const out = [], wait = ms => new Promise(r => setTimeout(r, ms));
+  const ec = svgForme.getBoundingClientRect();
+  const mv = (x, y) => document.dispatchEvent(new PointerEvent('pointermove', {clientX:ec.left + OX + x, clientY:ec.top + y, bubbles:true}));
+  jouer('lectureC'); appliquer({snap:true}); rendu(); await wait(300);
+  mv(-200, 300); mv(-110, 16); mv(-200, 300); await wait(400);
+  out.push('passage rapide sur l’îlot : ' + (monde.ouvert ? 'OUVERT (faux)' : 'reste replié (bon)'));
+  mv(-110, 16); await wait(150);
+  out.push('souris posée 0,15 s : ' + (monde.ouvert ? 'ouvert' : 'replié (bon)'));
+  await wait(800);
+  out.push('souris posée 0,95 s : ' + (monde.ouvert ? 'ouvert (bon)' : 'REPLIÉ') + ', hauteur ' + R.h.x.toFixed(1));
+  mv(-110, 330); await wait(150);
+  out.push('sortie depuis 0,15 s : ' + (monde.ouvert ? 'encore ouvert (bon)' : 'replié'));
+  await wait(360);
+  const h0 = R.h.x, v0 = R.h.v;
+  out.push(`fermeture en cours : hauteur ${h0.toFixed(1)}, vitesse ${v0.toFixed(0)}`);
+  mv(-110, 16); await wait(30);
+  const h1 = R.h.x;
+  out.push(`retour de la souris : hauteur ${h1.toFixed(1)} 30 ms après, vitesse ${R.h.v.toFixed(0)} (saut ${Math.abs(h1 - h0) < 25 ? 'aucun (bon)' : 'VISIBLE'})`);
+  await wait(900);
+  out.push('après retour : ' + (monde.ouvert ? 'rouvert (bon)' : 'replié') + ', hauteur ' + R.h.x.toFixed(1));
+  mv(-110, 330); await wait(1800);
+  out.push('posé : boucle d’animation ' + (enCours ? 'TOURNE ENCORE' : 'arrêtée (bon)') + ', hauteur ' + R.h.x.toFixed(1));
+  document.getElementById('verif').textContent = out.join('\n');
+}
+
+/* ---------- contrôle : chevauchements, rognage, barre des menus ---------- */
+function verifier(){
+  const sortie = [];
+  const rIlot = n => { const a = n.getBoundingClientRect(), s = svgForme.getBoundingClientRect(); return {x:a.left - s.left - OX, y:a.top - s.top, w:a.width, h:a.height}; };
+  const dedans = (x, y) => forme.isPointInFill(new DOMPoint(x, y));
+  const croise = (a, b) => a.x < b.x + b.w - .5 && b.x < a.x + a.w - .5 && a.y < b.y + b.h - .5 && b.y < a.y + a.h - .5;
+  const PERMIS = new Set(['anneau|pauseM','pauseM|anneau']);
+  const noms = ['lectureC','videoX','musiqueC','musiqueX','minuteurC','minuteurX','alerte','deux','accueil','vide'];
+  // barre des menus
+  const ec = document.getElementById('ecran').getBoundingClientRect(), cx = ec.width / 2;
+  const mr = document.getElementById('menus').lastElementChild.getBoundingClientRect().right - ec.left;
+  const el0 = document.getElementById('etats').firstElementChild.getBoundingClientRect().left - ec.left;
+  sortie.push(`barre des menus : derniers menus finissent à ${(cx - mr).toFixed(0)} pt de la caméra (limite 156 → ${(cx - mr) >= LIM ? 'OK' : 'TROP PRÈS'}), premières icônes à ${(el0 - cx).toFixed(0)} pt (${(el0 - cx) >= LIM ? 'OK' : 'TROP PRÈS'})`);
+  for (const nom of noms){
+    SCENES[nom](); appliquer({snap:true}); rendu(); finRepos();
+    const pb = [];
+    const c = calculer(geoCourante());
+    if (c.bande > LIM + .01) pb.push(`bande barre ${c.bande.toFixed(1)} > ${LIM}`);
+    const vis = [...contenu.querySelectorAll('.e.on')];
+    const rects = vis.map(n => ({k:n.dataset.k, r:rIlot(n), n}));
+    for (const {k, r, n} of rects){
+      if (r.w === 0) continue;
+      const m = 4, ri = (parseFloat(getComputedStyle(n).borderTopLeftRadius) || 0) * .29;
+      const pts = [[r.x - m + ri, r.y - m + ri],[r.x + r.w + m - ri, r.y - m + ri],[r.x - m + ri, r.y + r.h + m - ri],[r.x + r.w + m - ri, r.y + r.h + m - ri]];
+      const hors = pts.filter(([x, y]) => !dedans(x, y));
+      if (hors.length) pb.push(`${k} : à moins de ${m} pt du bord ou dehors (${hors.length} coins)`);
+      if (r.y < B && r.x < HC && r.x + r.w > -HC) pb.push(`${k} : passe sous la caméra`);
+      if (r.y < B && (r.x < -c.n || r.x + r.w > c.n)) pb.push(`${k} : dans la barre hors des ailes`);
+      n.querySelectorAll('.l1,.l2,.l15,.extrait,.source,.lbl,.cap').forEach(t => {
+        if (t.scrollWidth > t.clientWidth + 1 && !t.matches('.l2,.extrait,.source')) pb.push(`${k} : texte coupé (${t.textContent.trim().slice(0, 24)})`);
+        if (t.matches('.l2,.extrait,.source') && t.scrollWidth > t.clientWidth + 1) pb.push(`${k} : texte avec « … » (${t.textContent.trim().slice(0, 24)})`);
+      });
+    }
+    for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++){
+      const a = rects[i], b = rects[j];
+      if (PERMIS.has(a.k + '|' + b.k)) continue;
+      if (croise(a.r, b.r)) pb.push(`chevauchement ${a.k} / ${b.k}`);
+    }
+    // pastille
+    const past = document.getElementById('pastille');
+    if (past.style.display !== 'none' && past.dataset.voulue === '1'){
+      const pr = document.getElementById('pastFond').getBBox();
+      if (pr.y < B + 2) pb.push('pastille dans la barre');
+      const tt = document.getElementById('pastTemps').getBBox();
+      if (tt.x + tt.width > pr.x + pr.width - 4) pb.push('pastille : temps trop près du bord');
+    }
+    sortie.push(`${nom.padEnd(10)} ${pb.length ? '✗ ' + pb.join(' ; ') : '✓'}`);
+  }
+  // animations : la bande de la barre et la pochette pendant chaque transition
+  const paires = [['lectureC','videoX'],['videoX','lectureC'],['musiqueC','musiqueX'],['musiqueX','musiqueC'],['minuteurC','minuteurX'],['minuteurX','minuteurC'],['lectureC','alerte'],['alerte','lectureC'],['vide','accueil'],['accueil','vide'],['minuteurC','deux'],['videoX','alerte']];
+  for (const [a, b] of paires){
+    SCENES[a](); appliquer({snap:true}); rendu();
+    SCENES[b](); appliquer();
+    let maxB = 0, sortiesArt = 0, cam = 0, minW = 1e9;
+    for (let i = 0; i < 480; i++){
+      avancer(1 / 240);
+      const g = geoCourante(), c = calculer(g);
+      maxB = Math.max(maxB, c.bande);
+      if (i % 3 === 0){
+        rendu();
+        if (cur.vue === 'lecture'){
+          const r = cadreArt(ouverture('lecture'));
+          const pts = [[r.x + 1, r.y + 1],[r.x + r.w - 1, r.y + 1],[r.x + 1, r.y + r.h - 1],[r.x + r.w - 1, r.y + r.h - 1]];
+          if (pts.some(([x, y]) => !dedans(x, y))) sortiesArt++;
+          if (r.y < B && r.x + r.w > -HC) cam++;
+        }
+      }
+    }
+    sortie.push(`anim ${a} → ${b} : bande max ${maxB.toFixed(2)} (≤ ${LIM} ${maxB <= LIM + .01 ? 'OK' : 'TROP'}) · pochette hors forme ${sortiesArt} images · sous la caméra ${cam}`);
+  }
+  document.getElementById('verif').textContent = sortie.join('\n');
+  document.title = 'VERIF OK';
+}
+</script>
+</body>
+</html>
