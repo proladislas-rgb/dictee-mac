@@ -1,0 +1,169 @@
+import Foundation
+import DicteeCore
+
+/// Contrôles de l'îlot « centre d'activités » : géométrie, priorités, pastille, minuteur, rappels, agenda, notifications, commandes dictées.
+/// Appelée depuis main.swift (un seul appel).
+func controlesIlot() {
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/Paris")!
+    let t0 = cal.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: 14, minute: 32))!
+
+    groupe("Îlot : géométrie")
+    let barre = 32.0, demi = 100.0
+    for v in VueIlot.allCases {
+        let g = GeoIlot.valeurs(v, hauteurBarre: barre)
+        verifier(g.count == 6 && g[0] <= GeoIlot.aileMax && g[1] <= GeoIlot.aileMax, "\(v.rawValue) : ailes ≤ 66 pt (rien ne dépasse sur la barre des menus)")
+        let p = TraceIlot.calculer(g, demiCamera: demi, barre: barre)
+        verifier(p.xGauche >= -demi - GeoIlot.aileMax - 0.001 && p.xDroite <= demi + GeoIlot.aileMax + 0.001, "\(v.rawValue) : haut de la forme dans les ailes de l'encoche")
+    }
+    verifier(GeoIlot.valeurs(.repos, hauteurBarre: 37)[4] == 37, "le repos épouse exactement la barre (37)")
+    verifier(GeoIlot.valeurs(.minuteurCompact, hauteurBarre: 32)[4] == 38 && GeoIlot.valeurs(.minuteurCompact, hauteurBarre: 37)[4] == 43, "compact : 6 pt sous la barre, quelle que soit la barre")
+    verifier(GeoIlot.valeurs(.minuteurMinimal, hauteurBarre: 32)[1] == 0, "minimal : une seule aile")
+    let etendu = TraceIlot.calculer(GeoIlot.valeurs(.accueil, hauteurBarre: barre), demiCamera: demi, barre: barre)
+    verifier(etendu.basGauche < etendu.xGauche - 50 && etendu.basDroite > etendu.xDroite + 50, "étendu : le corps est plus large que les ailes, sous la barre")
+    let compact = TraceIlot.calculer(GeoIlot.valeurs(.minuteurCompact, hauteurBarre: barre), demiCamera: demi, barre: barre)
+    verifier(compact.basGauche == compact.xGauche && compact.basDroite == compact.xDroite, "compact : pas d'épaule, même largeur en bas")
+    verifier(GeoIlot.ouvre(de: GeoIlot.valeurs(.repos, hauteurBarre: barre), vers: GeoIlot.valeurs(.accueil, hauteurBarre: barre)) && !GeoIlot.ouvre(de: GeoIlot.valeurs(.accueil, hauteurBarre: barre), vers: GeoIlot.valeurs(.repos, hauteurBarre: barre)), "ouverture / fermeture reconnues")
+
+    groupe("Îlot : priorité et pastille")
+    var e = EtatIlot()
+    verifier(ArbitrageIlot.resoudre(e).principal == .repos && ArbitrageIlot.resoudre(e).survol == .accueil, "rien : l'îlot est vide, au survol l'accueil")
+    e.minuteur = true
+    verifier(ArbitrageIlot.resoudre(e).principal == .minuteurCompact && ArbitrageIlot.resoudre(e).pastille == nil, "minuteur seul : compact, pas de pastille")
+    e.lecture = true
+    var r = ArbitrageIlot.resoudre(e)
+    verifier(r.principal == .lectureCompact && r.survol == .lectureEtendu && r.pastille == .minuteur, "lecture + minuteur : la lecture garde l'îlot, le minuteur devient pastille")
+    r = ArbitrageIlot.resoudre(e, echange: .minuteur)
+    verifier(r.principal == .minuteurCompact && r.pastille == .lecture, "clic sur la pastille : les deux échangent")
+    e.rappelEnAttente = true
+    verifier(ArbitrageIlot.resoudre(e).principal == .rappelCompact && ArbitrageIlot.resoudre(e).pastille == .lecture, "rappel sans réponse > lecture > minuteur")
+    e.rendezVousProche = true
+    verifier(ArbitrageIlot.resoudre(e).principal == .agendaCompact && ArbitrageIlot.resoudre(e).pastille == .rappel, "rendez-vous > rappel")
+    e.alerte = .minuteurFini
+    r = ArbitrageIlot.resoudre(e)
+    verifier(r.principal == .minuteurFini && r.verrou && r.survol == nil && r.pastille == .rendezVous, "alerte : prend l'îlot, verrouillée ; l'activité la plus haute patiente en pastille")
+    e.alerte = nil; e.bandeau = .notification
+    r = ArbitrageIlot.resoudre(e)
+    verifier(r.principal == .notification && r.verrou && r.pastille == .rendezVous, "bandeau : prend l'îlot un instant")
+    verifier(ArbitrageIlot.resoudre(EtatIlot(), echange: .lecture).principal == .repos, "échange avec une activité absente : sans effet")
+    verifier(ArbitrageIlot.etage(dictee: true, reunion: true, ecran: .minuteurFini) == 1 && ArbitrageIlot.etage(dictee: false, reunion: true, ecran: .minuteurFini) == 2
+             && ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .minuteurFini) == 3 && ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .lectureCompact) == 4
+             && ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .minuteurCompact) == 5, "échelle : dictée > réunion > alerte > lecture > le reste")
+    verifier(VueIlot.minuteurFini.estAlerte && VueIlot.rappelEtendu.estAlerte && VueIlot.agendaDebut.estAlerte && !VueIlot.minuteurLance.estAlerte && VueIlot.notification.estBandeau, "alertes et bandeaux distingués")
+
+    groupe("Îlot : ressort")
+    var s = RessortIlot(0, reponse: 0.5, amortissement: 0.84)
+    s.cible = 1
+    for _ in 0..<180 { s.avancer(1.0 / 60) }
+    verifier(abs(s.x - 1) < 0.01, "le ressort rejoint sa cible en 3 s")
+    var s2 = RessortIlot(0, reponse: 0.5, amortissement: 1); s2.cible = 1
+    var depasse = false
+    for _ in 0..<240 { s2.avancer(1.0 / 60); if s2.x > 1.001 { depasse = true } }
+    verifier(!depasse, "amortissement 1 : aucun rebond")
+    var s3 = RessortIlot(0, reponse: 0.5, amortissement: 0.84); s3.cible = 1
+    for _ in 0..<12 { s3.avancer(1.0 / 60) }
+    let avant = s3.x; s3.cible = 0; s3.avancer(1.0 / 60)
+    verifier(avant > 0.05 && s3.x > 0 && s3.v != 0, "interrompu : repart de la valeur affichée, garde sa vitesse")
+
+    groupe("Îlot : minuteur")
+    var m = MinuteurIlot(minutes: 10, depuis: t0)
+    verifier(m.restant(a: t0) == 600 && m.enMarche && !m.termine(a: t0), "10 min lancé")
+    verifier(m.restant(a: t0.addingTimeInterval(125)) == 475 && FormatIlot.duree(475) == "7:55", "125 s plus tard : 7:55")
+    verifier(FormatIlot.duree(0.2) == "0:01" && FormatIlot.duree(0) == "0:00" && FormatIlot.duree(600) == "10:00", "affichage : arrondi vers le haut (0:01 à 0,2 s), 0:00, 10:00")
+    verifier(abs(m.fraction(a: t0.addingTimeInterval(300)) - 0.5) < 1e-9, "anneau à moitié à mi-parcours")
+    verifier(cal.component(.minute, from: m.heureDeFin(a: t0)) == 42 && cal.component(.hour, from: m.heureDeFin(a: t0)) == 14, "fin à 14:42")
+    m.pause(a: t0.addingTimeInterval(100))
+    verifier(m.enPause && m.restant(a: t0.addingTimeInterval(9999)) == 500 && m.echeance == nil, "pause : le temps ne passe plus, aucune échéance à surveiller")
+    m.reprendre(a: t0.addingTimeInterval(200))
+    verifier(m.enMarche && m.restant(a: t0.addingTimeInterval(260)) == 440, "reprise : repart de 500 s")
+    m.ajouter(60, a: t0.addingTimeInterval(260))
+    verifier(m.restant(a: t0.addingTimeInterval(260)) == 500 && m.total == 660, "+1 min allonge le restant et le total")
+    verifier(m.termine(a: t0.addingTimeInterval(761)) && !m.termine(a: t0.addingTimeInterval(759)), "terminé à la seconde")
+    var mp = MinuteurIlot(minutes: 5, depuis: t0); mp.pause(a: t0); mp.ajouter(60, a: t0)
+    verifier(mp.restant(a: t0) == 360, "+1 min en pause")
+    verifier(FormatIlot.minutes(600) == "10 min" && FormatIlot.minutes(5400) == "1 h 30" && FormatIlot.minutes(3600) == "1 h", "libellés de durée")
+
+    groupe("Îlot : commandes dictées")
+    verifier(AnalyseCommandeIlot.minuteur("Minuteur 10 minutes.") == 600, "« minuteur 10 minutes. »")
+    verifier(AnalyseCommandeIlot.minuteur("minuteur dix minutes") == 600 && AnalyseCommandeIlot.minuteur("Mets un minuteur de cinq minutes") == 300, "nombres en lettres, « mets un minuteur de … »")
+    verifier(AnalyseCommandeIlot.minuteur("minuteur 1 heure 30") == nil && AnalyseCommandeIlot.minuteur("minuteur 1 heure 30 minutes") == 5400, "heures et minutes")
+    verifier(AnalyseCommandeIlot.minuteur("minuteur d'une demi-heure") == 1800 && AnalyseCommandeIlot.minuteur("minuteur un quart d'heure") == 900, "demi-heure, quart d'heure")
+    verifier(AnalyseCommandeIlot.minuteur("minuteur 90 secondes") == 90, "secondes")
+    verifier(AnalyseCommandeIlot.minuteur("je veux un minuteur pour les pâtes") == nil && AnalyseCommandeIlot.minuteur("le minuteur est cassé") == nil && AnalyseCommandeIlot.minuteur("Bonjour Paul") == nil,
+             "une phrase normale n'est jamais prise pour une commande")
+    verifier(AnalyseCommandeIlot.minuteur("minuteur 0 minutes") == nil && AnalyseCommandeIlot.minuteur("minuteur 99999 minutes") == nil, "durées absurdes refusées")
+    if let rp = AnalyseCommandeIlot.rappel("Rappelle-moi d'appeler Paul à 15 h.", maintenant: t0, calendrier: cal) {
+        verifier(rp.texte == "Appeler Paul" && cal.component(.hour, from: rp.quand) == 15 && cal.component(.minute, from: rp.quand) == 0 && cal.isDate(rp.quand, inSameDayAs: t0), "rappelle-moi d'appeler Paul à 15 h")
+    } else { verifier(false, "rappelle-moi d'appeler Paul à 15 h") }
+    if let rp = AnalyseCommandeIlot.rappel("rappelle-moi de réserver la salle à 9h30", maintenant: t0, calendrier: cal) {
+        verifier(rp.texte == "Réserver la salle" && cal.component(.hour, from: rp.quand) == 9 && cal.component(.minute, from: rp.quand) == 30 && !cal.isDate(rp.quand, inSameDayAs: t0), "heure déjà passée : demain")
+    } else { verifier(false, "rappel à 9h30") }
+    if let rp = AnalyseCommandeIlot.rappel("Rappelle-moi de sortir le pain dans 20 minutes", maintenant: t0, calendrier: cal) {
+        verifier(rp.texte == "Sortir le pain" && rp.quand == t0.addingTimeInterval(1200), "dans 20 minutes")
+    } else { verifier(false, "rappel dans 20 minutes") }
+    verifier(AnalyseCommandeIlot.rappel("rappelle-moi un jour de te le dire", maintenant: t0, calendrier: cal) == nil && AnalyseCommandeIlot.rappel("Je te rappelle demain à 15 h", maintenant: t0, calendrier: cal) == nil,
+             "« je te rappelle demain à 15 h » (une dictée normale) n'est pas un rappel")
+    verifier(AnalyseCommandeIlot.analyser("minuteur 10 minutes", maintenant: t0) == .minuteur(secondes: 600), "analyser : minuteur")
+    if case .rappel(let texteLibre, _)? = AnalyseCommandeIlot.analyser("Appeler Paul à 15 h.", maintenant: t0, calendrier: cal, exigerPrefixe: false) {
+        verifier(texteLibre == "Appeler Paul", "formulaire ouvert : « appeler Paul à 15 h » suffit")
+    } else { verifier(false, "formulaire ouvert : « appeler Paul à 15 h » suffit") }
+    verifier(AnalyseCommandeIlot.analyser("Appeler Paul à 15 h.", maintenant: t0, calendrier: cal) == nil, "sans formulaire : une phrase qui contient une heure n'est pas un rappel")
+
+    groupe("Îlot : rappels")
+    var l = ListeRappels()
+    let dans5 = t0.addingTimeInterval(300)
+    let a = l.ajouter(texte: "  Appeler Paul ", echeance: dans5, maintenant: t0)
+    verifier(a?.texte == "Appeler Paul" && l.ajouter(texte: "   ", echeance: dans5, maintenant: t0) == nil, "ajout (texte nettoyé), texte vide refusé")
+    _ = l.ajouter(texte: "Envoyer le devis", echeance: t0.addingTimeInterval(7200), maintenant: t0)
+    verifier(l.dus(a: t0).isEmpty && l.aVenir(a: t0).map(\.texte) == ["Appeler Paul", "Envoyer le devis"] && l.prochaineEcheance() == dans5, "à venir dans l'ordre, rien de dû, prochain réveil à l'heure du premier")
+    verifier(l.dus(a: dans5).map(\.texte) == ["Appeler Paul"], "à l'heure dite : dû")
+    l.marquerSonne(a!.id, a: dans5)
+    verifier(l.dus(a: dans5).isEmpty && l.enAttente.map(\.texte) == ["Appeler Paul"], "sonné sans réponse : la cloche reste (en attente), plus dû")
+    let relu = l.donnees().flatMap { ListeRappels.depuis($0) }
+    verifier(relu == l && relu?.enAttente.count == 1, "enregistrement JSON aller-retour : la cloche survit à une relance")
+    l.reporter(a!.id, depuis: dans5)
+    verifier(l.enAttente.isEmpty && l.dus(a: dans5.addingTimeInterval(599)).isEmpty && l.dus(a: dans5.addingTimeInterval(600)).count == 1, "Plus tard : sonne à nouveau 10 min après")
+    l.fait(a!.id)
+    verifier(l.rappels.count == 1 && l.rappels[0].texte == "Envoyer le devis", "Fait : retiré")
+    var ferme = ListeRappels(); _ = ferme.ajouter(texte: "Pendant que Verbe dormait", echeance: t0.addingTimeInterval(-3600), maintenant: t0.addingTimeInterval(-7200))
+    verifier(ferme.dus(a: t0).count == 1, "un rappel arrivé à échéance pendant que Verbe était fermé sonne à la relance")
+    verifier(ListeRappels.depuis(Data("pas du json".utf8)) == nil, "fichier abîmé : nil, pas de plantage")
+    verifier(ListeRappels.jour(de: t0, maintenant: t0, calendrier: cal) == "aujourd\u{2019}hui" && ListeRappels.jour(de: t0.addingTimeInterval(86400), maintenant: t0, calendrier: cal) == "demain", "aujourd'hui, demain")
+    verifier(ListeRappels.retard(de: t0, maintenant: t0.addingTimeInterval(20)) == "maintenant" && ListeRappels.retard(de: t0, maintenant: t0.addingTimeInterval(720)) == "il y a 12 min", "retard lisible")
+    var plein = ListeRappels(); for i in 0..<(ListeRappels.limite + 20) { _ = plein.ajouter(texte: "r\(i)", echeance: t0, maintenant: t0) }
+    verifier(plein.rappels.count == ListeRappels.limite, "limite de \(ListeRappels.limite) rappels")
+
+    groupe("Îlot : agenda")
+    let debut = t0.addingTimeInterval(600)
+    let ev = EvenementAgenda(id: "a", titre: "Point équipe", debut: debut, fin: debut.addingTimeInterval(2000), lien: URL(string: "https://meet.google.com/abc-defg-hij"))
+    verifier(PlanAgenda.etape(ev, a: t0.addingTimeInterval(-60)) == .loin(dans: 60), "11 min avant : encore loin (réveil dans 60 s)")
+    verifier(PlanAgenda.etape(ev, a: t0) == .avant(600), "10 min avant : on s'annonce")
+    verifier(PlanAgenda.etape(ev, a: debut) == .debut && PlanAgenda.etape(ev, a: debut.addingTimeInterval(119)) == .debut, "au début : alerte")
+    verifier(PlanAgenda.etape(ev, a: debut.addingTimeInterval(121)) == .passe, "2 min après le début : on ne réveille plus personne")
+    verifier(PlanAgenda.dans(600) == "dans 10 min" && PlanAgenda.dans(59) == "dans 1 min" && PlanAgenda.dans(10) == "maintenant", "libellé « dans N min »")
+    let journee = EvenementAgenda(id: "j", titre: "Anniversaire", debut: t0.addingTimeInterval(60), fin: t0.addingTimeInterval(86000), toutelaJournee: true)
+    let passe = EvenementAgenda(id: "p", titre: "Fini", debut: t0.addingTimeInterval(-7200), fin: t0.addingTimeInterval(-3600))
+    verifier(PlanAgenda.prochain([journee, passe, ev], a: t0)?.id == "a", "le prochain : ni journée entière, ni rendez-vous fini")
+    verifier(PlanAgenda.plage(ev, calendrier: cal) == "14:42 \u{2013} 15:15", "plage horaire 14:42 – 15:15")
+    verifier(LienVisio.extraire(depuis: [nil, "Rejoindre : https://meet.google.com/abc-defg-hij.", "autre"])?.absoluteString == "https://meet.google.com/abc-defg-hij", "lien Meet trouvé dans les notes")
+    verifier(LienVisio.extraire(depuis: ["https://us02web.zoom.us/j/123456789?pwd=abc"])?.host == "us02web.zoom.us", "lien Zoom (sous-domaine)")
+    verifier(LienVisio.extraire(depuis: ["http://meet.google.com/x", "https://exemple-malveillant.fr/meet.google.com", "https://zoom.us.evil.fr/j/1", "https://evilzoom.us/j/1"]) == nil, "http, faux domaine, domaine voisin : refusés")
+    verifier(LienVisio.extraire(depuis: ["(https://teams.microsoft.com/l/meetup-join/xyz)"])?.host == "teams.microsoft.com", "lien entre parenthèses")
+    verifier(LienVisio.extraire(depuis: ["salle 12, 3e étage"]) == nil, "un lieu sans lien : aucun lien")
+
+    groupe("Îlot : notifications")
+    let n3 = LectureNotifications.depuis(textes: ["Messages", "Camille", "On se retrouve à 19 h devant le cinéma ?"], date: t0)
+    verifier(n3?.app == "Messages" && n3?.titre == "Camille" && n3?.corps == "On se retrouve à 19 h devant le cinéma ?", "trois textes : app, titre, corps")
+    let n2 = LectureNotifications.depuis(textes: ["Banque", "Virement reçu"], date: t0)
+    verifier(n2?.app == "" && n2?.titre == "Banque" && n2?.corps == "Virement reçu", "deux textes : titre, corps")
+    verifier(LectureNotifications.depuis(textes: ["Messages", "Camille"], nomsDApps: ["Messages"], date: t0)?.titre == "Camille", "deux textes dont le premier est une app connue")
+    verifier(LectureNotifications.depuis(textes: ["Fermer", "maintenant", "  "], date: t0) == nil, "boutons et heure seuls : pas une notification")
+    verifier(LectureNotifications.depuis(textes: ["Mail", "Titre", String(repeating: "x", count: 500)], date: t0)?.corps.count == 161, "corps tronqué à 160 caractères")
+    let groupeN = [NotificationRecue(app: "Messages", titre: "Camille", corps: "", date: t0), NotificationRecue(app: "Banque", titre: "Banque", corps: "", date: t0), NotificationRecue(app: "Slack", titre: "Équipe projet", corps: "", date: t0), NotificationRecue(app: "Mail", titre: "Camille", corps: "", date: t0)]
+    verifier(LectureNotifications.ligneDeGroupe(groupeN) == "Camille \u{00B7} Banque \u{00B7} Équipe projet" && LectureNotifications.titreDeGroupe(3) == "3 nouvelles notifications", "ligne du groupe : noms distincts")
+    var pile: [NotificationRecue] = []
+    pile = LectureNotifications.ajouter(groupeN[0], a: pile, maintenant: t0)
+    pile = LectureNotifications.ajouter(groupeN[1], a: pile, maintenant: t0.addingTimeInterval(2))
+    verifier(pile.count == 2, "deux notifications rapprochées : regroupées")
+    pile = LectureNotifications.ajouter(groupeN[2], a: pile, maintenant: t0.addingTimeInterval(60))
+    verifier(pile.count == 1, "une minute plus tard : la pile repart de zéro")
+}

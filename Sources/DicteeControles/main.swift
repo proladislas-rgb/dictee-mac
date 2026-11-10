@@ -1912,6 +1912,7 @@ do {
     r.reinitialiser(); verifier(r.echecs == 0, "réinitialisation")
 }
 controlesPrecision()
+controlesIlot()
 
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)
