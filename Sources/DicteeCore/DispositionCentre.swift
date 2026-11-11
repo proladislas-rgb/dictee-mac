@@ -108,14 +108,32 @@ public struct DispositionCentre: Equatable, Sendable {
     public static let haut: Double = 14, entete: Double = 26, ronds: Double = 96, cases: Double = 76, bande: Double = 40, bas: Double = 14
     public static let ecartEntete: Double = 12, ecart: Double = 10
 
-    public enum Rangee: Sendable { case ronds, cases, bande }
+    public enum Rangee: Sendable { case etagere, ronds, cases, bande }
+    /// La rangée des fichiers de l'étagère, en haut du Centre quand elle en garde (maquette ilot-etagere-rapide.html, étape 6).
+    public static let rangeeEtagere: Double = 64
+
+    /// Comment le Centre se range. Quand l'étagère garde des fichiers, ils passent tout en haut (une rangée : « Tout », les trois
+    /// derniers, « +N ») ; pour que le Centre tienne dans la zone de dessin, la bande « Noter la réunion » devient alors une grande case,
+    /// à côté du Minuteur (maquette). Sinon (ou pendant « Modifier »), la disposition telle quelle.
+    public struct MiseEnPage: Equatable, Sendable {
+        public var etagereEnHaut: Bool
+        public var cases: [ElementCentre]
+        public var bande: Bool
+        public init(etagereEnHaut: Bool, cases: [ElementCentre], bande: Bool) { self.etagereEnHaut = etagereEnHaut; self.cases = cases; self.bande = bande }
+    }
+    public func miseEnPage(fichiers: Bool) -> MiseEnPage {
+        guard fichiers, elements.contains(.etagere) else { return MiseEnPage(etagereEnHaut: false, cases: cases, bande: bande) }
+        var c = cases.filter { $0 != .etagere }
+        if bande { c.append(.reunion) }
+        return MiseEnPage(etagereEnHaut: true, cases: c, bande: false)
+    }
 
     /// Le haut de chaque rangée présente, depuis le haut du corps (sous la barre), et la profondeur totale.
-    public static func plan(ronds r: Bool, cases c: Bool, bande b: Bool) -> (hauts: [Rangee: Double], profondeur: Double) {
+    public static func plan(etagere e: Bool = false, ronds r: Bool, cases c: Bool, bande b: Bool) -> (hauts: [Rangee: Double], profondeur: Double) {
         var y = haut + entete
         var hauts: [Rangee: Double] = [:]
         var premiere = true
-        for (rangee, presente, h) in [(Rangee.ronds, r, ronds), (.cases, c, cases), (.bande, b, bande)] where presente {
+        for (rangee, presente, h) in [(Rangee.etagere, e, rangeeEtagere), (.ronds, r, ronds), (.cases, c, cases), (.bande, b, bande)] where presente {
             y += premiere ? ecartEntete : ecart
             premiere = false
             hauts[rangee] = y

@@ -264,6 +264,13 @@ enum Settings {
         get { defaults.object(forKey: "ilotEtagere") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotEtagere") }
     }
+    /// « Captures d'écran ici » (carte Étagère de l'îlot) : les nouvelles captures d'écran arrivent sur l'étagère, marquées « Nouveau ».
+    /// ÉTEINT par défaut : macOS demande l'accès au dossier des captures (le Bureau, ou celui choisi dans Capture d'écran), seulement
+    /// au premier clic sur l'interrupteur (jamais au lancement).
+    static var ilotCapturesEtagere: Bool {
+        get { defaults.object(forKey: "ilotCapturesEtagere") as? Bool ?? false }
+        set { defaults.set(newValue, forKey: "ilotCapturesEtagere") }
+    }
     /// « Claude au travail » : l'îlot montre où en est Claude Code (crochets branchés depuis les Réglages). ALLUMÉ par défaut : tant que
     /// les crochets ne sont pas branchés, le dossier des sessions reste vide et rien ne s'affiche.
     static var ilotClaude: Bool {

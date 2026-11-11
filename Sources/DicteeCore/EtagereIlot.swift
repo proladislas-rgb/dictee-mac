@@ -74,6 +74,28 @@ public struct EtagereIlot: Codable, Equatable, Sendable {
 
     public mutating func vider() { elements = [] }
 
+    /// Des fichiers glissés HORS de l'étagère (vers Mail, le Bureau…) la quittent : on les retire et on les rend, dans l'ordre de
+    /// l'étagère, pour pouvoir les « Remettre » quelques secondes.
+    @discardableResult
+    public mutating func retirer(ids: [UUID]) -> [ElementEtagere] {
+        let l = Set(ids)
+        let partis = elements.filter { l.contains($0.id) }
+        elements.removeAll { l.contains($0.id) }
+        return partis
+    }
+
+    /// « Remettre » : les fichiers partis reviennent (à la suite, sans doublon : un fichier redéposé entre-temps n'est pas compté deux
+    /// fois ; mêmes signets, même identifiant).
+    @discardableResult
+    public mutating func remettre(_ partis: [ElementEtagere]) -> RangementEtagere { ajouter(partis) }
+
+    /// « 1 fichier parti dans Mail », « 3 fichiers partis dans Mail » ; sans app connue : « 3 fichiers partis ».
+    public static func partis(_ n: Int, app: String?) -> String {
+        let debut = n == 1 ? "1 fichier parti" : "\(n) fichiers partis"
+        guard let app, !app.isEmpty else { return debut }
+        return debut + " dans " + app
+    }
+
     /// Un fichier mis à la Corbeille n'est plus là pour l'utilisateur, même si son signet le retrouve encore.
     public static func estALaCorbeille(_ chemin: String) -> Bool {
         chemin.contains("/.Trash/") || chemin.contains("/.Trashes/")
@@ -125,11 +147,12 @@ public struct EtagereIlot: Codable, Equatable, Sendable {
     }
 }
 
-/// Le pointeur qui glisse des fichiers est-il assez près de l'encoche pour que l'îlot s'ouvre en « Déposez ici » ? Points depuis le
-/// centre de l'encoche (x) et le haut de l'écran (y).
+/// Le pointeur qui glisse des fichiers est-il assez près de l'encoche pour que l'îlot s'ouvre en grand (les deux zones) ? Points depuis
+/// le centre de l'encoche (x) et le haut de l'écran (y). Plus loin, l'îlot appelle seulement (« Glisse ici ») dès que le glisser commence.
 public enum ApprocheEtagere {
-    /// À 60 pt de l'encoche (la caméra sur la hauteur de la barre), l'îlot s'ouvre.
-    public static let distance: Double = 60
+    /// À 140 pt de l'encoche (la caméra sur la hauteur de la barre), l'îlot s'ouvre en grand (maquette ilot-etagere-rapide.html : bien
+    /// avant d'atteindre l'encoche ; c'était 60 pt, il fallait viser).
+    public static let distance: Double = 140
     /// Une fois ouvert, il le reste tant que le pointeur est sur la forme ouverte ou à 40 pt autour (la forme elle-même, pas son
     /// rectangle : voir `IlotMoteur.contient(_:marge:)`) : on ne la perd pas en la visant.
     public static let marge: Double = 40
@@ -140,9 +163,49 @@ public enum ApprocheEtagere {
         return (dx * dx + dy * dy).squareRoot()
     }
 
+    /// Dans la barre des menus, seulement à 60 pt de la caméra : plus loin, ce sont les icônes des autres apps (on peut y glisser un
+    /// fichier sans que l'îlot ne s'ouvre par-dessus).
+    public static let distanceBarre: Double = 60
+
     /// Assez près de l'encoche pour que la zone s'ouvre.
     public static func proche(x: Double, y: Double, demiCamera: Double, barre: Double) -> Bool {
-        ecart(x: x, y: y, demiCamera: demiCamera, barre: barre) <= distance
+        if y < barre { return max(0, abs(x) - demiCamera) <= distanceBarre }
+        return ecart(x: x, y: y, demiCamera: demiCamera, barre: barre) <= distance
+    }
+}
+
+/// Les deux zones de dépôt, côte à côte sous l'encoche : « Étagère » (à gauche : la garder pour plus tard) et « AirDrop » (à droite :
+/// l'envoyer). Celle sous le pointeur s'éclaire ; le lâcher va à celle-là.
+public enum ZoneDepotEtagere: String, Equatable, Sendable {
+    case etagere, airdrop
+    /// La zone sous le pointeur (x depuis le centre de l'encoche, y depuis le haut de l'écran) : la gauche est l'étagère, la droite
+    /// AirDrop. Encore dans la barre des menus (sur le cou, au-dessus des zones) : l'étagère, qu'on peut toujours défaire.
+    public static func sous(x: Double, y: Double, barre: Double) -> ZoneDepotEtagere { y < barre || x < 0 ? .etagere : .airdrop }
+}
+
+/// En option (« Captures d'écran ici », éteint par défaut) : les nouvelles captures d'écran arrivent sur l'étagère. Où macOS les range,
+/// et comment les reconnaître.
+public enum CapturesEcran {
+    /// Les débuts de nom des captures de macOS (français, anglais), quand le réglage « name » de com.apple.screencapture n'en donne pas.
+    public static let prefixes = ["Capture d\u{2019}écran", "Capture d'écran", "Screenshot", "Screen Shot"]
+
+    /// Le dossier des captures : le réglage « location » de com.apple.screencapture (« ~/Documents/ »), sinon le Bureau. `maison` : le
+    /// dossier de l'utilisateur.
+    public static func dossier(location: String?, maison: String) -> String {
+        let bureau = (maison as NSString).appendingPathComponent("Desktop")
+        guard var l = location?.trimmingCharacters(in: .whitespacesAndNewlines), !l.isEmpty else { return bureau }
+        if l == "~" { l = maison } else if l.hasPrefix("~/") { l = (maison as NSString).appendingPathComponent(String(l.dropFirst(2))) }
+        guard l.hasPrefix("/") else { return bureau }
+        return (l as NSString).standardizingPath
+    }
+
+    /// Une capture d'écran : macOS la marque (attribut kMDItemIsScreenCapture), ou son nom commence comme celui des captures (le préfixe
+    /// choisi dans les réglages, sinon ceux de macOS). Un autre fichier posé dans le même dossier (le Bureau) n'est jamais pris.
+    public static func estUneCapture(nom: String, marquee: Bool, prefixe: String? = nil) -> Bool {
+        guard FiltreTelechargements.estFini(nom) else { return false }
+        if marquee { return true }
+        let p = [prefixe].compactMap { $0 }.filter { !$0.isEmpty } + prefixes
+        return p.contains { nom.hasPrefix($0) }
     }
 }
 

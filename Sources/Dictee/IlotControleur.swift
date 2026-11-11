@@ -104,6 +104,20 @@ final class IlotControleur {
     /// La relecture des signets (sur une file à part) : en cours, à refaire aussitôt, et quand elle a commencé la dernière fois.
     var relectureEtagere: (enCours: Bool, encore: Bool, derniere: Date) = (false, false, .distantPast)
     var apresRelecture: [() -> Void] = []
+    /// L'étagère plus rapide (IlotEtagere.swift) : les fichiers partis vers une app, gardés le temps de « Remettre » (en mémoire
+    /// seulement) ; les captures arrivées pas encore vues (« Nouveau », en mémoire seulement).
+    var partisEnAttente: [ElementEtagere] = []
+    var nouveautes = Set<UUID>()
+    /// AirDrop (le panneau de macOS choisit l'appareil) : injectable, l'essai n'envoie jamais rien. Rend faux si AirDrop ne peut pas
+    /// envoyer ces fichiers (éteint, pas de Wi-Fi) ; sinon, la réponse du service arrive plus tard.
+    var envoyerParAirDrop: ([URL], @escaping (EnvoiEtagere.Etat) -> Void) -> Bool = { urls, fin in EnvoiAirDrop.envoyer(urls, fin: fin) }
+    /// L'app sous un point de l'écran (où des fichiers ont été lâchés) : son nom, lu sans autorisation (injectable).
+    var appSous: (NSPoint) -> String? = { IlotControleur.appSous($0) }
+    /// « Captures d'écran ici » : le dossier des captures, surveillé comme Téléchargements (un dossier temporaire dans l'essai).
+    let capturesSource = SourceTelechargements(etiquette: "captures")
+    var dossierCaptures: () -> URL = { IlotControleur.dossierCapturesParDefaut() }
+    /// Une capture se reconnaît à la marque de macOS (attribut kMDItemIsScreenCapture) ou à son nom (injectable).
+    var estUneCapture: (URL) -> Bool = { IlotControleur.estUneCapture($0) }
     private var reveilMinuteur: DispatchWorkItem?
     private var reveilRappels: DispatchWorkItem?
     private var reveilAgenda: DispatchWorkItem?
@@ -143,6 +157,12 @@ final class IlotControleur {
         telechargementsSource.surArret = { [weak self] in self?.moteur.telechargementsAttente = false; self?.telechargementsDemandesDuCentre = false }
         lecture.modele.surClicIlot = { [weak self] in self?.moteur.clicForme() }
         panneau.surDepot = { [weak self] urls in self?.ranger(urls) }
+        panneau.surAirDrop = { [weak self] urls in self?.envoyerAirDrop(urls) }
+        moteur.surEtagereVue = { [weak self] in self?.etagereVue() }
+        capturesSource.surArrivee = { [weak self] l in self?.capturesArrivees(l) }
+        capturesSource.surRefus = { [weak self] in self?.capturesRefusees() }
+        capturesSource.surPret = { [weak self] in self?.moteur.capturesAttente = false }
+        capturesSource.surArret = { [weak self] in self?.moteur.capturesAttente = false }
         claudeSource.surLignes = { [weak self] l, relecture in self?.lignesClaude(l, relecture: relecture) }
         micro.surChangement = { [weak self] in self?.microChange() }
         moteur.surBulleVue = { [weak self] in self?.reglagesCentre.marquerBulleVue() }
@@ -175,6 +195,7 @@ final class IlotControleur {
         notificationsSource.arreter()
         energieSource.arreter(); appareilsSource.arreter()
         telechargementsSource.arreter()
+        capturesSource.arreter()
         niveaux.arreter()
         activerLeMicro(false)
         activerClaude(false)
@@ -225,6 +246,7 @@ final class IlotControleur {
         if niveauxActifs { niveaux.demarrer() } else { niveaux.arreter() }
         activerClaude(Settings.ilotClaude)
         activerEtagere(Settings.ilotEtagere)
+        activerCaptures(Settings.ilotEtagere && reglagesCentre.captures())
         activerLeMicro(Settings.ilotMicro)
         moteur.donneesChangees()
     }
@@ -487,7 +509,7 @@ final class IlotControleur {
         case .claudeOuvrir(let app):
             if moteur.bandeau?.vue == .claudeAttend || moteur.bandeau?.vue == .claudeTermine { moteur.quitterBandeau() } else { moteur.fermer() }
             ramenerApp(app)
-        case .etagereOuvrir, .etagereRetirer, .etagereVider:
+        case .etagereOuvrir, .etagereRetirer, .etagereVider, .etagereSortis, .etagereRemettre, .etagereCaptures, .etagereCapturesReglages:
             agirEtagere(action)
         case .microChoisir(let airpods):
             let bt = lireMicros().first { $0.transport == .bluetooth }

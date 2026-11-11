@@ -43,6 +43,11 @@ struct ContenuAnnonce {
     var glisser: URL? = nil
     /// À la place du symbole : l'étoile de Claude (dessinée, en corail).
     var etoile = false
+    /// Après les pilules : l'anneau qui se vide jusqu'à `fin` (« Remettre » des fichiers partis), sur `duree` secondes.
+    var compte: (fin: Date, duree: TimeInterval)? = nil
+    /// Après le texte : un rouet (l'envoi AirDrop attend la réponse du panneau de macOS).
+    var attente = false
+    static let coteCompte: CGFloat = 18, coteRouet: CGFloat = 22
 
     static let cote: CGFloat = 26, espace: CGFloat = 12, espaceBoutons: CGFloat = 8, espaceJauges: CGFloat = 8
     /// L'icône d'un fichier : 38 pt, presque la hauteur des deux lignes (maquette ilot-apple.html, « Téléchargé »).
@@ -176,6 +181,32 @@ extension IlotMoteur {
             // le micro barré voyage depuis l'aile gauche (sa place est gardée) ; le nom du micro peut être long : coupé au bout
             return ContenuAnnonce(glyphe: nil, l1: "Micro coupé", l2: nomMicro ?? "Micro du Mac",
                                   droite: .boutons([.init(titre: "Rouvrir", icone: "mic.fill", etiquette: "Rouvrir le micro", action: .microRouvrir)]))
+        case .etagerePartis:
+            // « 3 fichiers partis dans Mail », « Remettre » et l'anneau qui se vide (maquette ilot-etagere-rapide.html, étapes 7 et 8)
+            guard let b, let p = b.partis else { return nil }
+            return ContenuAnnonce(glyphe: nil, l1: b.ligne1, l2: b.ligne2,
+                                  droite: .boutons([.init(titre: "Remettre", etiquette: "Remettre " + (p.nombre == 1 ? "le fichier" : "les fichiers") + " sur l\u{2019}étagère",
+                                                          action: .etagereRemettre)]),
+                                  icones: p.icones, coteSymbole: 30, compte: (b.jusqua, p.duree))
+        case .etagereEnvoi:
+            // l'envoi AirDrop (étapes 4 et 5) : c'est le panneau de macOS qui choisit l'appareil ; l'îlot dit ce que le service répond
+            guard let e = b?.envoi else { return nil }
+            let quoi = e.noms.count == 1 ? e.noms[0] : "\(e.noms.count) fichiers"
+            switch e.etat {
+            case .enCours:
+                return ContenuAnnonce(glyphe: GlypheIlot(nom: "doc.fill", couleur: .white, taille: 20), l1: "Envoi AirDrop\u{2026}",
+                                      l2: quoi + " \u{00B7} choisis l\u{2019}appareil", icones: e.icone.map { [$0] } ?? [], coteSymbole: ContenuAnnonce.coteIcone,
+                                      attente: true)
+            case .envoye:
+                return ContenuAnnonce(glyphe: GlypheIlot(nom: "checkmark.circle.fill", couleur: CouleursIlot.vert, taille: 22), l1: "Envoyé",
+                                      l2: quoi + " \u{00B7} AirDrop")
+            case .annule:
+                return ContenuAnnonce(glyphe: GlypheIlot(nom: "xmark.circle.fill", couleur: Color.white.opacity(0.55), taille: 22), l1: "Annulé",
+                                      l2: "Rien n\u{2019}a été envoyé")
+            case .indisponible:
+                return ContenuAnnonce(glyphe: GlypheIlot(nom: "exclamationmark.circle.fill", couleur: CouleursIlot.ambre, taille: 22), l1: "AirDrop indisponible",
+                                      l2: "Allume le Wi-Fi et le Bluetooth")
+            }
         default:
             return nil
         }
@@ -214,6 +245,8 @@ extension IlotMoteur {
         case .boutons(let bs): l += ContenuAnnonce.espace + MesureIlot.boutons(bs)
         case .jauges(let js): l += ContenuAnnonce.espace + CGFloat(js.count) * JaugeIlot.largeur + ContenuAnnonce.espaceJauges * CGFloat(max(0, js.count - 1))
         }
+        if c.compte != nil { l += ContenuAnnonce.espaceBoutons + ContenuAnnonce.coteCompte }
+        if c.attente { l += ContenuAnnonce.espace + ContenuAnnonce.coteRouet }
         return l
     }
 }

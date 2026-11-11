@@ -23,7 +23,11 @@ final class SourceTelechargements {
     var surArret: () -> Void = {}
     /// Le dossier surveillé (les essais en donnent un temporaire : jamais le vrai, qui demanderait une autorisation).
     var dossier: URL = SourceTelechargements.dossierParDefaut
+    /// Le nom de la surveillance dans le journal (« téléchargements », « captures » : la même mécanique sert au dossier des captures).
+    let etiquette: String
     private var travail: SurveillanceDossier?
+
+    init(etiquette: String = "téléchargements") { self.etiquette = etiquette }
 
     var actif: Bool { travail != nil }
 
@@ -34,7 +38,7 @@ final class SourceTelechargements {
 
     func demarrer() {
         guard travail == nil else { return }
-        let t = SurveillanceDossier(dossier: dossier)
+        let t = SurveillanceDossier(dossier: dossier, etiquette: etiquette)
         travail = t
         // ce qui arrive après un arrêt (ou d'une ancienne surveillance) est ignoré
         t.surArrivee = { [weak self, weak t] l in
@@ -58,7 +62,8 @@ final class SourceTelechargements {
 /// Le travail sur la file : ouvrir le dossier, écouter ses changements, relire. Tout son état ne vit que sur `file`.
 private final class SurveillanceDossier: @unchecked Sendable {
     let dossier: URL
-    private let file = DispatchQueue(label: "verbe.ilot.telechargements", qos: .utility)
+    let etiquette: String
+    private let file = DispatchQueue(label: "verbe.ilot.dossier", qos: .utility)
     var surArrivee: ([FichierTelecharge]) -> Void = { _ in }
     /// L'ouverture a échoué ; vrai : c'est un refus d'accès.
     var surEchec: (_ refus: Bool) -> Void = { _ in }
@@ -68,7 +73,7 @@ private final class SurveillanceDossier: @unchecked Sendable {
     private var relecture: DispatchWorkItem?
     private var arrete = false
 
-    init(dossier: URL) { self.dossier = dossier }
+    init(dossier: URL, etiquette: String) { self.dossier = dossier; self.etiquette = etiquette }
 
     func demarrer() { file.async { self.ouvrir() } }
 
@@ -86,14 +91,14 @@ private final class SurveillanceDossier: @unchecked Sendable {
         let fd = open(dossier.path, O_EVTONLY)
         guard fd >= 0 else {
             let e = errno
-            Log.ecrire("téléchargements : dossier inaccessible (errno \(e)), surveillance non démarrée")
+            Log.ecrire("\(etiquette) : dossier inaccessible (errno \(e)), surveillance non démarrée")
             surEchec(Self.estUnRefus(e)); return
         }
         let noms: [String]
         do { noms = try lireNoms() } catch {
             close(fd)
             let e = Self.codePosix(de: error)
-            Log.ecrire("téléchargements : dossier illisible (errno \(e.map(String.init) ?? "?")), surveillance non démarrée")
+            Log.ecrire("\(etiquette) : dossier illisible (errno \(e.map(String.init) ?? "?")), surveillance non démarrée")
             surEchec(e.map(Self.estUnRefus) ?? false); return
         }
         // ce qui est déjà là au lancement n'est jamais annoncé
@@ -103,7 +108,7 @@ private final class SurveillanceDossier: @unchecked Sendable {
         s.setCancelHandler { close(fd) }
         source = s
         s.resume()
-        Log.ecrire("téléchargements : surveillance du dossier (\(noms.count) éléments déjà là)")
+        Log.ecrire("\(etiquette) : surveillance du dossier (\(noms.count) éléments déjà là)")
         surPret()
     }
 
