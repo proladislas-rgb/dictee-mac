@@ -1,0 +1,1353 @@
+<!doctype html>
+<!--
+Lucarne — « On va pouvoir la changer de place ? » : la Lucarne peut vivre en haut (dans l'encoche, comme aujourd'hui),
+en bas (une pilule qui flotte au-dessus du Dock et grandit vers le haut), à gauche ou à droite (une pilule debout,
+au milieu du bord, qui grandit vers l'intérieur). Utile aussi sur un Mac sans encoche et sur un écran externe.
+Dans l'encoche, elle reste noire et opaque (elle se fond avec la caméra). Hors de l'encoche, elle passe en verre clair
+(« Liquid Glass » de macOS 26) : flou de ce qui est derrière, bord lumineux fin, texte foncé lisible. Réglage
+« Apparence hors de l'encoche : Verre · Noir ».
+On la déplace de deux façons : Réglages › Lucarne › Position, ou directement au trackpad :
+appui long (0,5 s) SANS bouger = l'action d'aujourd'hui (la rangée Minuteur) ;
+appui long PUIS mouvement de plus de 12 pt = déplacer. Elle se décroche (un peu plus grande, ombre plus forte,
+petit choc haptique), les places possibles s'affichent en pointillés, lâchée elle file vers la plus proche.
+Aucun raccourci clavier ; seule fn reste, pour dicter. Données inventées.
+Format repris de ilot-centre.html (forme `chemin`/`cote` pour l'encoche, mêmes ressorts, faux écran, régie).
+Hors de l'encoche, la forme est une « capsule » aux mêmes coins continus (PORTEE/POIGNEE), arrondie de tous côtés.
+Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt.
+Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
+                   ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)
+                   ?horloge=1 (animations cadencées par minuterie, pour les captures automatiques)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lucarne · où la placer</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --ambre:#ff9f0a; --vert:#30d158; --rouge:#ff453a; --corail:#e8835c; --bleu:#0a84ff; --jaune:#ffd60a;
+  --regie:#0f0f11;
+  --clair:#f5f5f7;
+  /* la fenêtre de Lucarne : les gris chauds de l'app */
+  --pan:#1b1b1a; --box:#232322; --ink:#ece9e3; --ink2:#a8a59e; --ink3:#85827b; --hair:rgba(236,233,227,.09); --hair2:rgba(236,233,227,.15);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--regie)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--clair);min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block;overflow:visible}
+html.fige *,html.fige *::before,html.fige *::after{animation-play-state:paused!important}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+
+/* =====================================================================
+   Le faux écran : un MacBook, macOS 26, apparence claire (repris de ilot-centre.html), avec le Dock
+   ===================================================================== */
+#ecran{position:relative;height:clamp(500px,calc(100vh - 236px),740px);overflow:hidden;isolation:isolate;
+  user-select:none;-webkit-user-select:none;background:#dbe4ee;transition:opacity calc(.26s*var(--k)) ease;touch-action:none}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(70% 90% at 90% 4%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 60%),
+  radial-gradient(60% 80% at 4% 100%,rgba(248,228,210,.95) 0,rgba(248,228,210,0) 62%),
+  linear-gradient(168deg,#c6d6ea 0%,#d9e4f0 40%,#ebe8e6 74%,#f0e2d6 100%)}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ---- barre des menus ---- */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;z-index:4;
+  font-size:13.5px;color:#1d1d1f;white-space:nowrap;pointer-events:none}
+.menus,.etats{display:flex;flex-wrap:wrap;align-content:flex-start;height:33px;overflow:hidden;max-width:calc(50% - 172px)}
+.menus{column-gap:19px;padding-left:18px}
+.menus>*{height:33px;line-height:33px;font-weight:500}
+.menus>svg{height:17px;margin-top:7px;flex:none}
+.menus>b{font-weight:700}
+.etats{flex-direction:row-reverse;column-gap:15px;padding-right:15px}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats svg{width:17px;height:17px;color:#1d1d1f}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* ---- le Dock ---- */
+.dock{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);height:62px;z-index:3;display:flex;align-items:center;gap:6px;padding:0 8px;border-radius:20px;pointer-events:none;
+  background:rgba(255,255,255,.34);-webkit-backdrop-filter:blur(24px) saturate(1.7);backdrop-filter:blur(24px) saturate(1.7);
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.7),0 0 0 .5px rgba(0,0,0,.12),0 10px 30px -10px rgba(24,36,60,.35)}
+.dock .ic{position:relative;width:48px;height:48px;flex:none}
+.dock .ic svg,.dock .ic img{width:48px;height:48px;display:block}
+.dock .ic.vu::after{content:"";position:absolute;left:50%;bottom:-6px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:rgba(0,0,0,.55)}
+.dock .sep{width:1px;height:42px;background:rgba(0,0,0,.14);margin:0 3px}
+
+/* ---- fenêtres ---- */
+.fen{position:absolute;color:#1d1d1f;border-radius:13px;overflow:hidden;z-index:1;background:#fff;display:flex;flex-direction:column;pointer-events:none;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.26),0 36px 80px -20px rgba(24,36,60,.42),0 12px 26px -10px rgba(24,36,60,.22);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.fen.chrome{left:max(18px,5.2%);right:max(18px,5.2%);top:41px;bottom:78px}
+.fen.cache{opacity:0;transform:scale(.965)}
+.fen.arriere{box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 18px 40px -16px rgba(24,36,60,.3)}
+.feux{position:absolute;left:15px;top:15px;display:flex;gap:8px;z-index:1}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.fen.arriere .feux i{background:#d3d3d7}
+.tabs{height:42px;flex:none;background:#dde3ec;display:flex;align-items:flex-end;padding-left:84px;position:relative}
+.fen.arriere .tabs{background:#e6e9ee}
+.tab{position:relative;height:34px;width:222px;flex:none;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:8px;padding:0 9px 0 12px;font-size:12px;color:#454a52}
+.tab.act{background:#fff;color:#1f1f1f}
+.tab.act::before,.tab.act::after{content:"";position:absolute;bottom:0;width:10px;height:10px}
+.tab.act::before{left:-10px;background:radial-gradient(circle at 0 0,transparent 9.5px,#fff 10px)}
+.tab.act::after{right:-10px;background:radial-gradient(circle at 100% 0,transparent 9.5px,#fff 10px)}
+.tab .tt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent)}
+.tab svg{flex:none}
+.tab-plus{width:28px;height:28px;margin:0 0 4px 6px;display:grid;place-items:center;color:#454a52;flex:none}
+.outils{height:46px;flex:none;display:flex;align-items:center;gap:4px;padding:0 10px;border-bottom:1px solid #e7e9ee;color:#5b6069}
+.outils .ib{width:30px;height:30px;display:grid;place-items:center;flex:none}
+.omni{flex:1;min-width:0;height:34px;border-radius:17px;background:#edf1f8;display:flex;align-items:center;gap:9px;padding:0 12px 0 4px;margin:0 6px;font-size:13.5px;color:#1f1f1f;white-space:nowrap;overflow:hidden}
+.omni .rg{width:26px;height:26px;border-radius:13px;background:#fff;display:grid;place-items:center;flex:none}
+.omni .u{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.omni .u span{color:#6b7078}
+.profil{width:24px;height:24px;border-radius:50%;background:linear-gradient(160deg,#c7ccd6,#8d95a3);flex:none;margin:0 4px}
+
+/* la page : YouTube, thème clair */
+.page{flex:1;min-height:0;overflow:hidden;color:#0f0f0f;background:#fff}
+.yt-h{height:56px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 18px 0 20px}
+.yt-g{display:flex;align-items:center;gap:20px}
+.yt-logo{display:flex;align-items:center;gap:4px;font-size:19.5px;font-weight:700;letter-spacing:-1.1px}
+.yt-logo sup{font-size:9.5px;font-weight:500;color:#606060;letter-spacing:0;align-self:flex-start;margin:1px 0 0 3px}
+.yt-rech{display:flex;align-items:center;gap:12px}
+.yt-champ{width:min(436px,32vw);height:40px;border:1px solid #d5d5d5;border-radius:20px;display:flex;align-items:center;overflow:hidden}
+.yt-champ span{flex:1;padding-left:18px;font-size:15px;color:#8c8c8c}
+.yt-champ i{width:62px;height:100%;background:#f7f7f7;border-left:1px solid #d5d5d5;display:grid;place-items:center}
+.yt-rond{width:40px;height:40px;border-radius:20px;background:#f2f2f2;display:grid;place-items:center;flex:none}
+.yt-d{display:flex;align-items:center;gap:18px;justify-content:flex-end}
+.yt-creer{height:36px;border-radius:18px;background:#f2f2f2;display:flex;align-items:center;gap:6px;padding:0 15px 0 10px;font-size:14px;font-weight:500}
+.yt-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(150deg,#e8b48a,#b9764c)}
+.yt-c{display:grid;grid-template-columns:minmax(0,700px) minmax(260px,372px);justify-content:center;gap:24px;padding:24px 24px 0}
+.lecteur{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#111}
+.lecteur>svg{position:absolute;left:-1px;top:-1px;width:calc(100% + 2px);height:calc(100% + 2px)}
+.lecteur::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 140px rgba(70,26,0,.28);pointer-events:none}
+.flotte{transform-box:view-box;transform-origin:200px 90px;animation:flotte 7s ease-in-out infinite alternate}
+@keyframes flotte{0%{transform:translate(0,0) rotate(-1.2deg)}100%{transform:translate(-3px,-2px) rotate(1.1deg)}}
+.ctl{position:absolute;left:0;right:0;bottom:0;height:96px;background:linear-gradient(0deg,rgba(0,0,0,.5),rgba(0,0,0,0));z-index:1}
+.ctl .barre{position:absolute;left:14px;right:14px;bottom:54px;height:4px;border-radius:2px;background:rgba(255,255,255,.3)}
+.ctl .barre b{position:absolute;left:0;top:0;bottom:0;width:41%;border-radius:2px;background:rgba(255,255,255,.34)}
+.ctl .barre i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#ff0033}
+.ctl .barre i::after{content:"";position:absolute;right:-6px;top:-4px;width:12px;height:12px;border-radius:50%;background:#ff0033}
+.ctl .bas{position:absolute;left:12px;right:12px;bottom:9px;display:flex;justify-content:space-between;color:#fff}
+.ctl .grp{height:36px;border-radius:18px;background:rgba(0,0,0,.36);display:flex;align-items:center;gap:15px;padding:0 15px;font-size:13px;font-weight:500;font-variant-numeric:tabular-nums}
+.vt{font-size:20px;line-height:28px;font-weight:700;letter-spacing:-.2px;margin-top:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chaine{display:flex;align-items:center;gap:12px;margin-top:12px}
+.chaine .av{width:40px;height:40px;border-radius:50%;background:linear-gradient(150deg,#ffcf70,#f08a2a);flex:none}
+.chaine .nom{font-size:15.5px;line-height:20px;font-weight:600}
+.chaine .ab{font-size:12px;line-height:16px;color:#606060}
+.chaine .sab{height:36px;border-radius:18px;background:#0f0f0f;color:#fff;font-size:14px;font-weight:500;display:grid;place-items:center;padding:0 16px;margin-left:12px}
+.chaine .pil{height:36px;border-radius:18px;background:#f2f2f2;font-size:14px;font-weight:500;display:flex;align-items:center;gap:7px;padding:0 15px;margin-left:auto}
+.chaine .pil+.pil{margin-left:0}
+.puces{display:flex;gap:8px;overflow:hidden;white-space:nowrap}
+.puces span{height:32px;border-radius:8px;background:#f2f2f2;font-size:14px;font-weight:500;display:grid;place-items:center;padding:0 12px;flex:none}
+.puces span.on{background:#0f0f0f;color:#fff}
+.sug{display:grid;grid-template-columns:168px minmax(0,1fr);gap:8px;margin-top:10px}
+.sug .vg{position:relative;height:94px;border-radius:8px;overflow:hidden}
+.sug .vg svg{width:100%;height:100%}
+.sug .vg b{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.78);color:#fff;font-size:12px;font-weight:500;line-height:16px;padding:0 4px;border-radius:4px;font-variant-numeric:tabular-nums}
+.sug p{font-size:14px;line-height:20px;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:3px}
+.sug span{display:block;font-size:12px;line-height:18px;color:#606060;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---- Réglages › Lucarne (petite fenêtre, gris chauds de l'app) ---- */
+.reg{right:16px;top:42px;width:340px;height:280px;z-index:2;pointer-events:auto;background:var(--pan);color:var(--ink);
+  box-shadow:0 0 0 .5px rgba(0,0,0,.65),inset 0 0 0 .5px rgba(255,255,255,.08),0 36px 80px -20px rgba(24,36,60,.55),0 12px 26px -10px rgba(24,36,60,.32)}
+.reg .feux{left:13px;top:12px}
+.reg .feux i:first-child{cursor:pointer}
+.reg-t{height:36px;flex:none;display:grid;place-items:center;font-size:13px;font-weight:700}
+.segm{display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(255,255,255,.07);margin:0 auto;width:max-content;flex:none}
+.segm button{height:22px;border-radius:7px;padding:0 10px;font-size:12px;font-weight:500;color:var(--ink2)}
+.segm button.on{background:rgba(255,255,255,.16);color:#fff;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.boite{background:var(--box);border-radius:12px;box-shadow:inset 0 0 0 .5px var(--hair2)}
+.reg-b{margin:10px 14px 0;padding:10px 12px}
+.reg-l b{display:block;font-size:13px;line-height:17px;font-weight:600;color:var(--ink)}
+.reg-l span{display:block;font-size:12px;line-height:16px;color:var(--ink3);margin-top:1px}
+.choix{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.choix button{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+.ecr{width:100%;padding:2px;border-radius:7px;box-shadow:inset 0 0 0 1px var(--hair2);transition:box-shadow .2s ease}
+.ecr svg{width:100%;height:auto;border-radius:5px;overflow:hidden}
+.choix b{font-size:11.5px;line-height:15px;font-weight:500;color:var(--ink2)}
+.choix button.on .ecr{box-shadow:inset 0 0 0 2px var(--bleu)}
+.choix button.on b{color:#fff;font-weight:600}
+.reg-r{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding-top:9px;border-top:1px solid var(--hair)}
+.reg-r .reg-l b{font-size:12.5px;white-space:nowrap}
+.mini-seg{display:flex;gap:2px;padding:2px;border-radius:8px;background:rgba(255,255,255,.07)}
+.mini-seg button{height:22px;border-radius:6px;padding:0 9px;font-size:12px;font-weight:500;color:var(--ink2);cursor:pointer}
+.mini-seg button.on{background:rgba(255,255,255,.16);color:#fff;font-weight:600}
+.reg-n{font-size:11.5px;line-height:15px;color:var(--ink3);margin:9px 16px 0}
+
+/* =====================================================================
+   La Lucarne : noire dans l'encoche, en verre hors de l'encoche
+   ===================================================================== */
+.calque{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+#places-svg{z-index:4}
+.place{fill:rgba(20,30,50,.05);stroke:rgba(20,30,50,.34);stroke-width:1.1;stroke-dasharray:4 3.5;transition:fill .2s ease,stroke .2s ease}
+.place.pres{fill:rgba(10,132,255,.13);stroke:rgba(10,132,255,.85);stroke-dasharray:none}
+#places{opacity:0;transition:opacity calc(.22s*var(--k)) ease}
+#places.vu{opacity:1}
+#verre{z-index:5;opacity:0;background:rgba(255,255,255,.06);-webkit-backdrop-filter:blur(20px) saturate(1.9) brightness(1.05);backdrop-filter:blur(20px) saturate(1.9) brightness(1.05)}
+#forme-svg{z-index:5}
+#contenu{z-index:6;--fg:255 255 255;--amb:255 171 61;--jau:255 214 10}
+#encoche-svg{z-index:7}
+.c{position:absolute;color:rgb(var(--fg));white-space:nowrap;text-align:left;font-family:var(--sans)}
+/* le contenu arrive après la forme : fondu, flou, léger zoom */
+.e{opacity:0;filter:blur(7px);transform:translateY(var(--sy,0px)) scale(.965);
+  transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
+.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+  transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+.t15{font-size:15px;line-height:19px;font-weight:600;letter-spacing:-.2px}
+.t125{font-size:12.5px;line-height:16px;font-weight:500;color:rgb(var(--fg) / .55);margin-top:3px}
+.art{position:relative;overflow:hidden;background:#111;border-radius:4px;width:28px;height:16px}
+.art::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16)}
+.eq{display:flex;align-items:center;justify-content:space-between;width:18.4px;height:14px}
+.eq i{display:block;width:2.6px;height:14px;border-radius:1.3px;background:rgb(var(--amb));transform:scaleY(.3);animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(1){animation-duration:.82s;animation-delay:-.3s}
+.eq i:nth-child(2){animation-duration:1.06s;animation-delay:-.7s}
+.eq i:nth-child(3){animation-duration:.74s;animation-delay:-.1s}
+.eq i:nth-child(4){animation-duration:.95s;animation-delay:-.5s}
+.eq i:nth-child(5){animation-duration:1.18s;animation-delay:-.2s}
+@keyframes eq{0%{transform:scaleY(.28)}22%{transform:scaleY(.95)}41%{transform:scaleY(.5)}63%{transform:scaleY(1)}82%{transform:scaleY(.36)}100%{transform:scaleY(.28)}}
+.epaule{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;height:17px;color:#fff}
+/* la bulle du minuteur */
+.minu{display:flex;align-items:center;gap:6px;height:19px;font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.1px;color:rgb(var(--amb))}
+.minu.vert{flex-direction:column;gap:2px;height:auto;font-size:12.5px}
+.minu circle{stroke:rgb(var(--amb))}
+.minu circle.fond{opacity:.28}
+
+/* le Centre (repris de ilot-centre.html ; les couleurs suivent le noir ou le verre) */
+.cc{width:420px}
+.cc-tete{display:flex;align-items:center;gap:8px;height:26px}
+.cc-nom{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;margin-right:auto;padding-left:2px}
+.pil{height:26px;border-radius:13px;padding:0 11px;display:flex;align-items:center;gap:5px;background:rgb(var(--fg) / .12);font-size:12.5px;font-weight:600;cursor:pointer;flex:none;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.pil:hover{background:rgb(var(--fg) / .2)}
+.cc-ronds{display:flex;justify-content:space-around;margin-top:12px;height:96px}
+.tg{width:84px;display:flex;flex-direction:column;align-items:center;cursor:pointer;color:rgb(var(--fg));flex:none}
+.tg .rd{position:relative;width:52px;height:52px;border-radius:50%;background:rgb(var(--fg) / .12);display:grid;place-items:center;
+  transition:background-color .2s ease,box-shadow .2s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.tg:hover .rd{filter:brightness(1.08)}
+.tg b{font-size:11.5px;line-height:15px;font-weight:600;margin-top:7px;letter-spacing:-.25px}
+.tg i{font-style:normal;font-size:11.5px;line-height:14px;color:rgb(var(--fg) / .55);font-weight:500;margin-top:1px}
+.tg.rouge .rd{background:var(--rouge);color:#fff}
+.tg.rouge i{color:#ff5a4f}
+.tg.bleu .rd{background:var(--bleu);color:#fff}
+.tg.bleu i{color:#3d9bff}
+.tg.corail .rd{background:var(--corail);color:#fff}
+.tg.vide .rd{background:transparent;border:1.5px dashed rgb(var(--fg) / .4)}
+.tg.lien i{color:#3d9bff}
+.tg[data-t="rappel"] .gl{color:rgb(var(--jau))}
+.cc-larges{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;height:76px}
+.tl{position:relative;border-radius:20px;background:rgb(var(--fg) / .09);padding:11px 14px}
+.tl-t{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600}
+.tl-t .amb{color:rgb(var(--amb))}
+.tl-t .bl{color:#3d9bff}
+.tl-caps{display:flex;gap:6px;margin-top:8px;align-items:center}
+.cap{height:28px;width:44px;border-radius:14px;background:rgb(var(--fg) / .12);font-size:13px;font-weight:600;display:grid;place-items:center;cursor:pointer;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.cap:hover{background:rgb(var(--fg) / .2)}
+.cap.choisi{background:var(--ambre);color:#000}
+.tl-u{font-size:12px;font-weight:500;color:rgb(var(--fg) / .5);margin-left:3px}
+.tl-eta{background:transparent;border:1.5px dashed rgb(var(--fg) / .3);padding:9.5px 12.5px}
+.eta-vide{font-size:12.5px;line-height:16px;color:rgb(var(--fg) / .55);margin-top:12px;font-weight:500}
+.tr{position:relative;display:flex;align-items:center;gap:10px;width:100%;height:40px;margin-top:10px;border-radius:20px;padding:0 16px 0 14px;
+  background:rgb(var(--fg) / .09);font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;transition:background-color .2s ease}
+.tr:hover{background:rgb(var(--fg) / .14)}
+.tr-pt{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1.8px var(--rouge);background:radial-gradient(circle,var(--rouge) 0 3.6px,transparent 4.2px)}
+.tr-s{margin-left:auto;font-size:12px;font-weight:500;color:rgb(var(--fg) / .5)}
+.tr.on{background:rgba(255,69,58,.24)}
+.tr.on .tr-pt{background:radial-gradient(circle,var(--rouge) 0 5px,transparent 5.6px);animation:pouls 1.2s ease-in-out infinite}
+@keyframes pouls{50%{opacity:.45}}
+/* la bannière */
+.ban{width:332px;height:40px;display:flex;align-items:center;gap:12px}
+.ban-ic{width:40px;height:40px;border-radius:50%;background:rgb(var(--fg) / .12);display:grid;place-items:center;flex:none;color:rgb(var(--jau))}
+.ban-tx{flex:1;min-width:0}
+
+/* faux pointeur ; l'anneau qui se resserre = appui long */
+.pointeur{position:absolute;left:0;top:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .22s}
+.pointeur.vu{opacity:1}
+.pointeur .fleche{position:relative;width:18px;height:26px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));transform-origin:2px 2px;transition:transform .12s ease}
+.pointeur.appui .fleche{transform:scale(.86)}
+.tenir{position:absolute;left:-13px;top:-13px;width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.95);
+  box-shadow:0 0 0 1px rgba(0,0,0,.18),inset 0 0 0 1px rgba(0,0,0,.12);opacity:0;transform:scale(1.5);transition:opacity .15s ease,transform .15s ease}
+.pointeur.tient .tenir{opacity:1;transform:scale(.62);transition:opacity .12s ease,transform calc(.5s*var(--k)) linear}
+
+/* =====================================================================
+   La régie, sous la scène (reprise de ilot-centre.html)
+   ===================================================================== */
+.regie{max-width:1340px;margin:0 auto;padding:14px 28px 18px}
+.r-haut{display:grid;grid-template-columns:minmax(0,1fr) 250px auto;gap:36px;align-items:center;min-height:96px}
+.r-num{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(245,245,247,.46);font-variant-numeric:tabular-nums}
+.r-titre{font-size:21px;line-height:27px;font-weight:600;letter-spacing:-.3px;margin-top:2px}
+.r-phrase{font-size:14px;line-height:20px;color:rgba(245,245,247,.64);margin-top:4px;max-width:680px;min-height:40px}
+.r-mains{display:flex;align-items:center;gap:14px}
+.pad{position:relative;width:96px;height:62px;border-radius:12px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);flex:none}
+.pad i{position:absolute;top:30px;left:32px;width:14px;height:14px;border-radius:50%;background:var(--clair);opacity:0;transform:translateY(var(--t,0px));transition:opacity .15s}
+.pad i+i{left:52px;top:26px}
+.pad.un i:first-child,.pad.deux i{opacity:1}
+.pad.fn::after{content:"fn";position:absolute;left:8px;bottom:8px;width:26px;height:20px;border-radius:5px;display:grid;place-items:center;font-size:11px;font-weight:700;color:#1b1b1a;background:#ffcf8a}
+.pad.vibre{animation:vibre calc(.26s*var(--k)) linear}
+@keyframes vibre{0%,100%{transform:none}20%{transform:translateX(-1.5px)}40%{transform:translateX(1.5px)}60%{transform:translateX(-1px)}80%{transform:translateX(1px)}}
+.r-geste{font-size:12.5px;line-height:16px;color:rgba(245,245,247,.55);min-height:32px;max-width:140px}
+.r-cmd{display:grid;grid-template-columns:auto auto;gap:10px 8px;align-items:center}
+.bouton{height:34px;padding:0 17px;border-radius:17px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s ease}
+.bouton:active{transform:scale(.95)}
+.bouton.creux{background:rgba(255,255,255,.1)}
+.bouton.creux:hover{background:rgba(255,255,255,.16)}
+.bouton.plein{background:var(--clair);color:var(--regie)}
+.bouton.plein:hover{background:#fff}
+.r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:var(--clair)}
+.r-pas{display:flex;flex-wrap:wrap;gap:2px 4px;list-style:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.r-pas button{height:30px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:8px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+.r-pas button span{font-variant-numeric:tabular-nums;opacity:.7}
+.r-pas button:hover{color:rgba(245,245,247,.8)}
+.r-pas button.ici{color:var(--clair);background:rgba(255,255,255,.09)}
+.notes{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 32px;font-size:12.5px;line-height:18px;color:rgba(245,245,247,.42)}
+.notes b{color:rgba(245,245,247,.7);font-weight:600}
+@media (max-width:900px){.r-haut{grid-template-columns:1fr;gap:16px}.yt-c{grid-template-columns:minmax(0,1fr)}.col2{display:none}}
+</style>
+</head>
+<body>
+<section id="ecran" aria-label="Faux écran de MacBook, taille réelle">
+  <div class="papier" aria-hidden="true">
+    <svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMid slice">
+      <path d="M0 0H1440V190C1190 290 930 180 660 240S210 350 0 280Z" fill="#b7cbe4" opacity=".28"/>
+      <path d="M0 560C260 470 540 520 780 600S1250 720 1440 620V760H0Z" fill="#fff" opacity=".2"/>
+    </svg>
+  </div>
+
+  <!-- ===== fenêtre Chrome (YouTube) ===== -->
+  <div class="fen chrome" data-f="chrome" aria-hidden="true">
+    <div class="tabs">
+      <div class="feux"><i></i><i></i><i></i></div>
+      <div class="tab act">
+        <svg width="16" height="12" viewBox="0 0 16 12"><rect width="16" height="12" rx="3.4" fill="#ff0033"/><path d="M6.4 3.4v5.2L10.9 6z" fill="#fff"/></svg>
+        <span class="tt">Je détestais la mode des iPods, donc j’en ai racheté un en 2026 - YouTube</span>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.3v3.4h2.3l3 2.5V3.8l-3 2.5z" fill="#5b6069"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.5 4a5.6 5.6 0 0 1 0 8"/></svg>
+        <svg width="14" height="14" viewBox="0 0 14 14" stroke="#5b6069" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l6 6M10 4l-6 6"/></svg>
+      </div>
+      <div class="tab">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.2 2 2.2 10 0 12M8 2c-2.2 2-2.2 10 0 12"/></svg>
+        <span class="tt">Nouvel onglet</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" stroke="#5b6069" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l6 6M10 4l-6 6"/></svg>
+      </div>
+      <div class="tab-plus"><svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg></div>
+    </div>
+    <div class="outils">
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 9h-11M8 4.2 3.2 9 8 13.8"/></svg></span>
+      <span class="ib" style="opacity:.42"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9h11M10 4.2 14.8 9 10 13.8"/></svg></span>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 9a5.6 5.6 0 1 1-1.7-4"/><path d="M14.8 2.6v3.2h-3.2"/></svg></span>
+      <div class="omni">
+        <span class="rg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.5" stroke-linecap="round"><path d="M2 5h6M12 5h2M2 11h2M8 11h6"/><circle cx="10" cy="5" r="1.9"/><circle cx="6" cy="11" r="1.9"/></svg></span>
+        <span class="u">youtube.com<span>/watch?v=k7Rm2NnIpod</span></span>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4" stroke-linejoin="round"><path d="M8 2.2l1.7 3.7 4 .5-3 2.7.8 4L8 11.1 4.5 13l.8-4-3-2.7 4-.5z"/></svg>
+      </div>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M7 3.2h1.2a1.6 1.6 0 1 1 3.1 0h2.5v3a1.6 1.6 0 1 0 0 3.1v4.5h-3.7a1.6 1.6 0 1 0-3.1 0H3.2v-3.9a1.6 1.6 0 1 0 0-3.1V3.2z"/></svg></span>
+      <span class="profil"></span>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><circle cx="9" cy="4" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="9" cy="14" r="1.5"/></svg></span>
+    </div>
+    <div class="page">
+      <div class="yt-h">
+        <div class="yt-g">
+          <svg width="20" height="20" viewBox="0 0 20 20" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 5h15M2.5 10h15M2.5 15h15"/></svg>
+          <div class="yt-logo"><svg width="29" height="20" viewBox="0 0 29 20"><rect width="29" height="20" rx="6.2" fill="#ff0033"/><path d="M11.7 5.7v8.6l7.5-4.3z" fill="#fff"/></svg><span>YouTube</span><sup>FR</sup></div>
+        </div>
+        <div class="yt-rech">
+          <div class="yt-champ"><span>Rechercher</span><i><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><circle cx="8.6" cy="8.6" r="5.9"/><path d="M13 13l4.4 4.4"/></svg></i></div>
+          <div class="yt-rond"><svg width="20" height="20" viewBox="0 0 24 24" fill="#0f0f0f"><rect x="8.8" y="2.6" width="6.4" height="11.6" rx="3.2"/><path d="M5.8 11.4a6.2 6.2 0 0 0 12.4 0M12 17.8v3.4" fill="none" stroke="#0f0f0f" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        </div>
+        <div class="yt-d">
+          <div class="yt-creer"><svg width="20" height="20" viewBox="0 0 20 20" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><path d="M10 3.5v13M3.5 10h13"/></svg>Créer</div>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3.2c-3.2 0-5.6 2.5-5.6 5.8v3.6L4.6 16h14.8l-1.8-3.4V9c0-3.3-2.4-5.8-5.6-5.8zM9.6 19a2.5 2.5 0 0 0 4.8 0"/></svg>
+          <div class="yt-av"></div>
+        </div>
+      </div>
+      <div class="yt-c">
+        <div class="col1">
+          <div class="lecteur" id="lecteur">
+            <div class="ctl">
+              <div class="barre"><b></b><i id="vprog"></i></div>
+              <div class="bas">
+                <span class="grp">
+                  <svg width="15" height="16" viewBox="0 0 15 16" fill="#fff"><rect x="1.5" y="1" width="4" height="14" rx="1.2"/><rect x="9.5" y="1" width="4" height="14" rx="1.2"/></svg>
+                  <svg width="17" height="16" viewBox="0 0 17 16" fill="#fff"><path d="M1.5 2.2c0-.8.9-1.3 1.6-.8l8 5.6c.6.4.6 1.2 0 1.6l-8 5.6c-.7.5-1.6 0-1.6-.8z"/><rect x="13" y="1.4" width="2.6" height="13.2" rx="1"/></svg>
+                  <svg width="20" height="16" viewBox="0 0 20 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5.6v4.8h3l4 3.3V2.3l-4 3.3z" fill="#fff"/><path d="M12.6 5a4.2 4.2 0 0 1 0 6M15 2.8a7.4 7.4 0 0 1 0 10.4"/></svg>
+                  <span id="vtps">3:22 / 12:54</span>
+                </span>
+                <span class="grp">
+                  <svg width="20" height="16" viewBox="0 0 20 16" fill="none" stroke="#fff" stroke-width="1.5"><rect x="1.5" y="1.5" width="17" height="13" rx="3"/><path d="M8.2 6.4a2 2 0 1 0 0 3.2M14.4 6.4a2 2 0 1 0 0 3.2" stroke-linecap="round"/></svg>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#fff" stroke-width="1.5"><circle cx="9" cy="9" r="2.6"/><path d="M9 1.6v2.2M9 14.2v2.2M1.6 9h2.2M14.2 9h2.2M3.8 3.8l1.5 1.5M12.7 12.7l1.5 1.5M3.8 14.2l1.5-1.5M12.7 5.3l1.5-1.5" stroke-linecap="round"/></svg>
+                  <svg width="18" height="16" viewBox="0 0 18 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.6 5.6V2h4.2M16.4 5.6V2h-4.2M1.6 10.4V14h4.2M16.4 10.4V14h-4.2"/></svg>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="vt">Je détestais la mode des iPods, donc j’en ai racheté un en 2026</div>
+          <div class="chaine">
+            <span class="av"></span>
+            <div><div class="nom">Le Coin Tech</div><div class="ab">1,24 M d’abonnés</div></div>
+            <span class="sab">S’abonner</span>
+            <span class="pil"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="#0f0f0f" stroke-width="1.5" stroke-linejoin="round"><path d="M6.2 8.8 9.6 2.6c1.1 0 1.9.9 1.7 2L10.8 8h4.6c1 0 1.7.9 1.5 1.9l-1.2 5.6c-.2.8-.9 1.3-1.6 1.3H6.2zM2.8 8.8h3.4v8H2.8z"/></svg>18 k</span>
+            <span class="pil">Partager</span>
+          </div>
+        </div>
+        <div class="col2">
+          <div class="puces"><span class="on">Tous</span><span>Le Coin Tech</span><span>Baladeurs</span><span>Récemment ajoutées</span></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#cdbd9e"/><rect x="50" y="16" width="68" height="52" rx="6" fill="#5a5145"/><rect x="57" y="22" width="54" height="36" rx="3" fill="#1d2a22"/><rect x="62" y="28" width="30" height="3" fill="#79d37c"/><rect x="62" y="35" width="40" height="3" fill="#79d37c" opacity=".7"/><rect x="62" y="42" width="24" height="3" fill="#79d37c" opacity=".7"/><rect x="42" y="70" width="84" height="12" rx="3" fill="#70675a"/></svg><b>18:42</b></div><div><p>J’ai utilisé un Minitel pendant une semaine</p><span>Le Coin Tech</span><span>412 k vues · il y a 2 semaines</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#27364d"/><rect x="48" y="28" width="72" height="46" rx="7" fill="#e8593a"/><rect x="58" y="37" width="52" height="19" rx="4" fill="#27364d"/><circle cx="72" cy="46.5" r="5.5" fill="#f3efe6"/><circle cx="96" cy="46.5" r="5.5" fill="#f3efe6"/><rect x="64" y="62" width="40" height="5" rx="2.5" fill="#b9432b"/></svg><b>12:08</b></div><div><p>Pourquoi les baladeurs reviennent à la mode</p><span>Tech &amp; Rétro</span><span>96 k vues · il y a 5 jours</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#e7e2da"/><rect x="34" y="14" width="42" height="68" rx="6" fill="#fff" stroke="#c8ccd3"/><rect x="39" y="20" width="32" height="24" rx="2" fill="#5b93dc"/><circle cx="55" cy="62" r="12" fill="#eceef1" stroke="#d3d6dc"/><rect x="92" y="24" width="46" height="30" rx="3" fill="#2c8a5b"/><rect x="98" y="30" width="14" height="8" fill="#1c5a3b"/><rect x="92" y="62" width="50" height="5" rx="2.5" fill="#9aa3ad"/><rect x="92" y="72" width="34" height="5" rx="2.5" fill="#9aa3ad"/></svg><b>24:31</b></div><div><p>Restaurer un iPod Classic : batterie, mémoire, coque</p><span>L’Atelier du son</span><span>1,1 M de vues · il y a 3 mois</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#1f6c75"/><rect x="44" y="18" width="62" height="58" rx="5" fill="#dfe3e6"/><circle cx="75" cy="47" r="21" fill="#f4f5f6" stroke="#b8bec4"/><circle cx="75" cy="47" r="5" fill="#1f6c75"/><rect x="114" y="30" width="28" height="34" rx="4" fill="#12474d"/></svg><b>9:57</b></div><div><p>Le son du MiniDisc en 2026, ça vaut quoi ?</p><span>Hi-Fi Magazine</span><span>58 k vues · il y a 1 jour</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Réglages › Lucarne ===== -->
+  <div class="fen reg cache" data-f="reg" aria-label="Réglages de Lucarne">
+    <div class="feux" id="regFermer" title="Fermer"><i></i><i></i><i></i></div>
+    <div class="reg-t">Réglages</div>
+    <div class="segm"><button>Dictée</button><button class="on">Lucarne</button><button>Confidentialité</button><button>Compte</button></div>
+    <div class="boite reg-b">
+      <div class="reg-l"><b>Position</b><span>Où vit la Lucarne sur l’écran.</span></div>
+      <div class="choix" id="choix"></div>
+      <div class="reg-r"><div class="reg-l"><b>Apparence hors de l’encoche</b></div>
+        <div class="mini-seg" id="aspect"><button data-ap="verre">Verre</button><button data-ap="noir">Noir</button></div></div>
+    </div>
+    <p class="reg-n">Sans encoche ou sur un écran externe : choisis un bord.</p>
+  </div>
+
+  <!-- ===== le Dock ===== -->
+  <div class="dock" id="dock" aria-hidden="true"></div>
+
+  <!-- ===== barre des menus ===== -->
+  <div class="mb" aria-hidden="true"><div class="menus" id="menus"></div><div class="etats" id="etats"></div></div>
+
+  <!-- ===== les places possibles (pendant qu'on la déplace) ===== -->
+  <svg id="places-svg" class="calque" aria-hidden="true"><g id="places">
+    <path class="place" data-p="haut"/><path class="place" data-p="bas"/><path class="place" data-p="gauche"/><path class="place" data-p="droite"/>
+  </g></svg>
+
+  <!-- ===== la Lucarne ===== -->
+  <div id="verre" class="calque" aria-hidden="true"></div>
+  <svg id="forme-svg" class="calque" aria-hidden="true">
+    <defs>
+      <mask id="hors" maskUnits="userSpaceOnUse" x="-6000" y="-6000" width="12000" height="12000">
+        <rect x="-6000" y="-6000" width="12000" height="12000" fill="#fff"/><path id="masque" fill="#000"/></mask>
+      <linearGradient id="vFond" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset=".55" stop-color="#fbfbfd" stop-opacity=".58"/><stop offset="1" stop-color="#f3f4f7" stop-opacity=".66"/></linearGradient>
+    </defs>
+    <g mask="url(#hors)"><path id="ombre" fill="rgb(10,20,40)" opacity="0"/></g>
+    <path id="forme" fill="#000" d=""/>
+    <g id="vitre" opacity="0">
+      <path id="vitreFond" fill="url(#vFond)"/>
+      <path id="vitreTrait" fill="none" stroke="rgba(0,0,0,.14)" stroke-width="1.6"/>
+      <path id="vitreBord" fill="none" stroke="rgba(255,255,255,.95)" stroke-width=".9"/>
+    </g>
+  </svg>
+  <div id="contenu" class="calque"></div>
+  <svg id="encoche-svg" class="calque" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/>
+    <circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+
+  <div class="pointeur" id="pointeur" aria-hidden="true"><i class="tenir"></i><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+</section>
+
+<!-- ===== régie ===== -->
+<section class="regie">
+  <div class="r-haut">
+    <div aria-live="polite">
+      <div class="r-num" id="num"></div>
+      <h1 class="r-titre" id="titre"></h1>
+      <p class="r-phrase" id="phrase"></p>
+    </div>
+    <div class="r-mains" aria-hidden="true"><div class="pad" id="pad"><i></i><i></i></div><div class="r-geste" id="geste"></div></div>
+    <div class="r-cmd">
+      <button class="bouton creux" id="rejouer">Rejouer</button>
+      <button class="bouton plein" id="suivant">Étape suivante</button>
+      <div class="r-opts">
+        <label><input type="checkbox" id="autoCase" checked> Lecture automatique</label>
+        <label><input type="checkbox" id="lentCase"> Ralenti ×4</label>
+      </div>
+    </div>
+  </div>
+  <ol class="r-pas" id="pas"></ol>
+  <div class="notes">
+    <div><b>À essayer ici.</b> Décochez Lecture automatique. Survolez la Lucarne : elle s’ouvre. Appui long sur elle (½ s), puis bougez : elle se décroche, lâchez-la près d’un bord. Ou choisissez une place dans Réglages.</div>
+    <div><b>La règle de l’appui long.</b> Appui long sans bouger : comme aujourd’hui, la rangée Minuteur. Appui long puis plus de 12 pt de mouvement : on la déplace. Bouger avant la ½ seconde ne fait rien.</div>
+    <div><b>Noir ou verre.</b> Dans l’encoche, toujours noire (elle se fond avec la caméra). Ailleurs, du verre clair par défaut ; « Noir » reste possible. Même contenu partout ; seul le bord d’où elle grandit change, le texte reste droit.</div>
+  </div>
+</section>
+
+<script>
+'use strict';
+/* =========================================================
+   Constantes — 1 px CSS = 1 pt
+   ========================================================= */
+const B = 33;                 // hauteur de la barre des menus
+const HC = 90;                // demi-caméra (encoche de 180 pt)
+const N0 = 133;               // demi-largeur de l'îlot compact de la lecture (ailes de 43 pt)
+const NO = 154;               // îlot ouvert : épaules de 64 pt dans la barre
+const BW = 232;               // îlot ouvert : demi-largeur du corps (464 pt)
+const HCC = B + 14 + 26 + 12 + 96 + 10 + 76 + 10 + 40 + 14;   // le Centre dans l'encoche (331)
+const OH = HCC - B, OW = 2 * BW;                             // le Centre hors de l'encoche : 464 × 298
+const PW = 120, PH = 36;      // pilule couchée (en bas, ou tenue à la souris)
+const VW = 40, VH = 112;      // pilule debout (à gauche, à droite)
+const BUW = 74, BUH = 52, GAP = 8;   // la bulle du minuteur
+const DOCK = 68;              // Dock 62 pt + 6 pt de marge
+const BAW = 360, BAH = 66;    // la bannière
+const POSES = ['haut', 'bas', 'gauche', 'droite'];
+const PARAMS = new URLSearchParams(location.search);
+const racine = document.documentElement;
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const f2 = v => Math.round(v * 100) / 100;
+const mid = t => (B - t) / 2;
+const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+let K = 1;
+const FIGE = PARAMS.has('fige');
+const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+let REDUIT = mq.matches;
+mq.addEventListener && mq.addEventListener('change', e => { REDUIT = e.matches; });
+if (FIGE) racine.classList.add('fige');
+// ?horloge=1 : mêmes animations cadencées par minuterie (pour les captures sans écran, où requestAnimationFrame ne bat pas)
+const image = PARAMS.has('horloge') ? f => setTimeout(f, 16) : f => requestAnimationFrame(f);
+
+/* =========================================================
+   Forme de l'îlot dans l'encoche (reprise telle quelle de ilot-centre.html)
+   ng / nd = cou à gauche / à droite dans la barre, bw / bd = corps sous la barre, h = hauteur,
+   rs = épaule creuse en haut, rb = coin bas, rt = coin haut du corps, f = congé du cou
+   ========================================================= */
+const PORTEE = 1.6, POIGNEE = 0.18;
+function cote(g, n, bw){
+  const corps = Math.max(0, g.h - B), u = Math.min(corps, 40) / 40, e = 1 - Math.pow(1 - u, 2.5);
+  const d = Math.max(0, bw - n) * e, W = n + d, serre = 1 - clamp((n - HC) / 24, 0, 1);
+  const rs = g.rs + (4 - g.rs) * serre, rbv = lerp(g.rb + (8 - g.rb) * serre, g.rb, clamp(corps / 12, 0, 1));
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6), dispo = (1 - lam) * (g.h - rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(rbv, dispo / PORTEE, W / PORTEE));
+  return {n, W, d, fe, rte, rbe, rs};
+}
+function chemin(g){
+  const h = g.h, L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd), X = f2, Y = f2;
+  const a1 = PORTEE * L.rte, c1 = POIGNEE * a1, a2 = PORTEE * L.rbe, c2 = POIGNEE * a2;
+  const b1 = PORTEE * D.rte, d1 = POIGNEE * b1, b2 = PORTEE * D.rbe, d2 = POIGNEE * b2;
+  let p = `M${X(-L.n - L.rs)} ${Y(-1)}L${X(-L.n - L.rs)} 0Q${X(-L.n)} 0 ${X(-L.n)} ${Y(L.rs)}`;
+  if (L.d > 0.5) p += `L${X(-L.n)} ${Y(B - L.fe)}Q${X(-L.n)} ${B} ${X(-L.n - L.fe)} ${B}L${X(-L.W + a1)} ${B}C${X(-L.W + c1)} ${B} ${X(-L.W)} ${Y(B + c1)} ${X(-L.W)} ${Y(B + a1)}`;
+  p += `L${X(-L.W)} ${Y(h - a2)}C${X(-L.W)} ${Y(h - c2)} ${X(-L.W + c2)} ${Y(h)} ${X(-L.W + a2)} ${Y(h)}`;
+  p += `L${X(D.W - b2)} ${Y(h)}C${X(D.W - d2)} ${Y(h)} ${X(D.W)} ${Y(h - d2)} ${X(D.W)} ${Y(h - b2)}`;
+  if (D.d > 0.5) p += `L${X(D.W)} ${Y(B + b1)}C${X(D.W)} ${Y(B + d1)} ${X(D.W - d1)} ${B} ${X(D.W - b1)} ${B}L${X(D.n + D.fe)} ${B}Q${X(D.n)} ${B} ${X(D.n)} ${Y(B - D.fe)}`;
+  p += `L${X(D.n)} ${Y(D.rs)}Q${X(D.n)} 0 ${X(D.n + D.rs)} 0L${X(D.n + D.rs)} ${Y(-1)}Z`;
+  return p;
+}
+const CLES = ['ng', 'nd', 'bw', 'bd', 'h', 'rs', 'rb', 'rt', 'f'];
+const REPOS = {ng:HC, nd:HC, bw:HC, bd:HC, h:B, rs:4, rb:8, rt:0, f:0};                  // l'encoche seule
+const compact = (g, d) => ({ng:g, nd:d, bw:g, bd:d, h:B, rs:6, rb:10, rt:0, f:0});       // des ailes dans la barre
+const bandeau = (w, h, n) => ({ng:n, nd:n, bw:w, bd:w, h, rs:6, rb:30, rt:16, f:10});    // il descend sous la barre
+$('#encoche').setAttribute('d', chemin(REPOS));
+
+/* =========================================================
+   Hors de l'encoche : la « capsule », même géométrie de coins continus que `chemin`.
+   x0, x1, y0, y1 = bords ; r = coins (bas, et tous les coins quand s > 0) ;
+   s = coins du haut : s < 0 → épaules creuses collées au bord de l'écran (exactement le compact de l'encoche),
+   s > 0 → coins arrondis comme les autres (pilule libre). En passant par 0, la forme se décolle sans saut.
+   Avec s = r = (petit côté / 2) / PORTEE, c'est une pilule.
+   ========================================================= */
+function capsule(g, dx = 0){
+  const X = v => f2(v + dx), Y = f2;
+  const x0 = g.x0, x1 = Math.max(g.x1, g.x0), y0 = g.y0, y1 = Math.max(g.y1, g.y0), w = x1 - x0, h = y1 - y0;
+  if (w < .5 || h < .5) return '';
+  const lim = Math.min(w, h) / 2, rb = clamp(g.r, 0, lim / PORTEE), a = PORTEE * rb, c = POIGNEE * a;
+  let p, fin;
+  if (g.s >= 0){
+    const t = PORTEE * Math.min(g.s, lim / PORTEE), u = POIGNEE * t;
+    p = `M${X(x0 + t)} ${Y(y0)}C${X(x0 + u)} ${Y(y0)} ${X(x0)} ${Y(y0 + u)} ${X(x0)} ${Y(y0 + t)}`;
+    fin = `L${X(x1)} ${Y(y0 + t)}C${X(x1)} ${Y(y0 + u)} ${X(x1 - u)} ${Y(y0)} ${X(x1 - t)} ${Y(y0)}Z`;
+  } else {
+    const rs = Math.min(-g.s, Math.max(0, h - a));
+    p = `M${X(x0 - rs)} ${Y(y0 - 1)}L${X(x0 - rs)} ${Y(y0)}Q${X(x0)} ${Y(y0)} ${X(x0)} ${Y(y0 + rs)}`;
+    fin = `L${X(x1)} ${Y(y0 + rs)}Q${X(x1)} ${Y(y0)} ${X(x1 + rs)} ${Y(y0)}L${X(x1 + rs)} ${Y(y0 - 1)}Z`;
+  }
+  p += `L${X(x0)} ${Y(y1 - a)}C${X(x0)} ${Y(y1 - c)} ${X(x0 + c)} ${Y(y1)} ${X(x0 + a)} ${Y(y1)}`;
+  p += `L${X(x1 - a)} ${Y(y1)}C${X(x1 - c)} ${Y(y1)} ${X(x1)} ${Y(y1 - c)} ${X(x1)} ${Y(y1 - a)}`;
+  return p + fin;
+}
+
+/* =========================================================
+   Ressorts (réponse en s, amortissement) — interruptibles (repris de ilot-centre.html)
+   ========================================================= */
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = .8; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){
+      this.attente -= dt;
+      if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; }
+    }
+    const w = 2 * Math.PI / this.rep, a = w * w * (this.cible - this.x) - 2 * this.z * w * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+  vise(){ return this.futur ? this.futur.c : this.cible; }
+}
+(function(){   // courbe CSS « ressort » (même formule), pour les zooms d'entrée
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){
+    pts.push(x);
+    for (let s = 0, n = Math.round((T / N) / dt); s < n; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; }
+  }
+  pts[pts.length - 1] = 1;
+  racine.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+/* =========================================================
+   Glyphes (dessinés à la main, façon symboles SF)
+   ========================================================= */
+const micro = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const micBarre = (t, c, fond = '#000') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/><path d="M3 2.5l14 15" stroke="${fond}" stroke-width="3.6" stroke-linecap="round"/><path d="M3 2.5l14 15" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const airpods = (t, c = '#fff') => { const b = 'M5.6 3a3.1 3.1 0 0 0-3.1 3.1v.9a3.1 3.1 0 0 0 3.1 3.1h.3v6.4a1.2 1.2 0 0 0 2.4 0V5.9A3 3 0 0 0 5.6 3z';
+  return `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><path d="${b}"/><path d="${b}" transform="matrix(-1 0 0 1 20 0)"/></svg>`; };
+const portable = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="3.6" y="4" width="12.8" height="8.8" rx="1.6" fill="none" stroke="${c}" stroke-width="1.6"/><path d="M1.5 15.4h17" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+const flecheBas = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.4" fill="none" stroke="${c}" stroke-width="1.7"/><path d="M10 5.4v8.2M6.6 10.4 10 13.8l3.4-3.4" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const etoile = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20">${[0, 30, 60, 90, 120, 150].map(a => `<rect x="9" y="1.5" width="2" height="17" rx="1" fill="${c}" transform="rotate(${a} 10 10)"/>`).join('')}</svg>`;
+const minuteurG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><circle cx="12" cy="13.4" r="7.6" fill="none" stroke="${c}" stroke-width="2.1"/><path d="M12 13.4V9.2M9.5 2.8h5" stroke="${c}" stroke-width="2.1" stroke-linecap="round"/></svg>`;
+const plateauG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M2.6 11.2 4.9 4.6A2 2 0 0 1 6.8 3.3h6.4a2 2 0 0 1 1.9 1.3l2.3 6.6v4a2 2 0 0 1-2 2H4.6a2 2 0 0 1-2-2z"/><path d="M2.8 11.2h4.1l1 2.2h4.2l1-2.2h4.1"/></svg>`;
+const cloche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><path fill="${c}" d="M12 2.6c-3.3 0-5.8 2.6-5.8 5.9v3.6l-1.6 2.9c-.5.9.1 1.9 1.1 1.9h12.6c1 0 1.6-1 1.1-1.9l-1.6-2.9V8.5c0-3.3-2.5-5.9-5.8-5.9zM9.4 18.7a2.7 2.7 0 0 0 5.2 0z"/></svg>`;
+const guillemets = (t, c = '#fff') => `<svg width="${t}" height="${f2(t * .7)}" viewBox="-.45 -.3 3 2.1"><g fill="${c}"><path d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><path transform="translate(1.1 0)" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/></g></svg>`;
+const grilleG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><circle cx="6" cy="6" r="3.3"/><circle cx="14" cy="6" r="3.3"/><rect x="2.7" y="11.2" width="14.6" height="6.4" rx="3.2"/></svg>`;
+const batterie = n => `<svg width="28" height="13" viewBox="0 0 28 13"><rect width="24" height="13" rx="4" fill="#fff"/><text x="12" y="10" font-size="9.6" font-weight="700" text-anchor="middle" fill="#000" font-family="-apple-system,Helvetica,sans-serif">${n}</text><path d="M26 4.6v3.8" stroke="rgba(255,255,255,.5)" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const anneau = t => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle class="fond" cx="10" cy="10" r="7.4" fill="none" stroke-width="2.6"/><circle cx="10" cy="10" r="7.4" fill="none" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="33 47" transform="rotate(-90 10 10)"/></svg>`;
+const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
+const MENUS = {Chrome:['Fichier', 'Modifier', 'Afficher', 'Historique', 'Favoris', 'Profils', 'Onglet', 'Fenêtre', 'Aide'], Lucarne:['Fichier', 'Édition', 'Présentation', 'Fenêtre', 'Aide']};
+const ICONE = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiPgo8ZGVmcz4KICA8bGluZWFyR3JhZGllbnQgaWQ9ImJnIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMzRTNGNDQiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMxQjFDMUYiLz48L2xpbmVhckdyYWRpZW50PgogIDxsaW5lYXJHcmFkaWVudCBpZD0iaW5rIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMxQTFBMUMiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMwMDAwMDAiLz48L2xpbmVhckdyYWRpZW50PgogIDxsaW5lYXJHcmFkaWVudCBpZD0icmltIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMC4zNSIvPgogICAgPHN0b3Agb2Zmc2V0PSIwLjM1IiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAiLz4KICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwLjA2Ii8+PC9saW5lYXJHcmFkaWVudD4KICA8bGluZWFyR3JhZGllbnQgaWQ9ImdsYXNzcmltIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMC4yMiIvPgogICAgPHN0b3Agb2Zmc2V0PSIwLjUiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMC4wMiIvPgogICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAuMjYiLz48L2xpbmVhckdyYWRpZW50PgogIDxyYWRpYWxHcmFkaWVudCBpZD0ic2hlZW4iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiBjeD0iNTEyIiBjeT0iMTAwIiByPSI0NDAiPgogICAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAuMTgiLz4KICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwIi8+PC9yYWRpYWxHcmFkaWVudD4KICA8bGluZWFyR3JhZGllbnQgaWQ9Im9yIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZCMzQwIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjRkY4QTAwIi8+PC9saW5lYXJHcmFkaWVudD4KICA8ZmlsdGVyIGlkPSJib2R5IiB4PSItMjAlIiB5PSItMjAlIiB3aWR0aD0iMTQwJSIgaGVpZ2h0PSIxNDAlIj4KICAgIDxmZURyb3BTaGFkb3cgZHg9IjAiIGR5PSIxNCIgc3RkRGV2aWF0aW9uPSIxNiIgZmxvb2QtY29sb3I9IiMwMDAiIGZsb29kLW9wYWNpdHk9IjAuMjYiLz4KICAgIDxmZURyb3BTaGFkb3cgZHg9IjAiIGR5PSIyIiBzdGREZXZpYXRpb249IjIiIGZsb29kLWNvbG9yPSIjMDAwIiBmbG9vZC1vcGFjaXR5PSIwLjE4Ii8+PC9maWx0ZXI+CiAgPGZpbHRlciBpZD0iZ3NoIiB4PSItMzAlIiB5PSItMzAlIiB3aWR0aD0iMTYwJSIgaGVpZ2h0PSIxNzAlIj4KICAgIDxmZUdhdXNzaWFuQmx1ciBpbj0iU291cmNlQWxwaGEiIHN0ZERldmlhdGlvbj0iMTQiLz48ZmVPZmZzZXQgZHk9IjEwIi8+CiAgICA8ZmVDb21wb25lbnRUcmFuc2Zlcj48ZmVGdW5jQSB0eXBlPSJsaW5lYXIiIHNsb3BlPSIwLjUiLz48L2ZlQ29tcG9uZW50VHJhbnNmZXI+CiAgICA8ZmVDb2xvck1hdHJpeCB2YWx1ZXM9IjAgMCAwIDAgMCAgMCAwIDAgMCAwICAwIDAgMCAwIDAgIDAgMCAwIDEgMCIvPjwvZmlsdGVyPgogIDxmaWx0ZXIgaWQ9ImdzaDIiIHg9Ii0zMCUiIHk9Ii0zMCUiIHdpZHRoPSIxNjAlIiBoZWlnaHQ9IjE3MCUiPgogICAgPGZlR2F1c3NpYW5CbHVyIGluPSJTb3VyY2VBbHBoYSIgc3RkRGV2aWF0aW9uPSI2Ii8+PGZlT2Zmc2V0IGR5PSI0Ii8+CiAgICA8ZmVDb21wb25lbnRUcmFuc2Zlcj48ZmVGdW5jQSB0eXBlPSJsaW5lYXIiIHNsb3BlPSIwLjM1Ii8+PC9mZUNvbXBvbmVudFRyYW5zZmVyPgogICAgPGZlQ29sb3JNYXRyaXggdmFsdWVzPSIwIDAgMCAwIDAgIDAgMCAwIDAgMCAgMCAwIDAgMCAwICAwIDAgMCAxIDAiLz48L2ZpbHRlcj4KICA8ZmlsdGVyIGlkPSJuVyIgeD0iMCIgeT0iMCIgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSI+CiAgICA8ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC45IiBudW1PY3RhdmVzPSIxIiBzZWVkPSIzIi8+CiAgICA8ZmVDb2xvck1hdHJpeCB2YWx1ZXM9IjAgMCAwIDAgMSAgMCAwIDAgMCAxICAwIDAgMCAwIDEgIDEuNiAwIDAgMCAtMC44Ii8+PC9maWx0ZXI+CiAgPGZpbHRlciBpZD0ibkIiIHg9IjAiIHk9IjAiIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPgogICAgPGZlVHVyYnVsZW5jZSB0eXBlPSJmcmFjdGFsTm9pc2UiIGJhc2VGcmVxdWVuY3k9IjAuOSIgbnVtT2N0YXZlcz0iMSIgc2VlZD0iNyIvPgogICAgPGZlQ29sb3JNYXRyaXggdmFsdWVzPSIwIDAgMCAwIDAgIDAgMCAwIDAgMCAgMCAwIDAgMCAwICAxLjYgMCAwIDAgLTAuOCIvPjwvZmlsdGVyPgogIDxjbGlwUGF0aCBpZD0ic3EiPjxwYXRoIGQ9Ik05MjQuMDAsNTEyLjAwIEw5MjMuOTksNTczLjgzIEw5MjMuOTcsNTkzLjU5IEw5MjMuOTQsNjA3Ljk1IEw5MjMuOTAsNjE5LjY1IEw5MjMuODQsNjI5LjcwIEw5MjMuNzcsNjM4LjYwIEw5MjMuNjksNjQ2LjY0IEw5MjMuNjAsNjU0LjAxIEw5MjMuNDksNjYwLjg1IEw5MjMuMzcsNjY3LjI0IEw5MjMuMjQsNjczLjI2IEw5MjMuMTAsNjc4Ljk1IEw5MjIuOTQsNjg0LjM2IEw5MjIuNzcsNjg5LjUyIEw5MjIuNTksNjk0LjQ2IEw5MjIuMzksNjk5LjIxIEw5MjIuMTgsNzAzLjc3IEw5MjEuOTYsNzA4LjE3IEw5MjEuNzMsNzEyLjQyIEw5MjEuNDgsNzE2LjUzIEw5MjEuMjMsNzIwLjUyIEw5MjAuOTYsNzI0LjM5IEw5MjAuNjcsNzI4LjE1IEw5MjAuMzcsNzMxLjgxIEw5MjAuMDcsNzM1LjM3IEw5MTkuNzQsNzM4Ljg1IEw5MTkuNDEsNzQyLjIzIEw5MTkuMDYsNzQ1LjU0IEw5MTguNzAsNzQ4Ljc4IEw5MTguMzMsNzUxLjk0IEw5MTcuOTQsNzU1LjAzIEw5MTcuNTQsNzU4LjA2IEw5MTcuMTMsNzYxLjAyIEw5MTYuNzAsNzYzLjkzIEw5MTYuMjYsNzY2Ljc3IEw5MTUuODEsNzY5LjU3IEw5MTUuMzUsNzcyLjMxIEw5MTQuODcsNzc1LjAwIEw5MTQuMzgsNzc3LjY0IEw5MTMuODgsNzgwLjI0IEw5MTMuMzYsNzgyLjc5IEw5MTIuODMsNzg1LjI5IEw5MTIuMjgsNzg3Ljc2IEw5MTEuNzMsNzkwLjE4IEw5MTEuMTYsNzkyLjU2IEw5MTAuNTcsNzk0LjkxIEw5MDkuOTgsNzk3LjIyIEw5MDkuMzYsNzk5LjQ5IEw5MDguNzQsODAxLjczIEw5MDguMTAsODAzLjkzIEw5MDcuNDUsODA2LjEwIEw5MDYuNzksODA4LjIzIEw5MDYuMTEsODEwLjM0IEw5MDUuNDEsODEyLjQxIEw5MDQuNzEsODE0LjQ1IEw5MDMuOTksODE2LjQ3IEw5MDMuMjUsODE4LjQ1IEw5MDIuNTAsODIwLjQxIEw5MDEuNzQsODIyLjM0IEw5MDAuOTYsODI0LjI0IEw5MDAuMTcsODI2LjExIEw4OTkuMzcsODI3Ljk2IEw4OTguNTUsODI5Ljc4IEw4OTcuNzEsODMxLjU4IEw4OTYuODcsODMzLjM1IEw4OTYuMDAsODM1LjEwIEw4OTUuMTIsODM2LjgzIEw4OTQuMjMsODM4LjUzIEw4OTMuMzIsODQwLjIxIEw4OTIuNDAsODQxLjg2IEw4OTEuNDYsODQzLjUwIEw4OTAuNTEsODQ1LjExIEw4ODkuNTQsODQ2LjcwIEw4ODguNTYsODQ4LjI3IEw4ODcuNTYsODQ5LjgxIEw4ODYuNTUsODUxLjM0IEw4ODUuNTIsODUyLjg1IEw4ODQuNDgsODU0LjMzIEw4ODMuNDIsODU1LjgwIEw4ODIuMzQsODU3LjI0IEw4ODEuMjUsODU4LjY3IEw4ODAuMTQsODYwLjA4IEw4NzkuMDEsODYxLjQ2IEw4NzcuODcsODYyLjgzIEw4NzYuNzEsODY0LjE4IEw4NzUuNTQsODY1LjUyIEw4NzQuMzQsODY2LjgzIEw4NzMuMTQsODY4LjEzIEw4NzEuOTEsODY5LjQxIEw4NzAuNjcsODcwLjY3IEw4NjkuNDEsODcxLjkxIEw4NjguMTMsODczLjE0IEw4NjYuODMsODc0LjM0IEw4NjUuNTIsODc1LjU0IEw4NjQuMTgsODc2LjcxIEw4NjIuODMsODc3Ljg3IEw4NjEuNDYsODc5LjAxIEw4NjAuMDgsODgwLjE0IEw4NTguNjcsODgxLjI1IEw4NTcuMjQsODgyLjM0IEw4NTUuODAsODgzLjQyIEw4NTQuMzMsODg0LjQ4IEw4NTIuODUsODg1LjUyIEw4NTEuMzQsODg2LjU1IEw4NDkuODEsODg3LjU2IEw4NDguMjcsODg4LjU2IEw4NDYuNzAsODg5LjU0IEw4NDUuMTEsODkwLjUxIEw4NDMuNTAsODkxLjQ2IEw4NDEuODYsODkyLjQwIEw4NDAuMjEsODkzLjMyIEw4MzguNTMsODk0LjIzIEw4MzYuODMsODk1LjEyIEw4MzUuMTAsODk2LjAwIEw4MzMuMzUsODk2Ljg3IEw4MzEuNTgsODk3LjcxIEw4MjkuNzgsODk4LjU1IEw4MjcuOTYsODk5LjM3IEw4MjYuMTEsOTAwLjE3IEw4MjQuMjQsOTAwLjk2IEw4MjIuMzQsOTAxLjc0IEw4MjAuNDEsOTAyLjUwIEw4MTguNDUsOTAzLjI1IEw4MTYuNDcsOTAzLjk5IEw4MTQuNDUsOTA0LjcxIEw4MTIuNDEsOTA1LjQxIEw4MTAuMzQsOTA2LjExIEw4MDguMjMsOTA2Ljc5IEw4MDYuMTAsOTA3LjQ1IEw4MDMuOTMsOTA4LjEwIEw4MDEuNzMsOTA4Ljc0IEw3OTkuNDksOTA5LjM2IEw3OTcuMjIsOTA5Ljk4IEw3OTQuOTEsOTEwLjU3IEw3OTIuNTYsOTExLjE2IEw3OTAuMTgsOTExLjczIEw3ODcuNzYsOTEyLjI4IEw3ODUuMjksOTEyLjgzIEw3ODIuNzksOTEzLjM2IEw3ODAuMjQsOTEzLjg4IEw3NzcuNjQsOTE0LjM4IEw3NzUuMDAsOTE0Ljg3IEw3NzIuMzEsOTE1LjM1IEw3NjkuNTcsOTE1LjgxIEw3NjYuNzcsOTE2LjI2IEw3NjMuOTMsOTE2LjcwIEw3NjEuMDIsOTE3LjEzIEw3NTguMDYsOTE3LjU0IEw3NTUuMDMsOTE3Ljk0IEw3NTEuOTQsOTE4LjMzIEw3NDguNzgsOTE4LjcwIEw3NDUuNTQsOTE5LjA2IEw3NDIuMjMsOTE5LjQxIEw3MzguODUsOTE5Ljc0IEw3MzUuMzcsOTIwLjA3IEw3MzEuODEsOTIwLjM3IEw3MjguMTUsOTIwLjY3IEw3MjQuMzksOTIwLjk2IEw3MjAuNTIsOTIxLjIzIEw3MTYuNTMsOTIxLjQ4IEw3MTIuNDIsOTIxLjczIEw3MDguMTcsOTIxLjk2IEw3MDMuNzcsOTIyLjE4IEw2OTkuMjEsOTIyLjM5IEw2OTQuNDYsOTIyLjU5IEw2ODkuNTIsOTIyLjc3IEw2ODQuMzYsOTIyLjk0IEw2NzguOTUsOTIzLjEwIEw2NzMuMjYsOTIzLjI0IEw2NjcuMjQsOTIzLjM3IEw2NjAuODUsOTIzLjQ5IEw2NTQuMDEsOTIzLjYwIEw2NDYuNjQsOTIzLjY5IEw2MzguNjAsOTIzLjc3IEw2MjkuNzAsOTIzLjg0IEw2MTkuNjUsOTIzLjkwIEw2MDcuOTUsOTIzLjk0IEw1OTMuNTksOTIzLjk3IEw1NzMuODMsOTIzLjk5IEw1MTIuMDAsOTI0LjAwIEw0NTAuMTcsOTIzLjk5IEw0MzAuNDEsOTIzLjk3IEw0MTYuMDUsOTIzLjk0IEw0MDQuMzUsOTIzLjkwIEwzOTQuMzAsOTIzLjg0IEwzODUuNDAsOTIzLjc3IEwzNzcuMzYsOTIzLjY5IEwzNjkuOTksOTIzLjYwIEwzNjMuMTUsOTIzLjQ5IEwzNTYuNzYsOTIzLjM3IEwzNTAuNzQsOTIzLjI0IEwzNDUuMDUsOTIzLjEwIEwzMzkuNjQsOTIyLjk0IEwzMzQuNDgsOTIyLjc3IEwzMjkuNTQsOTIyLjU5IEwzMjQuNzksOTIyLjM5IEwzMjAuMjMsOTIyLjE4IEwzMTUuODMsOTIxLjk2IEwzMTEuNTgsOTIxLjczIEwzMDcuNDcsOTIxLjQ4IEwzMDMuNDgsOTIxLjIzIEwyOTkuNjEsOTIwLjk2IEwyOTUuODUsOTIwLjY3IEwyOTIuMTksOTIwLjM3IEwyODguNjMsOTIwLjA3IEwyODUuMTUsOTE5Ljc0IEwyODEuNzcsOTE5LjQxIEwyNzguNDYsOTE5LjA2IEwyNzUuMjIsOTE4LjcwIEwyNzIuMDYsOTE4LjMzIEwyNjguOTcsOTE3Ljk0IEwyNjUuOTQsOTE3LjU0IEwyNjIuOTgsOTE3LjEzIEwyNjAuMDcsOTE2LjcwIEwyNTcuMjMsOTE2LjI2IEwyNTQuNDMsOTE1LjgxIEwyNTEuNjksOTE1LjM1IEwyNDkuMDAsOTE0Ljg3IEwyNDYuMzYsOTE0LjM4IEwyNDMuNzYsOTEzLjg4IEwyNDEuMjEsOTEzLjM2IEwyMzguNzEsOTEyLjgzIEwyMzYuMjQsOTEyLjI4IEwyMzMuODIsOTExLjczIEwyMzEuNDQsOTExLjE2IEwyMjkuMDksOTEwLjU3IEwyMjYuNzgsOTA5Ljk4IEwyMjQuNTEsOTA5LjM2IEwyMjIuMjcsOTA4Ljc0IEwyMjAuMDcsOTA4LjEwIEwyMTcuOTAsOTA3LjQ1IEwyMTUuNzcsOTA2Ljc5IEwyMTMuNjYsOTA2LjExIEwyMTEuNTksOTA1LjQxIEwyMDkuNTUsOTA0LjcxIEwyMDcuNTMsOTAzLjk5IEwyMDUuNTUsOTAzLjI1IEwyMDMuNTksOTAyLjUwIEwyMDEuNjYsOTAxLjc0IEwxOTkuNzYsOTAwLjk2IEwxOTcuODksOTAwLjE3IEwxOTYuMDQsODk5LjM3IEwxOTQuMjIsODk4LjU1IEwxOTIuNDIsODk3LjcxIEwxOTAuNjUsODk2Ljg3IEwxODguOTAsODk2LjAwIEwxODcuMTcsODk1LjEyIEwxODUuNDcsODk0LjIzIEwxODMuNzksODkzLjMyIEwxODIuMTQsODkyLjQwIEwxODAuNTAsODkxLjQ2IEwxNzguODksODkwLjUxIEwxNzcuMzAsODg5LjU0IEwxNzUuNzMsODg4LjU2IEwxNzQuMTksODg3LjU2IEwxNzIuNjYsODg2LjU1IEwxNzEuMTUsODg1LjUyIEwxNjkuNjcsODg0LjQ4IEwxNjguMjAsODgzLjQyIEwxNjYuNzYsODgyLjM0IEwxNjUuMzMsODgxLjI1IEwxNjMuOTIsODgwLjE0IEwxNjIuNTQsODc5LjAxIEwxNjEuMTcsODc3Ljg3IEwxNTkuODIsODc2LjcxIEwxNTguNDgsODc1LjU0IEwxNTcuMTcsODc0LjM0IEwxNTUuODcsODczLjE0IEwxNTQuNTksODcxLjkxIEwxNTMuMzMsODcwLjY3IEwxNTIuMDksODY5LjQxIEwxNTAuODYsODY4LjEzIEwxNDkuNjYsODY2LjgzIEwxNDguNDYsODY1LjUyIEwxNDcuMjksODY0LjE4IEwxNDYuMTMsODYyLjgzIEwxNDQuOTksODYxLjQ2IEwxNDMuODYsODYwLjA4IEwxNDIuNzUsODU4LjY3IEwxNDEuNjYsODU3LjI0IEwxNDAuNTgsODU1LjgwIEwxMzkuNTIsODU0LjMzIEwxMzguNDgsODUyLjg1IEwxMzcuNDUsODUxLjM0IEwxMzYuNDQsODQ5LjgxIEwxMzUuNDQsODQ4LjI3IEwxMzQuNDYsODQ2LjcwIEwxMzMuNDksODQ1LjExIEwxMzIuNTQsODQzLjUwIEwxMzEuNjAsODQxLjg2IEwxMzAuNjgsODQwLjIxIEwxMjkuNzcsODM4LjUzIEwxMjguODgsODM2LjgzIEwxMjguMDAsODM1LjEwIEwxMjcuMTMsODMzLjM1IEwxMjYuMjksODMxLjU4IEwxMjUuNDUsODI5Ljc4IEwxMjQuNjMsODI3Ljk2IEwxMjMuODMsODI2LjExIEwxMjMuMDQsODI0LjI0IEwxMjIuMjYsODIyLjM0IEwxMjEuNTAsODIwLjQxIEwxMjAuNzUsODE4LjQ1IEwxMjAuMDEsODE2LjQ3IEwxMTkuMjksODE0LjQ1IEwxMTguNTksODEyLjQxIEwxMTcuODksODEwLjM0IEwxMTcuMjEsODA4LjIzIEwxMTYuNTUsODA2LjEwIEwxMTUuOTAsODAzLjkzIEwxMTUuMjYsODAxLjczIEwxMTQuNjQsNzk5LjQ5IEwxMTQuMDIsNzk3LjIyIEwxMTMuNDMsNzk0LjkxIEwxMTIuODQsNzkyLjU2IEwxMTIuMjcsNzkwLjE4IEwxMTEuNzIsNzg3Ljc2IEwxMTEuMTcsNzg1LjI5IEwxMTAuNjQsNzgyLjc5IEwxMTAuMTIsNzgwLjI0IEwxMDkuNjIsNzc3LjY0IEwxMDkuMTMsNzc1LjAwIEwxMDguNjUsNzcyLjMxIEwxMDguMTksNzY5LjU3IEwxMDcuNzQsNzY2Ljc3IEwxMDcuMzAsNzYzLjkzIEwxMDYuODcsNzYxLjAyIEwxMDYuNDYsNzU4LjA2IEwxMDYuMDYsNzU1LjAzIEwxMDUuNjcsNzUxLjk0IEwxMDUuMzAsNzQ4Ljc4IEwxMDQuOTQsNzQ1LjU0IEwxMDQuNTksNzQyLjIzIEwxMDQuMjYsNzM4Ljg1IEwxMDMuOTMsNzM1LjM3IEwxMDMuNjMsNzMxLjgxIEwxMDMuMzMsNzI4LjE1IEwxMDMuMDQsNzI0LjM5IEwxMDIuNzcsNzIwLjUyIEwxMDIuNTIsNzE2LjUzIEwxMDIuMjcsNzEyLjQyIEwxMDIuMDQsNzA4LjE3IEwxMDEuODIsNzAzLjc3IEwxMDEuNjEsNjk5LjIxIEwxMDEuNDEsNjk0LjQ2IEwxMDEuMjMsNjg5LjUyIEwxMDEuMDYsNjg0LjM2IEwxMDAuOTAsNjc4Ljk1IEwxMDAuNzYsNjczLjI2IEwxMDAuNjMsNjY3LjI0IEwxMDAuNTEsNjYwLjg1IEwxMDAuNDAsNjU0LjAxIEwxMDAuMzEsNjQ2LjY0IEwxMDAuMjMsNjM4LjYwIEwxMDAuMTYsNjI5LjcwIEwxMDAuMTAsNjE5LjY1IEwxMDAuMDYsNjA3Ljk1IEwxMDAuMDMsNTkzLjU5IEwxMDAuMDEsNTczLjgzIEwxMDAuMDAsNTEyLjAwIEwxMDAuMDEsNDUwLjE3IEwxMDAuMDMsNDMwLjQxIEwxMDAuMDYsNDE2LjA1IEwxMDAuMTAsNDA0LjM1IEwxMDAuMTYsMzk0LjMwIEwxMDAuMjMsMzg1LjQwIEwxMDAuMzEsMzc3LjM2IEwxMDAuNDAsMzY5Ljk5IEwxMDAuNTEsMzYzLjE1IEwxMDAuNjMsMzU2Ljc2IEwxMDAuNzYsMzUwLjc0IEwxMDAuOTAsMzQ1LjA1IEwxMDEuMDYsMzM5LjY0IEwxMDEuMjMsMzM0LjQ4IEwxMDEuNDEsMzI5LjU0IEwxMDEuNjEsMzI0Ljc5IEwxMDEuODIsMzIwLjIzIEwxMDIuMDQsMzE1LjgzIEwxMDIuMjcsMzExLjU4IEwxMDIuNTIsMzA3LjQ3IEwxMDIuNzcsMzAzLjQ4IEwxMDMuMDQsMjk5LjYxIEwxMDMuMzMsMjk1Ljg1IEwxMDMuNjMsMjkyLjE5IEwxMDMuOTMsMjg4LjYzIEwxMDQuMjYsMjg1LjE1IEwxMDQuNTksMjgxLjc3IEwxMDQuOTQsMjc4LjQ2IEwxMDUuMzAsMjc1LjIyIEwxMDUuNjcsMjcyLjA2IEwxMDYuMDYsMjY4Ljk3IEwxMDYuNDYsMjY1Ljk0IEwxMDYuODcsMjYyLjk4IEwxMDcuMzAsMjYwLjA3IEwxMDcuNzQsMjU3LjIzIEwxMDguMTksMjU0LjQzIEwxMDguNjUsMjUxLjY5IEwxMDkuMTMsMjQ5LjAwIEwxMDkuNjIsMjQ2LjM2IEwxMTAuMTIsMjQzLjc2IEwxMTAuNjQsMjQxLjIxIEwxMTEuMTcsMjM4LjcxIEwxMTEuNzIsMjM2LjI0IEwxMTIuMjcsMjMzLjgyIEwxMTIuODQsMjMxLjQ0IEwxMTMuNDMsMjI5LjA5IEwxMTQuMDIsMjI2Ljc4IEwxMTQuNjQsMjI0LjUxIEwxMTUuMjYsMjIyLjI3IEwxMTUuOTAsMjIwLjA3IEwxMTYuNTUsMjE3LjkwIEwxMTcuMjEsMjE1Ljc3IEwxMTcuODksMjEzLjY2IEwxMTguNTksMjExLjU5IEwxMTkuMjksMjA5LjU1IEwxMjAuMDEsMjA3LjUzIEwxMjAuNzUsMjA1LjU1IEwxMjEuNTAsMjAzLjU5IEwxMjIuMjYsMjAxLjY2IEwxMjMuMDQsMTk5Ljc2IEwxMjMuODMsMTk3Ljg5IEwxMjQuNjMsMTk2LjA0IEwxMjUuNDUsMTk0LjIyIEwxMjYuMjksMTkyLjQyIEwxMjcuMTMsMTkwLjY1IEwxMjguMDAsMTg4LjkwIEwxMjguODgsMTg3LjE3IEwxMjkuNzcsMTg1LjQ3IEwxMzAuNjgsMTgzLjc5IEwxMzEuNjAsMTgyLjE0IEwxMzIuNTQsMTgwLjUwIEwxMzMuNDksMTc4Ljg5IEwxMzQuNDYsMTc3LjMwIEwxMzUuNDQsMTc1LjczIEwxMzYuNDQsMTc0LjE5IEwxMzcuNDUsMTcyLjY2IEwxMzguNDgsMTcxLjE1IEwxMzkuNTIsMTY5LjY3IEwxNDAuNTgsMTY4LjIwIEwxNDEuNjYsMTY2Ljc2IEwxNDIuNzUsMTY1LjMzIEwxNDMuODYsMTYzLjkyIEwxNDQuOTksMTYyLjU0IEwxNDYuMTMsMTYxLjE3IEwxNDcuMjksMTU5LjgyIEwxNDguNDYsMTU4LjQ4IEwxNDkuNjYsMTU3LjE3IEwxNTAuODYsMTU1Ljg3IEwxNTIuMDksMTU0LjU5IEwxNTMuMzMsMTUzLjMzIEwxNTQuNTksMTUyLjA5IEwxNTUuODcsMTUwLjg2IEwxNTcuMTcsMTQ5LjY2IEwxNTguNDgsMTQ4LjQ2IEwxNTkuODIsMTQ3LjI5IEwxNjEuMTcsMTQ2LjEzIEwxNjIuNTQsMTQ0Ljk5IEwxNjMuOTIsMTQzLjg2IEwxNjUuMzMsMTQyLjc1IEwxNjYuNzYsMTQxLjY2IEwxNjguMjAsMTQwLjU4IEwxNjkuNjcsMTM5LjUyIEwxNzEuMTUsMTM4LjQ4IEwxNzIuNjYsMTM3LjQ1IEwxNzQuMTksMTM2LjQ0IEwxNzUuNzMsMTM1LjQ0IEwxNzcuMzAsMTM0LjQ2IEwxNzguODksMTMzLjQ5IEwxODAuNTAsMTMyLjU0IEwxODIuMTQsMTMxLjYwIEwxODMuNzksMTMwLjY4IEwxODUuNDcsMTI5Ljc3IEwxODcuMTcsMTI4Ljg4IEwxODguOTAsMTI4LjAwIEwxOTAuNjUsMTI3LjEzIEwxOTIuNDIsMTI2LjI5IEwxOTQuMjIsMTI1LjQ1IEwxOTYuMDQsMTI0LjYzIEwxOTcuODksMTIzLjgzIEwxOTkuNzYsMTIzLjA0IEwyMDEuNjYsMTIyLjI2IEwyMDMuNTksMTIxLjUwIEwyMDUuNTUsMTIwLjc1IEwyMDcuNTMsMTIwLjAxIEwyMDkuNTUsMTE5LjI5IEwyMTEuNTksMTE4LjU5IEwyMTMuNjYsMTE3Ljg5IEwyMTUuNzcsMTE3LjIxIEwyMTcuOTAsMTE2LjU1IEwyMjAuMDcsMTE1LjkwIEwyMjIuMjcsMTE1LjI2IEwyMjQuNTEsMTE0LjY0IEwyMjYuNzgsMTE0LjAyIEwyMjkuMDksMTEzLjQzIEwyMzEuNDQsMTEyLjg0IEwyMzMuODIsMTEyLjI3IEwyMzYuMjQsMTExLjcyIEwyMzguNzEsMTExLjE3IEwyNDEuMjEsMTEwLjY0IEwyNDMuNzYsMTEwLjEyIEwyNDYuMzYsMTA5LjYyIEwyNDkuMDAsMTA5LjEzIEwyNTEuNjksMTA4LjY1IEwyNTQuNDMsMTA4LjE5IEwyNTcuMjMsMTA3Ljc0IEwyNjAuMDcsMTA3LjMwIEwyNjIuOTgsMTA2Ljg3IEwyNjUuOTQsMTA2LjQ2IEwyNjguOTcsMTA2LjA2IEwyNzIuMDYsMTA1LjY3IEwyNzUuMjIsMTA1LjMwIEwyNzguNDYsMTA0Ljk0IEwyODEuNzcsMTA0LjU5IEwyODUuMTUsMTA0LjI2IEwyODguNjMsMTAzLjkzIEwyOTIuMTksMTAzLjYzIEwyOTUuODUsMTAzLjMzIEwyOTkuNjEsMTAzLjA0IEwzMDMuNDgsMTAyLjc3IEwzMDcuNDcsMTAyLjUyIEwzMTEuNTgsMTAyLjI3IEwzMTUuODMsMTAyLjA0IEwzMjAuMjMsMTAxLjgyIEwzMjQuNzksMTAxLjYxIEwzMjkuNTQsMTAxLjQxIEwzMzQuNDgsMTAxLjIzIEwzMzkuNjQsMTAxLjA2IEwzNDUuMDUsMTAwLjkwIEwzNTAuNzQsMTAwLjc2IEwzNTYuNzYsMTAwLjYzIEwzNjMuMTUsMTAwLjUxIEwzNjkuOTksMTAwLjQwIEwzNzcuMzYsMTAwLjMxIEwzODUuNDAsMTAwLjIzIEwzOTQuMzAsMTAwLjE2IEw0MDQuMzUsMTAwLjEwIEw0MTYuMDUsMTAwLjA2IEw0MzAuNDEsMTAwLjAzIEw0NTAuMTcsMTAwLjAxIEw1MTIuMDAsMTAwLjAwIEw1NzMuODMsMTAwLjAxIEw1OTMuNTksMTAwLjAzIEw2MDcuOTUsMTAwLjA2IEw2MTkuNjUsMTAwLjEwIEw2MjkuNzAsMTAwLjE2IEw2MzguNjAsMTAwLjIzIEw2NDYuNjQsMTAwLjMxIEw2NTQuMDEsMTAwLjQwIEw2NjAuODUsMTAwLjUxIEw2NjcuMjQsMTAwLjYzIEw2NzMuMjYsMTAwLjc2IEw2NzguOTUsMTAwLjkwIEw2ODQuMzYsMTAxLjA2IEw2ODkuNTIsMTAxLjIzIEw2OTQuNDYsMTAxLjQxIEw2OTkuMjEsMTAxLjYxIEw3MDMuNzcsMTAxLjgyIEw3MDguMTcsMTAyLjA0IEw3MTIuNDIsMTAyLjI3IEw3MTYuNTMsMTAyLjUyIEw3MjAuNTIsMTAyLjc3IEw3MjQuMzksMTAzLjA0IEw3MjguMTUsMTAzLjMzIEw3MzEuODEsMTAzLjYzIEw3MzUuMzcsMTAzLjkzIEw3MzguODUsMTA0LjI2IEw3NDIuMjMsMTA0LjU5IEw3NDUuNTQsMTA0Ljk0IEw3NDguNzgsMTA1LjMwIEw3NTEuOTQsMTA1LjY3IEw3NTUuMDMsMTA2LjA2IEw3NTguMDYsMTA2LjQ2IEw3NjEuMDIsMTA2Ljg3IEw3NjMuOTMsMTA3LjMwIEw3NjYuNzcsMTA3Ljc0IEw3NjkuNTcsMTA4LjE5IEw3NzIuMzEsMTA4LjY1IEw3NzUuMDAsMTA5LjEzIEw3NzcuNjQsMTA5LjYyIEw3ODAuMjQsMTEwLjEyIEw3ODIuNzksMTEwLjY0IEw3ODUuMjksMTExLjE3IEw3ODcuNzYsMTExLjcyIEw3OTAuMTgsMTEyLjI3IEw3OTIuNTYsMTEyLjg0IEw3OTQuOTEsMTEzLjQzIEw3OTcuMjIsMTE0LjAyIEw3OTkuNDksMTE0LjY0IEw4MDEuNzMsMTE1LjI2IEw4MDMuOTMsMTE1LjkwIEw4MDYuMTAsMTE2LjU1IEw4MDguMjMsMTE3LjIxIEw4MTAuMzQsMTE3Ljg5IEw4MTIuNDEsMTE4LjU5IEw4MTQuNDUsMTE5LjI5IEw4MTYuNDcsMTIwLjAxIEw4MTguNDUsMTIwLjc1IEw4MjAuNDEsMTIxLjUwIEw4MjIuMzQsMTIyLjI2IEw4MjQuMjQsMTIzLjA0IEw4MjYuMTEsMTIzLjgzIEw4MjcuOTYsMTI0LjYzIEw4MjkuNzgsMTI1LjQ1IEw4MzEuNTgsMTI2LjI5IEw4MzMuMzUsMTI3LjEzIEw4MzUuMTAsMTI4LjAwIEw4MzYuODMsMTI4Ljg4IEw4MzguNTMsMTI5Ljc3IEw4NDAuMjEsMTMwLjY4IEw4NDEuODYsMTMxLjYwIEw4NDMuNTAsMTMyLjU0IEw4NDUuMTEsMTMzLjQ5IEw4NDYuNzAsMTM0LjQ2IEw4NDguMjcsMTM1LjQ0IEw4NDkuODEsMTM2LjQ0IEw4NTEuMzQsMTM3LjQ1IEw4NTIuODUsMTM4LjQ4IEw4NTQuMzMsMTM5LjUyIEw4NTUuODAsMTQwLjU4IEw4NTcuMjQsMTQxLjY2IEw4NTguNjcsMTQyLjc1IEw4NjAuMDgsMTQzLjg2IEw4NjEuNDYsMTQ0Ljk5IEw4NjIuODMsMTQ2LjEzIEw4NjQuMTgsMTQ3LjI5IEw4NjUuNTIsMTQ4LjQ2IEw4NjYuODMsMTQ5LjY2IEw4NjguMTMsMTUwLjg2IEw4NjkuNDEsMTUyLjA5IEw4NzAuNjcsMTUzLjMzIEw4NzEuOTEsMTU0LjU5IEw4NzMuMTQsMTU1Ljg3IEw4NzQuMzQsMTU3LjE3IEw4NzUuNTQsMTU4LjQ4IEw4NzYuNzEsMTU5LjgyIEw4NzcuODcsMTYxLjE3IEw4NzkuMDEsMTYyLjU0IEw4ODAuMTQsMTYzLjkyIEw4ODEuMjUsMTY1LjMzIEw4ODIuMzQsMTY2Ljc2IEw4ODMuNDIsMTY4LjIwIEw4ODQuNDgsMTY5LjY3IEw4ODUuNTIsMTcxLjE1IEw4ODYuNTUsMTcyLjY2IEw4ODcuNTYsMTc0LjE5IEw4ODguNTYsMTc1LjczIEw4ODkuNTQsMTc3LjMwIEw4OTAuNTEsMTc4Ljg5IEw4OTEuNDYsMTgwLjUwIEw4OTIuNDAsMTgyLjE0IEw4OTMuMzIsMTgzLjc5IEw4OTQuMjMsMTg1LjQ3IEw4OTUuMTIsMTg3LjE3IEw4OTYuMDAsMTg4LjkwIEw4OTYuODcsMTkwLjY1IEw4OTcuNzEsMTkyLjQyIEw4OTguNTUsMTk0LjIyIEw4OTkuMzcsMTk2LjA0IEw5MDAuMTcsMTk3Ljg5IEw5MDAuOTYsMTk5Ljc2IEw5MDEuNzQsMjAxLjY2IEw5MDIuNTAsMjAzLjU5IEw5MDMuMjUsMjA1LjU1IEw5MDMuOTksMjA3LjUzIEw5MDQuNzEsMjA5LjU1IEw5MDUuNDEsMjExLjU5IEw5MDYuMTEsMjEzLjY2IEw5MDYuNzksMjE1Ljc3IEw5MDcuNDUsMjE3LjkwIEw5MDguMTAsMjIwLjA3IEw5MDguNzQsMjIyLjI3IEw5MDkuMzYsMjI0LjUxIEw5MDkuOTgsMjI2Ljc4IEw5MTAuNTcsMjI5LjA5IEw5MTEuMTYsMjMxLjQ0IEw5MTEuNzMsMjMzLjgyIEw5MTIuMjgsMjM2LjI0IEw5MTIuODMsMjM4LjcxIEw5MTMuMzYsMjQxLjIxIEw5MTMuODgsMjQzLjc2IEw5MTQuMzgsMjQ2LjM2IEw5MTQuODcsMjQ5LjAwIEw5MTUuMzUsMjUxLjY5IEw5MTUuODEsMjU0LjQzIEw5MTYuMjYsMjU3LjIzIEw5MTYuNzAsMjYwLjA3IEw5MTcuMTMsMjYyLjk4IEw5MTcuNTQsMjY1Ljk0IEw5MTcuOTQsMjY4Ljk3IEw5MTguMzMsMjcyLjA2IEw5MTguNzAsMjc1LjIyIEw5MTkuMDYsMjc4LjQ2IEw5MTkuNDEsMjgxLjc3IEw5MTkuNzQsMjg1LjE1IEw5MjAuMDcsMjg4LjYzIEw5MjAuMzcsMjkyLjE5IEw5MjAuNjcsMjk1Ljg1IEw5MjAuOTYsMjk5LjYxIEw5MjEuMjMsMzAzLjQ4IEw5MjEuNDgsMzA3LjQ3IEw5MjEuNzMsMzExLjU4IEw5MjEuOTYsMzE1LjgzIEw5MjIuMTgsMzIwLjIzIEw5MjIuMzksMzI0Ljc5IEw5MjIuNTksMzI5LjU0IEw5MjIuNzcsMzM0LjQ4IEw5MjIuOTQsMzM5LjY0IEw5MjMuMTAsMzQ1LjA1IEw5MjMuMjQsMzUwLjc0IEw5MjMuMzcsMzU2Ljc2IEw5MjMuNDksMzYzLjE1IEw5MjMuNjAsMzY5Ljk5IEw5MjMuNjksMzc3LjM2IEw5MjMuNzcsMzg1LjQwIEw5MjMuODQsMzk0LjMwIEw5MjMuOTAsNDA0LjM1IEw5MjMuOTQsNDE2LjA1IEw5MjMuOTcsNDMwLjQxIEw5MjMuOTksNDUwLjE3IFoiLz48L2NsaXBQYXRoPgo8L2RlZnM+CjxwYXRoIGQ9Ik05MjQuMDAsNTEyLjAwIEw5MjMuOTksNTczLjgzIEw5MjMuOTcsNTkzLjU5IEw5MjMuOTQsNjA3Ljk1IEw5MjMuOTAsNjE5LjY1IEw5MjMuODQsNjI5LjcwIEw5MjMuNzcsNjM4LjYwIEw5MjMuNjksNjQ2LjY0IEw5MjMuNjAsNjU0LjAxIEw5MjMuNDksNjYwLjg1IEw5MjMuMzcsNjY3LjI0IEw5MjMuMjQsNjczLjI2IEw5MjMuMTAsNjc4Ljk1IEw5MjIuOTQsNjg0LjM2IEw5MjIuNzcsNjg5LjUyIEw5MjIuNTksNjk0LjQ2IEw5MjIuMzksNjk5LjIxIEw5MjIuMTgsNzAzLjc3IEw5MjEuOTYsNzA4LjE3IEw5MjEuNzMsNzEyLjQyIEw5MjEuNDgsNzE2LjUzIEw5MjEuMjMsNzIwLjUyIEw5MjAuOTYsNzI0LjM5IEw5MjAuNjcsNzI4LjE1IEw5MjAuMzcsNzMxLjgxIEw5MjAuMDcsNzM1LjM3IEw5MTkuNzQsNzM4Ljg1IEw5MTkuNDEsNzQyLjIzIEw5MTkuMDYsNzQ1LjU0IEw5MTguNzAsNzQ4Ljc4IEw5MTguMzMsNzUxLjk0IEw5MTcuOTQsNzU1LjAzIEw5MTcuNTQsNzU4LjA2IEw5MTcuMTMsNzYxLjAyIEw5MTYuNzAsNzYzLjkzIEw5MTYuMjYsNzY2Ljc3IEw5MTUuODEsNzY5LjU3IEw5MTUuMzUsNzcyLjMxIEw5MTQuODcsNzc1LjAwIEw5MTQuMzgsNzc3LjY0IEw5MTMuODgsNzgwLjI0IEw5MTMuMzYsNzgyLjc5IEw5MTIuODMsNzg1LjI5IEw5MTIuMjgsNzg3Ljc2IEw5MTEuNzMsNzkwLjE4IEw5MTEuMTYsNzkyLjU2IEw5MTAuNTcsNzk0LjkxIEw5MDkuOTgsNzk3LjIyIEw5MDkuMzYsNzk5LjQ5IEw5MDguNzQsODAxLjczIEw5MDguMTAsODAzLjkzIEw5MDcuNDUsODA2LjEwIEw5MDYuNzksODA4LjIzIEw5MDYuMTEsODEwLjM0IEw5MDUuNDEsODEyLjQxIEw5MDQuNzEsODE0LjQ1IEw5MDMuOTksODE2LjQ3IEw5MDMuMjUsODE4LjQ1IEw5MDIuNTAsODIwLjQxIEw5MDEuNzQsODIyLjM0IEw5MDAuOTYsODI0LjI0IEw5MDAuMTcsODI2LjExIEw4OTkuMzcsODI3Ljk2IEw4OTguNTUsODI5Ljc4IEw4OTcuNzEsODMxLjU4IEw4OTYuODcsODMzLjM1IEw4OTYuMDAsODM1LjEwIEw4OTUuMTIsODM2LjgzIEw4OTQuMjMsODM4LjUzIEw4OTMuMzIsODQwLjIxIEw4OTIuNDAsODQxLjg2IEw4OTEuNDYsODQzLjUwIEw4OTAuNTEsODQ1LjExIEw4ODkuNTQsODQ2LjcwIEw4ODguNTYsODQ4LjI3IEw4ODcuNTYsODQ5LjgxIEw4ODYuNTUsODUxLjM0IEw4ODUuNTIsODUyLjg1IEw4ODQuNDgsODU0LjMzIEw4ODMuNDIsODU1LjgwIEw4ODIuMzQsODU3LjI0IEw4ODEuMjUsODU4LjY3IEw4ODAuMTQsODYwLjA4IEw4NzkuMDEsODYxLjQ2IEw4NzcuODcsODYyLjgzIEw4NzYuNzEsODY0LjE4IEw4NzUuNTQsODY1LjUyIEw4NzQuMzQsODY2LjgzIEw4NzMuMTQsODY4LjEzIEw4NzEuOTEsODY5LjQxIEw4NzAuNjcsODcwLjY3IEw4NjkuNDEsODcxLjkxIEw4NjguMTMsODczLjE0IEw4NjYuODMsODc0LjM0IEw4NjUuNTIsODc1LjU0IEw4NjQuMTgsODc2LjcxIEw4NjIuODMsODc3Ljg3IEw4NjEuNDYsODc5LjAxIEw4NjAuMDgsODgwLjE0IEw4NTguNjcsODgxLjI1IEw4NTcuMjQsODgyLjM0IEw4NTUuODAsODgzLjQyIEw4NTQuMzMsODg0LjQ4IEw4NTIuODUsODg1LjUyIEw4NTEuMzQsODg2LjU1IEw4NDkuODEsODg3LjU2IEw4NDguMjcsODg4LjU2IEw4NDYuNzAsODg5LjU0IEw4NDUuMTEsODkwLjUxIEw4NDMuNTAsODkxLjQ2IEw4NDEuODYsODkyLjQwIEw4NDAuMjEsODkzLjMyIEw4MzguNTMsODk0LjIzIEw4MzYuODMsODk1LjEyIEw4MzUuMTAsODk2LjAwIEw4MzMuMzUsODk2Ljg3IEw4MzEuNTgsODk3LjcxIEw4MjkuNzgsODk4LjU1IEw4MjcuOTYsODk5LjM3IEw4MjYuMTEsOTAwLjE3IEw4MjQuMjQsOTAwLjk2IEw4MjIuMzQsOTAxLjc0IEw4MjAuNDEsOTAyLjUwIEw4MTguNDUsOTAzLjI1IEw4MTYuNDcsOTAzLjk5IEw4MTQuNDUsOTA0LjcxIEw4MTIuNDEsOTA1LjQxIEw4MTAuMzQsOTA2LjExIEw4MDguMjMsOTA2Ljc5IEw4MDYuMTAsOTA3LjQ1IEw4MDMuOTMsOTA4LjEwIEw4MDEuNzMsOTA4Ljc0IEw3OTkuNDksOTA5LjM2IEw3OTcuMjIsOTA5Ljk4IEw3OTQuOTEsOTEwLjU3IEw3OTIuNTYsOTExLjE2IEw3OTAuMTgsOTExLjczIEw3ODcuNzYsOTEyLjI4IEw3ODUuMjksOTEyLjgzIEw3ODIuNzksOTEzLjM2IEw3ODAuMjQsOTEzLjg4IEw3NzcuNjQsOTE0LjM4IEw3NzUuMDAsOTE0Ljg3IEw3NzIuMzEsOTE1LjM1IEw3NjkuNTcsOTE1LjgxIEw3NjYuNzcsOTE2LjI2IEw3NjMuOTMsOTE2LjcwIEw3NjEuMDIsOTE3LjEzIEw3NTguMDYsOTE3LjU0IEw3NTUuMDMsOTE3Ljk0IEw3NTEuOTQsOTE4LjMzIEw3NDguNzgsOTE4LjcwIEw3NDUuNTQsOTE5LjA2IEw3NDIuMjMsOTE5LjQxIEw3MzguODUsOTE5Ljc0IEw3MzUuMzcsOTIwLjA3IEw3MzEuODEsOTIwLjM3IEw3MjguMTUsOTIwLjY3IEw3MjQuMzksOTIwLjk2IEw3MjAuNTIsOTIxLjIzIEw3MTYuNTMsOTIxLjQ4IEw3MTIuNDIsOTIxLjczIEw3MDguMTcsOTIxLjk2IEw3MDMuNzcsOTIyLjE4IEw2OTkuMjEsOTIyLjM5IEw2OTQuNDYsOTIyLjU5IEw2ODkuNTIsOTIyLjc3IEw2ODQuMzYsOTIyLjk0IEw2NzguOTUsOTIzLjEwIEw2NzMuMjYsOTIzLjI0IEw2NjcuMjQsOTIzLjM3IEw2NjAuODUsOTIzLjQ5IEw2NTQuMDEsOTIzLjYwIEw2NDYuNjQsOTIzLjY5IEw2MzguNjAsOTIzLjc3IEw2MjkuNzAsOTIzLjg0IEw2MTkuNjUsOTIzLjkwIEw2MDcuOTUsOTIzLjk0IEw1OTMuNTksOTIzLjk3IEw1NzMuODMsOTIzLjk5IEw1MTIuMDAsOTI0LjAwIEw0NTAuMTcsOTIzLjk5IEw0MzAuNDEsOTIzLjk3IEw0MTYuMDUsOTIzLjk0IEw0MDQuMzUsOTIzLjkwIEwzOTQuMzAsOTIzLjg0IEwzODUuNDAsOTIzLjc3IEwzNzcuMzYsOTIzLjY5IEwzNjkuOTksOTIzLjYwIEwzNjMuMTUsOTIzLjQ5IEwzNTYuNzYsOTIzLjM3IEwzNTAuNzQsOTIzLjI0IEwzNDUuMDUsOTIzLjEwIEwzMzkuNjQsOTIyLjk0IEwzMzQuNDgsOTIyLjc3IEwzMjkuNTQsOTIyLjU5IEwzMjQuNzksOTIyLjM5IEwzMjAuMjMsOTIyLjE4IEwzMTUuODMsOTIxLjk2IEwzMTEuNTgsOTIxLjczIEwzMDcuNDcsOTIxLjQ4IEwzMDMuNDgsOTIxLjIzIEwyOTkuNjEsOTIwLjk2IEwyOTUuODUsOTIwLjY3IEwyOTIuMTksOTIwLjM3IEwyODguNjMsOTIwLjA3IEwyODUuMTUsOTE5Ljc0IEwyODEuNzcsOTE5LjQxIEwyNzguNDYsOTE5LjA2IEwyNzUuMjIsOTE4LjcwIEwyNzIuMDYsOTE4LjMzIEwyNjguOTcsOTE3Ljk0IEwyNjUuOTQsOTE3LjU0IEwyNjIuOTgsOTE3LjEzIEwyNjAuMDcsOTE2LjcwIEwyNTcuMjMsOTE2LjI2IEwyNTQuNDMsOTE1LjgxIEwyNTEuNjksOTE1LjM1IEwyNDkuMDAsOTE0Ljg3IEwyNDYuMzYsOTE0LjM4IEwyNDMuNzYsOTEzLjg4IEwyNDEuMjEsOTEzLjM2IEwyMzguNzEsOTEyLjgzIEwyMzYuMjQsOTEyLjI4IEwyMzMuODIsOTExLjczIEwyMzEuNDQsOTExLjE2IEwyMjkuMDksOTEwLjU3IEwyMjYuNzgsOTA5Ljk4IEwyMjQuNTEsOTA5LjM2IEwyMjIuMjcsOTA4Ljc0IEwyMjAuMDcsOTA4LjEwIEwyMTcuOTAsOTA3LjQ1IEwyMTUuNzcsOTA2Ljc5IEwyMTMuNjYsOTA2LjExIEwyMTEuNTksOTA1LjQxIEwyMDkuNTUsOTA0LjcxIEwyMDcuNTMsOTAzLjk5IEwyMDUuNTUsOTAzLjI1IEwyMDMuNTksOTAyLjUwIEwyMDEuNjYsOTAxLjc0IEwxOTkuNzYsOTAwLjk2IEwxOTcuODksOTAwLjE3IEwxOTYuMDQsODk5LjM3IEwxOTQuMjIsODk4LjU1IEwxOTIuNDIsODk3LjcxIEwxOTAuNjUsODk2Ljg3IEwxODguOTAsODk2LjAwIEwxODcuMTcsODk1LjEyIEwxODUuNDcsODk0LjIzIEwxODMuNzksODkzLjMyIEwxODIuMTQsODkyLjQwIEwxODAuNTAsODkxLjQ2IEwxNzguODksODkwLjUxIEwxNzcuMzAsODg5LjU0IEwxNzUuNzMsODg4LjU2IEwxNzQuMTksODg3LjU2IEwxNzIuNjYsODg2LjU1IEwxNzEuMTUsODg1LjUyIEwxNjkuNjcsODg0LjQ4IEwxNjguMjAsODgzLjQyIEwxNjYuNzYsODgyLjM0IEwxNjUuMzMsODgxLjI1IEwxNjMuOTIsODgwLjE0IEwxNjIuNTQsODc5LjAxIEwxNjEuMTcsODc3Ljg3IEwxNTkuODIsODc2LjcxIEwxNTguNDgsODc1LjU0IEwxNTcuMTcsODc0LjM0IEwxNTUuODcsODczLjE0IEwxNTQuNTksODcxLjkxIEwxNTMuMzMsODcwLjY3IEwxNTIuMDksODY5LjQxIEwxNTAuODYsODY4LjEzIEwxNDkuNjYsODY2LjgzIEwxNDguNDYsODY1LjUyIEwxNDcuMjksODY0LjE4IEwxNDYuMTMsODYyLjgzIEwxNDQuOTksODYxLjQ2IEwxNDMuODYsODYwLjA4IEwxNDIuNzUsODU4LjY3IEwxNDEuNjYsODU3LjI0IEwxNDAuNTgsODU1LjgwIEwxMzkuNTIsODU0LjMzIEwxMzguNDgsODUyLjg1IEwxMzcuNDUsODUxLjM0IEwxMzYuNDQsODQ5LjgxIEwxMzUuNDQsODQ4LjI3IEwxMzQuNDYsODQ2LjcwIEwxMzMuNDksODQ1LjExIEwxMzIuNTQsODQzLjUwIEwxMzEuNjAsODQxLjg2IEwxMzAuNjgsODQwLjIxIEwxMjkuNzcsODM4LjUzIEwxMjguODgsODM2LjgzIEwxMjguMDAsODM1LjEwIEwxMjcuMTMsODMzLjM1IEwxMjYuMjksODMxLjU4IEwxMjUuNDUsODI5Ljc4IEwxMjQuNjMsODI3Ljk2IEwxMjMuODMsODI2LjExIEwxMjMuMDQsODI0LjI0IEwxMjIuMjYsODIyLjM0IEwxMjEuNTAsODIwLjQxIEwxMjAuNzUsODE4LjQ1IEwxMjAuMDEsODE2LjQ3IEwxMTkuMjksODE0LjQ1IEwxMTguNTksODEyLjQxIEwxMTcuODksODEwLjM0IEwxMTcuMjEsODA4LjIzIEwxMTYuNTUsODA2LjEwIEwxMTUuOTAsODAzLjkzIEwxMTUuMjYsODAxLjczIEwxMTQuNjQsNzk5LjQ5IEwxMTQuMDIsNzk3LjIyIEwxMTMuNDMsNzk0LjkxIEwxMTIuODQsNzkyLjU2IEwxMTIuMjcsNzkwLjE4IEwxMTEuNzIsNzg3Ljc2IEwxMTEuMTcsNzg1LjI5IEwxMTAuNjQsNzgyLjc5IEwxMTAuMTIsNzgwLjI0IEwxMDkuNjIsNzc3LjY0IEwxMDkuMTMsNzc1LjAwIEwxMDguNjUsNzcyLjMxIEwxMDguMTksNzY5LjU3IEwxMDcuNzQsNzY2Ljc3IEwxMDcuMzAsNzYzLjkzIEwxMDYuODcsNzYxLjAyIEwxMDYuNDYsNzU4LjA2IEwxMDYuMDYsNzU1LjAzIEwxMDUuNjcsNzUxLjk0IEwxMDUuMzAsNzQ4Ljc4IEwxMDQuOTQsNzQ1LjU0IEwxMDQuNTksNzQyLjIzIEwxMDQuMjYsNzM4Ljg1IEwxMDMuOTMsNzM1LjM3IEwxMDMuNjMsNzMxLjgxIEwxMDMuMzMsNzI4LjE1IEwxMDMuMDQsNzI0LjM5IEwxMDIuNzcsNzIwLjUyIEwxMDIuNTIsNzE2LjUzIEwxMDIuMjcsNzEyLjQyIEwxMDIuMDQsNzA4LjE3IEwxMDEuODIsNzAzLjc3IEwxMDEuNjEsNjk5LjIxIEwxMDEuNDEsNjk0LjQ2IEwxMDEuMjMsNjg5LjUyIEwxMDEuMDYsNjg0LjM2IEwxMDAuOTAsNjc4Ljk1IEwxMDAuNzYsNjczLjI2IEwxMDAuNjMsNjY3LjI0IEwxMDAuNTEsNjYwLjg1IEwxMDAuNDAsNjU0LjAxIEwxMDAuMzEsNjQ2LjY0IEwxMDAuMjMsNjM4LjYwIEwxMDAuMTYsNjI5LjcwIEwxMDAuMTAsNjE5LjY1IEwxMDAuMDYsNjA3Ljk1IEwxMDAuMDMsNTkzLjU5IEwxMDAuMDEsNTczLjgzIEwxMDAuMDAsNTEyLjAwIEwxMDAuMDEsNDUwLjE3IEwxMDAuMDMsNDMwLjQxIEwxMDAuMDYsNDE2LjA1IEwxMDAuMTAsNDA0LjM1IEwxMDAuMTYsMzk0LjMwIEwxMDAuMjMsMzg1LjQwIEwxMDAuMzEsMzc3LjM2IEwxMDAuNDAsMzY5Ljk5IEwxMDAuNTEsMzYzLjE1IEwxMDAuNjMsMzU2Ljc2IEwxMDAuNzYsMzUwLjc0IEwxMDAuOTAsMzQ1LjA1IEwxMDEuMDYsMzM5LjY0IEwxMDEuMjMsMzM0LjQ4IEwxMDEuNDEsMzI5LjU0IEwxMDEuNjEsMzI0Ljc5IEwxMDEuODIsMzIwLjIzIEwxMDIuMDQsMzE1LjgzIEwxMDIuMjcsMzExLjU4IEwxMDIuNTIsMzA3LjQ3IEwxMDIuNzcsMzAzLjQ4IEwxMDMuMDQsMjk5LjYxIEwxMDMuMzMsMjk1Ljg1IEwxMDMuNjMsMjkyLjE5IEwxMDMuOTMsMjg4LjYzIEwxMDQuMjYsMjg1LjE1IEwxMDQuNTksMjgxLjc3IEwxMDQuOTQsMjc4LjQ2IEwxMDUuMzAsMjc1LjIyIEwxMDUuNjcsMjcyLjA2IEwxMDYuMDYsMjY4Ljk3IEwxMDYuNDYsMjY1Ljk0IEwxMDYuODcsMjYyLjk4IEwxMDcuMzAsMjYwLjA3IEwxMDcuNzQsMjU3LjIzIEwxMDguMTksMjU0LjQzIEwxMDguNjUsMjUxLjY5IEwxMDkuMTMsMjQ5LjAwIEwxMDkuNjIsMjQ2LjM2IEwxMTAuMTIsMjQzLjc2IEwxMTAuNjQsMjQxLjIxIEwxMTEuMTcsMjM4LjcxIEwxMTEuNzIsMjM2LjI0IEwxMTIuMjcsMjMzLjgyIEwxMTIuODQsMjMxLjQ0IEwxMTMuNDMsMjI5LjA5IEwxMTQuMDIsMjI2Ljc4IEwxMTQuNjQsMjI0LjUxIEwxMTUuMjYsMjIyLjI3IEwxMTUuOTAsMjIwLjA3IEwxMTYuNTUsMjE3LjkwIEwxMTcuMjEsMjE1Ljc3IEwxMTcuODksMjEzLjY2IEwxMTguNTksMjExLjU5IEwxMTkuMjksMjA5LjU1IEwxMjAuMDEsMjA3LjUzIEwxMjAuNzUsMjA1LjU1IEwxMjEuNTAsMjAzLjU5IEwxMjIuMjYsMjAxLjY2IEwxMjMuMDQsMTk5Ljc2IEwxMjMuODMsMTk3Ljg5IEwxMjQuNjMsMTk2LjA0IEwxMjUuNDUsMTk0LjIyIEwxMjYuMjksMTkyLjQyIEwxMjcuMTMsMTkwLjY1IEwxMjguMDAsMTg4LjkwIEwxMjguODgsMTg3LjE3IEwxMjkuNzcsMTg1LjQ3IEwxMzAuNjgsMTgzLjc5IEwxMzEuNjAsMTgyLjE0IEwxMzIuNTQsMTgwLjUwIEwxMzMuNDksMTc4Ljg5IEwxMzQuNDYsMTc3LjMwIEwxMzUuNDQsMTc1LjczIEwxMzYuNDQsMTc0LjE5IEwxMzcuNDUsMTcyLjY2IEwxMzguNDgsMTcxLjE1IEwxMzkuNTIsMTY5LjY3IEwxNDAuNTgsMTY4LjIwIEwxNDEuNjYsMTY2Ljc2IEwxNDIuNzUsMTY1LjMzIEwxNDMuODYsMTYzLjkyIEwxNDQuOTksMTYyLjU0IEwxNDYuMTMsMTYxLjE3IEwxNDcuMjksMTU5LjgyIEwxNDguNDYsMTU4LjQ4IEwxNDkuNjYsMTU3LjE3IEwxNTAuODYsMTU1Ljg3IEwxNTIuMDksMTU0LjU5IEwxNTMuMzMsMTUzLjMzIEwxNTQuNTksMTUyLjA5IEwxNTUuODcsMTUwLjg2IEwxNTcuMTcsMTQ5LjY2IEwxNTguNDgsMTQ4LjQ2IEwxNTkuODIsMTQ3LjI5IEwxNjEuMTcsMTQ2LjEzIEwxNjIuNTQsMTQ0Ljk5IEwxNjMuOTIsMTQzLjg2IEwxNjUuMzMsMTQyLjc1IEwxNjYuNzYsMTQxLjY2IEwxNjguMjAsMTQwLjU4IEwxNjkuNjcsMTM5LjUyIEwxNzEuMTUsMTM4LjQ4IEwxNzIuNjYsMTM3LjQ1IEwxNzQuMTksMTM2LjQ0IEwxNzUuNzMsMTM1LjQ0IEwxNzcuMzAsMTM0LjQ2IEwxNzguODksMTMzLjQ5IEwxODAuNTAsMTMyLjU0IEwxODIuMTQsMTMxLjYwIEwxODMuNzksMTMwLjY4IEwxODUuNDcsMTI5Ljc3IEwxODcuMTcsMTI4Ljg4IEwxODguOTAsMTI4LjAwIEwxOTAuNjUsMTI3LjEzIEwxOTIuNDIsMTI2LjI5IEwxOTQuMjIsMTI1LjQ1IEwxOTYuMDQsMTI0LjYzIEwxOTcuODksMTIzLjgzIEwxOTkuNzYsMTIzLjA0IEwyMDEuNjYsMTIyLjI2IEwyMDMuNTksMTIxLjUwIEwyMDUuNTUsMTIwLjc1IEwyMDcuNTMsMTIwLjAxIEwyMDkuNTUsMTE5LjI5IEwyMTEuNTksMTE4LjU5IEwyMTMuNjYsMTE3Ljg5IEwyMTUuNzcsMTE3LjIxIEwyMTcuOTAsMTE2LjU1IEwyMjAuMDcsMTE1LjkwIEwyMjIuMjcsMTE1LjI2IEwyMjQuNTEsMTE0LjY0IEwyMjYuNzgsMTE0LjAyIEwyMjkuMDksMTEzLjQzIEwyMzEuNDQsMTEyLjg0IEwyMzMuODIsMTEyLjI3IEwyMzYuMjQsMTExLjcyIEwyMzguNzEsMTExLjE3IEwyNDEuMjEsMTEwLjY0IEwyNDMuNzYsMTEwLjEyIEwyNDYuMzYsMTA5LjYyIEwyNDkuMDAsMTA5LjEzIEwyNTEuNjksMTA4LjY1IEwyNTQuNDMsMTA4LjE5IEwyNTcuMjMsMTA3Ljc0IEwyNjAuMDcsMTA3LjMwIEwyNjIuOTgsMTA2Ljg3IEwyNjUuOTQsMTA2LjQ2IEwyNjguOTcsMTA2LjA2IEwyNzIuMDYsMTA1LjY3IEwyNzUuMjIsMTA1LjMwIEwyNzguNDYsMTA0Ljk0IEwyODEuNzcsMTA0LjU5IEwyODUuMTUsMTA0LjI2IEwyODguNjMsMTAzLjkzIEwyOTIuMTksMTAzLjYzIEwyOTUuODUsMTAzLjMzIEwyOTkuNjEsMTAzLjA0IEwzMDMuNDgsMTAyLjc3IEwzMDcuNDcsMTAyLjUyIEwzMTEuNTgsMTAyLjI3IEwzMTUuODMsMTAyLjA0IEwzMjAuMjMsMTAxLjgyIEwzMjQuNzksMTAxLjYxIEwzMjkuNTQsMTAxLjQxIEwzMzQuNDgsMTAxLjIzIEwzMzkuNjQsMTAxLjA2IEwzNDUuMDUsMTAwLjkwIEwzNTAuNzQsMTAwLjc2IEwzNTYuNzYsMTAwLjYzIEwzNjMuMTUsMTAwLjUxIEwzNjkuOTksMTAwLjQwIEwzNzcuMzYsMTAwLjMxIEwzODUuNDAsMTAwLjIzIEwzOTQuMzAsMTAwLjE2IEw0MDQuMzUsMTAwLjEwIEw0MTYuMDUsMTAwLjA2IEw0MzAuNDEsMTAwLjAzIEw0NTAuMTcsMTAwLjAxIEw1MTIuMDAsMTAwLjAwIEw1NzMuODMsMTAwLjAxIEw1OTMuNTksMTAwLjAzIEw2MDcuOTUsMTAwLjA2IEw2MTkuNjUsMTAwLjEwIEw2MjkuNzAsMTAwLjE2IEw2MzguNjAsMTAwLjIzIEw2NDYuNjQsMTAwLjMxIEw2NTQuMDEsMTAwLjQwIEw2NjAuODUsMTAwLjUxIEw2NjcuMjQsMTAwLjYzIEw2NzMuMjYsMTAwLjc2IEw2NzguOTUsMTAwLjkwIEw2ODQuMzYsMTAxLjA2IEw2ODkuNTIsMTAxLjIzIEw2OTQuNDYsMTAxLjQxIEw2OTkuMjEsMTAxLjYxIEw3MDMuNzcsMTAxLjgyIEw3MDguMTcsMTAyLjA0IEw3MTIuNDIsMTAyLjI3IEw3MTYuNTMsMTAyLjUyIEw3MjAuNTIsMTAyLjc3IEw3MjQuMzksMTAzLjA0IEw3MjguMTUsMTAzLjMzIEw3MzEuODEsMTAzLjYzIEw3MzUuMzcsMTAzLjkzIEw3MzguODUsMTA0LjI2IEw3NDIuMjMsMTA0LjU5IEw3NDUuNTQsMTA0Ljk0IEw3NDguNzgsMTA1LjMwIEw3NTEuOTQsMTA1LjY3IEw3NTUuMDMsMTA2LjA2IEw3NTguMDYsMTA2LjQ2IEw3NjEuMDIsMTA2Ljg3IEw3NjMuOTMsMTA3LjMwIEw3NjYuNzcsMTA3Ljc0IEw3NjkuNTcsMTA4LjE5IEw3NzIuMzEsMTA4LjY1IEw3NzUuMDAsMTA5LjEzIEw3NzcuNjQsMTA5LjYyIEw3ODAuMjQsMTEwLjEyIEw3ODIuNzksMTEwLjY0IEw3ODUuMjksMTExLjE3IEw3ODcuNzYsMTExLjcyIEw3OTAuMTgsMTEyLjI3IEw3OTIuNTYsMTEyLjg0IEw3OTQuOTEsMTEzLjQzIEw3OTcuMjIsMTE0LjAyIEw3OTkuNDksMTE0LjY0IEw4MDEuNzMsMTE1LjI2IEw4MDMuOTMsMTE1LjkwIEw4MDYuMTAsMTE2LjU1IEw4MDguMjMsMTE3LjIxIEw4MTAuMzQsMTE3Ljg5IEw4MTIuNDEsMTE4LjU5IEw4MTQuNDUsMTE5LjI5IEw4MTYuNDcsMTIwLjAxIEw4MTguNDUsMTIwLjc1IEw4MjAuNDEsMTIxLjUwIEw4MjIuMzQsMTIyLjI2IEw4MjQuMjQsMTIzLjA0IEw4MjYuMTEsMTIzLjgzIEw4MjcuOTYsMTI0LjYzIEw4MjkuNzgsMTI1LjQ1IEw4MzEuNTgsMTI2LjI5IEw4MzMuMzUsMTI3LjEzIEw4MzUuMTAsMTI4LjAwIEw4MzYuODMsMTI4Ljg4IEw4MzguNTMsMTI5Ljc3IEw4NDAuMjEsMTMwLjY4IEw4NDEuODYsMTMxLjYwIEw4NDMuNTAsMTMyLjU0IEw4NDUuMTEsMTMzLjQ5IEw4NDYuNzAsMTM0LjQ2IEw4NDguMjcsMTM1LjQ0IEw4NDkuODEsMTM2LjQ0IEw4NTEuMzQsMTM3LjQ1IEw4NTIuODUsMTM4LjQ4IEw4NTQuMzMsMTM5LjUyIEw4NTUuODAsMTQwLjU4IEw4NTcuMjQsMTQxLjY2IEw4NTguNjcsMTQyLjc1IEw4NjAuMDgsMTQzLjg2IEw4NjEuNDYsMTQ0Ljk5IEw4NjIuODMsMTQ2LjEzIEw4NjQuMTgsMTQ3LjI5IEw4NjUuNTIsMTQ4LjQ2IEw4NjYuODMsMTQ5LjY2IEw4NjguMTMsMTUwLjg2IEw4NjkuNDEsMTUyLjA5IEw4NzAuNjcsMTUzLjMzIEw4NzEuOTEsMTU0LjU5IEw4NzMuMTQsMTU1Ljg3IEw4NzQuMzQsMTU3LjE3IEw4NzUuNTQsMTU4LjQ4IEw4NzYuNzEsMTU5LjgyIEw4NzcuODcsMTYxLjE3IEw4NzkuMDEsMTYyLjU0IEw4ODAuMTQsMTYzLjkyIEw4ODEuMjUsMTY1LjMzIEw4ODIuMzQsMTY2Ljc2IEw4ODMuNDIsMTY4LjIwIEw4ODQuNDgsMTY5LjY3IEw4ODUuNTIsMTcxLjE1IEw4ODYuNTUsMTcyLjY2IEw4ODcuNTYsMTc0LjE5IEw4ODguNTYsMTc1LjczIEw4ODkuNTQsMTc3LjMwIEw4OTAuNTEsMTc4Ljg5IEw4OTEuNDYsMTgwLjUwIEw4OTIuNDAsMTgyLjE0IEw4OTMuMzIsMTgzLjc5IEw4OTQuMjMsMTg1LjQ3IEw4OTUuMTIsMTg3LjE3IEw4OTYuMDAsMTg4LjkwIEw4OTYuODcsMTkwLjY1IEw4OTcuNzEsMTkyLjQyIEw4OTguNTUsMTk0LjIyIEw4OTkuMzcsMTk2LjA0IEw5MDAuMTcsMTk3Ljg5IEw5MDAuOTYsMTk5Ljc2IEw5MDEuNzQsMjAxLjY2IEw5MDIuNTAsMjAzLjU5IEw5MDMuMjUsMjA1LjU1IEw5MDMuOTksMjA3LjUzIEw5MDQuNzEsMjA5LjU1IEw5MDUuNDEsMjExLjU5IEw5MDYuMTEsMjEzLjY2IEw5MDYuNzksMjE1Ljc3IEw5MDcuNDUsMjE3LjkwIEw5MDguMTAsMjIwLjA3IEw5MDguNzQsMjIyLjI3IEw5MDkuMzYsMjI0LjUxIEw5MDkuOTgsMjI2Ljc4IEw5MTAuNTcsMjI5LjA5IEw5MTEuMTYsMjMxLjQ0IEw5MTEuNzMsMjMzLjgyIEw5MTIuMjgsMjM2LjI0IEw5MTIuODMsMjM4LjcxIEw5MTMuMzYsMjQxLjIxIEw5MTMuODgsMjQzLjc2IEw5MTQuMzgsMjQ2LjM2IEw5MTQuODcsMjQ5LjAwIEw5MTUuMzUsMjUxLjY5IEw5MTUuODEsMjU0LjQzIEw5MTYuMjYsMjU3LjIzIEw5MTYuNzAsMjYwLjA3IEw5MTcuMTMsMjYyLjk4IEw5MTcuNTQsMjY1Ljk0IEw5MTcuOTQsMjY4Ljk3IEw5MTguMzMsMjcyLjA2IEw5MTguNzAsMjc1LjIyIEw5MTkuMDYsMjc4LjQ2IEw5MTkuNDEsMjgxLjc3IEw5MTkuNzQsMjg1LjE1IEw5MjAuMDcsMjg4LjYzIEw5MjAuMzcsMjkyLjE5IEw5MjAuNjcsMjk1Ljg1IEw5MjAuOTYsMjk5LjYxIEw5MjEuMjMsMzAzLjQ4IEw5MjEuNDgsMzA3LjQ3IEw5MjEuNzMsMzExLjU4IEw5MjEuOTYsMzE1LjgzIEw5MjIuMTgsMzIwLjIzIEw5MjIuMzksMzI0Ljc5IEw5MjIuNTksMzI5LjU0IEw5MjIuNzcsMzM0LjQ4IEw5MjIuOTQsMzM5LjY0IEw5MjMuMTAsMzQ1LjA1IEw5MjMuMjQsMzUwLjc0IEw5MjMuMzcsMzU2Ljc2IEw5MjMuNDksMzYzLjE1IEw5MjMuNjAsMzY5Ljk5IEw5MjMuNjksMzc3LjM2IEw5MjMuNzcsMzg1LjQwIEw5MjMuODQsMzk0LjMwIEw5MjMuOTAsNDA0LjM1IEw5MjMuOTQsNDE2LjA1IEw5MjMuOTcsNDMwLjQxIEw5MjMuOTksNDUwLjE3IFoiIGZpbGw9InVybCgjYmcpIiBmaWx0ZXI9InVybCgjYm9keSkiLz4KPGcgY2xpcC1wYXRoPSJ1cmwoI3NxKSI+CiAgPHJlY3QgeD0iMTAwIiB5PSIxMDAiIHdpZHRoPSI4MjQiIGhlaWdodD0iODI0IiBmaWxsPSJ1cmwoI3NoZWVuKSIvPgo8ZGVmcz4KPGZpbHRlciBpZD0iYjQiIHg9Ii01MCUiIHk9Ii01MCUiIHdpZHRoPSIyMDAlIiBoZWlnaHQ9IjIwMCUiPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjQiLz48L2ZpbHRlcj4KPGZpbHRlciBpZD0iYjEwIiB4PSItNTAlIiB5PSItNTAlIiB3aWR0aD0iMjAwJSIgaGVpZ2h0PSIyMDAlIj48ZmVHYXVzc2lhbkJsdXIgc3RkRGV2aWF0aW9uPSIxMCIvPjwvZmlsdGVyPgo8ZmlsdGVyIGlkPSJiMjQiIHg9Ii01MCUiIHk9Ii01MCUiIHdpZHRoPSIyMDAlIiBoZWlnaHQ9IjIwMCUiPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjI0Ii8+PC9maWx0ZXI+CjxmaWx0ZXIgaWQ9ImI0MCIgeD0iLTUwJSIgeT0iLTUwJSIgd2lkdGg9IjIwMCUiIGhlaWdodD0iMjAwJSI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iNDAiLz48L2ZpbHRlcj4KPGxpbmVhckdyYWRpZW50IGlkPSJiYXJXIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZGRkZGIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjRDlEQURFIi8+PC9saW5lYXJHcmFkaWVudD4KPGxpbmVhckdyYWRpZW50IGlkPSJiYXJLIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjMkMyQzJGIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMEEwQTBCIi8+PC9saW5lYXJHcmFkaWVudD4KPGxpbmVhckdyYWRpZW50IGlkPSJsZW5zIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAuMjAiLz48c3RvcCBvZmZzZXQ9IjAuNDUiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMCIvPjwvbGluZWFyR3JhZGllbnQ+CjxsaW5lYXJHcmFkaWVudCBpZD0iZWRnZSIgeDE9IjAiIHkxPSIwIiB4Mj0iMCIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwLjQ1Ii8+PHN0b3Agb2Zmc2V0PSIwLjUiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMC4wNCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwLjE2Ii8+PC9saW5lYXJHcmFkaWVudD4KPGxpbmVhckdyYWRpZW50IGlkPSJwaWxsSyIgeDE9IjAiIHkxPSIwIiB4Mj0iMCIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzI2MjYyQSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzAzMDMwNCIvPjwvbGluZWFyR3JhZGllbnQ+CjwvZGVmcz48ZGVmcz4KPGxpbmVhckdyYWRpZW50IGlkPSJmcm0iIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxIj48c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiM2QTZCNzAiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMyQTJCMkYiLz48L2xpbmVhckdyYWRpZW50Pgo8bGluZWFyR3JhZGllbnQgaWQ9ImZybUluIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjMkEyQjJGIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjNkE2QjcwIi8+PC9saW5lYXJHcmFkaWVudD4KPGxpbmVhckdyYWRpZW50IGlkPSJnbGFyZSIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwLjE2Ii8+PHN0b3Agb2Zmc2V0PSIwLjM4IiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAuMDQiLz48c3RvcCBvZmZzZXQ9IjAuMzkiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMCIvPjwvbGluZWFyR3JhZGllbnQ+CjxjbGlwUGF0aCBpZD0iZ2xhc3MiPjxyZWN0IHg9IjIxMi4wIiB5PSIzODIuMCIgd2lkdGg9IjYwMC4wIiBoZWlnaHQ9IjI0MC4wIiByeD0iMTIwLjAiIC8+PC9jbGlwUGF0aD48L2RlZnM+CjxyZWN0IHg9IjE5OC4wIiB5PSIzOTQuMCIgd2lkdGg9IjYyOC4wIiBoZWlnaHQ9IjI4OC4wIiByeD0iMTU0LjAiIGZpbGw9IiMwMDAiIG9wYWNpdHk9IjAuNiIgZmlsdGVyPSJ1cmwoI2I0MCkiLz4KPHJlY3QgeD0iMTc4LjAiIHk9IjM1Ni4wIiB3aWR0aD0iNjY4LjAiIGhlaWdodD0iMzA4LjAiIHJ4PSIxNTQuMCIgZmlsbD0iIzAwMCIgb3BhY2l0eT0iMC41IiBmaWx0ZXI9InVybCgjYjEwKSIvPgo8cmVjdCB4PSIxNzguMCIgeT0iMzQ4LjAiIHdpZHRoPSI2NjguMCIgaGVpZ2h0PSIzMDguMCIgcng9IjE1NC4wIiBmaWxsPSJ1cmwoI2ZybSkiLz4KPHJlY3QgeD0iMTc5LjUiIHk9IjM0OS41IiB3aWR0aD0iNjY1LjAiIGhlaWdodD0iMzA1LjAiIHJ4PSIxNTIuNSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utb3BhY2l0eT0iMC4zNSIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxyZWN0IHg9IjIwNi4wIiB5PSIzNzYuMCIgd2lkdGg9IjYxMi4wIiBoZWlnaHQ9IjI1Mi4wIiByeD0iMTI2LjAiIGZpbGw9InVybCgjZnJtSW4pIi8+CjxyZWN0IHg9IjIxMi4wIiB5PSIzODIuMCIgd2lkdGg9IjYwMC4wIiBoZWlnaHQ9IjI0MC4wIiByeD0iMTIwLjAiIGZpbGw9InVybCgjcGlsbEspIi8+CjxnIGNsaXAtcGF0aD0idXJsKCNnbGFzcykiPjxyZWN0IHg9IjE3Mi4wIiB5PSIzNDIuMCIgd2lkdGg9IjY4MC4wIiBoZWlnaHQ9IjcwLjAiIHJ4PSIzNS4wIiBmaWxsPSIjMDAwIiBvcGFjaXR5PSIwLjkiIGZpbHRlcj0idXJsKCNiMjQpIi8+CjxyZWN0IHg9IjIxMi4wIiB5PSIzODIuMCIgd2lkdGg9IjYwMC4wIiBoZWlnaHQ9IjI0MC4wIiByeD0iMC4wIiBmaWxsPSJ1cmwoI2dsYXJlKSIvPjwvZz4KPHJlY3QgeD0iMzQ4LjAiIHk9IjQ3Ny4wIiB3aWR0aD0iMjguMCIgaGVpZ2h0PSI1MC4wIiByeD0iMTQuMCIgZmlsbD0idXJsKCNiYXJXKSIvPgo8cmVjdCB4PSIzOTguMCIgeT0iNDUwLjAiIHdpZHRoPSIyOC4wIiBoZWlnaHQ9IjEwNC4wIiByeD0iMTQuMCIgZmlsbD0idXJsKCNiYXJXKSIvPgo8cmVjdCB4PSI0NDguMCIgeT0iNDI4LjAiIHdpZHRoPSIyOC4wIiBoZWlnaHQ9IjE0OC4wIiByeD0iMTQuMCIgZmlsbD0idXJsKCNiYXJXKSIvPgo8cmVjdCB4PSI0OTguMCIgeT0iNDU3LjAiIHdpZHRoPSIyOC4wIiBoZWlnaHQ9IjkwLjAiIHJ4PSIxNC4wIiBmaWxsPSJ1cmwoI2JhclcpIi8+CjxyZWN0IHg9IjU0OC4wIiB5PSI0MzkuMCIgd2lkdGg9IjI4LjAiIGhlaWdodD0iMTI2LjAiIHJ4PSIxNC4wIiBmaWxsPSJ1cmwoI2JhclcpIi8+CjxyZWN0IHg9IjU5OC4wIiB5PSI0NzAuMCIgd2lkdGg9IjI4LjAiIGhlaWdodD0iNjQuMCIgcng9IjE0LjAiIGZpbGw9InVybCgjYmFyVykiLz4KPHJlY3QgeD0iNjQ4LjAiIHk9IjQ4NC4wIiB3aWR0aD0iMjguMCIgaGVpZ2h0PSIzNi4wIiByeD0iMTQuMCIgZmlsbD0idXJsKCNiYXJXKSIvPgogIDxyZWN0IHg9IjEwMCIgeT0iMTAwIiB3aWR0aD0iODI0IiBoZWlnaHQ9IjgyNCIgZmlsdGVyPSJ1cmwoI25XKSIgb3BhY2l0eT0iMC4wNiIvPgogIDxyZWN0IHg9IjEwMCIgeT0iMTAwIiB3aWR0aD0iODI0IiBoZWlnaHQ9IjgyNCIgZmlsdGVyPSJ1cmwoI25CKSIgb3BhY2l0eT0iMC4wNiIvPgogIDxwYXRoIGQ9Ik05MjQuMDAsNTEyLjAwIEw5MjMuOTksNTczLjgzIEw5MjMuOTcsNTkzLjU5IEw5MjMuOTQsNjA3Ljk1IEw5MjMuOTAsNjE5LjY1IEw5MjMuODQsNjI5LjcwIEw5MjMuNzcsNjM4LjYwIEw5MjMuNjksNjQ2LjY0IEw5MjMuNjAsNjU0LjAxIEw5MjMuNDksNjYwLjg1IEw5MjMuMzcsNjY3LjI0IEw5MjMuMjQsNjczLjI2IEw5MjMuMTAsNjc4Ljk1IEw5MjIuOTQsNjg0LjM2IEw5MjIuNzcsNjg5LjUyIEw5MjIuNTksNjk0LjQ2IEw5MjIuMzksNjk5LjIxIEw5MjIuMTgsNzAzLjc3IEw5MjEuOTYsNzA4LjE3IEw5MjEuNzMsNzEyLjQyIEw5MjEuNDgsNzE2LjUzIEw5MjEuMjMsNzIwLjUyIEw5MjAuOTYsNzI0LjM5IEw5MjAuNjcsNzI4LjE1IEw5MjAuMzcsNzMxLjgxIEw5MjAuMDcsNzM1LjM3IEw5MTkuNzQsNzM4Ljg1IEw5MTkuNDEsNzQyLjIzIEw5MTkuMDYsNzQ1LjU0IEw5MTguNzAsNzQ4Ljc4IEw5MTguMzMsNzUxLjk0IEw5MTcuOTQsNzU1LjAzIEw5MTcuNTQsNzU4LjA2IEw5MTcuMTMsNzYxLjAyIEw5MTYuNzAsNzYzLjkzIEw5MTYuMjYsNzY2Ljc3IEw5MTUuODEsNzY5LjU3IEw5MTUuMzUsNzcyLjMxIEw5MTQuODcsNzc1LjAwIEw5MTQuMzgsNzc3LjY0IEw5MTMuODgsNzgwLjI0IEw5MTMuMzYsNzgyLjc5IEw5MTIuODMsNzg1LjI5IEw5MTIuMjgsNzg3Ljc2IEw5MTEuNzMsNzkwLjE4IEw5MTEuMTYsNzkyLjU2IEw5MTAuNTcsNzk0LjkxIEw5MDkuOTgsNzk3LjIyIEw5MDkuMzYsNzk5LjQ5IEw5MDguNzQsODAxLjczIEw5MDguMTAsODAzLjkzIEw5MDcuNDUsODA2LjEwIEw5MDYuNzksODA4LjIzIEw5MDYuMTEsODEwLjM0IEw5MDUuNDEsODEyLjQxIEw5MDQuNzEsODE0LjQ1IEw5MDMuOTksODE2LjQ3IEw5MDMuMjUsODE4LjQ1IEw5MDIuNTAsODIwLjQxIEw5MDEuNzQsODIyLjM0IEw5MDAuOTYsODI0LjI0IEw5MDAuMTcsODI2LjExIEw4OTkuMzcsODI3Ljk2IEw4OTguNTUsODI5Ljc4IEw4OTcuNzEsODMxLjU4IEw4OTYuODcsODMzLjM1IEw4OTYuMDAsODM1LjEwIEw4OTUuMTIsODM2LjgzIEw4OTQuMjMsODM4LjUzIEw4OTMuMzIsODQwLjIxIEw4OTIuNDAsODQxLjg2IEw4OTEuNDYsODQzLjUwIEw4OTAuNTEsODQ1LjExIEw4ODkuNTQsODQ2LjcwIEw4ODguNTYsODQ4LjI3IEw4ODcuNTYsODQ5LjgxIEw4ODYuNTUsODUxLjM0IEw4ODUuNTIsODUyLjg1IEw4ODQuNDgsODU0LjMzIEw4ODMuNDIsODU1LjgwIEw4ODIuMzQsODU3LjI0IEw4ODEuMjUsODU4LjY3IEw4ODAuMTQsODYwLjA4IEw4NzkuMDEsODYxLjQ2IEw4NzcuODcsODYyLjgzIEw4NzYuNzEsODY0LjE4IEw4NzUuNTQsODY1LjUyIEw4NzQuMzQsODY2LjgzIEw4NzMuMTQsODY4LjEzIEw4NzEuOTEsODY5LjQxIEw4NzAuNjcsODcwLjY3IEw4NjkuNDEsODcxLjkxIEw4NjguMTMsODczLjE0IEw4NjYuODMsODc0LjM0IEw4NjUuNTIsODc1LjU0IEw4NjQuMTgsODc2LjcxIEw4NjIuODMsODc3Ljg3IEw4NjEuNDYsODc5LjAxIEw4NjAuMDgsODgwLjE0IEw4NTguNjcsODgxLjI1IEw4NTcuMjQsODgyLjM0IEw4NTUuODAsODgzLjQyIEw4NTQuMzMsODg0LjQ4IEw4NTIuODUsODg1LjUyIEw4NTEuMzQsODg2LjU1IEw4NDkuODEsODg3LjU2IEw4NDguMjcsODg4LjU2IEw4NDYuNzAsODg5LjU0IEw4NDUuMTEsODkwLjUxIEw4NDMuNTAsODkxLjQ2IEw4NDEuODYsODkyLjQwIEw4NDAuMjEsODkzLjMyIEw4MzguNTMsODk0LjIzIEw4MzYuODMsODk1LjEyIEw4MzUuMTAsODk2LjAwIEw4MzMuMzUsODk2Ljg3IEw4MzEuNTgsODk3LjcxIEw4MjkuNzgsODk4LjU1IEw4MjcuOTYsODk5LjM3IEw4MjYuMTEsOTAwLjE3IEw4MjQuMjQsOTAwLjk2IEw4MjIuMzQsOTAxLjc0IEw4MjAuNDEsOTAyLjUwIEw4MTguNDUsOTAzLjI1IEw4MTYuNDcsOTAzLjk5IEw4MTQuNDUsOTA0LjcxIEw4MTIuNDEsOTA1LjQxIEw4MTAuMzQsOTA2LjExIEw4MDguMjMsOTA2Ljc5IEw4MDYuMTAsOTA3LjQ1IEw4MDMuOTMsOTA4LjEwIEw4MDEuNzMsOTA4Ljc0IEw3OTkuNDksOTA5LjM2IEw3OTcuMjIsOTA5Ljk4IEw3OTQuOTEsOTEwLjU3IEw3OTIuNTYsOTExLjE2IEw3OTAuMTgsOTExLjczIEw3ODcuNzYsOTEyLjI4IEw3ODUuMjksOTEyLjgzIEw3ODIuNzksOTEzLjM2IEw3ODAuMjQsOTEzLjg4IEw3NzcuNjQsOTE0LjM4IEw3NzUuMDAsOTE0Ljg3IEw3NzIuMzEsOTE1LjM1IEw3NjkuNTcsOTE1LjgxIEw3NjYuNzcsOTE2LjI2IEw3NjMuOTMsOTE2LjcwIEw3NjEuMDIsOTE3LjEzIEw3NTguMDYsOTE3LjU0IEw3NTUuMDMsOTE3Ljk0IEw3NTEuOTQsOTE4LjMzIEw3NDguNzgsOTE4LjcwIEw3NDUuNTQsOTE5LjA2IEw3NDIuMjMsOTE5LjQxIEw3MzguODUsOTE5Ljc0IEw3MzUuMzcsOTIwLjA3IEw3MzEuODEsOTIwLjM3IEw3MjguMTUsOTIwLjY3IEw3MjQuMzksOTIwLjk2IEw3MjAuNTIsOTIxLjIzIEw3MTYuNTMsOTIxLjQ4IEw3MTIuNDIsOTIxLjczIEw3MDguMTcsOTIxLjk2IEw3MDMuNzcsOTIyLjE4IEw2OTkuMjEsOTIyLjM5IEw2OTQuNDYsOTIyLjU5IEw2ODkuNTIsOTIyLjc3IEw2ODQuMzYsOTIyLjk0IEw2NzguOTUsOTIzLjEwIEw2NzMuMjYsOTIzLjI0IEw2NjcuMjQsOTIzLjM3IEw2NjAuODUsOTIzLjQ5IEw2NTQuMDEsOTIzLjYwIEw2NDYuNjQsOTIzLjY5IEw2MzguNjAsOTIzLjc3IEw2MjkuNzAsOTIzLjg0IEw2MTkuNjUsOTIzLjkwIEw2MDcuOTUsOTIzLjk0IEw1OTMuNTksOTIzLjk3IEw1NzMuODMsOTIzLjk5IEw1MTIuMDAsOTI0LjAwIEw0NTAuMTcsOTIzLjk5IEw0MzAuNDEsOTIzLjk3IEw0MTYuMDUsOTIzLjk0IEw0MDQuMzUsOTIzLjkwIEwzOTQuMzAsOTIzLjg0IEwzODUuNDAsOTIzLjc3IEwzNzcuMzYsOTIzLjY5IEwzNjkuOTksOTIzLjYwIEwzNjMuMTUsOTIzLjQ5IEwzNTYuNzYsOTIzLjM3IEwzNTAuNzQsOTIzLjI0IEwzNDUuMDUsOTIzLjEwIEwzMzkuNjQsOTIyLjk0IEwzMzQuNDgsOTIyLjc3IEwzMjkuNTQsOTIyLjU5IEwzMjQuNzksOTIyLjM5IEwzMjAuMjMsOTIyLjE4IEwzMTUuODMsOTIxLjk2IEwzMTEuNTgsOTIxLjczIEwzMDcuNDcsOTIxLjQ4IEwzMDMuNDgsOTIxLjIzIEwyOTkuNjEsOTIwLjk2IEwyOTUuODUsOTIwLjY3IEwyOTIuMTksOTIwLjM3IEwyODguNjMsOTIwLjA3IEwyODUuMTUsOTE5Ljc0IEwyODEuNzcsOTE5LjQxIEwyNzguNDYsOTE5LjA2IEwyNzUuMjIsOTE4LjcwIEwyNzIuMDYsOTE4LjMzIEwyNjguOTcsOTE3Ljk0IEwyNjUuOTQsOTE3LjU0IEwyNjIuOTgsOTE3LjEzIEwyNjAuMDcsOTE2LjcwIEwyNTcuMjMsOTE2LjI2IEwyNTQuNDMsOTE1LjgxIEwyNTEuNjksOTE1LjM1IEwyNDkuMDAsOTE0Ljg3IEwyNDYuMzYsOTE0LjM4IEwyNDMuNzYsOTEzLjg4IEwyNDEuMjEsOTEzLjM2IEwyMzguNzEsOTEyLjgzIEwyMzYuMjQsOTEyLjI4IEwyMzMuODIsOTExLjczIEwyMzEuNDQsOTExLjE2IEwyMjkuMDksOTEwLjU3IEwyMjYuNzgsOTA5Ljk4IEwyMjQuNTEsOTA5LjM2IEwyMjIuMjcsOTA4Ljc0IEwyMjAuMDcsOTA4LjEwIEwyMTcuOTAsOTA3LjQ1IEwyMTUuNzcsOTA2Ljc5IEwyMTMuNjYsOTA2LjExIEwyMTEuNTksOTA1LjQxIEwyMDkuNTUsOTA0LjcxIEwyMDcuNTMsOTAzLjk5IEwyMDUuNTUsOTAzLjI1IEwyMDMuNTksOTAyLjUwIEwyMDEuNjYsOTAxLjc0IEwxOTkuNzYsOTAwLjk2IEwxOTcuODksOTAwLjE3IEwxOTYuMDQsODk5LjM3IEwxOTQuMjIsODk4LjU1IEwxOTIuNDIsODk3LjcxIEwxOTAuNjUsODk2Ljg3IEwxODguOTAsODk2LjAwIEwxODcuMTcsODk1LjEyIEwxODUuNDcsODk0LjIzIEwxODMuNzksODkzLjMyIEwxODIuMTQsODkyLjQwIEwxODAuNTAsODkxLjQ2IEwxNzguODksODkwLjUxIEwxNzcuMzAsODg5LjU0IEwxNzUuNzMsODg4LjU2IEwxNzQuMTksODg3LjU2IEwxNzIuNjYsODg2LjU1IEwxNzEuMTUsODg1LjUyIEwxNjkuNjcsODg0LjQ4IEwxNjguMjAsODgzLjQyIEwxNjYuNzYsODgyLjM0IEwxNjUuMzMsODgxLjI1IEwxNjMuOTIsODgwLjE0IEwxNjIuNTQsODc5LjAxIEwxNjEuMTcsODc3Ljg3IEwxNTkuODIsODc2LjcxIEwxNTguNDgsODc1LjU0IEwxNTcuMTcsODc0LjM0IEwxNTUuODcsODczLjE0IEwxNTQuNTksODcxLjkxIEwxNTMuMzMsODcwLjY3IEwxNTIuMDksODY5LjQxIEwxNTAuODYsODY4LjEzIEwxNDkuNjYsODY2LjgzIEwxNDguNDYsODY1LjUyIEwxNDcuMjksODY0LjE4IEwxNDYuMTMsODYyLjgzIEwxNDQuOTksODYxLjQ2IEwxNDMuODYsODYwLjA4IEwxNDIuNzUsODU4LjY3IEwxNDEuNjYsODU3LjI0IEwxNDAuNTgsODU1LjgwIEwxMzkuNTIsODU0LjMzIEwxMzguNDgsODUyLjg1IEwxMzcuNDUsODUxLjM0IEwxMzYuNDQsODQ5LjgxIEwxMzUuNDQsODQ4LjI3IEwxMzQuNDYsODQ2LjcwIEwxMzMuNDksODQ1LjExIEwxMzIuNTQsODQzLjUwIEwxMzEuNjAsODQxLjg2IEwxMzAuNjgsODQwLjIxIEwxMjkuNzcsODM4LjUzIEwxMjguODgsODM2LjgzIEwxMjguMDAsODM1LjEwIEwxMjcuMTMsODMzLjM1IEwxMjYuMjksODMxLjU4IEwxMjUuNDUsODI5Ljc4IEwxMjQuNjMsODI3Ljk2IEwxMjMuODMsODI2LjExIEwxMjMuMDQsODI0LjI0IEwxMjIuMjYsODIyLjM0IEwxMjEuNTAsODIwLjQxIEwxMjAuNzUsODE4LjQ1IEwxMjAuMDEsODE2LjQ3IEwxMTkuMjksODE0LjQ1IEwxMTguNTksODEyLjQxIEwxMTcuODksODEwLjM0IEwxMTcuMjEsODA4LjIzIEwxMTYuNTUsODA2LjEwIEwxMTUuOTAsODAzLjkzIEwxMTUuMjYsODAxLjczIEwxMTQuNjQsNzk5LjQ5IEwxMTQuMDIsNzk3LjIyIEwxMTMuNDMsNzk0LjkxIEwxMTIuODQsNzkyLjU2IEwxMTIuMjcsNzkwLjE4IEwxMTEuNzIsNzg3Ljc2IEwxMTEuMTcsNzg1LjI5IEwxMTAuNjQsNzgyLjc5IEwxMTAuMTIsNzgwLjI0IEwxMDkuNjIsNzc3LjY0IEwxMDkuMTMsNzc1LjAwIEwxMDguNjUsNzcyLjMxIEwxMDguMTksNzY5LjU3IEwxMDcuNzQsNzY2Ljc3IEwxMDcuMzAsNzYzLjkzIEwxMDYuODcsNzYxLjAyIEwxMDYuNDYsNzU4LjA2IEwxMDYuMDYsNzU1LjAzIEwxMDUuNjcsNzUxLjk0IEwxMDUuMzAsNzQ4Ljc4IEwxMDQuOTQsNzQ1LjU0IEwxMDQuNTksNzQyLjIzIEwxMDQuMjYsNzM4Ljg1IEwxMDMuOTMsNzM1LjM3IEwxMDMuNjMsNzMxLjgxIEwxMDMuMzMsNzI4LjE1IEwxMDMuMDQsNzI0LjM5IEwxMDIuNzcsNzIwLjUyIEwxMDIuNTIsNzE2LjUzIEwxMDIuMjcsNzEyLjQyIEwxMDIuMDQsNzA4LjE3IEwxMDEuODIsNzAzLjc3IEwxMDEuNjEsNjk5LjIxIEwxMDEuNDEsNjk0LjQ2IEwxMDEuMjMsNjg5LjUyIEwxMDEuMDYsNjg0LjM2IEwxMDAuOTAsNjc4Ljk1IEwxMDAuNzYsNjczLjI2IEwxMDAuNjMsNjY3LjI0IEwxMDAuNTEsNjYwLjg1IEwxMDAuNDAsNjU0LjAxIEwxMDAuMzEsNjQ2LjY0IEwxMDAuMjMsNjM4LjYwIEwxMDAuMTYsNjI5LjcwIEwxMDAuMTAsNjE5LjY1IEwxMDAuMDYsNjA3Ljk1IEwxMDAuMDMsNTkzLjU5IEwxMDAuMDEsNTczLjgzIEwxMDAuMDAsNTEyLjAwIEwxMDAuMDEsNDUwLjE3IEwxMDAuMDMsNDMwLjQxIEwxMDAuMDYsNDE2LjA1IEwxMDAuMTAsNDA0LjM1IEwxMDAuMTYsMzk0LjMwIEwxMDAuMjMsMzg1LjQwIEwxMDAuMzEsMzc3LjM2IEwxMDAuNDAsMzY5Ljk5IEwxMDAuNTEsMzYzLjE1IEwxMDAuNjMsMzU2Ljc2IEwxMDAuNzYsMzUwLjc0IEwxMDAuOTAsMzQ1LjA1IEwxMDEuMDYsMzM5LjY0IEwxMDEuMjMsMzM0LjQ4IEwxMDEuNDEsMzI5LjU0IEwxMDEuNjEsMzI0Ljc5IEwxMDEuODIsMzIwLjIzIEwxMDIuMDQsMzE1LjgzIEwxMDIuMjcsMzExLjU4IEwxMDIuNTIsMzA3LjQ3IEwxMDIuNzcsMzAzLjQ4IEwxMDMuMDQsMjk5LjYxIEwxMDMuMzMsMjk1Ljg1IEwxMDMuNjMsMjkyLjE5IEwxMDMuOTMsMjg4LjYzIEwxMDQuMjYsMjg1LjE1IEwxMDQuNTksMjgxLjc3IEwxMDQuOTQsMjc4LjQ2IEwxMDUuMzAsMjc1LjIyIEwxMDUuNjcsMjcyLjA2IEwxMDYuMDYsMjY4Ljk3IEwxMDYuNDYsMjY1Ljk0IEwxMDYuODcsMjYyLjk4IEwxMDcuMzAsMjYwLjA3IEwxMDcuNzQsMjU3LjIzIEwxMDguMTksMjU0LjQzIEwxMDguNjUsMjUxLjY5IEwxMDkuMTMsMjQ5LjAwIEwxMDkuNjIsMjQ2LjM2IEwxMTAuMTIsMjQzLjc2IEwxMTAuNjQsMjQxLjIxIEwxMTEuMTcsMjM4LjcxIEwxMTEuNzIsMjM2LjI0IEwxMTIuMjcsMjMzLjgyIEwxMTIuODQsMjMxLjQ0IEwxMTMuNDMsMjI5LjA5IEwxMTQuMDIsMjI2Ljc4IEwxMTQuNjQsMjI0LjUxIEwxMTUuMjYsMjIyLjI3IEwxMTUuOTAsMjIwLjA3IEwxMTYuNTUsMjE3LjkwIEwxMTcuMjEsMjE1Ljc3IEwxMTcuODksMjEzLjY2IEwxMTguNTksMjExLjU5IEwxMTkuMjksMjA5LjU1IEwxMjAuMDEsMjA3LjUzIEwxMjAuNzUsMjA1LjU1IEwxMjEuNTAsMjAzLjU5IEwxMjIuMjYsMjAxLjY2IEwxMjMuMDQsMTk5Ljc2IEwxMjMuODMsMTk3Ljg5IEwxMjQuNjMsMTk2LjA0IEwxMjUuNDUsMTk0LjIyIEwxMjYuMjksMTkyLjQyIEwxMjcuMTMsMTkwLjY1IEwxMjguMDAsMTg4LjkwIEwxMjguODgsMTg3LjE3IEwxMjkuNzcsMTg1LjQ3IEwxMzAuNjgsMTgzLjc5IEwxMzEuNjAsMTgyLjE0IEwxMzIuNTQsMTgwLjUwIEwxMzMuNDksMTc4Ljg5IEwxMzQuNDYsMTc3LjMwIEwxMzUuNDQsMTc1LjczIEwxMzYuNDQsMTc0LjE5IEwxMzcuNDUsMTcyLjY2IEwxMzguNDgsMTcxLjE1IEwxMzkuNTIsMTY5LjY3IEwxNDAuNTgsMTY4LjIwIEwxNDEuNjYsMTY2Ljc2IEwxNDIuNzUsMTY1LjMzIEwxNDMuODYsMTYzLjkyIEwxNDQuOTksMTYyLjU0IEwxNDYuMTMsMTYxLjE3IEwxNDcuMjksMTU5LjgyIEwxNDguNDYsMTU4LjQ4IEwxNDkuNjYsMTU3LjE3IEwxNTAuODYsMTU1Ljg3IEwxNTIuMDksMTU0LjU5IEwxNTMuMzMsMTUzLjMzIEwxNTQuNTksMTUyLjA5IEwxNTUuODcsMTUwLjg2IEwxNTcuMTcsMTQ5LjY2IEwxNTguNDgsMTQ4LjQ2IEwxNTkuODIsMTQ3LjI5IEwxNjEuMTcsMTQ2LjEzIEwxNjIuNTQsMTQ0Ljk5IEwxNjMuOTIsMTQzLjg2IEwxNjUuMzMsMTQyLjc1IEwxNjYuNzYsMTQxLjY2IEwxNjguMjAsMTQwLjU4IEwxNjkuNjcsMTM5LjUyIEwxNzEuMTUsMTM4LjQ4IEwxNzIuNjYsMTM3LjQ1IEwxNzQuMTksMTM2LjQ0IEwxNzUuNzMsMTM1LjQ0IEwxNzcuMzAsMTM0LjQ2IEwxNzguODksMTMzLjQ5IEwxODAuNTAsMTMyLjU0IEwxODIuMTQsMTMxLjYwIEwxODMuNzksMTMwLjY4IEwxODUuNDcsMTI5Ljc3IEwxODcuMTcsMTI4Ljg4IEwxODguOTAsMTI4LjAwIEwxOTAuNjUsMTI3LjEzIEwxOTIuNDIsMTI2LjI5IEwxOTQuMjIsMTI1LjQ1IEwxOTYuMDQsMTI0LjYzIEwxOTcuODksMTIzLjgzIEwxOTkuNzYsMTIzLjA0IEwyMDEuNjYsMTIyLjI2IEwyMDMuNTksMTIxLjUwIEwyMDUuNTUsMTIwLjc1IEwyMDcuNTMsMTIwLjAxIEwyMDkuNTUsMTE5LjI5IEwyMTEuNTksMTE4LjU5IEwyMTMuNjYsMTE3Ljg5IEwyMTUuNzcsMTE3LjIxIEwyMTcuOTAsMTE2LjU1IEwyMjAuMDcsMTE1LjkwIEwyMjIuMjcsMTE1LjI2IEwyMjQuNTEsMTE0LjY0IEwyMjYuNzgsMTE0LjAyIEwyMjkuMDksMTEzLjQzIEwyMzEuNDQsMTEyLjg0IEwyMzMuODIsMTEyLjI3IEwyMzYuMjQsMTExLjcyIEwyMzguNzEsMTExLjE3IEwyNDEuMjEsMTEwLjY0IEwyNDMuNzYsMTEwLjEyIEwyNDYuMzYsMTA5LjYyIEwyNDkuMDAsMTA5LjEzIEwyNTEuNjksMTA4LjY1IEwyNTQuNDMsMTA4LjE5IEwyNTcuMjMsMTA3Ljc0IEwyNjAuMDcsMTA3LjMwIEwyNjIuOTgsMTA2Ljg3IEwyNjUuOTQsMTA2LjQ2IEwyNjguOTcsMTA2LjA2IEwyNzIuMDYsMTA1LjY3IEwyNzUuMjIsMTA1LjMwIEwyNzguNDYsMTA0Ljk0IEwyODEuNzcsMTA0LjU5IEwyODUuMTUsMTA0LjI2IEwyODguNjMsMTAzLjkzIEwyOTIuMTksMTAzLjYzIEwyOTUuODUsMTAzLjMzIEwyOTkuNjEsMTAzLjA0IEwzMDMuNDgsMTAyLjc3IEwzMDcuNDcsMTAyLjUyIEwzMTEuNTgsMTAyLjI3IEwzMTUuODMsMTAyLjA0IEwzMjAuMjMsMTAxLjgyIEwzMjQuNzksMTAxLjYxIEwzMjkuNTQsMTAxLjQxIEwzMzQuNDgsMTAxLjIzIEwzMzkuNjQsMTAxLjA2IEwzNDUuMDUsMTAwLjkwIEwzNTAuNzQsMTAwLjc2IEwzNTYuNzYsMTAwLjYzIEwzNjMuMTUsMTAwLjUxIEwzNjkuOTksMTAwLjQwIEwzNzcuMzYsMTAwLjMxIEwzODUuNDAsMTAwLjIzIEwzOTQuMzAsMTAwLjE2IEw0MDQuMzUsMTAwLjEwIEw0MTYuMDUsMTAwLjA2IEw0MzAuNDEsMTAwLjAzIEw0NTAuMTcsMTAwLjAxIEw1MTIuMDAsMTAwLjAwIEw1NzMuODMsMTAwLjAxIEw1OTMuNTksMTAwLjAzIEw2MDcuOTUsMTAwLjA2IEw2MTkuNjUsMTAwLjEwIEw2MjkuNzAsMTAwLjE2IEw2MzguNjAsMTAwLjIzIEw2NDYuNjQsMTAwLjMxIEw2NTQuMDEsMTAwLjQwIEw2NjAuODUsMTAwLjUxIEw2NjcuMjQsMTAwLjYzIEw2NzMuMjYsMTAwLjc2IEw2NzguOTUsMTAwLjkwIEw2ODQuMzYsMTAxLjA2IEw2ODkuNTIsMTAxLjIzIEw2OTQuNDYsMTAxLjQxIEw2OTkuMjEsMTAxLjYxIEw3MDMuNzcsMTAxLjgyIEw3MDguMTcsMTAyLjA0IEw3MTIuNDIsMTAyLjI3IEw3MTYuNTMsMTAyLjUyIEw3MjAuNTIsMTAyLjc3IEw3MjQuMzksMTAzLjA0IEw3MjguMTUsMTAzLjMzIEw3MzEuODEsMTAzLjYzIEw3MzUuMzcsMTAzLjkzIEw3MzguODUsMTA0LjI2IEw3NDIuMjMsMTA0LjU5IEw3NDUuNTQsMTA0Ljk0IEw3NDguNzgsMTA1LjMwIEw3NTEuOTQsMTA1LjY3IEw3NTUuMDMsMTA2LjA2IEw3NTguMDYsMTA2LjQ2IEw3NjEuMDIsMTA2Ljg3IEw3NjMuOTMsMTA3LjMwIEw3NjYuNzcsMTA3Ljc0IEw3NjkuNTcsMTA4LjE5IEw3NzIuMzEsMTA4LjY1IEw3NzUuMDAsMTA5LjEzIEw3NzcuNjQsMTA5LjYyIEw3ODAuMjQsMTEwLjEyIEw3ODIuNzksMTEwLjY0IEw3ODUuMjksMTExLjE3IEw3ODcuNzYsMTExLjcyIEw3OTAuMTgsMTEyLjI3IEw3OTIuNTYsMTEyLjg0IEw3OTQuOTEsMTEzLjQzIEw3OTcuMjIsMTE0LjAyIEw3OTkuNDksMTE0LjY0IEw4MDEuNzMsMTE1LjI2IEw4MDMuOTMsMTE1LjkwIEw4MDYuMTAsMTE2LjU1IEw4MDguMjMsMTE3LjIxIEw4MTAuMzQsMTE3Ljg5IEw4MTIuNDEsMTE4LjU5IEw4MTQuNDUsMTE5LjI5IEw4MTYuNDcsMTIwLjAxIEw4MTguNDUsMTIwLjc1IEw4MjAuNDEsMTIxLjUwIEw4MjIuMzQsMTIyLjI2IEw4MjQuMjQsMTIzLjA0IEw4MjYuMTEsMTIzLjgzIEw4MjcuOTYsMTI0LjYzIEw4MjkuNzgsMTI1LjQ1IEw4MzEuNTgsMTI2LjI5IEw4MzMuMzUsMTI3LjEzIEw4MzUuMTAsMTI4LjAwIEw4MzYuODMsMTI4Ljg4IEw4MzguNTMsMTI5Ljc3IEw4NDAuMjEsMTMwLjY4IEw4NDEuODYsMTMxLjYwIEw4NDMuNTAsMTMyLjU0IEw4NDUuMTEsMTMzLjQ5IEw4NDYuNzAsMTM0LjQ2IEw4NDguMjcsMTM1LjQ0IEw4NDkuODEsMTM2LjQ0IEw4NTEuMzQsMTM3LjQ1IEw4NTIuODUsMTM4LjQ4IEw4NTQuMzMsMTM5LjUyIEw4NTUuODAsMTQwLjU4IEw4NTcuMjQsMTQxLjY2IEw4NTguNjcsMTQyLjc1IEw4NjAuMDgsMTQzLjg2IEw4NjEuNDYsMTQ0Ljk5IEw4NjIuODMsMTQ2LjEzIEw4NjQuMTgsMTQ3LjI5IEw4NjUuNTIsMTQ4LjQ2IEw4NjYuODMsMTQ5LjY2IEw4NjguMTMsMTUwLjg2IEw4NjkuNDEsMTUyLjA5IEw4NzAuNjcsMTUzLjMzIEw4NzEuOTEsMTU0LjU5IEw4NzMuMTQsMTU1Ljg3IEw4NzQuMzQsMTU3LjE3IEw4NzUuNTQsMTU4LjQ4IEw4NzYuNzEsMTU5LjgyIEw4NzcuODcsMTYxLjE3IEw4NzkuMDEsMTYyLjU0IEw4ODAuMTQsMTYzLjkyIEw4ODEuMjUsMTY1LjMzIEw4ODIuMzQsMTY2Ljc2IEw4ODMuNDIsMTY4LjIwIEw4ODQuNDgsMTY5LjY3IEw4ODUuNTIsMTcxLjE1IEw4ODYuNTUsMTcyLjY2IEw4ODcuNTYsMTc0LjE5IEw4ODguNTYsMTc1LjczIEw4ODkuNTQsMTc3LjMwIEw4OTAuNTEsMTc4Ljg5IEw4OTEuNDYsMTgwLjUwIEw4OTIuNDAsMTgyLjE0IEw4OTMuMzIsMTgzLjc5IEw4OTQuMjMsMTg1LjQ3IEw4OTUuMTIsMTg3LjE3IEw4OTYuMDAsMTg4LjkwIEw4OTYuODcsMTkwLjY1IEw4OTcuNzEsMTkyLjQyIEw4OTguNTUsMTk0LjIyIEw4OTkuMzcsMTk2LjA0IEw5MDAuMTcsMTk3Ljg5IEw5MDAuOTYsMTk5Ljc2IEw5MDEuNzQsMjAxLjY2IEw5MDIuNTAsMjAzLjU5IEw5MDMuMjUsMjA1LjU1IEw5MDMuOTksMjA3LjUzIEw5MDQuNzEsMjA5LjU1IEw5MDUuNDEsMjExLjU5IEw5MDYuMTEsMjEzLjY2IEw5MDYuNzksMjE1Ljc3IEw5MDcuNDUsMjE3LjkwIEw5MDguMTAsMjIwLjA3IEw5MDguNzQsMjIyLjI3IEw5MDkuMzYsMjI0LjUxIEw5MDkuOTgsMjI2Ljc4IEw5MTAuNTcsMjI5LjA5IEw5MTEuMTYsMjMxLjQ0IEw5MTEuNzMsMjMzLjgyIEw5MTIuMjgsMjM2LjI0IEw5MTIuODMsMjM4LjcxIEw5MTMuMzYsMjQxLjIxIEw5MTMuODgsMjQzLjc2IEw5MTQuMzgsMjQ2LjM2IEw5MTQuODcsMjQ5LjAwIEw5MTUuMzUsMjUxLjY5IEw5MTUuODEsMjU0LjQzIEw5MTYuMjYsMjU3LjIzIEw5MTYuNzAsMjYwLjA3IEw5MTcuMTMsMjYyLjk4IEw5MTcuNTQsMjY1Ljk0IEw5MTcuOTQsMjY4Ljk3IEw5MTguMzMsMjcyLjA2IEw5MTguNzAsMjc1LjIyIEw5MTkuMDYsMjc4LjQ2IEw5MTkuNDEsMjgxLjc3IEw5MTkuNzQsMjg1LjE1IEw5MjAuMDcsMjg4LjYzIEw5MjAuMzcsMjkyLjE5IEw5MjAuNjcsMjk1Ljg1IEw5MjAuOTYsMjk5LjYxIEw5MjEuMjMsMzAzLjQ4IEw5MjEuNDgsMzA3LjQ3IEw5MjEuNzMsMzExLjU4IEw5MjEuOTYsMzE1LjgzIEw5MjIuMTgsMzIwLjIzIEw5MjIuMzksMzI0Ljc5IEw5MjIuNTksMzI5LjU0IEw5MjIuNzcsMzM0LjQ4IEw5MjIuOTQsMzM5LjY0IEw5MjMuMTAsMzQ1LjA1IEw5MjMuMjQsMzUwLjc0IEw5MjMuMzcsMzU2Ljc2IEw5MjMuNDksMzYzLjE1IEw5MjMuNjAsMzY5Ljk5IEw5MjMuNjksMzc3LjM2IEw5MjMuNzcsMzg1LjQwIEw5MjMuODQsMzk0LjMwIEw5MjMuOTAsNDA0LjM1IEw5MjMuOTQsNDE2LjA1IEw5MjMuOTcsNDMwLjQxIEw5MjMuOTksNDUwLjE3IFoiIGZpbGw9Im5vbmUiIHN0cm9rZT0idXJsKCNyaW0pIiBzdHJva2Utd2lkdGg9IjciLz4KPC9nPgo8L3N2Zz4=';
+
+/* Icônes de la barre des menus, de la droite vers la gauche */
+(function(){
+  const s = d => `<span><svg viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg></span>`;
+  $('#etats').innerHTML = '<span class="heure">Jeu. 12 nov.&nbsp; 14:30</span>' +
+    s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
+    s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
+    s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>';
+})();
+
+/* Le Dock (icônes dessinées, sobres) */
+(function(){
+  const sq = (fond, dedans, id) => `<svg viewBox="0 0 48 48"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">${fond}</linearGradient></defs><rect x="1" y="1" width="46" height="46" rx="11" fill="url(#${id})"/>${dedans}</svg>`;
+  const st2 = (a, b) => `<stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/>`;
+  const ics = [
+    ['vu', sq(st2('#6cc4ff', '#1f78f0'), '<path d="M24 1h12a11 11 0 0 1 11 11v24a11 11 0 0 1-11 11H24z" fill="#eaf4ff" opacity=".95"/><path d="M15 17v5M33 17v5M14 31c6 4 14 4 20 0" stroke="#123" stroke-width="2.4" stroke-linecap="round" fill="none"/>', 'd1')],
+    ['vu', sq(st2('#ffffff', '#e9ebef'), '<circle cx="24" cy="24" r="14" fill="#e8453c"/><path d="M24 24 36.1 17A14 14 0 0 0 11.9 17z" fill="#e8453c"/><path d="M24 24l12.1-7A14 14 0 0 1 24 38z" fill="#f4bf26"/><path d="M24 24v14a14 14 0 0 1-12.1-21z" fill="#34a853"/><circle cx="24" cy="24" r="6.4" fill="#fff"/><circle cx="24" cy="24" r="4.8" fill="#4a8af4"/>', 'd2')],
+    ['', sq(st2('#5fb4ff', '#1b6fe6'), '<rect x="10" y="15" width="28" height="19" rx="3" fill="#fff"/><path d="M11 17l13 9 13-9" fill="none" stroke="#1b6fe6" stroke-width="2"/>', 'd3')],
+    ['', sq(st2('#7ee07f', '#26b33c'), '<path d="M24 12c-8.3 0-14 5-14 11 0 3.6 2 6.6 5.2 8.6-.3 2-1.4 3.6-3 4.8 3.4 0 5.8-1.2 7.4-2.6 1.4.3 2.9.4 4.4.4 8.3 0 14-5 14-11.2S32.3 12 24 12z" fill="#fff"/>', 'd4')],
+    ['', sq(st2('#fff6d4', '#ffffff'), '<rect x="1" y="1" width="46" height="12" rx="0" fill="#ffd64a" opacity=".9"/><path d="M10 22h28M10 29h28M10 36h20" stroke="#c9c9cf" stroke-width="1.6"/>', 'd5')],
+    ['', sq(st2('#ffffff', '#f2f2f4'), '<text x="24" y="15" font-size="8" font-weight="700" text-anchor="middle" fill="#ff3b30" font-family="-apple-system,Helvetica,sans-serif">JEU.</text><text x="24" y="38" font-size="22" font-weight="400" text-anchor="middle" fill="#1d1d1f" font-family="-apple-system,Helvetica,sans-serif">12</text>', 'd6')],
+    ['', sq(st2('#b8bcc4', '#7e838c'), '<circle cx="24" cy="24" r="11" fill="none" stroke="#3b3e44" stroke-width="5" stroke-dasharray="4 3.2"/><circle cx="24" cy="24" r="7.5" fill="#d9dce1" stroke="#3b3e44" stroke-width="1.6"/><circle cx="24" cy="24" r="2.4" fill="#3b3e44"/>', 'd7')],
+    ['vu', `<img src="${ICONE}" alt="">`],
+    ['sep', ''],
+    ['', sq(st2('#eef0f3', '#cfd3d9'), '<path d="M15 16h18l-1.6 22a2 2 0 0 1-2 1.8H18.6a2 2 0 0 1-2-1.8z" fill="none" stroke="#8a8f98" stroke-width="1.6"/><path d="M13 16h22M20 16v-2.4h8V16" stroke="#8a8f98" stroke-width="1.6" fill="none"/>', 'd8')]
+  ];
+  $('#dock').innerHTML = ics.map(([c, h]) => c === 'sep' ? '<i class="sep"></i>' : `<span class="ic ${c}">${h}</span>`).join('');
+})();
+
+/* L'image de la vidéo (dessinée, reprise de ilot-centre.html) */
+function affiche(p){
+  return `<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
+  <defs>
+    <linearGradient id="${p}mur" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9d282"/><stop offset="1" stop-color="#f0a146"/></linearGradient>
+    <radialGradient id="${p}lum" cx="72%" cy="28%" r="62%"><stop offset="0" stop-color="#fff2c9" stop-opacity=".95"/><stop offset="1" stop-color="#fff2c9" stop-opacity="0"/></radialGradient>
+    <linearGradient id="${p}tab" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a95b27"/><stop offset="1" stop-color="#743612"/></linearGradient>
+    <linearGradient id="${p}coq" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dcdfe5"/></linearGradient>
+    <linearGradient id="${p}ecr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9ddff"/><stop offset="1" stop-color="#3b7edb"/></linearGradient>
+  </defs>
+  <rect width="320" height="180" fill="url(#${p}mur)"/><rect width="320" height="180" fill="url(#${p}lum)"/>
+  <circle cx="44" cy="54" r="31" fill="#fff" opacity=".09"/><circle cx="102" cy="30" r="17" fill="#fff" opacity=".08"/><circle cx="286" cy="92" r="23" fill="#fff" opacity=".07"/>
+  <rect y="136" width="320" height="44" fill="url(#${p}tab)"/><rect y="136" width="320" height="1.2" fill="#fff" opacity=".24"/>
+  <ellipse cx="205" cy="143" rx="46" ry="5.2" fill="#3a1804" opacity=".42"/>
+  <g class="flotte"><g transform="rotate(-6 200 88)">
+    <rect x="168" y="31" width="64" height="110" rx="9.5" fill="url(#${p}coq)" stroke="#c7cad1" stroke-width=".8"/>
+    <rect x="175" y="39" width="50" height="38" rx="3" fill="url(#${p}ecr)"/>
+    <rect x="179" y="44" width="22" height="3" rx="1.5" fill="#fff" opacity=".95"/><rect x="179" y="51" width="33" height="3" rx="1.5" fill="#fff" opacity=".6"/><rect x="179" y="58" width="26" height="3" rx="1.5" fill="#fff" opacity=".6"/><rect x="179" y="65" width="30" height="3" rx="1.5" fill="#fff" opacity=".6"/>
+    <circle cx="200" cy="109" r="21.5" fill="#eceef1" stroke="#d2d5db" stroke-width=".8"/><circle cx="200" cy="109" r="7.6" fill="#fbfbfc" stroke="#d8dae0" stroke-width=".6"/>
+  </g></g></svg>`;
+}
+$('#lecteur').insertAdjacentHTML('afterbegin', affiche('g'));
+
+/* =========================================================
+   Ce que la Lucarne affiche (placé par le code, selon la forme)
+   ========================================================= */
+const tuile = (t, b) => `<button class="tg" data-t="${t}"><span class="rd"><span class="gl"></span></span><b>${b}</b><i></i></button>`;
+const CARTE_CENTRE = `<div class="cc" id="cc">
+  <div class="cc-tete">
+    <span class="cc-nom">${grilleG(14, 'currentColor')}Centre</span>
+    <button class="pil">${guillemets(12, 'currentColor')}Dictées</button>
+    <button class="pil">Modifier</button>
+  </div>
+  <div class="cc-ronds">${tuile('micro', 'Micro')}${tuile('dictee', 'Dictée')}${tuile('dl', 'Téléchargements')}${tuile('claude', 'Claude Code')}${tuile('rappel', 'Rappel')}</div>
+  <div class="cc-larges">
+    <div class="tl"><div class="tl-t"><span class="amb">${minuteurG(17, 'currentColor')}</span>Minuteur</div>
+      <div class="tl-caps"><button class="cap" data-min="5">5</button><button class="cap" data-min="10">10</button><button class="cap" data-min="25">25</button><span class="tl-u">min</span></div></div>
+    <div class="tl tl-eta"><div class="tl-t"><span class="bl">${plateauG(17, 'currentColor')}</span>Étagère</div><div class="eta-vide">Glisse un fichier ici</div></div>
+  </div>
+  <button class="tr" id="reunion"><span class="tr-pt"></span><span>Noter la réunion</span><span class="tr-s">Lucarne écrit tout ce qui se dit</span></button>
+</div>`;
+const BANNIERE = `<div class="ban"><span class="ban-ic">${cloche(22, 'currentColor')}</span>
+  <div class="ban-tx"><div class="t15">Rappel ajouté · demain 13:00</div><div class="t125">« Rappeler le plombier »</div></div>
+  <button class="pil">Annuler</button></div>`;
+const CONTENUS = [
+  ['mini', `<div class="art">${affiche('m')}</div>`],
+  ['onde', '<div class="eq"><i></i><i></i><i></i><i></i><i></i></div>'],
+  ['minu', `<div class="minu" id="minu">${anneau(15)}<span id="minuT">6:12</span></div>`],
+  ['batt', `<span class="epaule">${batterie(64)}</span>`],
+  ['airp', `<span class="epaule">${airpods(15)}78 %</span>`],
+  ['centre', CARTE_CENTRE],
+  ['ban', BANNIERE]
+];
+const contenu = $('#contenu');
+contenu.innerHTML = CONTENUS.map(([nom, html]) => `<div class="c e" data-c="${nom}">${html}</div>`).join('');
+const c = {}; contenu.querySelectorAll('[data-c]').forEach(n => c[n.dataset.c] = n);
+const tg = t => contenu.querySelector(`.tg[data-t="${t}"]`);
+
+/* =========================================================
+   L'écran et les places possibles (coordonnées : x depuis le milieu de l'écran, y depuis le haut)
+   ========================================================= */
+const ecran = $('#ecran');
+let W = 1000, H = 600;
+const YB = () => H - DOCK - 10;                        // bas de la pilule du bas (10 pt au-dessus du Dock)
+const CYB = () => Math.round((B + H - DOCK) / 2);      // milieu des bords gauche et droit
+const XG = () => -W / 2 + GAP, XD = () => W / 2 - GAP;
+const PILL = PH / 2 / PORTEE, PILV = VW / 2 / PORTEE;
+const pt = (x, y) => ({x0:x, x1:x, y0:y, y1:y, s:0, r:0});
+const pilH = (cx, cy, k = 1) => ({x0:cx - PW * k / 2, x1:cx + PW * k / 2, y0:cy - PH * k / 2, y1:cy + PH * k / 2, s:PILL * k, r:PILL * k});
+const debout = (x0, cy) => ({x0, x1:x0 + VW, y0:cy - VH / 2, y1:cy + VH / 2, s:PILV, r:PILV});
+const bulleDebout = (x0, cy) => ({x0, x1:x0 + VW, y0:cy + VH / 2 + GAP, y1:cy + VH / 2 + GAP + BUH, s:PILV, r:PILV});
+const POSE = {
+  haut:  {i:() => ({x0:-N0, x1:N0, y0:0, y1:B, s:-6, r:10}), b:() => ({x0:N0 + 11, x1:N0 + 11 + BUW, y0:0, y1:B, s:-6, r:10})},
+  bas:   {i:() => pilH(0, YB() - PH / 2), b:() => ({x0:PW / 2 + GAP, x1:PW / 2 + GAP + BUW, y0:YB() - PH, y1:YB(), s:PILL, r:PILL})},
+  gauche:{i:() => debout(XG(), CYB()), b:() => bulleDebout(XG(), CYB())},
+  droite:{i:() => debout(XD() - VW, CYB()), b:() => bulleDebout(XD() - VW, CYB())}
+};
+/* grandir depuis le bord : en bas vers le haut, à gauche vers la droite, à droite vers la gauche */
+const GRAND = {
+  bas:   (w, h, r) => ({x0:-w / 2, x1:w / 2, y0:YB() - h, y1:YB(), s:r, r}),
+  gauche:(w, h, r) => ({x0:XG(), x1:XG() + w, y0:CYB() - h / 2, y1:CYB() + h / 2, s:r, r}),
+  droite:(w, h, r) => ({x0:XD() - w, x1:XD(), y0:CYB() - h / 2, y1:CYB() + h / 2, s:r, r})
+};
+const LOIN = {bas:'y0', gauche:'x1', droite:'x0'};    // le bord qui part loin (un peu plus souple, comme `h` dans l'encoche)
+const absorbe = g => st.pose === 'gauche' ? pt(g.x0 + 22, g.y1 - 20) : pt(g.x1 - 26, g.y1 - 18);   // la bulle rentre dans la Lucarne
+const centreDe = g => [(g.x0 + g.x1) / 2, (g.y0 + g.y1) / 2];
+
+/* =========================================================
+   L'état
+   ========================================================= */
+const st = {};
+function remettre(){
+  Object.assign(st, {pose:'haut', apparence:'verre', carte:null, ban:false, leve:false, micCoupe:false, dictee:'airpods',
+    dl:'on', claude:'oui', minu:0, reunion:false, reste:372});
+}
+const LECT = () => compact(N0, N0);
+const noirCible = () => st.apparence === 'noir' ? 1 : 0;
+
+function majCentre(){
+  const pose = (t, cl, gl, sous) => { const n = tg(t); n.className = 'tg ' + cl; n.querySelector('.gl').innerHTML = gl; n.querySelector('i').textContent = sous; };
+  pose('micro', st.micCoupe ? 'rouge' : '', st.micCoupe ? micBarre(24, '#fff', 'var(--rouge)') : micro(24, 'currentColor'), st.micCoupe ? 'Coupé' : 'Ouvert');
+  pose('dictee', '', st.dictee === 'airpods' ? airpods(24, 'currentColor') : portable(24, 'currentColor'), st.dictee === 'airpods' ? 'AirPods' : 'Mac');
+  pose('dl', st.dl === 'on' ? 'bleu' : '', flecheBas(24, 'currentColor'), st.dl === 'on' ? 'Allumé' : 'Éteint');
+  pose('claude', st.claude === 'oui' ? 'corail' : 'vide lien', etoile(22, 'currentColor'), st.claude === 'oui' ? 'Prêt' : 'Brancher');
+  pose('rappel', '', cloche(23, 'currentColor'), 'Dire un rappel');
+  contenu.querySelectorAll('.cap').forEach(b => b.classList.toggle('choisi', +b.dataset.min === st.minu));
+  $('#reunion').classList.toggle('on', st.reunion);
+}
+function majMinu(){ $('#minuT').textContent = fmt(st.reste); }
+
+/* Réglages : les quatre petits dessins de l'écran, et Verre · Noir */
+function picto(p){
+  const verre = st.apparence === 'verre';
+  const f = verre ? 'fill="#fff" stroke="rgba(0,0,0,.5)" stroke-width=".55"' : 'fill="#000"';
+  const formes = {
+    haut:'<path d="M24.6 0h14.8v1.7a1.5 1.5 0 0 1-1.5 1.5H26.1a1.5 1.5 0 0 1-1.5-1.5z" fill="#000"/><path d="M40.6 0h5.4v1.7a1.5 1.5 0 0 1-1.5 1.5h-2.4a1.5 1.5 0 0 1-1.5-1.5z" fill="#000"/>',
+    bas:`<rect x="27" y="26.4" width="10" height="3.6" rx="1.8" ${f}/><rect x="38.2" y="26.4" width="5.4" height="3.6" rx="1.8" ${f}/>`,
+    gauche:`<rect x="1.6" y="11" width="3.6" height="9.4" rx="1.8" ${f}/><rect x="1.6" y="21.2" width="3.6" height="4.6" rx="1.8" ${f}/>`,
+    droite:`<rect x="58.8" y="11" width="3.6" height="9.4" rx="1.8" ${f}/><rect x="58.8" y="21.2" width="3.6" height="4.6" rx="1.8" ${f}/>`
+  };
+  return `<svg viewBox="0 0 64 36"><defs><linearGradient id="pg${p}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c6d6ea"/><stop offset=".55" stop-color="#e2e6ec"/><stop offset="1" stop-color="#f0e2d6"/></linearGradient></defs>
+    <rect width="64" height="36" fill="url(#pg${p})"/><rect width="64" height="2.6" fill="#fff" opacity=".55"/><rect x="22" y="31.8" width="20" height="2.8" rx="1.4" fill="#fff" opacity=".85"/>
+    ${p !== 'haut' ? '<path d="M28.8 0h6.4v1.3a1.2 1.2 0 0 1-1.2 1.2h-4a1.2 1.2 0 0 1-1.2-1.2z" fill="#000"/>' : ''}${formes[p]}</svg>`;
+}
+const NOMS = {haut:'En haut', bas:'En bas', gauche:'À gauche', droite:'À droite'};
+function majChoix(){
+  $('#choix').innerHTML = POSES.map(p => `<button data-pose="${p}"${p === st.pose ? ' class="on"' : ''}><span class="ecr">${picto(p)}</span><b>${NOMS[p]}</b></button>`).join('');
+  document.querySelectorAll('#aspect button').forEach(b => b.classList.toggle('on', b.dataset.ap === st.apparence));
+}
+
+/* =========================================================
+   Minuteries et attentes annulables (reprises de ilot-centre.html)
+   ========================================================= */
+let jeton = 0, instant = false, enCoursN = 0, cibleN = 0, auto = false;
+const minuteries = new Set();
+function apres(t, fn){ const id = setTimeout(() => { minuteries.delete(id); fn(); }, t * 1000 * K); minuteries.add(id); return id; }
+function annuler(){ minuteries.forEach(clearTimeout); minuteries.clear(); }
+function suite(){ const j = jeton; return Promise.resolve().then(() => { if (j !== jeton) throw 'stop'; }); }
+function attendre(t){
+  if (instant) return suite();
+  const j = jeton;
+  return new Promise((ok, ko) => apres(t, () => (j === jeton ? ok() : ko('stop'))));
+}
+function tween(duree, fn){
+  if (instant){ fn(1); return suite(); }
+  const j = jeton, t0 = performance.now();
+  return new Promise((ok, ko) => {
+    const pas = () => {
+      if (j !== jeton) return ko('stop');
+      const u = clamp((performance.now() - t0) / (duree * 1000 * K), 0, 1);
+      fn(u);
+      if (u < 1) image(pas); else ok();
+    };
+    pas();
+  });
+}
+const fin = () => instant && enCoursN === cibleN;   // dans un état posé, le retour au calme de la dernière étape n'est pas joué
+
+/* =========================================================
+   La Lucarne : ressorts, forme, contenu
+   mode 'encoche' → la forme vient de `chemin` (ressorts R) ; mode 'libre' → `capsule` (ressorts P).
+   On passe de l'un à l'autre quand elle est compacte en haut : les deux tracés y sont identiques.
+   Q = la bulle du minuteur ; V = noir (1) ou verre (0) ; L = soulevée (appui long).
+   ========================================================= */
+const formeN = $('#forme'), ombreP = $('#ombre'), masque = $('#masque'), vitre = $('#vitre'), vitreF = $('#vitreFond'),
+  vitreT = $('#vitreTrait'), vitreB = $('#vitreBord'), verre = $('#verre'), places = $('#places');
+const SVGS = [$('#places-svg'), $('#forme-svg'), $('#encoche-svg')];
+const KC = ['x0', 'y0', 'x1', 'y1', 's', 'r'];
+const nouveau = () => { const o = {}; KC.forEach(k => o[k] = new Ressort(0)); return o; };
+const R = {}; CLES.forEach(k => R[k] = new Ressort(LECT()[k]));
+const P = nouveau(), Q = nouveau(), V = new Ressort(1), L = new Ressort(0);
+const TOUS = [...CLES.map(k => R[k]), ...KC.map(k => P[k]), ...KC.map(k => Q[k]), V, L];
+let mode = 'encoche', cible = LECT(), enCours = false, tPrec = 0, tire = false;
+
+function geo(){
+  W = ecran.clientWidth; H = ecran.clientHeight;
+  SVGS.forEach(s => s.setAttribute('viewBox', `${f2(-W / 2)} 0 ${W} ${H}`));
+  places.querySelectorAll('.place').forEach(n => n.setAttribute('d', capsule(POSE[n.dataset.p].i())));
+}
+const val = S => { const g = {}; for (const k of KC) g[k] = S[k].x; return g; };
+const vise = S => { const g = {}; for (const k of KC) g[k] = S[k].vise(); return g; };
+function poserS(S, g){ for (const k of KC) if (g[k] !== undefined) S[k].poser(g[k]); }
+function viserS(S, g, rep = .45, z = .8, att = 0, par = {}){
+  for (const k of KC){
+    if (g[k] === undefined) continue;
+    if (instant){ S[k].poser(g[k]); continue; }
+    const [r, zz, a] = par[k] || [rep, z, att];
+    S[k].viser(g[k], r, zz, a);
+  }
+  demarrer();
+}
+/* deux temps : d'abord `a`, puis `b` après t secondes (sans minuterie : le ressort garde sa vitesse) */
+function deuxTemps(S, a, b, t, oa, ob){
+  for (const k of KC){
+    if (instant){ S[k].poser(b[k]); continue; }
+    S[k].viser(a[k], oa[0], oa[1], 0);
+    S[k].futur = {c:b[k], rep:ob[0], z:ob[1]}; S[k].attente = t;
+  }
+  demarrer();
+}
+function noir(v, rep = .45, att = 0){ if (instant) V.poser(v); else V.viser(v, rep, 1, att); demarrer(); }
+function leve(v, rep = .3, z = .9){ if (instant) L.poser(v); else L.viser(v, rep, z, 0); demarrer(); }
+
+/* dans l'encoche : la même fonction qu'avant */
+function ilot(g, o = {}){
+  const grand = (g.bw + g.bd) * g.h >= (cible.bw + cible.bd) * cible.h - .5;
+  const rep = o.rep ?? (grand ? .46 : .38), z = o.z ?? (grand ? .78 : 1), att = o.attente ?? (grand ? 0 : .06);
+  cible = {...g};
+  for (const k of CLES){
+    if (instant) R[k].poser(g[k]);
+    else { const haut = k === 'h' && grand; R[k].viser(g[k], haut ? rep * 1.06 : rep, z, att + (haut ? .02 : 0)); }
+  }
+  demarrer();
+}
+function montre(noms, d = .14){
+  const vus = new Set(noms);
+  for (const nom in c){
+    const n = c[nom], on = vus.has(nom);
+    if (on && !n.classList.contains('on')) n.style.setProperty('--d', d + 's');
+    n.classList.toggle('on', on);
+  }
+}
+function demarrer(){
+  if (FIGE || instant){ rendu(); return; }
+  if (!enCours){ enCours = true; tPrec = performance.now(); image(boucle); }
+}
+function boucle(){
+  const t = performance.now(), dt = clamp((t - tPrec) / 1000, 0, .05) / K; tPrec = t;
+  const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+  for (let i = 0; i < n; i++) for (const r of TOUS) r.pas(h);
+  let bouge = false;
+  for (const r of TOUS) if (!r.pose()) bouge = true;
+  rendu();
+  if (bouge) image(boucle); else enCours = false;
+}
+/* sortir de l'encoche : on passe au tracé libre, posé exactement sur le compact d'aujourd'hui */
+function sortir(){
+  if (mode !== 'encoche') return;
+  mode = 'libre'; poserS(P, POSE.haut.i());
+}
+/* revenue au repos dans l'encoche : on rend la main à `chemin` */
+function arrive(){
+  if (mode !== 'libre' || st.pose !== 'haut' || st.carte || st.ban || tire || st.leve) return;
+  for (const k of KC) if (P[k].attente > 0 || Math.abs(P[k].x - P[k].cible) > .05 || Math.abs(P[k].v) > .2) return;
+  mode = 'encoche'; CLES.forEach(k => R[k].poser(LECT()[k])); cible = LECT();
+}
+const mix = (a, b, t) => a.map((v, i) => Math.round(lerp(v, b[i], t))).join(' ');
+function centrer(n, x, y){ n.style.left = f2(W / 2 + x - n.offsetWidth / 2) + 'px'; n.style.top = f2(y - n.offsetHeight / 2) + 'px'; }
+function placer(nom, x, y){ c[nom].style.left = f2(W / 2 + x) + 'px'; c[nom].style.top = f2(y) + 'px'; }
+function rendu(){
+  arrive();
+  const t = clamp(V.x, 0, 1), l = Math.max(0, L.x);
+  let d, gc, a;
+  if (mode === 'encoche'){
+    const g = {}; for (const k of CLES) g[k] = R[k].x;
+    d = chemin(g); a = clamp((g.h - B - 6) / 40, 0, 1);
+    gc = {x0:-g.ng, x1:g.nd, y0:0, y1:B};
+  } else { gc = val(P); d = capsule(gc); a = clamp(gc.y0 / 10, 0, 1); }
+  const q = val(Q), tout = capsule(q) + d;
+  formeN.setAttribute('d', tout); formeN.style.opacity = f2(t);
+  // l'ombre : douce, seulement autour (un masque la retire sous le verre)
+  masque.setAttribute('d', tout); ombreP.setAttribute('d', tout);
+  ombreP.setAttribute('opacity', (a * (.2 + .1 * t) + .1 * l).toFixed(3));
+  ombreP.style.filter = `blur(${f2(8 * a + 6 * l)}px)`;
+  ombreP.style.transform = `translateY(${f2(7 * a + 7 * l)}px)`;
+  // le verre : flou de ce qui est derrière (découpé à la forme), voile clair, bord lumineux fin
+  if (t < .999 && mode === 'libre'){
+    vitreF.setAttribute('d', tout); vitreT.setAttribute('d', tout); vitreB.setAttribute('d', tout);
+    vitre.setAttribute('opacity', f2(1 - t));
+    verre.style.clipPath = `path('${capsule(q, W / 2) + capsule(gc, W / 2)}')`; verre.style.opacity = f2(1 - t);
+  } else { vitre.setAttribute('opacity', 0); verre.style.opacity = 0; }
+  // le texte suit : blanc sur le noir, foncé sur le verre
+  contenu.style.setProperty('--fg', mix([29, 29, 31], [255, 255, 255], t));
+  contenu.style.setProperty('--amb', mix([196, 102, 0], [255, 171, 61], t));
+  contenu.style.setProperty('--jau', mix([168, 116, 0], [255, 214, 10], t));
+  // le contenu replié suit la forme (vignette au début, onde à la fin ; debout : en haut et en bas)
+  const [cx, cy] = centreDe(gc);
+  centrer(c.mini, Math.min(gc.x0 + 22, cx), Math.min(gc.y0 + 20, cy));
+  centrer(c.onde, Math.max(gc.x1 - 21, cx), Math.max(gc.y1 - 20, cy));
+  $('#minu').classList.toggle('vert', (q.y1 - q.y0) > (q.x1 - q.x0) + 2);
+  centrer(c.minu, (q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2);
+}
+const REPLIE = ['mini', 'onde', 'minu'];
+function ouvrir(){                             // survol : le Centre
+  if (st.carte || tire) return;
+  st.carte = 'centre'; st.ban = false;
+  montre([], 0);
+  if (mode === 'encoche'){
+    ilot(bandeau(BW, HCC, NO));
+    placer('centre', -BW + 22, B + 14);
+    viserS(Q, pt(NO - 14, 16), .3, 1);
+    montre(['batt', 'airp', 'centre'], .14);
+  } else {
+    const g = GRAND[st.pose](OW, OH, 30);
+    viserS(P, g, .46, .78, 0, {[LOIN[st.pose]]:[.49, .78, .02]});
+    placer('centre', g.x0 + 22, g.y0 + 14);
+    viserS(Q, absorbe(g), .3, 1);
+    montre(['centre'], .14);
+  }
+}
+function banniere(){                           // une confirmation qui sort du bord
+  if (mode === 'encoche') return;
+  st.ban = true; st.carte = null;
+  montre([], 0);
+  const g = GRAND[st.pose](BAW, BAH, 22);
+  viserS(P, g, .46, .78, 0, {[LOIN[st.pose]]:[.49, .78, .02]});
+  placer('ban', g.x0 + 14, g.y0 + 13);
+  viserS(Q, absorbe(g), .3, 1);
+  montre(['ban'], .14);
+}
+function replier(){
+  st.carte = null; st.ban = false;
+  montre([], 0);
+  if (mode === 'encoche') ilot(LECT());
+  else viserS(P, POSE[st.pose].i(), .38, 1, .06);
+  viserS(Q, POSE[st.pose].b(), .4, .9, .12);
+  montre(REPLIE, .16);
+}
+/* changer de place. vif = lâchée à la souris (plus court, elle est déjà en route) */
+function glisser(pose, vif = false){
+  st.pose = pose; majChoix();
+  st.carte = null; st.ban = false;
+  montre(REPLIE, .16);
+  const gi = POSE[pose].i(), gb = POSE[pose].b();
+  const sousCamera = {x0:-56, x1:56, y0:0, y1:30, s:15 / PORTEE, r:15 / PORTEE};          // cachée sous la caméra
+  const bulleHaut = {x0:N0 + 11, x1:N0 + 11 + BUW, y0:0, y1:PH, s:PILL, r:PILL};
+  if (mode === 'encoche'){
+    // elle sort : d'abord une pilule cachée sous la caméra, puis une seule course jusqu'à sa place ; le noir devient verre en route
+    sortir();
+    deuxTemps(P, sousCamera, gi, .14, [.32, 1], [.84, .86]);
+    deuxTemps(Q, bulleHaut, gb, .2, [.3, 1], [.88, .86]);
+    noir(noirCible(), .6, .26);
+  } else if (pose === 'haut'){
+    // elle rentre : pilule jusque sous la caméra, puis elle s'élargit en ailes ; le verre redevient noir en arrivant
+    deuxTemps(P, sousCamera, gi, vif ? .3 : .46, [vif ? .4 : .6, .86], [.32, .9]);
+    deuxTemps(Q, bulleHaut, gb, vif ? .4 : .56, [vif ? .46 : .66, .86], [.3, .9]);
+    noir(1, .26, vif ? .12 : .26);
+  } else {
+    const ox = vif ? [.42, .8, 0] : [.8, .86, 0], oy = vif ? [.42, .8, 0] : [.68, .86, 0], oc = [.4, 1, 0];
+    viserS(P, gi, .5, .84, 0, {x0:ox, x1:ox, y0:oy, y1:oy, s:oc, r:oc});
+    const qx = [ox[0] + .04, .84, .06], qy = [oy[0] + .04, .84, .06];
+    viserS(Q, gb, .5, .84, .06, {x0:qx, x1:qx, y0:qy, y1:qy, s:oc, r:oc});
+    noir(noirCible(), .4);
+  }
+}
+
+/* =========================================================
+   Déplacer au trackpad : appui long (0,5 s) → elle se décroche ; puis > 12 pt de mouvement → on la tire
+   ========================================================= */
+function marquer(pose){ places.querySelectorAll('.place').forEach(n => n.classList.toggle('pres', n.dataset.p === pose)); }
+function plusProche(x, y){
+  let mieux = 'haut', dmin = Infinity;
+  for (const p of POSES){ const [px, py] = centreDe(POSE[p].i()), d = Math.hypot(px - x, py - y); if (d < dmin){ dmin = d; mieux = p; } }
+  return mieux;
+}
+function haptique(){ if (instant) return; pad.classList.remove('vibre'); void pad.offsetWidth; pad.classList.add('vibre'); }
+function decrocher(){
+  if (st.carte || st.ban) replier();
+  sortir();
+  st.leve = true;
+  const g = POSE[st.pose].i(), k = 1.07, [cx, cy] = centreDe(g);
+  if (st.pose !== 'haut') viserS(P, {x0:cx - (cx - g.x0) * k, x1:cx + (g.x1 - cx) * k, y0:cy - (cy - g.y0) * k, y1:cy + (g.y1 - cy) * k, s:g.s * k, r:g.r * k}, .26, .62);
+  leve(1, .3, .9);
+  haptique();
+}
+function suivre(x, y){                         // x, y : pointeur, en coordonnées de l'écran
+  if (!tire){ tire = true; places.classList.add('vu'); noir(noirCible(), .4); }
+  const X = clamp(x - W / 2, -W / 2 + 4 + PW * .525, W / 2 - 4 - PW * .525 - GAP - BUW);   // elle reste dans l'écran
+  y = clamp(y, PH * .525, H - PH * .525 - 4);
+  viserS(P, pilH(X, y, 1.05), .2, .95);
+  const x0 = X + PW * .525 + GAP;
+  viserS(Q, {x0, x1:x0 + BUW, y0:y - PH / 2, y1:y + PH / 2, s:PILL, r:PILL}, .3, .9);
+  marquer(plusProche(X, y));
+}
+function lacher(){
+  const [x, y] = centreDe(instant ? vise(P) : val(P));
+  tire = false; st.leve = false; leve(0, .45, .9); places.classList.remove('vu'); marquer(null);
+  glisser(plusProche(x, y), true);
+}
+function reposer(){                            // appui long sans bouger : on la repose (l'action d'aujourd'hui garde la main)
+  st.leve = false; leve(0, .4, .9);
+  if (mode === 'libre') viserS(P, POSE[st.pose].i(), .32, .8);
+}
+
+/* =========================================================
+   L'écran : fenêtres, barre des menus, pointeur, mains
+   ========================================================= */
+const pointeur = $('#pointeur'), pad = $('#pad');
+const F = {chrome:$('.fen.chrome'), reg:$('[data-f="reg"]')};
+let ordre = ['reg', 'chrome'];
+function devant(nom){
+  ordre = ordre.filter(n => n !== nom).concat(nom);
+  ordre.forEach((n, i) => { F[n].style.zIndex = i + 1; F[n].classList.toggle('arriere', n !== nom && n === 'chrome'); });
+  const app = {chrome:'Chrome', reg:'Lucarne'}[nom];
+  $('#menus').innerHTML = POMME + `<b>${app}</b>` + MENUS[app].map(m => `<span>${m}</span>`).join('');
+}
+function fenetre(nom, vu){ F[nom].classList.toggle('cache', !vu); }
+const XR = dx => ecran.clientWidth / 2 + dx;
+function ou(el){ const r = el.getBoundingClientRect(), e = ecran.getBoundingClientRect(); return [r.left + r.width / 2 - e.left, r.top + r.height / 2 - e.top]; }
+function cur(x, y, o = {}){
+  const saute = instant || o.saute;
+  pointeur.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
+  pointeur.style.transform = `translate(${f2(x)}px,${f2(y)}px)`;
+  if (saute){ void pointeur.offsetWidth; pointeur.style.transition = ''; }
+  pointeur.classList.toggle('vu', o.vu !== false);
+}
+async function va(x, y, d = .75){ cur(x, y, {duree:d}); await attendre(d); }
+async function vers(el, d = .75, dx = 0, dy = 0){ const [x, y] = ou(el); await va(x + dx, y + dy, d); }
+function doigts(t, mode){ pad.className = 'pad' + (mode ? ' ' + mode : ''); pad.style.setProperty('--t', f2(t) + 'px'); }
+async function clic(){
+  if (instant) return suite();
+  doigts(0, 'un'); pointeur.classList.add('appui');
+  await attendre(.13);
+  pointeur.classList.remove('appui'); doigts(0, '');
+}
+const choix = p => document.querySelector(`#choix [data-pose="${p}"] .ecr`);
+const centreLucarne = () => { const [x, y] = centreDe(vise(P)); return [W / 2 + x, y]; };
+/* la démonstration du geste : appui long, décrochage, on tire, on lâche */
+async function tirer(xa, ya, xb, yb, d){
+  pointeur.classList.add('appui', 'tient'); doigts(0, 'un');
+  await attendre(.5);
+  decrocher(); pointeur.classList.remove('tient');
+  await attendre(.32);
+  await tween(d, u => {
+    const e = u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+    const x = lerp(xa, xb, e), y = lerp(ya, yb, e) - Math.sin(Math.PI * e) * 26;
+    cur(x, y, {saute:true}); suivre(x, y);
+  });
+  await attendre(.16);
+  pointeur.classList.remove('appui'); doigts(0, '');
+  lacher();
+}
+
+/* =========================================================
+   Les étapes
+   ========================================================= */
+function init(){
+  remettre(); geo();
+  fenetre('reg', false); devant('chrome');
+  mode = 'encoche'; tire = false;
+  CLES.forEach(k => R[k].poser(LECT()[k])); cible = LECT();
+  poserS(P, POSE.haut.i()); poserS(Q, POSE.haut.b()); V.poser(1); L.poser(0);
+  placer('batt', -NO + 13, mid(13)); placer('airp', HC + 8, mid(17));
+  places.classList.remove('vu'); marquer(null);
+  majCentre(); majChoix(); majMinu();
+  montre(REPLIE);
+  cur(XR(250), 380, {vu:false, saute:true});
+  pointeur.classList.remove('appui', 'tient');
+  doigts(0, '');
+}
+const ETAPES = [
+  {t:'Aujourd’hui : dans l’encoche', g:'Mains au repos',
+   p:'La vidéo joue : la Lucarne l’affiche autour de l’encoche, noire comme elle, et le minuteur à côté dans sa bulle. C’est la place par défaut.',
+   async jeu(){ await attendre(.8); }},
+  {t:'Réglages › Lucarne : Position', g:'Ouvrir Réglages',
+   p:'Dans Réglages, partie Lucarne : « Position », avec quatre petits dessins de l’écran. Juste dessous : « Apparence hors de l’encoche : Verre · Noir ».',
+   async jeu(){
+     cur(XR(-120), 380, {saute:true}); await attendre(.05);
+     fenetre('reg', true); devant('reg'); await attendre(.4);
+     await vers(choix('haut'), .8, 4, 6); await attendre(.3);
+   }},
+  {t:'« En bas » : elle quitte l’encoche', g:'Un clic',
+   p:'Un clic sur « En bas ». Elle sort de l’encoche et glisse jusqu’au-dessus du Dock, en une seule course ; le minuteur la suit. En route, le noir devient du verre clair.',
+   async jeu(){
+     await vers(choix('bas'), .5, 4, 6); await clic();
+     glisser('bas'); await attendre(1.3);
+   }},
+  {t:'Survoler : le Centre s’ouvre vers le haut', g:'Pointeur sur la pilule',
+   p:'Même geste qu’en haut : on la survole, elle s’ouvre. Depuis le bas, elle grandit vers le haut, le bas reste collé à sa place. Mêmes boutons, texte foncé sur le verre.',
+   async jeu(){
+     const [x, y] = centreLucarne(); await va(x + 18, y + 6, .9); await attendre(.1);
+     ouvrir(); await attendre(.9);
+   }},
+  {t:'Une bannière sort d’en bas', g:'Tenir fn, dire le rappel',
+   p:'On dicte un rappel avec fn. La confirmation sort de la pilule, vers le haut : « Rappel ajouté · demain 13:00 ». Puis elle se range toute seule.',
+   async jeu(){
+     if (st.carte){ await va(XR(-330), 330, .6); replier(); await attendre(.6); }
+     doigts(0, 'fn'); await attendre(.9); doigts(0, '');
+     banniere(); await attendre(1.8);
+     if (fin()) return;
+     replier(); await attendre(.6);
+   }},
+  {t:'« À gauche » : elle glisse au bord', g:'Un clic',
+   p:'Un clic sur « À gauche ». La pilule file vers le bord gauche, au milieu de la hauteur, et se met debout. Le minuteur se range dessous.',
+   async jeu(){
+     if (st.carte || st.ban) replier();
+     await vers(choix('gauche'), .8, 4, 6); await clic();
+     glisser('gauche'); await attendre(1.3);
+   }},
+  {t:'Survoler : le Centre s’ouvre vers la droite', g:'Fermer Réglages, survoler',
+   p:'On ferme Réglages. Depuis la gauche, la Lucarne grandit vers la droite ; le bord gauche ne bouge pas. Le contenu est le même et le texte reste droit.',
+   async jeu(){
+     await vers($('#regFermer i'), .7, 0, 0); await clic();
+     fenetre('reg', false); devant('chrome'); await attendre(.3);
+     const [x, y] = centreLucarne(); await va(x + 6, y + 14, .9); await attendre(.1);
+     ouvrir(); await attendre(.9);
+   }},
+  {t:'Appui long, puis glisser', g:'Appui long ½ s, puis bouger',
+   p:'Appui long puis on bouge : elle se décroche (plus grande, ombre plus forte, petit choc du trackpad), les places s’affichent en pointillés. Lâchée près du bord droit, elle s’y pose. Appui long sans bouger : la rangée Minuteur, comme aujourd’hui.',
+   async jeu(){
+     if (st.carte){ await va(XR(-40), 210, .6); replier(); await attendre(.55); }
+     const [x, y] = centreLucarne(); await va(x + 2, y + 2, .7);
+     await tirer(x + 2, y + 2, XR(W / 2 - 150), CYB() + 40, 1.5);
+     await attendre(1.2);
+   }},
+  {t:'Retour dans l’encoche', g:'Appui long, tirer vers le haut',
+   p:'Tirée vers le haut, elle est aspirée par l’encoche et reprend sa forme d’aujourd’hui ; le verre redevient noir et le minuteur se recolle à côté.',
+   async jeu(){
+     const [x, y] = centreLucarne(); await va(x - 2, y + 2, .7);
+     await tirer(x - 2, y + 2, XR(-60), 90, 1.3);
+     await attendre(1.0);
+     if (fin()) return;
+     await va(XR(-260), 400, .8);
+   }}
+];
+const N = ETAPES.length;
+const PAUSES = [1.4, 1.6, 1.8, 1.6, 1.6, 1.8, 1.8, 1.6, 2.6];
+
+/* =========================================================
+   Régie (reprise de ilot-centre.html)
+   ========================================================= */
+let etape = 0;
+$('#pas').innerHTML = ETAPES.map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${e.t}</button></li>`).join('');
+function majRegie(n){
+  etape = n;
+  const m = Math.max(1, n), e = ETAPES[m - 1];
+  $('#num').textContent = `Lucarne · où la placer · étape ${m} sur ${N}`;
+  const fr = t => t.replace(/ ([:»?!;])/g, ' $1').replace(/« /g, '« ');
+  $('#titre').textContent = fr(e.t); $('#phrase').textContent = fr(e.p); $('#geste').textContent = e.g;
+  document.querySelectorAll('#pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === m));
+}
+async function poser(n){
+  annuler();
+  instant = true; racine.classList.add('snap');
+  try {
+    cibleN = n; enCoursN = 0;
+    init();
+    for (let i = 1; i <= n; i++){ enCoursN = i; await ETAPES[i - 1].jeu(); }
+  } finally { instant = false; }
+  majRegie(n); rendu();
+  void ecran.offsetWidth;
+  image(() => image(() => racine.classList.remove('snap')));
+}
+async function jouer(n){
+  majRegie(n);
+  if (REDUIT) return poser(n);
+  racine.classList.remove('snap'); void ecran.offsetWidth;
+  cibleN = 0; enCoursN = n;
+  await ETAPES[n - 1].jeu();
+}
+function arreter(){ jeton++; auto = false; annuler(); doigts(0, ''); }
+const autoCase = $('#autoCase');
+async function tourner(){
+  arreter(); const j = jeton; auto = true;
+  try {
+    await poser(0); await attendre(.9);
+    for (;;){
+      for (let n = 1; n <= N; n++){ await jouer(n); await attendre(PAUSES[n - 1]); }
+      if (!autoCase.checked) break;
+      ecran.style.opacity = 0; await attendre(.3);
+      await poser(0); ecran.style.opacity = 1; await attendre(1.0);
+    }
+  } catch (e){ if (e !== 'stop') console.error(e); }
+  ecran.style.opacity = 1;
+  if (j === jeton) auto = false;
+}
+function lance(n){
+  arreter(); ecran.style.opacity = 1;
+  poser(n - 1).then(() => jouer(n)).catch(e => { if (e !== 'stop') console.error(e); });
+}
+$('#rejouer').addEventListener('click', () => { if (autoCase.checked) tourner(); else lance(Math.max(1, etape)); });
+$('#suivant').addEventListener('click', () => { autoCase.checked = false; lance(etape >= N ? 1 : etape + 1); });
+$('#pas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; autoCase.checked = false; lance(+b.dataset.e); });
+autoCase.addEventListener('change', () => { if (autoCase.checked) tourner(); else arreter(); });
+function ralenti(oui){ K = oui ? 4 : 1; racine.style.setProperty('--k', K); $('#lentCase').checked = oui; }
+$('#lentCase').addEventListener('change', e => ralenti(e.target.checked));
+
+/* =========================================================
+   À la main : la vraie souris marche aussi (survol, appui long + glisser, Réglages)
+   ========================================================= */
+function aLaMain(){ if (auto || autoCase.checked){ autoCase.checked = false; arreter(); } pointeur.classList.remove('vu'); }
+function local(e){ const r = ecran.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top]; }
+function dansIlot(x, y){
+  if (mode === 'encoche'){
+    if (st.carte) return Math.abs(x) <= BW + 4 && y <= cible.h + 4;
+    return y <= cible.h + 4 && Math.abs(x) <= Math.max(cible.ng, cible.nd, cible.bw) + 4;
+  }
+  const g = vise(P);
+  return x >= g.x0 - 4 && x <= g.x1 + 4 && y >= g.y0 - 4 && y <= g.y1 + 4;
+}
+let tFerme = 0, tSurvol = 0, tAppui = 0, appui = null;
+ecran.addEventListener('pointerdown', e => {
+  if (FIGE || e.button !== 0 || e.target.closest('.reg') || e.target.closest('#contenu button')) return;
+  const [x, y] = local(e);
+  if (dansIlot(x, y)){
+    aLaMain(); clearTimeout(tSurvol); tSurvol = 0; clearTimeout(tFerme); tFerme = 0;
+    appui = {x:e.clientX, y:e.clientY};
+    tAppui = setTimeout(() => { tAppui = 0; if (appui) decrocher(); }, 500);   // appui long
+    try { ecran.setPointerCapture(e.pointerId); } catch (_){}
+    return;
+  }
+  if (st.carte || st.ban){ aLaMain(); replier(); }
+});
+ecran.addEventListener('pointermove', e => {
+  if (FIGE) return;
+  if (appui){
+    const d = Math.hypot(e.clientX - appui.x, e.clientY - appui.y);
+    if (st.leve && (tire || d > 12)){ const [x, y] = local(e); suivre(W / 2 + x, y); }   // appui long PUIS mouvement : on la déplace
+    else if (!st.leve && d > 12){ clearTimeout(tAppui); tAppui = 0; appui = null; }    // bougé trop tôt : rien
+    return;
+  }
+  const [x, y] = local(e), dedans = dansIlot(x, y);
+  if (dedans){
+    clearTimeout(tFerme); tFerme = 0;
+    if (!st.carte && !st.ban && !tSurvol) tSurvol = setTimeout(() => { tSurvol = 0; aLaMain(); ouvrir(); }, 180);
+  } else {
+    clearTimeout(tSurvol); tSurvol = 0;
+    if ((st.carte || st.ban) && !tFerme && !auto) tFerme = setTimeout(() => { tFerme = 0; replier(); }, 320);
+  }
+});
+const finAppui = () => {
+  if (!appui) return;
+  clearTimeout(tAppui); tAppui = 0; appui = null;
+  if (tire) lacher();
+  else if (st.leve) reposer();   // appui long sans bouger : l'action d'aujourd'hui (rangée Minuteur), pas de déplacement
+};
+ecran.addEventListener('pointerup', finAppui);
+ecran.addEventListener('pointercancel', finAppui);
+$('#choix').addEventListener('click', e => {
+  const b = e.target.closest('[data-pose]'); if (FIGE || !b) return;
+  aLaMain(); if (b.dataset.pose !== st.pose) glisser(b.dataset.pose);
+});
+$('#aspect').addEventListener('click', e => {
+  const b = e.target.closest('[data-ap]'); if (FIGE || !b) return;
+  aLaMain(); st.apparence = b.dataset.ap; majChoix();
+  if (mode === 'libre' && st.pose !== 'haut') noir(noirCible(), .45);
+});
+$('#regFermer').addEventListener('click', e => { if (FIGE || e.target !== e.currentTarget.firstElementChild) return; aLaMain(); fenetre('reg', false); devant('chrome'); });
+contenu.addEventListener('click', e => {
+  if (FIGE || tire) return;
+  const t = e.target.closest('.tg[data-t]'), cap = e.target.closest('.cap'), reu = e.target.closest('#reunion');
+  if (!t && !cap && !reu) return;
+  aLaMain();
+  if (cap) st.minu = st.minu === +cap.dataset.min ? 0 : +cap.dataset.min;
+  else if (reu) st.reunion = !st.reunion;
+  else {
+    const k = t.dataset.t;
+    if (k === 'micro') st.micCoupe = !st.micCoupe;
+    else if (k === 'dictee') st.dictee = st.dictee === 'airpods' ? 'mac' : 'airpods';
+    else if (k === 'dl') st.dl = st.dl === 'on' ? 'off' : 'on';
+    else if (k === 'claude') st.claude = st.claude === 'oui' ? 'non' : 'oui';
+  }
+  majCentre();
+});
+window.addEventListener('resize', () => {
+  geo();
+  if (mode === 'libre' && !tire){
+    const g = st.carte ? GRAND[st.pose](OW, OH, 30) : st.ban ? GRAND[st.pose](BAW, BAH, 22) : POSE[st.pose].i();
+    poserS(P, g); poserS(Q, st.carte || st.ban ? absorbe(g) : POSE[st.pose].b());
+    if (st.carte) placer('centre', g.x0 + 22, g.y0 + 14);
+    if (st.ban) placer('ban', g.x0 + 14, g.y0 + 13);
+  } else if (mode === 'encoche' && !st.carte) poserS(Q, POSE.haut.b());
+  placer('batt', -NO + 13, mid(13)); placer('airp', HC + 8, mid(17));
+  rendu();
+});
+
+/* la vidéo avance, le minuteur descend (sauf figé) */
+const video = {pos:202, duree:774};
+function majVideo(){
+  $('#vprog').style.width = (100 * video.pos / video.duree).toFixed(2) + '%';
+  $('#vtps').textContent = fmt(video.pos) + ' / ' + fmt(video.duree);
+}
+majVideo();
+setInterval(() => { if (FIGE) return; video.pos = (video.pos + 1) % video.duree; majVideo(); if (st.reste > 0){ st.reste--; majMinu(); } }, 1000);
+
+/* =========================================================
+   Démarrage
+   ========================================================= */
+if (PARAMS.has('lent')) ralenti(true);
+const e0 = clamp(+(PARAMS.get('etape') || 0), 0, N);
+if (FIGE){ autoCase.checked = false; poser(e0).catch(() => {}); }
+else if (PARAMS.has('joue') && e0 >= 1){ autoCase.checked = false; poser(e0 - 1).then(() => setTimeout(() => jouer(e0).catch(() => {}), 400)); }
+else setTimeout(() => tourner(), 300);
+window.lucarne = {poser, jouer, st, P, Q, V, ralenti};
+</script>
+</body>
+</html>
