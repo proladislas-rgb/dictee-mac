@@ -26,6 +26,8 @@ enum IlotEssai {
         var liensOuverts: [URL] = []
         var finder: [[URL]] = []
         var notes = 0
+        var pressePapiers: [String] = []
+        var fenetres: [Onglet] = []
         func fabriquer() -> IlotControleur {
             // l'étagère aussi dans le dossier temporaire : jamais le vrai etagere.json
             let c = IlotControleur(stockage: RappelsStore(url: fichier), etagere: EtagereStore(url: dossier.appendingPathComponent("etagere.json")))
@@ -37,6 +39,10 @@ enum IlotEssai {
             c.panneau.invisible = true
             c.lireMicros = { [] }
             c.lireDerniereDictee = { nil }   // jamais le vrai historique
+            // la carte Dictées : un historique factice en mémoire (jamais le vrai fichier), un presse-papiers factice, la fenêtre capturée
+            c.moteur.dictees.source = { HistoriqueStore(enMemoire: IlotEssai.dicteesFactices(courtes: true, maintenant: c.maintenant())) }
+            c.copier = { pressePapiers.append($0) }
+            c.surOuvrirFenetre = { fenetres.append($0) }
             c.lecture.essaiInvisible = true
             return c
         }
@@ -340,7 +346,7 @@ enum IlotEssai {
             verifier(!m.boucleActive, "micro coupé, posé : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
             // survol : le micro coupé n'a plus de déplié à lui (son bouton est dans le Centre) : la vidéo en bulle se déplie
             c.panneau.simulerPointeur(forme: true); attendre(0.9)
-            verifier(m.courante == .lectureEtendu && m.cartes == [.lectureEtendu, .centre, .accueil] && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01,
+            verifier(m.courante == .lectureEtendu && m.cartes == [.lectureEtendu, .centre, .dictees, .accueil] && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01,
                      "survol, micro coupé pendant une vidéo : la vidéo se déplie, le Centre est la carte suivante (\(m.courante))")
             // vrai clic sur « Centre » au pied de la lecture, puis sur le bouton Micro, rouge
             let pc = PiedCarte.pointBouton(m.grille)
@@ -959,6 +965,7 @@ enum IlotEssai {
         IlotEssai.centre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.modifierCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.cheminsDuCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)

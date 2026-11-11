@@ -84,7 +84,10 @@ struct EnteteCentre: View {
         // au moins une pastille, même dans une ligne trop courte
         return (tous, debut, max(n, suite.isEmpty ? 0 : 1))
     }
-    /// La place de la ligne d'avis : tout l'en-tête sauf « Modifier » (« Reste ouvert » s'efface devant elle).
+    /// La pilule « Dictées » (les guillemets de 10 pt et 4 pt avant le mot).
+    static var piluleDictees: CGFloat { pilule("Dictées") + MesureIlot.symbole("quote.opening", 10, .bold) + 4 }
+    /// La place de la ligne d'avis : tout l'en-tête sauf « Modifier » (« Reste ouvert » et « Dictées » s'effacent devant elle, le temps
+    /// qu'on la lise : les Dictées restent à un point de page ou un défilement).
     static func placeAvis(largeur: CGFloat) -> CGFloat { largeur - pilule(titreModifier) - 8 }
 
     var body: some View {
@@ -113,6 +116,10 @@ struct EnteteCentre: View {
             if ed {
                 PiluleCentre(titre: Self.titreOK, plein: true, etiquette: "Terminer : enregistrer le Centre") { m.finirEditionCentre() }
             } else {
+                // les Dictées (l'ancien panneau de la barre des menus), la carte qui suit le Centre (maquette)
+                if m.avisCentre == nil {
+                    PiluleCentre(titre: "Dictées", symbole: "quote.opening", etiquette: "Les dictées : chercher, copier, coller") { m.allerA(.dictees) }
+                }
                 PiluleCentre(titre: Self.titreModifier, etiquette: "Modifier le Centre : ajouter, retirer, ranger les boutons") { m.commencerEditionCentre() }
             }
         }

@@ -127,6 +127,9 @@ struct ReglagesVue: View {
             LigneReglage(libelle: "Calendrier", note: r.phraseCalendrier) {
                 Interrupteur(actif: $r.ilotCalendrier, etiquette: "Calendrier")
             }
+            LigneReglage(libelle: "Icône dans la barre des menus", note: "Éteinte, tout se fait depuis l\u{2019}îlot : survole l\u{2019}encoche, puis « Centre » ou « Dictées ». Rouvre Verbe depuis le Finder ou Spotlight pour cette fenêtre. Sans encoche (écran externe), l\u{2019}icône reste toujours.") {
+                Interrupteur(actif: $r.iconeBarre, etiquette: "Icône dans la barre des menus")
+            }
             LigneReglage(libelle: "Notifications (expérimental)", note: "Montre dans l\u{2019}encoche les notifications des autres apps, en lisant le Centre de notifications avec l\u{2019}Accessibilité déjà accordée. Peut cesser de marcher avec une mise à jour de macOS.") {
                 Interrupteur(actif: $r.ilotNotifications, etiquette: "Notifications")
             }

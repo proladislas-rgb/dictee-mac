@@ -82,6 +82,11 @@ enum ActionIlot {
     case centreReunion, centreAvis
     /// Un minuteur lancé depuis le Centre : ni bandeau ni fermeture (on enchaîne d'autres réglages), il part dans la case Minuteur.
     case minuteurLancerDansLeCentre(minutes: Double)
+    /// La carte Dictées (DicteesIlot.swift) : copier une dictée (un clic sur sa ligne), la coller dans l'app d'où l'on vient (« Coller »),
+    /// ouvrir la fenêtre principale sur un onglet (le pied de la carte), donner ou rendre le clavier au champ « Rechercher ».
+    case dicteeCopier(UUID), dicteeColler(UUID)
+    case ouvrirFenetre(Onglet)
+    case dicteesClavier(Bool)
 }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
@@ -256,6 +261,8 @@ final class IlotMoteur: ObservableObject {
     private var avisVu = false
     private var finBulle: DispatchWorkItem?
     private var defilement = DefilementIlot()
+    /// La carte Dictées : sa recherche, sa liste (lue dans l'historique), ce qu'on y survole, déplie, copie.
+    let dictees = DicteesIlot()
 
     // MARK: masques (dictée, réunion, autres annonces : l'îlot s'efface)
     var dictee = false
@@ -317,6 +324,9 @@ final class IlotMoteur: ObservableObject {
         self.lecture = lecture
         geo = GeoIlot.valeurs(.repos, hauteurBarre: 32).map { RessortIlot($0, reponse: 0.45, amortissement: 1) }
         cadence.tic = { [weak self] in self?.pas() }
+        dictees.agir = { [weak self] a in self?.surAction(a) }
+        dictees.surChangement = { [weak self] in self?.donneesChangees() }
+        dictees.maintenant = { [weak self] in self?.maintenant() ?? Date() }
     }
 
     // MARK: arbitrage
@@ -347,6 +357,9 @@ final class IlotMoteur: ObservableObject {
                 afficher(.repos)
                 majPastille()
             }
+            // une dictée (ou une réunion) commence pendant une recherche dans les Dictées : le clavier retourne à l'app AVANT que le
+            // texte dicté n'y soit écrit (sinon il irait dans le champ de l'îlot)
+            if dictees.rechercheActive { dictees.rechercheActive = false; surAction(.dicteesClavier(false)) }
             majExtras()
             surFenetre(); demarrerBoucle()
             return
@@ -373,6 +386,10 @@ final class IlotMoteur: ObservableObject {
         afficher(voulu)
         // le Centre s'est rangé (clic ailleurs, alerte, autre carte) : « Modifier » se termine et enregistre ; la ligne d'avis s'en va
         if editionCentre, courante != .centre { finirEditionCentre() }
+        // la carte Dictées quittée (autre carte, îlot rangé, dictée qui commence) : le champ rend le clavier tout de suite ; l'îlot rangé,
+        // la recherche repart de zéro à la prochaine ouverture
+        if dictees.rechercheActive, cache || courante != .dictees || !fenetreOuverte { dictees.rechercheActive = false; surAction(.dicteesClavier(false)) }
+        if !fenetreOuverte, courante != .dictees, !dictees.requete.isEmpty || dictees.deplie != nil || dictees.decalage != 0 { dictees.reinitialiser() }
         // la ligne d'avis reste jusqu'à ce qu'on l'ait vue : posée Centre fermé (macOS a répondu après coup), elle attend la prochaine
         // ouverture ; vue, elle part quand le Centre se range
         if avisCentre != nil { if courante == .centre { avisVu = true } else if avisVu, !fenetreOuverte { avisCentre = nil } }
@@ -416,6 +433,10 @@ final class IlotMoteur: ObservableObject {
         // le Centre suit ce qu'il montre (« Modifier ») : ronds, cases et bande de la réunion, la hauteur de la table
         let p = DispositionCentre.plan(ronds: !rondsCentre.isEmpty, cases: !disposition.cases.isEmpty, bande: disposition.bande).profondeur
         if p != GeoIlot.profondeurCentre { d[.centre] = CGFloat(p - GeoIlot.profondeurCentre) }
+        // les Dictées épousent leur liste (« Aucun résultat », trois lignes, une ligne dépliée…), jusqu'à 200 pt ; elle défile au-delà
+        dictees.largeurTexte = PlanDictees.largeurTexte(demiCamera: demiCamera)
+        let pd = CarteDictees.profondeur(liste: dictees.miseEnPage().hauteur)
+        if pd != GeoIlot.profondeurDictees { d[.dictees] = CGFloat(pd - GeoIlot.profondeurDictees) }
         return d
     }
 
@@ -453,7 +474,7 @@ final class IlotMoteur: ObservableObject {
         // un écran fait de plusieurs couches (la lecture + sa rangée) : seules les couches qui changent partent ou arrivent
         if avant != v { for c in Self.couches(avant) where !Self.couches(v).contains(c) { sortir(&apparitions[c], glisse: glisse) } }
         for c in Self.couches(v) { entrer(&apparitions[c], delai: delaiContenu, glisse: glisse) }
-        if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere || v == .centre { surDepliage() }
+        if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere || v == .centre || v == .dictees { surDepliage() }
     }
 
     /// Les couches de contenu d'un écran : la rangée Minuteur se pose sous la lecture dépliée, qui ne s'efface pas pour autant.
@@ -588,7 +609,7 @@ final class IlotMoteur: ObservableObject {
         afficherMaintenant(alerte: a, bandeau: b)
     }
     /// Le Centre est épinglé (ou sa carte Étagère, ouverte depuis lui) : les bandeaux attendent qu'il se range.
-    var centreRetientLesBandeaux: Bool { !cache && epingle && (courante == .centre || courante == .etagere) }
+    var centreRetientLesBandeaux: Bool { !cache && epingle && (courante == .centre || courante == .etagere || courante == .dictees) }
     /// Des bandeaux attendent que le Centre se range (et non la fin d'une dictée, que le contrôleur guette lui-même).
     private var attenteDuCentre = false
     private func afficherMaintenant(alerte a: AlerteIlot?, bandeau b: BandeauIlot?) {
@@ -893,13 +914,14 @@ final class IlotMoteur: ObservableObject {
         guard !cache, !resolution.verrou, cartes.contains(carte) else { return }
         intention?.cancel(); fermeture?.cancel()
         // depuis le déplié d'une activité vers le Centre : l'aide « Fais défiler ou clique ici » a servi
-        if carte == .centre, let c = carteCourante, c == cartes.first, aideCentre { aideCentre = false; surCentreUtilise() }
+        if carte == .centre || carte == .dictees, let c = carteCourante, c == cartes.first, aideCentre { aideCentre = false; surCentreUtilise() }
         // la première carte d'une activité est son déplié (pas de sous-vue) ; le Centre et l'accueil sont gardés tels quels, même si une
         // activité commence pendant qu'ils sont ouverts
         let plusCourte = cible(carte)[2] < geo[2].cibleFinale - 0.5
         sousVue = carte == cartes.first && carte != .centre ? nil : carte
         survole = true
-        if plusCourte { epingle = true }
+        // les Dictées restent ouvertes, comme le Centre après un clic (maquette, étape 10) : on y cherche, on y copie
+        if plusCourte || carte == .dictees { epingle = true }
         donneesChangees(); surDepliageMoniteur()
     }
     /// Une carte plus bas (+1) ou plus haut (−1). Depuis la carte Étagère (ouverte depuis le Centre), on revient au Centre.
@@ -910,9 +932,14 @@ final class IlotMoteur: ObservableObject {
         guard let c = carteCourante, let v = CartesIlot.voisine(cartes, de: c, pas: pas) else { return }
         allerA(v)
     }
-    /// Un événement de défilement (molette, deux doigts) sur l'îlot ouvert : un geste = une carte, l'inertie ignorée.
-    func recevoirDefilement(dy: Double, dx: Double, phase: DefilementIlot.Phase, inertie: Bool, t: Double = ProcessInfo.processInfo.systemUptime) {
+    /// Un événement de défilement (molette, deux doigts) sur l'îlot ouvert : un geste = une carte, l'inertie ignorée. Sur la liste des
+    /// Dictées qui dépasse sa place (`en` : le pointeur), c'est la liste qui défile, inertie comprise.
+    func recevoirDefilement(dy: Double, dx: Double, phase: DefilementIlot.Phase, inertie: Bool, en p: CGPoint? = nil, t: Double = ProcessInfo.processInfo.systemUptime) {
         guard fenetreOuverte, !cache else { return }
+        if courante == .dictees, let p, PlanDictees.cadreListe(grille).contains(p), dictees.defile {
+            if abs(dy) >= abs(dx) { dictees.defiler(dy) }
+            return
+        }
         if let pas = defilement.recevoir(dy: dy, dx: dx, phase: phase, inertie: inertie, t: t) { defiler(pas) }
     }
     /// Un clic sur un bouton du Centre : l'îlot reste ouvert (« Reste ouvert ») pour enchaîner d'autres réglages ; il se range au clic
@@ -934,7 +961,7 @@ final class IlotMoteur: ObservableObject {
         // le bouton « Centre » au pied de tout déplié d'activité (la vidéo, le minuteur, Claude, un rendez-vous) : le chemin se voit
         let pied = CartesIlot.aUnPied(courante, pile: pile)
         if pied { carteDuPied = courante }
-        let points = [.lectureEtendu, .centre, .accueil].contains(courante) && pile.count > 1 && fenetreOuverte
+        let points = [.lectureEtendu, .centre, .dictees, .accueil].contains(courante) && pile.count > 1 && fenetreOuverte
         let bulle = bulleSous(courante)
         for (e, voulu) in [(ExtraIlot.pied, pied), (.points, points), (.bulle, bulle)] {
             if voulu { entrer(&apparitionsExtra[e], delai: e == .bulle ? 0.2 : 0.14) } else { sortir(&apparitionsExtra[e]) }

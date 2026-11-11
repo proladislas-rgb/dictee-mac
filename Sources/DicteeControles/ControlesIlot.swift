@@ -893,16 +893,17 @@ func controlesEtagere(_ t0: Date) {
 /// Le Centre (maquette design/maquettes/ilot-centre.html) : la pile des cartes, le défilement (un geste = une carte), la géométrie.
 func controlesCentre() {
     groupe("Îlot : le Centre, les cartes")
-    verifier(CartesIlot.pile(survol: .centre) == [.centre, .accueil], "rien ne joue : le Centre d'abord, l'accueil dessous")
-    verifier(CartesIlot.pile(survol: .lectureEtendu) == [.lectureEtendu, .centre, .accueil], "une vidéo : la lecture, le Centre, l'accueil")
-    verifier(CartesIlot.pile(survol: .lectureMinuteur) == [.lectureEtendu, .centre, .accueil], "la rangée Minuteur compte comme la lecture")
-    verifier(CartesIlot.pile(survol: .minuteurEtendu) == [.minuteurEtendu, .centre, .accueil] && CartesIlot.pile(survol: .microEtendu).first == .microEtendu,
+    verifier(CartesIlot.pile(survol: .centre) == [.centre, .dictees, .accueil], "rien ne joue : le Centre d'abord, les Dictées, l'accueil dessous")
+    verifier(CartesIlot.pile(survol: .lectureEtendu) == [.lectureEtendu, .centre, .dictees, .accueil], "une vidéo : la lecture, le Centre, les Dictées, l'accueil (maquette : vidéo, Centre, Dictées)")
+    verifier(CartesIlot.pile(survol: .lectureMinuteur) == [.lectureEtendu, .centre, .dictees, .accueil], "la rangée Minuteur compte comme la lecture")
+    verifier(CartesIlot.pile(survol: .minuteurEtendu) == [.minuteurEtendu, .centre, .dictees, .accueil] && CartesIlot.pile(survol: .microEtendu).first == .microEtendu,
              "un minuteur, le micro coupé : leur déplié, puis le Centre")
     verifier(CartesIlot.pile(survol: nil).isEmpty, "verrouillé (alerte, bandeau) : aucune carte")
     let p = CartesIlot.pile(survol: .lectureEtendu)
-    verifier(CartesIlot.voisine(p, de: .lectureEtendu, pas: 1) == .centre && CartesIlot.voisine(p, de: .centre, pas: 1) == .accueil
+    verifier(CartesIlot.voisine(p, de: .lectureEtendu, pas: 1) == .centre && CartesIlot.voisine(p, de: .centre, pas: 1) == .dictees
+             && CartesIlot.voisine(p, de: .dictees, pas: 1) == .accueil && CartesIlot.voisine(p, de: .dictees, pas: -1) == .centre
              && CartesIlot.voisine(p, de: .centre, pas: -1) == .lectureEtendu && CartesIlot.voisine(p, de: .lectureMinuteur, pas: 1) == .centre,
-             "carte suivante, précédente (depuis la rangée Minuteur aussi)")
+             "carte suivante, précédente (le Centre → les Dictées → l'accueil ; depuis la rangée Minuteur aussi)")
     verifier(CartesIlot.voisine(p, de: .accueil, pas: 1) == nil && CartesIlot.voisine(p, de: .lectureEtendu, pas: -1) == nil && CartesIlot.voisine(p, de: .etagere, pas: 1) == nil,
              "au bout de la pile : rien (on ne boucle pas) ; hors de la pile : rien")
     verifier(ArbitrageIlot.resoudre(EtatIlot()).survol == .centre, "l'îlot vide s'ouvre sur le Centre")
@@ -912,8 +913,9 @@ func controlesCentre() {
     // le bouton « Centre » au pied de TOUT déplié d'activité (relecture : il n'existait que sous la lecture)
     for v in [VueIlot.lectureEtendu, .minuteurEtendu, .claudeEtendu, .agendaEtendu, .rappelEtendu] {
         let pile = CartesIlot.pile(survol: v)
-        verifier(CartesIlot.aUnPied(v, pile: pile) && !CartesIlot.aUnPied(.centre, pile: pile) && !CartesIlot.aUnPied(.accueil, pile: pile),
-                 "\(v.rawValue) : le bouton « Centre » à son pied (pas sur le Centre ni sur l'accueil)")
+        verifier(CartesIlot.aUnPied(v, pile: pile) && !CartesIlot.aUnPied(.centre, pile: pile) && !CartesIlot.aUnPied(.accueil, pile: pile)
+                 && !CartesIlot.aUnPied(.dictees, pile: pile),
+                 "\(v.rawValue) : les boutons « Centre » et « Dictées » à son pied (pas sur le Centre, les Dictées ni l'accueil)")
         verifier(CartesIlot.piedEnPlus(v, pile: pile) == (v == .lectureEtendu ? 0 : GeoIlot.piedLecture),
                  "\(v.rawValue) : le pied ajoute \(Int(CartesIlot.piedEnPlus(v, pile: pile))) pt (la lecture l'a déjà dans sa géométrie)")
         for barre in [32.0, 37.0] {
@@ -968,6 +970,48 @@ func controlesCentre() {
     verifier(GeoIlot.aEpaules(.centre) && !VueIlot.centre.estBandeau && !GeoIlot.ajusteAuContenu(.centre), "Centre : un écran déplié, avec les épaules (batterie, AirPods)")
     verifier(GeoIlot.profondeur(.centre) == 298, "Centre : 14 + 26 + 12 + 96 + 10 + 76 + 10 + 40 + 14 = 298 pt sous la barre (maquette : 331 − 33)")
     controlesDispositionCentre()
+    controlesDictees()
+}
+
+/// La carte Dictées (maquette ilot-centre.html, étapes 10 à 12) : sa géométrie (elle épouse sa liste), le défilement de la liste, les mots
+/// surlignés, l'icône de la barre des menus.
+func controlesDictees() {
+    groupe("Îlot : les Dictées, la géométrie")
+    verifier(CarteDictees.profondeurMax == 298 && GeoIlot.profondeur(.dictees) == 298, "Dictées au plus haut : 14 + 30 + 6 + 200 + 34 + 14 = 298 pt sous la barre (maquette : 331 − 33)")
+    verifier(GeoIlot.aEpaules(.dictees) && !VueIlot.dictees.estBandeau && !GeoIlot.ajusteAuContenu(.dictees), "Dictées : un écran déplié, avec les épaules")
+    for (barre, demi) in [(32.0, 100.0), (33.0, 89.5), (37.0, 92.0)] {
+        let c = GeoIlot.valeurs(.dictees, hauteurBarre: barre, demiCamera: demi, epaules: true)
+        let t = TraceIlot.calculer(c, demiCamera: demi, barre: barre)
+        verifier(t.bande <= demi + GeoIlot.aileMax + 0.001, "Dictées (caméra \(Int(2 * demi)), barre \(Int(barre))) : \(String(format: "%.0f", t.bande - demi)) pt dans la barre de chaque côté (≤ 66)")
+        verifier(c[1] == GeoIlot.valeurs(.centre, hauteurBarre: barre, demiCamera: demi)[1], "Dictées : la largeur du Centre (on passe de l'un à l'autre sans que la forme s'élargisse)")
+        verifier(c[2] + 30 <= 380, "Dictées au plus haut : \(Int(c[2])) pt + 30 d'ombre, dans la zone de dessin (380)")
+    }
+    // la carte épouse sa liste : « Aucun résultat » (~172 pt avec la barre de 33), deux jours de trois lignes, au-delà elle défile
+    let rien = CarteDictees.profondeur(liste: CarteDictees.hauteurListe(lignesParJour: []))
+    verifier(abs(rien + 33 - 172) <= 8, "Dictées, « Aucun résultat » : \(Int(rien + 33)) pt de haut avec une barre de 33 (maquette : ~172)")
+    let deux = CarteDictees.hauteurListe(lignesParJour: [1, 1])
+    verifier(deux == 2 * 20 + 2 * 32, "« devis » : deux jours d'une ligne = \(Int(deux)) pt de liste")
+    let six = CarteDictees.hauteurListe(lignesParJour: [4, 2])
+    verifier(six == 2 * 20 + 6 * 32 && CarteDictees.profondeur(liste: six) == 298, "six dictées sur deux jours (\(Int(six)) pt) : la carte à son plus haut, la liste défile (\(Int(six - 200)) pt cachés)")
+    verifier(CarteDictees.hauteurListe(lignesParJour: [1], deplie: 31) == 20 + 32 + 31, "une ligne dépliée ajoute sa hauteur")
+    verifier(CarteDictees.ligneDepliee(lignesDeTexte: 1) == 34 && CarteDictees.ligneDepliee(lignesDeTexte: 3) == 76, "ligne dépliée : 6 + 21 par ligne de texte + 7")
+    verifier(CarteDictees.borner(-20, liste: six) == 0 && CarteDictees.borner(500, liste: six) == six - 200 && CarteDictees.borner(30, liste: six) == 30
+             && CarteDictees.borner(30, liste: 150) == 0, "défilement borné : ni au-dessus du haut, ni plus bas que la fin ; une liste courte ne défile pas")
+
+    groupe("Îlot : les Dictées, les mots surlignés")
+    verifier(Surlignage.plages("OK pour le devis de la cuisine", requete: "devis") == [11 ..< 16], "« devis » : le mot, à sa place")
+    verifier(Surlignage.plages("Le DÉVIS signé", requete: "devis") == [3 ..< 8], "sans accents ni majuscules : « DÉVIS » trouvé par « devis »")
+    verifier(Surlignage.plages("Café crème", requete: "cafe creme") == [0 ..< 4, 5 ..< 10], "plusieurs mots : chacun surligné")
+    verifier(Surlignage.plages("devis, devis", requete: "devis") == [0 ..< 5, 7 ..< 12], "chaque occurrence")
+    verifier(Surlignage.plages("l\u{2019}équipe", requete: "l'equipe") == [0 ..< 8], "l'apostrophe typographique trouvée par l'apostrophe droite")
+    verifier(Surlignage.plages("Rien à voir", requete: "devis").isEmpty && Surlignage.plages("Texte", requete: "  ").isEmpty, "pas trouvé, ou recherche vide : rien")
+    verifier(Surlignage.plages("Œuvre 🎉 devis", requete: "devis") == [8 ..< 13], "les positions comptent des caractères (emoji compris)")
+
+    groupe("Îlot : l'icône de la barre des menus")
+    verifier(!PresenceIcone.montree(reglage: nil, encoche: true), "Mac à encoche, jamais réglée : pas d'icône (tout est dans l'îlot)")
+    verifier(PresenceIcone.montree(reglage: true, encoche: true) && !PresenceIcone.montree(reglage: false, encoche: true), "Mac à encoche : le réglage décide")
+    verifier(PresenceIcone.montree(reglage: nil, encoche: false) && PresenceIcone.montree(reglage: false, encoche: false),
+             "sans encoche (écran externe principal) : l'icône toujours là, même éteinte dans les réglages (l'îlot vide n'existe pas)")
 }
 
 /// « Modifier » le Centre : ce qu'il montre, dans quel ordre, ce qui est rangé dans les réglages, et la place que ça prend.

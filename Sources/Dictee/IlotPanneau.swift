@@ -12,6 +12,8 @@ final class VueHebergeeIlot<Contenu: View>: NSHostingView<Contenu> {
         if let surDefilement { surDefilement(event) } else { super.scrollWheel(with: event) }
     }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    /// Un événement en points depuis le centre de l'encoche et le haut de l'écran (nil : sans fenêtre, il faut le placer autrement).
+    func point(_ e: NSEvent) -> CGPoint? { e.window === window ? position(e) : nil }
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         for a in trackingAreas { removeTrackingArea(a) }
@@ -28,13 +30,29 @@ final class VueHebergeeIlot<Contenu: View>: NSHostingView<Contenu> {
     private func fleche() { CurseurEnArrierePlan.autoriser(); NSCursor.arrow.set() }
 }
 
-/// La fenêtre de l'îlot : un panneau sans bord, transparent, au-dessus de la barre des menus, qui ne prend JAMAIS le focus (l'app au premier
-/// plan garde le clavier) et reste visible par-dessus les apps en plein écran. Elle n'épouse que la forme voulue (et la pastille) : au repos
+/// La fenêtre de l'îlot. Elle ne devient la fenêtre clé (celle qui reçoit le clavier) que si on le lui permet (`clavier`) : le temps de
+/// taper dans le champ « Rechercher » des Dictées. Panneau « non activant » : même alors, l'app au premier plan le reste (son menu, sa
+/// fenêtre), comme l'ancien panneau de la barre des menus (PanneauClavier) ; Verbe ne passe jamais devant.
+final class PanneauIlot: NSPanel {
+    var clavier = false
+    /// La fenêtre a perdu le clavier d'elle-même (un clic dans une autre app, une autre fenêtre de Verbe).
+    var surPerteDuClavier: () -> Void = {}
+    override var canBecomeKey: Bool { clavier }
+    override var canBecomeMain: Bool { false }
+    // Ne jamais repousser la fenêtre sous la barre des menus.
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
+    override func resignKey() { super.resignKey(); surPerteDuClavier() }
+    // Échap est traité par le champ (il efface la recherche, puis rend le clavier)
+    override func cancelOperation(_ sender: Any?) {}
+}
+
+/// La fenêtre de l'îlot : un panneau sans bord, transparent, au-dessus de la barre des menus, qui ne prend pas le focus (l'app au premier
+/// plan garde le clavier, sauf pendant qu'on tape une recherche dans les Dictées) et reste visible par-dessus les apps en plein écran. Elle n'épouse que la forme voulue (et la pastille) : au repos
 /// à peine plus que les ailes, pour ne jamais prendre un clic aux icônes voisines ; elle grandit seulement quand l'îlot se déplie.
 @MainActor
 final class IlotPanneau {
     let moteur: IlotMoteur
-    private var fenetre: PanneauSansFocus?
+    private var fenetre: PanneauIlot?
     private var vue: VueHebergeeIlot<IlotVue>?
     private var conteneur: NSView?
     private var centre: CGFloat = 0
@@ -101,7 +119,8 @@ final class IlotPanneau {
     private var encocheReelle: Bool { ecran.map { $0.safeAreaInsets.top > 0 } ?? false }
 
     private func creerFenetre() {
-        let f = PanneauSansFocus(contentRect: NSRect(x: 0, y: 0, width: 10, height: 10), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        let f = PanneauIlot(contentRect: NSRect(x: 0, y: 0, width: 10, height: 10), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        f.surPerteDuClavier = { [weak self] in self?.clavierPerdu() }
         f.isOpaque = false
         f.backgroundColor = .clear
         f.hasShadow = false
@@ -213,8 +232,76 @@ final class IlotPanneau {
         // une molette (crans) donne des valeurs en lignes : on les compte comme un cran chacune
         let dy = Double(e.hasPreciseScrollingDeltas ? e.scrollingDeltaY : e.scrollingDeltaY * 10)
         let dx = Double(e.hasPreciseScrollingDeltas ? e.scrollingDeltaX : e.scrollingDeltaX * 10)
-        moteur.recevoirDefilement(dy: dy, dx: dx, phase: phase, inertie: e.momentumPhase != [])
+        // où est le pointeur (la liste des Dictées défile sous lui) ; un événement sans fenêtre (essais) est placé depuis l'écran
+        let p = vue?.point(e) ?? pointEcran(e.locationInWindow)
+        moteur.recevoirDefilement(dy: dy, dx: dx, phase: phase, inertie: e.momentumPhase != [], en: p)
     }
+
+    // MARK: clavier (le champ « Rechercher » des Dictées)
+
+    /// Le champ « Rechercher » a le clavier. En essai (fenêtre invisible), jamais : le clavier de l'utilisateur ne doit pas changer.
+    private(set) var clavierPris = false
+    /// L'app au premier plan quand on a pris le clavier (elle le retrouve).
+    private var appDuClavier: NSRunningApplication?
+
+    /// Un clic dans le champ : la fenêtre de l'îlot devient la fenêtre clé, sans activer Verbe (panneau non activant : l'app au premier
+    /// plan le reste). Elle ne l'est que le temps de taper.
+    func prendreLeClavier() {
+        guard !clavierPris else { return }
+        clavierPris = true
+        guard let f = fenetre, !invisible else { return }
+        appDuClavier = NSWorkspace.shared.frontmostApplication.flatMap { $0.bundleIdentifier == Bundle.main.bundleIdentifier ? nil : $0 }
+        f.clavier = true
+        f.makeKey()
+        Log.ecrire("îlot : le champ des dictées prend le clavier")
+    }
+    /// La carte quittée, l'îlot rangé, Échap, une dictée qui commence : le clavier retourne à l'app d'où l'on vient. La fenêtre cesse
+    /// d'être la fenêtre clé (retirée puis remise aussitôt, dans le même passage : rien ne clignote) ; si le premier plan a changé
+    /// entre-temps, l'app d'avant est réactivée.
+    func rendreLeClavier() {
+        guard clavierPris else { return }
+        clavierPris = false
+        guard let f = fenetre, !invisible else { return }
+        f.clavier = false
+        if f.isKeyWindow {
+            f.makeFirstResponder(nil)
+            let visible = f.isVisible
+            f.orderOut(nil)
+            if visible { f.orderFrontRegardless() }
+        }
+        if let app = appDuClavier, !app.isTerminated, NSWorkspace.shared.frontmostApplication?.processIdentifier != app.processIdentifier { app.activate() }
+        appDuClavier = nil
+        Log.ecrire("îlot : le clavier est rendu")
+    }
+    /// La fenêtre a perdu le clavier d'elle-même (clic dans une autre app) : le champ redevient un dessin.
+    private func clavierPerdu() {
+        guard clavierPris, let f = fenetre, f.clavier else { return }
+        f.clavier = false; clavierPris = false; appDuClavier = nil
+        if moteur.dictees.rechercheActive { moteur.dictees.rechercheActive = false }
+    }
+    /// Essais : la fenêtre de l'îlot est-elle la fenêtre clé ? (Toujours faux en essai : on ne la rend jamais clé.)
+    var estCle: Bool { fenetre?.isKeyWindow ?? false }
+    /// Essais : une vraie touche remise à la fenêtre (elle va au champ s'il est le premier répondant), rien n'est envoyé au système.
+    func envoyerTouches(_ texte: String) {
+        guard let f = fenetre else { return }
+        for ch in texte {
+            let s = String(ch)
+            for type in [NSEvent.EventType.keyDown, .keyUp] {
+                guard let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                               windowNumber: f.windowNumber, context: nil, characters: s, charactersIgnoringModifiers: s, isARepeat: false, keyCode: 0) else { continue }
+                f.sendEvent(e)
+            }
+        }
+    }
+    /// Essais : une touche particulière (Échap : code 53), remise à la fenêtre comme les autres.
+    func envoyerTouche(code: UInt16, caractere: String) {
+        guard let f = fenetre, let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                        windowNumber: f.windowNumber, context: nil, characters: caractere, charactersIgnoringModifiers: caractere,
+                                                        isARepeat: false, keyCode: code) else { return }
+        f.sendEvent(e)
+    }
+    /// Essais : le premier répondant de la fenêtre est-il le champ de texte (son éditeur) ?
+    var champAuPremierPlan: Bool { (fenetre?.firstResponder as? NSTextView)?.isFieldEditor ?? false }
 
     /// Pour les essais : un VRAI événement de défilement (CGEvent → NSEvent) remis à la fenêtre, au point `p`. `phase` : 1 début,
     /// 2 suite, 4 fin, 0 molette ; `inertie` : 1 début, 2 suite, 3 fin (0 : aucune). Rien n'est envoyé au système.

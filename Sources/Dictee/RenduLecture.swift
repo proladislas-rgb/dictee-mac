@@ -180,12 +180,16 @@ enum RenduLecture {
         let t0 = cal.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: 14, minute: 32))!
         let rdv = EvenementAgenda(id: "r", titre: "Point équipe", debut: t0.addingTimeInterval(600), fin: t0.addingTimeInterval(2580), lieu: nil, lien: URL(string: "https://meet.exemple.fr/pt-eq-93"))
         let rappelExemple = Rappel(texte: "Appeler Paul", echeance: t0, sonneLe: t0, cree: t0.addingTimeInterval(-3600))
+        // les dictées de la maquette (14:43, 14:12…), datées d'aujourd'hui pour un « maintenant » à 14:32 (le rendu ne les compare qu'au jour)
+        let dicteesRendu = IlotEssai.dicteesFactices(maintenant: t0.addingTimeInterval(40 * 60))
         func scene(lecture: LectureModele? = nil, geo: GeometrieEncoche? = nil, poser: Bool = true, _ config: (IlotMoteur) -> Void) -> IlotMoteur {
             let gg = geo ?? geometrie
             let lec = lecture ?? modele(contenus[2])
             lec.geometrie = gg
             let m = IlotMoteur(lecture: lec)
             m.geometrie = gg; m.statique = true; m.maintenant = { t0 }; m.calendrierActif = true
+            // la carte Dictées : un historique factice en mémoire (jamais le vrai : ces images sont dans un dépôt public)
+            m.dictees.source = { HistoriqueStore(enMemoire: dicteesRendu) }
             config(m)
             m.donneesChangees()
             if poser { m.poser() }
@@ -388,6 +392,22 @@ enum RenduLecture {
             m.ecouteurs = airpodsPro; m.aideCentre = true; m.donneesChangees(); m.survole = true; m.donneesChangees() }) }, "ilot-23q-centre-chemin-depuis-le-minuteur")
         ecrire(bureau(hauteur: piedBureau, clair: false) { ilot(scene { m in m.microCoupe = true; m.nomMicro = "Micro MacBook Air"; m.claude = claude()
             m.donneesChangees(); m.survole = true; m.donneesChangees() }) }, "ilot-23r-centre-chemin-depuis-claude-micro-coupe")
+        // les Dictées (maquette ilot-centre.html, étapes 2, 10, 11, 12) : « Centre » et « Dictées » au pied de la vidéo, la carte, la
+        // recherche « devis » (champ actif, mots surlignés), « Copié » et « Coller » au survol, une ligne dépliée, la liste défilée,
+        // « Aucun résultat », le fond sombre de Hugues
+        func carteDictees(_ config: @escaping (IlotMoteur) -> Void = { _ in }) -> (IlotMoteur) -> Void {
+            centre { m in m.allerA(.dictees); config(m); m.donneesChangees() }
+        }
+        let d1 = dicteesRendu[0].id, d2 = dicteesRendu[1].id
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false)
+            m.ecouteurs = airpodsPro; m.aideCentre = true; m.donneesChangees(); m.survole = true; m.donneesChangees() }) }, "ilot-24a-dictees-2-pied-centre-et-dictees")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees())) }, "ilot-24b-dictees-10-la-carte")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees { m in m.dictees.requete = "devis"; m.dictees.rechercheActive = true })) }, "ilot-24c-dictees-11-chercher-devis")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees { m in m.dictees.requete = "devis"; m.dictees.survol = d1; m.dictees.marquerCopiee(d1) })) }, "ilot-24d-dictees-12-copie-et-coller")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees { m in m.dictees.deplie = d1 })) }, "ilot-24e-dictees-ligne-depliee")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees { m in m.dictees.survol = d2; m.dictees.decalage = 70 })) }, "ilot-24f-dictees-liste-defilee-survol")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees { m in m.dictees.requete = "facture plombier" })) }, "ilot-24g-dictees-aucun-resultat")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene { m in m.etagereActive = true; m.survole = true; m.donneesChangees(); m.allerA(.dictees) }) }, "ilot-24h-dictees-ilot-vide-sombre")
         // « Modifier » (maquette, étape 9) : le Centre avec Rappel ajouté (cinq ronds) ; « Modifier » lui-même (inclinaison figée : dans
         // l'app, ils tremblent), « Ajouter : + Rappel + Dernière dictée », puis Rappel ajouté ; « Modifier » quand les ajouts ne tiennent
         // pas tous (« +3 › ») ; enfin les autorisations (« Un instant… », accès refusé et sa ligne d'avis)

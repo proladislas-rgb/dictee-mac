@@ -8,14 +8,22 @@ final class HistoriqueStore: ObservableObject {
     static let shared = HistoriqueStore()
 
     @Published private(set) var historique = Historique()
-    private let url: URL
+    /// nil : un historique en mémoire seulement (essais, rendus), jamais écrit sur le disque.
+    private let url: URL?
     private let file = DispatchQueue(label: "dictee.historique")
 
+    /// Un historique factice, en mémoire : rien n'est lu ni écrit sur le disque (essais et rendus de l'îlot).
+    init(enMemoire entrees: [EntreeHistorique]) {
+        url = nil
+        historique = Historique(entrees: entrees)
+    }
+
     init(url: URL? = nil) {
-        self.url = url ?? Self.urlParDefaut
-        if let donnees = try? Data(contentsOf: self.url) {
+        let u = url ?? Self.urlParDefaut
+        self.url = u
+        if let donnees = try? Data(contentsOf: u) {
             if let lu = Historique.depuis(donnees) { historique = lu }
-            else { Log.ecrire("historique : fichier illisible, on repart d'un historique vide (l'ancien est gardé en .abime)"); try? FileManager.default.moveItem(at: self.url, to: self.url.appendingPathExtension("abime")) }
+            else { Log.ecrire("historique : fichier illisible, on repart d'un historique vide (l'ancien est gardé en .abime)"); try? FileManager.default.moveItem(at: u, to: u.appendingPathExtension("abime")) }
         }
     }
 
@@ -35,8 +43,7 @@ final class HistoriqueStore: ObservableObject {
     func effacer() { historique.effacer(); enregistrer(); Log.ecrire("historique effacé") }
 
     private func enregistrer() {
-        guard let donnees = historique.donnees() else { return }
-        let url = url
+        guard let url, let donnees = historique.donnees() else { return }
         file.async {
             do {
                 try donnees.write(to: url, options: .atomic)

@@ -78,6 +78,13 @@ final class IlotControleur {
     }
     /// Lance la prise de notes d'une réunion (rempli par l'AppDelegate).
     var surNoter: (EvenementAgenda?) -> Void = { _ in }
+    /// Ouvre la fenêtre principale sur un onglet (le pied de la carte Dictées ; rempli par l'AppDelegate).
+    var surOuvrirFenetre: (Onglet) -> Void = { _ in }
+    /// Met un texte dans le presse-papiers (un clic sur une dictée ; injectable : les essais ne touchent jamais le vrai presse-papiers).
+    var copier: (String) -> Void = { texte in
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(texte, forType: .string)
+    }
     /// Ouvre un lien ou un fichier (injectable pour les essais : jamais d'ouverture réelle).
     var ouvrir: (URL) -> Void = { NSWorkspace.shared.open($0) }
     /// Montre des fichiers dans le Finder (injectable, comme `ouvrir`).
@@ -498,6 +505,32 @@ final class IlotControleur {
             NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
         case .collerLaDerniereDictee:
             if let d = lireDerniereDictee()?.texte, !d.isEmpty { moteur.fermer(); surColler(d) }
+        case .dicteeCopier(let id):
+            // un clic sur la ligne : le texte dans le presse-papiers, « Copié » dans la ligne ; les Dictées restent ouvertes
+            guard let e = moteur.dictees.entree(id) else { return }
+            copier(e.texte)
+            moteur.dictees.marquerCopiee(id)
+            Log.ecrire("îlot : dictée copiée (\(e.texte.count) caractères)")
+        case .dicteeColler(let id):
+            // « Coller » : comme « Dernière dictée » de l'accueil, dans l'app d'où l'on vient (l'îlot se range, le clavier est rendu)
+            guard let e = moteur.dictees.entree(id), !e.texte.isEmpty else { return }
+            moteur.fermer()
+            surColler(e.texte)
+            Log.ecrire("îlot : dictée recollée (\(e.texte.count) caractères)")
+        case .ouvrirFenetre(let o):
+            moteur.fermer()
+            surOuvrirFenetre(o)
+        case .dicteesClavier(let oui):
+            if oui {
+                guard moteur.courante == .dictees, !moteur.cache else { return }
+                moteur.epinglerLeCentre()
+                panneau.prendreLeClavier()
+                moteur.dictees.rechercheActive = true
+                moteur.dictees.jetonFocus += 1
+            } else {
+                moteur.dictees.rechercheActive = false
+                panneau.rendreLeClavier()
+            }
         }
     }
 

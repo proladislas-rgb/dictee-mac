@@ -401,6 +401,8 @@ struct BadgeRetirer: View {
 struct PiluleCentre: View {
     var titre: String
     var retour = false
+    /// Un glyphe avant le titre (les guillemets de « Dictées »).
+    var symbole: String? = nil
     /// « OK » de « Modifier » : blanche, texte noir (maquette).
     var plein = false
     var etiquette: String
@@ -410,6 +412,7 @@ struct PiluleCentre: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 if retour { Image(systemName: "chevron.left").font(.system(size: 10.5, weight: .bold)) }
+                if let symbole { Image(systemName: symbole).font(.system(size: 10, weight: .bold)) }
                 Text(titre).font(.system(size: 12.5, weight: .semibold)).lineLimit(1).fixedSize()
             }
             .foregroundStyle(plein ? .black : .white)
@@ -586,9 +589,10 @@ struct CaseEtagere: View {
 // MARK: - le pied des dépliés, les points de page, la bulle « Nouveau »
 
 /// Sous le déplié d'une activité (la vidéo, le minuteur, Claude, un rendez-vous, un rappel) : le bouton « Centre » (avec les petites
-/// icônes de ce qu'il contient, le micro en rouge s'il est coupé) et, tant qu'il n'a jamais servi et s'il y a la place, l'aide « Fais
-/// défiler ou clique ici ». Il est posé en bas de la forme : 30 pt, 14 pt sous lui (la lecture l'a dans sa géométrie, les autres
-/// dépliés l'ajoutent sous leur contenu, `CartesIlot.piedEnPlus`).
+/// icônes de ce qu'il contient, le micro en rouge s'il est coupé), le bouton « Dictées » (maquette, étape 2 : l'ancien panneau de la
+/// barre des menus) s'il tient, et, tant que le Centre n'a jamais servi et s'il y a la place, l'aide « ou fais défiler ». Il est posé en
+/// bas de la forme : 30 pt, 14 pt sous lui (la lecture l'a dans sa géométrie, les autres dépliés l'ajoutent sous leur contenu,
+/// `CartesIlot.piedEnPlus`).
 struct PiedCarte: View {
     @ObservedObject var m: IlotMoteur
     var g: GrilleIlot
@@ -602,15 +606,25 @@ struct PiedCarte: View {
     }
     /// Le milieu du bouton « Centre » (essais : où cliquer) : 50 pt après le bord gauche, sur le mot « Centre ».
     static func pointBouton(_ g: GrilleIlot, _ v: VueIlot = .lectureEtendu) -> CGPoint { let c = cadre(g, v); return CGPoint(x: c.minX + 50, y: c.midY) }
-    static let aide = "Fais défiler ou clique ici"
+    /// Le milieu du bouton « Dictées » (essais).
+    static func pointDictees(_ g: GrilleIlot, _ v: VueIlot = .lectureEtendu) -> CGPoint {
+        let c = cadre(g, v); return CGPoint(x: c.minX + largeurBouton + 10 + largeurDictees / 2, y: c.midY)
+    }
+    static let aide = "ou fais défiler"
     /// Le bouton, mesuré (Core Text, mêmes polices) : 9 + glyphe 15 + 7 + « Centre » + 7 + 1 + trois petites icônes (5 pt entre) + 13.
     static var largeurBouton: CGFloat {
         let icones = ["mic.slash.fill", "tray.fill", "arrow.down.circle"].map { MesureIlot.symbole($0, 10.5) }.reduce(0, +) + 10
         return 9 + 15 + 7 + MesureIlot.texte("Centre", 13, .semibold) + 7 + 1 + icones + 13
     }
-    /// L'aide « ‹ Fais défiler ou clique ici », mesurée ; elle ne paraît que si elle tient à côté du bouton (pas sous un Claude étroit).
-    static var largeurAide: CGFloat { MesureIlot.symbole("chevron.left", 10) + 6 + MesureIlot.texte(aide, 12, .medium) }
-    static func aideTient(_ g: GrilleIlot, _ v: VueIlot) -> Bool { largeurBouton + 10 + largeurAide <= cadre(g, v).width }
+    /// Le bouton « Dictées », mesuré : 9 + glyphe 15 + 7 + « Dictées » + 13.
+    static var largeurDictees: CGFloat { 9 + 15 + 7 + MesureIlot.texte("Dictées", 13, .semibold) + 13 }
+    /// Le bouton « Dictées » tient-il à côté du bouton « Centre » ? (Sinon : la pilule « Dictées » du Centre y mène.)
+    static func dicteesTient(_ g: GrilleIlot, _ v: VueIlot) -> Bool { largeurBouton + 10 + largeurDictees <= cadre(g, v).width }
+    /// L'aide « ⌄ ou fais défiler », mesurée ; elle ne paraît que si elle tient à côté des boutons (pas sous un Claude étroit).
+    static var largeurAide: CGFloat { MesureIlot.symbole("chevron.down", 10) + 6 + MesureIlot.texte(aide, 12, .medium) }
+    static func aideTient(_ g: GrilleIlot, _ v: VueIlot) -> Bool {
+        largeurBouton + 10 + (dicteesTient(g, v) ? largeurDictees + 10 : 0) + largeurAide <= cadre(g, v).width
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -637,18 +651,44 @@ struct PiedCarte: View {
             .onHover { survol = $0 }
             .accessibilityLabel("Ouvrir le Centre : micro, étagère, téléchargements, minuteur")
             .aspectIlot(m.aspect(ExtraIlot.pied, rang: 0), ancre: .leading)
+            if Self.dicteesTient(g, v) {
+                BoutonPiedDictees { m.allerA(.dictees) }
+                    .aspectIlot(m.aspect(ExtraIlot.pied, rang: 1), ancre: .leading)
+            }
             HStack(spacing: 6) {
-                Image(systemName: "chevron.left").font(.system(size: 10, weight: .bold))
+                Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
                 Text(Self.aide).font(.system(size: 12, weight: .medium)).lineLimit(1).fixedSize()
             }
             .foregroundStyle(Color.white.opacity(0.45))
             .opacity(m.aideCentre && Self.aideTient(g, v) ? 1 : 0)
             .animation(m.reduire || m.statique ? nil : .easeOut(duration: 0.3), value: m.aideCentre)
-            .aspectIlot(m.aspect(ExtraIlot.pied, rang: 1), ancre: .leading)
+            .aspectIlot(m.aspect(ExtraIlot.pied, rang: 2), ancre: .leading)
             .accessibilityHidden(true)
             Spacer(minLength: 0)
         }
         .posee(Self.cadre(g, v))
+    }
+}
+
+/// Le bouton « Dictées » du pied : les guillemets de Verbe et « Dictées » (30 pt, comme « Centre »).
+struct BoutonPiedDictees: View {
+    var action: () -> Void
+    @State private var survol = false
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                Image(systemName: "quote.opening").font(.system(size: 12, weight: .bold)).frame(width: 15)
+                Text("Dictées").font(.system(size: 13, weight: .semibold)).lineLimit(1).fixedSize()
+            }
+            .foregroundStyle(.white)
+            .padding(.leading, 9).padding(.trailing, 13)
+            .frame(height: 30)
+            .background(Capsule().fill(Color.white.opacity(survol ? 0.2 : 0.14)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(AppuiIlot(echelle: 0.94))
+        .onHover { survol = $0 }
+        .accessibilityLabel("Ouvrir les dictées : chercher, copier, coller")
     }
 }
 
@@ -689,6 +729,7 @@ struct PointsCartes: View {
     static func nom(_ c: VueIlot, _ m: IlotMoteur) -> String {
         switch c {
         case .centre: return "Le Centre"
+        case .dictees: return "Les dictées"
         case .accueil: return "Rendez-vous, rappel et dernière dictée"
         default: return m.nomPremiereCarte ?? "Activité"
         }

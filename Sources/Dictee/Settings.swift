@@ -270,6 +270,12 @@ enum Settings {
         get { defaults.object(forKey: "ilotClaude") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotClaude") }
     }
+    /// L'icône ❞ dans la barre des menus (PresenceIcone) : nil = jamais réglée (éteinte sur un Mac à encoche, tout est dans l'îlot).
+    /// Sans encoche sur l'écran principal, elle est toujours là, quel que soit ce réglage.
+    static var iconeBarreMenus: Bool? {
+        get { defaults.object(forKey: "iconeBarreMenus") as? Bool }
+        set { defaults.set(newValue, forKey: "iconeBarreMenus") }
+    }
     /// Le Centre de l'îlot : la bulle « Nouveau : survole l'îlot » a été montrée (une seule fois, au premier lancement).
     static var ilotBulleVue: Bool {
         get { defaults.bool(forKey: "ilotBulleVue") }

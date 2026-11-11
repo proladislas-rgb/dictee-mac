@@ -3,6 +3,11 @@ import AVFoundation
 import Combine
 import DicteeCore
 
+extension Notification.Name {
+    /// Le réglage « Icône dans la barre des menus » a changé.
+    static let verbeIconeBarre = Notification.Name("verbe.icone.barre")
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let options: Options
@@ -106,7 +111,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dictee.preparer()
         microDejaPrepare = Permissions.microOK
         clavier.demarrer()
-        installerIcone()
+        appliquerIcone()
+        // l'icône suit l'écran principal (une encoche ou pas) et son réglage
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.appliquerIcone() }
+        }
+        NotificationCenter.default.addObserver(forName: .verbeIconeBarre, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.appliquerIcone() }
+        }
         dictee.surInsertion = { [weak self] texte, appId in
             guard appId == Bundle.main.bundleIdentifier else { return }
             self?.priseEnMain.modele.texteInsere(texte)
@@ -179,6 +191,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem?.button?.image = IconeBarre.image(capture: capture)
     }
 
+
+    /// Tout est dans l'îlot (Centre, Dictées) : l'icône ❞ n'est là que si on la veut (Réglages › Îlot), ou si l'écran principal n'a pas
+    /// d'encoche (l'îlot vide n'y existe pas : sans elle, aucun chemin vers Verbe ni vers « Couper le micro »). Sans icône, rouvrir Verbe
+    /// (Finder, Spotlight, Launchpad) ouvre la fenêtre principale (`applicationShouldHandleReopen`).
+    private func appliquerIcone() {
+        let encoche = NSScreen.screens.first.map { $0.safeAreaInsets.top > 0 } ?? false
+        let voulue = PresenceIcone.montree(reglage: Settings.iconeBarreMenus, encoche: encoche)
+        if voulue, statusItem == nil {
+            installerIcone()
+            Log.ecrire("barre des menus : icône montrée (\(encoche ? "réglage" : "pas d'encoche sur l'écran principal"))")
+        } else if !voulue, let item = statusItem {
+            panneauCompact.fermer(animee: false, rendreLeFocus: false)
+            NSStatusBar.system.removeStatusItem(item)
+            statusItem = nil; survolStatus = nil
+            Log.ecrire("barre des menus : icône retirée (tout est dans l'îlot)")
+        }
+    }
 
     private func installerIcone() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -323,6 +352,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let cible = self.derniereAppExterne
             Task { await self.dictee.recoller(texte, dans: cible) }
         }
+        ilot.surOuvrirFenetre = { [weak self] onglet in self?.ouvrirFenetre(onglet) }
         ilot.surNoter = { [weak self] _ in
             guard let self, self.reunionControleur.phase == .repos else { return }
             self.reunionControleur.lancer()

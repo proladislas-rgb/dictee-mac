@@ -30,6 +30,9 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// ronds (micro, micro de la dictée, téléchargements, Claude Code) et deux grandes cases (minuteur, étagère). On y passe depuis la lecture
     /// dépliée (bouton « Centre », points de page, défilement) ; l'îlot vide s'ouvre directement dessus.
     case centre
+    /// Les Dictées (maquette ilot-centre.html, 3e carte) : l'ancien panneau de la barre des menus dans l'îlot. « ‹ Centre », la recherche,
+    /// les dernières dictées groupées par jour (un clic copie, « Coller » au survol, le chevron déplie), et les liens vers la fenêtre.
+    case dictees
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
@@ -70,6 +73,9 @@ public enum GeoIlot {
     /// (76), 10, la bande « Noter la réunion » (40), 14 (maquette : 331 − 33). « Modifier » l'allonge ou le raccourcit (`enPlus`,
     /// DispositionCentre.plan).
     public static let profondeurCentre: Double = 14 + 26 + 12 + 96 + 10 + 76 + 10 + 40 + 14
+    /// Les Dictées à leur plus haut (la liste à sa hauteur maximale) : la table la donne, une liste plus courte la raccourcit (`enPlus`,
+    /// `CarteDictees.profondeur`).
+    public static let profondeurDictees: Double = CarteDictees.profondeurMax
     /// Repos d'une activité : rien sous la barre, le cou serré contre la caméra (la place de la pochette, de l'anneau, de l'heure).
     static func compact(_ cou: Double) -> [Double] { [cou, cou, 0, 6, 10, 0, 0] }
     /// Bandeau passager : cou étroit (les menus restent visibles), deux lignes sous la barre. Le corps s'ajuste à son contenu (comme la
@@ -113,6 +119,8 @@ public enum GeoIlot {
         .etagereDepot: [14, 144, 102, 6, 30, 16, 10],
         .etagere: [14, 144, 10 + 42 + 8 + 72 + 12, 6, 34, 18, 10],
         .centre: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        // les Dictées : la largeur du Centre (on passe de l'un à l'autre sans que la forme s'élargisse), la hauteur de la liste
+        .dictees: [14, 144, profondeurDictees, 6, 34, 18, 10],
     ]
     /// Indices des valeurs : largeurs (cou, corps) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur mène ; à la
     /// fermeture la hauteur se replie d'abord.
@@ -132,7 +140,7 @@ public enum GeoIlot {
     /// la batterie du Mac (à gauche) et celle des écouteurs (à droite). 56 + le congé du cou déplié (10 pt) = la limite des ailes (66 pt).
     public static let epaules: Double = 56
     public static func aEpaules(_ v: VueIlot) -> Bool {
-        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre].contains(v)
+        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .dictees].contains(v)
     }
 
     /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.

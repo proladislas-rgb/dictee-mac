@@ -30,6 +30,8 @@ final class ReglagesModele: ObservableObject {
     @Published var ilotNotifications: Bool { didSet { if !installe { return }; Settings.ilotNotifications = ilotNotifications; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotEnergie: Bool { didSet { if !installe { return }; Settings.ilotEnergie = ilotEnergie; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotTelechargements: Bool { didSet { if !installe { return }; Settings.ilotTelechargements = ilotTelechargements; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
+    /// L'icône ❞ dans la barre des menus (sans encoche, elle reste quoi qu'il arrive : AppDelegate.appliquerIcone).
+    @Published var iconeBarre: Bool { didSet { if !installe { return }; Settings.iconeBarreMenus = iconeBarre; NotificationCenter.default.post(name: .verbeIconeBarre, object: nil) } }
     @Published var ilotMicro: Bool { didSet { if !installe { return }; Settings.ilotMicro = ilotMicro; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotNiveaux: Bool { didSet { if !installe { return }; Settings.ilotNiveaux = ilotNiveaux; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotEtagere: Bool { didSet { if !installe { return }; Settings.ilotEtagere = ilotEtagere; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
@@ -112,6 +114,7 @@ final class ReglagesModele: ObservableObject {
         ilotEnergie = reel ? Settings.ilotEnergie : true
         ilotTelechargements = reel ? Settings.ilotTelechargements : false
         ilotMicro = reel ? Settings.ilotMicro : true
+        iconeBarre = reel ? (Settings.iconeBarreMenus ?? false) : false
         ilotNiveaux = reel ? Settings.ilotNiveaux : true
         ilotEtagere = reel ? Settings.ilotEtagere : true
         ilotClaude = reel ? Settings.ilotClaude : true
