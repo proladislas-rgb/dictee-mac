@@ -1,0 +1,1411 @@
+<!doctype html>
+<!--
+Verbe — « Claude + » : l'îlot suit Claude Code de près, et le Centre gagne quatre outils.
+Partie A (étapes 1 à 7) : deux sessions Claude tournent (dictee-mac, second-cerveau). L'îlot replié montre l'étoile,
+la tâche en cours qui défile, « 3/7 » et un « 2 » (deux sessions). Le rond Claude du Centre ouvre une carte « Claude » :
+un bloc par session (projet, tâche en cours, liste cochée, depuis combien de temps, état), « Ouvrir » amène la bonne
+fenêtre du Terminal. Bandeaux : « second-cerveau attend ta réponse », puis « Carte Dictées terminée ».
+Partie B (étapes 8 à 14) : une 2e page du Centre, « Outils » : Garder éveillé, Presse-papiers, Reformuler, Note rapide.
+Aucun raccourci clavier : seule la touche fn reste (dicter) ; tout le reste se clique dans l'îlot.
+Format repris tel quel de ilot-centre.html (forme `chemin`/`cote`, ressorts, faux écran, régie).
+Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt.
+Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
+                   ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbe · Claude et outils</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --serif:"Newsreader","New York",ui-serif,Charter,Georgia,serif;
+  --mono:"SF Mono",ui-monospace,Menlo,Monaco,monospace;
+  --ambre:#ff9f0a; --vert:#30d158; --rouge:#ff453a; --corail:#e8835c; --bleu:#0a84ff; --jaune:#ffd60a;
+  --regie:#0f0f11;
+  --clair:#f5f5f7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--regie)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--clair);min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block;overflow:visible}
+html.fige *,html.fige *::before,html.fige *::after{animation-play-state:paused!important}
+
+/* ---- le chapeau : les deux parties ---- */
+.hero{max-width:1340px;margin:0 auto;padding:12px 28px 10px;display:flex;align-items:center;gap:20px;min-height:58px}
+.hero h1{font-size:16.5px;line-height:21px;font-weight:700;letter-spacing:-.2px;white-space:nowrap}
+.hero h1 span{display:block;font-size:12px;line-height:15px;font-weight:500;color:rgba(245,245,247,.45);letter-spacing:0}
+.parties{display:flex;gap:8px;flex-wrap:wrap;min-width:0}
+.partie{height:34px;border-radius:17px;padding:0 14px 0 6px;background:rgba(255,255,255,.07);font-size:12.5px;color:rgba(245,245,247,.68);display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap;transition:background-color .15s ease}
+.partie:hover{background:rgba(255,255,255,.12)}
+.partie.ici{background:rgba(255,255,255,.15);color:var(--clair)}
+.partie em{font-style:normal;width:24px;height:24px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.12);font-weight:700;color:#fff;font-size:12px}
+.partie b{color:#fff;font-weight:600}
+
+/* =====================================================================
+   Le faux écran : haut d'un MacBook, macOS 26, apparence claire (repris de ilot-centre.html)
+   ===================================================================== */
+#ecran{position:relative;height:clamp(500px,calc(100vh - 294px),740px);overflow:hidden;isolation:isolate;
+  user-select:none;-webkit-user-select:none;background:#dbe4ee;transition:opacity calc(.26s*var(--k)) ease}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(70% 90% at 90% 4%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 60%),
+  radial-gradient(60% 80% at 4% 100%,rgba(248,228,210,.95) 0,rgba(248,228,210,0) 62%),
+  linear-gradient(168deg,#c6d6ea 0%,#d9e4f0 40%,#ebe8e6 74%,#f0e2d6 100%)}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ---- barre des menus ---- */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;z-index:4;
+  font-size:13.5px;color:#1d1d1f;white-space:nowrap;pointer-events:none}
+.menus,.etats{display:flex;flex-wrap:wrap;align-content:flex-start;height:33px;overflow:hidden;max-width:calc(50% - 172px)}
+.menus{column-gap:19px;padding-left:18px}
+.menus>*{height:33px;line-height:33px;font-weight:500}
+.menus>svg{height:17px;margin-top:7px;flex:none}
+.menus>b{font-weight:700}
+.etats{flex-direction:row-reverse;column-gap:15px;padding-right:15px}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats svg{width:17px;height:17px;color:#1d1d1f}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* ---- fenêtres ---- */
+.fen{position:absolute;color:#1d1d1f;border-radius:13px;overflow:hidden;z-index:1;background:#fff;display:flex;flex-direction:column;pointer-events:none;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.26),0 36px 80px -20px rgba(24,36,60,.42),0 12px 26px -10px rgba(24,36,60,.22);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.fen.chrome{left:max(18px,5.2%);right:max(18px,5.2%);top:41px;bottom:20px}
+.fen.cache{opacity:0;transform:scale(.965)}
+.fen.arriere{box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 18px 40px -16px rgba(24,36,60,.3)}
+.feux{position:absolute;left:15px;top:15px;display:flex;gap:8px;z-index:1}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.fen.arriere .feux i{background:#d3d3d7}
+.tabs{height:42px;flex:none;background:#dde3ec;display:flex;align-items:flex-end;padding-left:84px;position:relative}
+.fen.arriere .tabs{background:#e6e9ee}
+.tab{position:relative;height:34px;width:222px;flex:none;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:8px;padding:0 9px 0 12px;font-size:12px;color:#454a52}
+.tab.act{background:#fff;color:#1f1f1f}
+.tab.act::before,.tab.act::after{content:"";position:absolute;bottom:0;width:10px;height:10px}
+.tab.act::before{left:-10px;background:radial-gradient(circle at 0 0,transparent 9.5px,#fff 10px)}
+.tab.act::after{right:-10px;background:radial-gradient(circle at 100% 0,transparent 9.5px,#fff 10px)}
+.tab .tt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent)}
+.tab svg{flex:none}
+.tab-plus{width:28px;height:28px;margin:0 0 4px 6px;display:grid;place-items:center;color:#454a52;flex:none}
+.outils{height:46px;flex:none;display:flex;align-items:center;gap:4px;padding:0 10px;border-bottom:1px solid #e7e9ee;color:#5b6069}
+.outils .ib{width:30px;height:30px;display:grid;place-items:center;flex:none}
+.omni{flex:1;min-width:0;height:34px;border-radius:17px;background:#edf1f8;display:flex;align-items:center;gap:9px;padding:0 12px 0 4px;margin:0 6px;font-size:13.5px;color:#1f1f1f;white-space:nowrap;overflow:hidden}
+.omni .rg{width:26px;height:26px;border-radius:13px;background:#fff;display:grid;place-items:center;flex:none}
+.omni .u{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.omni .u span{color:#6b7078}
+.profil{width:24px;height:24px;border-radius:50%;background:linear-gradient(160deg,#c7ccd6,#8d95a3);flex:none;margin:0 4px}
+/* la page : un article, thème clair */
+.page{flex:1;min-height:0;overflow:hidden;background:#fff;display:flex;justify-content:center;padding-top:30px}
+.art-col{width:min(660px,78%)}
+.art-col small{font-size:12px;font-weight:600;color:#8a8f98;letter-spacing:.2px}
+.art-col h2{font:600 30px/36px var(--serif);color:#111;margin:6px 0 14px}
+.art-col p{font:400 16px/26px var(--serif);color:#3a3d42;margin-bottom:14px}
+
+/* ---- Terminal (Claude Code) ---- */
+.fen.term{background:#1d1d20;color:#dcdcdc;box-shadow:0 0 0 .5px rgba(0,0,0,.6),0 36px 80px -20px rgba(24,36,60,.5),0 12px 26px -10px rgba(24,36,60,.3)}
+.term-barre{height:30px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;color:rgba(255,255,255,.6);background:#2b2b2e;border-bottom:1px solid #111}
+.fen.term .feux{top:9px;left:11px}
+.fen.term.arriere .term-barre{color:rgba(255,255,255,.35);background:#262628}
+.fen.term.arriere .feux i{background:#4a4a4e}
+.term-corps{flex:1;min-height:0;padding:10px 14px;font:12px/17.5px var(--mono);white-space:pre;overflow:hidden;color:#d6d6d6}
+.term-corps .k{color:var(--corail)}
+.term-corps .g{color:#86868c}
+.term-corps .v{color:#5fd17a}
+.term-corps .a{color:#ffb340}
+.term-corps b{color:#fff;font-weight:700}
+.term-q{display:inline-block;border:1px solid rgba(255,179,64,.55);border-radius:6px;padding:4px 10px;margin:2px 0}
+.term-prompt{margin-top:8px;border:1px solid #4a4a4e;border-radius:6px;height:28px;padding:0 10px;line-height:26px;color:#86868c}
+
+/* ---- Mail : un nouveau message ---- */
+.mail-barre{height:52px;flex:none;display:flex;align-items:center;gap:18px;padding:0 16px 0 90px;border-bottom:1px solid #e6e6ea;font-size:13.5px;font-weight:700;color:#1d1d1f}
+.mail-barre .ic{display:flex;gap:16px;margin-left:auto;color:#6e6e73}
+.mail-ch{height:34px;flex:none;border-bottom:1px solid #ececf0;display:flex;align-items:center;gap:6px;padding:0 18px;font-size:13px;color:#86868b}
+.mail-ch span{color:#1d1d1f}
+.mail-ch .dest{background:#e3edfd;color:#1660d6;border-radius:5px;padding:1px 6px}
+.mail-corps{padding:14px 18px;font-size:14px;line-height:21px;color:#1d1d1f;border-radius:6px;margin:4px}
+.mail-corps.flash{animation:flash calc(1.4s*var(--k)) ease-out}
+@keyframes flash{0%{background:rgba(255,214,10,.4)}100%{background:rgba(255,214,10,0)}}
+
+/* =====================================================================
+   L'îlot (noir, opaque) et ce qu'il affiche
+   ===================================================================== */
+.calque{position:absolute;left:calc(50% - 500px);top:0;width:1000px;height:360px;pointer-events:none}
+#forme-svg{z-index:5}
+#contenu{z-index:6}
+#encoche-svg{z-index:7}
+.c{position:absolute;color:#fff;white-space:nowrap;text-align:left;font-family:var(--sans)}
+.e{opacity:0;filter:blur(7px);transform:translateY(var(--sy,0px)) scale(.965);
+  transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
+.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+  transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+.t15{font-size:15px;line-height:19px;font-weight:600;letter-spacing:-.2px}
+.t125{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(255,255,255,.55);margin-top:3px}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.epaule{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;height:17px}
+
+/* l'îlot replié : Claude au travail */
+.cl-g{display:flex;align-items:center;gap:6px;height:20px}
+.cl-anneau{position:relative;width:20px;height:20px;flex:none}
+.badge{position:absolute;right:-6px;top:-5px;min-width:13px;height:13px;border-radius:7px;background:#fff;color:#000;font-size:9.5px;line-height:13px;font-weight:800;text-align:center;padding:0 3px;box-shadow:0 0 0 1.5px #000;font-variant-numeric:tabular-nums}
+.cl-n{font-size:12.5px;font-weight:700;color:var(--corail);font-variant-numeric:tabular-nums;letter-spacing:-.2px}
+.defil{width:46px;height:17px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 3px,#000 calc(100% - 10px),transparent);mask-image:linear-gradient(90deg,transparent,#000 3px,#000 calc(100% - 10px),transparent)}
+.defil>span{display:inline-flex;padding-left:2px;animation:defil calc(11s*var(--k)) linear infinite}
+.defil i{font-style:normal;padding-right:22px;font-size:12.5px;line-height:17px;font-weight:600;color:#fff}
+.defil.ambre i{color:#ffb340}
+@keyframes defil{0%,14%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* bandeaux */
+.ban{display:flex;align-items:center;gap:13px;padding:0 2px}
+.ban .tx b{display:block;font-size:15px;line-height:19px;font-weight:700;letter-spacing:-.2px}
+.ban .tx span{display:block;font-size:12.5px;line-height:16px;color:rgba(255,255,255,.5);font-weight:600;max-width:244px;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.ban .act{height:30px;border-radius:15px;padding:0 14px;background:rgba(255,255,255,.14);font-size:13.5px;font-weight:700;cursor:pointer;margin-left:8px;transition:background-color .15s ease}
+.ban .act:hover{background:rgba(255,255,255,.22)}
+.okv{width:24px;height:24px;border-radius:50%;background:var(--vert);display:grid;place-items:center;flex:none}
+
+/* carte : le Centre (reprise telle quelle de ilot-centre.html) */
+.cc{width:420px}
+.cc-tete{display:flex;align-items:center;gap:8px;height:26px}
+.pil{height:26px;border-radius:13px;padding:0 11px;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.12);font-size:12.5px;font-weight:600;cursor:pointer;flex:none;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.pil:hover{background:rgba(255,255,255,.2)}
+.pil.retour{padding-left:7px}
+.pil.ok{background:#fff;color:#000}
+.cc.edit .pil.retour,.cc.edit .punaise,.cc.edit .pil.vers{display:none}
+.punaise{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.5);opacity:0;transition:opacity .25s ease}
+.punaise.vu{opacity:1}
+.cc.edit .bout-modif{margin-left:auto}
+.titre-c{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:700;margin-left:4px}
+.titre-c span{font-size:12px;font-weight:500;color:rgba(255,255,255,.45)}
+.cc-ronds{display:flex;justify-content:space-around;margin-top:12px;height:96px}
+.tg{width:84px;display:flex;flex-direction:column;align-items:center;cursor:pointer;color:#fff;flex:none}
+.tg .rd{position:relative;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center;
+  transition:background-color .2s ease,box-shadow .2s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.tg:hover .rd{filter:brightness(1.18)}
+.tg b{font-size:11.5px;line-height:15px;font-weight:600;margin-top:7px;letter-spacing:-.25px}
+.tg i{font-style:normal;font-size:11.5px;line-height:14px;color:rgba(255,255,255,.55);font-weight:500;margin-top:1px}
+.tg.rouge .rd{background:var(--rouge)}
+.tg.rouge i{color:#ff6961}
+.tg.bleu .rd{background:var(--bleu)}
+.tg.bleu i{color:#5eb0ff}
+.tg.corail .rd{background:var(--corail)}
+.tg.corail i{color:#f2a17f}
+.tg.ambre .rd{background:var(--ambre)}
+.tg.ambre i{color:#ffb340}
+.tg.ouvert .rd{box-shadow:0 0 0 2px #000,0 0 0 3.5px rgba(255,255,255,.55)}
+.cc-larges{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;height:76px}
+.tl{position:relative;border-radius:20px;background:rgba(255,255,255,.1);padding:11px 14px}
+.tl-t{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600}
+.tl-caps{display:flex;gap:6px;margin-top:8px;align-items:center}
+.cap{height:28px;min-width:44px;padding:0 10px;border-radius:14px;background:rgba(255,255,255,.14);font-size:13px;font-weight:600;display:grid;place-items:center;cursor:pointer;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.cap:hover{background:rgba(255,255,255,.22)}
+.cap.choisi{background:var(--ambre);color:#000}
+.tl-u{font-size:12px;font-weight:500;color:rgba(255,255,255,.5);margin-left:3px}
+.tl-t .nb{margin-left:auto;font-style:normal;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:rgba(255,255,255,.2);font-size:12px;font-weight:700;display:grid;place-items:center}
+.eta-plein{display:flex;align-items:center;gap:9px;margin-top:5px}
+.eta-plein .nm{font-size:12.5px;line-height:15px;font-weight:600}
+.eta-plein .sub{font-size:11px;line-height:14px;color:rgba(255,255,255,.5);font-weight:500}
+.moins{position:absolute;left:-5px;top:-5px;width:20px;height:20px;border-radius:50%;background:#5a5a5f;color:#fff;display:none;place-items:center;box-shadow:0 0 0 2px #000;z-index:1}
+.tl .moins,.tr .moins{left:-6px;top:-6px}
+.cc.edit .moins{display:grid}
+.cc.edit .tg .rd,.cc.edit .tl{animation:tremble calc(.26s*var(--k)) ease-in-out infinite alternate}
+.cc.edit .tr{animation:tremblePlat calc(.26s*var(--k)) ease-in-out infinite alternate}
+.cc.edit .tg:nth-child(2n) .rd,.cc.edit .tl+.tl{animation-delay:-.13s}
+@keyframes tremble{0%{transform:rotate(-1.4deg)}100%{transform:rotate(1.4deg)}}
+@keyframes tremblePlat{0%{transform:rotate(-.45deg)}100%{transform:rotate(.45deg)}}
+.tr{position:relative;display:flex;align-items:center;gap:10px;width:100%;height:40px;margin-top:10px;border-radius:20px;padding:0 16px 0 14px;
+  background:rgba(255,255,255,.1);font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;transition:background-color .2s ease}
+.tr:hover{background:rgba(255,255,255,.15)}
+.tr-pt{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1.8px var(--rouge);background:radial-gradient(circle,var(--rouge) 0 3.6px,transparent 4.2px)}
+.tr-s{margin-left:auto;font-size:12px;font-weight:500;color:rgba(255,255,255,.5)}
+.tr .fnk{height:20px;min-width:24px;border-radius:5px;box-shadow:inset 0 0 0 1.2px rgba(255,255,255,.45);font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 5px;color:rgba(255,255,255,.75)}
+@keyframes pouls{50%{opacity:.45}}
+.pts{display:flex;flex-direction:column;gap:2px;transition:transform calc(.42s*var(--k)) var(--ressort)}
+.pts button{width:16px;height:14px;display:grid;place-items:center;cursor:pointer}
+.pts i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3);transition:background-color .2s ease,transform .2s ease}
+.pts button:hover i{background:rgba(255,255,255,.6)}
+.pts button.on i{background:#fff;transform:scale(1.1)}
+
+/* Garder éveillé : le choix de la durée */
+.ev{display:none;position:relative;border-radius:20px;background:rgba(255,255,255,.1);padding:11px 14px;margin-top:10px;height:76px}
+.ev.vu{display:block}
+.ev .tl-t span{font-weight:500;color:rgba(255,255,255,.5);font-size:12.5px;margin-left:2px}
+
+/* carte : Claude */
+.kc{width:420px}
+.kc-liste{margin-top:8px;max-height:236px;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:8px}
+.kc-liste::-webkit-scrollbar{display:none}
+.kc-liste.defile{-webkit-mask-image:linear-gradient(#000 calc(100% - 26px),transparent);mask-image:linear-gradient(#000 calc(100% - 26px),transparent)}
+.ses{border-radius:18px;background:rgba(255,255,255,.08);padding:10px 10px 9px 12px;flex:none}
+.ses.attend{background:rgba(255,159,10,.12);box-shadow:inset 0 0 0 1.5px rgba(255,159,10,.5)}
+.ses-h{display:flex;align-items:center;gap:10px;height:34px}
+.ses-h .nm{font-size:14px;line-height:17px;font-weight:700}
+.ses-h .sb{font-size:12px;line-height:15px;font-weight:500;color:rgba(255,255,255,.5);margin-top:1px}
+.ses-h .sb em{font-style:normal;font-weight:700;color:var(--corail)}
+.ses.attend .sb em{color:#ffb340}
+.ses.fini .sb em{color:#5fe08a}
+.ses-h .ouv{margin-left:auto;height:28px;border-radius:14px;padding:0 13px;background:rgba(255,255,255,.14);font-size:12.5px;font-weight:700;cursor:pointer;transition:background-color .15s ease}
+.ses-h .ouv:hover{background:rgba(255,255,255,.24)}
+.ses.attend .ouv{background:#fff;color:#000}
+.ses-q{font-family:var(--serif);font-size:15px;line-height:20px;color:#fff;margin:5px 0 3px 32px;white-space:normal}
+.tks{margin-top:3px}
+.tk{display:flex;align-items:center;gap:8px;height:19px;font-size:12.5px;font-weight:500;color:rgba(255,255,255,.55);padding-left:35px}
+.tk.fait{color:rgba(255,255,255,.38)}
+.tk.cours{color:#fff;font-weight:700}
+.tk .ck{width:14px;height:14px;flex:none;display:grid;place-items:center}
+.tk .rond{width:11px;height:11px;border-radius:50%;box-shadow:inset 0 0 0 1.4px rgba(255,255,255,.32)}
+.tk.cours .rond{box-shadow:inset 0 0 0 1.4px var(--corail);background:radial-gradient(circle,var(--corail) 0 2.6px,transparent 3.1px);animation:pouls 1.4s ease-in-out infinite}
+
+/* carte : Presse-papiers */
+.pc,.rc,.nc{width:420px}
+.pp-liste{margin-top:6px}
+.pp-l{display:flex;align-items:center;gap:10px;height:40px;padding:0 6px;border-radius:12px;cursor:pointer;transition:background-color .12s ease}
+.pp-l:hover,.pp-l.survol{background:rgba(255,255,255,.1)}
+.pp-ic{width:40px;height:28px;border-radius:7px;background:rgba(255,255,255,.08);display:grid;place-items:center;flex:none;overflow:hidden}
+.pp-ic svg{display:block}
+.pp-x{flex:1;min-width:0;font-family:var(--serif);font-size:15px;line-height:20px;color:rgba(255,255,255,.8);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pp-x.sans{font-family:var(--sans);font-size:13px;font-weight:600;color:#fff}
+.pp-x.sans span{font-weight:500;color:rgba(255,255,255,.45);margin-left:6px;font-size:12px}
+.pp-x.code{font-family:var(--mono);font-size:12.5px}
+.pp-d{flex:none;display:flex;align-items:center;gap:4px}
+.pp-h{font-size:12px;font-weight:500;color:rgba(255,255,255,.42);min-width:46px;text-align:right;padding-right:4px}
+.pp-act{display:none}
+.pp-l:hover .pp-act,.pp-l.survol .pp-act{display:flex}
+.pp-l:hover .pp-h,.pp-l.survol .pp-h,.pp-l.copie .pp-h{display:none}
+.pp-l.copie .pp-act{display:none}
+.mini-pil{height:24px;border-radius:12px;padding:0 10px;background:rgba(255,255,255,.14);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px}
+.mini-pil:hover{background:rgba(255,255,255,.24)}
+.ok-pil{display:none;align-items:center;gap:4px;height:24px;padding:0 9px 0 7px;border-radius:12px;background:rgba(48,209,88,.18);color:#5fe08a;font-size:12px;font-weight:600}
+.pp-l.copie .ok-pil{display:flex}
+.pied{display:flex;align-items:center;gap:7px;height:30px;margin-top:4px;padding:1px 8px 0;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:rgba(255,255,255,.4);font-weight:500}
+.pied .lien{margin-left:auto;font-size:12.5px;font-weight:500;color:rgba(255,255,255,.55);cursor:pointer}
+.pied .lien:hover{color:#fff}
+
+/* carte : Reformuler */
+.seg{margin-left:auto;display:flex;height:26px;border-radius:13px;background:rgba(255,255,255,.1);padding:2px}
+.seg button{height:22px;border-radius:11px;padding:0 10px;font-size:12px;font-weight:600;color:rgba(255,255,255,.6);cursor:pointer}
+.seg button.on{background:rgba(255,255,255,.2);color:#fff}
+.rc-src{margin-top:10px;border-radius:16px;background:rgba(255,255,255,.07);padding:8px 12px 9px}
+.rc-lb{font-size:11.5px;line-height:15px;font-weight:600;color:rgba(255,255,255,.42)}
+.rc-src p{font-family:var(--serif);font-size:15px;line-height:20px;color:rgba(255,255,255,.72);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
+.rc.res .rc-src p{-webkit-line-clamp:1}
+.rc-btns{display:flex;gap:8px;margin-top:10px}
+.rc-b{height:30px;border-radius:15px;padding:0 14px;background:rgba(255,255,255,.12);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background-color .15s ease}
+.rc-b:hover{background:rgba(255,255,255,.2)}
+.rc-b.choisi{background:#fff;color:#000}
+.rc-res{display:none;margin-top:10px;border-radius:16px;background:rgba(255,255,255,.1);padding:10px 12px}
+.rc-res.vu{display:block}
+.rc-res p{font-family:var(--serif);font-size:15.5px;line-height:21px;color:#fff;white-space:normal}
+.rc-res .calc{display:flex;align-items:center;gap:8px;height:42px;font-size:13px;font-weight:600;color:rgba(255,255,255,.6)}
+.trois{display:flex;gap:4px}
+.trois i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.7);animation:pouls .9s ease-in-out infinite}
+.trois i:nth-child(2){animation-delay:.15s}.trois i:nth-child(3){animation-delay:.3s}
+.rc-act{display:flex;align-items:center;gap:8px;margin-top:9px}
+.rc-act .note{margin-left:auto;font-size:11.5px;font-weight:500;color:rgba(255,255,255,.4)}
+.pil.blanc{background:#fff;color:#000}
+.pil.blanc:hover{background:#e8e8ea}
+
+/* carte : Note rapide */
+.nc-zone{margin-top:10px;border-radius:20px;background:rgba(255,255,255,.09);padding:11px 14px 11px 12px;display:flex;gap:12px;align-items:center;min-height:68px;transition:background-color .2s ease}
+.nc-zone.rec{background:rgba(255,69,58,.17)}
+.nc-mic{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center;flex:none;transition:background-color .2s ease}
+.nc-zone.rec .nc-mic{background:var(--rouge)}
+.nc-t{flex:1;min-width:0;white-space:normal}
+.nc-t b{display:block;font-size:14.5px;line-height:18px;font-weight:700}
+.nc-t span{display:flex;align-items:center;gap:5px;font-size:12px;line-height:16px;color:rgba(255,255,255,.5);font-weight:500;margin-top:2px}
+.nc-t p{font-family:var(--serif);font-size:15px;line-height:20px;color:#fff;margin-top:3px}
+.nc-t p.vide{color:rgba(255,255,255,.4)}
+.fnk{height:17px;min-width:22px;border-radius:4px;box-shadow:inset 0 0 0 1.2px rgba(255,255,255,.45);font-size:10.5px;font-weight:700;display:inline-grid;place-items:center;padding:0 4px;color:rgba(255,255,255,.8)}
+.eq{display:flex;align-items:center;justify-content:space-between;width:22px;height:16px;flex:none}
+.eq i{display:block;width:3px;height:16px;border-radius:1.5px;background:#ff6961;transform:scaleY(.3);animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(1){animation-duration:.82s;animation-delay:-.3s}
+.eq i:nth-child(2){animation-duration:1.06s;animation-delay:-.7s}
+.eq i:nth-child(3){animation-duration:.74s;animation-delay:-.1s}
+.eq i:nth-child(4){animation-duration:.95s;animation-delay:-.5s}
+@keyframes eq{0%{transform:scaleY(.28)}22%{transform:scaleY(.95)}41%{transform:scaleY(.5)}63%{transform:scaleY(1)}82%{transform:scaleY(.36)}100%{transform:scaleY(.28)}}
+.nc-lb{display:flex;align-items:center;margin-top:10px;padding:0 8px;font-size:11.5px;line-height:16px;font-weight:600;color:rgba(255,255,255,.42)}
+.nc-lb span{margin-left:auto;font-weight:500}
+.nc-liste{margin-top:3px;max-height:130px;overflow-y:auto;scrollbar-width:none}
+.nc-liste::-webkit-scrollbar{display:none}
+.nl{display:flex;align-items:center;gap:8px;min-height:32px;padding:0 4px 0 8px;border-radius:10px;cursor:pointer;transition:background-color .12s ease}
+.nl:hover,.nl.survol{background:rgba(255,255,255,.1)}
+.nl.neuve{background:rgba(255,255,255,.08)}
+.nl-h{width:38px;flex:none;font-size:12px;font-weight:500;color:rgba(255,255,255,.42);font-variant-numeric:tabular-nums}
+.nl-x{flex:1;min-width:0;font-family:var(--serif);font-size:15px;line-height:20px;color:rgba(255,255,255,.78);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nl.neuve .nl-x,.nl:hover .nl-x,.nl.survol .nl-x{color:#fff}
+.nl-d{flex:none;display:flex;align-items:center}
+.nl .mini-pil{display:none}
+.nl:hover .mini-pil,.nl.survol .mini-pil,.nl.neuve .mini-pil{display:flex}
+.nl.envoyee .mini-pil{display:none}
+.nl.envoyee .ok-pil{display:flex}
+
+/* carte : les Dictées (reprise de ilot-centre.html) */
+.dc{width:420px}
+.dc-tete{display:flex;align-items:center;gap:8px;height:30px}
+.dc-champ{flex:1;min-width:0;height:30px;border-radius:15px;background:rgba(255,255,255,.1);display:flex;align-items:center;gap:7px;padding:0 12px 0 10px;color:rgba(255,255,255,.5)}
+.dc-champ:focus-within{background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.3)}
+.dc-champ input{flex:1;min-width:0;background:none;border:0;outline:0;color:#fff;font:500 13px/16px var(--sans);caret-color:var(--ambre);-webkit-user-select:text;user-select:text}
+.dc-champ input::placeholder{color:rgba(255,255,255,.45)}
+.dd-liste{margin-top:6px;max-height:200px;overflow-y:auto;scrollbar-width:none}
+.dd-liste::-webkit-scrollbar{display:none}
+.dd-g{height:20px;padding:5px 0 0 52px;font-size:11.5px;line-height:14px;font-weight:600;color:rgba(255,255,255,.42)}
+.dd-l{display:flex;align-items:center;gap:8px;min-height:32px;padding:0 4px 0 8px;border-radius:10px;cursor:pointer;transition:background-color .12s ease}
+.dd-l:hover{background:rgba(255,255,255,.1)}
+.dd-h{width:36px;flex:none;font-size:12px;line-height:16px;font-weight:500;color:rgba(255,255,255,.42);font-variant-numeric:tabular-nums}
+.dd-x{flex:1;min-width:0;font-family:var(--serif);font-size:15px;line-height:20px;color:rgba(255,255,255,.78);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-x mark{background:none;color:var(--ambre)}
+.dd-app{min-width:44px;text-align:right;font-size:12px;font-weight:500;color:rgba(255,255,255,.42);padding-right:4px}
+.dd-l.copie .dd-app{display:none}
+.dd-l.copie .ok-pil{display:flex}
+.dd-rien{padding:14px 0 8px 52px;font-family:var(--serif);font-size:15px;color:rgba(255,255,255,.45)}
+
+/* faux pointeur */
+.pointeur{position:absolute;left:0;top:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .22s}
+.pointeur.vu{opacity:1}
+.pointeur .fleche{position:relative;width:18px;height:26px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));transform-origin:2px 2px;transition:transform .12s ease}
+.pointeur.appui .fleche{transform:scale(.86)}
+
+/* =====================================================================
+   La régie, sous la scène (reprise de ilot-centre.html, plus la touche fn)
+   ===================================================================== */
+.regie{max-width:1340px;margin:0 auto;padding:14px 28px 18px}
+.r-haut{display:grid;grid-template-columns:minmax(0,1fr) 300px auto;gap:30px;align-items:center;min-height:96px}
+.r-num{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(245,245,247,.46);font-variant-numeric:tabular-nums}
+.r-titre{font-size:21px;line-height:27px;font-weight:600;letter-spacing:-.3px;margin-top:2px}
+.r-phrase{font-size:14px;line-height:20px;color:rgba(245,245,247,.64);margin-top:4px;max-width:680px;min-height:40px}
+.r-mains{display:flex;align-items:center;gap:12px}
+.pad{position:relative;width:96px;height:62px;border-radius:12px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);flex:none}
+.pad i{position:absolute;top:30px;left:32px;width:14px;height:14px;border-radius:50%;background:var(--clair);opacity:0;transition:opacity .15s}
+.pad.un i:first-child{opacity:1}
+.touche{width:44px;height:40px;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2);background:rgba(255,255,255,.045);flex:none;display:flex;align-items:flex-end;padding:0 0 5px 7px;
+  font-size:12px;font-weight:600;color:rgba(245,245,247,.6);cursor:pointer;transition:background-color .12s ease,color .12s ease,transform .12s ease}
+.touche.on{background:var(--clair);color:var(--regie);transform:translateY(1px)}
+.r-geste{font-size:12.5px;line-height:16px;color:rgba(245,245,247,.55);min-height:32px;max-width:130px}
+.r-cmd{display:grid;grid-template-columns:auto auto;gap:10px 8px;align-items:center}
+.bouton{height:34px;padding:0 17px;border-radius:17px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s ease}
+.bouton:active{transform:scale(.95)}
+.bouton.creux{background:rgba(255,255,255,.1)}
+.bouton.creux:hover{background:rgba(255,255,255,.16)}
+.bouton.plein{background:var(--clair);color:var(--regie)}
+.bouton.plein:hover{background:#fff}
+.r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:var(--clair)}
+.r-pas{display:flex;flex-wrap:wrap;gap:2px 4px;list-style:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.r-pas li.sep{width:100%;height:0}
+.r-pas button{height:30px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:8px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+.r-pas button span{font-variant-numeric:tabular-nums;opacity:.7}
+.r-pas button:hover{color:rgba(245,245,247,.8)}
+.r-pas button.ici{color:var(--clair);background:rgba(255,255,255,.09)}
+.notes{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 32px;font-size:12.5px;line-height:18px;color:rgba(245,245,247,.42)}
+.notes b{color:rgba(245,245,247,.7);font-weight:600}
+@media (max-width:900px){.r-haut{grid-template-columns:1fr;gap:16px}.hero{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>L’îlot, encore plus utile<span>Verbe · maquette à cliquer</span></h1>
+  <div class="parties">
+    <button class="partie" data-aller="1" id="partieA"><em>A</em><b>Claude Code</b> : tes sessions d’un coup d’œil · étapes 1 à 7</button>
+    <button class="partie" data-aller="8" id="partieB"><em>B</em><b>Quatre outils</b> : Garder éveillé, Presse-papiers, Reformuler, Note rapide · 8 à 14</button>
+  </div>
+</header>
+
+<section id="ecran" aria-label="Faux écran de MacBook, taille réelle">
+  <div class="papier" aria-hidden="true">
+    <svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMid slice">
+      <path d="M0 0H1440V190C1190 290 930 180 660 240S210 350 0 280Z" fill="#b7cbe4" opacity=".28"/>
+      <path d="M0 560C260 470 540 520 780 600S1250 720 1440 620V760H0Z" fill="#fff" opacity=".2"/>
+    </svg>
+  </div>
+
+  <!-- ===== fenêtre Chrome (un article) ===== -->
+  <div class="fen chrome" data-f="chrome" aria-hidden="true">
+    <div class="tabs">
+      <div class="feux"><i></i><i></i><i></i></div>
+      <div class="tab act">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.2 2 2.2 10 0 12M8 2c-2.2 2-2.2 10 0 12"/></svg>
+        <span class="tt">Bien ranger ses notes de projet</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" stroke="#5b6069" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l6 6M10 4l-6 6"/></svg>
+      </div>
+      <div class="tab">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.2 2 2.2 10 0 12M8 2c-2.2 2-2.2 10 0 12"/></svg>
+        <span class="tt">Nouvel onglet</span>
+      </div>
+      <div class="tab-plus"><svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg></div>
+    </div>
+    <div class="outils">
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 9h-11M8 4.2 3.2 9 8 13.8"/></svg></span>
+      <span class="ib" style="opacity:.42"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9h11M10 4.2 14.8 9 10 13.8"/></svg></span>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 9a5.6 5.6 0 1 1-1.7-4"/><path d="M14.8 2.6v3.2h-3.2"/></svg></span>
+      <div class="omni"><span class="rg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.5" stroke-linecap="round"><path d="M2 5h6M12 5h2M2 11h2M8 11h6"/><circle cx="10" cy="5" r="1.9"/><circle cx="6" cy="11" r="1.9"/></svg></span>
+        <span class="u">carnet-de-bord.fr<span>/methode/ranger-ses-notes</span></span></div>
+      <span class="profil"></span>
+    </div>
+    <div class="page"><div class="art-col">
+      <small>MÉTHODE · 6 MIN DE LECTURE</small>
+      <h2>Bien ranger ses notes de projet, sans y passer ses soirées</h2>
+      <p>Une fiche par projet, une page « où j’en suis » mise à jour à chaque fin de séance, et un seul dossier pour les décisions : c’est tout ce qu’il faut pour reprendre un travail une semaine plus tard sans tout relire.</p>
+      <p>Le plus dur n’est pas d’écrire, c’est de savoir où ranger. Une règle simple aide : ce qui change souvent va dans « projets », ce qui ne bouge plus va dans « docs ».</p>
+    </div></div>
+  </div>
+
+  <!-- ===== Terminal : session dictee-mac ===== -->
+  <div class="fen term" data-f="t1" style="left:26px;top:92px;width:486px;height:346px" aria-hidden="true">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="term-barre">dictee-mac — claude — 82×19</div>
+    <div class="term-corps" id="t1corps"></div>
+  </div>
+  <!-- ===== Terminal : session second-cerveau ===== -->
+  <div class="fen term" data-f="t2" style="left:calc(100% - 512px);top:150px;width:486px;height:300px" aria-hidden="true">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="term-barre">second-cerveau — claude — 82×16</div>
+    <div class="term-corps" id="t2corps"></div>
+  </div>
+  <!-- ===== Mail : un nouveau message (partie B) ===== -->
+  <div class="fen cache" data-f="mail" style="left:34px;top:104px;width:500px;height:350px" aria-hidden="true">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="mail-barre">Devis cuisine<span class="ic">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 8.6 16 2.4l-4.4 13.2-3-5.6z"/><path d="M8.6 10 16 2.4"/></svg>
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12.4 6.8 7 12.2a2.4 2.4 0 0 1-3.4-3.4l6-6a1.6 1.6 0 0 1 2.3 2.3l-6 6"/></svg>
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 5h12M3 9h12M3 13h8"/></svg></span></div>
+    <div class="mail-ch">À :<span class="dest">Paul Martin</span></div>
+    <div class="mail-ch">Objet :<span>Devis cuisine</span></div>
+    <div class="mail-corps" id="mailCorps"></div>
+  </div>
+
+  <!-- ===== barre des menus ===== -->
+  <div class="mb" aria-hidden="true"><div class="menus" id="menus"></div><div class="etats" id="etats"></div></div>
+
+  <!-- ===== l'îlot ===== -->
+  <svg id="forme-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true"><g id="ombre"><path id="forme" fill="#000" d=""/></g></svg>
+  <div id="contenu" class="calque"></div>
+  <svg id="encoche-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/>
+    <circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+
+  <div class="pointeur" id="pointeur" aria-hidden="true"><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+</section>
+
+<!-- ===== régie ===== -->
+<section class="regie">
+  <div class="r-haut">
+    <div aria-live="polite">
+      <div class="r-num" id="num"></div>
+      <h2 class="r-titre" id="titre"></h2>
+      <p class="r-phrase" id="phrase"></p>
+    </div>
+    <div class="r-mains"><div class="pad" id="pad" aria-hidden="true"><i></i><i></i></div><button class="touche" id="fn" title="Maintenir pour dicter (dans la carte Note rapide)">fn</button><div class="r-geste" id="geste"></div></div>
+    <div class="r-cmd">
+      <button class="bouton creux" id="rejouer">Rejouer</button>
+      <button class="bouton plein" id="suivant">Étape suivante</button>
+      <div class="r-opts">
+        <label><input type="checkbox" id="autoCase" checked> Lecture automatique</label>
+        <label><input type="checkbox" id="lentCase"> Ralenti ×4</label>
+      </div>
+    </div>
+  </div>
+  <ol class="r-pas" id="pas"></ol>
+  <div class="notes">
+    <div><b>À essayer ici.</b> Décochez Lecture automatique, puis passez la souris sur l’îlot noir. Tout se clique : le rond Claude, « Ouvrir », « Outils », les durées, une ligne du presse-papiers, « Plus pro »… Pour la note, maintenez la touche fn dessinée dans la régie.</div>
+    <div><b>Claude, sans chercher sa fenêtre.</b> Les sessions sont lues depuis les crochets (hooks) de Claude Code, comme aujourd’hui. L’îlot dit qui travaille, qui attend une réponse, qui a fini, et « Ouvrir » amène la bonne fenêtre du Terminal.</div>
+    <div><b>Ce qui ne bouge pas.</b> Îlot noir et opaque, 470 pt de large au plus, 330 de haut (on fait défiler dans la carte au-delà), rien dans la barre des menus à plus de 66 pt de la caméra. Seule la touche fn reste.</div>
+  </div>
+</section>
+
+<script>
+'use strict';
+/* =========================================================
+   Constantes — 1 px CSS = 1 pt
+   ========================================================= */
+const B = 33;                 // hauteur de la barre des menus
+const HC = 90;                // demi-caméra (encoche de 180 pt)
+const AILE = 58;              // îlot replié : aile de 58 pt + épaule de 6 = 64 pt dans la barre (limite 66)
+const NO = 154;               // îlot ouvert : épaules de 64 pt dans la barre (limite 66)
+const BW = 232;               // îlot ouvert : demi-largeur du corps (464 pt, limite 470)
+const GX = -BW + 16;          // bord gauche des cartes
+const HMAX = 331;             // hauteur maximale de l'îlot ouvert (limite 330 + 1 de ressort) : on fait défiler dans la carte au-delà
+const ORDRE = ['centre', 'outils', 'dictees'];                     // les pages qu'on fait défiler (points à droite)
+const RANG = {centre:1, claude:1.5, outils:2, papiers:2.3, reformuler:2.5, note:2.7, dictees:3};
+const PARENT = {claude:'centre', papiers:'outils', reformuler:'outils', note:'outils'};
+const Q = new URLSearchParams(location.search);
+const racine = document.documentElement;
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const f2 = v => Math.round(v * 100) / 100;
+const mid = t => (B - t) / 2;
+let K = 1;
+const FIGE = Q.has('fige');
+const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+let REDUIT = mq.matches;
+mq.addEventListener && mq.addEventListener('change', e => { REDUIT = e.matches; });
+if (FIGE) racine.classList.add('fige');
+
+/* =========================================================
+   Forme de l'îlot (reprise de ilot-centre.html)
+   ========================================================= */
+const PORTEE = 1.6, POIGNEE = 0.18;
+function cote(g, n, bw){
+  const corps = Math.max(0, g.h - B), u = Math.min(corps, 40) / 40, e = 1 - Math.pow(1 - u, 2.5);
+  const d = Math.max(0, bw - n) * e, W = n + d, serre = 1 - clamp((n - HC) / 24, 0, 1);
+  const rs = g.rs + (4 - g.rs) * serre, rbv = lerp(g.rb + (8 - g.rb) * serre, g.rb, clamp(corps / 12, 0, 1));
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6), dispo = (1 - lam) * (g.h - rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(rbv, dispo / PORTEE, W / PORTEE));
+  return {n, W, d, fe, rte, rbe, rs};
+}
+function chemin(g){
+  const h = g.h, L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd), X = f2, Y = f2;
+  const a1 = PORTEE * L.rte, c1 = POIGNEE * a1, a2 = PORTEE * L.rbe, c2 = POIGNEE * a2;
+  const b1 = PORTEE * D.rte, d1 = POIGNEE * b1, b2 = PORTEE * D.rbe, d2 = POIGNEE * b2;
+  let p = `M${X(-L.n - L.rs)} ${Y(-1)}L${X(-L.n - L.rs)} 0Q${X(-L.n)} 0 ${X(-L.n)} ${Y(L.rs)}`;
+  if (L.d > 0.5) p += `L${X(-L.n)} ${Y(B - L.fe)}Q${X(-L.n)} ${B} ${X(-L.n - L.fe)} ${B}L${X(-L.W + a1)} ${B}C${X(-L.W + c1)} ${B} ${X(-L.W)} ${Y(B + c1)} ${X(-L.W)} ${Y(B + a1)}`;
+  p += `L${X(-L.W)} ${Y(h - a2)}C${X(-L.W)} ${Y(h - c2)} ${X(-L.W + c2)} ${Y(h)} ${X(-L.W + a2)} ${Y(h)}`;
+  p += `L${X(D.W - b2)} ${Y(h)}C${X(D.W - d2)} ${Y(h)} ${X(D.W)} ${Y(h - d2)} ${X(D.W)} ${Y(h - b2)}`;
+  if (D.d > 0.5) p += `L${X(D.W)} ${Y(B + b1)}C${X(D.W)} ${Y(B + d1)} ${X(D.W - d1)} ${B} ${X(D.W - b1)} ${B}L${X(D.n + D.fe)} ${B}Q${X(D.n)} ${B} ${X(D.n)} ${Y(B - D.fe)}`;
+  p += `L${X(D.n)} ${Y(D.rs)}Q${X(D.n)} 0 ${X(D.n + D.rs)} 0L${X(D.n + D.rs)} ${Y(-1)}Z`;
+  return p;
+}
+const CLES = ['ng', 'nd', 'bw', 'bd', 'h', 'rs', 'rb', 'rt', 'f'];
+const REPOS = {ng:HC, nd:HC, bw:HC, bd:HC, h:B, rs:4, rb:8, rt:0, f:0};                  // l'encoche seule
+const compact = (g, d) => ({ng:g, nd:d, bw:g, bd:d, h:B, rs:6, rb:10, rt:0, f:0});       // des ailes dans la barre
+const bandeau = (w, h, n) => ({ng:n, nd:n, bw:w, bd:w, h, rs:6, rb:30, rt:16, f:10});    // il descend sous la barre
+$('#encoche').setAttribute('d', chemin(REPOS));
+
+/* =========================================================
+   Ressorts (réponse en s, amortissement) — interruptibles
+   ========================================================= */
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = .8; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){
+      this.attente -= dt;
+      if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; }
+    }
+    const w = 2 * Math.PI / this.rep, a = w * w * (this.cible - this.x) - 2 * this.z * w * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+(function(){   // courbe CSS « ressort » (même formule), pour les zooms d'entrée
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){
+    pts.push(x);
+    for (let s = 0, n = Math.round((T / N) / dt); s < n; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; }
+  }
+  pts[pts.length - 1] = 1;
+  racine.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+/* =========================================================
+   Glyphes (dessinés à la main, façon symboles SF)
+   ========================================================= */
+const micro = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const airpods = (t, c = '#fff') => { const b = 'M5.6 3a3.1 3.1 0 0 0-3.1 3.1v.9a3.1 3.1 0 0 0 3.1 3.1h.3v6.4a1.2 1.2 0 0 0 2.4 0V5.9A3 3 0 0 0 5.6 3z';
+  return `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><path d="${b}"/><path d="${b}" transform="matrix(-1 0 0 1 20 0)"/></svg>`; };
+const flecheBas = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.4" fill="none" stroke="${c}" stroke-width="1.7"/><path d="M10 5.4v8.2M6.6 10.4 10 13.8l3.4-3.4" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const rayons = c => [0, 30, 60, 90, 120, 150].map(a => `<rect x="9" y="1.5" width="2" height="17" rx="1" fill="${c}" transform="rotate(${a} 10 10)"/>`).join('');
+const etoile = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20">${rayons(c)}</svg>`;
+/* l'étoile dans son anneau d'avancement (comme l'îlot construit : « 3 sur 7 ») */
+const anneau = (t, frac, c, fond = 'rgba(255,255,255,.2)') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.9" fill="none" stroke="${fond}" stroke-width="1.7"/>` +
+  `<circle cx="10" cy="10" r="8.9" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round" pathLength="100" stroke-dasharray="${f2(frac * 100)} 100" transform="rotate(-90 10 10)"/>` +
+  `<g transform="translate(4.4 4.4) scale(.56)">${rayons(c)}</g></svg>`;
+const minuteurG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><circle cx="12" cy="13.4" r="7.6" fill="none" stroke="${c}" stroke-width="2.1"/><path d="M12 13.4V9.2M9.5 2.8h5" stroke="${c}" stroke-width="2.1" stroke-linecap="round"/></svg>`;
+const plateauG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M2.6 11.2 4.9 4.6A2 2 0 0 1 6.8 3.3h6.4a2 2 0 0 1 1.9 1.3l2.3 6.6v4a2 2 0 0 1-2 2H4.6a2 2 0 0 1-2-2z"/><path d="M2.8 11.2h4.1l1 2.2h4.2l1-2.2h4.1"/></svg>`;
+const cloche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><path fill="${c}" d="M12 2.6c-3.3 0-5.8 2.6-5.8 5.9v3.6l-1.6 2.9c-.5.9.1 1.9 1.1 1.9h12.6c1 0 1.6-1 1.1-1.9l-1.6-2.9V8.5c0-3.3-2.5-5.9-5.8-5.9zM9.4 18.7a2.7 2.7 0 0 0 5.2 0z"/></svg>`;
+const guillemets = (t, c = '#fff') => `<svg width="${t}" height="${f2(t * .7)}" viewBox="-.45 -.3 3 2.1"><g fill="${c}"><path d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><path transform="translate(1.1 0)" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/></g></svg>`;
+const punaiseG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><path d="M6.6 2.4h6.8l-1.2 5.2 3 3.2H4.8l3-3.2z" fill="${c}"/><path d="M10 10.6v7" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const chevG = (t, c, d = 'g') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d === 'g' ? 'M12.5 4.5 7 10l5.5 5.5' : d === 'd' ? 'M7.5 4.5 13 10l-5.5 5.5' : d === 'h' ? 'M4.5 12.5 10 7l5.5 5.5' : 'M4.5 7.5 10 13l5.5-5.5'}"/></svg>`;
+const moinsG = '<svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5h6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>';
+const batterie = n => `<svg width="28" height="13" viewBox="0 0 28 13"><rect width="24" height="13" rx="4" fill="#fff"/><text x="12" y="10" font-size="9.6" font-weight="700" text-anchor="middle" fill="#000" font-family="-apple-system,Helvetica,sans-serif">${n}</text><path d="M26 4.6v3.8" stroke="rgba(255,255,255,.5)" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const doc = (t, coul = '#ff453a', lbl = 'PDF') => `<svg width="${f2(t * 0.8)}" height="${t}" viewBox="0 0 32 40"><path d="M4 1h17l10 10v26a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="#f2f2f7" stroke="rgba(0,0,0,.12)" stroke-width=".8"/><path d="M21 1v8a2 2 0 0 0 2 2h8" fill="#d1d1d6"/><rect x="5" y="24" width="22" height="9" rx="2" fill="${coul}"/><text x="16" y="31" text-anchor="middle" font-size="7" font-weight="800" fill="#fff" font-family="-apple-system,sans-serif">${lbl}</text></svg>`;
+const loupe = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><circle cx="6.9" cy="6.9" r="4.9"/><path d="M10.6 10.6 14.2 14.2"/></svg>`;
+const coche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.6 12.8 4.6"/></svg>`;
+/* nouveaux glyphes de la partie B (même trait que les autres : 1,7 sur 20) */
+const tasse = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4h10.4v3.8a4.4 4.4 0 0 1-4.4 4.4H7.6a4.4 4.4 0 0 1-4.4-4.4z" fill="${c}"/><path d="M13.6 9.6h1.1a2.1 2.1 0 0 1 0 4.2h-1.4"/><path d="M6.4 2.4c-.9 1.1.9 1.8 0 3M10 2.4c-.9 1.1.9 1.8 0 3"/></svg>`;
+const pressePapiers = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.6H5.4a1.8 1.8 0 0 0-1.8 1.8v10.8a1.8 1.8 0 0 0 1.8 1.8h9.2a1.8 1.8 0 0 0 1.8-1.8V5.4a1.8 1.8 0 0 0-1.8-1.8H13"/><rect x="7" y="2" width="6" height="3.4" rx="1.1" fill="${c}"/><path d="M7 9.8h6M7 13h4"/></svg>`;
+const reformG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 4.6h12.6M2.6 8.6h8.4M2.6 12.6h4.6"/><path d="M10.4 17.6l.5-2.5 5.4-5.4a1.35 1.35 0 0 1 1.9 1.9l-5.4 5.4z" fill="${c}"/></svg>`;
+const noteG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="2.6" width="13.2" height="14.8" rx="2.8"/><path d="M6.6 7h6.8M6.6 10.2h6.8M6.6 13.4h4"/></svg>`;
+const cadenas = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="4" y="9" width="12" height="8.6" rx="2.2" fill="${c}"/><path d="M6.7 9V6.7a3.3 3.3 0 0 1 6.6 0V9" fill="none" stroke="${c}" stroke-width="1.8"/></svg>`;
+const appNotes = t => `<svg width="${t}" height="${t}" viewBox="0 0 16 16"><rect x=".5" y=".5" width="15" height="15" rx="3.6" fill="#fff"/><path d="M.5 4.1A3.6 3.6 0 0 1 4.1.5h7.8a3.6 3.6 0 0 1 3.6 3.6v1H.5z" fill="#ffd60a"/><path d="M3.4 8.4h9.2M3.4 11h9.2M3.4 13.4h5.6" stroke="#c7c7cc" stroke-width=".9"/></svg>`;
+const okVert = t => `<span class="okv" style="width:${t}px;height:${t}px">${coche(f2(t * .62), '#fff')}</span>`;
+const imageMini = () => `<svg width="40" height="28" viewBox="0 0 40 28"><rect width="40" height="28" fill="#6aa7e8"/><path d="M0 20 11 11l8 7 6-4 15 10v4H0z" fill="#2f7d4f"/><circle cx="30" cy="8" r="3.4" fill="#ffe38a"/></svg>`;
+const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
+const MENUS = {Chrome:['Fichier', 'Modifier', 'Afficher', 'Historique', 'Favoris', 'Profils', 'Onglet', 'Fenêtre', 'Aide'],
+  Terminal:['Shell', 'Édition', 'Présentation', 'Fenêtre', 'Aide'], Mail:['Fichier', 'Édition', 'Présentation', 'Boîte aux lettres', 'Message', 'Format', 'Fenêtre', 'Aide']};
+
+/* Icônes de la barre des menus, de la droite vers la gauche (plus d'icône ❞ : tout vit dans l'îlot) */
+(function(){
+  const s = d => `<span><svg viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg></span>`;
+  $('#etats').innerHTML = '<span class="heure">Mer. 11 nov.&nbsp; 14:44</span>' +
+    s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
+    s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
+    s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>';
+})();
+
+/* =========================================================
+   Les deux sessions Claude (lues dans les crochets de Claude Code)
+   ========================================================= */
+const S = {
+  dm:{id:'dm', projet:'dictee-mac', min:42, taches:['Lire le moteur de l’îlot', 'Écrire le modèle des dictées', 'Dessiner la liste', 'Construire la carte Dictées', 'Brancher la recherche', 'Copier et coller au clic', 'Essai complet'], faits:3},
+  sc:{id:'sc', projet:'second-cerveau', min:12, taches:['Lire LIS-MOI.md', 'Ranger les fiches projets', 'Mettre à jour OU-J-EN-SUIS'], faits:1,
+      question:'Je range la fiche Verbe dans projets/ ou dans docs/\u202f?'}
+};
+const enCours = s => s.taches[s.faits];
+/* phase : travail → question (second-cerveau attend) → repondu → fini (dictee-mac a fini) */
+function etatSession(id){
+  const p = st.phase;
+  if (id === 'sc' && p === 'question') return 'attend';
+  if (id === 'dm' && p === 'fini') return 'fini';
+  return 'travail';
+}
+
+/* =========================================================
+   Ce que l'îlot affiche : [nom, x (depuis le centre), y, html]
+   ========================================================= */
+const tuile = (t, b) => `<button class="tg" data-t="${t}"><span class="rd"><span class="moins">${moinsG}</span><span class="gl"></span></span><b>${b}</b><i></i></button>`;
+const punaise = `<span class="punaise">${punaiseG(12, 'rgba(255,255,255,.5)')}Reste ouvert</span>`;
+const retour = (vers, txt) => `<button class="pil retour" data-act="${vers}">${chevG(13, '#fff', 'g')}${txt}</button>`;
+const CARTE_CENTRE = `<div class="cc" id="cc">
+  <div class="cc-tete">
+    ${punaise}
+    <button class="pil vers" data-act="outils" id="versOutils">Outils${chevG(12, '#fff', 'd')}</button>
+    <button class="pil vers" data-act="dictees">${guillemets(12)}Dictées</button>
+    <button class="pil bout-modif" data-act="modifier" id="boutModif">Modifier</button>
+  </div>
+  <div class="cc-ronds">${tuile('micro', 'Micro')}${tuile('dictee', 'Dictée')}${tuile('dl', 'Téléchargements')}${tuile('claude', 'Claude Code')}${tuile('rappel', 'Rappel')}</div>
+  <div class="cc-larges">
+    <div class="tl"><span class="moins">${moinsG}</span><div class="tl-t">${minuteurG(17, 'var(--ambre)')}Minuteur</div>
+      <div class="tl-caps"><button class="cap">5</button><button class="cap">10</button><button class="cap">25</button><span class="tl-u">min</span></div></div>
+    <div class="tl"><span class="moins">${moinsG}</span><div class="tl-t">${plateauG(17, '#5eb0ff')}Étagère<em class="nb">1</em></div>
+      <div class="eta-plein">${doc(28)}<div><div class="nm">Contrat.pdf</div><div class="sub">glisse-le vers une app</div></div></div></div>
+  </div>
+  <button class="tr"><span class="moins">${moinsG}</span><span class="tr-pt"></span><span>Noter la réunion</span><span class="tr-s">Verbe écrit tout ce qui se dit</span></button>
+</div>`;
+/* la 2e page du Centre : les quatre outils */
+const CARTE_OUTILS = `<div class="cc" id="oc">
+  <div class="cc-tete">
+    ${retour('centre', 'Centre')}
+    ${punaise}
+    <button class="pil vers" data-act="dictees">${guillemets(12)}Dictées</button>
+    <button class="pil bout-modif" data-act="modifier">Modifier</button>
+  </div>
+  <div class="cc-ronds">${tuile('eveil', 'Garder éveillé')}${tuile('papiers', 'Presse-papiers')}${tuile('reformuler', 'Reformuler')}${tuile('notes', 'Notes')}</div>
+  <div class="ev" id="ev"><div class="tl-t">${tasse(17, 'var(--ambre)')}<span id="evTitre"></span></div>
+    <div class="tl-caps"><button class="cap" data-ev="1">1 h</button><button class="cap" data-ev="2">2 h</button><button class="cap" data-ev="inf">Jusqu’à l’arrêt</button><button class="cap" data-ev="0" id="evStop">Éteindre</button></div></div>
+  <button class="tr" data-act="note"><span class="moins">${moinsG}</span>${micro(17, 'var(--rouge)')}<span>Dicter une note</span><span class="tr-s">maintiens</span><span class="fnk">fn</span></button>
+</div>`;
+const CARTE_CLAUDE = `<div class="kc" id="kc">
+  <div class="cc-tete">${retour('centre', 'Centre')}<span class="titre-c">${etoile(14, 'var(--corail)')}Claude Code<span id="kcNb"></span></span>${punaise}</div>
+  <div class="kc-liste" id="kcListe"></div>
+</div>`;
+const PAPIERS = [
+  {id:'p1', ic:`<span style="font:700 12px var(--sans);color:rgba(255,255,255,.6)">Aa</span>`, x:'4\u202f200\u202f€ posé, plan de travail en chêne compris', cl:'', h:'1 min'},
+  {id:'p2', ic:imageMini(), x:'Capture d’écran<span>1 280 × 800</span>', cl:'sans', h:'6 min'},
+  {id:'p3', ic:doc(22), x:'Devis-cuisine.pdf<span>212 Ko</span>', cl:'sans', h:'14 min'},
+  {id:'p4', ic:`<span style="font:700 11px var(--mono);color:rgba(255,255,255,.6)">&gt;_</span>`, x:'git push origin main', cl:'code', h:'31 min'},
+  {id:'p5', ic:`<span style="font:700 12px var(--sans);color:rgba(255,255,255,.6)">Aa</span>`, x:'Bonjour Madame Martin, je vous confirme le rendez-vous de mardi.', cl:'', h:'1 h'}
+];
+const CARTE_PAPIERS = `<div class="pc" id="pc">
+  <div class="cc-tete">${retour('outils', 'Outils')}<span class="titre-c">${pressePapiers(14)}Presse-papiers<span>5 derniers</span></span>${punaise}</div>
+  <div class="pp-liste">${PAPIERS.map(p => `<div class="pp-l" data-pp="${p.id}"><span class="pp-ic">${p.ic}</span><span class="pp-x ${p.cl}">${p.x}</span>
+    <span class="pp-d"><span class="pp-h">${p.h}</span><span class="ok-pil">${coche(12, '#5fe08a')}Copié</span><span class="pp-act"><button class="mini-pil" data-pact="coller">Coller</button></span></span></div>`).join('')}</div>
+  <div class="pied">${cadenas(12, 'rgba(255,255,255,.4)')}Rien ne quitte ce Mac<button class="lien" data-act="rien">Tout effacer</button></div>
+</div>`;
+const DERNIERE = 'OK pour le devis de la cuisine : 4\u202f200\u202f€ posé, plan de travail en chêne compris. Je te l’envoie ce soir avec les plans et les photos du chantier.';
+const REFORM = {
+  pro:['Plus pro', 'Bonjour Paul, je vous confirme le devis de la cuisine : 4\u202f200\u202f€, pose et plan de travail en chêne compris. Je vous envoie ce soir les plans et les photos. Cordialement.'],
+  court:['Plus court', 'OK pour le devis cuisine : 4\u202f200\u202f€ posé, chêne compris. Plans et photos ce soir.'],
+  en:['En anglais', 'OK for the kitchen quote: €4,200 installed, oak worktop included. I’ll send it tonight with the plans and photos of the site.']
+};
+const CARTE_REFORM = `<div class="rc" id="rc">
+  <div class="cc-tete">${retour('outils', 'Outils')}<span class="titre-c">${reformG(14)}Reformuler</span>
+    <span class="seg"><button data-src="dictee" class="on">Dernière dictée</button><button data-src="sel">Texte choisi</button></span></div>
+  <div class="rc-src"><div class="rc-lb" id="rcLb"></div><p id="rcSrc"></p></div>
+  <div class="rc-btns"><button class="rc-b" data-ref="pro">Plus pro</button><button class="rc-b" data-ref="court">Plus court</button><button class="rc-b" data-ref="en">En anglais</button></div>
+  <div class="rc-res" id="rcRes"></div>
+</div>`;
+const CARTE_NOTE = `<div class="nc" id="nc">
+  <div class="cc-tete">${retour('outils', 'Outils')}<span class="titre-c">${noteG(14)}Note rapide</span>${punaise}</div>
+  <div class="nc-zone" id="ncZone"></div>
+  <div class="nc-lb">Notes<span id="ncNb"></span></div>
+  <div class="nc-liste" id="ncListe"></div>
+</div>`;
+const DICTEES = [
+  {id:'d1', j:'Aujourd’hui', h:'14:43', app:'Mail', x:DERNIERE},
+  {id:'d2', j:'Aujourd’hui', h:'14:12', app:'Messages', x:'Je serai en retard de dix minutes, commencez sans moi.'},
+  {id:'d3', j:'Aujourd’hui', h:'13:50', app:'Terminal', x:'Ajoute une section installation dans le README avec les trois commandes.'},
+  {id:'d4', j:'Aujourd’hui', h:'11:27', app:'Mail', x:'Bonjour Madame Martin, je vous confirme le rendez-vous de mardi à 10 h.'},
+  {id:'d5', j:'Hier', h:'18:32', app:'Messages', x:'Tu peux me renvoyer le devis signé pour la salle de bain ?'},
+  {id:'d6', j:'Hier', h:'17:05', app:'Notes', x:'Liste de courses : pain, œufs, café, lessive.'}
+];
+const CARTE_DICTEES = `<div class="dc" id="dc">
+  <div class="dc-tete">${retour('centre', 'Centre')}
+    <label class="dc-champ">${loupe(14, 'currentColor')}<input id="ddRech" type="text" placeholder="Rechercher" autocomplete="off" spellcheck="false" aria-label="Rechercher dans les dictées"></label></div>
+  <div class="dd-liste" id="ddListe"></div>
+</div>`;
+const BAN_Q = `<div class="ban">${etoile(24, 'var(--corail)')}<div class="tx"><b>second-cerveau attend ta réponse</b><span>«\u202f${S.sc.question}\u202f»</span></div><button class="act" data-act="ouvrir-sc">Ouvrir</button></div>`;
+const BAN_F = `<div class="ban">${okVert(26)}<div class="tx"><b>Carte Dictées terminée</b><span>dictee-mac · 42 min · 7 tâches sur 7</span></div><button class="act" data-act="ouvrir-dm">Voir</button></div>`;
+const CONTENUS = [
+  ['clG', -(HC + AILE - 6), mid(20), '<div class="cl-g"><span class="cl-anneau" id="clAnneau"></span><span class="cl-n" id="clN"></span></div>'],
+  ['clD', HC + 6, mid(17), '<div class="defil" id="clDefil"></div>'],
+  ['batt', -NO + 13, mid(13), `<span class="epaule">${batterie(64)}</span>`],
+  ['airp', HC + 8, mid(17), `<span class="epaule">${airpods(15)}78 %</span>`],
+  ['banQ', 0, B + 12, BAN_Q],
+  ['banF', 0, B + 12, BAN_F],
+  ['centre', GX, B + 14, CARTE_CENTRE],
+  ['outils', GX, B + 14, CARTE_OUTILS],
+  ['claude', GX, B + 14, CARTE_CLAUDE],
+  ['papiers', GX, B + 14, CARTE_PAPIERS],
+  ['reformuler', GX, B + 14, CARTE_REFORM],
+  ['note', GX, B + 14, CARTE_NOTE],
+  ['dictees', GX, B + 14, CARTE_DICTEES],
+  ['points', BW - 23, 0, `<div class="pts" id="pts">${ORDRE.map(o => `<button data-act="${o}" aria-label="${o}"><i></i></button>`).join('')}</div>`]
+];
+const contenu = $('#contenu');
+contenu.innerHTML = CONTENUS.map(([nom, x, y, html]) => `<div class="c e" data-c="${nom}" style="left:${f2(500 + x)}px;top:${f2(y)}px">${html}</div>`).join('');
+const c = {}; contenu.querySelectorAll('[data-c]').forEach(n => c[n.dataset.c] = n);
+const tg = t => contenu.querySelector(`.tg[data-t="${t}"]`);
+const rd = t => tg(t).querySelector('.rd');
+
+/* =========================================================
+   L'état de Verbe
+   ========================================================= */
+const st = {};
+function remettre(){
+  Object.assign(st, {carte:null, ban:null, punaise:false, edit:false, phase:'travail', plie:false,
+    eveil:0, evOuvert:false, ppSurvol:null, ppCopie:null, src:'dictee', ref:null, refEtat:null, remplace:false,
+    rec:false, recTexte:'', notes:[{h:'11:05', x:'Acheter des ampoules pour le salon'}, {h:'Hier', x:'Idée : un mode nuit pour l’îlot, plus sombre après 22 h'}, {h:'Hier', x:'Rappeler la banque pour le prêt'}],
+    neuve:null, envoyee:false, nlSurvol:null, requete:''});
+}
+const FIN_EVEIL = {1:'15:44', 2:'16:44'};
+
+/* --- l'îlot replié : l'étoile, l'avancement, la tâche qui défile --- */
+function majPlie(){
+  const p = st.phase, attend = p === 'question', fini = p === 'fini';
+  const s = fini ? S.sc : S.dm, deux = !fini;
+  const coul = attend ? 'var(--ambre)' : 'var(--corail)';
+  $('#clAnneau').innerHTML = anneau(20, attend ? 1 : s.faits / s.taches.length, coul) + (deux ? '<span class="badge">2</span>' : '');
+  $('#clN').textContent = attend ? '' : `${s.faits}/${s.taches.length}`;
+  const txt = attend ? 'second-cerveau attend ta réponse' : enCours(s);
+  $('#clDefil').className = 'defil' + (attend ? ' ambre' : '');
+  $('#clDefil').innerHTML = `<span><i>${txt}</i><i>${txt}</i></span>`;
+}
+/* --- les Terminaux --- */
+function majTerminaux(){
+  const p = st.phase, dmFini = p === 'fini';
+  const liste = (s, fini) => s.taches.map((t, i) => {
+    const fait = fini || i < s.faits, cours = !fini && i === s.faits;
+    return `  <span class="g"${i ? ' style="visibility:hidden"' : ''}>⎿</span>  ${fait ? '<span class="v">☒</span> <span class="g">' + t + '</span>' : cours ? '<span class="k">☐ <b>' + t + '</b></span>' : '☐ ' + t}`;
+  }).join('\n');
+  $('#t1corps').innerHTML = `<span class="g">~/dictee-mac</span> <span class="k">claude</span>
+<span class="g">&gt;</span> construis la carte Dictées de l’îlot
+<span class="k">⏺</span> Je lis d’abord le moteur de l’îlot.
+<span class="k">⏺</span> <b>Update</b>(Sources/Ilot/CarteDictees.swift)
+  <span class="g">⎿  +84 lignes, −12 lignes</span>
+` + (dmFini ? `<span class="k">⏺</span> Carte Dictées terminée : <b>7 tâches sur 7</b>, essai vert.
+${liste(S.dm, true)}
+<span class="g">✻ 42 min au total</span>` : `<span class="k">✻ Construire la carte Dictées…</span> <span class="g">(42 min)</span>
+${liste(S.dm, false)}`) + `\n<div class="term-prompt">&gt;</div>`;
+  const q = p === 'question', rep = p === 'repondu' || p === 'fini';
+  $('#t2corps').innerHTML = `<span class="g">~/second-cerveau</span> <span class="k">claude</span>
+<span class="g">&gt;</span> range les fiches projets du second cerveau
+<span class="k">⏺</span> <b>Read</b>(LIS-MOI.md)
+<span class="k">✻ Ranger les fiches projets…</span> <span class="g">(12 min)</span>
+${liste(S.sc, false)}` +
+  (q ? `\n<span class="term-q"><span class="a">?</span> <b>${S.sc.question}</b>
+  <span class="a">❯ 1. projets/</span>
+    2. docs/</span>` : rep ? `\n<span class="v">✓</span> <span class="g">projets/</span>\n<span class="k">⏺</span> Je range la fiche dans projets/.` : '') + `\n<div class="term-prompt">&gt;</div>`;
+}
+/* --- le Centre et sa page Outils --- */
+function majCentre(pop){
+  const pose = (t, cl, gl, sous) => {
+    const n = tg(t); n.className = 'tg ' + cl; n.querySelector('.gl').innerHTML = gl; n.querySelector('i').textContent = sous;
+    if (pop === t && !instant && !REDUIT) n.querySelector('.rd').animate([{transform:'scale(1)'}, {transform:'scale(.86)'}, {transform:'scale(1.06)'}, {transform:'scale(1)'}], {duration:380 * K, easing:'ease-out'});
+  };
+  pose('micro', '', micro(24, '#fff'), 'Ouvert');
+  pose('dictee', '', airpods(24), 'AirPods');
+  pose('dl', 'bleu', flecheBas(24), 'Allumé');
+  const nb = st.phase === 'fini' ? 1 : 2;
+  pose('claude', 'corail', etoile(22, '#fff'), st.phase === 'question' ? '1 t’attend' : `${nb} au travail`);
+  if (st.phase === 'question') tg('claude').querySelector('i').style.color = '#ffb340'; else tg('claude').querySelector('i').style.color = '';
+  pose('rappel', '', cloche(23, 'var(--jaune)'), 'Dire un rappel');
+  const ev = st.eveil;
+  pose('eveil', (ev ? 'ambre' : '') + (st.evOuvert && !ev ? ' ouvert' : ''), tasse(24, ev ? '#000' : '#fff'), ev ? (ev === 'inf' ? 'Toujours' : 'jusqu’à ' + FIN_EVEIL[ev]) : 'Éteint');
+  pose('papiers', '', pressePapiers(23), '5 récents');
+  pose('reformuler', '', reformG(23), 'Dernière dictée');
+  pose('notes', '', noteG(23), `${st.notes.length} notes`);
+  $('#ev').classList.toggle('vu', st.evOuvert);
+  $('#evTitre').innerHTML = ev ? (ev === 'inf' ? 'Éveillé<span>jusqu’à ce que tu l’arrêtes</span>' : `Éveillé<span>jusqu’à ${FIN_EVEIL[ev]}, puis veille normale</span>`) : 'Garder le Mac éveillé<span>combien de temps ?</span>';
+  contenu.querySelectorAll('[data-ev]').forEach(b => b.classList.toggle('choisi', b.dataset.ev === String(ev) && ev !== 0));
+  $('#evStop').style.display = ev ? '' : 'none';
+  $('#cc').classList.toggle('edit', st.edit);
+  $('#boutModif').textContent = st.edit ? 'OK' : 'Modifier';
+  $('#boutModif').classList.toggle('ok', st.edit);
+  contenu.querySelectorAll('.punaise').forEach(p => p.classList.toggle('vu', st.punaise));
+}
+/* --- la carte Claude : un bloc par session ; celle qui t'attend passe en haut --- */
+function majClaude(){
+  const p = st.phase;
+  const ordre = p === 'question' || p === 'fini' ? ['sc', 'dm'] : ['dm', 'sc'];
+  $('#kcNb').textContent = p === 'fini' ? '· 1 au travail, 1 finie' : '· 2 sessions';
+  $('#kcListe').innerHTML = ordre.map(id => {
+    const s = S[id], e = etatSession(id), fini = e === 'fini';
+    const frac = fini ? 1 : s.faits / s.taches.length;
+    const coul = e === 'attend' ? 'var(--ambre)' : fini ? 'var(--vert)' : 'var(--corail)';
+    const eTxt = e === 'attend' ? 'Attend ta réponse' : fini ? 'Terminée' : 'Au travail';
+    const quand = fini ? `en ${s.min} min` : `depuis ${s.min} min`;
+    const taches = s.taches.map((t, i) => {
+      const fait = fini || i < s.faits, cours = !fini && i === s.faits;
+      return `<div class="tk ${fait ? 'fait' : cours ? 'cours' : ''}"><span class="ck">${fait ? coche(12, 'rgba(255,255,255,.5)') : '<span class="rond"></span>'}</span>${t}</div>`;
+    }).join('');
+    return `<div class="ses ${e}">
+      <div class="ses-h">${fini ? okVert(22) : anneau(22, frac, coul)}<div><div class="nm">${s.projet}</div><div class="sb"><em>${eTxt}</em> · ${quand} · ${fini ? s.taches.length : s.faits} sur ${s.taches.length}</div></div>
+        <button class="ouv" data-act="ouvrir-${id}">${fini ? 'Voir' : 'Ouvrir'}</button></div>
+      ${e === 'attend' ? `<div class="ses-q">«\u202f${s.question}\u202f»</div>` : ''}
+      <div class="tks">${fini ? '' : taches}</div></div>`;
+  }).join('');
+  const l = $('#kcListe'); l.scrollTop = 0;
+  l.classList.toggle('defile', l.scrollHeight > l.clientHeight + 1);
+}
+/* --- Presse-papiers --- */
+function majPapiers(){
+  contenu.querySelectorAll('.pp-l').forEach(n => {
+    n.classList.toggle('survol', st.ppSurvol === n.dataset.pp);
+    n.classList.toggle('copie', st.ppCopie === n.dataset.pp);
+    n.querySelector('.ok-pil').lastChild.textContent = st.ppMot || 'Copié';
+  });
+}
+/* --- Reformuler --- */
+function majReform(){
+  const sel = st.src === 'sel';
+  contenu.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.src === st.src));
+  $('#rcLb').textContent = sel ? 'Texte choisi' : 'Dernière dictée · Mail · 14:43';
+  $('#rcSrc').textContent = sel ? 'Choisis un texte dans n’importe quelle app : il apparaîtra ici.' : DERNIERE;
+  contenu.querySelectorAll('.rc-b').forEach(b => b.classList.toggle('choisi', b.dataset.ref === st.ref));
+  const r = $('#rcRes');
+  r.classList.toggle('vu', !!st.refEtat);
+  $('#rc').classList.toggle('res', st.refEtat === 'fait');
+  if (st.refEtat === 'calcul') r.innerHTML = `<div class="calc"><span class="trois"><i></i><i></i><i></i></span>Verbe réécrit…</div>`;
+  else if (st.refEtat === 'fait') r.innerHTML = `<p>${REFORM[st.ref][1]}</p>
+    <div class="rc-act"><button class="pil blanc" data-act="remplacer">Remplacer</button><button class="pil" data-act="copier-ref" id="copierRef">Copier</button><span class="note">${REFORM[st.ref][0]} · remplace le texte dans Mail</span></div>`;
+}
+/* --- Note rapide --- */
+function majNote(){
+  const z = $('#ncZone');
+  z.classList.toggle('rec', st.rec);
+  z.innerHTML = `<span class="nc-mic">${micro(22, '#fff')}</span><div class="nc-t">` + (st.rec
+    ? `<b>J’écoute…</b><p class="${st.recTexte ? '' : 'vide'}">${st.recTexte || 'Parle, Verbe écrit.'}</p>`
+    : `<b>Dicter une note</b><span>Maintiens <span class="fnk">fn</span> tant que cette carte est ouverte</span>`) + `</div>` +
+    (st.rec ? '<span class="eq"><i></i><i></i><i></i><i></i></span>' : '');
+  $('#ncNb').textContent = `${st.notes.length} · gardées sur ce Mac`;
+  $('#ncListe').innerHTML = st.notes.map((n, i) => `<div class="nl${i === 0 && st.neuve ? ' neuve' : ''}${i === 0 && st.envoyee ? ' envoyee' : ''}${st.nlSurvol === i ? ' survol' : ''}" data-nl="${i}">
+    <span class="nl-h">${n.h}</span><span class="nl-x">${n.x}</span>
+    <span class="nl-d"><button class="mini-pil" data-act="vers-notes">${appNotes(13)}Vers Notes</button><span class="ok-pil">${coche(12, '#5fe08a')}Dans Notes</span></span></div>`).join('');
+}
+/* --- Dictées (reprise de ilot-centre.html, sans le détail) --- */
+const sansAccent = ch => ch.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function majDictees(){
+  const q = [...st.requete.trim()].map(sansAccent).join('');
+  const liste = DICTEES.filter(d => !q || [...d.x].map(ch => sansAccent(ch)[0] || ch).join('').includes(q));
+  let html = '', jour = '';
+  for (const d of liste){
+    if (d.j !== jour){ jour = d.j; html += `<div class="dd-g">${jour}</div>`; }
+    html += `<div class="dd-l" data-d="${d.id}"><span class="dd-h">${d.h}</span><span class="dd-x">${d.x}</span><span class="dd-app">${d.app}</span><span class="ok-pil">${coche(12, '#5fe08a')}Copié</span></div>`;
+  }
+  $('#ddListe').innerHTML = html || '<div class="dd-rien">Aucun résultat</div>';
+}
+const MAIL_AVANT = DERNIERE;
+const MAIL_APRES = 'Bonjour Paul,<br><br>Je vous confirme le devis de la cuisine : 4\u202f200\u202f€, pose et plan de travail en chêne compris. Je vous envoie ce soir les plans et les photos.<br><br>Cordialement.';
+function majMail(){ $('#mailCorps').innerHTML = st.remplace ? MAIL_APRES : MAIL_AVANT; }
+function majTout(){ majPlie(); majTerminaux(); majCentre(); majClaude(); majPapiers(); majReform(); majNote(); majDictees(); majMail(); }
+
+/* =========================================================
+   Minuteries et attentes annulables (reprises de ilot-centre.html)
+   ========================================================= */
+let jeton = 0, instant = false, enCoursN = 0, cibleN = 0, auto = false;
+const minuteries = new Set();
+function apres(t, fn){ const id = setTimeout(() => { minuteries.delete(id); fn(); }, t * 1000 * K); minuteries.add(id); return id; }
+function annuler(){ minuteries.forEach(clearTimeout); minuteries.clear(); }
+function suite(){ const j = jeton; return Promise.resolve().then(() => { if (j !== jeton) throw 'stop'; }); }
+function attendre(t){
+  if (instant) return suite();
+  const j = jeton;
+  return new Promise((ok, ko) => apres(t, () => (j === jeton ? ok() : ko('stop'))));
+}
+const fin = () => instant && enCoursN === cibleN;   // dans un état posé, le retour au calme de la dernière étape n'est pas joué
+
+/* =========================================================
+   L'îlot : ressorts, forme, contenu
+   ========================================================= */
+const forme = $('#forme'), ombre = $('#ombre');
+const R = {}; CLES.forEach(k => R[k] = new Ressort(REPOS[k]));
+const TOUS = CLES.map(k => R[k]);
+let cible = {...REPOS}, anime = false, tPrec = 0;
+function ilot(g, o = {}){
+  const grand = (g.bw + g.bd) * g.h >= (cible.bw + cible.bd) * cible.h - .5;
+  const rep = o.rep ?? (grand ? .46 : .38), z = o.z ?? (grand ? .78 : 1), att = o.attente ?? (grand ? 0 : .06);
+  cible = {...g};
+  for (const k of CLES){
+    if (instant) R[k].poser(g[k]);
+    else { const haut = k === 'h' && grand; R[k].viser(g[k], haut ? rep * 1.06 : rep, z, att + (haut ? .02 : 0)); }
+  }
+  demarrer();
+}
+function montre(noms, d = .14){
+  const vus = new Set(noms);
+  for (const nom in c){
+    const n = c[nom], on = vus.has(nom);
+    if (on && !n.classList.contains('on')) n.style.setProperty('--d', d + 's');
+    n.classList.toggle('on', on);
+  }
+}
+function demarrer(){
+  if (FIGE || instant){ rendu(); return; }
+  if (!anime){ anime = true; tPrec = performance.now(); requestAnimationFrame(boucle); }
+}
+function boucle(){
+  const t = performance.now(), dt = clamp((t - tPrec) / 1000, 0, .05) / K; tPrec = t;
+  const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+  for (let i = 0; i < n; i++) for (const r of TOUS) r.pas(h);
+  let bouge = false;
+  for (const r of TOUS) if (!r.pose()) bouge = true;
+  rendu();
+  if (bouge) requestAnimationFrame(boucle); else anime = false;
+}
+function rendu(){
+  const g = {}; for (const k of CLES) g[k] = R[k].x;
+  forme.setAttribute('d', chemin(g));
+  const a = clamp((g.h - B - 6) / 40, 0, 1);
+  ombre.style.filter = a > .01 ? `drop-shadow(0 ${(9 * a).toFixed(1)}px ${(18 * a).toFixed(1)}px rgba(10,20,40,${(.32 * a).toFixed(3)}))` : 'none';
+}
+/* l'îlot épouse sa carte, jusqu'à 330 pt ; au-delà, on fait défiler dans la carte */
+const HAUTEUR = carte => Math.min(HMAX, B + 14 + c[carte].firstElementChild.offsetHeight + 14);
+const FORME = carte => bandeau(BW, HAUTEUR(carte), NO);
+const PLIE = () => compact(HC + AILE, HC + AILE);
+function points(carte){
+  const h = HAUTEUR(carte), pts = $('#pts'), page = PARENT[carte] || carte;
+  pts.style.transform = `translateY(${f2(B + (h - B) / 2 - 22)}px)`;
+  pts.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.act === page));
+}
+const OUVERT = carte => ['batt', 'airp', carte, 'points'];
+function ouvrir(carte){                       // depuis l'îlot replié (ou un bandeau)
+  st.carte = carte; st.ban = null;
+  st.requete = ''; majDictees();
+  montre([], 0);
+  ilot(FORME(carte));
+  montre(OUVERT(carte), .14);
+  points(carte);
+}
+function changer(carte){                      // d'une carte à l'autre, îlot ouvert
+  if (!st.carte){ ouvrir(carte); return; }
+  if (st.carte === carte) return;
+  const bas = RANG[carte] > RANG[st.carte], vient = c[carte], part = c[st.carte];
+  vient.style.transition = 'none'; vient.style.setProperty('--sy', (bas ? 26 : -26) + 'px'); void vient.offsetWidth; vient.style.transition = '';
+  part.style.setProperty('--sy', (bas ? -26 : 26) + 'px');
+  if (st.carte === 'outils' && !st.eveil) st.evOuvert = false;
+  st.carte = carte; majCentre();
+  if (carte === 'claude') majClaude();
+  ilot(FORME(carte));
+  montre(OUVERT(carte), .1);
+  points(carte);
+}
+function replier(){
+  st.carte = null; st.ban = null; st.punaise = false; st.edit = false; if (!st.eveil) st.evOuvert = false; majCentre();
+  if (document.activeElement === $('#ddRech')) $('#ddRech').blur();
+  majPlie();
+  montre([], 0);
+  ilot(PLIE()); montre(['clG', 'clD'], .16);
+}
+function reformer(){ if (st.carte){ ilot(FORME(st.carte)); points(st.carte); } }
+/* un bandeau épouse son contenu (comme ContenuAnnonce) */
+function banniere(nom){
+  st.carte = null; st.ban = nom;
+  const n = c[nom], w = n.offsetWidth, h = n.offsetHeight;
+  n.style.left = f2(500 - w / 2) + 'px';
+  montre([], 0);
+  ilot(bandeau(w / 2 + 20, B + 12 + h + 14, HC + 6));
+  montre([nom], .14);
+}
+
+/* =========================================================
+   L'écran : fenêtres, barre des menus, pointeur, mains
+   ========================================================= */
+const ecran = $('#ecran'), pointeur = $('#pointeur'), pad = $('#pad'), fnT = $('#fn');
+const F = {chrome:$('[data-f="chrome"]'), t1:$('[data-f="t1"]'), t2:$('[data-f="t2"]'), mail:$('[data-f="mail"]')};
+const APP = {chrome:'Chrome', t1:'Terminal', t2:'Terminal', mail:'Mail'};
+let ordre = ['chrome', 't2', 't1', 'mail'];
+function devant(nom){
+  ordre = ordre.filter(n => n !== nom).concat(nom);
+  ordre.forEach((n, i) => { F[n].style.zIndex = i + 1; F[n].classList.toggle('arriere', n !== nom); });
+  const app = APP[nom];
+  $('#menus').innerHTML = POMME + `<b>${app}</b>` + MENUS[app].map(m => `<span>${m}</span>`).join('');
+}
+function fenetre(nom, vu){ F[nom].classList.toggle('cache', !vu); }
+function ouvrirTerminal(id){ replier(); const f = id === 'dm' ? 't1' : 't2'; fenetre(f, true); devant(f); }
+const XR = dx => ecran.clientWidth / 2 + dx;
+function ou(el){ const r = el.getBoundingClientRect(), e = ecran.getBoundingClientRect(); return [r.left + r.width / 2 - e.left, r.top + r.height / 2 - e.top]; }
+function cur(x, y, o = {}){
+  const saute = instant || o.saute;
+  pointeur.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
+  pointeur.style.transform = `translate(${f2(x)}px,${f2(y)}px)`;
+  if (saute){ void pointeur.offsetWidth; pointeur.style.transition = ''; }
+  pointeur.classList.toggle('vu', o.vu !== false);
+}
+async function va(x, y, d = .75){ cur(x, y, {duree:d}); await attendre(d); }
+async function vers(el, d = .75, dx = 0, dy = 0){ const [x, y] = ou(el); await va(x + dx, y + dy, d); }
+function doigts(mode){ pad.className = 'pad' + (mode ? ' ' + mode : ''); }
+async function clic(){
+  if (instant) return suite();
+  doigts('un'); pointeur.classList.add('appui');
+  await attendre(.13);
+  pointeur.classList.remove('appui'); doigts('');
+}
+function fn(oui){ fnT.classList.toggle('on', oui); }
+
+/* =========================================================
+   Les étapes
+   ========================================================= */
+function init(){
+  remettre();
+  fenetre('t1', true); fenetre('t2', true); fenetre('mail', false); devant('t2'); devant('t1');
+  majTout();
+  ilot(REPOS); montre([]);
+  cur(XR(250), 380, {vu:false, saute:true});
+  pointeur.classList.remove('appui');
+  doigts(''); fn(false);
+  $('#mailCorps').classList.remove('flash');
+}
+const ETAPES = [
+  /* ---------------- Partie A : Claude Code ---------------- */
+  {t:'Deux sessions Claude au travail', g:'Mains au repos',
+   p:'Deux Terminaux, deux sessions. L’îlot replié montre l’étoile dans son anneau, « 3/7 » et un petit « 2 » (deux sessions). À droite de la caméra, le nom de la tâche en cours défile : « Construire la carte Dictées ».',
+   async jeu(){ await attendre(.5); st.phase = 'travail'; majPlie(); ilot(PLIE()); montre(['clG', 'clD'], .2); await attendre(.6); }},
+  {t:'Survoler l’îlot : le Centre', g:'Pointeur sur l’îlot',
+   p:'Aucune vidéo ne joue : l’îlot s’ouvre directement sur le Centre. Le rond Claude Code est corail et dit « 2 au travail ».',
+   async jeu(){
+     cur(XR(260), 330, {saute:true}); await attendre(.05);
+     await va(XR(30), 20, .8); await attendre(.1);
+     ouvrir('centre'); await attendre(.7);
+   }},
+  {t:'Un clic sur Claude : la carte Claude', g:'Un clic',
+   p:'Un bloc par session : le projet, depuis combien de temps, l’état, et la liste des tâches (cochées, en cours en gras, à faire). « Ouvrir » amène la bonne fenêtre du Terminal. On fait défiler pour voir l’autre session.',
+   async jeu(){
+     await vers(rd('claude'), .6, 2, 4); await clic();
+     st.punaise = true; changer('claude'); await attendre(.9);
+   }},
+  {t:'second-cerveau pose une question', g:'Un clic ailleurs, puis rien',
+   p:'Un clic hors de l’îlot le range. Un peu plus tard, une session a besoin de toi : le bandeau dit laquelle et montre le début de la question. Un clic sur « Ouvrir » suffit.',
+   async jeu(){
+     await va(XR(-300), 470, .8); await clic();
+     replier(); await attendre(1.1);
+     st.phase = 'question'; majTerminaux(); majClaude(); majCentre();
+     banniere('banQ'); await attendre(.9);
+   }},
+  {t:'Survoler : qui attend passe en haut', g:'Pointeur sur l’îlot',
+   p:'Tant qu’une session attend, l’îlot s’ouvre sur la carte Claude. La session qui attend est en haut, cadre ambre, avec sa question en entier ; l’autre continue en dessous.',
+   async jeu(){
+     await va(XR(60), 60, .8); await attendre(.1);
+     ouvrir('claude'); majClaude(); points('claude'); await attendre(.8);
+   }},
+  {t:'« Ouvrir » : la bonne fenêtre', g:'Un clic sur Ouvrir',
+   p:'Le Terminal de second-cerveau passe devant, la question sous les yeux. Replié, l’îlot reste ambre (« attend ta réponse ») tant qu’on n’a pas répondu.',
+   async jeu(){
+     const b = contenu.querySelector('.ses.attend .ouv');
+     await vers(b, .6, 0, 3); await clic();
+     ouvrirTerminal('sc'); await attendre(.4);
+     await va(XR(260), 330, .7); await attendre(.4);
+   }},
+  {t:'Une session a fini', g:'Mains au repos',
+   p:'On a répondu dans le Terminal : l’étoile redevient corail. Puis dictee-mac termine : le bandeau dit quoi (« Carte Dictées terminée »), où et en combien de temps. « Voir » ouvre sa fenêtre.',
+   async jeu(){
+     st.phase = 'repondu'; majTerminaux(); majPlie(); majClaude(); await attendre(1.0);
+     st.phase = 'fini'; majTerminaux(); majClaude(); majCentre();
+     banniere('banF'); await attendre(.8);
+     if (fin()) return;
+     await attendre(1.6); replier();
+   }},
+  /* ---------------- Partie B : quatre outils ---------------- */
+  {t:'Le Centre, page 2 : Outils', g:'Survol, puis un clic sur « Outils »',
+   p:'Plus tard, dans Mail. Le Centre a une 2e page, « Outils » (bouton en haut, 2e point à droite, ou faire défiler) : Garder éveillé, Presse-papiers, Reformuler, Notes, et un grand bouton « Dicter une note ».',
+   async jeu(){
+     if (st.phase !== 'fini'){ st.phase = 'fini'; majTout(); }
+     if (st.ban || st.carte) replier();
+     fenetre('t1', false); fenetre('t2', false); fenetre('mail', true); devant('mail'); await attendre(.5);
+     cur(XR(260), 330, {saute:true}); await va(XR(30), 20, .8);
+     ouvrir('centre'); await attendre(.6);
+     await vers($('#versOutils'), .6, -4, 3); await clic();
+     st.punaise = true; changer('outils'); await attendre(.8);
+   }},
+  {t:'Garder éveillé : 1 h', g:'Deux clics',
+   p:'Un clic sur la tasse : on choisit 1 h, 2 h ou « Jusqu’à l’arrêt ». Le rond passe à l’ambre et dit jusqu’à quand. Le Mac ne se met pas en veille. Replié, l’îlot n’en montre rien.',
+   async jeu(){
+     await vers(rd('eveil'), .6, 2, 4); await clic();
+     st.evOuvert = true; majCentre('eveil'); reformer(); await attendre(.7);
+     await vers(contenu.querySelector('[data-ev="1"]'), .6, 0, 3); await clic();
+     st.eveil = 1; majCentre('eveil'); await attendre(.8);
+   }},
+  {t:'Presse-papiers : un clic recopie', g:'Un clic, puis survol',
+   p:'Les cinq dernières choses copiées : du texte, une image, un fichier, une commande. Un clic recopie ; au survol, « Coller » la met dans l’app d’où l’on vient. Rien ne quitte le Mac.',
+   async jeu(){
+     await vers(rd('papiers'), .6, 2, 4); await clic();
+     changer('papiers'); await attendre(.7);
+     const l = contenu.querySelector('.pp-l[data-pp="p2"]');
+     await vers(l, .6, -60, 2); st.ppSurvol = 'p2'; majPapiers(); await attendre(.35); await clic();
+     st.ppCopie = 'p2'; st.ppMot = 'Copié'; majPapiers(); await attendre(.7);
+     await vers(contenu.querySelector('.pp-l[data-pp="p3"]'), .5, -40, 2); st.ppSurvol = 'p3'; majPapiers(); await attendre(.8);
+   }},
+  {t:'Reformuler : plus pro', g:'Trois clics',
+   p:'Sur la dernière dictée (ou un texte choisi) : « Plus pro », « Plus court » ou « En anglais ». Le résultat s’affiche dans l’îlot, avec « Remplacer » et « Copier ».',
+   async jeu(){
+     st.ppSurvol = null; st.ppCopie = null; majPapiers();
+     await vers(c.papiers.querySelector('.pil.retour'), .55, 0, 3); await clic();
+     changer('outils'); await attendre(.55);
+     await vers(rd('reformuler'), .55, 2, 4); await clic();
+     changer('reformuler'); await attendre(.65);
+     await vers(contenu.querySelector('[data-ref="pro"]'), .55, 0, 3); await clic();
+     st.ref = 'pro'; st.refEtat = 'calcul'; majReform(); reformer(); await attendre(1.0);
+     st.refEtat = 'fait'; majReform(); reformer(); await attendre(.8);
+   }},
+  {t:'« Remplacer » : c’est fait dans Mail', g:'Un clic sur Remplacer',
+   p:'Le texte de Mail est remplacé par la version « Plus pro » ; l’îlot se range de lui-même. Rien à recopier à la main.',
+   async jeu(){
+     await vers(contenu.querySelector('[data-act="remplacer"]'), .6, 0, 3); await clic();
+     replier(); st.remplace = true; majMail();
+     const m = $('#mailCorps'); m.classList.remove('flash'); void m.offsetWidth; if (!instant) m.classList.add('flash');
+     await va(XR(-180), 470, .8); await attendre(.6);
+   }},
+  {t:'Note rapide : maintenir fn', g:'Maintenir fn',
+   p:'« Dicter une note », puis on maintient fn, la touche de la dictée, tant que la carte est ouverte : ce qu’on dit s’écrit dans l’îlot, pas dans l’app devant.',
+   async jeu(){
+     st.ref = null; st.refEtat = null; majReform();
+     cur(XR(260), 330, {saute:true}); await va(XR(30), 20, .7);
+     ouvrir('centre'); await attendre(.5);
+     await vers($('#versOutils'), .55, -4, 3); await clic();
+     st.punaise = true; changer('outils'); await attendre(.55);
+     await vers(contenu.querySelector('.tr[data-act="note"]'), .6, -60, 2); await clic();
+     changer('note'); await attendre(.6);
+     fn(true); st.rec = true; majNote(); reformer(); await attendre(.4);
+     for (const m of 'Rappeler le plombier jeudi pour le devis de la salle de bain'.split(' ')){ st.recTexte += (st.recTexte ? ' ' : '') + m; majNote(); reformer(); await attendre(.16); }
+     await attendre(.5);
+   }},
+  {t:'Lâcher fn : la note est rangée', g:'Lâcher fn, puis un clic',
+   p:'On lâche fn : la note entre en haut de la liste « Notes », avec l’heure. Elle reste sur le Mac ; « Vers Notes » l’envoie aussi dans l’app Notes d’Apple.',
+   async jeu(){
+     fn(false); st.rec = false;
+     st.notes.unshift({h:'14:52', x:st.recTexte || 'Rappeler le plombier jeudi pour le devis de la salle de bain'}); st.recTexte = ''; st.neuve = true;
+     majNote(); majCentre(); reformer(); await attendre(.8);
+     await vers(contenu.querySelector('.nl.neuve .mini-pil'), .6, 0, 3); await clic();
+     st.envoyee = true; majNote(); await attendre(1.0);
+   }}
+];
+const N = ETAPES.length;
+const PAUSES = [1.6, 1.4, 1.8, 1.6, 1.6, 1.6, 2.0, 1.6, 1.6, 1.6, 1.8, 1.6, 1.4, 2.6];
+
+/* =========================================================
+   Régie (reprise de ilot-centre.html)
+   ========================================================= */
+let etape = 0;
+$('#pas').innerHTML = ETAPES.map((e, i) => (i === 7 ? '<li class="sep"></li>' : '') + `<li><button data-e="${i + 1}"><span>${i < 7 ? 'A' : 'B'}${i + 1}</span>${e.t}</button></li>`).join('');
+function majRegie(n){
+  etape = n;
+  const m = Math.max(1, n), e = ETAPES[m - 1];
+  $('#num').textContent = `${m <= 7 ? 'Partie A · Claude Code' : 'Partie B · quatre outils'} · étape ${m} sur ${N}`;
+  const fr = t => t.replace(/ ([:»?!;])/g, ' $1').replace(/« /g, '« ');
+  $('#titre').textContent = fr(e.t); $('#phrase').textContent = fr(e.p); $('#geste').textContent = e.g;
+  document.querySelectorAll('#pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === m));
+  $('#partieA').classList.toggle('ici', m <= 7); $('#partieB').classList.toggle('ici', m > 7);
+}
+async function poser(n){
+  annuler();
+  instant = true; racine.classList.add('snap');
+  try {
+    cibleN = n; enCoursN = 0;
+    init();
+    for (let i = 1; i <= n; i++){ enCoursN = i; await ETAPES[i - 1].jeu(); }
+  } finally { instant = false; }
+  majRegie(n); rendu();
+  void ecran.offsetWidth;
+  requestAnimationFrame(() => requestAnimationFrame(() => racine.classList.remove('snap')));
+}
+async function jouer(n){
+  majRegie(n);
+  if (REDUIT) return poser(n);
+  racine.classList.remove('snap'); void ecran.offsetWidth;
+  cibleN = 0; enCoursN = n;
+  await ETAPES[n - 1].jeu();
+}
+function arreter(){ jeton++; auto = false; annuler(); doigts(''); }
+const autoCase = $('#autoCase');
+async function tourner(){
+  arreter(); const j = jeton; auto = true;
+  try {
+    await poser(0); await attendre(.9);
+    for (;;){
+      for (let n = 1; n <= N; n++){ await jouer(n); await attendre(PAUSES[n - 1]); }
+      if (!autoCase.checked) break;
+      ecran.style.opacity = 0; await attendre(.3);
+      await poser(0); ecran.style.opacity = 1; await attendre(1.0);
+    }
+  } catch (e){ if (e !== 'stop') console.error(e); }
+  ecran.style.opacity = 1;
+  if (j === jeton) auto = false;
+}
+function lance(n){
+  arreter(); ecran.style.opacity = 1;
+  poser(n - 1).then(() => jouer(n)).catch(e => { if (e !== 'stop') console.error(e); });
+}
+$('#rejouer').addEventListener('click', () => { if (autoCase.checked) tourner(); else lance(Math.max(1, etape)); });
+$('#suivant').addEventListener('click', () => { autoCase.checked = false; lance(etape >= N ? 1 : etape + 1); });
+$('#pas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; autoCase.checked = false; lance(+b.dataset.e); });
+$$('.partie').forEach(b => b.addEventListener('click', () => { autoCase.checked = false; lance(+b.dataset.aller); }));
+autoCase.addEventListener('change', () => { if (autoCase.checked) tourner(); else arreter(); });
+function ralenti(oui){ K = oui ? 4 : 1; racine.style.setProperty('--k', K); $('#lentCase').checked = oui; }
+$('#lentCase').addEventListener('change', e => ralenti(e.target.checked));
+
+/* =========================================================
+   À la main : la vraie souris marche aussi (survol, clics, défilement, fn)
+   ========================================================= */
+function aLaMain(){ if (auto || autoCase.checked){ autoCase.checked = false; arreter(); } pointeur.classList.remove('vu'); }
+function local(e){ const r = ecran.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top]; }
+function dansIlot(x, y){
+  if (st.carte || st.ban) return Math.abs(x) <= Math.max(cible.bw, cible.ng) + 4 && y <= cible.h + 4;
+  return y <= cible.h + 4 && Math.abs(x) <= Math.max(cible.ng, cible.nd, cible.bw) + 4;
+}
+let tFerme = 0, verrou = 0;
+ecran.addEventListener('mousemove', e => {
+  if (FIGE) return;
+  const [x, y] = local(e), dedans = dansIlot(x, y);
+  if (dedans){
+    clearTimeout(tFerme); tFerme = 0;
+    if (!st.carte){ aLaMain(); ouvrir(st.phase === 'question' ? 'claude' : 'centre'); majClaude(); }
+  } else if (st.carte && !st.punaise && !st.rec && !tFerme && !auto){
+    tFerme = setTimeout(() => { tFerme = 0; if (!st.punaise && !st.rec) replier(); }, 320);
+  }
+});
+ecran.addEventListener('pointerdown', e => {
+  if (FIGE || e.target.closest('#contenu .c')) return;
+  const [x, y] = local(e);
+  if ((st.carte || st.ban) && !dansIlot(x, y)){ aLaMain(); replier(); }
+});
+ecran.addEventListener('wheel', e => {
+  if (FIGE || !st.carte || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  const [x, y] = local(e); if (!dansIlot(x, y)) return;
+  const l = e.target.closest('.kc-liste,.dd-liste,.nc-liste');
+  if (l && (e.deltaY > 0 ? l.scrollTop + l.clientHeight < l.scrollHeight - 1 : l.scrollTop > 0)){
+    if (l.id === 'kcListe') requestAnimationFrame(() => l.classList.toggle('defile', l.scrollTop + l.clientHeight < l.scrollHeight - 1));
+    return;
+  }
+  e.preventDefault();
+  if (performance.now() < verrou || Math.abs(e.deltaY) < 4) return;
+  verrou = performance.now() + 500; aLaMain();
+  const page = PARENT[st.carte] || st.carte;
+  const i = clamp(ORDRE.indexOf(page) + (e.deltaY > 0 ? 1 : -1), 0, ORDRE.length - 1);
+  changer(ORDRE[i]);
+}, {passive:false});
+$('#ddRech').addEventListener('focus', () => { if (FIGE) return; aLaMain(); st.punaise = true; });
+$('#ddRech').addEventListener('input', e => { if (FIGE) return; st.requete = e.target.value; majDictees(); reformer(); });
+let tCopie = 0;
+contenu.addEventListener('mouseover', e => {
+  if (FIGE) return;
+  const p = e.target.closest('.pp-l'); if (p && st.ppSurvol !== p.dataset.pp){ st.ppSurvol = null; majPapiers(); }
+});
+contenu.addEventListener('click', e => {
+  if (FIGE) return;
+  aLaMain();
+  if (st.carte) st.punaise = true;
+  const pp = e.target.closest('.pp-l');
+  if (pp){                                     // presse-papiers : un clic recopie, « Coller » colle et range l'îlot
+    const coller = e.target.closest('[data-pact="coller"]');
+    st.ppCopie = pp.dataset.pp; st.ppMot = coller ? 'Collé' : 'Copié'; majPapiers();
+    clearTimeout(tCopie); tCopie = setTimeout(() => { st.ppCopie = null; majPapiers(); if (coller) replier(); }, (coller ? 600 : 1300) * K);
+    return;
+  }
+  const dd = e.target.closest('.dd-l');
+  if (dd){ dd.classList.add('copie'); setTimeout(() => dd.classList.remove('copie'), 1300 * K); return; }
+  const ev = e.target.closest('[data-ev]');
+  if (ev){ st.eveil = ev.dataset.ev === 'inf' ? 'inf' : +ev.dataset.ev; if (!st.eveil) st.evOuvert = true; majCentre('eveil'); reformer(); return; }
+  const src = e.target.closest('[data-src]');
+  if (src){ st.src = src.dataset.src; st.ref = null; st.refEtat = null; majReform(); reformer(); return; }
+  const ref = e.target.closest('[data-ref]');
+  if (ref){
+    if (st.src === 'sel') return;
+    st.ref = ref.dataset.ref; st.refEtat = 'calcul'; majReform(); reformer();
+    setTimeout(() => { if (st.refEtat === 'calcul'){ st.refEtat = 'fait'; majReform(); reformer(); } }, 900 * K);
+    return;
+  }
+  const a = e.target.closest('[data-act]'), t = e.target.closest('.tg[data-t]');
+  if (a){
+    const act = a.dataset.act;
+    if (RANG[act]) changer(act);
+    else if (act === 'modifier'){ if (st.carte === 'centre'){ st.edit = !st.edit; majCentre(); } }
+    else if (act === 'ouvrir-sc'){ ouvrirTerminal('sc'); }
+    else if (act === 'ouvrir-dm'){ ouvrirTerminal('dm'); }
+    else if (act === 'remplacer'){ st.remplace = true; majMail(); fenetre('mail', true); devant('mail'); replier(); const m = $('#mailCorps'); m.classList.remove('flash'); void m.offsetWidth; m.classList.add('flash'); }
+    else if (act === 'copier-ref'){ a.textContent = 'Copié'; }
+    else if (act === 'vers-notes'){ const i = +a.closest('.nl').dataset.nl; if (i === 0){ st.envoyee = true; } else { a.closest('.nl').classList.add('envoyee'); return; } majNote(); }
+    return;
+  }
+  if (!t || st.edit) return;
+  const k = t.dataset.t;
+  if (k === 'claude') changer('claude');
+  else if (k === 'eveil'){ if (st.eveil){ st.eveil = 0; } else st.evOuvert = !st.evOuvert; majCentre('eveil'); reformer(); }
+  else if (k === 'papiers') changer('papiers');
+  else if (k === 'reformuler') changer('reformuler');
+  else if (k === 'notes') changer('note');
+});
+/* la touche fn dessinée dans la régie : maintenue, elle dicte une note (seulement carte Note rapide ouverte) */
+let tMots = 0;
+fnT.addEventListener('pointerdown', e => {
+  if (FIGE) return;
+  aLaMain(); fn(true);
+  if (st.carte !== 'note') return;
+  st.rec = true; st.recTexte = ''; majNote(); reformer();
+  const mots = 'Penser à racheter du café et à rappeler Julie'.split(' '); let i = 0;
+  clearInterval(tMots); tMots = setInterval(() => { if (i >= mots.length) return clearInterval(tMots); st.recTexte += (i ? ' ' : '') + mots[i++]; majNote(); reformer(); }, 180 * K);
+});
+const lacheFn = () => {
+  if (!fnT.classList.contains('on')) return;
+  fn(false); clearInterval(tMots);
+  if (!st.rec) return;
+  st.rec = false;
+  if (st.recTexte){ st.notes.unshift({h:'14:53', x:st.recTexte}); st.neuve = true; st.envoyee = false; }
+  st.recTexte = ''; majNote(); majCentre(); reformer();
+};
+window.addEventListener('pointerup', lacheFn);
+fnT.addEventListener('pointerleave', lacheFn);
+
+/* =========================================================
+   Démarrage
+   ========================================================= */
+if (Q.has('lent')) ralenti(true);
+const e0 = clamp(+(Q.get('etape') || 0), 0, N);
+if (FIGE){ autoCase.checked = false; poser(e0).catch(() => {}); }
+else if (Q.has('joue') && e0 >= 1){ autoCase.checked = false; poser(e0 - 1).then(() => setTimeout(() => jouer(e0).catch(() => {}), 400)); }
+else setTimeout(() => tourner(), 300);
+window.verbe = {poser, jouer, st, R, ralenti};
+</script>
+</body>
+</html>
