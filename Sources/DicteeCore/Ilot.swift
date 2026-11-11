@@ -20,12 +20,15 @@ public enum VueIlot: String, CaseIterable, Sendable {
     case microCompact, microEtendu, microOuvert
     /// Une touche de volume ou de luminosité : le haut-parleur (ou le soleil) dans l'aile gauche, une barre fine dans l'aile droite.
     case volume, luminosite
+    /// Claude Code au travail : l'étoile seule (pas de liste de tâches), ou l'étoile dans son anneau et « 3 sur 7 » (ou « Attend ») ;
+    /// au survol, le projet, où il en est et « Ouvrir ». Bandeaux : Claude attend ta réponse, Claude a terminé.
+    case claudeMinimal, claudeCompact, claudeEtendu, claudeAttend, claudeTermine
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
         switch self {
         case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
-             .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .volume, .luminosite: return true
+             .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .volume, .luminosite, .claudeAttend, .claudeTermine: return true
         default: return false
         }
     }
@@ -77,6 +80,10 @@ public enum GeoIlot {
         // volume et luminosité : le haut-parleur (aile gauche) et une barre fine de 44 pt (aile droite : 8 pt de la caméra, 8 pt du
         // cou) ; 60 + 6 = 66. La maquette dessinait 96 pt : ça déborderait sur les icônes de la barre des menus
         .volume: compact(60), .luminosite: compact(60),
+        // Claude au travail : sans liste, l'étoile seule (cou de 36 pt, comme le minuteur minimal) ; avec une liste, l'étoile dans son
+        // anneau (aile gauche) et « 3 sur 7 » (43 pt mesurés, aile droite : 48 pt) ; 60 + 6 = 66. La maquette posait l'anneau à côté du
+        // texte : ensemble ils font 61 pt, ça déborderait. Au survol et pour les annonces, un bandeau qui épouse son contenu
+        .claudeMinimal: compact(36), .claudeCompact: compact(60), .claudeEtendu: bandeau, .claudeAttend: bandeau, .claudeTermine: bandeau,
     ]
     /// Indices des valeurs : largeurs (cou, corps) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur mène ; à la
     /// fermeture la hauteur se replie d'abord.
@@ -90,7 +97,7 @@ public enum GeoIlot {
     public static let evasementMin: Double = 38
 
     /// Écrans dont le corps épouse le contenu (bandeaux, alertes, rendez-vous déplié) : ni texte collé à gauche ni grand vide à droite.
-    public static func ajusteAuContenu(_ v: VueIlot) -> Bool { ((v.estBandeau || v.estAlerte) && profondeur(v) > 0) || v == .agendaEtendu || v == .microEtendu }
+    public static func ajusteAuContenu(_ v: VueIlot) -> Bool { ((v.estBandeau || v.estAlerte) && profondeur(v) > 0) || v == .agendaEtendu || v == .microEtendu || v == .claudeEtendu }
 
     /// Les épaules (maquette ilot-apple.html) : dans un écran déplié, le cou s'élargit à 56 pt de chaque côté de la caméra pour montrer
     /// la batterie du Mac (à gauche) et celle des écouteurs (à droite). 56 + le congé du cou déplié (10 pt) = la limite des ailes (66 pt).
@@ -156,6 +163,8 @@ public enum ActiviteIlot: String, Sendable, Equatable {
     case minuteur, rappel, rendezVous, lecture, alerte
     /// Le micro est coupé : l'îlot le rappelle tant qu'il l'est.
     case micro
+    /// Claude Code travaille (ou attend une réponse) dans le Terminal.
+    case claude
 }
 
 /// Ce qui est vrai à l'instant, pour décider qui a l'îlot et qui a la pastille.
@@ -165,6 +174,9 @@ public struct EtatIlot: Equatable, Sendable {
     public var rendezVousProche = false    // un rendez-vous dans 10 minutes
     public var lecture = false             // quelque chose joue
     public var microCoupe = false          // le micro du Mac est coupé (raccourci, ou Réglages Système)
+    public var claude = false              // Claude Code travaille ou attend une réponse
+    public var claudeAttend = false        // … il attend une réponse (il passe alors avant la lecture)
+    public var claudeListe = false         // … il a une liste de tâches (l'anneau et « 3 sur 7 »)
     public var alerte: VueIlot?            // minuteurFini, rappelEtendu ou agendaDebut, en cours
     public var bandeau: VueIlot?           // un bandeau passager
     public init() {}
@@ -185,15 +197,18 @@ public struct ResolutionIlot: Equatable, Sendable {
 }
 
 public enum ArbitrageIlot {
-    /// L'ordre de priorité des activités qui se partagent l'îlot : micro coupé, rendez-vous, rappel, lecture, minuteur. Le micro coupé
-    /// passe avant tout : c'est ce qui gêne le plus si on l'oublie (on parle dans un appel où personne n'entend) ; la vidéo devient la bulle.
+    /// L'ordre de priorité des activités qui se partagent l'îlot : micro coupé, rendez-vous, rappel, lecture, minuteur, Claude. Le micro
+    /// coupé passe avant tout : c'est ce qui gêne le plus si on l'oublie (on parle dans un appel où personne n'entend) ; la vidéo devient
+    /// la bulle. Claude au travail est un fond (il passe après la vidéo et le minuteur) ; Claude qui attend une réponse passe avant la vidéo.
     public static func ordre(_ e: EtatIlot, echange: ActiviteIlot? = nil) -> [ActiviteIlot] {
         var p: [ActiviteIlot] = []
         if e.microCoupe { p.append(.micro) }
         if e.rendezVousProche { p.append(.rendezVous) }
         if e.rappelEnAttente { p.append(.rappel) }
+        if e.claude, e.claudeAttend { p.append(.claude) }
         if e.lecture { p.append(.lecture) }
         if e.minuteur { p.append(.minuteur) }
+        if e.claude, !e.claudeAttend { p.append(.claude) }
         if let echange, p.contains(echange) { p = [echange] + p.filter { $0 != echange } }
         return p
     }
@@ -205,6 +220,7 @@ public enum ArbitrageIlot {
         case .rendezVous: return (.agendaCompact, .agendaEtendu)
         case .lecture: return (.lectureCompact, .lectureEtendu)
         case .micro: return (.microCompact, .microEtendu)
+        case .claude: return (.claudeCompact, .claudeEtendu)
         case .alerte: return (.repos, .repos)
         }
     }
@@ -218,7 +234,9 @@ public enum ArbitrageIlot {
         if let b = e.bandeau { return ResolutionIlot(principal: b, survol: nil, verrou: true, pastille: p.first) }
         if let premiere = p.first {
             let v = vues(premiere)
-            return ResolutionIlot(principal: v.compact, survol: v.etendu, verrou: false, pastille: p.count > 1 ? p[1] : nil)
+            // Claude sans liste de tâches ni question : l'étoile seule, dans un îlot plus étroit
+            let compact = premiere == .claude && !e.claudeListe && !e.claudeAttend ? VueIlot.claudeMinimal : v.compact
+            return ResolutionIlot(principal: compact, survol: v.etendu, verrou: false, pastille: p.count > 1 ? p[1] : nil)
         }
         return ResolutionIlot(principal: .repos, survol: .accueil, verrou: false, pastille: nil)
     }

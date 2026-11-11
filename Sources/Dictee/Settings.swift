@@ -257,6 +257,12 @@ enum Settings {
         get { defaults.object(forKey: "ilotNiveaux") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotNiveaux") }
     }
+    /// « Claude au travail » : l'îlot montre où en est Claude Code (crochets branchés depuis les Réglages). ALLUMÉ par défaut : tant que
+    /// les crochets ne sont pas branchés, le dossier des sessions reste vide et rien ne s'affiche.
+    static var ilotClaude: Bool {
+        get { defaults.object(forKey: "ilotClaude") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "ilotClaude") }
+    }
     /// Le raccourci de « Micro coupé » (⌃⌥M par défaut ; un raccourci rangé mais devenu invalide revient à ⌃⌥M).
     static var raccourciMicro: RaccourciIlot {
         get { defaults.string(forKey: "raccourciMicro").flatMap(RaccourciIlot.init(texte:)).flatMap { $0.estValide ? $0 : nil } ?? .microParDefaut }

@@ -34,6 +34,8 @@ struct BandeauIlot {
     var telechargement: TelechargementIlot?
     /// Le volume ou la luminosité (bandeaux `.volume` et `.luminosite`).
     var niveau: NiveauIlot?
+    /// La session de Claude Code qui attend une réponse ou qui a fini (bandeaux `.claudeAttend` et `.claudeTermine`).
+    var claude: SessionClaude?
 }
 
 /// Ce que montre le bandeau « Téléchargé » : la rafale (noms, tailles, AirDrop) et les icônes du Finder, lues une fois à l'annonce.
@@ -59,12 +61,14 @@ enum ActionIlot {
     case fichiersOuvrir([URL])
     /// « Rouvrir » sur le micro coupé déplié.
     case microRouvrir
+    /// « Ouvrir » sur Claude au travail : ramène l'app d'où vient la session (le Terminal), par son identifiant.
+    case claudeOuvrir(String?)
 }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
 /// une seule pièce qui grandit et glisse à sa place, jamais deux qui se croisent.
 enum FamilleIlot: CaseIterable {
-    case lecture, minuteur, rappel, agenda, micro, autre
+    case lecture, minuteur, rappel, agenda, micro, claude, autre
     static func de(_ v: VueIlot) -> FamilleIlot {
         switch v {
         case .lectureCompact, .lectureEtendu, .lectureMinuteur: return .lecture
@@ -72,6 +76,7 @@ enum FamilleIlot: CaseIterable {
         case .rappelCompact, .rappelEtendu: return .rappel
         case .agendaCompact, .agendaEtendu: return .agenda
         case .microCompact, .microEtendu: return .micro
+        case .claudeMinimal, .claudeCompact, .claudeEtendu: return .claude
         default: return .autre
         }
     }
@@ -82,6 +87,7 @@ enum FamilleIlot: CaseIterable {
         case .rappel: return (.rappelCompact, .rappelEtendu)
         case .agenda: return (.agendaCompact, .agendaEtendu)
         case .micro: return (.microCompact, .microEtendu)
+        case .claude: return (.claudeCompact, .claudeEtendu)
         case .autre: return nil
         }
     }
@@ -168,6 +174,9 @@ final class IlotMoteur: ObservableObject {
     /// Le micro du Mac est coupé (raccourci ⌃⌥M, ou Réglages Système), et son nom pour le déplié (« Micro MacBook Air »).
     var microCoupe = false
     var nomMicro: String?
+    /// La session de Claude Code que l'îlot montre (au travail, ou qui attend une réponse) ; la dernière vue, pour un écran qui s'efface.
+    var claude: SessionClaude? { didSet { if let claude { dernierClaude = claude } } }
+    private(set) var dernierClaude: SessionClaude?
     /// La batterie du Mac (nil : Mac sans batterie, ou réglage éteint) et les écouteurs connectés : les épaules de l'îlot déplié.
     var energie: EnergieIlot?
     var ecouteurs: AppareilIlot?
@@ -251,6 +260,9 @@ final class IlotMoteur: ObservableObject {
         e.rendezVousProche = rendezVousProche && rendezVous != nil
         e.lecture = lecturePresente
         e.microCoupe = microCoupe
+        e.claude = claude != nil
+        e.claudeAttend = claude?.etat == .attend
+        e.claudeListe = claude?.progres != nil
         e.alerte = alerte?.vue
         e.bandeau = bandeau?.vue
         return e
@@ -749,6 +761,10 @@ final class IlotMoteur: ObservableObject {
         case .rappel: return 76
         // le micro barré et « Coupé », mesurés : 10 + glyphe + 6 + texte + 10
         case .micro: return 26 + MesureIlot.symbole("mic.slash.fill", 12) + MesureIlot.texte("Coupé", 12.5, .semibold)
+        // l'étoile, puis « 3 sur 7 » (ou « Attend ») s'il y a quelque chose à dire : 10 + 13 + 6 + texte + 10
+        case .claude:
+            let t = texteClaude(claude ?? dernierClaude, taille: 12.5)
+            return t.isEmpty ? 33 : 39 + MesureIlot.texte(t, 12.5, .semibold, chiffres: true)
         case .alerte: return 30
         }
     }

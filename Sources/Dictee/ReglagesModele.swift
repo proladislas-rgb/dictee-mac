@@ -32,6 +32,25 @@ final class ReglagesModele: ObservableObject {
     @Published var ilotTelechargements: Bool { didSet { if !installe { return }; Settings.ilotTelechargements = ilotTelechargements; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotMicro: Bool { didSet { if !installe { return }; Settings.ilotMicro = ilotMicro; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotNiveaux: Bool { didSet { if !installe { return }; Settings.ilotNiveaux = ilotNiveaux; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
+    @Published var ilotClaude: Bool { didSet { if !installe { return }; Settings.ilotClaude = ilotClaude; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
+    /// Les crochets de Verbe sont dans ~/.claude/settings.json ; `avisClaude` : ce qui n'a pas marché.
+    @Published private(set) var claudeBranche = false
+    @Published private(set) var avisClaude: String?
+    var phraseClaude: String {
+        if let avisClaude { return avisClaude }
+        if claudeBranche { return "Branché : les sessions de Claude Code ouvertes dès maintenant s\u{2019}affichent dans l\u{2019}îlot. « Débrancher » retire seulement les crochets de Verbe." }
+        return "Où en est Claude Code : « 3 sur 7 », ta réponse attendue, la fin. Ajoute les crochets de Verbe à ~/.claude/settings.json, sans rien toucher d\u{2019}autre."
+    }
+    func brancherClaude() { changerClaude { try $0.brancher() } }
+    func debrancherClaude() { changerClaude { try $0.debrancher() } }
+    private func changerClaude(_ faire: (InstallationClaude) throws -> Void) {
+        guard reel else { return }
+        let i = InstallationClaude.parDefaut
+        do { try faire(i); avisClaude = nil }
+        catch let e as InstallationClaude.Echec { avisClaude = e.phrase }
+        catch { avisClaude = error.localizedDescription }
+        claudeBranche = i.estBranche
+    }
     @Published var raccourciMicro: RaccourciIlot { didSet { if !installe { return }; Settings.raccourciMicro = raccourciMicro; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var sonFinMinuteur: String { didSet { if !installe { return }; Settings.sonFinMinuteur = sonFinMinuteur } }
     var phraseCalendrier: String {
@@ -94,6 +113,8 @@ final class ReglagesModele: ObservableObject {
         ilotTelechargements = reel ? Settings.ilotTelechargements : true
         ilotMicro = reel ? Settings.ilotMicro : true
         ilotNiveaux = reel ? Settings.ilotNiveaux : true
+        ilotClaude = reel ? Settings.ilotClaude : true
+        claudeBranche = reel ? InstallationClaude.parDefaut.estBranche : false
         raccourciMicro = reel ? Settings.raccourciMicro : .microParDefaut
         modeleWhisper = reel ? Settings.modeleWhisper : ModeleWhisper.parDefaut
         testPrecision = reel ? Settings.testPrecisionRestant > 0 : false

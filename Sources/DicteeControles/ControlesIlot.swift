@@ -128,6 +128,7 @@ func controlesIlot() {
         verifier(ArbitrageIlot.resoudre(e).pastille == .lecture, "un autre bandeau garde sa règle (la lecture en bulle)")
         verifier(VueIlot.volume.estBandeau && VueIlot.luminosite.estNiveau && !VueIlot.telecharge.estNiveau && GeoIlot.profondeur(.volume) == 0, "volume et luminosité : des bandeaux compacts")
     }
+    controlesClaude(t0)
     groupe("Îlot : Téléchargé (fichiers arrivés dans Téléchargements)")
     do {
         typealias F = FiltreTelechargements
@@ -558,4 +559,215 @@ func controlesIlot() {
     verifier(pile.count == 2, "deux notifications rapprochées : regroupées")
     pile = LectureNotifications.ajouter(groupeN[2], a: pile, maintenant: t0.addingTimeInterval(60))
     verifier(pile.count == 1, "une minute plus tard : la pile repart de zéro")
+}
+
+/// « Claude au travail » : le JSON gardé dans l'ordre, la fusion des crochets dans settings.json (sur des JSON d'exemple, jamais le vrai
+/// ~/.claude), le script, la lecture des lignes et l'état des sessions, les priorités dans l'îlot.
+func controlesClaude(_ t0: Date) {
+    groupe("Îlot : Claude au travail (JSON ordonné)")
+    let exemple = """
+    {
+      "model": "opus",
+      "prix": 1.50,
+      "grand": -2.5e+10,
+      "vide": {},
+      "liste": [],
+      "texte": "Claude a terminé sa tâche \\"vite\\" \\\\ \\u0001 \\ud83d\\ude00 / ok",
+      "drapeaux": [
+        true,
+        false,
+        null
+      ]
+    }
+
+    """
+    if let j = try? JSONOrdonne.lire(exemple) {
+        verifier(j.membres?.map(\.cle) == ["model", "prix", "grand", "vide", "liste", "texte", "drapeaux"], "les clés gardent leur ordre")
+        verifier(j["prix"] == .nombre("1.50") && j["grand"] == .nombre("-2.5e+10"), "les nombres gardent leur texte (« 1.50 » reste « 1.50 »)")
+        verifier(j["texte"]?.texte == "Claude a terminé sa tâche \"vite\" \\ \u{01} 😀 / ok", "échappements lus (guillemet, barre, \\u0001, paire de substitution)")
+        let re = j.texteIndente() + "\n"
+        verifier(re == exemple.replacingOccurrences(of: "\\ud83d\\ude00", with: "😀"),
+                 "réécrit à la façon de JSON.stringify(x, null, 2) : identique (l'émoji écrit tel quel, \\u0001 gardé échappé)")
+    } else { verifier(false, "le JSON d'exemple est lu") }
+    for mauvais in ["", "{", "{'a': 1}", "[1,]", "tru", "{\"a\": 1} x", "{\"a\" 1}", "\"\u{01}\"", "01x", "-", "1."] {
+        verifier((try? JSONOrdonne.lire(mauvais)) == nil, "« \(mauvais) » : refusé")
+    }
+
+    groupe("Îlot : Claude au travail (crochets dans settings.json)")
+    let script = "/Users/essai/Library/Application Support/Dictee/claude-crochet.sh"
+    let commande = CrochetsClaude.commande(script: script)
+    verifier(commande == "'/Users/essai/Library/Application Support/Dictee/claude-crochet.sh'", "la commande : le chemin entre apostrophes (il contient une espace)")
+    verifier(CrochetsClaude.commande(script: "/x/l'appli/Dictee/claude-crochet.sh") == "'/x/l'\\''appli/Dictee/claude-crochet.sh'", "une apostrophe dans le chemin est échappée pour le shell")
+    // le fichier absent ou vide : on le crée avec nos cinq crochets
+    for depart in [nil, "", "  \n"] as [String?] {
+        guard let t = try? CrochetsClaude.brancher(depart, script: script), let j = try? JSONOrdonne.lire(t) else { verifier(false, "fichier absent ou vide : branché"); continue }
+        verifier(CrochetsClaude.estBranche(t) && j.membres?.map(\.cle) == ["hooks"], "fichier \(depart == nil ? "absent" : "vide") : un objet avec nos crochets")
+        verifier(j["hooks"]?.membres?.map(\.cle) == ["UserPromptSubmit", "PostToolUse", "Notification", "Stop", "SessionEnd"], "cinq événements écoutés")
+        verifier(j["hooks"]?["PostToolUse"]?.elements?.first?["matcher"]?.texte == "*" && j["hooks"]?["Stop"]?.elements?.first?["matcher"] == nil,
+                 "les outils : filtre « * » ; les autres événements sans filtre")
+        let h = j["hooks"]?["Stop"]?.elements?.first?["hooks"]?.elements?.first
+        verifier(h?["type"]?.texte == "command" && h?["command"]?.texte == commande && h?["timeout"] == .nombre("5"), "l'entrée : commande, chemin cité, 5 s au plus")
+        verifier(t.hasSuffix("}\n"), "le fichier finit par un retour à la ligne")
+    }
+    // le fichier de Hugues (forme réelle) : son crochet Stop et tout le reste sont gardés, à leur place
+    let hugues = """
+    {
+      "model": "opus",
+      "hooks": {
+        "Stop": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "osascript -e 'display notification \\"Claude a terminé sa tâche\\" with title \\"Claude Code\\" sound name \\"Glass\\"' 2>/dev/null || true"
+              }
+            ]
+          }
+        ]
+      },
+      "enabledPlugins": {
+        "superpowers@claude-plugins-official": true
+      },
+      "modelSettings": {
+        "claude-opus-5": {
+          "effortLevel": "xhigh"
+        }
+      },
+      "tui": "fullscreen"
+    }
+
+    """
+    if let b = try? CrochetsClaude.brancher(hugues, script: script), let j = try? JSONOrdonne.lire(b), let j0 = try? JSONOrdonne.lire(hugues) {
+        verifier(j.membres?.map(\.cle) == j0.membres?.map(\.cle), "les clés de premier niveau restent les mêmes, dans le même ordre")
+        verifier(j["model"] == j0["model"] && j["enabledPlugins"] == j0["enabledPlugins"] && j["modelSettings"] == j0["modelSettings"] && j["tui"] == j0["tui"], "tout le reste est identique")
+        let stop = j["hooks"]?["Stop"]?.elements ?? []
+        verifier(stop.count == 2 && stop.first == j0["hooks"]?["Stop"]?.elements?.first, "Stop : le crochet de Hugues (osascript) d'abord, intact, puis le nôtre")
+        verifier(j["hooks"]?.membres?.first?.cle == "Stop", "les événements déjà là gardent leur place")
+        verifier(CrochetsClaude.estBranche(b) && !CrochetsClaude.estBranche(hugues), "branché après, pas avant")
+        verifier((try? CrochetsClaude.brancher(b, script: script)) == b, "double installation : le texte ne change pas (rien en double)")
+        verifier((try? CrochetsClaude.debrancher(b)) == hugues, "débrancher rend le fichier de départ, à l'octet près")
+        verifier((try? CrochetsClaude.debrancher(hugues)) == hugues, "débrancher un fichier sans nos crochets : rien ne change")
+        // le script a changé de place : le chemin est mis à jour, rien n'est ajouté
+        let ailleurs = "/Users/autre/Library/Application Support/Dictee/claude-crochet.sh"
+        if let b2 = try? CrochetsClaude.brancher(b, script: ailleurs), let j2 = try? JSONOrdonne.lire(b2) {
+            verifier(j2["hooks"]?["Stop"]?.elements?.count == 2 && b2.contains(CrochetsClaude.commande(script: ailleurs)) && !b2.contains(commande), "script déplacé : la commande est mise à jour, sans doublon")
+        } else { verifier(false, "script déplacé : branché") }
+        // un crochet à nous déplacé à la main dans le groupe de Hugues : débrancher garde le sien
+        let mele = hugues.replacingOccurrences(of: "2>/dev/null || true\"\n          }", with: "2>/dev/null || true\"\n          },\n          {\n            \"type\": \"command\",\n            \"command\": \"\(commande)\"\n          }")
+        if let d = try? CrochetsClaude.debrancher(mele) { verifier(d == hugues, "notre crochet dans le groupe de Hugues : seul le nôtre part") }
+        else { verifier(false, "groupe mêlé : débranché") }
+    } else { verifier(false, "le fichier de Hugues est branché") }
+    // un fichier vidé de nos seuls crochets perd la clé « hooks » qu'on avait créée
+    if let b = try? CrochetsClaude.brancher("{\n  \"theme\": \"light\"\n}\n", script: script) {
+        verifier((try? CrochetsClaude.debrancher(b)) == "{\n  \"theme\": \"light\"\n}\n", "débrancher retire la clé « hooks » qu'on avait ajoutée")
+    }
+    // ce qu'on ne comprend pas, on n'y touche pas
+    do { _ = try CrochetsClaude.brancher("{ \"model\": \"opus\", }", script: script); verifier(false, "JSON abîmé : refusé") }
+    catch { verifier(error as? CrochetsClaude.Erreur == .illisible, "JSON abîmé (virgule de trop) : refusé, rien n'est réécrit") }
+    for forme in ["[1]", "{\"hooks\": []}", "{\"hooks\": {\"Stop\": {}}}"] {
+        do { _ = try CrochetsClaude.brancher(forme, script: script); verifier(false, "\(forme) : refusé") }
+        catch { verifier(error as? CrochetsClaude.Erreur == .formeInattendue, "« \(forme) » : forme inattendue, refusé") }
+    }
+
+    groupe("Îlot : Claude au travail (le script)")
+    let s = ScriptCrochet.texte(dossier: "/Users/essai/Library/Application Support/Dictee/claude")
+    verifier(s.hasPrefix("#!/bin/sh\n") && s.contains("D='/Users/essai/Library/Application Support/Dictee/claude'"), "shell, dossier cité")
+    verifier(s.contains("exit 0") && s.contains("} >/dev/null 2>&1"), "muet (Claude Code lirait sa sortie) et toujours 0")
+    verifier(s.contains("TodoWrite|TaskCreate|TaskUpdate)") && s.contains("/usr/bin/grep") && s.contains("${__CFBundleIdentifier:-}"),
+             "les listes de tâches en entier ; les outils du système par leur chemin ; l'app d'où vient la session")
+
+    groupe("Îlot : Claude au travail (lignes et sessions)")
+    func ligne(_ t: Double, _ e: String, app: String = "com.apple.Terminal") -> String { "{\"t\":\(Int(t0.timeIntervalSince1970 + t)),\"app\":\"\(app)\",\"e\":\(e)}" }
+    func court(_ ev: String, outil: String = "", cwd: String = "/Users/essai/dev/dictee-mac", type: String = "") -> String {
+        "{\"hook_event_name\":\"\(ev)\",\"tool_name\":\"\(outil)\",\"cwd\":\"\(cwd)\",\"notification_type\":\"\(type)\"}"
+    }
+    let todos = "{\"session_id\":\"s1\",\"cwd\":\"/Users/essai/dev/dictee-mac\",\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"TodoWrite\",\"tool_input\":{\"todos\":["
+        + (1...7).map { i in "{\"content\":\"Tâche \(i)\",\"status\":\"\(i <= 3 ? "completed" : (i == 4 ? "in_progress" : "pending"))\",\"activeForm\":\"Écrit la tâche \(i)\"}" }.joined(separator: ",") + "]},\"tool_response\":{}}"
+    let ev0 = EvenementClaude.depuis(ligne: ligne(0, court("UserPromptSubmit")))
+    verifier(ev0?.genre == .invite && ev0?.dossier == "/Users/essai/dev/dictee-mac" && ev0?.app == "com.apple.Terminal" && ev0?.date == t0, "une ligne courte : la demande, le dossier, l'app, l'heure")
+    verifier(EvenementClaude.depuis(ligne: "{\"t\":12,\"e\":{\"hook_event_name\":\"Stop\"") == nil && EvenementClaude.depuis(ligne: "bonjour") == nil, "une ligne abîmée (coupée) : ignorée")
+    if case .liste(let l)? = EvenementClaude.depuis(ligne: ligne(1, todos))?.taches {
+        verifier(l.count == 7 && l.filter { $0.statut == .faite }.count == 3 && l[3].statut == .enCours && l[3].enCours == "Écrit la tâche 4", "TodoWrite : 7 tâches, 3 faites, la 4e en cours")
+    } else { verifier(false, "TodoWrite lu") }
+    let cree = EvenementClaude.depuis(ligne: ligne(2, "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"TaskCreate\",\"tool_input\":{\"subject\":\"Écrire les contrôles\",\"description\":\"…\",\"activeForm\":\"Écrit les contrôles\"},\"tool_response\":{\"task\":{\"id\":\"3\",\"subject\":\"Écrire les contrôles\"}}}"))
+    verifier(cree?.taches == .creer(id: "3", sujet: "Écrire les contrôles", enCours: "Écrit les contrôles"), "TaskCreate : le sujet, et l'identifiant pris dans la réponse")
+    let creeTexte = EvenementClaude.depuis(ligne: ligne(2, "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"TaskCreate\",\"tool_input\":{\"subject\":\"Relire\"},\"tool_response\":\"Task #12 created successfully: Relire\"}"))
+    verifier(creeTexte?.taches == .creer(id: "12", sujet: "Relire", enCours: nil), "TaskCreate : l'identifiant pris dans le texte « Task #12 »")
+    let modif = EvenementClaude.depuis(ligne: ligne(3, "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"TaskUpdate\",\"tool_input\":{\"taskId\":3,\"status\":\"completed\"}}"))
+    verifier(modif?.taches == .modifier(id: "3", statut: "completed", sujet: nil, enCours: nil), "TaskUpdate : l'identifiant (même en nombre) et le statut")
+    verifier(EvenementClaude.depuis(ligne: ligne(4, court("PostToolUse", outil: "Bash")))?.taches == nil, "un autre outil : pas de liste")
+
+    var w = VeilleClaude()
+    func lire(_ l: String, _ id: String = "s1") -> AnnonceClaude? { EvenementClaude.depuis(ligne: l).flatMap { w.lire($0, session: id) } }
+    verifier(lire(ligne(0, court("UserPromptSubmit"))) == nil && w.principale(a: t0)?.etat == .travaille && w.principale(a: t0)?.projet == "dictee-mac",
+             "demande envoyée : au travail, projet « dictee-mac », rien d'annoncé")
+    verifier(w.principale(a: t0)?.progres == nil, "pas encore de liste : pas d'avancement (l'étoile seule)")
+    _ = lire(ligne(5, todos))
+    verifier(w.principale(a: t0)?.progres == ProgresClaude(faites: 3, total: 7) && w.principale(a: t0)?.tacheEnCours == "Écrit la tâche 4", "TodoWrite : « 3 sur 7 », la tâche en cours")
+    verifier(ProgresClaude(faites: 3, total: 7).texte == "3 sur 7" && ProgresClaude(faites: 12, total: 14).court == "12/14", "« 3 sur 7 », forme courte « 12/14 »")
+    if case .attend(let s)? = lire(ligne(10, court("Notification", type: "permission_prompt"))) {
+        verifier(s.etat == .attend && s.projet == "dictee-mac" && s.app == "com.apple.Terminal", "une autorisation à donner : « Claude attend ta réponse », annoncé")
+    } else { verifier(false, "notification : annoncée") }
+    verifier(lire(ligne(11, court("Notification", type: "permission_prompt"))) == nil, "une 2e notification pendant l'attente : pas de 2e annonce")
+    _ = lire(ligne(20, court("PostToolUse", outil: "Bash")))
+    verifier(w.principale(a: t0)?.etat == .travaille && w.principale(a: t0)?.progres?.faites == 3, "l'outil autorisé a tourné : de nouveau au travail, la liste gardée")
+    if case .termine(let s)? = lire(ligne(30, court("Stop"))) { verifier(s.projet == "dictee-mac", "fin du tour : « Terminé », annoncé avec le projet") }
+    else { verifier(false, "fin du tour : annoncée") }
+    verifier(w.principale(a: t0) == nil && lire(ligne(31, court("Stop"))) == nil, "terminé : plus rien dans l'îlot ; un 2e arrêt n'annonce rien")
+    verifier(lire(ligne(90, court("Notification", type: "idle_prompt"))) == nil && w.principale(a: t0) == nil, "le rappel d'inactivité après la fin : ignoré")
+    verifier(lire(ligne(91, court("Notification"))) == nil, "une notification sans genre après la fin (ancienne version) : ignorée aussi")
+    verifier(VeilleClaude.attenteReelle("permission_prompt") && VeilleClaude.attenteReelle("elicitation_dialog") && VeilleClaude.attenteReelle(nil)
+             && !VeilleClaude.attenteReelle("idle_prompt") && !VeilleClaude.attenteReelle("auth_success"), "« à toi » : autorisation, question ; pas l'inactivité ni la connexion réussie")
+    // une nouvelle demande : la liste d'avant est gardée tant qu'elle n'est pas finie
+    _ = lire(ligne(100, court("UserPromptSubmit")))
+    verifier(w.principale(a: t0)?.progres?.total == 7, "nouvelle demande, liste pas finie : gardée")
+    // Task* : création, avancement, suppression, identifiants inconnus
+    _ = lire(ligne(0, court("UserPromptSubmit")), "s2")
+    for (i, sujet) in ["Lire", "Écrire", "Relire"].enumerated() {
+        _ = lire(ligne(1, "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"TaskCreate\",\"tool_input\":{\"subject\":\"\(sujet)\"},\"tool_response\":{\"task\":{\"id\":\"\(i + 1)\"}}}"), "s2")
+    }
+    func maj(_ id: String, _ st: String) { _ = lire(ligne(2, "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"TaskUpdate\",\"tool_input\":{\"taskId\":\"\(id)\",\"status\":\"\(st)\"}}"), "s2") }
+    maj("1", "completed"); maj("2", "in_progress"); maj("9", "completed")
+    let s2 = w.sessions["s2"]
+    verifier(s2?.progres == ProgresClaude(faites: 1, total: 3) && s2?.tacheEnCours == "Écrire", "TaskCreate ×3, TaskUpdate : « 1 sur 3 », « Écrire » en cours ; un identifiant inconnu ne compte pas")
+    maj("3", "deleted")
+    verifier(w.sessions["s2"]?.progres == ProgresClaude(faites: 1, total: 2), "une tâche supprimée : « 1 sur 2 »")
+    maj("2", "completed"); _ = lire(ligne(3, court("Stop")), "s2")
+    _ = lire(ligne(400, court("UserPromptSubmit")), "s2")
+    verifier(w.sessions["s2"]?.progres == nil, "nouvelle demande après une liste finie : la liste repart de zéro")
+    // deux sessions : celle qui attend passe devant ; sinon la plus récente
+    _ = lire(ligne(500, court("Notification", type: "permission_prompt")), "s1")
+    verifier(w.principale(a: t0.addingTimeInterval(500))?.id == "s1", "deux sessions : celle qui attend une réponse est montrée")
+    _ = lire(ligne(510, court("PostToolUse", outil: "Read")), "s1")
+    verifier(w.principale(a: t0.addingTimeInterval(510))?.id == "s1", "deux au travail : la plus récente")
+    // oubli : 30 min sans nouvelle
+    verifier(w.prochainOubli(a: t0.addingTimeInterval(510)) == t0.addingTimeInterval(400 + VeilleClaude.oubliTravail), "un seul réveil : quand la plus ancienne sera oubliée")
+    verifier(w.principale(a: t0.addingTimeInterval(510 + 1801)) == nil, "30 min sans nouvelle : oubliée (fenêtre fermée sans fin de session)")
+    _ = lire(ligne(600, court("SessionEnd")), "s1")
+    verifier(w.sessions["s1"] == nil, "fin de session : oubliée")
+
+    verifier(VeilleClaude.dejaSousLesYeux(app: "com.apple.Terminal", premierPlan: "com.apple.Terminal") && !VeilleClaude.dejaSousLesYeux(app: "com.apple.Terminal", premierPlan: "com.google.Chrome"),
+             "le Terminal de la session est au premier plan : rien à annoncer ; Chrome : on annonce")
+    verifier(VeilleClaude.dejaSousLesYeux(app: nil, premierPlan: "com.googlecode.iterm2") && !VeilleClaude.dejaSousLesYeux(app: "com.googlecode.iterm2", premierPlan: "com.apple.Terminal")
+             && !VeilleClaude.dejaSousLesYeux(app: nil, premierPlan: nil), "app inconnue : un terminal connu au premier plan suffit ; un autre terminal que celui de la session : on annonce")
+
+    groupe("Îlot : Claude au travail (dans l'îlot)")
+    func etat(_ f: (inout EtatIlot) -> Void) -> ResolutionIlot { var e = EtatIlot(); f(&e); return ArbitrageIlot.resoudre(e) }
+    verifier(etat { $0.claude = true }.principal == .claudeMinimal && etat { $0.claude = true }.survol == .claudeEtendu, "au travail sans liste : l'étoile seule ; au survol, le déplié")
+    verifier(etat { $0.claude = true; $0.claudeListe = true }.principal == .claudeCompact && etat { $0.claude = true; $0.claudeAttend = true }.principal == .claudeCompact,
+             "avec une liste, ou une question : l'anneau et « 3 sur 7 » (ou « Attend »)")
+    let video = etat { $0.claude = true; $0.claudeListe = true; $0.lecture = true }
+    verifier(video.principal == .lectureCompact && video.pastille == .claude, "pendant une vidéo : la vidéo garde l'îlot, Claude dans la bulle")
+    let question = etat { $0.claude = true; $0.claudeAttend = true; $0.lecture = true }
+    verifier(question.principal == .claudeCompact && question.pastille == .lecture, "Claude attend une réponse pendant une vidéo : il prend l'îlot, la vidéo passe en bulle")
+    verifier(etat { $0.claude = true; $0.claudeAttend = true; $0.microCoupe = true }.principal == .microCompact, "le micro coupé passe encore avant")
+    verifier(etat { $0.claude = true; $0.minuteur = true }.principal == .minuteurCompact && etat { $0.claude = true; $0.minuteur = true }.pastille == .claude, "un minuteur passe avant Claude au travail")
+    verifier(VueIlot.claudeAttend.estBandeau && VueIlot.claudeTermine.estBandeau && !VueIlot.claudeEtendu.estBandeau, "attend, terminé : des bandeaux ; le déplié : non")
+    verifier([VueIlot.claudeEtendu, .claudeAttend, .claudeTermine].allSatisfy(GeoIlot.ajusteAuContenu), "les trois écrans dépliés épousent leur contenu")
+    for (barre, demi) in [(32.0, 100.0), (33.0, 89.5)] {
+        for v in [VueIlot.claudeMinimal, .claudeCompact] {
+            let p = TraceIlot.calculer(GeoIlot.valeurs(v, hauteurBarre: barre), demiCamera: demi, barre: barre)
+            verifier(p.bande - demi <= GeoIlot.aileMax + 0.001 && p.hauteur == barre, "\(v.rawValue) : dans la barre, \(Int(p.bande - demi)) pt de chaque côté de la caméra (≤ 66), rien sous la barre")
+        }
+    }
 }

@@ -490,6 +490,158 @@ enum IlotEssai {
             verifier(!m.boucleActive && m.bandeau == nil, "volume et luminosité : fini, aucune boucle d'animation")
         }
 
+        // --- Claude au travail : le VRAI script (celui que Verbe écrit) lancé comme Claude Code le lance, sur un dossier temporaire et
+        // un settings.json temporaire (jamais ~/.claude) ; l'app au premier plan est simulée et le retour au Terminal capturé (aucune app
+        // n'est activée)
+        do {
+            let morceauAvant = c.lecture.modele.morceau
+            c.lecture.modele.morceau = nil; c.lecture.surIlot(false); attendre(0.6)
+            let racine = dossier.appendingPathComponent("claude", isDirectory: true)
+            let inst = InstallationClaude(reglages: racine.appendingPathComponent("point-claude/settings.json"),
+                                          dossierVerbe: racine.appendingPathComponent("Dictee", isDirectory: true))
+            try? FileManager.default.createDirectory(at: inst.reglages.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let original = "{\n  \"model\": \"opus\",\n  \"hooks\": {\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"osascript -e 'display notification \\\"Claude a terminé\\\"' || true\"\n          }\n        ]\n      }\n    ]\n  },\n  \"theme\": \"light\"\n}\n"
+            try? original.write(to: inst.reglages, atomically: true, encoding: .utf8)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: inst.reglages.path)
+            func lireReglages() -> String { (try? String(contentsOf: inst.reglages, encoding: .utf8)) ?? "" }
+            func droits(_ u: URL) -> Int { (try? FileManager.default.attributesOfItem(atPath: u.path)[.posixPermissions] as? Int) ?? -1 }
+            verifier((try? inst.brancher()) != nil && inst.estBranche, "« Brancher Claude Code » : nos crochets sont dans settings.json")
+            let branche = lireReglages()
+            verifier(branche.contains("osascript") && branche.contains("\"theme\": \"light\"") && branche.contains("\"model\": \"opus\""), "le crochet Stop déjà là, le modèle et le thème sont gardés")
+            verifier((try? String(contentsOf: inst.sauvegarde, encoding: .utf8)) == original, "la copie d'avant est gardée à côté (settings.json.verbe-sauvegarde)")
+            verifier(droits(inst.reglages) == 0o600 && droits(inst.script) == 0o755, "les droits de settings.json sont gardés (0600) ; le script est exécutable")
+            verifier((try? inst.brancher()) != nil && lireReglages() == branche, "« Brancher » deux fois : rien en double, le fichier ne change pas")
+            let commande = CrochetsClaude.commande(script: inst.script.path)
+            verifier(branche.contains(JSONOrdonne.citer(commande)), "la commande écrite est le chemin du script, cité")
+
+            // le script, lancé par /bin/sh -c avec la commande écrite dans settings.json, le JSON de Claude Code sur l'entrée
+            func crochet(_ json: String, app: String? = "com.apple.Terminal") -> (sortie: String, code: Int32) {
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/bin/sh")
+                p.arguments = ["-c", commande]
+                var env = ["PATH": "/usr/bin:/bin"]
+                if let app { env["__CFBundleIdentifier"] = app }
+                p.environment = env
+                let entree = Pipe(), sortie = Pipe()
+                p.standardInput = entree; p.standardOutput = sortie; p.standardError = sortie
+                do { try p.run() } catch { return ("", -1) }
+                entree.fileHandleForWriting.write(Data(json.utf8)); try? entree.fileHandleForWriting.close()
+                p.waitUntilExit()
+                return (String(decoding: sortie.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self), p.terminationStatus)
+            }
+            func ev(_ session: String, _ nom: String, _ reste: String = "") -> String {
+                "{\"session_id\":\"\(session)\",\"transcript_path\":\"/Users/essai/.claude/projects/x/\(session).jsonl\",\"cwd\":\"/Users/essai/dev/dictee-mac\","
+                    + "\"permission_mode\":\"default\",\"hook_event_name\":\"\(nom)\"\(reste)}"
+            }
+            func fichier(_ session: String) -> URL { inst.etats.appendingPathComponent(session + ".jsonl") }
+            let todos = ",\"tool_name\":\"TodoWrite\",\"tool_input\":{\"todos\":[" + (1...7).map { i in
+                "{\"content\":\"Tâche \(i)\",\"status\":\"\(i <= 3 ? "completed" : (i == 4 ? "in_progress" : "pending"))\",\"activeForm\":\"Écrit la tâche \(i)\"}" }.joined(separator: ",")
+                + "]},\"tool_response\":{\"oldTodos\":[],\"newTodos\":[]}"
+
+            // une session déjà là avant le lancement : relue sans rien annoncer ; la demande tapée n'est jamais écrite
+            let r0 = crochet(ev("avant", "UserPromptSubmit", ",\"prompt\":\"mot-de-passe-secret 1234\""))
+            let l0 = (try? String(contentsOf: fichier("avant"), encoding: .utf8)) ?? ""
+            verifier(r0.code == 0 && r0.sortie.isEmpty && l0.hasSuffix("\n") && l0.components(separatedBy: "\n").count == 2, "le script : une ligne ajoutée, rien sur la sortie, code 0")
+            verifier(!l0.contains("mot-de-passe-secret") && l0.contains("\"app\":\"com.apple.Terminal\"") && l0.contains("\"cwd\":\"/Users/essai/dev/dictee-mac\""),
+                     "la demande tapée n'est jamais écrite ; l'app d'où vient la session et le dossier le sont")
+            var premierPlan: String? = "com.google.Chrome"
+            var ramenes: [String?] = []
+            c.appAuPremierPlan = { premierPlan }
+            c.ramenerApp = { ramenes.append($0) }
+            c.claudeSource.dossier = inst.etats
+            c.activerClaude(true)
+            attendre(2.0) { m.claude == nil }; attendre(0.9)
+            verifier(m.claude?.id == "avant" && m.bandeau == nil && m.courante == .claudeMinimal, "au lancement : la session déjà là est relue (l'étoile seule), rien d'annoncé")
+            verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && abs(m.trace.hauteur - Double(g.hauteur)) < 0.01, "l'étoile seule : dans les ailes, rien sous la barre")
+            _ = crochet(ev("avant", "SessionEnd", ",\"reason\":\"exit\""))
+            attendre(2.0) { m.claude != nil }; attendre(0.3)
+            verifier(m.claude == nil && !FileManager.default.fileExists(atPath: fichier("avant").path), "fin de session : l'îlot l'oublie, son fichier est effacé")
+
+            // une tâche : au travail, puis la liste (« 3 sur 7 »)
+            let r1 = crochet(ev("s1", "UserPromptSubmit", ",\"prompt\":\"fais les contrôles\""))
+            attendre(2.0) { m.claude == nil }; attendre(0.9)
+            verifier(r1.code == 0 && m.claude?.etat == .travaille && m.courante == .claudeMinimal && m.bandeau == nil, "demande envoyée : l'étoile dans l'îlot, sans annonce")
+            _ = crochet(ev("s1", "PostToolUse", todos))
+            attendre(2.0) { m.claude?.progres == nil }; attendre(0.9)
+            verifier(m.claude?.progres == ProgresClaude(faites: 3, total: 7) && m.courante == .claudeCompact, "la liste de tâches : l'anneau et « 3 sur 7 »")
+            let aile = m.grille.bordAile(.claudeCompact) - m.demiCamera - 4
+            verifier(m.texteClaude(m.claude) == "3 sur 7" && MesureIlot.texte("3 sur 7", 13, .semibold, chiffres: true) <= aile && MesureIlot.texte("Attend", 13, .semibold, chiffres: true) <= aile,
+                     "« 3 sur 7 » (\(Int(MesureIlot.texte("3 sur 7", 13, .semibold, chiffres: true))) pt) et « Attend » tiennent dans l'aile (\(Int(aile)) pt)")
+            verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && abs(m.trace.hauteur - Double(g.hauteur)) < 0.01,
+                     "« 3 sur 7 » : \(Int(m.trace.bande - Double(m.demiCamera))) pt de chaque côté de la caméra (≤ 66), rien sous la barre")
+            attendre(1.2) { m.boucleActive }
+            verifier(!m.boucleActive, "Claude au travail, posé : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
+            // un outil quelconque : une ligne courte, jamais son contenu (même s'il cite « session_id »)
+            _ = crochet(ev("s1", "PostToolUse", ",\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"/x.swift\",\"content\":\"let session_id = \\\"piege\\\" // contenu-du-fichier\"},\"tool_response\":{}"))
+            let l1 = (try? String(contentsOf: fichier("s1"), encoding: .utf8)) ?? ""
+            verifier(!l1.contains("contenu-du-fichier") && l1.contains("\"tool_name\":\"Write\"") && !FileManager.default.fileExists(atPath: fichier("piege").path),
+                     "un outil qui écrit un fichier : une ligne courte, sans le contenu ; le « session_id » cité dans le contenu ne trompe pas le script")
+            // survol : le projet, où il en est, « Ouvrir » ; vrai clic
+            c.panneau.simulerPointeur(forme: true); attendre(0.9)
+            verifier(m.courante == .claudeEtendu && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01, "survol : le déplié ; cou étroit dans la barre")
+            let ce = m.contenuAnnonce(.claudeEtendu)
+            verifier(ce?.l1 == "dictee-mac" && ce?.l2 == "3 sur 7 \u{00B7} Écrit la tâche 4", "le projet, « 3 sur 7 · Écrit la tâche 4 » (\(ce?.l2 ?? "rien"))")
+            let lc = m.contenus[.claudeEtendu] ?? 0
+            verifier(lc > 150 && lc <= 2 * m.grille.corps(.claudeEtendu) - 2 * GrilleIlot.marge + 0.5, "le déplié épouse son contenu (\(Int(lc)) pt)")
+            let z = m.grille.zoneAnnonce(.claudeEtendu)
+            let pb = CGPoint(x: z.maxX - MesureIlot.bouton(ContenuAnnonce.Bouton(titre: "Ouvrir")) / 2, y: z.midY)
+            c.panneau.envoyerSouris(.leftMouseDown, en: pb); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pb)
+            c.panneau.simulerPointeur(forme: false); attendre(0.6)
+            verifier(ramenes == ["com.apple.Terminal"] && m.courante == .claudeCompact, "vrai clic sur « Ouvrir » : le Terminal de la session est ramené (capturé), l'îlot se replie")
+            // une autorisation à donner : « Claude attend ta réponse »
+            _ = crochet(ev("s1", "Notification", ",\"message\":\"Claude needs your permission to use Bash\",\"notification_type\":\"permission_prompt\""))
+            attendre(2.0) { m.bandeau == nil }; attendre(0.3)
+            verifier(m.courante == .claudeAttend && m.bandeauVu?.ligne1 == "Claude attend ta réponse" && m.bandeauVu?.ligne2 == "dictee-mac", "notification : « Claude attend ta réponse », le projet")
+            verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && m.trace.hauteur > Double(g.hauteur) + 60, "bandeau : sous la barre, cou étroit")
+            attendre(5.0) { m.bandeau != nil }; attendre(0.9)
+            verifier(m.bandeau == nil && m.courante == .claudeCompact && m.texteClaude(m.claude) == "Attend", "4,5 s plus tard : « Attend » dans l'aile")
+            _ = crochet(ev("s1", "PostToolUse", ",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls\"},\"tool_response\":{}"))
+            attendre(2.0) { m.claude?.etat == .attend }; attendre(0.3)
+            verifier(m.claude?.etat == .travaille && m.texteClaude(m.claude) == "3 sur 7", "autorisé, l'outil a tourné : de nouveau « 3 sur 7 »")
+            // fini, Terminal au premier plan : rien à annoncer
+            premierPlan = "com.apple.Terminal"
+            _ = crochet(ev("s1", "Stop", ",\"stop_hook_active\":false"))
+            attendre(2.0) { m.claude != nil }; attendre(0.9)
+            verifier(m.claude == nil && m.bandeau == nil && m.courante == .repos, "fini pendant que le Terminal est au premier plan : rien d'annoncé, l'îlot se vide")
+            // fini, Hugues ailleurs : « Terminé », 3 s
+            premierPlan = "com.google.Chrome"
+            _ = crochet(ev("s1", "UserPromptSubmit", ",\"prompt\":\"encore\""))
+            attendre(2.0) { m.claude == nil }
+            _ = crochet(ev("s1", "Stop", ",\"stop_hook_active\":false"))
+            attendre(2.0) { m.bandeau == nil }; attendre(0.3)
+            verifier(m.courante == .claudeTermine && m.bandeauVu?.ligne1 == "Terminé" && m.bandeauVu?.ligne2 == "dictee-mac" && m.claude == nil, "fini pendant que Hugues est ailleurs : « Terminé », coche verte, le projet")
+            c.agir(.claudeOuvrir(m.bandeauVu?.claude?.app)); attendre(0.3)
+            verifier(ramenes.last == "com.apple.Terminal" && m.bandeau == nil, "« Ouvrir » sur « Terminé » : le Terminal est ramené, le bandeau se retire")
+            _ = crochet(ev("s1", "UserPromptSubmit")); attendre(2.0) { m.claude == nil }
+            _ = crochet(ev("s1", "Stop")); attendre(2.0) { m.bandeau == nil }
+            attendre(3.6) { m.bandeau != nil }; attendre(0.5)
+            verifier(m.bandeau == nil && m.courante == .repos, "sans geste : « Terminé » se retire après 3 s")
+            _ = crochet(ev("s1", "Notification", ",\"message\":\"Claude is waiting for your input\",\"notification_type\":\"idle_prompt\""))
+            attendre(1.2)
+            verifier(m.bandeau == nil && m.claude == nil, "le rappel d'inactivité de Claude Code après la fin : rien")
+            // pendant une vidéo : Claude au travail dans la bulle ; Claude qui attend prend l'îlot, la vidéo passe en bulle
+            c.lecture.modele.morceau = MorceauEnCours(titre: "Album · Titre 3", app: "essai.lecture", joue: true, duree: 214, position: 97)
+            c.lecture.surIlot(true)
+            _ = crochet(ev("s1", "UserPromptSubmit")); attendre(2.0) { m.claude == nil }; attendre(0.9)
+            verifier(m.resolution.principal == .lectureCompact && m.pastille == .claude && m.rectPastille() != nil, "pendant une vidéo : la vidéo garde l'îlot, Claude dans la bulle à côté")
+            _ = crochet(ev("s1", "Notification", ",\"notification_type\":\"permission_prompt\""))
+            attendre(2.0) { m.bandeau == nil }; attendre(5.0) { m.bandeau != nil }; attendre(0.9)
+            verifier(m.resolution.principal == .claudeCompact && m.pastille == .lecture, "Claude attend une réponse : il prend l'îlot, la vidéo passe en bulle")
+            _ = crochet(ev("s1", "PostToolUse", ",\"tool_name\":\"Read\""))
+            attendre(2.0) { m.claude?.etat == .attend }; attendre(0.9)
+            verifier(m.resolution.principal == .lectureCompact && m.pastille == .claude, "répondu : la vidéo reprend l'îlot")
+            // réglage éteint : plus rien n'est lu
+            c.activerClaude(false); attendre(0.6)
+            verifier(!c.claudeSource.actif && m.claude == nil && m.resolution.pastille == nil, "réglage éteint : l'îlot oublie Claude")
+            _ = crochet(ev("s2", "UserPromptSubmit")); attendre(1.2)
+            verifier(m.claude == nil, "réglage éteint : une nouvelle session n'est pas montrée")
+            // débrancher : le fichier de départ, à l'octet près
+            verifier((try? inst.debrancher()) != nil && !inst.estBranche && lireReglages() == original, "« Débrancher » : settings.json redevient exactement celui d'avant")
+            c.lecture.modele.morceau = morceauAvant; c.lecture.surIlot(morceauAvant != nil)
+            attendre(1.5) { m.boucleActive }
+            verifier(!m.boucleActive, "Claude : tout est posé, aucune boucle d'animation")
+        }
+
         // --- réunion : rien à l'écran, vibration seule
         occ.reunion = true; c.occupationChangee(); attendre(0.5)
         let s0 = compteurs

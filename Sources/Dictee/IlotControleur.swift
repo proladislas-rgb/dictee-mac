@@ -52,6 +52,13 @@ final class IlotControleur {
     var niveaux: PiloteNiveaux = NiveauxSysteme()
     var niveauxActifs = Settings.ilotNiveaux
     var aiguillageNiveau = AiguillageNiveau()
+    /// Claude au travail (IlotClaude.swift) : le dossier des sessions, leur état, le réveil qui oublie une session muette depuis trop
+    /// longtemps ; l'app au premier plan et le retour au Terminal sont injectables (les essais n'activent jamais d'app).
+    let claudeSource = SourceClaude()
+    var veilleClaude = VeilleClaude()
+    var reveilClaude: DispatchWorkItem?
+    var appAuPremierPlan: () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
+    var ramenerApp: (String?) -> Void = { IlotControleur.ramener($0) }
 
     /// Ce qui occupe l'encoche en dehors de la dictée de ce contrôleur (rempli par l'AppDelegate).
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
@@ -115,6 +122,7 @@ final class IlotControleur {
             NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
         }
         lecture.modele.surClicIlot = { [weak self] in self?.moteur.clicForme() }
+        claudeSource.surLignes = { [weak self] l, relecture in self?.lignesClaude(l, relecture: relecture) }
         micro.surChangement = { [weak self] in self?.microChange() }
     }
 
@@ -137,6 +145,7 @@ final class IlotControleur {
         energieSource.arreter(); appareilsSource.arreter()
         telechargementsSource.arreter()
         activerLeMicro(false)
+        activerClaude(false)
         agenda.arreter()
         panneau.fermer()
         [reveilMinuteur, reveilRappels, reveilAgenda].forEach { $0?.cancel() }
@@ -179,6 +188,7 @@ final class IlotControleur {
         if Settings.ilotTelechargements { telechargementsSource.demarrer() }
         else { telechargementsSource.arreter(); rafale = RafaleTelechargements() }
         niveauxActifs = Settings.ilotNiveaux
+        activerClaude(Settings.ilotClaude)
         activerLeMicro(Settings.ilotMicro)
         surRaccourciMicro(Settings.ilotMicro ? Settings.raccourciMicro : nil)
         moteur.donneesChangees()
@@ -379,6 +389,9 @@ final class IlotControleur {
         case .microRouvrir:
             moteur.fermer()
             executer(veilleMicro.rouvrir())
+        case .claudeOuvrir(let app):
+            if moteur.bandeau?.vue == .claudeAttend || moteur.bandeau?.vue == .claudeTermine { moteur.quitterBandeau() } else { moteur.fermer() }
+            ramenerApp(app)
         case .collerLaDerniereDictee:
             if let d = HistoriqueStore.shared.historique.entrees.first?.texte, !d.isEmpty { moteur.fermer(); surColler(d) }
         }

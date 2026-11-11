@@ -95,6 +95,7 @@ struct IlotCalques: View {
             if m.visible(FamilleIlot.rappel) { voyageurGlyphe(.rappel) }
             if m.visible(FamilleIlot.agenda) { voyageurGlyphe(.agenda) }
             if m.visible(FamilleIlot.micro) { voyageurGlyphe(.micro) }
+            if m.visible(FamilleIlot.claude) { ClaudeVoyageur(m: m, g: g) }
             if m.epaules, m.ouvertureEpaules > 0.001 { EpaulesIlot(m: m, g: g) }
             ForEach(VueIlot.allCases, id: \.self) { v in
                 if m.visible(v) { ecran(v) }
@@ -126,6 +127,9 @@ struct IlotCalques: View {
         case .microEtendu: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .microOuvert: microOuvert(v)
         case .volume, .luminosite: niveauAiles(v)
+        case .claudeMinimal: EmptyView()
+        case .claudeCompact: ClaudeAiles(m: m, g: g)
+        case .claudeEtendu, .claudeAttend, .claudeTermine: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         }
     }
 
@@ -187,6 +191,7 @@ struct IlotCalques: View {
         return HStack(spacing: ContenuAnnonce.espace) {
             Group {
                 if !c.icones.isEmpty { IconesFichiers(icones: c.icones, cote: c.coteSymbole) }
+                else if c.etoile { EtoileClaude(couleur: CouleursIlot.corail).frame(width: 21, height: 21) }
                 else if let glyphe = c.glyphe { glyphe } else { Color.clear }
             }
             .frame(width: c.coteSymbole, height: c.coteSymbole)
@@ -705,6 +710,8 @@ struct PastilleVue: View {
             .padding(.leading, 10)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Micro coupé")
+        case .claude:
+            PastilleClaude(m: m)
         case .alerte:
             EmptyView()
         }

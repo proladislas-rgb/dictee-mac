@@ -118,6 +118,12 @@ struct ReglagesVue: View {
             LigneReglage(libelle: "Volume et luminosité dans l\u{2019}îlot", note: "Les touches du volume et de la luminosité s\u{2019}affichent dans l\u{2019}îlot, à la place de l\u{2019}affichage de macOS. Avec ⌥⇧, par petits pas.") {
                 Interrupteur(actif: $r.ilotNiveaux, etiquette: "Volume et luminosité dans l\u{2019}îlot")
             }
+            LigneReglage(libelle: "Claude au travail", note: r.phraseClaude) {
+                BoutonCadre(r.claudeBranche ? "Débrancher" : "Brancher Claude Code") { if r.claudeBranche { r.debrancherClaude() } else { r.brancherClaude() } }
+                    .opacity(r.ilotClaude || r.claudeBranche ? 1 : 0.45)
+                    .disabled(!r.ilotClaude && !r.claudeBranche)
+                Interrupteur(actif: $r.ilotClaude, etiquette: "Claude au travail")
+            }
             LigneReglage(libelle: "Calendrier", note: r.phraseCalendrier) {
                 Interrupteur(actif: $r.ilotCalendrier, etiquette: "Calendrier")
             }

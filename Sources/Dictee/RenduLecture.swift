@@ -307,6 +307,26 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau, clair: false) { ilot(scene(niveau(.volume, 1))) }, "ilot-20e-volume-max-sombre")
         ecrire(bureau(hauteur: petitBureau, clair: false) { ilot(scene(niveau(.luminosite, 0.3125, avant: 0.25))) }, "ilot-20f-luminosite")
         ecrire(bureau(hauteur: petitBureau) { ilot(miCourse(scene(lecture: videoLongue) { $0.lecturePresente = true }, 0.22, niveau(.volume, 0.75, avant: 0.6875))) }, "ilot-20g-volume-mi-course")
+        // Claude au travail (maquette ilot-apple.html, cinq idées de plus, 1) : l'étoile dans son anneau et « 3 sur 7 » (66 pt de chaque
+        // côté au plus), l'étoile seule sans liste, « 12/14 » quand « 12 sur 14 » ne tient pas, le déplié au survol, « Claude attend ta
+        // réponse » et « Terminé », Claude en bulle pendant une vidéo, Claude qui attend prend l'îlot (la vidéo en bulle), mi-course
+        func claude(_ etat: EtatClaude = .travaille, faites: Int = 3, total: Int = 7, projet: String = "dictee-mac") -> SessionClaude {
+            let t = (0..<total).map { i in TacheClaude(id: "\(i + 1)", sujet: "Tâche \(i + 1)", enCours: i == 3 ? "Écrit les contrôles de la fusion" : nil,
+                                                       statut: i < faites ? .faite : (i == faites ? .enCours : .aFaire)) }
+            return SessionClaude(id: "rendu", dossier: "/Users/hugues/" + projet, app: "com.apple.Terminal", etat: etat, taches: t, derniere: t0)
+        }
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.claude = claude() }) }, "ilot-21a-claude-3-sur-7")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.claude = claude(total: 0) }) }, "ilot-21b-claude-sans-liste")
+        ecrire(bureau(hauteur: petitBureau, clair: false) { ilot(scene { $0.claude = claude(faites: 12, total: 14) }) }, "ilot-21c-claude-12-sur-14-sombre")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.claude = claude(); $0.survole = true }) }, "ilot-21d-claude-survol")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in let s = claude(.attend); m.claude = s
+            m.bandeau = BandeauIlot(vue: .claudeAttend, jusqua: t0, ligne1: "Claude attend ta réponse", ligne2: s.projet, claude: s) }) }, "ilot-21e-claude-attend-ta-reponse")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.claude = claude(.attend) }) }, "ilot-21f-claude-attend-video-en-bulle")
+        ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene { m in let s = claude(.termine, faites: 7)
+            m.bandeau = BandeauIlot(vue: .claudeTermine, jusqua: t0, ligne1: "Terminé", ligne2: s.projet, claude: s) }) }, "ilot-21g-claude-termine")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.claude = claude() }) }, "ilot-21h-video-et-claude-en-bulle")
+        ecrire(bureau(hauteur: grandBureau) { ilot(miCourse(scene { $0.claude = claude() }, 0.16) { $0.survole = true }) }, "ilot-21i-claude-survol-mi-course")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.claude = claude(total: 0); $0.survole = true }) }, "ilot-21j-claude-survol-sans-liste")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)
