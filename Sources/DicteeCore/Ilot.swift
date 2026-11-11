@@ -32,6 +32,11 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// ronds (micro, micro de la dictée, téléchargements, Claude Code) et deux grandes cases (minuteur, étagère). On y passe depuis la lecture
     /// dépliée (bouton « Centre », points de page, défilement) ; l'îlot vide s'ouvre directement dessus.
     case centre
+    /// La 2e page du Centre, « Outils » (maquette ilot-claude-plus.html, étapes 8 à 14) : quatre gros boutons ronds (Garder éveillé,
+    /// Presse-papiers, Reformuler, Notes), le panneau « Garder éveillé » (1 h, 2 h, jusqu'à l'arrêt) et la bande « Dicter une note ».
+    /// Ses cartes, ouvertes d'un clic sur un rond : le presse-papiers (les cinq dernières copies), Reformuler (la dernière dictée ou le
+    /// texte choisi, réécrit), Note rapide (dicter une note, les notes gardées).
+    case outils, outilPressePapiers, outilReformuler, outilNote
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
@@ -117,6 +122,12 @@ public enum GeoIlot {
         .etagereDepot: [14, 144, 102, 6, 30, 16, 10],
         .etagere: [14, 144, 10 + 42 + 8 + 72 + 12, 6, 34, 18, 10],
         .centre: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        // la page Outils et ses cartes : la largeur du Centre (on passe de l'une à l'autre) ; leur hauteur suit leur contenu (`enPlus`,
+        // jamais plus haut que le Centre : au-delà, la liste des notes défile)
+        .outils: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        .outilPressePapiers: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        .outilReformuler: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        .outilNote: [14, 144, profondeurCentre, 6, 34, 18, 10],
     ]
     /// Indices des valeurs : largeurs (cou, corps) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur mène ; à la
     /// fermeture la hauteur se replie d'abord.
@@ -136,7 +147,8 @@ public enum GeoIlot {
     /// la batterie du Mac (à gauche) et celle des écouteurs (à droite). 56 + le congé du cou déplié (10 pt) = la limite des ailes (66 pt).
     public static let epaules: Double = 56
     public static func aEpaules(_ v: VueIlot) -> Bool {
-        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .claudeCarte].contains(v)
+        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .claudeCarte,
+         .outils, .outilPressePapiers, .outilReformuler, .outilNote].contains(v)
     }
 
     /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.

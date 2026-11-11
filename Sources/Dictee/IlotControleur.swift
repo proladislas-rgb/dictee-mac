@@ -68,6 +68,35 @@ final class IlotControleur {
     /// s'est rangé avant la réponse (un refus venu plus tard, d'ailleurs, n'en laisse pas).
     var telechargementsDemandesDuCentre = false
 
+    // MARK: les Outils (OutilsControleur.swift) : tout ce qui touche au système est injectable (l'essai remplace tout)
+    /// Garder éveillé : les assertions d'IOKit, et le réveil unique de l'échéance.
+    var eveilPilote: PiloteEveil = EveilSysteme()
+    var reveilEveil: DispatchWorkItem?
+    /// Le presse-papiers : l'historique (en mémoire), ce qu'il faut pour recopier chaque élément, le dernier compteur vu (nil : jamais lu).
+    var pressePapiers: PilotePressePapiers = PressePapiersSysteme()
+    var historiqueCopies = HistoriqueCopies()
+    var contenusCopies: [UUID: ContenuCopie] = [:]
+    var compteurPressePapiers: Int?
+    var finCopieFaite: DispatchWorkItem?
+    var observateurApps: NSObjectProtocol?
+    /// Envoie ⌘V dans l'app d'où l'on vient (rempli par l'AppDelegate) ; faux si ce n'est pas possible (Accessibilité).
+    var surCommandeV: () -> Bool = { false }
+    /// Reformuler : le service de texte de la dictée (Groq, `GroqClient.shared`, la même clé), la sélection de l'app au premier plan, la
+    /// sélection de la dernière dictée dans son champ, l'app de la dernière dictée.
+    var reformulerTexte: (String, StyleReformulation) async throws -> String = { texte, style in
+        try await GroqClient.shared.completer(modele: Settings.modeleNettoyage, systeme: ReformulationIlot.consigne(style), texte: texte, delai: 15)
+    }
+    var lireSelection: () -> (texte: String, app: String?)? = { IlotControleur.lireSelectionSysteme() }
+    var selectionnerDansLApp: (String) -> Bool = { IlotControleur.selectionnerSysteme($0) }
+    var lireAppDerniereDictee: () -> String? = { HistoriqueStore.shared.historique.entrees.first(where: { $0.insere || !$0.texte.isEmpty })?.appNom }
+    var jetonReformulation = 0
+    /// Note rapide : les notes (fichier 0600), l'envoi vers l'app Notes, la dictée qui deviendra une note.
+    var notesStore: NotesStore
+    var listeNotes: ListeNotes
+    var envoyerNoteVersNotes: (String, @escaping @Sendable (Bool) -> Void) -> Void = { IlotControleur.versNotesSysteme($0, fini: $1) }
+    var noteArmeeJusqua: Date = .distantPast
+    var noteAOuvrir = false
+
     /// Ce qui occupe l'encoche en dehors de la dictée de ce contrôleur (rempli par l'AppDelegate).
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
     /// Recolle un texte dans la dernière app (rempli par l'AppDelegate).
@@ -118,9 +147,12 @@ final class IlotControleur {
     private var armeJusqua: Date = .distantPast
     private var armeFormulaire = false
 
-    init(stockage: RappelsStore = RappelsStore(url: RappelsStore.urlParDefaut), etagere etagereStore: EtagereStore = EtagereStore(url: EtagereStore.urlParDefaut)) {
+    init(stockage: RappelsStore = RappelsStore(url: RappelsStore.urlParDefaut), etagere etagereStore: EtagereStore = EtagereStore(url: EtagereStore.urlParDefaut),
+         notes notesStore: NotesStore = NotesStore(url: NotesStore.urlParDefaut)) {
         self.stockage = stockage
         rappels = stockage.lire()
+        self.notesStore = notesStore
+        listeNotes = notesStore.lire()
         self.etagereStore = etagereStore
         etagere = etagereStore.lire()
         moteur = IlotMoteur(lecture: lecture.modele)
@@ -152,6 +184,12 @@ final class IlotControleur {
             self?.reglagesCentre.enregistrerDisposition(d.identifiants)
             Log.ecrire("centre : \(d.identifiants.joined(separator: ", "))")
         }
+        moteur.surDispositionOutils = { [weak self] d in
+            self?.reglagesCentre.enregistrerDispositionOutils(d.identifiants)
+            Log.ecrire("outils : \(d.identifiants.joined(separator: ", "))")
+            self?.verifierPressePapiers()
+        }
+        moteur.notes = listeNotes.notes
     }
 
     // MARK: vie
@@ -169,6 +207,7 @@ final class IlotControleur {
         moteur.aideCentre = !reglagesCentre.centreUtilise()
         moteur.disposition = DispositionCentre(identifiants: reglagesCentre.disposition())
         if !reglagesCentre.bulleVue() { moteur.montrerBulle() }
+        demarrerLesOutils()
     }
 
     func arreter() {
@@ -180,6 +219,7 @@ final class IlotControleur {
         activerLeMicro(false)
         activerClaude(false)
         agenda.arreter()
+        arreterLesOutils()
         panneau.fermer()
         [reveilMinuteur, reveilRappels, reveilAgenda].forEach { $0?.cancel() }
     }
@@ -358,8 +398,11 @@ final class IlotControleur {
                 armeFormulaire = courante == .rappelListe
                 armeJusqua = maintenant().addingTimeInterval(60)
             }
-        } else if armeJusqua > maintenant() {
-            armeJusqua = maintenant().addingTimeInterval(12)   // le temps de la transcription
+            // la carte Note rapide est ouverte : cette dictée devient une note (pas collée dans l'app)
+            if moteur.fenetreOuverte, courante == .outilNote { noteArmeeJusqua = maintenant().addingTimeInterval(60) }
+        } else {
+            if armeJusqua > maintenant() { armeJusqua = maintenant().addingTimeInterval(12) }   // le temps de la transcription
+            if noteArmeeJusqua > maintenant() { noteArmeeJusqua = maintenant().addingTimeInterval(12) }
         }
         // le micro qu'écoutera la dictée, s'il est coupé, est rouvert AVANT qu'elle ne l'ouvre (cet appel précède le démarrage de la
         // capture), puis recoupé à la fin ; c'est bien CE micro-là (son UID), même si ce n'est pas celui par défaut
@@ -381,6 +424,8 @@ final class IlotControleur {
         moteur.dictee = dictee; moteur.reunion = o.reunion; moteur.masque = masque
         moteur.donneesChangees()
         if !moteur.cache { moteur.vidangerAttente() }
+        // une note vient d'être dictée : l'îlot se rouvre sur elle, une fois l'encoche de la dictée rangée
+        if !moteur.cache, noteAOuvrir { noteAOuvrir = false; moteur.ouvrirOutil(.outilNote) }
     }
 
     private func lectureVisible(_ visible: Bool) {
@@ -427,6 +472,9 @@ final class IlotControleur {
             moteur.telechargementsActifs = reglagesCentre.telechargements()
             moteur.claudeBranche = installationClaude.estBranche
         }
+        // les Outils : le presse-papiers a-t-il changé (son compteur seulement, le contenu s'il a bougé) ; Reformuler relit son texte
+        verifierPressePapiers()
+        if moteur.courante == .outilReformuler { relireSourceReformulation() }
         lecture.ilotDeplie()
     }
     private func ageLisible(_ date: Date) -> String {
@@ -458,6 +506,8 @@ final class IlotControleur {
             }
             lancerLeMinuteur(secondes: minutes * 60, bandeau: false, fermer: false)
         case .centreMicro, .centreTelechargements, .centreClaude, .etagereAllumer, .centreReunion, .centreAvis: agirCentre(action)
+        case .eveil, .copieRecopier, .copieColler, .copiesEffacer, .reformulationSource, .reformuler, .reformulationRemplacer, .reformulationCopier,
+             .noteVersNotes, .noteSupprimer: agirOutils(action)
         case .alerteOK: moteur.quitterAlerte()
         case .rappelPlusTard(let id):
             rappels.reporter(id, depuis: maintenant()); sauver()
@@ -667,6 +717,11 @@ final class IlotControleur {
     /// Appelée avec le texte final d'une dictée, avant le collage. Vrai si c'était une commande de l'îlot (le texte n'est alors PAS collé).
     /// Ne s'applique que si l'accueil de l'îlot était ouvert au début de la dictée : une dictée normale n'est jamais mangée.
     func intercepter(_ texte: String) -> Bool {
+        // Note rapide : la carte était ouverte au début de la dictée, le texte devient une note
+        if noteArmeeJusqua > maintenant() {
+            noteArmeeJusqua = .distantPast
+            if ajouterNote(texte) { return true }
+        }
         guard armeJusqua > maintenant() else { return false }
         let formulaire = armeFormulaire
         armeJusqua = .distantPast; armeFormulaire = false

@@ -906,7 +906,7 @@ func controlesClaude(_ t0: Date) {
              "au travail sans rien à dire : l'étoile seule ; au survol, le Centre (maquette, étape 2 : la carte est à un clic)")
     verifier(etat { $0.claude = true; $0.claudeAttend = true }.survol == .claudeCarte && etat { $0.claude = true; $0.claudeListe = true }.survol == .centre,
              "une session attend : le survol ouvre directement la carte « Claude Code » ; au travail : le Centre")
-    verifier(CartesIlot.pile(survol: .claudeCarte) == [.claudeCarte, .centre, .accueil] && !CartesIlot.aUnPied(.claudeCarte, pile: CartesIlot.pile(survol: .claudeCarte)),
+    verifier(CartesIlot.pile(survol: .claudeCarte) == [.claudeCarte, .centre, .outils, .accueil] && !CartesIlot.aUnPied(.claudeCarte, pile: CartesIlot.pile(survol: .claudeCarte)),
              "la carte « Claude Code » en tête de pile, sans pied (son en-tête a « ‹ Centre »)")
     var micClaude = EtatIlot(); micClaude.microCoupe = true; micClaude.claude = true; micClaude.claudeListe = true
     let rmc = ArbitrageIlot.resoudre(micClaude)
@@ -1026,14 +1026,15 @@ func controlesEtagere(_ t0: Date) {
 /// Le Centre (maquette design/maquettes/ilot-centre.html) : la pile des cartes, le défilement (un geste = une carte), la géométrie.
 func controlesCentre() {
     groupe("Îlot : le Centre, les cartes")
-    verifier(CartesIlot.pile(survol: .centre) == [.centre, .accueil], "rien ne joue : le Centre d'abord, l'accueil dessous")
-    verifier(CartesIlot.pile(survol: .lectureEtendu) == [.lectureEtendu, .centre, .accueil], "une vidéo : la lecture, le Centre, l'accueil")
-    verifier(CartesIlot.pile(survol: .lectureMinuteur) == [.lectureEtendu, .centre, .accueil], "la rangée Minuteur compte comme la lecture")
-    verifier(CartesIlot.pile(survol: .minuteurEtendu) == [.minuteurEtendu, .centre, .accueil] && CartesIlot.pile(survol: .microEtendu).first == .microEtendu,
+    verifier(CartesIlot.pile(survol: .centre) == [.centre, .outils, .accueil], "rien ne joue : le Centre d'abord, ses Outils (2e page), l'accueil dessous")
+    verifier(CartesIlot.pile(survol: .lectureEtendu) == [.lectureEtendu, .centre, .outils, .accueil], "une vidéo : la lecture, le Centre, les Outils, l'accueil")
+    verifier(CartesIlot.pile(survol: .lectureMinuteur) == [.lectureEtendu, .centre, .outils, .accueil], "la rangée Minuteur compte comme la lecture")
+    verifier(CartesIlot.pile(survol: .minuteurEtendu) == [.minuteurEtendu, .centre, .outils, .accueil] && CartesIlot.pile(survol: .microEtendu).first == .microEtendu,
              "un minuteur, le micro coupé : leur déplié, puis le Centre")
     verifier(CartesIlot.pile(survol: nil).isEmpty, "verrouillé (alerte, bandeau) : aucune carte")
     let p = CartesIlot.pile(survol: .lectureEtendu)
-    verifier(CartesIlot.voisine(p, de: .lectureEtendu, pas: 1) == .centre && CartesIlot.voisine(p, de: .centre, pas: 1) == .accueil
+    verifier(CartesIlot.voisine(p, de: .lectureEtendu, pas: 1) == .centre && CartesIlot.voisine(p, de: .centre, pas: 1) == .outils
+             && CartesIlot.voisine(p, de: .outils, pas: 1) == .accueil && CartesIlot.voisine(p, de: .outils, pas: -1) == .centre
              && CartesIlot.voisine(p, de: .centre, pas: -1) == .lectureEtendu && CartesIlot.voisine(p, de: .lectureMinuteur, pas: 1) == .centre,
              "carte suivante, précédente (depuis la rangée Minuteur aussi)")
     verifier(CartesIlot.voisine(p, de: .accueil, pas: 1) == nil && CartesIlot.voisine(p, de: .lectureEtendu, pas: -1) == nil && CartesIlot.voisine(p, de: .etagere, pas: 1) == nil,
@@ -1101,6 +1102,7 @@ func controlesCentre() {
     verifier(GeoIlot.aEpaules(.centre) && !VueIlot.centre.estBandeau && !GeoIlot.ajusteAuContenu(.centre), "Centre : un écran déplié, avec les épaules (batterie, AirPods)")
     verifier(GeoIlot.profondeur(.centre) == 298, "Centre : 14 + 26 + 12 + 96 + 10 + 76 + 10 + 40 + 14 = 298 pt sous la barre (maquette : 331 − 33)")
     controlesDispositionCentre()
+    controlesOutils()
 }
 
 /// « Modifier » le Centre : ce qu'il montre, dans quel ordre, ce qui est rangé dans les réglages, et la place que ça prend.
@@ -1169,4 +1171,126 @@ func controlesDispositionCentre() {
     verifier(D.pastillesQuiTiennent([70, 120, 80], place: 300, ecart: 6, marque: m3) == 3, "trois pastilles qui tiennent : toutes")
     verifier(D.pastillesQuiTiennent([70, 120, 80, 90], place: 300, ecart: 6, marque: m3) == 2, "une de trop : deux, puis « +2 » (qui doit tenir aussi)")
     verifier(D.pastillesQuiTiennent([400], place: 300, ecart: 6, marque: m3) == 0 && D.pastillesQuiTiennent([], place: 300, ecart: 6, marque: m3) == 0, "aucune ne tient, ou rien à ajouter : zéro")
+}
+
+/// La 2e page du Centre, « Outils » (maquette ilot-claude-plus.html, étapes 8 à 14) : les pages, « Modifier » sur les Outils, la géométrie,
+/// Garder éveillé, le presse-papiers, Reformuler, Note rapide.
+func controlesOutils() {
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/Paris")!
+    let t0 = cal.date(from: DateComponents(year: 2026, month: 11, day: 11, hour: 14, minute: 44))!
+
+    groupe("Îlot : Outils, la 2e page du Centre")
+    for v in [VueIlot.outilPressePapiers, .outilReformuler, .outilNote] {
+        verifier(CartesIlot.parent(v) == .outils && !CartesIlot.aUnPied(v, pile: CartesIlot.pile(survol: .centre)) && GeoIlot.aEpaules(v),
+                 "\(v.rawValue) : rangée sous la page Outils (ses points de page restent), sans pied, avec les épaules")
+    }
+    verifier(CartesIlot.parent(.outils) == nil && CartesIlot.parent(.centre) == nil && CartesIlot.parent(.claudeCarte) == nil, "la page Outils, le Centre, Claude : pas de parent")
+    verifier(CartesIlot.pile(survol: .outils) == [.centre, .outils, .accueil] && !CartesIlot.aUnPied(.outils, pile: CartesIlot.pile(survol: .lectureEtendu)),
+             "la page Outils n'est jamais la première carte : pas de pied")
+    // la place : la page Outils et ses cartes ont la largeur du Centre ; dans la barre, jamais plus de 66 pt (épaules ouvertes aussi), et
+    // tous les passages depuis l'îlot replié restent dans les 66 pt
+    for (barre, demi) in [(32.0, 100.0), (33.0, 90.0), (37.0, 92.0)] {
+        for v in [VueIlot.outils, .outilPressePapiers, .outilReformuler, .outilNote] {
+            for ep in [false, true] {
+                for enPlus in [-150.0, 0, 10] {
+                    let g = GeoIlot.valeurs(v, hauteurBarre: barre, epaules: ep, enPlus: enPlus)
+                    let p = TraceIlot.calculer(g, demiCamera: demi, barre: barre)
+                    verifier(p.bande <= demi + GeoIlot.aileMax + 0.001 && g[2] - barre + 30 <= 380 - barre,
+                             "\(v.rawValue) (caméra \(Int(2 * demi)), barre \(Int(barre)), épaules \(ep), \(Int(enPlus)) pt) : \(String(format: "%.2f", p.bande - demi)) pt dans la barre, \(Int(g[2])) pt de haut")
+                }
+            }
+            // un passage replié (cou 60) → la carte, à mi-course, sur ses vrais ressorts
+            var geo = GeoIlot.valeurs(.claudeCompact, hauteurBarre: barre).map { RessortIlot($0, reponse: 0.4, amortissement: 1) }
+            PassageIlot.viser(&geo, vers: GeoIlot.valeurs(v, hauteurBarre: barre, epaules: true))
+            var pire = 0.0
+            for _ in 0..<120 { for i in geo.indices { geo[i].avancer(1.0 / 120) }; pire = max(pire, TraceIlot.calculer(geo.map(\.x), demiCamera: demi, barre: barre).bande - demi) }
+            verifier(pire <= GeoIlot.aileMax + 0.001, "replié → \(v.rawValue) (barre \(Int(barre))) : au pire \(String(format: "%.2f", pire)) pt dans la barre pendant le passage")
+        }
+    }
+    groupe("Îlot : Outils, « Modifier » sur la page Outils")
+    typealias D = DispositionCentre
+    let o0 = D(identifiants: nil, page: .outils)
+    verifier(o0.page == .outils && o0.elements == [.eveil, .pressePapiers, .reformuler, .notes, .noteRapide] && o0.bande && o0.cases.isEmpty,
+             "jamais modifiée : Garder éveillé, Presse-papiers, Reformuler, Notes, et la bande « Dicter une note » (maquette, étape 8)")
+    verifier(o0.ronds() == [.eveil, .pressePapiers, .reformuler, .notes] && o0.aAjouter().isEmpty, "quatre ronds, rien à ajouter")
+    verifier(D(identifiants: nil).aAjouter(disponible: { _ in true }).allSatisfy { $0.page == .centre }, "le Centre ne propose jamais les outils (chacun sa page)")
+    var o = o0
+    verifier(o.retirer(.reformuler) && o.aAjouter() == [.reformuler] && o.ronds() == [.eveil, .pressePapiers, .notes], "« – » sur Reformuler : retiré, « + Reformuler » proposé")
+    verifier(!o.ajouter(.micro) && !o.peutAjouter(.rappel) && o.ajouter(.reformuler) && o.ronds().last == .reformuler, "un élément du Centre n'entre pas dans les Outils ; Reformuler revient au bout")
+    verifier(o.retirer(.noteRapide) && !o.bande && o.ajouter(.noteRapide) && o.bande, "la bande « Dicter une note » se retire et revient")
+    verifier(D(identifiants: o.identifiants, page: .outils) == o && D(identifiants: ["micro", "eveil", "notes"], page: .outils).elements == [.eveil, .notes],
+             "les identifiants se relisent ; ceux du Centre sont ignorés sur la page Outils")
+    verifier(D(identifiants: ["eveil", "micro"]).elements == [.micro], "et inversement : un outil rangé dans le Centre est ignoré")
+    verifier(D([.micro, .eveil, .notes]).elements == [.micro] && D([.micro, .eveil], page: .outils).elements == [.eveil], "chaque page ne garde que ses éléments")
+    verifier(ElementCentre.pressePapiers.rawValue == "presse-papiers" && ElementCentre.noteRapide.rawValue == "note-rapide" && ElementCentre.noteRapide.genre == .bande,
+             "identifiants rangés stables ; « Dicter une note » est une bande")
+    let pe = D.plan(ronds: true, cases: true, bande: true), ps = D.plan(ronds: true, cases: false, bande: true)
+    verifier(ps.profondeur == 14 + 26 + 12 + 96 + 10 + 40 + 14 && pe.profondeur == GeoIlot.profondeurCentre,
+             "page Outils : \(Int(ps.profondeur)) pt sans le panneau « Garder éveillé », \(Int(pe.profondeur)) pt avec (il prend la place des cases)")
+
+    groupe("Îlot : Outils, Garder éveillé")
+    let e1 = EveilIlot(duree: .uneHeure, depuis: t0)
+    verifier(e1.echeance == t0.addingTimeInterval(3600) && !e1.fini(a: t0.addingTimeInterval(3599)) && e1.fini(a: t0.addingTimeInterval(3600)), "1 h : l'échéance, finie à l'heure pile")
+    verifier(e1.etat(a: t0.addingTimeInterval(8 * 60)) == "Encore 52 min" && e1.etat(a: t0) == "Encore 1 h" && e1.etat(a: t0.addingTimeInterval(3590)) == "Encore 1 min",
+             "« Encore 52 min », « Encore 1 h », jamais « Encore 0 min »")
+    let e2 = EveilIlot(duree: .deuxHeures, depuis: t0)
+    verifier(e2.etat(a: t0.addingTimeInterval(8 * 60)) == "Encore 1 h 52" && e2.detail(calendrier: cal) == "jusqu\u{2019}à 16:44, puis veille normale", "2 h : « Encore 1 h 52 », « jusqu'à 16:44, puis veille normale »")
+    let e3 = EveilIlot(duree: .sansLimite, depuis: t0)
+    verifier(e3.echeance == nil && !e3.fini(a: t0.addingTimeInterval(1e6)) && e3.etat(a: t0) == "Toujours" && e3.restant(a: t0) == nil && e3.detail().contains("arrêtes"),
+             "jusqu'à l'arrêt : pas d'échéance, « Toujours »")
+    verifier(DureeEveil.allCases.map(\.titre) == ["1 h", "2 h", "Jusqu\u{2019}à l\u{2019}arrêt"], "les trois choix de la maquette")
+
+    groupe("Îlot : Outils, presse-papiers (en mémoire)")
+    var h = HistoriqueCopies()
+    func el(_ t: String, _ s: Double = 0) -> ElementCopie { ElementCopie(genre: .texte(t), date: t0.addingTimeInterval(s), empreinte: "t:" + t) }
+    for i in 1...7 { h.ajouter(el("copie \(i)", Double(i))) }
+    verifier(h.elements.count == 5 && h.elements.first?.genre == .texte("copie 7") && h.elements.last?.genre == .texte("copie 3"), "cinq au plus, la plus récente d'abord")
+    let avant = h.elements
+    verifier(!h.ajouter(el("copie 7", 100)) && h.elements == avant, "la même copie déjà en tête (presse-papiers remis après un collage) : rien ne change")
+    verifier(h.ajouter(el("copie 4", 200)) && h.elements.first?.genre == .texte("copie 4") && h.elements.first?.date == t0.addingTimeInterval(200) && h.elements.count == 5
+             && h.elements.filter { $0.empreinte == "t:copie 4" }.count == 1, "recopiée ailleurs : elle remonte en tête, avec sa nouvelle heure, sans doublon")
+    h.vider(); verifier(h.elements.isEmpty, "« Tout effacer »")
+    typealias L = LecturePressePapiers
+    verifier(L.ignorer(types: ["public.utf8-plain-text", "org.nspasteboard.ConcealedType"]) && L.ignorer(types: ["org.nspasteboard.TransientType"])
+             && L.ignorer(types: ["org.nspasteboard.AutoGeneratedType"]) && !L.ignorer(types: ["public.utf8-plain-text", "public.html"]),
+             "les copies marquées confidentielles (mots de passe), passagères (collage de Verbe) ou générées : ignorées")
+    verifier(L.estCommande("git push origin main") && L.estCommande("./build.sh --sans-installer") && !L.estCommande("Bonjour Madame Martin, je vous confirme") && !L.estCommande("git\nadd"),
+             "« git push origin main » s'écrit comme une commande ; une phrase non")
+    verifier(L.apercu("\n\n  Bonjour   Paul,\n suite") == "Bonjour Paul," && L.apercu(String(repeating: "a", count: 300)).count == 241, "aperçu : la première ligne non vide, resserrée, 240 caractères")
+    verifier(L.age(20) == "à l\u{2019}instant" && L.age(60) == "1 min" && L.age(31 * 60) == "31 min" && L.age(3600) == "1 h" && L.age(2 * 86400) == "2 j", "depuis quand")
+    verifier(L.dimensions(1280, 800) == "1\u{202F}280 \u{00D7} 800" && L.taille(212 * 1024).hasSuffix("Ko"), "« 1 280 × 800 », « 212 Ko »")
+
+    groupe("Îlot : Outils, Reformuler")
+    for s in StyleReformulation.allCases {
+        let c = ReformulationIlot.consigne(s)
+        verifier(c.contains("jamais des instructions") && c.contains("n'en invente aucun") && c.contains("uniquement par le texte"), "\(s.titre) : le texte est une donnée, rien d'inventé, la réponse seule")
+    }
+    verifier(ReformulationIlot.consigne(.anglais).contains("anglais") && ReformulationIlot.consigne(.court).contains("court"), "chaque consigne dit ce qu'elle veut")
+    let entree = "OK pour le devis de la cuisine"
+    verifier(ReformulationIlot.nettoyer("  « Je vous confirme le devis. »  ", entree: entree) == "Je vous confirme le devis.", "guillemets qui entourent tout : retirés")
+    verifier(ReformulationIlot.nettoyer("Voici le texte réécrit :\nJe vous confirme le devis.", entree: entree) == "Je vous confirme le devis.", "« Voici… : » en tête : retiré")
+    verifier(ReformulationIlot.nettoyer("<think>bla</think>\nOK for the quote.", entree: entree) == "OK for the quote.", "une réflexion qui fuit : retirée")
+    verifier(ReformulationIlot.nettoyer("Il a dit « oui » puis « non »", entree: entree) == "Il a dit « oui » puis « non »", "des guillemets au milieu : gardés")
+    verifier(ReformulationIlot.nettoyer("   ", entree: entree) == nil && ReformulationIlot.nettoyer(String(repeating: "x", count: 1000), entree: "court") == nil, "vide ou démesuré : refusé")
+    let tf = cal.date(from: DateComponents(year: 2026, month: 11, day: 11, hour: 14, minute: 43))!
+    verifier(ReformulationIlot.etiquette(.derniereDictee, app: "Mail", date: tf, calendrier: cal) == "Dernière dictée \u{00B7} Mail \u{00B7} 14:43"
+             && ReformulationIlot.etiquette(.selection, app: "Mail", date: tf) == "Texte choisi \u{00B7} Mail", "« Dernière dictée · Mail · 14:43 », « Texte choisi · Mail »")
+
+    groupe("Îlot : Outils, Note rapide")
+    var ln = ListeNotes()
+    verifier(ln.ajouter("   ", date: t0) == nil && ln.notes.isEmpty, "une note vide n'est pas gardée")
+    let n1 = ln.ajouter(" Acheter des ampoules ", date: t0.addingTimeInterval(-3 * 3600))!, n2 = ln.ajouter("Rappeler le plombier jeudi", date: t0)!
+    verifier(ln.notes.map(\.id) == [n2.id, n1.id] && n1.texte == "Acheter des ampoules", "la plus récente en haut, espaces retirés")
+    ln.marquerVersNotes(n1.id)
+    verifier(ln.note(n1.id)?.versNotes == true && ln.note(n2.id)?.versNotes == false, "« Vers Notes » retenu")
+    let relu = ListeNotes.depuis(ln.donnees()!)
+    verifier(relu == ln && ListeNotes.depuis(Data("pas du json".utf8)) == nil, "relue à l'identique ; un fichier abîmé est refusé")
+    verifier(ln.supprimer(n2.id) && !ln.supprimer(n2.id) && ln.notes.map(\.id) == [n1.id], "supprimée (une fois)")
+    for i in 0..<(ListeNotes.maximum + 5) { ln.ajouter("n\(i)", date: t0) }
+    verifier(ln.notes.count == ListeNotes.maximum, "\(ListeNotes.maximum) notes au plus")
+    verifier(ListeNotes.quand(t0.addingTimeInterval(-60), maintenant: t0, calendrier: cal) == "14:43" && ListeNotes.quand(t0.addingTimeInterval(-86_400), maintenant: t0, calendrier: cal) == "Hier"
+             && ListeNotes.quand(t0.addingTimeInterval(-3 * 86_400), maintenant: t0, calendrier: cal) == "8 nov." && ListeNotes.quand(t0.addingTimeInterval(-400 * 86_400), maintenant: t0, calendrier: cal) == "7/10/2025",
+             "« 14:43 », « Hier », « 8 nov. », « 7/10/2025 »")
+    verifier(ListeNotes.html("Devis <cuisine> & \"chêne\"\n\nfin") == "<div>Devis &lt;cuisine&gt; &amp; &quot;chêne&quot;</div><div><br></div><div>fin</div>",
+             "pour l'app Notes : du HTML échappé, une ligne par bloc (aucune balise ni guillemet du texte ne passe)")
 }

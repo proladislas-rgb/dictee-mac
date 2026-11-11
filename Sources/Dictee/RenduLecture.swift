@@ -442,6 +442,48 @@ enum RenduLecture {
             ecrire(bureau(hauteur: hCentre) { ilot(miCourse(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpodsPro
                 m.donneesChangees(); m.survole = true; m.donneesChangees() }, t) { $0.allerA(.centre) }) }, "ilot-23n\(nom)-centre-passage-\(Int(t * 1000))ms")
         }
+        // les Outils, 2e page du Centre (maquette ilot-claude-plus.html, étapes 8 à 14) : la page (« Outils › » dans l'en-tête du Centre,
+        // 2e point), Garder éveillé 1 h, le presse-papiers (« Copié », « Coller » au survol), Reformuler (« Verbe réécrit… », le résultat),
+        // Note rapide (la note qui vient d'arriver, « Dans Notes »), « Modifier » sur la page Outils, les cartes vides, un passage à mi-course
+        func outils(_ config: @escaping (IlotMoteur) -> Void = { _ in }) -> (IlotMoteur) -> Void {
+            { m in centre()(m); m.allerA(.outils); config(m); m.donneesChangees() }
+        }
+        func copie(_ g: GenreCopie, _ titre: String, _ detail: String? = nil, _ style: CopieVue.Style, _ icone: NSImage? = nil, il minutes: Double) -> CopieVue {
+            CopieVue(element: ElementCopie(genre: g, date: t0.addingTimeInterval(-minutes * 60), empreinte: titre), titre: titre, detail: detail, style: style, icone: icone)
+        }
+        let cinqCopies = [
+            copie(.texte("4 200 € posé"), "4\u{202F}200\u{202F}€ posé, plan de travail en chêne compris", nil, .texte, il: 1),
+            copie(.image(largeur: 1280, hauteur: 800), "Image", LecturePressePapiers.dimensions(1280, 800), .nom, image(ArtVideo(), cote: 120, hauteur: 75), il: 6),
+            copie(.fichiers(["Devis-cuisine.pdf"]), "Devis-cuisine.pdf", "212 Ko", .nom, NSWorkspace.shared.icon(for: .pdf), il: 14),
+            copie(.texte("git push origin main"), "git push origin main", nil, .commande, il: 31),
+            copie(.texte("Bonjour"), "Bonjour Madame Martin, je vous confirme le rendez-vous de mardi à 10 h.", nil, .texte, il: 62),
+        ]
+        let dicteeMail = "OK pour le devis de la cuisine : 4\u{202F}200\u{202F}€ posé, plan de travail en chêne compris. Je te l\u{2019}envoie ce soir avec les plans et les photos du chantier."
+        func reformulation(_ phase: EtatReformulation.Phase, style: StyleReformulation? = .pro) -> EtatReformulation {
+            var r = EtatReformulation(); r.texte = dicteeMail; r.etiquette = "Dernière dictée \u{00B7} Mail \u{00B7} 14:31"; r.style = style; r.phase = phase; return r
+        }
+        let notesExemple = [NoteRapide(texte: "Rappeler le plombier jeudi pour le devis de la salle de bain", date: t0),
+                            NoteRapide(texte: "Acheter des ampoules pour le salon", date: t0.addingTimeInterval(-3.5 * 3600)),
+                            NoteRapide(texte: "Idée : un mode nuit pour l\u{2019}îlot, plus sombre après 22 h", date: t0.addingTimeInterval(-26 * 3600), versNotes: true),
+                            NoteRapide(texte: "Rappeler la banque pour le prêt", date: t0.addingTimeInterval(-30 * 3600))]
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils())) }, "ilot-25a-outils-8-la-page")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.epinglerLeCentre(); m.eveil = EveilIlot(duree: .uneHeure, depuis: t0.addingTimeInterval(-8 * 60)); m.panneauEveil = true })) },
+               "ilot-25b-outils-9-garder-eveille-1h")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.copies = cinqCopies; m.ouvrirOutil(.outilPressePapiers); m.copieFaite = (cinqCopies[1].id, "Copié"); m.survolCopie = cinqCopies[2].id })) },
+               "ilot-25c-outils-10-presse-papiers")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.reformulation = reformulation(.fait("Bonjour, je vous confirme le devis de la cuisine : 4\u{202F}200\u{202F}€, pose et plan de travail en chêne compris. Je vous envoie ce soir les plans et les photos du chantier. Cordialement."))
+            m.ouvrirOutil(.outilReformuler) })) }, "ilot-25d-outils-11-reformuler-plus-pro")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(lecture: videoLongue, outils { m in m.reformulation = reformulation(.calcul); m.ouvrirOutil(.outilReformuler) })) },
+               "ilot-25e-outils-reformuler-calcul-sombre")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.notes = notesExemple; m.noteNeuve = notesExemple[0].id; m.envoisNotes = [notesExemple[0].id: .fait]
+            m.ouvrirOutil(.outilNote) })) }, "ilot-25f-outils-14-note-rapide")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.dispositionOutils.retirer(.reformuler); m.commencerEditionCentre() })) },
+               "ilot-25g-outils-modifier")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(lecture: videoLongue, outils { m in m.ouvrirOutil(.outilNote) })) }, "ilot-25h-outils-note-rapide-vide-sombre")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.ouvrirOutil(.outilPressePapiers) })) }, "ilot-25i-outils-presse-papiers-vide")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.reformulation.source = .selection; m.reformulation.etiquette = "Texte choisi"; m.ouvrirOutil(.outilReformuler) })) },
+               "ilot-25j-outils-reformuler-rien-de-choisi")
+        ecrire(bureau(hauteur: hCentre) { ilot(miCourse(scene(lecture: videoLongue, centre()), 0.2) { $0.allerA(.outils) }) }, "ilot-25k-outils-passage-200ms")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)

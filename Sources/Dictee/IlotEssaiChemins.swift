@@ -110,9 +110,9 @@ extension IlotEssai {
         let bas = CGPoint(x: 0, y: CGFloat(m.geo[2].x) - 30)
         for (i, d) in [Int32(-6), -12, -10].enumerated() { c.panneau.envoyerDefilement(dy: d, en: bas, phase: i == 0 ? 1 : 2); pause(0.016) }
         c.panneau.envoyerDefilement(dy: 0, en: bas, phase: 4); pause(0.8)
-        verifier(m.courante == .accueil && m.epingle && Double(bas.y) > m.trace.hauteur, "deux doigts, pointeur en bas du Centre : l'accueil, épinglé (le pointeur est sous la forme)")
+        verifier(m.courante == .outils && m.epingle && Double(bas.y) > m.trace.hauteur, "deux doigts, pointeur en bas du Centre : les Outils (plus courts), épinglés (le pointeur est sous la forme) (\(m.courante))")
         c.panneau.simulerPointeur(forme: false); pause(0.8)
-        verifier(m.courante == .accueil, "la souris bouge : l'accueil reste ouvert")
+        verifier(m.courante == .outils, "la souris bouge : les Outils restent ouverts")
         refermer()
 
         // --- le Centre épinglé : un clic dans son vide ne le range pas (ni pendant « Modifier »)

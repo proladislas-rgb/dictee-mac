@@ -323,6 +323,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let cible = self.derniereAppExterne
             Task { await self.dictee.recoller(texte, dans: cible) }
         }
+        // Outils › Presse-papiers › « Coller » : la copie est déjà dans le presse-papiers, ⌘V part dans l'app d'où l'on vient (comme le
+        // collage des dictées ; il faut l'Accessibilité, déjà accordée pour la dictée)
+        ilot.surCommandeV = { [weak self] in
+            guard let self, Permissions.accessibiliteOK else { return false }
+            let cible = self.derniereAppExterne
+            Task { @MainActor in
+                if let cible, !cible.isTerminated, NSWorkspace.shared.frontmostApplication?.processIdentifier != cible.processIdentifier {
+                    cible.activate()
+                    try? await Task.sleep(for: .milliseconds(150))
+                }
+                try? await Task.sleep(for: .milliseconds(70))
+                Collage.posterCommandeV()
+            }
+            return true
+        }
         ilot.surNoter = { [weak self] _ in
             guard let self, self.reunionControleur.phase == .repos else { return }
             self.reunionControleur.lancer()

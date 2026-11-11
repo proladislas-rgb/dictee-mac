@@ -40,26 +40,27 @@ enum PlanCentre {
     static let policeNom: CGFloat = 11.5, interlettreNom: CGFloat = -0.25, policeMin: CGFloat = 9.5
     /// Ce qui sépare deux noms (ou deux états) voisins, au moins.
     static let ecartNoms: CGFloat = 4
-    /// Où sont les éléments, depuis le centre de l'encoche (x) et le haut de l'écran (y).
-    static func zone(_ g: GrilleIlot) -> CGRect { g.zoneCarte(.centre, haut: haut, bas: haut) }
-    static func cadreEntete(_ g: GrilleIlot) -> CGRect { let z = zone(g); return CGRect(x: z.minX, y: z.minY, width: z.width, height: entete) }
+    /// Où sont les éléments, depuis le centre de l'encoche (x) et le haut de l'écran (y). `page` : le Centre ou sa page Outils (mêmes
+    /// rangées : les ronds, les cases ou le panneau « Garder éveillé », la bande).
+    static func zone(_ g: GrilleIlot, _ page: PageCentre = .centre) -> CGRect { g.zoneCarte(page.vue, haut: haut, bas: haut) }
+    static func cadreEntete(_ g: GrilleIlot, _ page: PageCentre = .centre) -> CGRect { let z = zone(g, page); return CGRect(x: z.minX, y: z.minY, width: z.width, height: entete) }
     /// Tout le corps du Centre sous la barre (son vide ne range pas l'îlot).
-    static func fond(_ g: GrilleIlot) -> CGRect {
-        let w = g.corps(.centre)
-        return CGRect(x: -w, y: g.barre, width: 2 * w, height: g.hauteur(.centre) - g.barre)
+    static func fond(_ g: GrilleIlot, _ page: PageCentre = .centre) -> CGRect {
+        let w = g.corps(page.vue)
+        return CGRect(x: -w, y: g.barre, width: 2 * w, height: g.hauteur(page.vue) - g.barre)
     }
     /// Une rangée (nil : elle n'est pas montrée).
-    static func cadre(_ r: DispositionCentre.Rangee, _ m: IlotMoteur, _ g: GrilleIlot? = nil) -> CGRect? {
+    static func cadre(_ r: DispositionCentre.Rangee, _ m: IlotMoteur, _ g: GrilleIlot? = nil, page: PageCentre = .centre) -> CGRect? {
         let g = g ?? m.grille
-        let p = DispositionCentre.plan(ronds: !m.rondsCentre.isEmpty, cases: !m.disposition.cases.isEmpty, bande: m.disposition.bande)
+        let p = m.planDe(page)
         guard let y = p.hauts[r] else { return nil }
-        let z = zone(g)
+        let z = zone(g, page)
         let h: Double
         switch r { case .ronds: h = DispositionCentre.ronds; case .cases: h = DispositionCentre.cases; case .bande: h = DispositionCentre.bande }
         return CGRect(x: z.minX, y: g.barre + CGFloat(y), width: z.width, height: CGFloat(h))
     }
-    static func cadreRonds(_ m: IlotMoteur, _ g: GrilleIlot? = nil) -> CGRect { cadre(.ronds, m, g) ?? .zero }
-    static func cadreBande(_ m: IlotMoteur, _ g: GrilleIlot? = nil) -> CGRect { cadre(.bande, m, g) ?? .zero }
+    static func cadreRonds(_ m: IlotMoteur, _ g: GrilleIlot? = nil, page: PageCentre = .centre) -> CGRect { cadre(.ronds, m, g, page: page) ?? .zero }
+    static func cadreBande(_ m: IlotMoteur, _ g: GrilleIlot? = nil, page: PageCentre = .centre) -> CGRect { cadre(.bande, m, g, page: page) ?? .zero }
     /// Une grande case : seule, elle prend toute la largeur ; à deux, chacune la moitié (10 pt entre elles).
     static func cadreCase(_ m: IlotMoteur, _ e: ElementCentre, _ g: GrilleIlot? = nil) -> CGRect {
         guard let c = cadre(.cases, m, g) else { return .zero }
@@ -69,10 +70,13 @@ enum PlanCentre {
         return CGRect(x: i == 0 ? c.minX : c.minX + l + CGFloat(DispositionCentre.ecart), y: c.minY, width: l, height: c.height)
     }
     /// La largeur d'une colonne de la rangée des ronds.
-    static func colonne(_ m: IlotMoteur, _ g: GrilleIlot? = nil) -> CGFloat { cadreRonds(m, g).width / CGFloat(max(1, m.rondsCentre.count)) }
-    /// Le centre du rond d'un élément montré.
+    static func colonne(_ m: IlotMoteur, _ g: GrilleIlot? = nil, page: PageCentre = .centre) -> CGFloat {
+        cadreRonds(m, g, page: page).width / CGFloat(max(1, m.rondsDe(page).count))
+    }
+    /// Le centre du rond d'un élément montré (sur sa page).
     static func centreRond(_ m: IlotMoteur, _ e: ElementCentre, _ g: GrilleIlot? = nil) -> CGPoint {
-        let r = cadreRonds(m, g), l = colonne(m, g), i = CGFloat(m.rondsCentre.firstIndex(of: e) ?? 0)
+        let page = e.page
+        let r = cadreRonds(m, g, page: page), l = colonne(m, g, page: page), i = CGFloat(m.rondsDe(page).firstIndex(of: e) ?? 0)
         return CGPoint(x: r.minX + l * (i + 0.5), y: r.minY + rond / 2)
     }
     /// Les places des textes d'une ligne sous les ronds (noms, ou états), et la taille de chacun : un texte court laisse de la place à son
@@ -106,8 +110,18 @@ extension ElementCentre {
         case .reunion: return "Réunion"
         case .minuteur: return "Minuteur"
         case .etagere: return "Étagère"
+        case .eveil: return "Garder éveillé"
+        case .pressePapiers: return "Presse-papiers"
+        case .reformuler: return "Reformuler"
+        case .notes: return "Notes"
+        case .noteRapide: return "Dicter une note"
         }
     }
+}
+
+extension PageCentre {
+    /// L'écran de l'îlot qui montre cette page.
+    var vue: VueIlot { self == .centre ? .centre : .outils }
 }
 
 extension IlotMoteur {
@@ -115,6 +129,14 @@ extension IlotMoteur {
     func disponibleDansLeCentre(_ e: ElementCentre) -> Bool { e != .dictee || choixMicro != nil }
     /// Les ronds montrés, dans l'ordre (cinq au plus).
     var rondsCentre: [ElementCentre] { disposition.ronds(disponible: disponibleDansLeCentre) }
+    /// La disposition d'une page (le Centre, ou les Outils) et ses ronds montrés.
+    func dispositionDe(_ p: PageCentre) -> DispositionCentre { p == .centre ? disposition : dispositionOutils }
+    func rondsDe(_ p: PageCentre) -> [ElementCentre] { dispositionDe(p).ronds(disponible: disponibleDansLeCentre) }
+    /// Les rangées d'une page et sa profondeur sous la barre. Sur la page Outils, le panneau « Garder éveillé » prend la place des cases.
+    func planDe(_ p: PageCentre) -> (hauts: [DispositionCentre.Rangee: Double], profondeur: Double) {
+        let d = dispositionDe(p)
+        return DispositionCentre.plan(ronds: !rondsDe(p).isEmpty, cases: p == .centre ? !d.cases.isEmpty : panneauEveilVisible, bande: d.bande)
+    }
     /// L'état écrit sous un rond (« Coupé », « Allumé », « 3 sur 7 »…).
     func etatCentre(_ e: ElementCentre) -> String {
         switch e {
@@ -128,7 +150,11 @@ extension IlotMoteur {
             return claudeBranche ? "Prêt" : "Brancher"
         case .rappel: return "Dire un rappel"
         case .derniereDictee: return derniereDictee != nil ? "Coller" : "Aucune"
-        case .reunion, .minuteur, .etagere: return ""
+        case .eveil: return eveil.map { $0.etat(a: maintenant()) } ?? "Éteint"
+        case .pressePapiers: return copies.isEmpty ? "Vide" : (copies.count == 1 ? "1 récent" : "\(copies.count) récents")
+        case .reformuler: return derniereDictee != nil ? "Dernière dictée" : "Texte choisi"
+        case .notes: return notes.isEmpty ? "Aucune" : (notes.count == 1 ? "1 note" : "\(notes.count) notes")
+        case .reunion, .minuteur, .etagere, .noteRapide: return ""
         }
     }
     /// Le nom de la première carte, pour le bouton de retour du Centre (« ‹ Vidéo »).
@@ -139,6 +165,7 @@ extension IlotMoteur {
         case .minuteurEtendu: return "Minuteur"
         case .microEtendu: return "Micro"
         case .claudeCarte: return "Claude"
+        case .outils: return "Outils"
         case .agendaEtendu: return "Rendez-vous"
         case .rappelEtendu, .rappelListe: return "Rappel"
         default: return nil
@@ -149,38 +176,59 @@ extension IlotMoteur {
 struct CentreVue: View {
     @ObservedObject var m: IlotMoteur
     var g: GrilleIlot
+    /// Le Centre, ou sa 2e page « Outils » (mêmes rangées, mêmes gestes, même « Modifier »).
+    var page: PageCentre = .centre
     /// Le bouton ou la case qu'on range en le glissant (« Modifier ») : où est le pointeur, et où on l'a pris (depuis le milieu de sa place).
     @State private var glisse: GlisseCentre?
     static let espace = "centre"
 
     var body: some View {
-        let v = VueIlot.centre
+        let v = page.vue
         ZStack(alignment: .topLeading) {
             // un clic dans le vide du Centre (entre l'en-tête, les ronds, les cases et la bande, dans les marges) ne le range pas : on
             // visait un bouton à quelques points près ; il se range au clic ailleurs. Seulement tant qu'il est là (pas pendant son départ)
             Color.clear.contentShape(Rectangle()).onTapGesture {}
                 .allowsHitTesting(m.courante == v)
                 .accessibilityHidden(true)
-                .posee(PlanCentre.fond(g))
-            EnteteCentre(m: m, largeur: PlanCentre.cadreEntete(g).width).posee(PlanCentre.cadreEntete(g), m.aspect(v, rang: 0), ancre: .topLeading)
-            if !m.rondsCentre.isEmpty { ronds.posee(PlanCentre.cadreRonds(m, g), m.aspect(v, rang: 1), ancre: .top) }
-            ForEach(Array(m.disposition.cases.enumerated()), id: \.element) { i, e in
-                grandeCase(e, rang: i).posee(PlanCentre.cadreCase(m, e, g), m.aspect(v, rang: 2 + i), ancre: .top)
-                    .zIndex(glisse?.element == e ? 1 : 0)
-            }
-            if m.disposition.bande {
-                BandeReunion(m: m).posee(PlanCentre.cadreBande(m, g), m.aspect(v, rang: 4), ancre: .top)
+                .posee(PlanCentre.fond(g, page))
+            EnteteCentre(m: m, largeur: PlanCentre.cadreEntete(g, page).width, page: page).posee(PlanCentre.cadreEntete(g, page), m.aspect(v, rang: 0), ancre: .topLeading)
+            if !m.rondsDe(page).isEmpty { rondsVivants.posee(PlanCentre.cadreRonds(m, g, page: page), m.aspect(v, rang: 1), ancre: .top) }
+            if page == .centre {
+                ForEach(Array(m.disposition.cases.enumerated()), id: \.element) { i, e in
+                    grandeCase(e, rang: i).posee(PlanCentre.cadreCase(m, e, g), m.aspect(v, rang: 2 + i), ancre: .top)
+                        .zIndex(glisse?.element == e ? 1 : 0)
+                }
+                if m.disposition.bande {
+                    BandeReunion(m: m).posee(PlanCentre.cadreBande(m, g), m.aspect(v, rang: 4), ancre: .top)
+                }
+            } else {
+                if m.panneauEveilVisible, let c = PlanCentre.cadre(.cases, m, g, page: .outils) {
+                    PanneauEveil(m: m).posee(c, m.aspect(v, rang: 2), ancre: .top)
+                }
+                if m.dispositionOutils.bande {
+                    BandeNoteRapide(m: m).posee(PlanCentre.cadreBande(m, g, page: .outils), m.aspect(v, rang: 4), ancre: .top)
+                }
             }
         }
         .frame(width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax, alignment: .topLeading)
         .coordinateSpace(name: Self.espace)
-        .animation(m.reduire || m.statique ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: m.disposition)
+        .animation(m.reduire || m.statique ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: m.dispositionDe(page))
+    }
+
+    /// Les ronds ; sur la page Outils, « Encore 52 min » sous « Garder éveillé » se relit à chaque minute (seulement pendant que la page
+    /// est à l'écran et que le Mac est gardé éveillé pour un temps donné : rien ne tourne sinon).
+    @ViewBuilder private var rondsVivants: some View {
+        if page == .outils, !m.statique, let e = m.eveil?.echeance {
+            TimelineView(.periodic(from: e.addingTimeInterval(-86_400 * 2), by: 60)) { _ in ronds }
+        } else {
+            ronds
+        }
     }
 
     private var ronds: some View {
-        let rs = m.rondsCentre
-        let cadre = PlanCentre.cadreRonds(m, g)
-        let l = PlanCentre.colonne(m, g)
+        let rs = m.rondsDe(page)
+        let cadre = PlanCentre.cadreRonds(m, g, page: page)
+        let l = PlanCentre.colonne(m, g, page: page)
         // les noms et les états, mesurés ensemble : un texte court laisse de la place à son voisin long
         let noms = PlanCentre.tailles(rs.map(\.nom), colonne: l, poids: .semibold, interlettre: PlanCentre.interlettreNom)
         let etats = PlanCentre.tailles(rs.map(m.etatCentre), colonne: l, poids: .medium)
@@ -194,7 +242,7 @@ struct CentreVue: View {
                     .zIndex(glisse?.element == e ? 1 : 0)
                     .gesture(ranger(e, milieu: milieu) { centre in
                         let cible = min(rs.count - 1, max(0, Int(((centre - cadre.minX) / l).rounded(.down))))
-                        m.rangerDansLeCentre(e, versRang: cible, parmi: m.rondsCentre)
+                        m.rangerDansLeCentre(e, versRang: cible, parmi: m.rondsDe(page))
                     }, including: m.editionCentre ? .all : .subviews)
                     // « Modifier » : un clic sur un rond ne fait rien (il ne referme pas l'îlot non plus)
                     .gesture(TapGesture().onEnded {}, including: m.editionCentre ? .all : .subviews)
@@ -294,7 +342,33 @@ struct CentreVue: View {
                        etiquette: la ? "Coller la dernière dictée" : "Aucune dictée à coller") {
                 Image(systemName: "quote.opening").font(.system(size: 19, weight: .bold)).foregroundStyle(.white.opacity(la ? 1 : 0.5))
             } action: { if la { agir(.collerLaDerniereDictee) } }
-        case .reunion, .minuteur, .etagere:
+        case .eveil:
+            let on = m.eveil != nil
+            TuileRonde(nom: e.nom, etat: etat, couleurEtat: on ? Color(hex: 0xFFB340) : CouleursIlot.encre2,
+                       fond: on ? CouleursIlot.ambre : (m.panneauEveil ? Color.white.opacity(0.26) : nil), declencheur: on ? "allumé" : "éteint",
+                       colonne: l, tailleNom: t.nom, tailleEtat: t.etat, reduire: fige, edition: ed, rang: rang, statique: m.statique, retirer: retirer,
+                       etiquette: on ? "Garder éveillé, \(etat) : arrêter" : "Garder le Mac éveillé : choisir combien de temps") {
+                Image(systemName: "cup.and.saucer.fill").font(.system(size: 19, weight: .semibold)).foregroundStyle(on ? Color.black : Color.white)
+            } action: {
+                m.epinglerLeCentre()
+                if on { m.surAction(.eveil(nil)) } else { m.panneauEveil.toggle(); m.donneesChangees() }
+            }
+        case .pressePapiers:
+            TuileRonde(nom: e.nom, etat: etat, couleurEtat: CouleursIlot.encre2, fond: nil, colonne: l, tailleNom: t.nom, tailleEtat: t.etat,
+                       reduire: fige, edition: ed, rang: rang, statique: m.statique, retirer: retirer, etiquette: "Presse-papiers : les cinq dernières copies") {
+                Image(systemName: "list.clipboard").font(.system(size: 20, weight: .semibold)).foregroundStyle(.white)
+            } action: { m.epinglerLeCentre(); m.ouvrirOutil(.outilPressePapiers) }
+        case .reformuler:
+            TuileRonde(nom: e.nom, etat: etat, couleurEtat: CouleursIlot.encre2, fond: nil, colonne: l, tailleNom: t.nom, tailleEtat: t.etat,
+                       reduire: fige, edition: ed, rang: rang, statique: m.statique, retirer: retirer, etiquette: "Reformuler la dernière dictée ou le texte choisi") {
+                Image(systemName: "pencil.line").font(.system(size: 20, weight: .semibold)).foregroundStyle(.white)
+            } action: { m.epinglerLeCentre(); m.ouvrirOutil(.outilReformuler) }
+        case .notes:
+            TuileRonde(nom: e.nom, etat: etat, couleurEtat: CouleursIlot.encre2, fond: nil, colonne: l, tailleNom: t.nom, tailleEtat: t.etat,
+                       reduire: fige, edition: ed, rang: rang, statique: m.statique, retirer: retirer, etiquette: "Notes rapides") {
+                Image(systemName: "note.text").font(.system(size: 20, weight: .semibold)).foregroundStyle(.white)
+            } action: { m.epinglerLeCentre(); m.ouvrirOutil(.outilNote) }
+        case .reunion, .minuteur, .etagere, .noteRapide:
             EmptyView()
         }
     }
@@ -319,6 +393,9 @@ struct TuileRonde<Glyphe: View>: View {
     var fond: Color?
     var pointille = false
     var anneau = false
+    /// Ce qui fait « rebondir » le rond (par défaut : son état). « Encore 52 min » change chaque minute : le rond ne rebondit qu'à
+    /// l'allumage et à l'arrêt.
+    var declencheur: String? = nil
     var colonne: CGFloat
     /// Les tailles du nom et de l'état, mesurées avec les voisins (`PlanCentre.tailles`).
     var tailleNom = PlanCentre.policeNom
@@ -362,7 +439,7 @@ struct TuileRonde<Glyphe: View>: View {
                 glyphe()
             }
             .frame(width: PlanCentre.rond, height: PlanCentre.rond)
-            .keyframeAnimator(initialValue: 1.0, trigger: etat) { v, s in v.scaleEffect(reduire ? 1 : s) } keyframes: { _ in
+            .keyframeAnimator(initialValue: 1.0, trigger: declencheur ?? etat) { v, s in v.scaleEffect(reduire ? 1 : s) } keyframes: { _ in
                 KeyframeTrack { LinearKeyframe(0.86, duration: 0.09); SpringKeyframe(1.04, duration: 0.14); SpringKeyframe(1, duration: 0.2, spring: Spring(response: 0.3, dampingRatio: 0.7)) }
             }
             .overlay(alignment: .topLeading) {
@@ -404,6 +481,8 @@ struct BadgeRetirer: View {
 struct PiluleCentre: View {
     var titre: String
     var retour = false
+    /// « Outils › » : un chevron après le mot.
+    var suite = false
     /// « OK » de « Modifier » : blanche, texte noir (maquette).
     var plein = false
     var etiquette: String
@@ -414,9 +493,10 @@ struct PiluleCentre: View {
             HStack(spacing: 4) {
                 if retour { Image(systemName: "chevron.left").font(.system(size: 10.5, weight: .bold)) }
                 Text(titre).font(.system(size: 12.5, weight: .semibold)).lineLimit(1).fixedSize()
+                if suite { Image(systemName: "chevron.right").font(.system(size: 10.5, weight: .bold)) }
             }
             .foregroundStyle(plein ? .black : .white)
-            .padding(.leading, retour ? 8 : 11).padding(.trailing, 11)
+            .padding(.leading, retour ? 8 : 11).padding(.trailing, suite ? 9 : 11)
             .frame(height: 26)
             .background(Capsule().fill(plein ? Color.white.opacity(survol ? 0.88 : 1) : Color.white.opacity(survol ? 0.2 : 0.12)))
             .contentShape(Capsule())
@@ -692,6 +772,7 @@ struct PointsCartes: View {
     static func nom(_ c: VueIlot, _ m: IlotMoteur) -> String {
         switch c {
         case .centre: return "Le Centre"
+        case .outils: return "Les outils"
         case .accueil: return "Rendez-vous, rappel et dernière dictée"
         default: return m.nomPremiereCarte ?? "Activité"
         }
@@ -735,6 +816,9 @@ struct ReglagesCentre {
     /// Ce que le Centre montre (« Modifier ») : les identifiants, dans l'ordre ; nil = jamais modifié.
     var disposition: () -> [String]? = { Settings.ilotCentreBoutons }
     var enregistrerDisposition: ([String]) -> Void = { Settings.ilotCentreBoutons = $0 }
+    /// Ce que la page Outils montre (« Modifier ») ; nil = jamais modifiée.
+    var dispositionOutils: () -> [String]? = { Settings.ilotOutilsBoutons }
+    var enregistrerDispositionOutils: ([String]) -> Void = { Settings.ilotOutilsBoutons = $0 }
     /// Le minuteur (Réglages › Îlot) : éteint, un clic sur « 5 », « 10 » ou « 25 » dans le Centre l'allume, puis lance le minuteur.
     var minuteurActif: () -> Bool = { Settings.ilotMinuteur }
     var allumerMinuteur: () -> Void = { Settings.ilotMinuteur = true }

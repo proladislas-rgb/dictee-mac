@@ -82,6 +82,8 @@ cat > "$ASSEMBLAGE/Contents/Info.plist" <<PLIST
   <string>Verbe montre dans l'encoche la batterie de tes AirPods et de tes appareils Bluetooth quand ils se connectent. Rien n'est enregistré ni envoyé.</string>
   <key>NSDownloadsFolderUsageDescription</key>
   <string>Verbe montre dans l'encoche le fichier qui vient d'arriver dans Téléchargements (AirDrop compris), avec « Ouvrir ». Rien n'est lu dans les fichiers, rien n'est envoyé.</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Verbe crée dans l'app Notes la note rapide que tu envoies avec « Vers Notes ». Il ne lit rien d'autre dans Notes.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Verbe utilise la reconnaissance vocale du Mac, sur l'appareil, pour afficher ton texte en direct et en secours.</string>
 </dict>

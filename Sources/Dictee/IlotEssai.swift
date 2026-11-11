@@ -10,6 +10,8 @@ enum IlotEssai {
     static func executer() -> Int32 {
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.accessory)
+        // ligne par ligne : un arrêt brutal ne perd pas les dernières lignes du compte rendu
+        setvbuf(stdout, nil, _IOLBF, 0)
         var echecs = 0
         func verifier(_ ok: Bool, _ nom: String) { print(ok ? "  ok   \(nom)" : "  ÉCHEC \(nom)"); if !ok { echecs += 1 } }
         func attendre(_ s: Double, tant: () -> Bool = { true }) {
@@ -27,8 +29,20 @@ enum IlotEssai {
         var finder: [[URL]] = []
         var notes = 0
         func fabriquer() -> IlotControleur {
-            // l'étagère aussi dans le dossier temporaire : jamais le vrai etagere.json
-            let c = IlotControleur(stockage: RappelsStore(url: fichier), etagere: EtagereStore(url: dossier.appendingPathComponent("etagere.json")))
+            // l'étagère et les notes rapides aussi dans le dossier temporaire : jamais le vrai etagere.json ni le vrai notes.json
+            let c = IlotControleur(stockage: RappelsStore(url: fichier), etagere: EtagereStore(url: dossier.appendingPathComponent("etagere.json")),
+                                   notes: NotesStore(url: dossier.appendingPathComponent("notes.json")))
+            // les Outils : jamais la vraie veille, le vrai presse-papiers, Groq, l'Accessibilité ni l'app Notes
+            c.eveilPilote = EveilFactice()
+            c.pressePapiers = PressePapiersFactice()
+            c.surCommandeV = { false }
+            c.reformulerTexte = { _, _ in throw GroqErreur.pasDeCle }
+            c.lireSelection = { nil }
+            c.selectionnerDansLApp = { _ in false }
+            c.lireAppDerniereDictee = { nil }
+            c.envoyerNoteVersNotes = { _, fini in fini(false) }
+            c.reglagesCentre.dispositionOutils = { nil }
+            c.reglagesCentre.enregistrerDispositionOutils = { _ in }
             c.maintenant = { Date().addingTimeInterval(decalage) }
             c.sons = IlotControleur.SonsIlot(minuteurFini: { compteurs.minuteur += 1 }, rappel: { compteurs.rappel += 1 }, doux: { compteurs.doux += 1 }, silencieux: { compteurs.silence += 1 })
             c.ouvrir = { liensOuverts.append($0) }
@@ -340,7 +354,7 @@ enum IlotEssai {
             verifier(!m.boucleActive, "micro coupé, posé : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
             // survol : le micro coupé n'a plus de déplié à lui (son bouton est dans le Centre) : la vidéo en bulle se déplie
             c.panneau.simulerPointeur(forme: true); attendre(0.9)
-            verifier(m.courante == .lectureEtendu && m.cartes == [.lectureEtendu, .centre, .accueil] && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01,
+            verifier(m.courante == .lectureEtendu && m.cartes == [.lectureEtendu, .centre, .outils, .accueil] && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01,
                      "survol, micro coupé pendant une vidéo : la vidéo se déplie, le Centre est la carte suivante (\(m.courante))")
             // vrai clic sur « Centre » au pied de la lecture, puis sur le bouton Micro, rouge
             let pc = PiedCarte.pointBouton(m.grille)
@@ -1024,6 +1038,7 @@ enum IlotEssai {
         IlotEssai.centre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.modifierCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.cheminsDuCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.outils(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) })
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)

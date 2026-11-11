@@ -1,16 +1,24 @@
 import Foundation
 
 // Le Centre de l'îlot (maquette design/maquettes/ilot-centre.html) : logique pure, sans interface.
-// L'îlot ouvert est une pile de cartes : l'activité dépliée (la vidéo, le minuteur…), le Centre, puis l'accueil (rendez-vous, rappel,
-// dernière dictée). On passe de l'une à l'autre en un clic (bouton « Centre », points de page) ou en faisant défiler (un geste = une carte).
+// L'îlot ouvert est une pile de cartes : l'activité dépliée (la vidéo, le minuteur…), le Centre, sa 2e page « Outils », puis l'accueil
+// (rendez-vous, rappel, dernière dictée). On passe de l'une à l'autre en un clic (bouton « Centre », « Outils », points de page) ou en
+// faisant défiler (un geste = une carte).
 
 public enum CartesIlot {
     /// Les cartes de l'îlot ouvert, de haut en bas. `survol` : l'écran que l'îlot prend au survol (nil : verrouillé, pas de cartes).
     /// Rien ne joue : le Centre d'abord. Une activité : son déplié d'abord (la rangée Minuteur de la lecture compte comme la lecture).
+    /// Les Outils sont la page juste sous le Centre (maquette ilot-claude-plus.html, étape 8 : « 2e point à droite »).
     public static func pile(survol: VueIlot?) -> [VueIlot] {
         guard let s = survol else { return [] }
-        if s == .centre || s == .accueil { return [.centre, .accueil] }
-        return [s == .lectureMinuteur ? .lectureEtendu : s, .centre, .accueil]
+        if s == .centre || s == .accueil || s == .outils { return [.centre, .outils, .accueil] }
+        return [s == .lectureMinuteur ? .lectureEtendu : s, .centre, .outils, .accueil]
+    }
+
+    /// Les cartes des outils (presse-papiers, Reformuler, Note rapide) sont rangées sous la page Outils : ses points de page restent, celui
+    /// des Outils allumé, et un défilement y ramène.
+    public static func parent(_ v: VueIlot) -> VueIlot? {
+        [.outilPressePapiers, .outilReformuler, .outilNote].contains(v) ? .outils : nil
     }
 
     /// Ce que l'îlot prend au survol, une fois le Centre là. Le micro coupé n'a plus de déplié à lui (son bouton, rouge, « Coupé », est
@@ -27,7 +35,7 @@ public enum CartesIlot {
     /// jamais à deviner un défilement). Le Centre et l'accueil n'en ont pas ; la rangée Minuteur de la lecture prend sa place.
     /// La carte « Claude Code » n'en a pas : son en-tête a déjà « ‹ Centre ».
     public static func aUnPied(_ v: VueIlot, pile: [VueIlot]) -> Bool {
-        v != .centre && v != .accueil && v != .claudeCarte && pile.first == v && pile.contains(.centre)
+        v != .centre && v != .accueil && v != .claudeCarte && v != .outils && parent(v) == nil && pile.first == v && pile.contains(.centre)
     }
 
     /// Ce que le pied ajoute à la hauteur d'une carte : la lecture l'a déjà dans sa géométrie, les autres dépliés l'ajoutent dessous.
