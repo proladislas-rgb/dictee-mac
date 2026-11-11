@@ -3,7 +3,8 @@ import DicteeCore
 
 /// `Verbe --reunion-test moi.wav eux.wav [--sortie DOSSIER] [--sans-note]` : fait passer deux fichiers son (les deux pistes d'une
 /// réunion) par exactement la chaîne d'une vraie réunion — découpe aux pauses, transcription Whisper au fil de l'eau avec les
-/// budgets partagés, fusion Moi / Eux, note — puis écrit la note en JSON et en Markdown dans DOSSIER (par défaut `.build/reunion-test`).
+/// budgets partagés, son écrit calé sur l'heure de la réunion, puis après « l'arrêt » : relecture de tout l'enregistrement par
+/// whisper-large-v3, fusion Moi / Eux, note par sujets — et écrit la note en JSON et en Markdown dans DOSSIER (par défaut `.build/reunion-test`).
 /// Réseau seulement : ni micro, ni son du Mac, ni accessibilité, ni calendrier. N'écrit jamais dans les réunions de l'app.
 enum ReunionTest {
     static func executer(moi: String, eux: String, arguments: [String]) -> Int32 {
@@ -31,11 +32,14 @@ enum ReunionTest {
         let t0 = ProcessInfo.processInfo.systemUptime
         let transcripteur = TranscriptionReunion(correcteur: nil)   // la correction à l'oreille passe par le fil principal, bloqué ici par l'attente
         let segments = Verrouille<[SegmentReunion]>([])
+        let passages = Verrouille<[Locuteur: [PassageParole]]>([:])
         transcripteur.surSegment = { s in _ = segments.remplacer(segments.valeur + [s]) }
         var duree = 0.0
         let avant = GroqClient.shared.requetesEnvoyees
+        let r0 = Reunion(debut: Date(), etat: .transcription)
+        let fichiers = [Locuteur.moi: dossier.appendingPathComponent("son-moi.wav"), .eux: dossier.appendingPathComponent("son-eux.wav")]
         for (locuteur, chemin) in [(Locuteur.moi, moi), (Locuteur.eux, eux)] {
-            guard let d = alimenter(piste: locuteur, chemin: chemin, transcripteur: transcripteur) else {
+            guard let d = alimenter(piste: locuteur, chemin: chemin, transcripteur: transcripteur, fichier: fichiers[locuteur], passages: passages) else {
                 FileHandle.standardError.write(Data("Fichier son illisible : \(chemin)\n".utf8)); return 2
             }
             duree = max(duree, d)
@@ -47,22 +51,25 @@ enum ReunionTest {
         print(String(format: "transcription finie en %.0f s : %d morceaux reçus, %d échec(s), %d requête(s) Whisper", t1 - t0, transcripteur.recus, transcripteur.echecs, requetes))
 
         let brut = segments.valeur
-        let (fusion, echos) = FusionPistes.transcription(moi: brut.filter { $0.locuteur == .moi }, eux: brut.filter { $0.locuteur == .eux })
-        print("fusion : \(brut.count) passages -> \(fusion.count) après regroupement, \(echos) écho(s) retiré(s) de la piste Moi")
-
-        var r = Reunion(debut: Date(), duree: duree, segments: fusion, etat: .sansNote)
-        if transcripteur.echecs > 0 { r.avertissements.append("\(transcripteur.echecs) passage(s) n'ont pas pu être transcrits.") }
-        if !sansNote, !fusion.isEmpty {
-            do {
-                let (note, retraits) = try await GenerationNote().rediger(segments: fusion, duree: duree, debut: r.debut) { print("  \($0)") }
-                NoteReunion.appliquer(note, a: &r, segments: fusion)
-                r.etat = .prete
-                for x in retraits { print("  garde anti-invention : retiré \(x)") }
-                print(String(format: "note écrite en %.0f s", ProcessInfo.processInfo.systemUptime - t1))
-            } catch {
-                print("Note impossible : \(error)")
+        var depart = r0; depart.duree = duree
+        var r: Reunion
+        if sansNote {
+            r = depart; r.etat = .sansNote
+            r.segments = FusionPistes.transcription(moi: brut.filter { $0.locuteur == .moi }, eux: brut.filter { $0.locuteur == .eux }).segments
+        } else {
+            // après « l'arrêt » : la même chaîne que l'app (relecture de tout l'enregistrement, puis note)
+            let rediger: ReunionController.RedigerNote = { segments, duree, debut, avance in
+                try await GenerationNote().rediger(segments: segments, duree: duree, debut: debut, surEtape: { print("  \($0)") }, avance: avance)
             }
+            guard let prepare = await ReunionController.preparer(depart, passages: passages.valeur, direct: brut, fichiers: fichiers, relecture: RelectureAudio(),
+                                                                 rediger: rediger, avance: { p, etape in print("  \(PreparationNote.pourcent(p)) \(etape)") }) else {
+                print("Rien entendu."); return 1
+            }
+            r = prepare
+            print(String(format: "relecture et note en %.0f s (relue : %@)", ProcessInfo.processInfo.systemUptime - t1, r.relue == true ? "oui" : "non"))
         }
+        if transcripteur.echecs > 0, r.relue != true { r.avertissements.append("\(transcripteur.echecs) passage(s) n'ont pas pu être transcrits.") }
+        for f in fichiers.values { try? FileManager.default.removeItem(at: f) }
         let base = ArchiveReunions.nomDeBase(r)
         let json = dossier.appendingPathComponent("\(base).json"), md = dossier.appendingPathComponent("\(base).md")
         try? ArchiveReunions.encoder(r)?.write(to: json)
@@ -80,16 +87,9 @@ enum ReunionTest {
         var ok = true
         func controle(_ condition: Bool, _ nom: String) { print("  \(condition ? "ok   " : "ÉCHEC")  \(nom)"); if !condition { ok = false } }
         print("Contrôle de la présentation")
-        controle(!(r.enBref ?? "").isEmpty, "« En bref » écrit : \(r.enBref ?? "(vide)")")
-        for (i, p) in r.dit.enumerated() {
-            if let c = r.citation(point: i) {
-                let exacte = r.segments.contains { $0.texte.contains(c.texte) && $0.locuteur == c.locuteur && $0.debut == c.debut }
-                controle(exacte, "point \(i + 1) « \(p) » : citation exacte (\(c.locuteur.libelle), \(FormatReunion.horloge(c.debut))) « \(c.texte) »")
-            } else {
-                print("  --    point \(i + 1) « \(p) » : pas de citation")
-            }
-        }
-        controle(r.citations?.count ?? 0 > 0, "au moins une citation retrouvée")
+        controle(!(r.enBref ?? "").isEmpty, "phrase d'ouverture écrite : \(r.enBref ?? "(vide)")")
+        controle(!(r.sujets ?? []).isEmpty, "résumé par sujets : \((r.sujets ?? []).map(\.titre).joined(separator: " · "))")
+        controle(r.relue == true, "transcription relue par le modèle précis")
         for a in r.actions {
             let e = Echeance.etiquette(quand: a.quand, date: a.echeance)
             print("  --    action « \(a.quoi) » (\(a.qui ?? "?")) quand « \(a.quand ?? "-") » -> \(a.echeance ?? "-") -> \(e.texte)")
@@ -104,12 +104,15 @@ enum ReunionTest {
 
     /// Lit le fichier comme un micro (tampons de 100 ms) et le donne à une piste ; les morceaux coupés partent chez Whisper.
     /// L'horloge est celle du fichier : l'heure d'un morceau est sa position dans le son, comme dans une vraie réunion.
-    private static func alimenter(piste locuteur: Locuteur, chemin: String, transcripteur: TranscriptionReunion) -> Double? {
+    private static func alimenter(piste locuteur: Locuteur, chemin: String, transcripteur: TranscriptionReunion, fichier son: URL?, passages: Verrouille<[Locuteur: [PassageParole]]>) -> Double? {
         guard let fichier = try? AVAudioFile(forReading: URL(fileURLWithPath: (chemin as NSString).expandingTildeInPath)) else { return nil }
-        let piste = PisteReunion(locuteur: locuteur)
+        let piste = PisteReunion(locuteur: locuteur, fichierSon: son)
         var lus = 0.0
         piste.horloge = { lus }
-        piste.surMorceau = { transcripteur.soumettre($0) }
+        piste.surMorceau = { m in
+            var p = passages.valeur; p[m.locuteur, default: []].append(PassageParole(debut: m.debut, fin: m.debut + m.duree)); _ = passages.remplacer(p)
+            transcripteur.soumettre(m)
+        }
         let format = fichier.processingFormat
         let taille = AVAudioFrameCount(format.sampleRate * 0.1)
         while fichier.framePosition < fichier.length {

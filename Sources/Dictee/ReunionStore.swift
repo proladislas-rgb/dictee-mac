@@ -53,9 +53,19 @@ final class ReunionStore: ObservableObject {
         Log.ecrire("réunions : une réunion effacée")
     }
 
-    /// Les fichiers du son brut d'une réunion en cours (réglage « Garder le son des réunions »).
+    /// Les fichiers du son d'une réunion : écrits pendant l'appel (0600), gardés le temps de la relecture et de la note, puis effacés
+    /// sauf si « Garder le son des réunions » est actif.
     func fichierSon(_ r: Reunion, _ l: Locuteur) -> URL {
         dossier.appendingPathComponent("\(ArchiveReunions.nomDeBase(r))-\(l.rawValue).wav")
+    }
+
+    func sonPresent(_ r: Reunion, _ l: Locuteur) -> Bool { FileManager.default.fileExists(atPath: fichierSon(r, l).path) }
+
+    /// Efface le son d'une réunion (la note est faite, le réglage ne demande pas de le garder).
+    func effacerSon(_ r: Reunion) {
+        let urls = [fichierSon(r, .moi), fichierSon(r, .eux)]
+        file.async { for u in urls { try? FileManager.default.removeItem(at: u) } }
+        Log.ecrire("réunions : son de la réunion effacé (note prête)")
     }
 
     private func ecrire(_ r: Reunion) {

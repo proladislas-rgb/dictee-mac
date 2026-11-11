@@ -71,12 +71,14 @@ public enum FusionPistes {
         }.map(\.element)
     }
 
-    /// Recolle les passages consécutifs d'un même locuteur quand le silence entre eux est court (`ecart` secondes) :
-    /// une phrase coupée par le découpage redevient un paragraphe.
-    public static func regrouper(_ segments: [SegmentReunion], ecart: Double = 3.0) -> [SegmentReunion] {
+    /// Recolle les passages consécutifs d'un même orateur quand le silence entre eux est court (`ecart` secondes) :
+    /// une phrase coupée par le découpage redevient un paragraphe. `dureeMax` : un tour plus long est laissé en plusieurs lignes
+    /// (la transcription relue montre l'heure à chaque nouvelle minute, un monologue de cinq minutes n'y fait pas une seule ligne).
+    public static func regrouper(_ segments: [SegmentReunion], ecart: Double = 3.0, dureeMax: Double = .infinity) -> [SegmentReunion] {
         var sortie: [SegmentReunion] = []
         for s in segments {
-            if var dernier = sortie.last, dernier.locuteur == s.locuteur, s.debut - dernier.fin <= ecart {
+            if var dernier = sortie.last, dernier.locuteur == s.locuteur, dernier.idOrateur == s.idOrateur, s.debut - dernier.fin <= ecart,
+               max(dernier.fin, s.fin) - dernier.debut <= dureeMax {
                 dernier.texte += TextAssembler.separateur(entre: dernier.texte, et: s.texte) + s.texte
                 dernier.fin = max(dernier.fin, s.fin)
                 sortie[sortie.count - 1] = dernier
@@ -136,9 +138,9 @@ public enum FusionPistes {
 
     /// Tout d'un coup : reprises de Whisper retirées (voix par voix), échos retirés, fusion, regroupement. Renvoie aussi le nombre
     /// d'échos retirés (pour le journal).
-    public static func transcription(moi: [SegmentReunion], eux: [SegmentReunion]) -> (segments: [SegmentReunion], echos: Int) {
+    public static func transcription(moi: [SegmentReunion], eux: [SegmentReunion], dureeMax: Double = .infinity) -> (segments: [SegmentReunion], echos: Int) {
         let m = sansReprises(moi.sorted { $0.debut < $1.debut }), e = sansReprises(eux.sorted { $0.debut < $1.debut })
         let propre = retirerEchos(moi: m, eux: e)
-        return (regrouper(fusionner(moi: propre.moi, eux: e)), propre.retires)
+        return (regrouper(fusionner(moi: propre.moi, eux: e), dureeMax: dureeMax), propre.retires)
     }
 }

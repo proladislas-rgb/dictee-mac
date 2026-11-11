@@ -139,8 +139,9 @@ extension IlotMoteur {
                                   l2: "\(app) utilise le micro",
                                   droite: .boutons([.init(titre: "Non", etiquette: "Ne pas noter cet appel", action: .reunionRefuser),
                                                     .init(titre: "Noter", style: .noter, etiquette: "Noter cet appel", action: .reunionNoter)]))
-        case (.reunionPrepare, .prepare(let etape)):
-            return ContenuAnnonce(glyphe: GlypheIlot(nom: "text.append", couleur: Color.white.opacity(0.85), taille: 19), l1: "Note en préparation\u{2026}", l2: etape)
+        case (.reunionPrepare, .prepare(let etape, let progres)):
+            // l'anneau se remplit à la place du symbole, le pourcentage à droite (maquette, étapes 9 et 10)
+            return ContenuAnnonce(glyphe: nil, l1: "Note en préparation\u{2026}", l2: etape, droite: .meta(PreparationNote.pourcent(progres)), progres: progres)
         case (.reunionPrete, .prete(_, let titre, let duree, let sansNote)):
             let t = titre.isEmpty ? "Réunion" : titre
             return ContenuAnnonce(glyphe: GlypheIlot(nom: "checkmark.circle.fill", couleur: CouleursIlot.vert, taille: 22), l1: sansNote ? "Transcription prête" : "Note prête",
@@ -552,5 +553,22 @@ struct BoutonReunion: View {
         case .actif: return Color.white.opacity(survol ? 0.88 : 1)
         case .fait: return CouleursIlot.ambre.opacity(0.2)
         }
+    }
+}
+
+/// « Note en préparation… » : une barre blanche qui se remplit sur un fond gris. Elle avance par paliers (un lot relu, une partie
+/// rédigée) : une courte animation entre deux paliers, aucune avec « Réduire les animations ».
+struct BarrePreparation: View {
+    var progres: Double
+    var animer: Bool
+    var body: some View {
+        GeometryReader { g in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.16))
+                Capsule().fill(Color.white).frame(width: max(6, g.size.width * min(1, max(0, progres))))
+                    .animation(animer ? .easeOut(duration: 0.35) : nil, value: progres)
+            }
+        }
+        .accessibilityHidden(true)
     }
 }

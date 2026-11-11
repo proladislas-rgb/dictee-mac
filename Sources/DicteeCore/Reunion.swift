@@ -12,12 +12,43 @@ public struct SegmentReunion: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var debut: Double
     public var fin: Double
+    /// La piste d'où vient le passage (le micro ou le son du Mac).
     public var locuteur: Locuteur
     public var texte: String
+    /// L'orateur (`OrateurReunion.id`) : nil = celui de la piste (« moi » ou « eux »). La séparation des voix donnera plusieurs
+    /// orateurs à la piste du Mac ; leur nom vit dans `Reunion.orateurs`, jamais dans le passage (on renomme une fois pour toutes).
+    public var orateur: String?
 
-    public init(id: UUID = UUID(), debut: Double, fin: Double, locuteur: Locuteur, texte: String) {
-        self.id = id; self.debut = debut; self.fin = max(fin, debut); self.locuteur = locuteur; self.texte = texte
+    public init(id: UUID = UUID(), debut: Double, fin: Double, locuteur: Locuteur, texte: String, orateur: String? = nil) {
+        self.id = id; self.debut = debut; self.fin = max(fin, debut); self.locuteur = locuteur; self.texte = texte; self.orateur = orateur
     }
+
+    /// L'identifiant de l'orateur, celui de la piste par défaut.
+    public var idOrateur: String { orateur ?? locuteur.rawValue }
+}
+
+/// Une voix de la réunion. Aujourd'hui une par piste (« Moi » : le micro, « Eux » : le son du Mac). Le nom se change une fois pour
+/// toutes : chaque passage renvoie à l'orateur par son identifiant, jamais par son nom.
+public struct OrateurReunion: Codable, Equatable, Identifiable, Sendable {
+    public var id: String
+    public var nom: String
+    public var piste: Locuteur
+    public init(id: String, nom: String, piste: Locuteur) { self.id = id; self.nom = nom; self.piste = piste }
+    /// L'orateur d'une piste tant qu'on ne sépare pas les voix.
+    public static func dePiste(_ l: Locuteur) -> OrateurReunion { OrateurReunion(id: l.rawValue, nom: l.libelle, piste: l) }
+}
+
+/// Un sujet du résumé : un titre court et ses puces (une puce peut avoir des détails en dessous).
+public struct SujetReunion: Codable, Equatable, Sendable {
+    public var titre: String
+    public var puces: [PuceReunion]
+    public init(titre: String, puces: [PuceReunion]) { self.titre = titre; self.puces = puces }
+}
+
+public struct PuceReunion: Codable, Equatable, Sendable {
+    public var texte: String
+    public var sous: [String]
+    public init(texte: String, sous: [String] = []) { self.texte = texte; self.sous = sous }
 }
 
 /// Une chose à faire notée dans la réunion. `qui` et `quand` restent vides quand la réunion ne les a pas dits.
@@ -94,6 +125,14 @@ public struct Reunion: Codable, Equatable, Identifiable, Sendable {
     public var decisionsEcheances: [EcheanceReunion?]?
     /// Les moments marqués pendant l'appel (« Ajouter un point » dans l'îlot), en secondes de réunion.
     public var points: [Double]?
+    // Ajouts de la note « façon Wispr Flow » : facultatifs eux aussi.
+    /// Le résumé rangé par sujets (titres et puces). Les notes plus anciennes n'ont que `dit`.
+    public var sujets: [SujetReunion]?
+    /// Les orateurs et leur nom (nil : « Moi » et « Eux »).
+    public var orateurs: [OrateurReunion]?
+    /// Vrai quand tout l'enregistrement a été retranscrit d'un coup après l'appel (modèle précis) ; faux ou absent : la transcription
+    /// est celle du direct, recollée.
+    public var relue: Bool?
 
     public init(id: UUID = UUID(), debut: Date = Date(), duree: Double = 0, titre: String = "", participants: [String] = [],
                 dit: [String] = [], decisions: [String] = [], actions: [ActionReunion] = [], segments: [SegmentReunion] = [],
@@ -132,7 +171,36 @@ public struct Reunion: Codable, Equatable, Identifiable, Sendable {
     }
 
     /// Voix distinctes dans la transcription (1 ou 2 : Moi, Eux).
-    public var voix: Int { Set(segments.map(\.locuteur)).count }
+    public var voix: Int { Set(segments.map(\.idOrateur)).count }
+
+    /// L'orateur d'un passage (son nom tel que renommé).
+    public func orateur(de s: SegmentReunion) -> OrateurReunion { orateur(id: s.idOrateur, piste: s.locuteur) }
+
+    public func orateur(id: String, piste: Locuteur = .eux) -> OrateurReunion {
+        orateurs?.first { $0.id == id } ?? (Locuteur(rawValue: id).map(OrateurReunion.dePiste) ?? OrateurReunion(id: id, nom: id, piste: piste))
+    }
+
+    /// Les orateurs qu'on entend, dans l'ordre où ils parlent pour la première fois.
+    public var orateursEntendus: [OrateurReunion] {
+        var vus: [String] = []
+        for s in segments where !vus.contains(s.idOrateur) { vus.append(s.idOrateur) }
+        return vus.map { id in orateur(id: id, piste: segments.first { $0.idOrateur == id }?.locuteur ?? .eux) }
+    }
+
+    /// Renomme un orateur une fois pour toutes : chaque passage le suit (il ne garde que l'identifiant), et les prochaines étapes
+    /// et participants qui portaient l'ancien nom prennent le nouveau. Un nom vide rend le nom de la piste.
+    public mutating func renommer(orateur id: String, en nom: String) {
+        let ancien = orateur(id: id)
+        let n = nom.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nouveau = n.isEmpty ? (Locuteur(rawValue: id)?.libelle ?? ancien.nom) : n
+        guard nouveau != ancien.nom else { return }
+        var liste = orateurs ?? orateursEntendus
+        if let i = liste.firstIndex(where: { $0.id == id }) { liste[i].nom = nouveau } else { liste.append(OrateurReunion(id: id, nom: nouveau, piste: ancien.piste)) }
+        orateurs = liste
+        for i in actions.indices where actions[i].qui == ancien.nom { actions[i].qui = nouveau }
+        if let i = participants.firstIndex(of: ancien.nom) { participants[i] = nouveau }
+        else if ancien.nom == Locuteur.eux.libelle, !participants.contains(nouveau) { participants.append(nouveau) }
+    }
 
     public var motsTranscrits: Int { segments.reduce(0) { $0 + Historique.compterMots($1.texte) } }
 }
@@ -172,16 +240,43 @@ public enum FormatReunion {
     }
 }
 
+/// La transcription telle que la note la montre : les passages dans l'ordre, l'heure seulement sur la première ligne de chaque minute
+/// (« 14:13 »), les points marqués pendant l'appel posés avant le premier passage qui commence après eux. Logique pure.
+public enum LignesTranscription {
+    public enum Element: Equatable, Sendable {
+        /// Le passage `index` de `Reunion.segments` ; `heure` (« 14:13 ») sur la première ligne d'une nouvelle minute, sinon nil.
+        case passage(index: Int, heure: String?)
+        /// Un point marqué, en secondes de réunion.
+        case point(Double)
+    }
+
+    public static func elements(_ r: Reunion, calendrier: Calendar = .current) -> [Element] {
+        var sortie: [Element] = []
+        var points = (r.points ?? []).sorted()
+        var minute: Int?
+        for (i, s) in r.segments.enumerated() {
+            while let t = points.first, t < s.debut { sortie.append(.point(t)); points.removeFirst() }
+            let instant = r.debut.addingTimeInterval(s.debut)
+            let m = Int((instant.timeIntervalSinceReferenceDate / 60).rounded(.down))
+            sortie.append(.passage(index: i, heure: m == minute ? nil : FormatReunion.heure(instant, calendrier: calendrier)))
+            minute = m
+        }
+        sortie += points.map { .point($0) }
+        return sortie
+    }
+}
+
 /// Export Markdown de la note : lisible tel quel, collable dans Notion (qui le convertit en blocs).
 public enum ReunionMarkdown {
     /// « , juste après « tous les textes avant le 25 » » : la fin de ce qui venait d'être dit au moment marqué.
-    static func avant(_ t: Double, dans segments: [SegmentReunion]) -> String {
+    public static func avant(_ t: Double, dans segments: [SegmentReunion]) -> String {
         guard let s = segments.last(where: { $0.debut <= t }) else { return "" }
         let m = s.texte.split(separator: " ")
         guard !m.isEmpty else { return "" }
         let fin = m.suffix(6).joined(separator: " ").trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?…"))
         return ", juste après « " + (m.count > 6 ? "\u{2026}" : "") + fin + " »"
     }
+
     public static func rendre(_ r: Reunion, calendrier: Calendar = .current) -> String {
         var l: [String] = []
         l.append("# \(r.titreAffiche)")
@@ -189,16 +284,31 @@ public enum ReunionMarkdown {
         var meta = "\(FormatReunion.jourHeure(r.debut, calendrier: calendrier)) · \(FormatReunion.duree(r.duree))"
         if !r.participants.isEmpty { meta += "\nParticipants : \(r.participants.joined(separator: ", "))" }
         l.append(meta)
-        if let b = r.enBref, !b.isEmpty { l += ["", "**En bref** : \(b)"] }
-        if !r.dit.isEmpty { l += ["", "## Ce qui a été dit", ""] + r.dit.map { "- \($0)" } }
-        if !r.decisions.isEmpty { l += ["", "## Ce qui a été décidé", ""] + r.decisions.enumerated().map { i, d in "- \(d)" + (r.echeance(decision: i).map { " (\($0.quand))" } ?? "") } }
+        if let b = r.enBref?.trimmingCharacters(in: .whitespacesAndNewlines), !b.isEmpty { l += ["", b] }
+        if let sujets = r.sujets, !sujets.isEmpty {
+            l += ["", "## Résumé par sujet"]
+            for s in sujets {
+                l.append("")
+                if !s.titre.isEmpty { l += ["### \(s.titre)", ""] }
+                for p in s.puces {
+                    l.append("- \(p.texte)")
+                    l += p.sous.map { "  - \($0)" }
+                }
+            }
+        } else if !r.dit.isEmpty {
+            l += ["", "## Ce qui a été dit", ""] + r.dit.map { "- \($0)" }
+        }
+        if !r.decisions.isEmpty {
+            l += ["", "## Décisions", ""] + r.decisions.enumerated().map { i, d in "- \(d)" + (r.echeance(decision: i).map { " (\($0.quand))" } ?? "") }
+        }
         if !r.actions.isEmpty {
-            l += ["", "## Ce qu'il reste à faire", ""]
+            l += ["", "## Prochaines étapes", ""]
             for a in r.actions {
                 var ligne = "- [\(a.fait ? "x" : " ")] "
                 if let q = a.qui, !q.isEmpty { ligne += "**\(q)** : " }
                 ligne += a.quoi
-                if let q = a.quand, !q.isEmpty { ligne += " (\(q))" }
+                let e = Echeance.etiquette(quand: a.quand, date: a.echeance, calendrier: calendrier)
+                if !e.sansDate { ligne += " (\(e.texte))" }
                 l.append(ligne)
             }
         }
@@ -207,13 +317,16 @@ public enum ReunionMarkdown {
         }
         if !r.avertissements.isEmpty { l += ["", "## À savoir", ""] + r.avertissements.map { "- \($0)" } }
         if !r.segments.isEmpty {
-            l += ["", "## Transcription", ""]
-            for s in r.segments {
-                let heure = FormatReunion.heure(r.debut.addingTimeInterval(s.debut), calendrier: calendrier)
-                l.append("**\(s.locuteur.libelle)** (\(heure)) : \(s.texte)")
-                l.append("")
+            l += ["", "## Transcription"]
+            for e in LignesTranscription.elements(r, calendrier: calendrier) {
+                switch e {
+                case .point(let t):
+                    l += ["", "*Point marqué · \(FormatReunion.heure(r.debut.addingTimeInterval(t), calendrier: calendrier))*"]
+                case .passage(let i, let heure):
+                    let s = r.segments[i]
+                    l += ["", "**\(r.orateur(de: s).nom)**" + (heure.map { " · \($0)" } ?? ""), s.texte]
+                }
             }
-            l.removeLast()
         }
         return l.joined(separator: "\n") + "\n"
     }

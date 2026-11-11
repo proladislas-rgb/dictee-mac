@@ -37,7 +37,7 @@ extension IlotEssai {
             case .reunionPoint: points.append(r.temps(a: c.maintenant())); r.pointFait = true; r.rattrapage = .ferme
             case .reunionRattrapage: r.rattrapage = .enCours
             case .reunionDirect: r.rattrapage = .ferme
-            case .reunionArreter: enregistre = false; annonce = .prepare(etape: "Transcription de la fin de l\u{2019}appel")
+            case .reunionArreter: enregistre = false; annonce = .prepare(etape: PreparationNote.relecture, progres: 0.1)
             default: break
             }
             publier()
@@ -171,6 +171,14 @@ extension IlotEssai {
         clic(CGPoint(x: pa.midX, y: pa.midY), 0.9)
         verifier(gestes.last == "reunionArreter" && m.reunion == nil && m.courante == .reunionPrepare && m.resolution.verrou,
                  "vrai clic sur Arrêter : « Note en préparation… » (\(m.courante))")
+        // la progression avance (relecture puis rédaction) : la forme ne bouge pas, la barre seule avance
+        let largeurAvant = m.contenus[.reunionPrepare] ?? 0, traceAvant = m.trace.bande
+        annonce = .prepare(etape: PreparationNote.relecture, progres: 0.55); publier(); pause(0.5)
+        annonce = .prepare(etape: PreparationNote.redaction, progres: 0.9); publier(); pause(0.6)
+        verifier(m.courante == .reunionPrepare && abs((m.contenus[.reunionPrepare] ?? 0) - largeurAvant) < 0.5 && abs(m.trace.bande - traceAvant) < 0.5,
+                 "« Note en préparation… » avance (10 % → 90 %, relecture → résumé) sans que la forme change de taille (\(Int(largeurAvant)) pt)")
+        verifier(m.trace.bande <= hc + GeoIlot.aileMax + 0.01, "« Note en préparation… » : ≤ 66 pt dans la barre de chaque côté de la caméra")
+        if let c0 = m.contenuAnnonce(.reunionPrepare) { verifier(c0.progres == 0.9 && c0.l2 == PreparationNote.redaction, "l'annonce porte l'étape et la progression") }
         let id = UUID()
         annonce = .prete(id: id, titre: "Lancement de la boutique en ligne", duree: 1740, sansNote: false); publier(); pause(0.9)
         verifier(m.courante == .reunionPrete, "« Note prête » (\(m.courante))")
@@ -183,5 +191,73 @@ extension IlotEssai {
         verifier(!m.boucleActive, "réunion finie : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
         c.surReunion = { _ in }
         c.occupation = ancienneOccupation
+    }
+
+    /// La note après l'appel, sans réseau ni micro (maquette, étapes 9 à 12) : deux fichiers son écrits comme pendant un appel (calés sur
+    /// l'heure de la réunion, 0600), la relecture lot par lot avec un Whisper factice qui vérifie que chaque lot reçoit le son du bon
+    /// moment, un lot en échec qui garde le direct, la progression qui ne recule jamais, la note factice rangée, puis le son effacé.
+    @MainActor
+    static func noteApresAppel(dossier: URL, verifier: @escaping (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void) {
+        print("La note après l'appel (relecture et note factices)")
+        let d = dossier.appendingPathComponent("reunions-note", isDirectory: true)
+        let store = ReunionStore(dossier: d, lire: false)
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        var r0 = Reunion(debut: Date(timeIntervalSince1970: 1_800_000_000), duree: 90, etat: .transcription, sonGarde: false)
+        r0.points = [30]
+        // le son : chaque seconde t porte la valeur t (on reconnaît le moment de la réunion dans un lot)
+        func ecrire(_ l: Locuteur, de a: Int, a b: Int) {
+            guard let w = EcrivainWAV(url: store.fichierSon(r0, l)) else { verifier(false, "fichier son \(l.libelle) créé"); return }
+            w.caler(sur: Double(a))
+            for t in a..<b { w.ajouter([Int16](repeating: Int16(t), count: 16_000)) }
+            if l == .moi { w.fermer() }   // la piste « Eux » reste sans en-tête complet (arrêt brutal) : la lecture doit tenir quand même
+        }
+        ecrire(.moi, de: 10, a: 40); ecrire(.eux, de: 50, a: 80)
+        let droits = (try? FileManager.default.attributesOfItem(atPath: store.fichierSon(r0, .moi).path)[.posixPermissions] as? Int) ?? 0
+        verifier(droits == 0o600, "le son de la réunion : fichier en 0600 (\(String(droits, radix: 8)))")
+        verifier(abs(LectureWAV.duree(store.fichierSon(r0, .eux)) - 80) < 0.01, "son calé sur l'heure de la réunion, lisible même sans en-tête complet (\(LectureWAV.duree(store.fichierSon(r0, .eux))) s)")
+        verifier(LectureWAV.echantillons(store.fichierSon(r0, .moi), de: 12.5, a: 12.6)?.allSatisfy { $0 == 12 } == true, "la seconde 12 de la réunion est bien à 12 s dans le fichier")
+
+        let passages: [Locuteur: [PassageParole]] = [.moi: [PassageParole(debut: 10, fin: 20), PassageParole(debut: 25, fin: 40)], .eux: [PassageParole(debut: 50, fin: 80)]]
+        let direct = [SegmentReunion(debut: 10, fin: 20, locuteur: .moi, texte: "direct moi"), SegmentReunion(debut: 50, fin: 60, locuteur: .eux, texte: "Le direct d'Eux est gardé.")]
+        let bonsSons = Verrouille<[Bool]>([])
+        var relecture = RelectureAudio()
+        relecture.transcrire = { lot, son, _ in
+            // chaque passage du lot : on lit la valeur une seconde après son début, elle doit être la seconde de la réunion
+            var x = 0.0, ok = true
+            for p in lot.passages {
+                let i = Int((x + 1) * 16_000)
+                ok = ok && i < son.count && Int(son[i]) == Int(p.debut + 1)
+                x += p.duree + LotRelecture.silence
+            }
+            _ = bonsSons.remplacer(bonsSons.valeur + [ok])
+            if lot.locuteur == .eux { throw GroqErreur.http(429) }
+            var y = 0.0
+            return lot.passages.map { p in defer { y += p.duree + LotRelecture.silence }; return PhraseWhisper(debut: y + 0.3, fin: y + p.duree - 0.3, texte: "Relu à \(Int(p.debut + 0.3)) s.") }
+        }
+        let avances = Verrouille<[Double]>([])
+        let enregistre = Verrouille<Bool>(false)
+        let rediger: ReunionController.RedigerNote = { segments, _, _, avance in
+            avance(0, 2); avance(1, 2); avance(2, 2)
+            return (NoteBrute(titre: "Essai", sujets: [SujetReunion(titre: "Sujet", puces: [PuceReunion(texte: segments.first?.texte ?? "")])]), [])
+        }
+        var resultat: Reunion?
+        var fini = false
+        Task {
+            resultat = await ReunionController.preparer(r0, passages: passages, direct: direct, fichiers: [.moi: store.fichierSon(r0, .moi), .eux: store.fichierSon(r0, .eux)],
+                                                       relecture: relecture, rediger: rediger, surNote: { _ in _ = enregistre.remplacer(true) }) { p, _ in _ = avances.remplacer(avances.valeur + [p]) }
+            fini = true
+        }
+        attendre(10) { !fini }
+        guard let r = resultat else { verifier(false, "la note est préparée"); return }
+        verifier(bonsSons.valeur.count == 2 && bonsSons.valeur.allSatisfy { $0 }, "deux lots (un par voix), chacun reçoit le son du bon moment de la réunion (\(bonsSons.valeur))")
+        verifier(r.relue == true && r.segments.contains { $0.locuteur == .moi && $0.texte.hasPrefix("Relu à 10") && abs($0.debut - 10) < 0.5 }, "« Moi » : la transcription relue, à la bonne heure (\(r.segments.map(\.texte)))")
+        verifier(!r.segments.contains { $0.texte == "direct moi" } && r.segments.contains { $0.texte == "Le direct d'Eux est gardé." }, "le direct relu disparaît ; le lot en échec garde le direct (rien ne se perd)")
+        verifier(r.avertissements.contains { $0.contains("pas pu être relu") }, "la note dit qu'un passage vient du direct")
+        verifier(r.etat == .prete && r.sujets?.first?.titre == "Sujet" && r.titre == "Essai" && enregistre.valeur, "la note est rangée ; la transcription relue a été enregistrée avant la rédaction")
+        let a = avances.valeur
+        verifier(!a.isEmpty && zip(a, a.dropFirst()).allSatisfy { $0 <= $1 + 1e-9 } && (a.last ?? 0) > 0.9, "la progression ne recule jamais et finit au-delà de 90 % (\(a.map { Int($0 * 100) }))")
+        store.effacerSon(r)
+        attendre(2) { store.sonPresent(r, .moi) || store.sonPresent(r, .eux) }
+        verifier(!store.sonPresent(r, .moi) && !store.sonPresent(r, .eux), "note prête, réglage « garder le son » éteint : les deux fichiers son sont effacés")
     }
 }

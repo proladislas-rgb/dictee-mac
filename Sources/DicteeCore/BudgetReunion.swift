@@ -5,6 +5,8 @@ import Foundation
 /// Logique pure : l'horloge est passée en paramètre.
 public final class BudgetAudio: @unchecked Sendable {
     public static let partage = BudgetAudio()
+    /// Le quota d'audio de whisper-large-v3 (« Précis ») : compté à part chez Groq. La relecture d'après l'appel s'en sert.
+    public static let precis = BudgetAudio()
 
     public let limiteHeure: Double
     /// Part de l'heure réservée à la dictée : la réunion n'y touche jamais.

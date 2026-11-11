@@ -22,7 +22,8 @@ final class PisteReunion: @unchecked Sendable {
     var surMorceau: ((MorceauReunion) -> Void)?
     /// L'horloge de la réunion (secondes enregistrées, pauses déduites) : donne l'heure du premier tampon de chaque tranche d'enregistrement.
     var horloge: () -> Double = { 0 }
-    /// Si renseigné, tout le son de la piste est écrit dans ce fichier WAV (réglage « Garder le son des réunions »).
+    /// Si renseigné, tout le son de la piste est écrit dans ce fichier WAV, calé sur l'heure de la réunion (l'échantillon n est à
+    /// n / 16 000 s de réunion) : la relecture d'après l'appel et « réécouter un moment » y lisent directement.
     private var ecrivain: EcrivainWAV?
 
     private let verrou = NSLock()
@@ -56,7 +57,12 @@ final class PisteReunion: @unchecked Sendable {
         var emis: [MorceauReunion] = []
         verrou.lock()
         guard actif else { verrou.unlock(); return }
-        if base == nil { base = max(0, horloge() - Double(nouveaux.count) / 16_000) }
+        if base == nil {
+            let b = max(0, horloge() - Double(nouveaux.count) / 16_000)
+            base = b
+            // le fichier reste calé sur l'heure de la réunion : un départ tardif (son du Mac) ou une reprise après pause y laisse un silence
+            ecrivain?.caler(sur: b)
+        }
         secondesRecues += Double(nouveaux.count) / 16_000
         if !aRecuDuSon, nouveaux.contains(where: { $0 != 0 }) { aRecuDuSon = true }
         echantillons.append(contentsOf: nouveaux)
@@ -161,6 +167,17 @@ final class EcrivainWAV: @unchecked Sendable {
     private let url: URL
     private var handle: FileHandle?
     private var octets = 0
+    /// Échantillons écrits depuis le début du fichier.
+    var echantillons: Int { octets / 2 }
+
+    /// Complète par du silence jusqu'à `secondes` (l'heure de réunion du prochain échantillon). Un retard de moins de 20 ms est ignoré.
+    func caler(sur secondes: Double) {
+        let cible = Int((secondes * 16_000).rounded())
+        var manque = cible - echantillons
+        guard manque > 320 else { return }
+        let bloc = [Int16](repeating: 0, count: 16_000)
+        while manque > 0 { let n = min(manque, bloc.count); ajouter(Array(bloc[0..<n])); manque -= n }
+    }
 
     init?(url: URL) {
         self.url = url
@@ -186,5 +203,29 @@ final class EcrivainWAV: @unchecked Sendable {
         try? h.seek(toOffset: 4); try? h.write(contentsOf: u32(36 + octets))
         try? h.seek(toOffset: 40); try? h.write(contentsOf: u32(octets))
         try? h.close()
+    }
+}
+
+/// Lecture d'un WAV écrit par `EcrivainWAV` (16 kHz mono 16 bits, en-tête de 44 octets). Les tailles de l'en-tête ne sont pas lues :
+/// après un arrêt brutal, elles sont restées à zéro ; la taille du fichier fait foi.
+enum LectureWAV {
+    static let entete = 44
+
+    /// La durée du son, en secondes.
+    static func duree(_ url: URL) -> Double {
+        let taille = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+        return Double(max(0, taille - entete) / 2) / 16_000
+    }
+
+    /// Les échantillons de `debut` à `fin` (secondes) ; nil si le fichier est illisible. Au-delà de la fin du fichier : rien.
+    static func echantillons(_ url: URL, de debut: Double, a fin: Double) -> [Int16]? {
+        guard let h = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? h.close() }
+        let premier = max(0, Int((debut * 16_000).rounded())), dernier = max(premier, Int((fin * 16_000).rounded()))
+        do {
+            try h.seek(toOffset: UInt64(entete + premier * 2))
+            guard let d = try h.read(upToCount: (dernier - premier) * 2) else { return [] }
+            return d.withUnsafeBytes { brut in Array(brut.bindMemory(to: Int16.self).prefix(d.count / 2)) }
+        } catch { return nil }
     }
 }

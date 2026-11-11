@@ -13,10 +13,12 @@ public struct NoteBrute: Equatable, Sendable {
     public var decisionsQuand: [String] = []
     public var actions: [ActionReunion] = []
     public var participants: [String] = []
+    /// Le résumé par sujets (la note entière ; les parties d'une longue réunion n'ont que `dit`).
+    public var sujets: [SujetReunion] = []
     public init(titre: String = "", dit: [String] = [], decisions: [String] = [], actions: [ActionReunion] = [], participants: [String] = [],
-                enBref: String = "", citations: [String] = [], decisionsQuand: [String] = []) {
+                enBref: String = "", citations: [String] = [], decisionsQuand: [String] = [], sujets: [SujetReunion] = []) {
         self.titre = titre; self.dit = dit; self.decisions = decisions; self.actions = actions; self.participants = participants
-        self.enBref = enBref; self.citations = citations; self.decisionsQuand = decisionsQuand
+        self.enBref = enBref; self.citations = citations; self.decisionsQuand = decisionsQuand; self.sujets = sujets
     }
 }
 
@@ -27,12 +29,20 @@ public enum NoteReunion {
     - N'écris que ce qui est dit dans la transcription. N'invente aucun nom, chiffre, date, décision ni tâche.
     - Si une information manque (qui, quand, un prix…), ne l'écris pas : laisse le champ vide ou null. Ne complète jamais par une supposition.
     - Ne calcule pas de date : recopie ce qui est dit dans « quand » (« jeudi », « avant le vingt novembre »). L'application en tire la vraie date.
-    - « dit » : les points abordés, un par sujet, dans l'ordre de la réunion. Chaque point est COURT (12 mots au maximum, comme un titre de ligne : « Prix sensible, Nathalie en parle à son associé jeudi »). Pas de paragraphe.
-    - Pour chaque point de « dit », « citation » est la phrase de la transcription qui l'appuie le mieux, recopiée MOT POUR MOT (une seule phrase, la plus courte qui suffit), sans rien corriger, sans reformuler, sans l'heure ni « Moi / Eux » devant. Si aucune phrase ne l'appuie clairement : null. Ne résume jamais dans « citation ».
-    - « decisions » : seulement ce qui a été décidé, convenu ou fait pendant la réunion, c'est-à-dire accepté ou arrêté par les participants. Un souhait, une préférence ou une demande d'un participant (« on aimerait », « je voudrais », « on préférerait », « j'aimerais bien ») n'est PAS une décision tant que personne n'a répondu « d'accord » ou « je retiens ». Une idée évoquée, un « on verra », un « peut-être » non plus : mets-les dans « dit » si elles comptent. Exemple : Paul dit « On aimerait recevoir les machines à Lyon en premier » et Moi répond « Je ne peux pas vous donner de date » : c'est un point de « dit », pas une décision. Autres exemples de vraies décisions : Nathalie dit « on préférerait payer en deux fois » et Moi répond « Alors je retiens le paiement en deux fois » ; Nathalie dit « prenons l'offre complète sans l'option » et Moi répond « Très bien, je note : offre complète, sans la formation ». Dès qu'une proposition est acceptée (« très bien », « d'accord », « je note », « je retiens », « c'est noté »), c'est une décision : ne la laisse pas dans « dit » seulement.
-    - Une décision a un « quand » seulement si une échéance est dite pour elle (« signature avant le vingt novembre »), sinon null.
-    - « actions » : ce qu'il reste à faire. Une action est une tâche que quelqu'un s'est engagé à faire. « qui » est le prénom dit dans la réunion, « Moi » si c'est la personne dont la voix est « Moi », sinon null. Un engagement pris par un autre participant (« je peux vous donner les chiffres vendredi ») est aussi une action, même si son prénom n'est pas connu (« qui » : null).
+    - « decisions » : seulement ce qui a été décidé, convenu ou fait pendant la réunion, c'est-à-dire accepté ou arrêté par les participants. Un souhait, une préférence ou une demande d'un participant (« on aimerait », « je voudrais », « on préférerait », « j'aimerais bien ») n'est PAS une décision tant que personne n'a répondu « d'accord » ou « je retiens ». Une idée évoquée, un « on verra », un « peut-être » non plus : mets-les dans le résumé si elles comptent. Exemple : Paul dit « On aimerait recevoir les machines à Lyon en premier » et Moi répond « Je ne peux pas vous donner de date » : c'est un point du résumé, pas une décision. Autres exemples de vraies décisions : Nathalie dit « on préférerait payer en deux fois » et Moi répond « Alors je retiens le paiement en deux fois » ; Nathalie dit « prenons l'offre complète sans l'option » et Moi répond « Très bien, je note : offre complète, sans la formation ». Dès qu'une proposition est acceptée (« très bien », « d'accord », « je note », « je retiens », « c'est noté »), c'est une décision : ne la laisse pas seulement dans le résumé. Chaque décision est COURTE (10 mots au maximum).
+    - Une décision a un « quand » seulement si une échéance ou une condition est dite pour elle (« signature avant le vingt novembre »), sinon null.
+    - « actions » : les prochaines étapes. Une action est une tâche que quelqu'un s'est engagé à faire. « qui » est le prénom dit dans la réunion, « Moi » si c'est la personne dont la voix est « Moi », sinon null. Un engagement pris par un autre participant (« je peux vous donner les chiffres vendredi ») est aussi une action, même si son prénom n'est pas connu (« qui » : null). Chaque action commence par un verbe (« Envoyer les fiches produits à Marc »).
     - Écris en français, de façon sobre : des phrases courtes et simples, sans formule de politesse ni mots creux.
+    """
+
+    private static let reglesDit = """
+    - « dit » : les points abordés, un par sujet, dans l'ordre de la réunion. Chaque point est COURT (12 mots au maximum, comme un titre de ligne : « Prix sensible, Nathalie en parle à son associé jeudi »). Pas de paragraphe.
+    - Pour chaque point de « dit », « citation » est la phrase de la transcription qui l'appuie le mieux, recopiée MOT POUR MOT (une seule phrase, la plus courte qui suffit), sans rien corriger, sans reformuler, sans l'heure ni le nom devant. Si aucune phrase ne l'appuie clairement : null. Ne résume jamais dans « citation ».
+    """
+
+    private static let reglesSujets = """
+    - « en_bref » : la phrase d'ouverture de la note, UNE phrase naturelle (25 mots au maximum) : l'essentiel, ce qui est décidé et la suite précise. Pas de point-virgule, pas de liste, jamais une formule vague comme « plusieurs actions à réaliser ».
+    - « sujets » : le résumé rangé par sujet, de 1 à 6 sujets dans l'ordre de la réunion. « titre » : 2 à 5 mots, sans verbe (« Date de mise en ligne »). « puces » : 1 à 4 puces par sujet, chacune une phrase courte (14 mots au maximum) qui dit un fait, un chiffre, une position ou une condition. « sous » : 0 à 2 détails de cette puce (une condition, une précision, une raison), seulement si la réunion les dit. Une même information n'apparaît qu'une fois dans tout le résumé.
     """
 
     private static let contexte = """
@@ -40,15 +50,20 @@ public enum NoteReunion {
     leurs prénoms ne sont connus que s'ils sont dits. La transcription vient d'une reconnaissance vocale et peut contenir des erreurs de mots.
     """
 
+    private static let formeNote = """
+    {"titre": "3 à 8 mots qui disent de quoi parle la réunion", "en_bref": "la phrase d'ouverture", "sujets": [{"titre": "2 à 5 mots", "puces": [{"texte": "une phrase courte", "sous": ["un détail"]}]}], "decisions": [{"quoi": "…", "quand": "échéance ou condition dite, ou null"}], "actions": [{"qui": "Prénom ou Moi ou null", "quoi": "…", "quand": "tel que dit, ou null"}], "participants": ["prénoms entendus dans la réunion"]}
+    """
+
     /// Consigne pour une réunion courte : la transcription entière donne directement la note.
     public static let consigneNote = """
     Tu rédiges la note d'une réunion à partir de sa transcription. \(contexte)
 
     \(regles)
+    \(reglesSujets)
 
     Réponds par un seul objet JSON, sans texte autour, de cette forme :
-    {"titre": "3 à 8 mots qui disent de quoi parle la réunion", "en_bref": "UNE phrase (25 mots au maximum) : l'essentiel de la réunion, ce qui est décidé et ce qui suit", "dit": [{"point": "un point abordé, 12 mots au maximum", "citation": "la phrase exacte de la transcription, ou null"}], "decisions": [{"quoi": "…", "quand": "échéance dite, ou null"}], "actions": [{"qui": "Prénom ou Moi ou null", "quoi": "…", "quand": "tel que dit, ou null"}], "participants": ["prénoms entendus dans la réunion"]}
-    Listes vides si rien n'a été décidé ou promis (une section vide est simplement omise). Le titre n'est pas une phrase ; n'y mets un nom propre que s'il est dit. « en_bref » ne dit que ce que la note contient, en une phrase naturelle et lisible (pas de point-virgule, pas de liste) : ce qui est décidé et la suite précise (qui fait quoi, quand), jamais une formule vague comme « plusieurs actions à réaliser ».
+    \(formeNote)
+    Listes vides si rien n'a été décidé ou promis (une section vide est simplement omise). Le titre n'est pas une phrase ; n'y mets un nom propre que s'il est dit.
     """
 
     /// Consigne pour une partie d'une longue réunion : des points, pas encore la note.
@@ -56,6 +71,7 @@ public enum NoteReunion {
     Tu lis une partie de la transcription d'une longue réunion et tu en retires l'essentiel, pour qu'on rédige la note plus tard. \(contexte)
 
     \(regles)
+    \(reglesDit)
 
     Réponds par un seul objet JSON, sans texte autour :
     {"dit": [{"point": "ce qui a été dit d'important, 12 mots au maximum", "citation": "la phrase exacte de la transcription, ou null"}], "decisions": [{"quoi": "…", "quand": "échéance dite, ou null"}], "actions": [{"qui": "Prénom ou Moi ou null", "quoi": "…", "quand": "tel que dit, ou null"}], "participants": ["prénoms entendus"]}
@@ -66,11 +82,11 @@ public enum NoteReunion {
     Tu rédiges la note d'une réunion à partir des notes de ses différentes parties (dans l'ordre). \(contexte)
 
     \(regles)
+    \(reglesSujets)
     - Regroupe ce qui se répète ; garde chaque point, chaque décision et chaque action une seule fois.
-    - Garde avec chaque point sa « citation » telle quelle (recopiée des parties ci-dessous, jamais réécrite) ; null s'il n'y en a pas.
 
     Réponds par un seul objet JSON, sans texte autour, de cette forme :
-    {"titre": "3 à 8 mots qui disent de quoi parle la réunion", "en_bref": "UNE phrase (25 mots au maximum) : l'essentiel de la réunion, ce qui est décidé et ce qui suit", "dit": [{"point": "un point abordé, 12 mots au maximum", "citation": "la phrase exacte, ou null"}], "decisions": [{"quoi": "…", "quand": "échéance dite, ou null"}], "actions": [{"qui": "Prénom ou Moi ou null", "quoi": "…", "quand": "tel que dit, ou null"}], "participants": ["prénoms entendus"]}
+    \(formeNote)
     """
 
     public static func messageTranscription(_ segments: [SegmentReunion], duree: Double, debut: Date, calendrier: Calendar = .current) -> String {
@@ -135,6 +151,17 @@ public enum NoteReunion {
             else if let quoi = texte(d) { n.decisions.append(quoi); n.decisionsQuand.append("") }
         }
         n.participants = (o["participants"] as? [Any] ?? []).compactMap { texte($0) }
+        // « sujets » : [{titre, puces: [{texte, sous} ou texte]}]
+        for x in o["sujets"] as? [Any] ?? [] {
+            guard let d = x as? [String: Any] else { continue }
+            var puces: [PuceReunion] = []
+            for p in d["puces"] as? [Any] ?? [] {
+                if let e = p as? [String: Any], let t = texte(e["texte"] ?? e["point"]) {
+                    puces.append(PuceReunion(texte: t, sous: (e["sous"] as? [Any] ?? []).compactMap { texte($0) }))
+                } else if let t = texte(p) { puces.append(PuceReunion(texte: t)) }
+            }
+            if !puces.isEmpty { n.sujets.append(SujetReunion(titre: texte(d["titre"]) ?? "", puces: puces)) }
+        }
         for a in o["actions"] as? [Any] ?? [] {
             if let d = a as? [String: Any], let quoi = texte(d["quoi"]) {
                 n.actions.append(ActionReunion(qui: texte(d["qui"]), quoi: quoi, quand: texte(d["quand"])))
@@ -258,6 +285,20 @@ public struct GardeInvention: Sendable {
             if soutenu(d) { points.append(d); citations.append(n.citations.indices.contains(i) ? n.citations[i] : "") } else { retraits.append("point « \(d) »") }
         }
         n.dit = points; n.citations = citations
+        n.sujets = n.sujets.compactMap { sujet in
+            var s = sujet
+            if !soutenu(s.titre) { retraits.append("titre de sujet « \(s.titre) »"); s.titre = "" }
+            s.puces = s.puces.compactMap { p in
+                guard soutenu(p.texte) else { retraits.append("puce « \(p.texte) »"); return nil }
+                var q = p
+                q.sous = p.sous.filter { x in
+                    if soutenu(x) { return true }
+                    retraits.append("détail « \(x) »"); return false
+                }
+                return q
+            }
+            return s.puces.isEmpty ? nil : s
+        }
         var decisions: [String] = [], quand: [String] = []
         for (i, d) in n.decisions.enumerated() {
             guard soutenu(d) else { retraits.append("décision « \(d) »"); continue }

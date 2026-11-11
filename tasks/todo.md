@@ -235,3 +235,14 @@ Ancienne lecture (gardée si Hugues la confirme) : l'îlot ouvert devient une pi
 - [x] Contrôles, essai de l'îlot (réunion factice, vrais clics), rendus comparés à la maquette, commits
 - [ ] Hugues : essayer en vrai (un appel Zoom/Meet : « Noter cet appel ? », la carte au survol, le direct, « Ce que j'ai raté », un point, pause, Arrêter). Non vérifiés d'ici : le vrai micro et le son du Mac, la qualité réelle du direct (chaque morceau fait 10 à 30 s : le texte arrive par blocs, le « … » gris dit qu'on parle), la réponse réelle de Groq pour « Ce que j'ai raté ».
 - [ ] Suite (autres équipes de la branche) : après l'appel, retravailler TOUT l'enregistrement (noms, texte propre), la note par sujets, « Demander » ; « Note en préparation » avec une vraie progression.
+
+## Réunions façon Wispr Flow — la note après l'appel (maquette ilot-reunion.html étapes 8 à 12)
+- [x] Son : les deux pistes toujours écrites sur le Mac (WAV 0600, calées sur l'heure de la réunion) jusqu'à la note, puis effacées sauf « Garder le son des réunions »
+- [x] Relecture : tout l'enregistrement retranscrit par whisper-large-v3 (horodatages, lots de passages de parole), repli sur le direct pour un lot en échec ; progression dans l'îlot (« Note en préparation… » + % + barre de la maquette)
+- [x] Note au format de la maquette : phrase d'ouverture, résumé par sujets (titres + puces imbriquées), Décisions, Prochaines étapes (qui, quand, case), points marqués, transcription (orateur + heure à la 1re ligne de chaque minute, clic = réécouter)
+- [x] Orateurs : « Moi / Eux » pour l'instant, un orateur par segment, renommable une fois pour toutes (structure prête pour la séparation des voix)
+- [x] « Demander » sur la réunion (réponse liée au moment) et « Demander à mes réunions » ; Copier / Exporter (Markdown)
+- [x] Onglet Réunions refait : colonne de gauche (recherche, Demander à mes réunions, liste par jour) + la note
+- [x] Contrôles, essai de bout en bout sans réseau ni micro (relecture et note factices), rendus comparés à la maquette, commit
+- [ ] Hugues : essayer en vrai (5 points « À vérifier en vrai » de la section « la note après l'appel » de docs/spec-v1.md). Non vérifiés d'ici : la vraie réponse de Groq (relecture, note par sujets, « Demander »), le son réel réécouté, la durée réelle du traitement.
+- [ ] Suite : séparation des voix (« Qui parle », les noms de chacun) ; décider si le son doit être écrit compressé pendant l'appel (≈ 115 Mo par heure et par piste aujourd'hui, effacé à la fin).

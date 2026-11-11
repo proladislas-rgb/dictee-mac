@@ -970,6 +970,7 @@ enum IlotEssai {
         IlotEssai.cheminsDuCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
         IlotEssai.reunion(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.noteApresAppel(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)

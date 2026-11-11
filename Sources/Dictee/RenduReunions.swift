@@ -59,6 +59,72 @@ enum RenduReunions {
                      [("Moi", "Confirmer la commande", nil, true)])]
     }
 
+    /// La réunion de la maquette ilot-reunion.html (étapes 11 et 12) : « Lancement de la boutique en ligne », mercredi 11 novembre
+    /// 2026, 14:02, 29 min. Les voix restent « Moi » et « Eux » (pas encore de séparation des voix).
+    static func boutique() -> Reunion {
+        let cal = Calendar.current
+        let debut = cal.date(from: DateComponents(year: 2026, month: 11, day: 11, hour: 14, minute: 2))!
+        func seg(_ m: Int, _ s: Int, _ d: Double, _ l: Locuteur, _ t: String) -> SegmentReunion {
+            let t0 = Double(m * 60 + s); return SegmentReunion(debut: t0, fin: t0 + d, locuteur: l, texte: t, orateur: l.rawValue)
+        }
+        let segments = [
+            seg(11, 10, 9, .eux, "Bon, la page d\u{2019}accueil me va. Je changerais juste la couleur du bouton « Commander », il se voit mal sur téléphone."),
+            seg(11, 22, 5, .moi, "D\u{2019}accord, on garde le vert de la marque alors, il ressort mieux."),
+            seg(12, 4, 8, .eux, "Pour la mise en ligne, le 2 décembre, c\u{2019}est faisable de mon côté. À condition d\u{2019}avoir tous les textes avant le 25."),
+            seg(12, 15, 4, .moi, "Je m\u{2019}occupe des fiches produits. Je te les envoie lundi."),
+            seg(13, 12, 7, .eux, "Parfait. Et pour les photos, je préfère qu\u{2019}on fasse une seule séance à l\u{2019}atelier, plutôt que deux."),
+            seg(13, 24, 5, .eux, "Oui, les photos actuelles sont trop sombres, surtout pour les tasses."),
+            seg(14, 2, 6, .eux, "Je réserve la séance avant le 20 et je vous dis le jour demain."),
+            seg(14, 30, 4, .eux, "Et le paiement en trois fois, on le met dès le lancement ?"),
+            seg(15, 3, 5, .moi, "Non, après. On lance simple, on l\u{2019}ajoute en janvier."),
+        ]
+        func act(_ qui: String, _ quoi: String, _ quand: String) -> ActionReunion {
+            ActionReunion(qui: qui, quoi: quoi, quand: quand, echeance: Echeance.analyser(quand, depuis: debut).date)
+        }
+        var r = Reunion(debut: debut, duree: 29 * 60, titre: "Lancement de la boutique en ligne", participants: ["Moi"],
+                        decisions: ["Mise en ligne le 2 décembre", "Bouton « Commander » en vert", "Paiement en trois fois en janvier"],
+                        actions: [act("Moi", "Écrire les 40 fiches produits, les envoyer à Marc", "lundi"),
+                                  act("Claire", "Passer le bouton en vert sur la maquette", "vendredi"),
+                                  act("Inès", "Réserver la séance photo à l\u{2019}atelier", "avant le vingt novembre"),
+                                  act("Marc", "Mettre le site en ligne", "le 2 décembre")],
+                        segments: segments, etat: .prete, sonGarde: true,
+                        enBref: "La page d\u{2019}accueil est validée et le site sortira le 2 décembre, à condition que les textes arrivent avant le 25 novembre.")
+        r.decisionsEcheances = [EcheanceReunion(quand: "textes avant le 25"), nil, nil]
+        r.sujets = [SujetReunion(titre: "Page d\u{2019}accueil", puces: [PuceReunion(texte: "Claire valide la maquette, seul le bouton « Commander » change de couleur", sous: ["On garde le vert de la marque, plus lisible sur téléphone"]),
+                                                                        PuceReunion(texte: "Les avis clients passent sous les photos")]),
+                    SujetReunion(titre: "Date de mise en ligne", puces: [PuceReunion(texte: "Marc peut mettre le site en ligne le mercredi 2 décembre", sous: ["À une condition : tous les textes avant le 25 novembre"]),
+                                                                        PuceReunion(texte: "Paiement en trois fois ajouté après le lancement, en janvier")]),
+                    SujetReunion(titre: "Photos et fiches produits", puces: [PuceReunion(texte: "40 produits à photographier, les photos actuelles sont trop sombres"),
+                                                                            PuceReunion(texte: "Une seule séance à l\u{2019}atelier plutôt que deux")])]
+        r.points = [Double(13 * 60 + 10)]
+        r.relue = true
+        return r
+    }
+
+    /// Les autres réunions de la colonne (titres de la maquette) et une ancienne note (« Dit » seulement, avant les sujets).
+    static func autres() -> [Reunion] {
+        let cal = Calendar.current
+        func d(_ jour: Int, _ h: Int, _ m: Int) -> Date { cal.date(from: DateComponents(year: 2026, month: 11, day: jour, hour: h, minute: m))! }
+        func note(_ debut: Date, _ titre: String, _ duree: Double, _ gens: [String], _ bref: String) -> Reunion {
+            var r = Reunion(debut: debut, duree: duree, titre: titre, participants: gens, etat: .prete, enBref: bref)
+            r.sujets = [SujetReunion(titre: "L\u{2019}essentiel", puces: [PuceReunion(texte: bref)])]
+            return r
+        }
+        var ancienne = Reunion(debut: d(5, 9, 15), duree: 25 * 60, titre: "Visite de l\u{2019}atelier", participants: ["Moi", "Inès", "Marc"],
+                               dit: ["Deux postes de travail à déplacer avant la séance photo", "La lumière du fond est trop faible pour les tasses"],
+                               decisions: ["Séance photo à l\u{2019}atelier"], etat: .prete, enBref: "L\u{2019}atelier accueillera la séance photo, deux postes seront déplacés.")
+        ancienne.segments = [SegmentReunion(debut: 12, fin: 20, locuteur: .eux, texte: "On peut pousser ces deux tables contre le mur."),
+                             SegmentReunion(debut: 22, fin: 26, locuteur: .moi, texte: "D\u{2019}accord, on fera ça la veille.")]
+        var sansNote = Reunion(debut: d(10, 17, 40), duree: 1020, etat: .sansNote)
+        sansNote.segments = [SegmentReunion(debut: 3, fin: 6, locuteur: .eux, texte: "On se rappelle demain pour la suite."),
+                             SegmentReunion(debut: 9, fin: 11, locuteur: .moi, texte: "D\u{2019}accord, à demain.")]
+        sansNote.avertissements = ["La note n\u{2019}a pas pu être écrite (réseau : code -1009). La transcription est gardée : « Refaire la note » réessaie."]
+        return [note(d(9, 10, 30), "Point fournisseur emballages", 18 * 60, ["Moi", "Paul"], "Livraison des boîtes confirmée pour le 23 novembre."),
+                sansNote,
+                note(d(5, 16, 0), "Appel avec la comptable", 42 * 60, ["Moi", "Sophie"], "Bilan à rendre avant fin janvier, deux justificatifs manquent."),
+                ancienne]
+    }
+
     @MainActor
     static func executer(dossier: String) -> Int32 {
         _ = NSApplication.shared
@@ -69,22 +135,29 @@ enum RenduReunions {
 
         // L'encoche des réunions est devenue une activité de l'îlot : ses rendus sont avec ceux de l'îlot (`--rendu-ilot`, ilot-27*).
 
-        // MARK: fenêtre
-        let exemples = reunionsExemple()
-        let store = ReunionStore(dossier: FileManager.default.temporaryDirectory.appendingPathComponent("dictee-rendu-reunions"), lire: false)
+        let boutique = boutique()
+        let exemples = [boutique] + autres()
+        let dossierRendu = FileManager.default.temporaryDirectory.appendingPathComponent("dictee-rendu-reunions")
+        try? FileManager.default.removeItem(at: dossierRendu)
+        let store = ReunionStore(dossier: dossierRendu, lire: false)
         for r in exemples { store.enregistrer(r) }
         let vide = ReunionStore(dossier: FileManager.default.temporaryDirectory.appendingPathComponent("dictee-rendu-reunions-vide"), lire: false)
+        // le son gardé : des fichiers vides suffisent au rendu (jamais lus), pour montrer « Écouter »
+        try? FileManager.default.createDirectory(at: store.dossier, withIntermediateDirectories: true)
+        for l in [Locuteur.moi, .eux] { FileManager.default.createFile(atPath: store.fichierSon(boutique, l).path, contents: Data()) }
+        defer { try? FileManager.default.removeItem(at: dossierRendu) }
         let historique = RenduVues.historiqueExemple()
-        let taille = CGSize(width: 1180, height: 760)
-        let maquette = CGSize(width: 1190, height: 760)   // la taille de la capture de la maquette, pour comparer au pixel près
-        let petite = CGSize(width: 700, height: 600)
+        let maquette = CGSize(width: 1190, height: 760)   // la taille de la capture de la maquette, pour comparer
+        let haute = CGSize(width: 1190, height: 1400)
+        let petite = CGSize(width: 700, height: 640)
+        let aujourdhui = boutique.debut.addingTimeInterval(40 * 60)
 
-        func fenetre(_ nom: String, store: ReunionStore, ouverte: UUID? = nil, deplier: Bool = false, suppression: Bool = false, taille: CGSize = taille, enCours: Bool = false, point: Int? = nil, filtre: FiltreReunions = .toutes) {
+        func fenetre(_ nom: String, store: ReunionStore, ouverte: UUID? = nil, taille: CGSize = maquette, regler: (ReunionsModele) -> Void = { _ in }) {
             let nav = NavigationFenetre(); nav.onglet = .reunions
             let r = ReunionsModele(store: store)
-            r.selection = store.reunions.first?.id
-            r.filtre = filtre
-            if let ouverte { r.ouvrir(ouverte); r.transcriptionDepliee = deplier; r.suppressionEnAttente = suppression; r.pointOuvert = point }
+            r.aujourdhui = { aujourdhui }
+            r.ouverte = ouverte
+            regler(r)
             let controleur = ReunionController(store: store)
             let d = ModeleDictees(store: historique)
             let mots = MotsModele(persistant: false, mots: [], raccourcis: [], propositions: PropositionsMots())
@@ -95,34 +168,30 @@ enum RenduReunions {
             }
             ok = RenduVues.ecrire(RenduVues.png(vue, taille: taille), url.appendingPathComponent("\(nom).png")) && ok
         }
-        let garnier = exemples[0].id, sansNote = exemples.first { $0.etat == .sansNote }!.id
-        // le son gardé : un fichier vide suffit au rendu (il n'est jamais lu), pour montrer le bouton « Écouter »
-        let sonFactice = store.fichierSon(exemples[0], .eux)
-        try? FileManager.default.createDirectory(at: store.dossier, withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: sonFactice.path, contents: Data())
-        defer { try? FileManager.default.removeItem(at: sonFactice) }
-        var sansSon = exemples[0]; sansSon.id = UUID(); sansSon.sonGarde = false
-        let storeSansSon = ReunionStore(dossier: FileManager.default.temporaryDirectory.appendingPathComponent("dictee-rendu-reunions-sans-son"), lire: false)
-        storeSansSon.enregistrer(sansSon)
-        var ancienne = exemples[0]; ancienne.id = UUID(); ancienne.enBref = nil; ancienne.citations = nil; ancienne.decisionsEcheances = nil; ancienne.sonGarde = false
-        ancienne.dit = ["Deux ateliers à équiper, un à Lyon et un à Annecy, avant janvier.", "Le prix reste le point sensible : Nathalie en parle à son associé jeudi."]
-        ancienne.actions = ancienne.actions.map { var b = $0; b.echeance = nil; return b }
-        let storeAncienne = ReunionStore(dossier: FileManager.default.temporaryDirectory.appendingPathComponent("dictee-rendu-reunions-ancienne"), lire: false)
-        storeAncienne.enregistrer(ancienne)
-
-        fenetre("reunions-1-liste", store: store, taille: maquette)
-        fenetre("reunions-1b-liste-avec-actions", store: store, taille: maquette, filtre: .avecActions)
-        fenetre("reunions-2-note", store: store, ouverte: garnier, taille: maquette)
-        fenetre("reunions-2b-note-depliee", store: store, ouverte: garnier, taille: maquette, point: 2)
-        fenetre("reunions-2c-note-depliee-sans-son", store: storeSansSon, ouverte: sansSon.id, taille: maquette, point: 2)
-        fenetre("reunions-2d-note-etroite", store: store, ouverte: garnier, taille: CGSize(width: 760, height: 1260), point: 2)
-        fenetre("reunions-2e-ancienne-note", store: storeAncienne, ouverte: ancienne.id, taille: maquette)
-        fenetre("reunions-3-transcription", store: store, ouverte: garnier, deplier: true, taille: CGSize(width: 1190, height: 1100))
-        fenetre("reunions-4-sans-note", store: store, ouverte: sansNote)
-        fenetre("reunions-5-effacer", store: store, ouverte: garnier, suppression: true, taille: maquette)
-        fenetre("reunions-6-vide", store: vide)
-        fenetre("reunions-7-petite-note", store: store, ouverte: garnier, taille: petite)
-        fenetre("reunions-8-petite-liste", store: store, taille: petite)
+        let photo = boutique.segments.firstIndex { $0.texte.hasPrefix("Je réserve la séance") }!
+        fenetre("reunions-1-note", store: store)
+        fenetre("reunions-2-note-entiere", store: store, taille: haute)
+        fenetre("reunions-3-ecoute-et-demander", store: store, taille: haute) { m in
+            m.simulerEcoute(photo, depuis: 2.4)
+            m.reponse = .prete(question: "Qui s\u{2019}occupe des photos ?", QuestionReunion.Reponse(texte: "Inès. Elle réserve une seule séance photo à l\u{2019}atelier avant le 20 novembre et donne le jour demain.", passage: photo))
+        }
+        fenetre("reunions-3b-reponse-en-attente", store: store) { m in m.reponse = .attente(question: "Quand le site sort-il ?") }
+        var renommee = boutique; renommee.renommer(orateur: "eux", en: "Claire")
+        let storeRenomme = ReunionStore(dossier: FileManager.default.temporaryDirectory.appendingPathComponent("dictee-rendu-reunions-renomme"), lire: false)
+        storeRenomme.enregistrer(renommee)
+        fenetre("reunions-4-eux-renomme-claire", store: storeRenomme, taille: haute)
+        fenetre("reunions-5-demander-a-mes-reunions", store: store) { m in
+            m.demandeToutes = true
+            m.poserReponseToutes(.prete(question: "Quand sort le site ?", QuestionReunion.Reponse(texte: "Le mercredi 2 décembre, si Marc a tous les textes avant le 25 novembre (appel du 11 novembre).", reunion: 0)), envoyees: [boutique])
+        }
+        fenetre("reunions-6-sans-note", store: store, ouverte: exemples.first { $0.etat == .sansNote }!.id)
+        fenetre("reunions-7-ancienne-note", store: store, ouverte: exemples.last!.id)
+        fenetre("reunions-8-effacer", store: store) { m in m.suppressionEnAttente = true }
+        fenetre("reunions-9-recherche", store: store) { m in m.requete = "photos" }
+        fenetre("reunions-10-vide", store: vide)
+        fenetre("reunions-11-etroite-note", store: store, ouverte: boutique.id, taille: petite)
+        fenetre("reunions-12-etroite-liste", store: store, taille: petite)
+        fenetre("reunions-13-a-la-taille-de-hugues", store: store, taille: CGSize(width: 1190, height: 650))
 
         // MARK: panneau compact avec l'entrée « Noter la réunion »
         for (nom, enCours) in [("panneau-reunion-1", false), ("panneau-reunion-2-en-cours", true)] {

@@ -80,8 +80,8 @@ public struct ReunionIlot: Equatable, Sendable {
 public enum AnnonceReunion: Equatable, Sendable {
     /// Une app d'appel utilise le micro : « Noter cet appel ? » (jamais d'enregistrement sans clic).
     case propose(app: String)
-    /// Après l'arrêt : la transcription et la note se préparent (`etape` : « Transcription, 3 morceaux », « Note en préparation »).
-    case prepare(etape: String)
+    /// Après l'arrêt : tout l'appel est relu, puis la note s'écrit (`etape` : « Relecture de tout l'appel »… ; `progres` : 0 à 1).
+    case prepare(etape: String, progres: Double)
     /// « Note prête · Ouvrir » (ou « Transcription prête » si la note n'a pas pu être écrite).
     case prete(id: UUID, titre: String, duree: Double, sansNote: Bool)
     case message(String)

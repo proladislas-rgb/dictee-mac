@@ -43,6 +43,8 @@ struct ContenuAnnonce {
     var glisser: URL? = nil
     /// À la place du symbole : l'étoile de Claude (dessinée, en corail).
     var etoile = false
+    /// À la place du symbole : un anneau qui se remplit (0 à 1) ; « Note en préparation… ».
+    var progres: Double? = nil
 
     static let cote: CGFloat = 26, espace: CGFloat = 12, espaceBoutons: CGFloat = 8, espaceJauges: CGFloat = 8
     /// L'icône d'un fichier : 38 pt, presque la hauteur des deux lignes (maquette ilot-apple.html, « Téléchargé »).
@@ -205,11 +207,14 @@ extension IlotMoteur {
             return ContenuAgenda.retrait + max(textes, MesureIlot.boutons(ContenuAgenda.boutons(e), memeLargeur: true))
         }
         guard let c = contenuAnnonce(v) else { return nil }
-        let textes = max(MesureIlot.texte(c.l1, 17, .semibold, interlettre: ContenuAnnonce.interlettreL1), MesureIlot.texte(c.l2, 12.5, .medium))
-        var l = c.coteSymbole + ContenuAnnonce.espace + textes
+        // « Note en préparation… » : mesurée sur sa plus longue étape et sur « 100 % », la forme ne bouge pas pendant qu'elle avance
+        let l2 = v == .reunionPrepare ? PreparationNote.etapes.max { MesureIlot.texte($0, 12.5, .medium) < MesureIlot.texte($1, 12.5, .medium) } ?? c.l2 : c.l2
+        let textes = max(MesureIlot.texte(c.l1, 17, .semibold, interlettre: ContenuAnnonce.interlettreL1), MesureIlot.texte(l2, 12.5, .medium))
+        // sans symbole, « Note en préparation… » commence au bord (le pourcentage est sur la ligne du titre)
+        var l = c.progres == nil ? c.coteSymbole + ContenuAnnonce.espace + textes : textes
         switch c.droite {
         case .rien: break
-        case .meta(let t): l += ContenuAnnonce.espace + MesureIlot.texte(t, 13, .semibold, chiffres: true)
+        case .meta(let t): l += ContenuAnnonce.espace + MesureIlot.texte(v == .reunionPrepare ? PreparationNote.pourcent(1) : t, 13, .semibold, chiffres: true)
         case .temps:
             let mn = minuteur ?? dernierMinuteur
             l += ContenuAnnonce.espace + MesureIlot.texte(FormatIlot.duree(mn.total), 15, .semibold, chiffres: true)

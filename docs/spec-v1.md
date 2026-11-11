@@ -637,3 +637,40 @@ Minuteur, Son de fin du minuteur (+ Écouter), Rappels, Calendrier, Notification
 9. **Notifications (expérimental)** : activer, recevoir un message : si le bandeau de l'îlot ne vient pas, le journal dit « notifications : … » ; la structure des bannières de macOS 26 n'a pas pu être lue d'ici.
 10. **Plein écran** : l'îlot au-dessus d'une app en plein écran, sans voler le clavier.
 11. **Refonte « Apple Pro »** : sur une vidéo YouTube, survoler l'encoche : la forme se gonfle, la miniature glisse de l'aile à sa place, le titre et les boutons arrivent juste après ; sortir : tout repart, la forme se dégonfle sans rebond. Revenir pendant la fermeture : elle repart vers l'ouvert sans saut. Îlot déplié : cliquer un menu à côté du cou (il doit s'ouvrir, et l'îlot se refermer). Activer « Réduire les animations » pendant que Verbe tourne : l'effet doit changer tout de suite.
+
+## Réunions façon Wispr Flow — la note après l'appel (11/11, branche `reunions-wispr`)
+
+Maquette validée par Hugues (« très bien pour ce visuel ») : `design/maquettes/ilot-reunion.html`, étapes 8 à 12. Rendus : `design/rendus-reunions/reunions-*.png` (`Verbe --rendu-reunion DOSSIER`) et `design/rendus-ilot/ilot-27n-*` (`--rendu-ilot`).
+
+### Ce qui se passe à l'arrêt
+1. Pendant l'appel, le son des deux pistes est TOUJOURS écrit sur le Mac (`Reunions/<nom>-moi.wav`, `-eux.wav`, 0600, dossier 0700), calé sur l'heure de la réunion : l'échantillon n est à n / 16 000 s de réunion (un départ tardif du son du Mac ou une pause y laissent du silence, `EcrivainWAV.caler`). Les passages de parole vus par le découpage sont notés voix par voix.
+2. À l'arrêt, les derniers morceaux du direct finissent, puis tout l'enregistrement est **relu** par whisper-large-v3 (`RelectureAudio`, `RelectureReunion`) : seuls les passages de parole partent (pas les silences), mis bout à bout avec 0,6 s de silence, en lots de 2 minutes au plus ; `verbose_json` + `timestamp_granularities[]=segment` donne des phrases horodatées, ramenées à l'heure de la réunion. Budget à part (`BudgetAudio.precis`, `BudgetRequetes.precis`), 3 essais sur réseau / 429 / 5xx, turbo de secours si le précis est limité, abandon d'un lot au-delà de 5 min d'attente : ce lot garde alors la transcription du direct (et la note le dit).
+3. Fusion des deux voix (échos retirés, reprises retirées, tours de 45 s au plus), transcription enregistrée tout de suite, puis la note (même service qu'avant, `max_completion_tokens` 5 000).
+4. Le son est effacé dès que c'est fini, sauf si « Garder le son des réunions » est actif (il sert alors à réécouter un moment). Une réunion interrompue (Verbe fermé) garde son son : « Refaire la note » la relit avant d'écrire la note.
+
+L'îlot montre « Note en préparation… », le pourcentage et l'étape (« Relecture de tout l'appel » jusqu'à 70 %, puis « Résumé, décisions, prochaines étapes ») avec la barre de la maquette ; la forme est mesurée sur la plus longue étape et sur « 100 % » (elle ne bouge pas pendant que ça avance). Puis « Note prête · Ouvrir » (8 s, reste sous la souris).
+
+### La note
+Phrase d'ouverture (`en_bref`), **résumé par sujets** (`sujets` : titre de 2 à 5 mots, 1 à 4 puces, 0 à 2 détails par puce), **Décisions** (avec leur condition), **Prochaines étapes** (qui en couleur, quand en vraie date, case à cocher), **points marqués** pendant l'appel (un clic va au moment), puis la **transcription** : l'orateur à chaque ligne, l'heure à la première ligne de chaque minute, un clic rejoue la ligne (barre de lecture) si le son est gardé. La garde anti-invention s'applique aux sujets, puces et détails. Les anciennes notes (« Dit ») s'affichent en un sujet sans titre.
+
+**Orateurs** : un orateur par passage (`SegmentReunion.orateur`, nil = celui de la piste), leur nom dans `Reunion.orateurs`. Aujourd'hui « Moi » et « Eux » ; un clic sur le nom dans l'en-tête le renomme une fois pour toutes (chaque passage, les prochaines étapes et participants qui portaient l'ancien nom suivent ; l'export aussi). La séparation des voix ajoutera des orateurs à la piste du Mac sans rien changer d'autre.
+
+**Demander** : un champ en bas de la note ; la question part avec la note et la transcription numérotée (lignes les plus proches de la question si elle est trop longue) ; la réponse (1 à 2 phrases, « Je n'ai rien trouvé là-dessus » sinon) renvoie au passage (« Écouter à 14:16 » si le son est là, sinon « Voir à 14:16 » qui y fait défiler). **Demander à mes réunions** (colonne de gauche) : seulement les notes (jamais les transcriptions), les plus récentes d'abord, la réponse ouvre la réunion qui la porte. **Copier** (Markdown) et **Exporter** (fichier .md, panneau d'enregistrement du Mac).
+
+**Onglet Réunions** : colonne de 236 pt (recherche, « Demander à mes réunions », « Noter / Arrêter la réunion », liste par jour : titre, « 14:02 · 29 min · 4 personnes ») et la note à droite (colonne de 780 pt au plus, Décisions et Prochaines étapes à droite dès 640 pt utiles). Fenêtre de moins de 720 pt : la liste OU la note (« ‹ Réunions »).
+
+### Vérifié
+- `swift build -c release` ; `swift run -c release DicteeControles` (lots, heures ramenées à la réunion, `verbose_json`, repli sur le direct, progression, sujets et garde, Markdown, transcription minute par minute, orateurs renommés, « Demander », anciennes réunions lisibles) ; `.build/release/Dictee --ilot-essai` (annonce « Note en préparation… » qui avance sans changer de taille ; chaîne complète avec Whisper et note factices sur deux vrais fichiers son : 0600, son calé sur l'heure, en-tête incomplet toléré, chaque lot reçoit le son du bon moment, lot en échec = direct gardé, progression qui ne recule jamais, son effacé à la fin) ; rendus comparés à la maquette (étapes 9, 11, 12, et à 1 190 × 650).
+
+### À vérifier en vrai (par Hugues, app installée)
+1. Un vrai appel de 5 à 10 min : à l'arrêt, « Note en préparation… » avance, puis « Note prête » ; la transcription de la note est-elle nettement plus propre que le direct ?
+2. Le temps réel de la relecture (un lot par voix toutes les 2 minutes de parole) et le journal (`réunion : relecture lot n…`).
+3. Réécouter une ligne (avec « Garder le son des réunions » allumé) : le son tombe-t-il bien sur la phrase ?
+4. « Demander » et « Demander à mes réunions » sur de vraies notes.
+5. Renommer « Eux » dans une note.
+
+### Écarts et limites
+- « Noter / Arrêter la réunion » et « Effacer » ajoutés (absents de la maquette) : sans eux, plus de chemin depuis la fenêtre.
+- Les noms de chacun (« Qui parle », étape de la maquette) ne sont pas faits : pas encore de séparation des voix, « Moi / Eux » renommables à la main.
+- Pendant l'appel, le son est désormais écrit sur le disque même réglage éteint (≈ 115 Mo par heure et par piste), effacé à la fin du traitement ; après un arrêt brutal, il reste jusqu'à « Refaire la note » ou l'effacement de la réunion.
+- `--reunion-test` passe par la même chaîne (relecture comprise) ; non lancé ici (réseau).

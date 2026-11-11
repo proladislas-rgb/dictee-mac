@@ -20,21 +20,30 @@ struct GenerationNote {
     var tailleDePartie = 10_000
 
     /// `surEtape` : un court libellé de ce qui se passe (« Note en préparation, partie 2 sur 4 »). Journal sans contenu de la réunion.
-    func rediger(segments: [SegmentReunion], duree: Double, debut: Date, surEtape: @escaping @Sendable (String) -> Void = { _ in }) async throws -> (note: NoteBrute, retraits: [String]) {
+    /// `avance(fait, total)` : les appels faits sur le total (une partie par appel, plus l'assemblage), pour « Note en préparation… ».
+    func rediger(segments: [SegmentReunion], duree: Double, debut: Date,
+                 surEtape: @escaping @Sendable (String) -> Void = { _ in },
+                 avance: @escaping @Sendable (Int, Int) -> Void = { _, _ in }) async throws -> (note: NoteBrute, retraits: [String]) {
         let garde = GardeInvention(segments: segments)
         let parties = DecoupeReunion.parties(segments, maxCaracteres: tailleDePartie)
         var brute: NoteBrute
         if parties.count <= 1 {
             surEtape("Note en préparation")
-            brute = try await appeler(systeme: NoteReunion.consigneNote, message: NoteReunion.messageTranscription(segments, duree: duree, debut: debut), maxSortie: 4500, effort: "medium")
+            avance(0, 1)
+            brute = try await appeler(systeme: NoteReunion.consigneNote, message: NoteReunion.messageTranscription(segments, duree: duree, debut: debut), maxSortie: 5000, effort: "medium")
+            avance(1, 1)
         } else {
             var notes: [NoteBrute] = []
+            let total = parties.count + 1
             for (i, p) in parties.enumerated() {
                 surEtape("Note en préparation, partie \(i + 1) sur \(parties.count)")
+                avance(i, total)
                 notes.append(try await appeler(systeme: NoteReunion.consignePartie, message: NoteReunion.messagePartie(p, numero: i + 1, sur: parties.count), maxSortie: 2600, effort: "low"))
             }
             surEtape("Note en préparation, assemblage")
-            brute = try await appeler(systeme: NoteReunion.consigneAssemblage, message: NoteReunion.messageAssemblage(notes, duree: duree, debut: debut), maxSortie: 4500, effort: "medium")
+            avance(parties.count, total)
+            brute = try await appeler(systeme: NoteReunion.consigneAssemblage, message: NoteReunion.messageAssemblage(notes, duree: duree, debut: debut), maxSortie: 5000, effort: "medium")
+            avance(total, total)
         }
         let (propre, retraits) = garde.nettoyer(brute)
         return (propre, retraits)
@@ -55,6 +64,35 @@ struct GenerationNote {
         Log.ecrire("réunion : « Ce que j'ai raté », réponse de \(modele) en \(Int((ProcessInfo.processInfo.systemUptime - t0) * 1000)) ms (\(r.jetons) jetons)")
         guard let puces = RattrapageReunion.analyser(r.texte) else { throw Erreur.reponseIllisible }
         return puces
+    }
+
+    /// « Demander » sur une réunion : une réponse courte et le passage qui l'appuie (le même service et le même plafond que la note).
+    func demander(_ question: String, reunion r: Reunion) async throws -> QuestionReunion.Reponse {
+        let message = QuestionReunion.message(question, reunion: r)
+        let texte = try await completer(systeme: QuestionReunion.consigne, message: message, maxSortie: 1200)
+        guard let rep = QuestionReunion.analyser(texte, passages: r.segments.count) else { throw Erreur.reponseIllisible }
+        return rep
+    }
+
+    /// « Demander à mes réunions » : à partir des notes (les plus récentes d'abord) ; la réponse dit de quelle réunion elle vient.
+    func demander(_ question: String, reunions: [Reunion]) async throws -> (reponse: QuestionReunion.Reponse, envoyees: [Reunion]) {
+        let (message, n) = QuestionReunion.messageToutes(question, reunions: reunions)
+        let texte = try await completer(systeme: QuestionReunion.consigneToutes, message: message, maxSortie: 1200)
+        guard let rep = QuestionReunion.analyserToutes(texte, nombre: n) else { throw Erreur.reponseIllisible }
+        return (rep, Array(reunions.prefix(n)))
+    }
+
+    /// Un appel court : pas plus de 10 s d'attente sous le plafond de jetons, 45 s de réponse.
+    private func completer(systeme: String, message: String, maxSortie: Int) async throws -> String {
+        let estimation = DecoupeReunion.jetons(systeme) + DecoupeReunion.jetons(message) + maxSortie
+        let attente = Self.budget.delaiAvant(jetons: estimation)
+        if attente > 10 { throw Erreur.abandon("plafond de jetons par minute") }
+        if attente > 0 { try await Task.sleep(for: .seconds(attente)) }
+        let t0 = ProcessInfo.processInfo.systemUptime
+        let r = try await groq.completerNote(modele: modele, systeme: systeme, texte: message, maxSortie: maxSortie, effort: "low", delai: 45)
+        Self.budget.noter(jetons: r.jetons > 0 ? r.jetons : estimation)
+        Log.ecrire("réunions : « Demander », réponse de \(modele) en \(Int((ProcessInfo.processInfo.systemUptime - t0) * 1000)) ms (\(r.jetons) jetons)")
+        return r.texte
     }
 
     private func appeler(systeme: String, message: String, maxSortie: Int, effort: String) async throws -> NoteBrute {

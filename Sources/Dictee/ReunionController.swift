@@ -35,8 +35,15 @@ final class ReunionController: ObservableObject {
     private(set) var etatIlot: ReunionIlot?
     /// L'app de l'appel qu'on a proposé de noter (« Noter » la garde pour l'en-tête de la carte).
     private var appProposee: String?
-    /// Ce qui se passe après l'arrêt (« Transcription, 3 morceaux », « Note en préparation, partie 2 sur 4 »).
-    private var etapeTraitement = "Transcription\u{2026}"
+    /// Ce qui se passe après l'arrêt : l'étape (« Relecture de tout l'appel »…) et la progression (0 à 1) montrées dans l'îlot.
+    private var etapeTraitement = PreparationNote.relecture
+    private var progresTraitement = 0.0
+    /// La relecture de tout l'enregistrement après l'appel (réseau remplaçable dans les essais).
+    var relecture = RelectureAudio()
+    /// La rédaction de la note (réseau remplaçable dans les essais) : passages, durée, début, avance(fait, total).
+    var rediger: RedigerNote = { segments, duree, debut, avance in
+        try await GenerationNote().rediger(segments: segments, duree: duree, debut: debut, avance: avance)
+    }
     private var finPoint: DispatchWorkItem?
     private var rattrapage: Task<Void, Never>?
 
@@ -52,6 +59,8 @@ final class ReunionController: ObservableObject {
         let verrou = NSLock()
         var segmentsMoi: [SegmentReunion] = []
         var segmentsEux: [SegmentReunion] = []
+        /// Les passages de parole vus pendant l'appel, voix par voix : ce que la relecture renverra (sans les silences).
+        var passages: [Locuteur: [PassageParole]] = [:]
         var points: [Double] = []
         var sonSystemeActif = false
         var derniereSauvegarde = Date.distantPast
@@ -67,6 +76,11 @@ final class ReunionController: ObservableObject {
             if s.locuteur == .moi { segmentsMoi.append(s) } else { segmentsEux.append(s) }
         }
         func copies() -> ([SegmentReunion], [SegmentReunion]) { verrou.lock(); defer { verrou.unlock() }; return (segmentsMoi, segmentsEux) }
+        func noterPassage(_ m: MorceauReunion) {
+            verrou.lock(); defer { verrou.unlock() }
+            passages[m.locuteur, default: []].append(PassageParole(debut: m.debut, fin: m.debut + m.duree))
+        }
+        func copiePassages() -> [Locuteur: [PassageParole]] { verrou.lock(); defer { verrou.unlock() }; return passages }
     }
 
     init(store: ReunionStore? = nil) {
@@ -111,25 +125,20 @@ final class ReunionController: ObservableObject {
         annonce?.cancel()
         if case .proposition(let app) = machine.phase { appProposee = app } else { appProposee = nil }
         let reunion = Reunion(debut: Date(), etat: .enregistrement, sonGarde: Settings.garderSonReunions)
-        let s = Session(reunion: reunion, fichiers: { [store] l in Settings.garderSonReunions ? store.fichierSon(reunion, l) : nil })
+        // le son des deux pistes est toujours écrit sur ce Mac (0600) : la relecture d'après l'appel en a besoin ; il est effacé dès la
+        // note faite, sauf si « Garder le son des réunions » est actif
+        let s = Session(reunion: reunion, fichiers: { [store] l in store.fichierSon(reunion, l) })
         session = s
         machine.lancer()
         store.enregistrer(reunion)
         Log.ecrire("réunion : début (son gardé : \(Settings.garderSonReunions ? "oui" : "non"))")
 
-        s.moi.surMorceau = { [weak s] m in s?.transcripteur.soumettre(m) }
-        s.eux.surMorceau = { [weak s] m in s?.transcripteur.soumettre(m) }
+        s.moi.surMorceau = { [weak s] m in s?.noterPassage(m); s?.transcripteur.soumettre(m) }
+        s.eux.surMorceau = { [weak s] m in s?.noterPassage(m); s?.transcripteur.soumettre(m) }
         s.transcripteur.surSegment = { [weak self, weak s] seg in
             guard let s else { return }
             s.ajouter(seg)
             Task { @MainActor in self?.segmentRecu(s) }
-        }
-        s.transcripteur.surProgression = { [weak self, weak s] n in
-            Task { @MainActor in
-                guard let self, let s, self.machine.phase == .traitement, self.session !== s || !self.machine.enregistre else { return }
-                self.etapeTraitement = n > 0 ? "Transcription, \(n) morceau\(n > 1 ? "x" : "") à finir" : "Note en préparation"
-                self.majPhase()
-            }
         }
 
         var e = ReunionIlot()
@@ -218,7 +227,7 @@ final class ReunionController: ObservableObject {
         rattrapage?.cancel(); rattrapage = nil
         finPoint?.cancel()
         etatIlot = nil
-        etapeTraitement = s.transcripteur.restants > 0 ? "Transcription de la fin de l\u{2019}appel" : "Note en préparation"
+        etapeTraitement = PreparationNote.relecture; progresTraitement = 0
         s.reunion.duree = duree
         s.reunion.points = s.points.isEmpty ? nil : s.points
         s.reunion.etat = .transcription
@@ -230,33 +239,70 @@ final class ReunionController: ObservableObject {
 
     // MARK: après l'arrêt
 
+    typealias RedigerNote = @Sendable ([SegmentReunion], Double, Date, @escaping @Sendable (Int, Int) -> Void) async throws -> (note: NoteBrute, retraits: [String])
+
+    /// Après l'arrêt : tout l'appel est relu avec le modèle précis (en même temps, les derniers morceaux du direct finissent : ils
+    /// remplacent un lot que la relecture n'aurait pas pu refaire), puis la note s'écrit. L'îlot montre l'étape et la progression.
     private func traiter(_ s: Session) async {
+        let r0 = s.reunion
+        let fichiers = [Locuteur.moi: store.fichierSon(r0, .moi), .eux: store.fichierSon(r0, .eux)]
         await s.transcripteur.attendreLaFin()
         let (moi, eux) = s.copies()
-        let (fusion, echos) = FusionPistes.transcription(moi: moi, eux: eux)
-        var r = s.reunion
-        r.segments = fusion
-        if echos > 0 { Log.ecrire("réunion : \(echos) écho(s) du haut-parleur retiré(s) de la piste Moi") }
-        if s.transcripteur.echecs > 0 {
+        let prepare = await Self.preparer(r0, passages: s.copiePassages(), direct: moi + eux, fichiers: fichiers, relecture: relecture, rediger: rediger,
+                                          surNote: { [weak self] r in
+            Task { @MainActor in
+                // jamais par-dessus la note déjà rangée (la transcription relue n'est enregistrée que si la réunion attend encore)
+                guard let self, let actuelle = self.store.reunion(id: r.id), actuelle.etat == .transcription else { return }
+                self.store.enregistrer(r); self.libelleEnCours = "Note en préparation…"
+            }
+        }) { [weak self] p, etape in
+            Task { @MainActor in self?.avancer(p, etape) }
+        }
+        guard var r = prepare else {
+            Log.ecrire("réunion : rien entendu, non gardée")
+            store.supprimer(id: r0.id)
+            terminerTraitement(note: nil, message: "Rien entendu, réunion non gardée")
+            return
+        }
+        if s.transcripteur.echecs > 0, r.relue != true {
             r.avertissements.append("\(s.transcripteur.echecs) passage\(s.transcripteur.echecs > 1 ? "s" : "") n'ont pas pu être transcrit\(s.transcripteur.echecs > 1 ? "s" : "") (réseau ou limite de Groq).")
         }
         if s.sonSystemeActif, s.eux.secondesRecues >= 10, !s.eux.aRecuDuSon {
             r.avertissements.append("Le son du Mac est resté totalement silencieux. Soit rien ne jouait, soit l'autorisation d'enregistrer le son du système manque (Réglages Système › Confidentialité et sécurité).")
         }
-        guard !fusion.isEmpty, r.duree >= 3 else {
-            Log.ecrire("réunion : rien entendu, non gardée")
-            store.supprimer(id: r.id)
-            terminerTraitement(note: nil, message: "Rien entendu, réunion non gardée")
-            return
+        // le son n'a servi qu'à la relecture : il part, sauf si le réglage demande de le garder (pour réécouter un moment)
+        if !r.sonGarde { store.effacerSon(r) }
+        store.enregistrer(r)
+        avancer(1, PreparationNote.redaction)
+        terminerTraitement(note: r.id, sansNote: r.etat == .sansNote)
+    }
+
+    /// La relecture puis la note, sans rien du contrôleur (l'essai l'appelle avec une relecture et une rédaction factices) : la réunion
+    /// prête (ou « sans note » si la rédaction a échoué), nil si rien n'a été entendu. `surNote` : la transcription relue, juste avant
+    /// la rédaction (elle est enregistrée tout de suite : rien ne se perd si la rédaction échoue ou si Verbe est fermé).
+    nonisolated static func preparer(_ depart: Reunion, passages: [Locuteur: [PassageParole]], direct: [SegmentReunion], fichiers: [Locuteur: URL],
+                                     relecture: RelectureAudio, rediger: RedigerNote, surNote: @escaping @Sendable (Reunion) -> Void = { _ in },
+                                     avance: @escaping @Sendable (Double, String) -> Void) async -> Reunion? {
+        avance(0, PreparationNote.relecture)
+        let relu = await relecture.relire(passages: passages, direct: direct, fichiers: fichiers, duree: depart.duree) { fait, total in
+            avance(PreparationNote.progresRelecture(fait: fait, sur: total), PreparationNote.relecture)
+        }
+        let (fusion, echos) = FusionPistes.transcription(moi: relu.segments.filter { $0.locuteur == .moi }, eux: relu.segments.filter { $0.locuteur == .eux },
+                                                         dureeMax: RelectureReunion.tourMax)
+        if echos > 0 { Log.ecrire("réunion : \(echos) écho(s) du haut-parleur retiré(s) de la piste Moi") }
+        guard !fusion.isEmpty, depart.duree >= 3 else { return nil }
+        var r = depart
+        r.segments = fusion
+        r.relue = relu.relue
+        if relu.echoues > 0 {
+            r.avertissements.append("\(relu.echoues) passage\(relu.echoues > 1 ? "s" : "") de l\u{2019}appel n\u{2019}\(relu.echoues > 1 ? "ont" : "a") pas pu être relu\(relu.echoues > 1 ? "s" : "") (réseau ou limite de Groq) : c\u{2019}est la transcription du direct.")
         }
         r.etat = .redaction
-        store.enregistrer(r)
-        libelleEnCours = "Note en préparation…"
-        etapeTraitement = "Résumé, décisions, prochaines étapes"
-        majPhase()
+        surNote(r)
+        avance(PreparationNote.progresRedaction(fait: 0, sur: 1), PreparationNote.redaction)
         do {
-            let (note, retraits) = try await GenerationNote().rediger(segments: fusion, duree: r.duree, debut: r.debut) { [weak self] etape in
-                Task { @MainActor in self?.etapeTraitement = etape; self?.majPhase() }
+            let (note, retraits) = try await rediger(fusion, r.duree, r.debut) { fait, total in
+                avance(PreparationNote.progresRedaction(fait: fait, sur: total), PreparationNote.redaction)
             }
             for x in retraits { Log.ecrire("réunion : garde anti-invention, retiré \(x)") }
             NoteReunion.appliquer(note, a: &r, segments: fusion)
@@ -266,8 +312,15 @@ final class ReunionController: ObservableObject {
             r.etat = .sansNote
             r.avertissements.append("La note n'a pas pu être écrite (\(error)). La transcription est gardée : « Refaire la note » réessaie.")
         }
-        store.enregistrer(r)
-        terminerTraitement(note: r.id, sansNote: r.etat == .sansNote)
+        return r
+    }
+
+    /// La progression ne recule jamais (deux traitements qui se chevauchent montrent le plus avancé).
+    private func avancer(_ p: Double, _ etape: String) {
+        guard machine.phase == .traitement || machine.enTraitement > 0 else { return }
+        if p < progresTraitement && etape == etapeTraitement { return }
+        progresTraitement = max(progresTraitement, p); etapeTraitement = etape
+        majPhase()
     }
 
     private func terminerTraitement(note: UUID?, sansNote: Bool = false, message: String? = nil) {
@@ -285,11 +338,23 @@ final class ReunionController: ObservableObject {
         r.avertissements.removeAll { $0.hasPrefix("La note n'a pas pu être écrite") }
         store.enregistrer(r)
         libelleEnCours = "Note en préparation…"
+        let fichiers = [Locuteur.moi: store.fichierSon(r, .moi), .eux: store.fichierSon(r, .eux)]
+        let relire = r.relue != true && (store.sonPresent(r, .moi) || store.sonPresent(r, .eux))
         Task {
+            // un appel interrompu (Verbe fermé) garde son son : il est relu avant la note, comme à l'arrêt normal
+            if relire {
+                let relu = await relecture.relire(passages: [:], direct: r.segments, fichiers: fichiers, duree: r.duree) { _, _ in }
+                if relu.relue {
+                    r.segments = FusionPistes.transcription(moi: relu.segments.filter { $0.locuteur == .moi }, eux: relu.segments.filter { $0.locuteur == .eux },
+                                                            dureeMax: RelectureReunion.tourMax).segments
+                    r.relue = true
+                }
+            }
             do {
-                let (note, _) = try await GenerationNote().rediger(segments: r.segments, duree: r.duree, debut: r.debut)
+                let (note, _) = try await rediger(r.segments, r.duree, r.debut) { _, _ in }
                 NoteReunion.appliquer(note, a: &r, segments: r.segments)
                 r.etat = .prete
+                if !r.sonGarde { store.effacerSon(r) }
             } catch {
                 r.etat = .sansNote
                 r.avertissements.append("La note n'a pas pu être écrite (\(error)). La transcription est gardée : « Refaire la note » réessaie.")
@@ -419,7 +484,7 @@ final class ReunionController: ObservableObject {
         switch machine.phase {
         case .repos, .enregistrement: return nil
         case .proposition(let app): return .propose(app: app)
-        case .traitement: return .prepare(etape: etapeTraitement)
+        case .traitement: return .prepare(etape: etapeTraitement, progres: progresTraitement)
         case .message(let t): return .message(t)
         case .prete(let id):
             let r = store.reunion(id: id)

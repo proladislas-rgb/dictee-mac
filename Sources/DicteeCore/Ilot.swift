@@ -93,6 +93,8 @@ public enum GeoIlot {
     /// Dynamic Island) : la table donne le plus large permis, `corps(_:contenu:demiCamera:)` la largeur voulue.
     static let bandeau: [Double] = [14, 150, 72, 6, 28, 16, 10]
     static let alerte: [Double] = [14, 150, 79, 6, 30, 16, 10]
+    /// « Note en préparation… » : le titre et le pourcentage, l'étape, puis une barre de 6 pt (maquette ilot-reunion.html, étape 9).
+    static let bandeauPreparation: [Double] = [14, 150, 88, 6, 28, 16, 10]
     static let table: [VueIlot: [Double]] = [
         // repos : exactement l'encoche (pas d'épaule : rien ne déborde sur la barre autour de la caméra)
         .repos: [0, 0, 0, 0, 8, 0, 0],
@@ -137,7 +139,7 @@ public enum GeoIlot {
         .reunionCompact: compact(60),
         .reunionEtendu: [14, 144, profondeurReunion, 6, 34, 18, 10],
         // les annonces : des bandeaux qui épousent leur contenu
-        .reunionPropose: bandeau, .reunionPrepare: bandeau, .reunionPrete: bandeau, .reunionMessage: bandeau,
+        .reunionPropose: bandeau, .reunionPrepare: bandeauPreparation, .reunionPrete: bandeau, .reunionMessage: bandeau,
     ]
     /// Indices des valeurs : largeurs (cou, corps) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur mène ; à la
     /// fermeture la hauteur se replie d'abord.

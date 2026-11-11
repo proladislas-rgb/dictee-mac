@@ -481,7 +481,7 @@ enum RenduLecture {
         }
         ecrire(bureau(hauteur: hCarte) { ilot(scene(carte(reunion(760, lignes: DirectReunion.lignes(moi: long.filter { $0.locuteur == .moi }, eux: long.filter { $0.locuteur == .eux }))) { m in
             m.defilerLeDirect(90) })) }, "ilot-27m-reunion-direct-remonte")
-        ecrire(bureau(hauteur: petitBureau + 40) { ilot(scene { m in m.minuteur = minut(25, restant: 590); m.reunionChangee(nil, annonce: .prepare(etape: "Transcription de la fin de l\u{2019}appel")) }) }, "ilot-27n-reunion-9-note-en-preparation")
+        ecrire(bureau(hauteur: petitBureau + 40) { ilot(scene { m in m.minuteur = minut(25, restant: 590); m.reunionChangee(nil, annonce: .prepare(etape: PreparationNote.relecture, progres: 0.34)) }) }, "ilot-27n-reunion-9-note-en-preparation")
         ecrire(bureau(hauteur: petitBureau + 40) { ilot(scene { m in m.reunionChangee(nil, annonce: .prete(id: UUID(), titre: "Lancement de la boutique en ligne", duree: 1740, sansNote: false)) }) }, "ilot-27o-reunion-10-note-prete")
         ecrire(bureau(hauteur: petitBureau + 40) { ilot(scene { m in m.reunionChangee(nil, annonce: .message("Micro non autorisé, voir les Réglages")) }) }, "ilot-27p-reunion-message")
         for (cam, barre) in [(179.0, 33.0)] {
