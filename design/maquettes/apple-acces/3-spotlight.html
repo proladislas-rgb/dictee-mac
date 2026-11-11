@@ -1,0 +1,1188 @@
+<!doctype html>
+<!--
+Verbe — lancer un minuteur pendant qu'une vidéo joue. Concept 3 : « tirer l'îlot » (façon Spotlight de macOS 26).
+Le geste : pointeur sur l'îlot, deux doigts vers le bas. Une goutte noire suit les doigts, puis lâche un volet en verre
+(le seul élément en verre ; l'îlot reste noir). On tape la durée, Retour : le volet remonte dans l'îlot et le minuteur
+ressort en goutte sous l'aile droite, à sa place habituelle. La vidéo ne quitte jamais l'îlot.
+Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt.
+Le verre est imité : flou et voile clair partout ; dans Chrome, une fois le volet posé, son bord courbe aussi la lumière
+(filtre SVG #verreVif, cartes calculées à la taille du volet). Les valeurs sont réglées à l'œil : Apple ne les publie pas.
+À la main : deux doigts vers le bas (ou cliquer-glisser) sur l'îlot, taper une durée, Retour ; Échap referme.
+Paramètres d'URL (contrôle) : ?etape=3&fige=1 (état posé)  ·  ?etape=3&joue=1 (joue le passage vers l'étape 3)  ·  ?lent=1
+?cadre=1 : présentation dans index.html (sans les notes, régie claire, la scène prend toute la hauteur ; index.html lance et arrête la démonstration)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbe · concept 3 · Tirer l'îlot (Spotlight)</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --ambre:#ff9f0a;      /* minuteur, sur le noir de l'îlot */
+  --orange:#ff9500;     /* orange système, sur clair */
+  --onde:#ffab3d;       /* teinte tirée de la miniature */
+  --regie:#0f0f11;
+  --clair:#f5f5f7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--regie)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--clair);min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block;overflow:visible}
+
+/* =====================================================================
+   Le faux écran : haut d'un MacBook, macOS 26, apparence claire
+   ===================================================================== */
+#ecran{position:relative;height:clamp(460px,calc(100vh - 232px),740px);overflow:hidden;isolation:isolate;
+  user-select:none;-webkit-user-select:none;background:#dbe4ee}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(70% 90% at 90% 4%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 60%),
+  radial-gradient(60% 80% at 4% 100%,rgba(248,228,210,.95) 0,rgba(248,228,210,0) 62%),
+  linear-gradient(168deg,#c6d6ea 0%,#d9e4f0 40%,#ebe8e6 74%,#f0e2d6 100%)}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ---- barre des menus (transparente, comme dans macOS 26) ---- */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;z-index:2;
+  font-size:13.5px;color:#1d1d1f;white-space:nowrap;pointer-events:none}
+.menus,.etats{display:flex;flex-wrap:wrap;align-content:flex-start;height:33px;overflow:hidden;max-width:calc(50% - 152px)}
+.menus{column-gap:19px;padding-left:18px}
+.menus>*{height:33px;line-height:33px;font-weight:500}
+.menus>svg{height:17px;margin-top:7px;flex:none}
+.menus>b{font-weight:700}
+.etats{flex-direction:row-reverse;column-gap:15px;padding-right:15px}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats svg{width:17px;height:17px;color:#1d1d1f}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* ---- fenêtre Chrome ---- */
+.fen{position:absolute;left:max(18px,5.2%);right:max(18px,5.2%);top:41px;bottom:20px;border-radius:13px;overflow:hidden;z-index:1;
+  background:#fff;display:flex;flex-direction:column;pointer-events:none;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.26),0 36px 80px -20px rgba(24,36,60,.42),0 12px 26px -10px rgba(24,36,60,.22)}
+.tabs{height:42px;flex:none;background:#dde3ec;display:flex;align-items:flex-end;padding-left:84px;position:relative}
+.feux{position:absolute;left:15px;top:15px;display:flex;gap:8px}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.tab{position:relative;height:34px;width:222px;flex:none;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:8px;padding:0 9px 0 12px;font-size:12px;color:#454a52}
+.tab.act{background:#fff;color:#1f1f1f}
+.tab.act::before,.tab.act::after{content:"";position:absolute;bottom:0;width:10px;height:10px}
+.tab.act::before{left:-10px;background:radial-gradient(circle at 0 0,transparent 9.5px,#fff 10px)}
+.tab.act::after{right:-10px;background:radial-gradient(circle at 100% 0,transparent 9.5px,#fff 10px)}
+.tab .tt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent)}
+.tab svg{flex:none}
+.tab-plus{width:28px;height:28px;margin:0 0 4px 6px;display:grid;place-items:center;color:#454a52;flex:none}
+.outils{height:46px;flex:none;display:flex;align-items:center;gap:4px;padding:0 10px;border-bottom:1px solid #e7e9ee;color:#5b6069}
+.outils .ib{width:30px;height:30px;display:grid;place-items:center;flex:none}
+.omni{flex:1;min-width:0;height:34px;border-radius:17px;background:#edf1f8;display:flex;align-items:center;gap:9px;padding:0 12px 0 4px;margin:0 6px;font-size:13.5px;color:#1f1f1f;white-space:nowrap;overflow:hidden}
+.omni .rg{width:26px;height:26px;border-radius:13px;background:#fff;display:grid;place-items:center;flex:none}
+.omni .u{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.omni .u span{color:#6b7078}
+.profil{width:24px;height:24px;border-radius:50%;background:linear-gradient(160deg,#c7ccd6,#8d95a3);flex:none;margin:0 4px}
+
+/* ---- la page : YouTube, thème clair ---- */
+.page{flex:1;min-height:0;overflow:hidden;color:#0f0f0f;background:#fff}
+.yt-h{height:56px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 18px 0 20px}
+.yt-g{display:flex;align-items:center;gap:20px}
+.yt-logo{display:flex;align-items:center;gap:4px;font-size:19.5px;font-weight:700;letter-spacing:-1.1px}
+.yt-logo sup{font-size:9.5px;font-weight:500;color:#606060;letter-spacing:0;align-self:flex-start;margin:1px 0 0 3px}
+.yt-rech{display:flex;align-items:center;gap:12px}
+.yt-champ{width:min(436px,32vw);height:40px;border:1px solid #d5d5d5;border-radius:20px;display:flex;align-items:center;overflow:hidden}
+.yt-champ span{flex:1;padding-left:18px;font-size:15px;color:#8c8c8c}
+.yt-champ i{width:62px;height:100%;background:#f7f7f7;border-left:1px solid #d5d5d5;display:grid;place-items:center}
+.yt-rond{width:40px;height:40px;border-radius:20px;background:#f2f2f2;display:grid;place-items:center;flex:none}
+.yt-d{display:flex;align-items:center;gap:18px;justify-content:flex-end}
+.yt-creer{height:36px;border-radius:18px;background:#f2f2f2;display:flex;align-items:center;gap:6px;padding:0 15px 0 10px;font-size:14px;font-weight:500}
+.yt-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(150deg,#e8b48a,#b9764c)}
+.yt-c{display:grid;grid-template-columns:minmax(0,700px) minmax(260px,372px);justify-content:center;gap:24px;padding:24px 24px 0}
+.lecteur{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#111}
+.lecteur>svg{position:absolute;left:-1px;top:-1px;width:calc(100% + 2px);height:calc(100% + 2px)}
+.lecteur::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 140px rgba(70,26,0,.28);pointer-events:none}
+.lecteur .flotte{transform-box:view-box;transform-origin:200px 90px;animation:flotte 7s ease-in-out infinite alternate}
+@keyframes flotte{0%{transform:translate(0,0) rotate(-1.2deg)}100%{transform:translate(-3px,-2px) rotate(1.1deg)}}
+.ctl{position:absolute;left:0;right:0;bottom:0;height:96px;background:linear-gradient(0deg,rgba(0,0,0,.5),rgba(0,0,0,0));z-index:1}
+.ctl .barre{position:absolute;left:14px;right:14px;bottom:54px;height:4px;border-radius:2px;background:rgba(255,255,255,.3)}
+.ctl .barre b{position:absolute;left:0;top:0;bottom:0;width:41%;border-radius:2px;background:rgba(255,255,255,.34)}
+.ctl .barre i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#ff0033}
+.ctl .barre i::after{content:"";position:absolute;right:-6px;top:-4px;width:12px;height:12px;border-radius:50%;background:#ff0033}
+.ctl .bas{position:absolute;left:12px;right:12px;bottom:9px;display:flex;justify-content:space-between;color:#fff}
+.ctl .grp{height:36px;border-radius:18px;background:rgba(0,0,0,.36);display:flex;align-items:center;gap:15px;padding:0 15px;font-size:13px;font-weight:500;font-variant-numeric:tabular-nums}
+.vt{font-size:20px;line-height:28px;font-weight:700;letter-spacing:-.2px;margin-top:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chaine{display:flex;align-items:center;gap:12px;margin-top:12px}
+.chaine .av{width:40px;height:40px;border-radius:50%;background:linear-gradient(150deg,#ffcf70,#f08a2a);flex:none}
+.chaine .nom{font-size:15.5px;line-height:20px;font-weight:600}
+.chaine .ab{font-size:12px;line-height:16px;color:#606060}
+.chaine .sab{height:36px;border-radius:18px;background:#0f0f0f;color:#fff;font-size:14px;font-weight:500;display:grid;place-items:center;padding:0 16px;margin-left:12px}
+.chaine .pil{height:36px;border-radius:18px;background:#f2f2f2;font-size:14px;font-weight:500;display:flex;align-items:center;gap:7px;padding:0 15px;margin-left:auto}
+.chaine .pil+.pil{margin-left:0}
+.puces{display:flex;gap:8px;overflow:hidden;white-space:nowrap}
+.puces span{height:32px;border-radius:8px;background:#f2f2f2;font-size:14px;font-weight:500;display:grid;place-items:center;padding:0 12px;flex:none}
+.puces span.on{background:#0f0f0f;color:#fff}
+.sug{display:grid;grid-template-columns:168px minmax(0,1fr);gap:8px;margin-top:10px}
+.sug .vg{position:relative;height:94px;border-radius:8px;overflow:hidden}
+.sug .vg svg{width:100%;height:100%}
+.sug .vg b{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.78);color:#fff;font-size:12px;font-weight:500;line-height:16px;padding:0 4px;border-radius:4px;font-variant-numeric:tabular-nums}
+.sug p{font-size:14px;line-height:20px;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:3px}
+.sug span{display:block;font-size:12px;line-height:18px;color:#606060;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* =====================================================================
+   L'îlot (noir, opaque) et ses gouttes
+   ===================================================================== */
+.calque{position:absolute;left:calc(50% - 500px);top:0;width:1000px;height:340px;pointer-events:none}
+#forme-svg{z-index:5}
+#contenu{z-index:6}
+#encoche-svg{z-index:7}
+#pastille{pointer-events:auto}
+#pastTemps{font:600 13.5px var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-.1px}
+.art{position:absolute;overflow:hidden;background:#111;border-radius:4px}
+.art::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16)}
+.eq{position:absolute;display:flex;align-items:center;justify-content:space-between}
+.eq i{display:block;width:2.6px;height:14px;border-radius:1.3px;background:var(--onde);transform:scaleY(.3);animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(1){animation-duration:.82s;animation-delay:-.3s}
+.eq i:nth-child(2){animation-duration:1.06s;animation-delay:-.7s}
+.eq i:nth-child(3){animation-duration:.74s;animation-delay:-.1s}
+.eq i:nth-child(4){animation-duration:.95s;animation-delay:-.5s}
+.eq i:nth-child(5){animation-duration:1.18s;animation-delay:-.2s}
+@keyframes eq{0%{transform:scaleY(.28)}22%{transform:scaleY(.95)}41%{transform:scaleY(.5)}63%{transform:scaleY(1)}82%{transform:scaleY(.36)}100%{transform:scaleY(.28)}}
+html.fige .eq i{animation-play-state:paused}
+
+/* =====================================================================
+   Le volet en verre (Liquid Glass « regular », apparence claire)
+   ===================================================================== */
+#volet{position:absolute;left:50%;top:0;z-index:4;display:none;overflow:hidden;color:rgba(0,0,0,.88);
+  box-shadow:0 0 0 .5px rgba(0,0,0,calc(.2*var(--o,1))),0 30px 70px -16px rgba(18,28,48,calc(.42*var(--o,1))),0 10px 24px -10px rgba(18,28,48,calc(.24*var(--o,1)))}
+.v-verre{position:absolute;inset:0;border-radius:inherit;background:rgba(245,246,249,.68);
+  -webkit-backdrop-filter:blur(28px) saturate(190%) brightness(1.03);backdrop-filter:blur(28px) saturate(190%) brightness(1.03)}
+/* Chromium, volet posé : même givre, plus un bord qui courbe la lumière (filtre #verreVif).
+   Un voile clair reste posé en CSS : si le filtre ne s'affichait pas, le texte resterait lisible. */
+.v-verre.vif{background:rgba(245,246,249,.5);backdrop-filter:url(#verreVif)}
+.v-bord{position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 0 1.5px 0 0 rgba(255,255,255,.9),inset 0 0 14px 1px rgba(255,255,255,.42),inset 0 -1px 1.5px 0 rgba(0,0,0,.05)}
+.v-bord::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;
+  background:linear-gradient(128deg,#fff 0%,rgba(255,255,255,.75) 18%,rgba(255,255,255,.28) 46%,rgba(255,255,255,.4) 70%,rgba(255,255,255,.95) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+.v-in{position:absolute;left:50%;top:0;width:540px;margin-left:-270px;height:100%}
+
+@media (prefers-reduced-transparency:reduce){.v-verre,.v-verre.vif{background:#f4f5f8;-webkit-backdrop-filter:none;backdrop-filter:none}}
+
+/* le contenu arrive après la forme : fondu, flou, léger zoom */
+.e{opacity:0;filter:blur(7px);transform:scale(.965);pointer-events:none;
+  transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
+.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+  transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+
+.champ{position:absolute;left:0;right:0;top:0;height:56px}
+.loupe{position:absolute;left:21px;top:18px;width:20px;height:20px;color:rgba(0,0,0,.44)}
+.saisie{position:absolute;left:56px;right:52px;top:14px;height:28px;display:flex;align-items:center;font-size:21px;line-height:28px;letter-spacing:-.25px;white-space:pre;transform-origin:0 50%}
+.saisie .ph{position:absolute;left:5px;top:0;color:rgba(0,0,0,.3);transition:opacity .1s}
+.saisie .txt{color:rgba(0,0,0,.9)}
+.saisie .caret{width:2px;height:25px;border-radius:1px;background:var(--orange);margin:0 1.5px;flex:none;animation:clign 1.06s steps(1) infinite}
+.saisie .compl{color:rgba(0,0,0,.3)}
+@keyframes clign{0%,54%{opacity:1}55%,100%{opacity:0}}
+html.fige .caret{animation:none}
+.micro{position:absolute;right:18px;top:18px;width:20px;height:20px;color:rgba(0,0,0,.36)}
+.filet{position:absolute;left:0;right:0;top:56px;height:1px;background:rgba(0,0,0,.085)}
+.liste{position:absolute;left:8px;right:8px;top:63px}
+.rang{position:absolute;left:0;right:0;height:44px;border-radius:15px;transition:top calc(.34s*var(--k)) var(--ressort),background-color .16s ease}
+.rang:hover{background:rgba(0,0,0,.035)}
+.rang.sel{background:rgba(0,0,0,.06)}
+.ri{height:44px;display:flex;align-items:center;gap:11px;padding:0 9px}
+.tu{width:28px;height:28px;border-radius:7.5px;display:grid;place-items:center;color:#fff;flex:none;background:var(--c);
+  background-image:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 62%);box-shadow:inset 0 0 0 .5px rgba(0,0,0,.08)}
+.tu svg{width:17px;height:17px}
+.tx{flex:1;min-width:0}
+.t1{font-size:14px;line-height:18px;font-weight:500;letter-spacing:-.1px;color:rgba(0,0,0,.88);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t2{font-size:12px;line-height:15px;color:rgba(0,0,0,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac{display:flex;gap:6px;flex:none}
+.cap{height:26px;border-radius:13px;padding:0 11px;display:grid;place-items:center;font-size:12.5px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums;
+  color:rgba(0,0,0,.8);background:rgba(0,0,0,.07);cursor:pointer;transition:background-color .18s ease,color .18s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.cap:hover{background:rgba(0,0,0,.11)}
+.cap:active{transform:scale(.94)}
+.cap.choisi{background:var(--orange);color:#fff}
+.cap.libre{display:none}
+.cap.libre.vu{display:grid}
+
+/* faux curseur */
+#curseur{position:absolute;left:0;top:0;width:18px;height:26px;z-index:20;pointer-events:none;opacity:0;
+  transition:transform calc(.8s*var(--k)) cubic-bezier(.3,.7,.2,1),opacity .22s;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35))}
+#curseur.vu{opacity:1}
+
+/* =====================================================================
+   La régie, sous la scène
+   ===================================================================== */
+.regie{max-width:1340px;margin:0 auto;padding:14px 28px 18px}
+.r-haut{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:40px;align-items:center;min-height:90px}
+.r-num{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(245,245,247,.46);font-variant-numeric:tabular-nums}
+.r-titre{font-size:21px;line-height:27px;font-weight:600;letter-spacing:-.3px;margin-top:2px}
+.r-phrase{font-size:14px;line-height:20px;color:rgba(245,245,247,.64);margin-top:4px;max-width:640px;min-height:40px}
+.r-mains{display:grid;grid-template-columns:auto auto;gap:9px 14px;align-items:center;transition:opacity .25s ease}
+.r-mains.repos{opacity:.5}
+.pad{position:relative;width:118px;height:76px;border-radius:13px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}
+.pad i{position:absolute;top:14px;left:42px;width:15px;height:15px;border-radius:50%;background:var(--clair);opacity:0;transform:translateY(var(--t,0px));transition:opacity .18s}
+.pad i+i{left:63px;top:10px}
+.pad i::before{content:"";position:absolute;left:5px;bottom:7px;width:5px;height:var(--t,0px);border-radius:3px;background:linear-gradient(0deg,rgba(245,245,247,.5),rgba(245,245,247,0))}
+.pad.actif i{opacity:1}
+.touches{display:flex;gap:6px}
+.touches kbd{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font:500 13px var(--sans);color:rgba(245,245,247,.5);
+  background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);transition:transform .12s ease,background-color .15s ease,color .15s ease}
+.touches kbd:last-child{width:46px}
+.touches kbd.fait{background:rgba(255,255,255,.2);color:#fff}
+.touches kbd.appui{background:var(--clair);color:var(--regie);transform:scale(.92)}
+.r-geste{grid-column:1 / -1;font-size:12.5px;line-height:16px;color:rgba(245,245,247,.55);min-height:16px}
+.r-cmd{display:grid;grid-template-columns:auto auto;gap:10px 8px;align-items:center}
+.bouton{height:34px;padding:0 17px;border-radius:17px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s ease}
+.bouton:active{transform:scale(.95)}
+.bouton.creux{background:rgba(255,255,255,.1)}
+.bouton.creux:hover{background:rgba(255,255,255,.16)}
+.bouton.plein{background:var(--clair);color:var(--regie)}
+.bouton.plein:hover{background:#fff}
+.r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:var(--clair)}
+.r-pas{display:flex;flex-wrap:wrap;gap:2px 4px;list-style:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.r-pas button{height:30px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:8px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+.r-pas button span{font-variant-numeric:tabular-nums;opacity:.7}
+.r-pas button:hover{color:rgba(245,245,247,.8)}
+.r-pas button.ici{color:var(--clair);background:rgba(255,255,255,.09)}
+.notes{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 32px;font-size:12.5px;line-height:18px;color:rgba(245,245,247,.42)}
+.notes b{color:rgba(245,245,247,.7);font-weight:600}
+@media (max-width:900px){.r-haut{grid-template-columns:1fr;gap:16px}.yt-c{grid-template-columns:minmax(0,1fr)}.col2{display:none}}
+
+/* ---------- mode « cadre » (?cadre=1) : la maquette tient entière dans le cadre de index.html, qui porte déjà le titre et les notes.
+   La régie passe en clair, comme la page, pour que les trois propositions se comparent à égalité. ---------- */
+html.cadre,html.cadre body{background:#f5f5f7}
+html.cadre body{height:100vh;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+html.cadre #ecran{flex:1;min-height:0;height:auto}
+html.cadre .regie{flex:none;width:100%;max-width:none;padding:12px 22px 14px;color:#1d1d1f}
+html.cadre .notes{display:none}
+html.cadre .r-haut{gap:28px;min-height:88px}
+html.cadre .r-num{color:#6e6e73;font-size:12px}
+html.cadre .r-phrase{color:#48484d;font-size:13.5px;line-height:19px;min-height:38px}
+html.cadre .pad{background:#fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,.16)}
+html.cadre .pad i{background:#1d1d1f}
+html.cadre .pad i::before{background:linear-gradient(0deg,rgba(0,0,0,.4),rgba(0,0,0,0))}
+html.cadre .touches kbd{color:#6e6e73;background:#fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,.16)}
+html.cadre .touches kbd.fait{background:rgba(0,0,0,.1);color:#1d1d1f}
+html.cadre .touches kbd.appui{background:#1d1d1f;color:#fff}
+html.cadre .r-geste{color:#6e6e73}
+html.cadre .bouton.plein{background:#0071e3;color:#fff}
+html.cadre .bouton.plein:hover{background:#0077ed}
+html.cadre .bouton.creux{background:#fff;color:#1d1d1f;box-shadow:0 0 0 .5px rgba(0,0,0,.16),0 1px 2px rgba(0,0,0,.06)}
+html.cadre .bouton.creux:hover{background:#fafafa}
+html.cadre .r-opts{color:#48484d}
+html.cadre .r-opts input{accent-color:#1d1d1f}
+html.cadre .r-pas{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:12px;padding-top:0;border-top:0}
+html.cadre .r-pas button{width:100%;height:34px;padding:0 10px;border-radius:10px;font-size:12.5px;color:#48484d;background:rgba(0,0,0,.045);overflow:hidden}
+html.cadre .r-pas button span{flex:none;width:18px;height:18px;border-radius:9px;background:rgba(0,0,0,.1);color:#3a3a3c;font-size:11px;line-height:18px;font-weight:600;text-align:center;opacity:1}
+html.cadre .r-pas button:hover{color:#48484d;background:rgba(0,0,0,.075)}
+html.cadre .r-pas button.ici{color:#fff;background:#1d1d1f}
+html.cadre .r-pas button.ici span{background:#fff;color:#1d1d1f}
+</style>
+<script>if (/[?&]cadre\b/.test(location.search)) document.documentElement.classList.add('cadre');</script>
+</head>
+<body>
+<section id="ecran" aria-label="Faux écran de MacBook, taille réelle">
+  <div class="papier" aria-hidden="true">
+    <svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMid slice">
+      <path d="M0 0H1440V190C1190 290 930 180 660 240S210 350 0 280Z" fill="#b7cbe4" opacity=".28"/>
+      <path d="M0 560C260 470 540 520 780 600S1250 720 1440 620V760H0Z" fill="#fff" opacity=".2"/>
+    </svg>
+  </div>
+
+  <!-- ===== fenêtre Chrome ===== -->
+  <div class="fen" aria-hidden="true">
+    <div class="tabs">
+      <div class="feux"><i></i><i></i><i></i></div>
+      <div class="tab act">
+        <svg width="16" height="12" viewBox="0 0 16 12"><rect width="16" height="12" rx="3.4" fill="#ff0033"/><path d="M6.4 3.4v5.2L10.9 6z" fill="#fff"/></svg>
+        <span class="tt">Je détestais la mode des iPods, donc j’en ai racheté un en 2026 - YouTube</span>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.3v3.4h2.3l3 2.5V3.8l-3 2.5z" fill="#5b6069"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.5 4a5.6 5.6 0 0 1 0 8"/></svg>
+        <svg width="14" height="14" viewBox="0 0 14 14" stroke="#5b6069" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l6 6M10 4l-6 6"/></svg>
+      </div>
+      <div class="tab">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.2 2 2.2 10 0 12M8 2c-2.2 2-2.2 10 0 12"/></svg>
+        <span class="tt">Nouvel onglet</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" stroke="#5b6069" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l6 6M10 4l-6 6"/></svg>
+      </div>
+      <div class="tab-plus"><svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg></div>
+    </div>
+    <div class="outils">
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 9h-11M8 4.2 3.2 9 8 13.8"/></svg></span>
+      <span class="ib" style="opacity:.42"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9h11M10 4.2 14.8 9 10 13.8"/></svg></span>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 9a5.6 5.6 0 1 1-1.7-4"/><path d="M14.8 2.6v3.2h-3.2"/></svg></span>
+      <div class="omni">
+        <span class="rg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.5" stroke-linecap="round"><path d="M2 5h6M12 5h2M2 11h2M8 11h6"/><circle cx="10" cy="5" r="1.9"/><circle cx="6" cy="11" r="1.9"/></svg></span>
+        <span class="u">youtube.com<span>/watch?v=k7Rm2NnIpod</span></span>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4" stroke-linejoin="round"><path d="M8 2.2l1.7 3.7 4 .5-3 2.7.8 4L8 11.1 4.5 13l.8-4-3-2.7 4-.5z"/></svg>
+      </div>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M7 3.2h1.2a1.6 1.6 0 1 1 3.1 0h2.5v3a1.6 1.6 0 1 0 0 3.1v4.5h-3.7a1.6 1.6 0 1 0-3.1 0H3.2v-3.9a1.6 1.6 0 1 0 0-3.1V3.2z"/></svg></span>
+      <span class="profil"></span>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><circle cx="9" cy="4" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="9" cy="14" r="1.5"/></svg></span>
+    </div>
+    <div class="page">
+      <div class="yt-h">
+        <div class="yt-g">
+          <svg width="20" height="20" viewBox="0 0 20 20" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 5h15M2.5 10h15M2.5 15h15"/></svg>
+          <div class="yt-logo"><svg width="29" height="20" viewBox="0 0 29 20"><rect width="29" height="20" rx="6.2" fill="#ff0033"/><path d="M11.7 5.7v8.6l7.5-4.3z" fill="#fff"/></svg><span>YouTube</span><sup>FR</sup></div>
+        </div>
+        <div class="yt-rech">
+          <div class="yt-champ"><span>Rechercher</span><i><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><circle cx="8.6" cy="8.6" r="5.9"/><path d="M13 13l4.4 4.4"/></svg></i></div>
+          <div class="yt-rond"><svg width="20" height="20" viewBox="0 0 24 24" fill="#0f0f0f"><rect x="8.8" y="2.6" width="6.4" height="11.6" rx="3.2"/><path d="M5.8 11.4a6.2 6.2 0 0 0 12.4 0M12 17.8v3.4" fill="none" stroke="#0f0f0f" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        </div>
+        <div class="yt-d">
+          <div class="yt-creer"><svg width="20" height="20" viewBox="0 0 20 20" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><path d="M10 3.5v13M3.5 10h13"/></svg>Créer</div>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3.2c-3.2 0-5.6 2.5-5.6 5.8v3.6L4.6 16h14.8l-1.8-3.4V9c0-3.3-2.4-5.8-5.6-5.8zM9.6 19a2.5 2.5 0 0 0 4.8 0"/></svg>
+          <div class="yt-av"></div>
+        </div>
+      </div>
+      <div class="yt-c">
+        <div class="col1">
+          <div class="lecteur" id="lecteur">
+            <div class="ctl">
+              <div class="barre"><b></b><i id="vprog"></i></div>
+              <div class="bas">
+                <span class="grp">
+                  <svg width="15" height="16" viewBox="0 0 15 16" fill="#fff"><rect x="1.5" y="1" width="4" height="14" rx="1.2"/><rect x="9.5" y="1" width="4" height="14" rx="1.2"/></svg>
+                  <svg width="17" height="16" viewBox="0 0 17 16" fill="#fff"><path d="M1.5 2.2c0-.8.9-1.3 1.6-.8l8 5.6c.6.4.6 1.2 0 1.6l-8 5.6c-.7.5-1.6 0-1.6-.8z"/><rect x="13" y="1.4" width="2.6" height="13.2" rx="1"/></svg>
+                  <svg width="20" height="16" viewBox="0 0 20 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5.6v4.8h3l4 3.3V2.3l-4 3.3z" fill="#fff"/><path d="M12.6 5a4.2 4.2 0 0 1 0 6M15 2.8a7.4 7.4 0 0 1 0 10.4"/></svg>
+                  <span id="vtps">3:22 / 12:54</span>
+                </span>
+                <span class="grp">
+                  <svg width="20" height="16" viewBox="0 0 20 16" fill="none" stroke="#fff" stroke-width="1.5"><rect x="1.5" y="1.5" width="17" height="13" rx="3"/><path d="M8.2 6.4a2 2 0 1 0 0 3.2M14.4 6.4a2 2 0 1 0 0 3.2" stroke-linecap="round"/></svg>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#fff" stroke-width="1.5"><circle cx="9" cy="9" r="2.6"/><path d="M9 1.6v2.2M9 14.2v2.2M1.6 9h2.2M14.2 9h2.2M3.8 3.8l1.5 1.5M12.7 12.7l1.5 1.5M3.8 14.2l1.5-1.5M12.7 5.3l1.5-1.5" stroke-linecap="round"/></svg>
+                  <svg width="18" height="16" viewBox="0 0 18 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.6 5.6V2h4.2M16.4 5.6V2h-4.2M1.6 10.4V14h4.2M16.4 10.4V14h-4.2"/></svg>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="vt">Je détestais la mode des iPods, donc j’en ai racheté un en 2026</div>
+          <div class="chaine">
+            <span class="av"></span>
+            <div><div class="nom">Le Coin Tech</div><div class="ab">1,24 M d’abonnés</div></div>
+            <span class="sab">S’abonner</span>
+            <span class="pil"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="#0f0f0f" stroke-width="1.5" stroke-linejoin="round"><path d="M6.2 8.8 9.6 2.6c1.1 0 1.9.9 1.7 2L10.8 8h4.6c1 0 1.7.9 1.5 1.9l-1.2 5.6c-.2.8-.9 1.3-1.6 1.3H6.2zM2.8 8.8h3.4v8H2.8z"/></svg>18 k</span>
+            <span class="pil">Partager</span>
+          </div>
+        </div>
+        <div class="col2">
+          <div class="puces"><span class="on">Tous</span><span>Le Coin Tech</span><span>Baladeurs</span><span>Récemment ajoutées</span></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#cdbd9e"/><rect x="50" y="16" width="68" height="52" rx="6" fill="#5a5145"/><rect x="57" y="22" width="54" height="36" rx="3" fill="#1d2a22"/><rect x="62" y="28" width="30" height="3" fill="#79d37c"/><rect x="62" y="35" width="40" height="3" fill="#79d37c" opacity=".7"/><rect x="62" y="42" width="24" height="3" fill="#79d37c" opacity=".7"/><rect x="42" y="70" width="84" height="12" rx="3" fill="#70675a"/></svg><b>18:42</b></div><div><p>J’ai utilisé un Minitel pendant une semaine</p><span>Le Coin Tech</span><span>412 k vues · il y a 2 semaines</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#27364d"/><rect x="48" y="28" width="72" height="46" rx="7" fill="#e8593a"/><rect x="58" y="37" width="52" height="19" rx="4" fill="#27364d"/><circle cx="72" cy="46.5" r="5.5" fill="#f3efe6"/><circle cx="96" cy="46.5" r="5.5" fill="#f3efe6"/><rect x="64" y="62" width="40" height="5" rx="2.5" fill="#b9432b"/></svg><b>12:08</b></div><div><p>Pourquoi les baladeurs reviennent à la mode</p><span>Tech &amp; Rétro</span><span>96 k vues · il y a 5 jours</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#e7e2da"/><rect x="34" y="14" width="42" height="68" rx="6" fill="#fff" stroke="#c8ccd3"/><rect x="39" y="20" width="32" height="24" rx="2" fill="#5b93dc"/><circle cx="55" cy="62" r="12" fill="#eceef1" stroke="#d3d6dc"/><rect x="92" y="24" width="46" height="30" rx="3" fill="#2c8a5b"/><rect x="98" y="30" width="14" height="8" fill="#1c5a3b"/><rect x="92" y="62" width="50" height="5" rx="2.5" fill="#9aa3ad"/><rect x="92" y="72" width="34" height="5" rx="2.5" fill="#9aa3ad"/></svg><b>24:31</b></div><div><p>Restaurer un iPod Classic : batterie, mémoire, coque</p><span>L’Atelier du son</span><span>1,1 M de vues · il y a 3 mois</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#1f6c75"/><rect x="44" y="18" width="62" height="58" rx="5" fill="#dfe3e6"/><circle cx="75" cy="47" r="21" fill="#f4f5f6" stroke="#b8bec4"/><circle cx="75" cy="47" r="5" fill="#1f6c75"/><rect x="114" y="30" width="28" height="34" rx="4" fill="#12474d"/></svg><b>9:57</b></div><div><p>Le son du MiniDisc en 2026, ça vaut quoi ?</p><span>Hi-Fi Magazine</span><span>58 k vues · il y a 1 jour</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#f0c64a"/><text x="16" y="66" font-size="56" font-weight="800" fill="#161616" font-family="-apple-system,Helvetica,Arial,sans-serif" letter-spacing="-3">10</text><rect x="92" y="22" width="56" height="50" rx="6" fill="#161616"/><rect x="99" y="29" width="42" height="26" rx="2" fill="#7fb4e8"/><rect x="99" y="60" width="20" height="5" rx="2.5" fill="#f0c64a"/></svg><b>21:15</b></div><div><p>10 objets des années 2000 qu’on regrette vraiment</p><span>Rewind</span><span>733 k vues · il y a 1 mois</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== barre des menus ===== -->
+  <div class="mb" aria-hidden="true">
+    <div class="menus">
+      <svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>
+      <b>Chrome</b><span>Fichier</span><span>Modifier</span><span>Afficher</span><span>Historique</span><span>Favoris</span><span>Profils</span><span>Onglet</span><span>Fenêtre</span><span>Aide</span>
+    </div>
+    <div class="etats" id="etats"></div>
+  </div>
+
+  <!-- ===== le volet en verre ===== -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="verreVif" x="0" y="0" width="541" height="246" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feImage id="vvCarte" x="0" y="0" width="540" height="245" preserveAspectRatio="none" result="carte"/>
+      <feImage id="vvAnneau" x="0" y="0" width="540" height="245" preserveAspectRatio="none" result="anneau"/>
+      <!-- l'intérieur : givré, comme le flou CSS (28 pt, saturation 190 %) ; avec le voile CSS à 50 %, le total fait le voile à 68 % -->
+      <feGaussianBlur in="SourceGraphic" stdDeviation="28" result="g0"/>
+      <feComponentTransfer in="g0" result="g1"><feFuncA type="linear" slope="80"/></feComponentTransfer>
+      <feColorMatrix in="g1" type="saturate" values="1.9" result="g2"/>
+      <feComponentTransfer in="g2" result="givre"><feFuncR type="linear" slope=".6592" intercept=".3459"/><feFuncG type="linear" slope=".6592" intercept=".3473"/><feFuncB type="linear" slope=".6592" intercept=".3515"/></feComponentTransfer>
+      <!-- le bord : l'image de dessous, presque nette, tirée vers l'intérieur -->
+      <feDisplacementMap id="vvDepl" in="SourceGraphic" in2="carte" scale="0" xChannelSelector="R" yChannelSelector="G" result="d0"/>
+      <feGaussianBlur in="d0" stdDeviation="1.6" result="d1"/>
+      <feComponentTransfer in="d1" result="d2"><feFuncA type="linear" slope="80"/></feComponentTransfer>
+      <feColorMatrix in="d2" type="saturate" values="1.7" result="d3"/>
+      <feComponentTransfer in="d3" result="d4"><feFuncR type="linear" slope="1.2" intercept="-.141"/><feFuncG type="linear" slope="1.2" intercept="-.137"/><feFuncB type="linear" slope="1.2" intercept="-.138"/></feComponentTransfer>
+      <feComponentTransfer in="anneau" result="an"><feFuncA id="vvForce" type="linear" slope="0"/></feComponentTransfer>
+      <feComposite in="d4" in2="an" operator="in" result="bord"/>
+      <feMerge><feMergeNode in="givre"/><feMergeNode in="bord"/></feMerge>
+    </filter>
+  </svg>
+  <div id="volet">
+    <div class="v-verre" id="verre"></div>
+    <div class="v-bord"></div>
+    <div class="v-in">
+      <div class="champ">
+        <span class="loupe e" data-ch><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="8.5" cy="8.5" r="6.1"/><path d="M13.1 13.1l4.7 4.7"/></svg></span>
+        <span class="saisie e" data-ch><span class="ph" id="ph">Demander à Verbe</span><span class="txt" id="txt"></span><i class="caret"></i><span class="compl" id="compl"></span></span>
+        <span class="micro e" data-ch data-g="micro"></span>
+      </div>
+      <div class="filet e" data-ch></div>
+      <div class="liste" id="liste">
+        <div class="rang" data-r="minuteur"><div class="ri e">
+          <span class="tu" style="--c:#ff9500" data-g="minuteur"></span>
+          <div class="tx"><div class="t1">Minuteur</div><div class="t2" id="t2minuteur">Lancer un compte à rebours</div></div>
+          <div class="ac"><button class="cap libre" data-libre></button><button class="cap" data-min="5">5 min</button><button class="cap" data-min="10">10 min</button><button class="cap" data-min="25">25 min</button></div>
+        </div></div>
+        <div class="rang" data-r="rappel"><div class="ri e">
+          <span class="tu" style="--c:#007aff" data-g="cloche"></span>
+          <div class="tx"><div class="t1">Rappel</div><div class="t2" id="t2rappel">Écris ou dis « appeler Paul à 15 h »</div></div>
+        </div></div>
+        <div class="rang" data-r="rdv"><div class="ri e">
+          <span class="tu" style="--c:#ff3b30" data-g="calendrier"></span>
+          <div class="tx"><div class="t1">Point équipe</div><div class="t2">14:42 · dans 12 min · Google Meet</div></div>
+          <div class="ac"><button class="cap">Rejoindre</button></div>
+        </div></div>
+        <div class="rang" data-r="dictee"><div class="ri e">
+          <span class="tu" style="--c:#8e8e93" data-g="guillemets"></span>
+          <div class="tx"><div class="t1">Je te rappelle demain pour confirmer le créneau.</div><div class="t2">Dernière dictée · il y a 3 min</div></div>
+          <div class="ac"><button class="cap">Coller</button></div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== l'îlot ===== -->
+  <svg id="forme-svg" class="calque" viewBox="-500 0 1000 340" aria-hidden="true">
+    <defs>
+      <filter id="gooC" x="-30%" y="-60%" width="160%" height="240%" color-interpolation-filters="sRGB">
+        <feGaussianBlur id="gtFlou" in="SourceGraphic" stdDeviation="4.2"/>
+        <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10"/>
+      </filter>
+      <filter id="gooP" x="-40%" y="-60%" width="180%" height="240%" color-interpolation-filters="sRGB">
+        <feGaussianBlur id="gpFlou" in="SourceGraphic" stdDeviation="4"/>
+        <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10"/>
+      </filter>
+    </defs>
+    <g id="gooTire" filter="url(#gooC)" style="display:none">
+      <rect x="-78" y="-14" width="156" height="46.6" rx="6" fill="#000"/>
+      <rect id="gtGoutte" x="-29" y="11" width="58" height="21" rx="10.5" fill="#000"/>
+    </g>
+    <rect id="goutte" x="-29" y="11" width="58" height="22" rx="11" fill="#000" style="display:none"/>
+    <g id="gooPast" filter="url(#gooP)" style="display:none">
+      <rect x="58" y="-14" width="73" height="46.4" rx="10" fill="#000"/>
+      <rect id="gpPast" x="58" y="7" width="74" height="23" rx="11.5" fill="#000"/>
+    </g>
+    <path id="forme" fill="#000" d=""/>
+    <g id="pastille" style="display:none">
+      <rect id="pastFond" x="58" y="6" width="75" height="25" rx="12.5" fill="#000"/>
+      <g id="pastCont" style="opacity:0">
+        <circle cx="17" cy="12.5" r="5.7" fill="none" stroke="rgba(255,159,10,.28)" stroke-width="2.1"/>
+        <circle id="pastAnneau" cx="17" cy="12.5" r="5.7" fill="none" stroke="#ff9f0a" stroke-width="2.1" stroke-linecap="round" pathLength="100" stroke-dasharray="100" transform="rotate(-90 17 12.5)"/>
+        <text id="pastTemps" x="30" y="17.3" fill="#ff9f0a">10:00</text>
+      </g>
+    </g>
+  </svg>
+  <div id="contenu" class="calque" aria-hidden="true">
+    <div class="art" id="mini" style="left:375px;top:8.5px;width:28px;height:16px"></div>
+    <div class="eq" style="left:603px;top:9.5px;width:18.4px;height:14px"><i></i><i></i><i></i><i></i><i></i></div>
+  </div>
+  <svg id="encoche-svg" class="calque" viewBox="-500 0 1000 340" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/>
+    <circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+
+  <svg id="curseur" viewBox="0 0 18 26" aria-hidden="true"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>
+</section>
+
+<!-- ===== régie ===== -->
+<section class="regie">
+  <div class="r-haut">
+    <div aria-live="polite">
+      <div class="r-num" id="num">Concept 3 · Tirer l’îlot, façon Spotlight</div>
+      <h1 class="r-titre" id="titre">La vidéo joue</h1>
+      <p class="r-phrase" id="phrase"></p>
+    </div>
+    <div class="r-mains" id="mains" aria-hidden="true">
+      <div class="pad" id="pad"><i></i><i></i></div>
+      <div class="touches" id="touches"><kbd data-k="1">1</kbd><kbd data-k="0">0</kbd><kbd data-k="ret">↩</kbd></div>
+      <div class="r-geste" id="geste"></div>
+    </div>
+    <div class="r-cmd">
+      <button class="bouton creux" id="rejouer">Rejouer</button>
+      <button class="bouton plein" id="suivant">Étape suivante</button>
+      <div class="r-opts">
+        <label><input type="checkbox" id="autoCase" checked> Lecture automatique</label>
+        <label><input type="checkbox" id="lentCase"> Ralenti ×4</label>
+      </div>
+    </div>
+  </div>
+  <ol class="r-pas" id="pas"></ol>
+  <div class="notes">
+    <div><b>À essayer ici.</b> Pointeur sur l’îlot noir, deux doigts vers le bas sur le trackpad (ou cliquer-glisser). Tape 10, puis Retour. Échap referme.</div>
+    <div><b>D’où vient le geste.</b> Sur le MacBook Pro tactile, on tire la Dynamic Island vers le bas pour ouvrir Spotlight. Ici, pareil au trackpad.</div>
+    <div><b>Les matières.</b> L’îlot reste noir. Seul le volet est en verre, car il flotte au-dessus de la page. Un seul bouton en couleur : la durée choisie.</div>
+  </div>
+</section>
+
+<script>
+'use strict';
+/* =========================================================
+   Constantes — 1 px CSS = 1 pt
+   ========================================================= */
+const B = 33;                 // hauteur de la barre des menus
+const HC = 90;                // demi-caméra (encoche de 180 pt)
+const OX = 500;               // décalage des calques (centre)
+const N0 = 133;               // demi-largeur de l'îlot replié (ailes de 43 pt, limite 66)
+const LV = 540, YV = 44;      // volet : largeur, haut
+const HCH = 56, HR = 44;      // volet : hauteur du champ, d'une rangée
+const HG = 22;                // hauteur de la goutte tirée
+const PY = 39;                // haut de la pastille du minuteur, posée sous l'aile droite
+const SEUIL = 54;             // course des doigts (pt) qui déclenche l'ouverture
+const Q = new URLSearchParams(location.search);
+const racine = document.documentElement;
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+let K = 1, fige = false, reduire = false;
+
+/* =========================================================
+   Glyphes (dessinés à la main, façon symboles SF)
+   ========================================================= */
+const G = {
+  minuteur:'<svg viewBox="0 0 24 24"><circle cx="12" cy="13.4" r="7.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 13.4V9.2M9.5 2.8h5" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>',
+  cloche:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.6c-3.3 0-5.8 2.6-5.8 5.9v3.6l-1.6 2.9c-.5.9.1 1.9 1.1 1.9h12.6c1 0 1.6-1 1.1-1.9l-1.6-2.9V8.5c0-3.3-2.5-5.9-5.8-5.9zM9.4 18.7a2.7 2.7 0 0 0 5.2 0z"/></svg>',
+  calendrier:'<svg viewBox="0 0 24 24"><rect x="3.6" y="5.2" width="16.8" height="15" rx="3.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M4 10.2h16M8.2 3.2v3.4M15.8 3.2v3.4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>',
+  guillemets:'<svg viewBox="-.45 -.3 3 2.1"><g fill="currentColor"><path id="gq" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><use href="#gq" x="1.1"/></g></svg>',
+  micro:'<svg viewBox="0 0 24 24"><rect fill="currentColor" x="8.7" y="2.6" width="6.6" height="11.6" rx="3.3"/><path d="M5.7 11.3a6.3 6.3 0 0 0 12.6 0M12 17.8v3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+};
+document.querySelectorAll('[data-g]').forEach(n => { n.innerHTML = G[n.dataset.g]; });
+
+/* Icônes de la barre des menus, de la droite vers la gauche */
+(function(){
+  const s = d => `<span><svg viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg></span>`;
+  $('#etats').innerHTML =
+    '<span class="heure">Mer. 11 nov.&nbsp; 14:30</span>' +
+    s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
+    s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
+    s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>' +
+    `<span><svg viewBox="-.3 -.25 2.7 2" style="width:16px;height:13px"><g fill="currentColor"><path d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><path transform="translate(1.1 0)" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/></g></svg></span>`;
+})();
+
+/* =========================================================
+   L'image de la vidéo (dessinée) : en grand dans la page, en miniature dans l'îlot
+   ========================================================= */
+function affiche(p){
+  return `<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
+  <defs>
+    <linearGradient id="${p}mur" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9d282"/><stop offset="1" stop-color="#f0a146"/></linearGradient>
+    <radialGradient id="${p}lum" cx="72%" cy="28%" r="62%"><stop offset="0" stop-color="#fff2c9" stop-opacity=".95"/><stop offset="1" stop-color="#fff2c9" stop-opacity="0"/></radialGradient>
+    <linearGradient id="${p}tab" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a95b27"/><stop offset="1" stop-color="#743612"/></linearGradient>
+    <linearGradient id="${p}coq" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dcdfe5"/></linearGradient>
+    <linearGradient id="${p}ecr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9ddff"/><stop offset="1" stop-color="#3b7edb"/></linearGradient>
+  </defs>
+  <rect width="320" height="180" fill="url(#${p}mur)"/>
+  <rect width="320" height="180" fill="url(#${p}lum)"/>
+  <circle cx="44" cy="54" r="31" fill="#fff" opacity=".09"/><circle cx="102" cy="30" r="17" fill="#fff" opacity=".08"/><circle cx="286" cy="92" r="23" fill="#fff" opacity=".07"/>
+  <rect y="136" width="320" height="44" fill="url(#${p}tab)"/><rect y="136" width="320" height="1.2" fill="#fff" opacity=".24"/>
+  <ellipse cx="205" cy="143" rx="46" ry="5.2" fill="#3a1804" opacity=".42"/>
+  <g class="flotte"><g transform="rotate(-6 200 88)">
+    <rect x="168" y="31" width="64" height="110" rx="9.5" fill="url(#${p}coq)" stroke="#c7cad1" stroke-width=".8"/>
+    <rect x="175" y="39" width="50" height="38" rx="3" fill="url(#${p}ecr)"/>
+    <rect x="179" y="44" width="22" height="3" rx="1.5" fill="#fff" opacity=".95"/><rect x="179" y="51" width="33" height="3" rx="1.5" fill="#fff" opacity=".6"/><rect x="179" y="58" width="26" height="3" rx="1.5" fill="#fff" opacity=".6"/><rect x="179" y="65" width="30" height="3" rx="1.5" fill="#fff" opacity=".6"/>
+    <circle cx="200" cy="109" r="21.5" fill="#eceef1" stroke="#d2d5db" stroke-width=".8"/><circle cx="200" cy="109" r="7.6" fill="#fbfbfc" stroke="#d8dae0" stroke-width=".6"/>
+  </g></g>
+</svg>`;
+}
+$('#lecteur').insertAdjacentHTML('afterbegin', affiche('g'));
+$('#mini').innerHTML = affiche('m');
+
+/* =========================================================
+   Forme de l'îlot : haut collé à l'écran, épaules creuses, coins du bas continus
+   ========================================================= */
+const PORTEE = 1.6, POIGNEE = 0.18;
+const f2 = v => Math.round(v * 100) / 100;
+function chemin(n, h, rs, rb){
+  const a = PORTEE * rb, c = POIGNEE * a;
+  return `M${f2(-n - rs)} -1L${f2(-n - rs)} 0Q${f2(-n)} 0 ${f2(-n)} ${rs}L${f2(-n)} ${f2(h - a)}C${f2(-n)} ${f2(h - c)} ${f2(-n + c)} ${h} ${f2(-n + a)} ${h}` +
+         `L${f2(n - a)} ${h}C${f2(n - c)} ${h} ${f2(n)} ${f2(h - c)} ${f2(n)} ${f2(h - a)}L${f2(n)} ${rs}Q${f2(n)} 0 ${f2(n + rs)} 0L${f2(n + rs)} -1Z`;
+}
+$('#encoche').setAttribute('d', chemin(HC, B, 4, 8));
+
+/* =========================================================
+   Ressorts (réponse en s, amortissement) — interruptibles :
+   une nouvelle cible part de la valeur ET de la vitesse courantes.
+   ========================================================= */
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .5; this.z = .8; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){
+      this.attente -= dt;
+      if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; }
+    }
+    const w = 2 * Math.PI / this.rep, a = w * w * (this.cible - this.x) - 2 * this.z * w * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+const S = {
+  w: new Ressort(40), h: new Ressort(16), y: new Ressort(37), o: new Ressort(0),   // le volet : largeur, hauteur, haut, présence (ombre)
+  p: new Ressort(0),                                                                // la goutte tirée sous l'encoche
+  n: new Ressort(N0),                                                               // demi-largeur de l'îlot (il respire un peu)
+  py: new Ressort(6), pw: new Ressort(75)                                           // la pastille : haut, largeur
+};
+const TOUS = Object.values(S);
+
+/* Courbe CSS « ressort » (même formule), pour les zooms d'entrée */
+(function(){
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){
+    pts.push(x);
+    for (let s = 0, n = Math.round((T / N) / dt); s < n; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; }
+  }
+  pts[pts.length - 1] = 1;
+  racine.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+/* =========================================================
+   Pièces de la scène
+   ========================================================= */
+const ecran = $('#ecran'), volet = $('#volet'), verre = $('#verre'), forme = $('#forme'), svgForme = $('#forme-svg');
+const goutte = $('#goutte'), gooTire = $('#gooTire'), gtGoutte = $('#gtGoutte');
+const pastille = $('#pastille'), pastFond = $('#pastFond'), pastCont = $('#pastCont'), pastTemps = $('#pastTemps'), pastAnneau = $('#pastAnneau');
+const gooPast = $('#gooPast'), gpPast = $('#gpPast'), gpFlou = $('#gpFlou');
+const curseur = $('#curseur'), pad = $('#pad');
+const txt = $('#txt'), compl = $('#compl'), ph = $('#ph'), t2rappel = $('#t2rappel'), t2minuteur = $('#t2minuteur');
+const RANGS = ['minuteur', 'rappel', 'rdv', 'dictee'];
+const rangs = {}; RANGS.forEach(id => rangs[id] = document.querySelector(`.rang[data-r="${id}"]`));
+const elsChamp = [...volet.querySelectorAll('[data-ch]')];
+const caps = [...volet.querySelectorAll('.cap[data-min]')], capLibre = volet.querySelector('[data-libre]');
+const attr = (n, o) => { for (const k in o) n.setAttribute(k, typeof o[k] === 'number' ? f2(o[k]) : o[k]); };
+
+const etat = {volet:false, saisie:''};
+const minut = {actif:false, compte:false, total:600, reste:600};
+const video = {pos:202, duree:774};
+const hauteurVolet = n => HCH + 1 + 6 + n * HR + 6;
+const largeurGoutte = p => lerp(94, 58, Math.pow(clamp(p / 26, 0, 1), .7));
+const pDe = d => 30 * (1 - Math.exp(-d / 34));          // la goutte résiste : elle suit les doigts de moins en moins
+
+/* =========================================================
+   Minuteries et attentes annulables
+   ========================================================= */
+let jeton = 0;
+const minuteries = new Set();
+function apres(s, f){ const id = setTimeout(() => { minuteries.delete(id); f(); }, s * 1000 * K); minuteries.add(id); return id; }
+function annulerMinuteries(){ minuteries.forEach(clearTimeout); minuteries.clear(); }
+const attendre = (s, j) => new Promise((ok, ko) => apres(s, () => (j === jeton ? ok() : ko('stop'))));
+function tween(duree, f, j){
+  return new Promise((ok, ko) => {
+    const t0 = performance.now();
+    (function pas(){
+      if (j !== jeton) return ko('stop');
+      const u = clamp((performance.now() - t0) / (duree * 1000 * K), 0, 1);
+      f(u);
+      if (u < 1) requestAnimationFrame(pas); else ok();
+    })();
+  });
+}
+
+/* =========================================================
+   Boucle d'animation : ne tourne que tant qu'un ressort bouge
+   ========================================================= */
+let enCours = false, tPrec = 0;
+function demarrer(){
+  if (fige){ rendu(); return; }
+  if (!enCours){ enCours = true; tPrec = performance.now(); requestAnimationFrame(boucle); }
+}
+function avancer(dt){
+  const N = Math.max(1, Math.ceil(dt * 240)), h = dt / N;
+  for (let i = 0; i < N; i++) for (const r of TOUS) r.pas(h);
+  let bouge = false;
+  for (const r of TOUS) if (!r.pose()) bouge = true;
+  return bouge;
+}
+function boucle(t){
+  const dt = Math.min(.05, (t - tPrec) / 1000) / K; tPrec = t;
+  const bouge = avancer(dt);
+  rendu();
+  if (!vif && voletPose()) verreVif(true);
+  if (bouge) requestAnimationFrame(boucle); else { enCours = false; repos(); }
+}
+function repos(){
+  if (!minut.actif && S.py.x < 8){ pastille.style.display = 'none'; gooPast.style.display = 'none'; }
+}
+
+function rendu(){
+  forme.setAttribute('d', chemin(S.n.x, B, 6, 10));
+
+  /* la goutte tirée */
+  const p = Math.max(0, S.p.x);
+  if (p > .2){
+    const w = largeurGoutte(p), yT = B + p - HG;
+    attr(goutte, {x:-w / 2, y:yT, width:w});
+    attr(gtGoutte, {x:-w / 2 + .5, y:yT + .5, width:w - 1, height:HG - 1});
+    goutte.style.display = ''; gooTire.style.display = '';
+  } else { goutte.style.display = 'none'; gooTire.style.display = 'none'; }
+
+  /* le volet */
+  if (volet.style.display !== 'none'){
+    const w = S.w.x, h = Math.max(8, S.h.x);
+    if (!etat.volet && w < 52 && p > 17){
+      volet.style.display = 'none';
+      S.p.viser(0, .40, .68, 0); S.n.v += 40; S.n.viser(N0, .42, .55, 0);   // l'îlot avale
+    } else {
+      volet.style.width = f2(w) + 'px'; volet.style.height = f2(h) + 'px';
+      volet.style.borderRadius = f2(Math.min(h / 2, 28)) + 'px';
+      volet.style.transform = `translate(${f2(-w / 2)}px,${f2(S.y.x)}px)`;
+      volet.style.setProperty('--o', clamp(S.o.x, 0, 1).toFixed(3));
+    }
+  }
+
+  /* la pastille et sa goutte */
+  if (pastille.style.display !== 'none'){
+    const py = S.py.x, w = S.pw.x, x = N0 - w;
+    attr(pastFond, {x, y:py, width:w});
+    attr(gpPast, {x:x + .5, y:py + 1, width:w - 1});
+    pastCont.setAttribute('transform', `translate(${f2(x)} ${f2(py)})`);
+    const ecart = py - B;
+    gpFlou.setAttribute('stdDeviation', (ecart < 3 ? 5 : clamp(5 - (ecart - 3) * .55, .4, 5)).toFixed(2));
+    const op = minut.actif ? 1 : clamp((py - 6) / 26, 0, 1);
+    pastille.style.opacity = op; gooPast.style.opacity = op; gooPast.style.display = '';
+  }
+}
+
+/* =========================================================
+   Verre vif (Chromium seulement) : une fois le volet posé, son bord courbe la lumière.
+   Deux images calculées à la taille du volet : la carte de déplacement et l'anneau du bord.
+   Ailleurs (Safari, Firefox), le volet garde son givre simple.
+   ========================================================= */
+const CHROMIUM = /Chrome\//.test(navigator.userAgent);
+const BISEAU = 9, COURBURE = 26;
+const filtreVif = $('#verreVif'), vvCarte = $('#vvCarte'), vvAnneau = $('#vvAnneau'), vvDepl = $('#vvDepl'), vvForce = $('#vvForce');
+const cartesVerre = new Map();
+function cartes(W, H, R){
+  const cle = W + 'x' + H;
+  if (cartesVerre.has(cle)) return cartesVerre.get(cle);
+  const c1 = document.createElement('canvas'), c2 = document.createElement('canvas');
+  c1.width = c2.width = W; c1.height = c2.height = H;
+  const x1 = c1.getContext('2d'), x2 = c2.getContext('2d'), i1 = x1.createImageData(W, H), i2 = x2.createImageData(W, H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
+    const px = x + .5 - W / 2, py = y + .5 - H / 2;
+    const qx = Math.abs(px) - (W / 2 - R), qy = Math.abs(py) - (H / 2 - R);
+    const d = R - Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - Math.min(Math.max(qx, qy), 0);   // distance au bord, vers l'intérieur
+    let nx = 0, ny = 0;                                                                           // normale vers l'extérieur
+    if (qx > 0 && qy > 0){ const l = Math.hypot(qx, qy) || 1; nx = qx / l * Math.sign(px); ny = qy / l * Math.sign(py); }
+    else if (qx > qy) nx = Math.sign(px); else ny = Math.sign(py);
+    const t = clamp(d / BISEAU, 0, 1), f = d < 0 ? 0 : (1 - t) * (1 - t);
+    const i = (y * W + x) * 4;
+    i1.data[i] = 128 - 127 * nx * f; i1.data[i + 1] = 128 - 127 * ny * f; i1.data[i + 2] = 128; i1.data[i + 3] = 255;
+    i2.data[i] = i2.data[i + 1] = i2.data[i + 2] = 255; i2.data[i + 3] = d < 0 ? 0 : 255 * (1 - t * t * (3 - 2 * t));
+  }
+  x1.putImageData(i1, 0, 0); x2.putImageData(i2, 0, 0);
+  const r = [c1.toDataURL(), c2.toDataURL()];
+  cartesVerre.set(cle, r);
+  return r;
+}
+let vif = false, vifAnim = 0;
+function verreVif(oui, tout){
+  if (!CHROMIUM) return;
+  cancelAnimationFrame(vifAnim);
+  if (!oui){ if (vif){ vif = false; verre.classList.remove('vif'); } return; }
+  const W = Math.round(S.w.cible), H = Math.round(S.h.cible);
+  const [carte, anneau] = cartes(W, H, Math.min(H / 2, 28));
+  attr(filtreVif, {width:W + 1, height:H + 1});
+  for (const n of [vvCarte, vvAnneau]){ attr(n, {width:W, height:H}); }
+  vvCarte.setAttribute('href', carte); vvAnneau.setAttribute('href', anneau);
+  const regler = u => { vvDepl.setAttribute('scale', (COURBURE * u).toFixed(2)); vvForce.setAttribute('slope', u.toFixed(3)); };
+  regler(tout ? 1 : 0);
+  verre.getAnimations && verre.getAnimations().forEach(a => a.cancel());
+  verre.classList.add('vif'); vif = true;
+  if (!tout){
+    const t0 = performance.now();
+    (function pas(){ const u = clamp((performance.now() - t0) / (340 * K), 0, 1); regler(u * u * (3 - 2 * u)); if (u < 1 && vif) vifAnim = requestAnimationFrame(pas); })();
+  }
+}
+const voletPose = () => etat.volet && !S.w.futur && !S.h.futur && Math.abs(S.w.x - S.w.cible) < .5 && Math.abs(S.h.x - S.h.cible) < .5 && Math.abs(S.h.v) < 6 && Math.abs(S.w.v) < 6;
+
+/* =========================================================
+   Le volet : ce que la saisie veut dire
+   ========================================================= */
+const MOTS = {minuteur:['minuteur', 'compte à rebours'], rappel:['rappel', 'rappelle-moi'], rdv:['rendez-vous', 'point équipe', 'réunion', 'rejoindre'], dictee:['dictée', 'dernière dictée', 'coller']};
+function resultats(){
+  const s = etat.saisie.trim().toLowerCase();
+  if (!s) return {rangs:RANGS, n:null, compl:''};
+  const m = s.match(/\d{1,3}/);
+  if (m){
+    const n = clamp(+m[0], 1, 180), suite = s.slice(m.index + m[0].length);
+    return {rangs:['minuteur', 'rappel'], n, compl:/\S/.test(suite) ? '' : (/\s$/.test(etat.saisie) ? 'min' : ' min')};
+  }
+  const ok = RANGS.filter(k => MOTS[k].some(w => w.startsWith(s)));
+  if (!ok.length) return {rangs:RANGS, n:null, compl:''};
+  return {rangs:ok, n:null, compl:MOTS[ok[0]].find(w => w.startsWith(s)).slice(s.length)};
+}
+function basculer(n, vis, raison, rang){
+  let d = 0;
+  if (vis && !n.classList.contains('on')) d = raison === 'ouvre' ? (rang ? .32 + .04 * (rang - 1) : .20) : .09;   // après la forme : le champ quand la capsule est large, les rangées quand la liste se déplie
+  n.style.setProperty('--d', d + 's');
+  n.classList.toggle('on', vis);
+}
+let tLibre = 0;
+function majVolet(raison){
+  const r = resultats(), vu = etat.volet;
+  txt.textContent = etat.saisie; compl.textContent = r.compl; ph.style.opacity = etat.saisie ? 0 : 1;
+  let i = 0;
+  RANGS.forEach((id, k) => {
+    const dedans = r.rangs.includes(id);
+    if (dedans){ rangs[id].style.top = (i * HR) + 'px'; i++; }
+    rangs[id].classList.toggle('sel', vu && dedans && r.n != null && id === 'minuteur');
+    basculer(rangs[id].firstElementChild, vu && dedans, raison, k + 1);
+  });
+  elsChamp.forEach(n => basculer(n, vu, raison, 0));
+  t2rappel.textContent = r.n != null ? `Dans ${r.n} min` : 'Écris ou dis « appeler Paul à 15 h »';
+  let trouve = false;
+  caps.forEach(c => { const oui = r.n != null && +c.dataset.min === r.n; c.classList.toggle('choisi', oui); if (oui) trouve = true; });
+  clearTimeout(tLibre);
+  const libre = () => { capLibre.textContent = r.n + ' min'; capLibre.classList.add('vu', 'choisi'); };
+  if (r.n != null && !trouve){ if (raison === 'pose') libre(); else tLibre = setTimeout(libre, 320 * K); }
+  else capLibre.classList.remove('vu', 'choisi');
+  if (vu && raison !== 'ouvre' && raison !== 'pose' && Math.abs(hauteurVolet(i) - S.h.cible) > .5){ verreVif(false); S.h.viser(hauteurVolet(i), .44, .84, .03); demarrer(); }
+  return i;
+}
+
+/* =========================================================
+   Les gestes : tirer, ouvrir, taper, valider, fermer
+   ========================================================= */
+function gesteTirer(d){            // d = course des doigts, en points
+  doigts(d, true);
+  if (etat.volet) return;
+  if (d >= SEUIL){ ouvrir(); return; }
+  S.p.poser(pDe(d)); demarrer();
+}
+function gesteLache(){
+  if (!etat.volet){ S.p.viser(0, .36, .8, 0); demarrer(); }
+}
+function ouvrir(){
+  if (etat.volet) return;
+  etat.volet = true; etat.saisie = '';
+  const p = Math.max(S.p.x, 20), w = largeurGoutte(p);
+  S.p.poser(p);
+  volet.style.display = 'block';
+  void volet.offsetWidth;                           // le contenu part bien de son état caché
+  S.w.poser(w - 12); S.h.poser(16); S.y.poser(B + p - HG + 3); S.o.poser(0);
+  S.w.viser(LV, .46, .80, 0);                       // d'abord une capsule : le champ
+  S.y.viser(YV, .40, .90, 0);
+  S.h.viser(HCH, .36, .86, 0);
+  S.h.viser(hauteurVolet(4), .50, .82, .17);        // puis la liste se déplie
+  S.o.viser(1, .45, 1, .05);
+  S.p.viser(0, .38, .70, .04);                      // la goutte noire se retire dans l'îlot
+  S.n.v += 46; S.n.viser(N0, .42, .55, 0);
+  if (minut.actif) pastilleDehors(false);
+  if (!reduire && verre.animate){
+    const a = 'blur(7px) saturate(190%) brightness(1.2)', b = 'blur(28px) saturate(190%) brightness(1.03)';
+    verre.animate([{backdropFilter:a, webkitBackdropFilter:a}, {backdropFilter:b, webkitBackdropFilter:b}], {duration:560 * K, easing:'cubic-bezier(.2,.7,.2,1)'});
+  }
+  majVolet('ouvre');
+  demarrer();
+}
+function fermer(){
+  if (!etat.volet) return;
+  etat.volet = false;
+  verreVif(false);
+  majVolet('ferme');                                // le contenu part d'abord
+  S.w.viser(26, .34, 1, .07); S.h.viser(8, .30, 1, .07); S.y.viser(38, .32, 1, .07); S.o.viser(0, .24, 1, .04);
+  S.p.viser(24, .30, .9, .09);                      // la goutte noire descend boire le verre
+  if (minut.actif) apres(.34, () => { if (!etat.volet && minut.actif) pastilleDehors(true); });
+  demarrer();
+}
+function taper(c){
+  if (!etat.volet) return;
+  etat.saisie += c; majVolet('filtre');
+}
+function effacer(){
+  if (!etat.volet) return;
+  etat.saisie = etat.saisie.slice(0, -1); majVolet('filtre');
+}
+function valider(n){
+  if (!etat.volet) return false;
+  if (n == null) n = resultats().n;
+  if (n == null) return false;
+  const c = caps.find(c => +c.dataset.min === n) || capLibre;
+  if (c.animate && !reduire) c.animate([{transform:'scale(1)', filter:'brightness(1)'}, {transform:'scale(.9)', filter:'brightness(1.12)'}, {transform:'scale(1)', filter:'brightness(1)'}], {duration:230 * K, easing:'ease-out'});
+  apres(.10, () => { fermer(); apres(.24, () => lancerMinuteur(n)); });
+  return true;
+}
+
+/* =========================================================
+   Le minuteur : il sort de l'îlot en goutte et se range sous l'aile droite
+   ========================================================= */
+function largeurPastille(){ return 30 + pastTemps.getComputedTextLength() + 15; }
+function majMinuteur(){
+  pastAnneau.setAttribute('stroke-dashoffset', (100 * (1 - minut.reste / minut.total)).toFixed(2));
+  pastTemps.textContent = fmt(minut.reste);
+  t2minuteur.textContent = minut.actif ? `En cours · ${fmt(minut.reste)}` : 'Lancer un compte à rebours';
+}
+function lancerMinuteur(min){
+  Object.assign(minut, {actif:true, compte:false, total:min * 60, reste:min * 60});
+  pastille.style.display = ''; pastille.style.opacity = 1;
+  pastCont.style.transition = 'none'; pastCont.style.opacity = 0;
+  majMinuteur();
+  S.pw.poser(largeurPastille()); S.py.poser(6);
+  S.py.viser(PY, .5, .72, 0);
+  void pastille.getBoundingClientRect();
+  pastCont.style.transition = `opacity ${.22 * K}s ease ${.36 * K}s`; pastCont.style.opacity = 1;   // le contenu après la forme
+  apres(.95, () => { minut.compte = true; });
+  demarrer();
+}
+function pastilleDehors(oui){          // la pastille rentre dans l'îlot quand le volet est ouvert, puis ressort
+  pastCont.style.transition = `opacity ${(oui ? .22 : .1) * K}s ease ${(oui ? .36 : 0) * K}s`; pastCont.style.opacity = oui ? 1 : 0;
+  if (oui) S.py.viser(PY, .5, .72, 0); else S.py.viser(6, .32, 1, 0);
+  demarrer();
+}
+function arreterMinuteur(pose){
+  minut.actif = false; minut.compte = false; majMinuteur();
+  pastCont.style.transition = pose ? 'none' : `opacity ${.1 * K}s ease`; pastCont.style.opacity = 0;
+  if (pose){ S.py.poser(6); pastille.style.display = 'none'; gooPast.style.display = 'none'; }
+  else { S.py.viser(6, .34, 1, 0); demarrer(); }
+}
+function majVideo(){
+  $('#vprog').style.width = (100 * video.pos / video.duree).toFixed(2) + '%';
+  $('#vtps').textContent = fmt(video.pos) + ' / ' + fmt(video.duree);
+}
+setInterval(() => {
+  if (fige) return;
+  video.pos = (video.pos + 1) % video.duree; majVideo();
+  if (minut.actif && minut.compte && minut.reste > 0){
+    minut.reste--; majMinuteur();
+    S.pw.viser(largeurPastille(), .4, .85, 0); demarrer();
+  }
+}, 1000);
+
+/* =========================================================
+   Régie : étapes, mains, curseur
+   ========================================================= */
+const ETAPES = [null,
+  {t:'La vidéo joue', p:'L’îlot est pris par la lecture : la miniature à gauche, l’onde du son à droite. Aujourd’hui, impossible de lancer un minuteur d’ici.', g:'Mains au repos'},
+  {t:'Tirer l’îlot vers le bas', p:'Le pointeur sur l’îlot, deux doigts glissent vers le bas. Une goutte noire suit les doigts, puis lâche un volet en verre : tout l’accueil, sans toucher à la vidéo.', g:'Deux doigts vers le bas, pointeur sur l’îlot'},
+  {t:'Taper la durée', p:'On tape 10. Verbe comprend « minuteur, 10 min » et l’allume en orange. On peut aussi cliquer sur 5, 10 ou 25 min, ou le dire en tenant fn.', g:'Taper 1, puis 0'},
+  {t:'Retour : le minuteur part', p:'Le volet remonte dans l’îlot. Le minuteur ressort en goutte sous l’aile droite et se range à sa place habituelle.', g:'Touche Retour'},
+  {t:'Retour à la lecture', p:'La vidéo n’a jamais quitté l’îlot, ni cessé de jouer. Le minuteur compte dans sa pastille, comme aujourd’hui.', g:'Les mains reviennent à la vidéo'}
+];
+let etape = 1;
+$('#pas').innerHTML = ETAPES.slice(1).map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${e.t}</button></li>`).join('');
+function majRegie(n){
+  etape = n;
+  const e = ETAPES[n];
+  $('#num').textContent = `Concept 3 · Tirer l’îlot, façon Spotlight · étape ${n} sur 5`;
+  $('#titre').textContent = e.t; $('#phrase').textContent = e.p; $('#geste').textContent = e.g;
+  $('#mains').classList.toggle('repos', n === 1 || n === 5);
+  document.querySelectorAll('#pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === n));
+}
+function doigts(d, vu){
+  pad.classList.toggle('actif', !!vu);
+  pad.style.setProperty('--t', (clamp(d / 66, 0, 1) * 32).toFixed(1) + 'px');
+}
+const cles = {}; document.querySelectorAll('#touches kbd').forEach(k => cles[k.dataset.k] = k);
+function touches(faites){ for (const k in cles) cles[k].classList.toggle('fait', faites.includes(k)); }
+function touche(k){ cles[k].classList.add('appui', 'fait'); setTimeout(() => cles[k].classList.remove('appui'), 150 * K); }
+const REPOS = [-250, 300], SUR_ILOT = [88, 24];
+function curseurVers(pos, vu, saute){
+  const cx = ecran.clientWidth / 2;
+  if (saute) curseur.style.transition = 'none';
+  curseur.style.transform = `translate(${cx + pos[0]}px,${pos[1]}px)`;
+  if (saute){ void curseur.getBoundingClientRect(); curseur.style.transition = ''; }
+  curseur.classList.toggle('vu', vu !== false);
+}
+
+/* ---- état posé de chaque étape (sans mouvement) ---- */
+function poserScene(n){
+  annulerMinuteries();
+  racine.classList.add('snap');
+  const ouvert = n === 2 || n === 3;
+  etat.volet = ouvert; etat.saisie = n === 3 ? '10' : '';
+  S.p.poser(0); S.n.poser(N0);
+  const k = majVolet('pose');
+  verreVif(false);
+  if (ouvert){
+    volet.style.display = 'block';
+    S.w.poser(LV); S.h.poser(hauteurVolet(k)); S.y.poser(YV); S.o.poser(1);
+    verreVif(true, true);
+  } else { volet.style.display = 'none'; S.w.poser(40); S.h.poser(16); S.y.poser(37); S.o.poser(0); }
+  if (n >= 4){
+    Object.assign(minut, {actif:true, compte:true, total:600, reste:n === 4 ? 599 : 596});
+    pastille.style.display = ''; pastille.style.opacity = 1; majMinuteur();
+    S.pw.poser(largeurPastille()); S.py.poser(PY);
+    pastCont.style.transition = 'none'; pastCont.style.opacity = 1;
+  } else arreterMinuteur(true);
+  video.pos = 202 + (n - 1) * 3; majVideo();
+  doigts(n === 2 ? 66 : 0, n === 2);
+  touches(n === 3 ? ['1', '0'] : n === 4 ? ['ret'] : []);
+  curseurVers(n === 2 ? SUR_ILOT : REPOS, n !== 3 && n !== 4, true);
+  majRegie(n);
+  rendu();
+  requestAnimationFrame(() => requestAnimationFrame(() => racine.classList.remove('snap')));
+}
+
+/* ---- passages (animés) vers chaque étape ---- */
+const facile = u => 1 - Math.pow(1 - u, 3);
+const PASSAGES = {
+  async 2(j){
+    curseurVers(SUR_ILOT); await attendre(.74, j);
+    doigts(0, true); await attendre(.16, j);        // les doigts partent dès que le pointeur arrive : le tirage passe avant le dépliage au survol
+    await tween(.5, u => gesteTirer(66 * facile(u)), j);
+    await attendre(1.0, j);
+  },
+  async 3(j){
+    curseur.classList.remove('vu'); doigts(66, false); await attendre(.3, j);
+    touche('1'); taper('1'); await attendre(.24, j);
+    touche('0'); taper('0'); await attendre(.75, j);
+  },
+  async 4(j){
+    touches([]); touche('ret'); valider(); await attendre(1.7, j);
+  },
+  async 5(j){
+    touches([]); curseurVers(SUR_ILOT, true, true); await attendre(.12, j);
+    curseurVers(REPOS); await attendre(1.0, j);
+  }
+};
+async function jouer(n, j){
+  if (reduire){ poserScene(n); return; }
+  if (n === 1){ poserScene(1); return; }
+  majRegie(n);
+  await PASSAGES[n](j);
+}
+
+/* ---- lecture automatique ---- */
+const PAUSES = [0, 1.9, 1.5, 1.5, 1.2, 3.2];
+let autoActif = false;
+async function tourner(depuis, boucle){
+  const j = ++jeton; autoActif = true;
+  try {
+    let n = depuis;
+    while (true){
+      if (n === 1) poserScene(1); else await jouer(n, j);
+      await attendre(PAUSES[n], j);
+      if (n === 5){
+        if (!boucle()) break;
+        arreterMinuteur(false); await attendre(.7, j);     // la pastille rentre avant de recommencer
+        n = 1;
+      } else n++;
+    }
+  } catch (_) {}
+  if (j === jeton) autoActif = false;
+}
+function arreter(){ jeton++; autoActif = false; }
+const autoCase = $('#autoCase');
+$('#rejouer').addEventListener('click', () => { arreter(); tourner(1, () => autoCase.checked); });
+$('#suivant').addEventListener('click', suivante);
+function suivante(){
+  arreter(); autoCase.checked = false;
+  const n = etape % 5 + 1;
+  poserScene(n === 1 ? 1 : etape);
+  if (n > 1){ const j = ++jeton; jouer(n, j).catch(() => {}); }
+}
+$('#pas').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  arreter(); autoCase.checked = false;
+  const n = +b.dataset.e;
+  if (n === 1){ poserScene(1); return; }
+  poserScene(n - 1);
+  const j = ++jeton; jouer(n, j).catch(() => {});
+});
+autoCase.addEventListener('change', () => { if (autoCase.checked){ arreter(); tourner(1, () => autoCase.checked); } else arreter(); });
+$('#lentCase').addEventListener('change', e => { K = e.target.checked ? 4 : 1; racine.style.setProperty('--k', K); });
+const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+reduire = mq.matches; mq.addEventListener && mq.addEventListener('change', e => { reduire = e.matches; });
+
+/* =========================================================
+   À la main : le vrai trackpad et le vrai clavier marchent aussi
+   ========================================================= */
+function aLaMain(n){ arreter(); autoCase.checked = false; if (n) majRegie(n); touches([]); curseur.classList.remove('vu'); }
+let dReel = 0, dFerme = 0, tFinGeste = 0, verrou = 0;
+ecran.addEventListener('wheel', e => {
+  if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;      // pincement ou balayage de côté : pas notre geste
+  const r = svgForme.getBoundingClientRect(), x = e.clientX - r.left - OX, y = e.clientY - r.top;
+  const pres = y >= 0 && y <= 48 && Math.abs(x) <= N0 + 12;
+  const surVolet = etat.volet && e.target.closest && e.target.closest('#volet');
+  if (!pres && !surVolet) return;
+  e.preventDefault();
+  if (performance.now() < verrou) return;
+  if (!etat.volet){
+    if (e.deltaY >= 0 && dReel === 0) return;
+    if (dReel === 0) aLaMain(2);
+    dReel = Math.max(0, dReel - e.deltaY * .5);
+    gesteTirer(dReel);
+    clearTimeout(tFinGeste);
+    if (etat.volet){ dReel = 0; verrou = performance.now() + 900; setTimeout(() => doigts(66, false), 500); }
+    else tFinGeste = setTimeout(() => { dReel = 0; gesteLache(); doigts(0, false); }, 120);
+  } else if (e.deltaY > 0){
+    dFerme += e.deltaY;
+    if (dFerme > 70){ dFerme = 0; verrou = performance.now() + 900; aLaMain(1); fermer(); }
+  }
+}, {passive:false});
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!etat.volet){ if (e.key === 'ArrowRight'){ suivante(); e.preventDefault(); } return; }
+  if (e.key === 'Escape'){ aLaMain(1); fermer(); }
+  else if (e.key === 'Enter'){ aLaMain(); if (valider()) majRegie(4); }
+  else if (e.key === 'Backspace'){ aLaMain(etat.saisie.length > 1 ? 3 : 2); effacer(); }
+  else if (e.key.length === 1 && etat.saisie.length < 22){ aLaMain(3); taper(e.key); }
+  else return;
+  e.preventDefault();
+});
+volet.addEventListener('click', e => {
+  const c = e.target.closest('.cap'); if (!c) return;
+  const n = c.dataset.min ? +c.dataset.min : (c === capLibre ? resultats().n : null);
+  if (n == null) return;
+  aLaMain(4); etat.saisie = String(n); majVolet('filtre'); valider(n);
+});
+const surIlot = e => { const r = svgForme.getBoundingClientRect(), x = e.clientX - r.left - OX, y = e.clientY - r.top; return y >= 0 && y <= B + 2 && Math.abs(x) <= N0; };
+let glisse = null;                                  // tirer à la souris : cliquer-glisser vers le bas depuis l'îlot
+ecran.addEventListener('pointerdown', e => {
+  if (etat.volet){ if (!e.target.closest('#volet')){ aLaMain(1); fermer(); } return; }
+  if (surIlot(e)){ glisse = {y:e.clientY, parti:false}; ecran.setPointerCapture(e.pointerId); }
+});
+ecran.addEventListener('pointermove', e => {
+  if (!glisse) return;
+  const d = (e.clientY - glisse.y) * 1.25;
+  if (!glisse.parti && d < 3) return;
+  if (!glisse.parti){ glisse.parti = true; aLaMain(2); }
+  gesteTirer(Math.max(0, d));
+  if (etat.volet){ glisse = null; setTimeout(() => doigts(66, false), 500); }
+});
+const finGlisse = () => { if (!glisse) return; const parti = glisse.parti; glisse = null; if (parti){ gesteLache(); doigts(0, false); } };
+ecran.addEventListener('pointerup', finGlisse); ecran.addEventListener('pointercancel', finGlisse);
+window.addEventListener('resize', () => { if (!autoActif) curseurVers(etape === 2 ? SUR_ILOT : REPOS, curseur.classList.contains('vu'), true); });
+
+/* =========================================================
+   Démarrage et contrôles (Chrome sans tête)
+   ========================================================= */
+window.verbe = {geste:() => { arreter(); const j = ++jeton; return tween(.5, u => gesteTirer(66 * facile(u)), j).catch(() => {}); }, taper, valider, fermer, lent:k => { K = k; racine.style.setProperty('--k', k); }, poser:poserScene, jouer:n => { arreter(); const j = ++jeton; return jouer(n, j).catch(() => {}); }, etat, S, minut};
+if (Q.has('lent')){ K = 4; racine.style.setProperty('--k', 4); $('#lentCase').checked = true; }
+const e0 = clamp(+(Q.get('etape') || 1), 1, 5);
+const DANS_INDEX = Q.has('cadre') && window.parent !== window;   // présentée dans index.html
+if (Q.has('fige')){
+  fige = true; racine.classList.add('fige'); autoCase.checked = false;
+  poserScene(e0);
+} else if (Q.has('joue')){
+  autoCase.checked = false;
+  poserScene(Math.max(1, e0 - 1));
+  if (e0 > 1) setTimeout(() => { const j = ++jeton; jouer(e0, j).catch(() => {}); }, 500);
+} else {
+  poserScene(1);
+  if (DANS_INDEX) autoCase.checked = false;
+  else setTimeout(() => tourner(1, () => autoCase.checked), 300);
+}
+/* Dans index.html (?cadre=1), c'est la page qui lance la démonstration quand la maquette est à l'écran, et qui l'arrête quand elle en sort */
+window.addEventListener('message', e => {
+  const m = e.data && e.data.verbe;
+  if (fige) return;
+  if (m === 'joue'){ if (!autoActif){ arreter(); autoCase.checked = true; tourner(1, () => autoCase.checked); } }
+  else if (m === 'pause'){ arreter(); autoCase.checked = false; touches([]); poserScene(1); }
+});
+</script>
+</body>
+</html>

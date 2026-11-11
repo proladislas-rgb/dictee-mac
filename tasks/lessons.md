@@ -83,3 +83,5 @@ Format : [date] | ce qui a mal tourné | règle pour l'éviter
 [2026-11-10] | Le symbole SF « calendar » est devenu une tuile rouge pleine à points découpés (macOS 26), bien plus lourde que la cloche ou le minuteur, alors que le brief disait « symbole sans fond » | Avant de retenir un symbole SF, en rendre une planche (3 graisses, sur fond noir) à côté des autres glyphes de l'écran ; trop lourd = le dessiner au trait (`CalendrierTrait`)
 
 [2026-11-10] | `.accessibilityLabel("Temps restant")` posé sur le texte du minuteur : VoiceOver lisait le nom sans la valeur | Le nom en `accessibilityLabel`, la valeur qui change en `accessibilityValue`, posés sur le texte lui-même
+- [2026-11-11] | La capture « pleine page » d'une page à iframes montrait les cadres 2 et 3 vides : Chrome ne peint pas les iframes hors de la fenêtre | Pour une page à iframes, capturer avec une fenêtre aussi haute que la page, pas en pleine page.
+- [2026-11-11] | Trois maquettes faites en parallèle avaient chacune sa régie (claire avec cadre de Mac, sombre, sombre) : pas comparables côte à côte | Donner le gabarit commun avant de lancer les auteurs, ou prévoir d'emblée un mode « cadre » identique.

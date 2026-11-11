@@ -1,0 +1,1343 @@
+<!doctype html>
+<!--
+Verbe — lancer un minuteur pendant qu'une vidéo occupe l'îlot.
+Concept 2 « La pile et la bulle » : la Dynamic Island à deux activités, plus une pile qu'on fait défiler.
+  1. la vidéo joue (îlot au repos : miniature 16:9 à gauche, onde à droite) ;
+  2. pointeur sur l'îlot : il se déplie comme aujourd'hui. Nouveau : deux doigts vers le haut sur le trackpad,
+     la carte suivante monte (Minuteur). Des points de page, à droite, disent où l'on est (comme une pile de widgets) ;
+  3. on choisit la durée : trois durées, pas plus ;
+  4. l'îlot se replie et se coupe en deux, comme sur l'iPhone : la vidéo reste attachée à la caméra,
+     le minuteur se détache en bulle À CÔTÉ, avec le temps qui reste ;
+  5. retour à la lecture : la bulle a pris la place de l'aile droite, rien ne dépasse sur la barre des menus.
+Style repris de ilot-pro-A.html (formes, ressorts, pochette qui voyage, contenu après la forme). Îlot noir opaque, aucun verre.
+Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt.
+Paramètres d'URL (contrôle) :
+  ?etape=N&fige=1    état posé à la fin de l'étape N (1 à 5)
+  ?etape=N&joue=1    part de la fin de l'étape N-1 (ou de &depuis=M) et joue l'étape N une fois   (&t=0.4 : image arrêtée à 0,4 s)
+  ?mode=lecture|rappel|rdv|encours|lectureduo&fige=1   autres états posés (survol, cartes suivantes, minuteur déplié)
+  ?lent=1            ralenti ×4          ?verif=1   contrôle des marges, des chevauchements et de la barre des menus
+  ?cadre=1           présentation dans index.html : sans les notes, régie claire, la scène prend toute la hauteur ; index.html lance et arrête la démonstration
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbe · concept 2 · La pile et la bulle</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --ambre:#ff9f0a;      /* minuteur */
+  --onde:#ffab2e;       /* teinte tirée de la miniature */
+  --vert:#30d158;
+  --jaune:#ffd60a;
+  --rouge:#ff453a;
+  --regie:#0e0e10;
+  --encre:#f5f5f7; --encre2:rgba(245,245,247,.62); --encre3:rgba(245,245,247,.4); --filet:rgba(255,255,255,.09);
+  --hs:clamp(440px,calc(100vh - 272px),680px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--regie);color:var(--encre)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block;overflow:visible}
+
+/* =====================================================================
+   Le faux écran : haut d'un MacBook, macOS 26, apparence claire
+   ===================================================================== */
+#ecran{position:relative;height:var(--hs);overflow:hidden;user-select:none;-webkit-user-select:none;background:#d7e3ee}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(75% 120% at 6% -12%,rgba(255,255,255,.85) 0,rgba(255,255,255,0) 60%),
+  radial-gradient(60% 110% at 98% 0%,rgba(250,236,220,.9) 0,rgba(250,236,220,0) 58%),
+  linear-gradient(176deg,#cfdeec 0%,#dbe6f0 46%,#c3d5e7 100%)}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ---- barre des menus (transparente, comme dans macOS 26) ---- */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;z-index:3;font-size:13.5px;color:#1d1d1f;white-space:nowrap;pointer-events:none}
+.menus,.etats{position:absolute;top:0;height:33px;display:flex;flex-wrap:wrap;align-content:flex-start;overflow:hidden}
+.menus{left:0;max-width:calc(50% - 152px);padding-left:18px;column-gap:19px}
+.menus>*{height:33px;line-height:33px;font-weight:500;flex:none}
+.menus>svg{height:17px;width:14px;margin-top:7px}
+.menus>b{font-weight:700}
+.etats{right:0;max-width:calc(50% - 168px);padding-right:15px;column-gap:15px;flex-direction:row-reverse}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* ---- fenêtre Chrome ---- */
+.fen{position:absolute;left:50%;top:41px;bottom:-34px;width:min(1120px,calc(100% - 56px));transform:translateX(-50%);
+  border-radius:13px;overflow:hidden;background:#fff;pointer-events:none;z-index:1;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.24),0 30px 80px -18px rgba(24,36,60,.42),0 10px 26px -10px rgba(24,36,60,.2)}
+.tabs{position:relative;height:40px;background:#dfe2e7;display:flex;align-items:flex-end;padding-left:84px}
+.feux{position:absolute;left:14px;top:14px;display:flex;gap:8px}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.ong{position:relative;height:33px;width:244px;flex:0 1 244px;min-width:0;display:flex;align-items:center;gap:8px;padding:0 9px 0 11px;font-size:12px;color:#474b50;border-radius:9px 9px 0 0}
+.ong.act{background:#fff;color:#1f1f1f}
+.ong.act::before,.ong.act::after{content:"";position:absolute;bottom:0;width:9px;height:9px}
+.ong.act::before{left:-9px;background:radial-gradient(circle at 0 0,rgba(255,255,255,0) 8.6px,#fff 9px)}
+.ong.act::after{right:-9px;background:radial-gradient(circle at 100% 0,rgba(255,255,255,0) 8.6px,#fff 9px)}
+.ong .fav{flex:none;width:17px;height:12px;border-radius:3.5px;background:#f03;position:relative}
+.ong .fav::after{content:"";position:absolute;left:6.5px;top:3px;border-left:5.2px solid #fff;border-top:3px solid transparent;border-bottom:3px solid transparent}
+.ong .fav.g{width:14px;height:14px;border-radius:50%;background:none;box-shadow:inset 0 0 0 1.5px #80868b}
+.ong .fav.g::after{display:none}
+.ong .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 20px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 20px),transparent)}
+.ong svg{flex:none;width:15px;height:15px;color:#5f6368}
+.tabs .plus{flex:none;width:28px;height:28px;margin:0 0 3px 8px;display:grid;place-items:center;color:#474b50}
+.tabs .plus svg{width:15px;height:15px}
+.outils{height:42px;display:flex;align-items:center;gap:4px;padding:0 10px;background:#fff;border-bottom:1px solid #e7e9ec}
+.outils .b{flex:none;width:30px;height:30px;display:grid;place-items:center;color:#474b50}
+.outils .b.off{color:#bcc0c6}
+.outils .b svg{width:19px;height:19px}
+.omni{flex:1;min-width:0;height:32px;margin:0 6px;border-radius:16px;background:#eef1f5;display:flex;align-items:center;gap:9px;padding:0 10px 0 5px;font-size:13.5px;color:#1f1f1f}
+.omni .puce{flex:none;width:23px;height:23px;border-radius:50%;background:#fff;display:grid;place-items:center;color:#474b50}
+.omni .puce svg{width:14px;height:14px}
+.omni .url{flex:1;min-width:0;white-space:nowrap;overflow:hidden}
+.omni .url span{color:#70757a}
+.omni>svg{flex:none;width:17px;height:17px;color:#474b50}
+.avatar{flex:none;border-radius:50%;background:#cfd8e3;position:relative;overflow:hidden}
+.avatar::before{content:"";position:absolute;left:50%;top:22%;width:36%;height:36%;margin-left:-18%;border-radius:50%;background:#8a97a8}
+.avatar::after{content:"";position:absolute;left:50%;top:66%;width:76%;height:60%;margin-left:-38%;border-radius:50%;background:#8a97a8}
+
+/* ---- page YouTube ---- */
+.yt{color:#0f0f0f}
+.yt-tete{height:56px;display:flex;align-items:center;padding:0 18px;gap:18px}
+.yt-tete svg{width:22px;height:22px;flex:none;color:#0f0f0f}
+.yt-logo{display:flex;align-items:center;gap:5px;font-size:19.5px;font-weight:700;letter-spacing:-1.15px;flex:none}
+.yt-logo i{width:29px;height:20px;border-radius:6px;background:#f03;position:relative}
+.yt-logo i::after{content:"";position:absolute;left:11px;top:5px;border-left:8.5px solid #fff;border-top:5px solid transparent;border-bottom:5px solid transparent}
+.yt-logo sup{font-size:9.5px;font-weight:400;letter-spacing:0;color:#606060;align-self:flex-start;margin:-1px 0 0 2px}
+.yt-rech{flex:0 1 560px;min-width:0;margin:0 auto;display:flex;height:40px}
+.yt-rech .champ{flex:1;min-width:0;border:1px solid #d3d3d3;border-right:0;border-radius:20px 0 0 20px;padding:0 16px;font-size:16px;line-height:38px;color:#8a8a8a;white-space:nowrap;overflow:hidden}
+.yt-rech .lp{flex:none;width:64px;border:1px solid #d3d3d3;border-radius:0 20px 20px 0;background:#f8f8f8;display:grid;place-items:center}
+.yt-rech .mic{flex:none;width:40px;height:40px;margin-left:12px;border-radius:50%;background:#f2f2f2;display:grid;place-items:center}
+.yt-creer{flex:none;height:36px;border-radius:18px;background:#f2f2f2;display:flex;align-items:center;gap:6px;padding:0 15px 0 11px;font-size:14px;font-weight:500}
+.yt-creer svg{width:20px;height:20px}
+.yt-corps{display:flex;gap:24px;padding:20px 24px 0}
+.prim{flex:1 1 0;min-width:0}
+.lecteur{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#111}
+.lecteur .image{position:absolute;inset:0;animation:derive 18s ease-in-out infinite alternate}
+.lecteur .image svg{width:100%;height:100%}
+@keyframes derive{from{transform:scale(1.03)}to{transform:scale(1.09) translate(-1.4%,.8%)}}
+.lecteur .voile{position:absolute;left:0;right:0;bottom:0;height:104px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.62));transition:opacity .3s ease}
+.lecteur .ctl{position:absolute;left:12px;right:12px;bottom:0;height:52px;color:#fff;transition:opacity .3s ease}
+.lecteur:not(.survol) .voile,.lecteur:not(.survol) .ctl{opacity:0}
+.piste-yt{position:absolute;left:0;right:0;top:2px;height:3.5px;border-radius:2px;background:rgba(255,255,255,.32)}
+.piste-yt b{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#f03}
+.piste-yt b::after{content:"";position:absolute;right:-6.5px;top:-4.75px;width:13px;height:13px;border-radius:50%;background:#f03}
+.ctl .rg{position:absolute;left:6px;right:6px;top:11px;height:36px;display:flex;align-items:center;gap:16px}
+.ctl .rg svg{width:22px;height:22px;flex:none}
+.ctl .tps{font-size:13px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctl .rg .vide{flex:1}
+.prim h2{margin-top:12px;font-size:20px;line-height:28px;font-weight:700;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chaine{margin-top:10px;display:flex;align-items:center;gap:12px;white-space:nowrap}
+.chaine .rondc{flex:none;width:40px;height:40px;border-radius:50%;background:#1c7f86;color:#fff;display:grid;place-items:center;font-size:14px;font-weight:700;letter-spacing:.2px}
+.chaine b{display:block;font-size:16px;line-height:20px;font-weight:600}
+.chaine small{display:block;font-size:12px;line-height:17px;color:#606060}
+.chaine .abo{flex:none;height:36px;border-radius:18px;background:#0f0f0f;color:#fff;font-size:14px;font-weight:600;line-height:36px;padding:0 16px;margin-left:10px}
+.chaine .pil{flex:none;height:36px;border-radius:18px;background:#f2f2f2;font-size:14px;font-weight:500;line-height:36px;padding:0 16px}
+.chaine .vide{flex:1}
+.sec{flex:0 0 402px;min-width:0}
+.sec .puces{display:flex;gap:8px;height:32px;margin-bottom:12px;overflow:hidden}
+.sec .puces span{flex:none;padding:0 12px;border-radius:8px;background:#f2f2f2;font-size:14px;font-weight:500;line-height:32px}
+.sec .puces span.a{background:#0f0f0f;color:#fff}
+.reco{display:flex;gap:8px;margin-bottom:8px}
+.reco .v{position:relative;flex:none;width:168px;height:94px;border-radius:8px;overflow:hidden}
+.reco .v svg{width:100%;height:100%}
+.reco .v em{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.8);color:#fff;font-size:12px;line-height:16px;font-weight:500;font-style:normal;padding:0 4px;border-radius:4px;font-variant-numeric:tabular-nums}
+.reco div{min-width:0;padding-right:8px}
+.reco b{display:block;font-size:14px;line-height:20px;font-weight:600;max-height:40px;overflow:hidden}
+.reco small{display:block;font-size:12px;line-height:18px;color:#606060;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.reco small:first-of-type{margin-top:3px}
+@media (max-width:1040px){.sec{flex-basis:300px}}
+@media (max-width:860px){.sec{display:none}}
+
+/* =====================================================================
+   L'îlot : un seul objet noir, la caméra par-dessus
+   ===================================================================== */
+.calque{position:absolute;left:calc(50% - 400px);top:0;width:800px;height:260px;pointer-events:none}
+#forme-svg{z-index:5}
+#contenu{z-index:6}
+#encoche-svg{z-index:7}
+#forme-svg .clic{pointer-events:auto}
+#bulleTemps{opacity:0;filter:blur(5px);transition:opacity calc(.12s*var(--k)) ease,filter calc(.12s*var(--k)) ease;
+  font-family:var(--sans);font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.1px}
+#bulleTemps.on{opacity:1;filter:blur(0);transition:opacity calc(.24s*var(--k)) ease calc(.05s*var(--k)),filter calc(.28s*var(--k)) ease calc(.05s*var(--k))}
+
+/* éléments de contenu : ils arrivent après la forme (fondu + flou + zoom 0,92 → 1) et repartent avant elle */
+.e{position:absolute;opacity:0;filter:blur(8px);transform:scale(.92);transform-origin:50% 0;
+  transition:opacity calc(.15s*var(--k)) ease,filter calc(.15s*var(--k)) ease,transform calc(.15s*var(--k)) ease;pointer-events:none}
+.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+  transition:opacity calc(.26s*var(--k)) ease calc(var(--d,0s)*var(--k)),
+             filter calc(.30s*var(--k)) ease calc(var(--d,0s)*var(--k)),
+             transform calc(.46s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+.e.o-g{transform-origin:0 0}
+.e.o-d{transform-origin:100% 0}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+html.fige *,html.fige *::before,html.fige *::after{animation-play-state:paused!important}
+
+/* les cartes de la pile */
+.pile{position:absolute;inset:0;-webkit-mask-image:linear-gradient(180deg,transparent 33px,#000 45px);mask-image:linear-gradient(180deg,transparent 33px,#000 45px)}
+.carte{position:absolute;inset:0;transform-origin:400px 104px;will-change:transform,opacity}
+.carte.hors .e{pointer-events:none!important}
+
+/* pochette (elle voyage entre l'aile et la carte Lecture) */
+.art{position:absolute;overflow:hidden;background:#111}
+.art svg{width:100%;height:100%}
+.art::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.14);pointer-events:none}
+
+/* onde */
+.eq{display:flex;align-items:center;justify-content:space-between}
+.eq i{display:block;width:2.6px;height:14px;border-radius:1.3px;background:var(--onde);transform:scaleY(.3);animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(1){animation-duration:.82s;animation-delay:-.3s}
+.eq i:nth-child(2){animation-duration:1.06s;animation-delay:-.7s}
+.eq i:nth-child(3){animation-duration:.74s;animation-delay:-.1s}
+.eq i:nth-child(4){animation-duration:.95s;animation-delay:-.5s}
+.eq i:nth-child(5){animation-duration:1.18s;animation-delay:-.2s}
+@keyframes eq{0%{transform:scaleY(.28)}22%{transform:scaleY(.95)}41%{transform:scaleY(.5)}63%{transform:scaleY(1)}82%{transform:scaleY(.36)}100%{transform:scaleY(.28)}}
+.arret .eq i{animation:none;transform:scaleY(.2)}
+
+/* carte Lecture */
+.titre{font-size:16.5px;line-height:22px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}
+.source{font-size:13px;line-height:17px;font-weight:500;color:var(--encre2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog{height:20px}
+.prog .tps{position:absolute;top:0;font-size:11.5px;line-height:20px;font-weight:500;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums;width:40px}
+.prog .tps.g{left:0}
+.prog .tps.d{right:0;text-align:right}
+.prog .piste{position:absolute;left:44px;right:44px;top:7.5px;height:5px;border-radius:3px;background:rgba(255,255,255,.2);overflow:hidden}
+.prog .plein{position:absolute;left:0;top:0;bottom:0;background:var(--onde);border-radius:inherit}
+.bt{position:absolute;top:0;width:40px;height:40px;border-radius:20px;display:grid;place-items:center;color:#fff;transition:transform calc(.38s*var(--k)) var(--ressort),background-color .15s}
+.bt:hover{background:rgba(255,255,255,.08)}
+.bt:active{transform:scale(.86);transition-duration:.08s}
+.bt svg{width:24px;height:24px}
+.bt.grand svg{width:28px;height:28px}
+.suiv{color:rgba(255,255,255,.42)}
+.suiv svg{width:22px;height:22px}
+
+/* en-tête d'une carte : petit symbole + nom, comme un widget */
+.tete{display:flex;align-items:center;gap:6px;font-size:13px;line-height:17px;font-weight:600;color:var(--encre2);white-space:nowrap}
+.tete .g{flex:none;width:15px;height:15px}
+.tete .g svg{width:15px;height:15px}
+.g.ambre{color:var(--ambre)}.g.jaune{color:var(--jaune)}.g.rouge{color:var(--rouge)}
+.exemple{font-size:13px;line-height:17px;font-weight:500;color:var(--encre3);text-align:right;white-space:nowrap}
+
+/* les durées : trois capsules neutres ; l'orange n'apparaît qu'au moment du choix */
+.preset{border-radius:22px;background:rgba(255,255,255,.14);color:#fff;font-size:17px;font-weight:600;letter-spacing:-.2px;
+  font-variant-numeric:tabular-nums;display:grid;place-items:center;white-space:nowrap}
+.preset.e.on{transition:opacity calc(.26s*var(--k)) ease calc(var(--d,0s)*var(--k)),
+             filter calc(.30s*var(--k)) ease calc(var(--d,0s)*var(--k)),
+             transform calc(.46s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k)),
+             background-color .14s ease,color .14s ease}
+.preset.e.on:hover,.preset.e.on.survol{background:rgba(255,255,255,.23)}
+.preset.e.on:active,.preset.e.on.appui{transform:scale(.95);transition-duration:.09s;transition-delay:0s!important}
+.preset.choisie,.preset.e.on.choisie{background:var(--ambre);color:#2b1900}
+.preset.vert,.preset.vert.e.on:hover{background:var(--vert);color:#04210d}
+.preset .gl{display:flex;align-items:center;gap:8px}
+.preset .gl svg{width:17px;height:17px}
+
+/* minuteur en cours (carte Minuteur quand un minuteur tourne) */
+.grand-temps{font-size:40px;line-height:48px;font-weight:600;color:var(--ambre);font-variant-numeric:tabular-nums;letter-spacing:-.6px;white-space:nowrap}
+.rond{border-radius:22px;display:grid;place-items:center;transition:transform calc(.38s*var(--k)) var(--ressort)}
+.rond.e.on:active{transform:scale(.88);transition-duration:.08s;transition-delay:0s!important}
+.rond svg{width:18px;height:18px}
+.rond.gris{background:rgba(255,255,255,.16);color:#fff}
+.rond.ambre{background:rgba(255,159,10,.24);color:var(--ambre)}
+
+/* rendez-vous */
+.rdv-t{font-size:20px;line-height:26px;font-weight:600;color:#fff;letter-spacing:-.3px;white-space:nowrap}
+.rdv-s{font-size:13px;line-height:17px;font-weight:500;color:var(--encre2);white-space:nowrap}
+
+/* points de page (pile) */
+.points{width:5px;display:grid;row-gap:5px}
+.points i{display:block;width:5px;height:5px;border-radius:50%;background:#fff;opacity:.3}
+
+/* faux curseur */
+.calque-c{position:absolute;left:50%;top:0;width:0;height:0;z-index:20;pointer-events:none}
+#curseur{position:absolute;left:0;top:0;width:18px;height:26px;opacity:0;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));
+  transition:transform calc(.8s*var(--k)) cubic-bezier(.3,.7,.2,1),opacity .25s}
+#curseur.vu{opacity:1}
+
+/* =====================================================================
+   Régie (sous la scène)
+   ===================================================================== */
+.regie{max-width:1220px;margin:0 auto;padding:16px 22px 24px}
+.r-haut{display:grid;grid-template-columns:132px minmax(0,1fr) auto;column-gap:22px;align-items:center}
+.r-mains{width:132px}
+.pad{width:132px;height:88px}
+.pad .fond{fill:rgba(255,255,255,.045);stroke:rgba(255,255,255,.17);stroke-width:1}
+.pad g{opacity:0;transition:opacity .22s ease}
+.pad[data-m="deux"] #pd-deux,.pad[data-m="un"] #pd-un{opacity:1}
+.pad circle.doigt{fill:#f5f5f7}
+.pad .trainee{fill:#f5f5f7;opacity:.2}
+.pad .onde{fill:none;stroke:#f5f5f7;stroke-width:1.4;opacity:.35}
+.r-geste{margin-top:5px;height:15px;font-size:11.5px;line-height:15px;font-weight:500;color:var(--encre2);text-align:center;white-space:nowrap}
+.r-num{font-size:11.5px;line-height:15px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--encre3)}
+.r-titre{margin-top:3px;font-size:20px;line-height:26px;font-weight:650;letter-spacing:-.3px}
+.r-phrase{margin-top:4px;font-size:13.5px;line-height:19.5px;color:var(--encre2);max-width:700px;min-height:39px}
+.r-cmd{display:grid;grid-template-columns:auto auto;gap:10px 8px;justify-items:end;align-items:center}
+.bouton{height:34px;padding:0 16px;border-radius:17px;font-size:13.5px;font-weight:600;white-space:nowrap;cursor:pointer;transition:background-color .12s,transform .12s}
+.bouton:active{transform:scale(.97)}
+.bouton.plein{background:#f5f5f7;color:#0e0e10}
+.bouton.plein:hover{background:#fff}
+.bouton.creux{background:rgba(255,255,255,.09);color:var(--encre)}
+.bouton.creux:hover{background:rgba(255,255,255,.15)}
+.r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:var(--encre2)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:#f5f5f7}
+.pas{list-style:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:14px}
+.pas button{width:100%;height:36px;border-radius:10px;background:rgba(255,255,255,.05);display:flex;align-items:center;gap:8px;padding:0 10px;
+  font-size:12.5px;font-weight:500;color:var(--encre2);cursor:pointer;white-space:nowrap;overflow:hidden;transition:background-color .12s,color .12s}
+.pas button span{flex:none;width:18px;height:18px;border-radius:9px;background:rgba(255,255,255,.1);font-size:11px;line-height:18px;font-weight:600;text-align:center;font-variant-numeric:tabular-nums}
+.pas button:hover{background:rgba(255,255,255,.09)}
+.pas button.actif{background:rgba(255,255,255,.14);color:var(--encre)}
+.pas button.actif span{background:#f5f5f7;color:#0e0e10}
+.notes{margin-top:16px;padding-top:14px;border-top:1px solid var(--filet);display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px 30px;font-size:12.5px;line-height:18px;color:var(--encre3)}
+.notes b{color:var(--encre2);font-weight:600}
+#verif{display:none;white-space:pre-wrap;font:11px/1.45 ui-monospace,Menlo,monospace;color:#9f9;padding:12px 22px}
+html.verif #verif{display:block}
+@media (max-width:860px){.r-haut{grid-template-columns:132px minmax(0,1fr)}.r-cmd{grid-column:1 / -1;justify-items:start;margin-top:10px}.pas{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ---------- mode « cadre » (?cadre=1) : la maquette tient entière dans le cadre de index.html, qui porte déjà le titre et les notes.
+   La régie passe en clair, comme la page, pour que les trois propositions se comparent à égalité. ---------- */
+html.cadre,html.cadre body{background:#f5f5f7}
+html.cadre body{height:100vh;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+html.cadre #ecran{flex:1;min-height:0;height:auto}
+html.cadre .regie{flex:none;width:100%;max-width:none;padding:14px 22px 14px;color:#1d1d1f;
+  --encre:#1d1d1f;--encre2:#48484d;--encre3:#6e6e73;--filet:rgba(0,0,0,.1)}
+html.cadre .notes{display:none}
+html.cadre .r-num{text-transform:none;letter-spacing:.02em;font-size:12px}
+html.cadre .pad .fond{fill:#fff;stroke:rgba(0,0,0,.16)}
+html.cadre .pad circle.doigt,html.cadre .pad .trainee{fill:#1d1d1f}
+html.cadre .pad .onde{stroke:#1d1d1f}
+html.cadre .bouton.plein{background:#0071e3;color:#fff}
+html.cadre .bouton.plein:hover{background:#0077ed}
+html.cadre .bouton.creux{background:#fff;color:#1d1d1f;box-shadow:0 0 0 .5px rgba(0,0,0,.16),0 1px 2px rgba(0,0,0,.06)}
+html.cadre .bouton.creux:hover{background:#fafafa}
+html.cadre .r-opts input{accent-color:#1d1d1f}
+html.cadre .pas{margin-top:12px}
+html.cadre .pas button{height:34px;background:rgba(0,0,0,.045)}
+html.cadre .pas button span{background:rgba(0,0,0,.1);color:#3a3a3c}
+html.cadre .pas button:hover{background:rgba(0,0,0,.075)}
+html.cadre .pas button.actif{background:#1d1d1f;color:#fff}
+html.cadre .pas button.actif span{background:#fff;color:#1d1d1f}
+</style>
+<script>if (/[?&]cadre\b/.test(location.search)) document.documentElement.classList.add('cadre');</script>
+</head>
+<body>
+<section id="ecran" aria-label="Faux bureau macOS, échelle réelle">
+  <div class="papier" aria-hidden="true">
+    <svg viewBox="0 0 1440 680" preserveAspectRatio="none">
+      <defs><linearGradient id="pp-a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+      <path d="M-40 430C230 300 430 540 770 390S1290 150 1500 270V720H-40z" fill="url(#pp-a)"/>
+      <path d="M-40 590C300 450 570 660 910 520s420-200 600-130V720H-40z" fill="#fff" opacity=".2"/>
+    </svg>
+  </div>
+
+  <!-- fenêtre Chrome : une vidéo YouTube en cours de lecture -->
+  <div class="fen" aria-hidden="true">
+    <div class="tabs">
+      <div class="feux"><i></i><i></i><i></i></div>
+      <div class="ong act"><i class="fav"></i><span class="t">Je détestais la mode des iPods, donc j’en ai racheté un en 2026 – YouTube</span>
+        <svg viewBox="0 0 16 16"><path d="M2.4 6.1h2.4L8 3.3v9.4L4.8 9.9H2.4z" fill="currentColor"/><path d="M10.2 5.6a3.4 3.4 0 0 1 0 4.8M11.9 3.9a5.8 5.8 0 0 1 0 8.2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        <svg viewBox="0 0 16 16"><path d="M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+      <div class="ong"><i class="fav g"></i><span class="t">Nouvel onglet</span>
+        <svg viewBox="0 0 16 16"><path d="M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+      <i class="plus"><svg viewBox="0 0 16 16"><path d="M8 2.6v10.8M2.6 8h10.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></i>
+    </div>
+    <div class="outils">
+      <span class="b"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9.4 4.6 4 10l5.4 5.4M4.4 10H16"/></svg></span>
+      <span class="b off"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 4.6 16 10l-5.4 5.4M15.6 10H4"/></svg></span>
+      <span class="b"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15.6 10a5.6 5.6 0 1 1-1.7-4"/><path d="M15.8 3.4v3.4h-3.4"/></svg></span>
+      <div class="omni">
+        <span class="puce"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.6 5.2h5.2M11.6 5.2h1.8M2.6 10.8h1.8M8.2 10.8h5.2"/><circle cx="9.7" cy="5.2" r="1.7"/><circle cx="6.3" cy="10.8" r="1.7"/></svg></span>
+        <span class="url">youtube.com<span>/watch?v=Kp3xLm7Qa2E</span></span>
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M9 2.4l2 4.2 4.6.6-3.4 3.2.9 4.6L9 12.7 4.9 15l.9-4.6L2.4 7.2 7 6.6z"/></svg>
+      </div>
+      <span class="b"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M8 4.6h1.1a1.5 1.5 0 0 1 2.9 0h1.4v3h.6a1.5 1.5 0 0 1 0 3h-.6v3.8h-3.2a1.5 1.5 0 0 0-3 0H4.6v-3.4h.5a1.4 1.4 0 0 0 0-2.8h-.5V4.6z"/></svg></span>
+      <span class="avatar" style="width:24px;height:24px;margin:0 5px"></span>
+      <span class="b"><svg viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="4.6" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="15.4" r="1.5"/></svg></span>
+    </div>
+    <div class="yt">
+      <div class="yt-tete">
+        <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.5 6h15M3.5 11h15M3.5 16h15"/></svg>
+        <span class="yt-logo"><i></i>YouTube<sup>FR</sup></span>
+        <div class="yt-rech"><span class="champ">Rechercher</span>
+          <span class="lp"><svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9.6" cy="9.6" r="6"/><path d="M14 14l5 5"/></svg></span>
+          <span class="mic"><svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="8.2" y="2.8" width="5.6" height="10" rx="2.8" fill="currentColor" stroke="none"/><path d="M5.4 10.4a5.6 5.6 0 0 0 11.2 0M11 16v3"/></svg></span></div>
+        <span class="yt-creer"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>Créer</span>
+        <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M11 3a5.4 5.4 0 0 0-5.4 5.4v3.8L4 15.4h14l-1.6-3.2V8.4A5.4 5.4 0 0 0 11 3zM9 18a2.1 2.1 0 0 0 4 0"/></svg>
+        <span class="avatar" style="width:32px;height:32px"></span>
+      </div>
+      <div class="yt-corps">
+        <div class="prim">
+          <div class="lecteur survol" id="lecteur">
+            <div class="image" id="image"></div>
+            <div class="voile"></div>
+            <div class="ctl">
+              <div class="piste-yt"><b id="yt-plein"></b></div>
+              <div class="rg">
+                <svg viewBox="0 0 22 22" fill="currentColor"><rect x="5" y="3.6" width="4.2" height="14.8" rx="1"/><rect x="12.8" y="3.6" width="4.2" height="14.8" rx="1"/></svg>
+                <svg viewBox="0 0 22 22" fill="currentColor"><path d="M4.6 4.4v13.2l9-6.6z"/><rect x="14.8" y="4.4" width="2.6" height="13.2" rx=".6"/></svg>
+                <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.6 8.6h3l4-3.4v11.6l-4-3.4h-3z" fill="currentColor" stroke="none"/><path d="M13.8 8a4.2 4.2 0 0 1 0 6M16 5.6a7.4 7.4 0 0 1 0 10.8"/></svg>
+                <span class="tps" id="yt-tps">3:22 / 12:54</span>
+                <span class="vide"></span>
+                <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="3"/><path d="M11 3.2v2.4M11 16.4v2.4M3.2 11h2.4M16.4 11h2.4M5.5 5.5l1.7 1.7M14.8 14.8l1.7 1.7M5.5 16.5l1.7-1.7M14.8 7.2l1.7-1.7" stroke-linecap="round"/></svg>
+                <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.8" y="5.4" width="16.4" height="11.2" rx="1.6"/></svg>
+                <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.2V4.6h3.6M14.4 4.6H18v3.6M18 13.8v3.6h-3.6M7.6 17.4H4v-3.6"/></svg>
+              </div>
+            </div>
+          </div>
+          <h2>Je détestais la mode des iPods, donc j’en ai racheté un en 2026</h2>
+          <div class="chaine"><span class="rondc">CT</span><div><b>Le Coin Tech</b><small>214 k abonnés</small></div><span class="abo">S’abonner</span><span class="vide"></span><span class="pil">12 k</span><span class="pil">Partager</span></div>
+        </div>
+        <div class="sec">
+          <div class="puces"><span class="a">Tout</span><span>Le Coin Tech</span><span>Baladeurs</span><span>Similaires</span></div>
+          <div class="reco"><div class="v"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#1c7f86"/><circle cx="130" cy="20" r="46" fill="#fff" opacity=".08"/><path d="M56 56V46a28 28 0 0 1 56 0v10" fill="none" stroke="#f3ead8" stroke-width="6" stroke-linecap="round"/><rect x="47" y="52" width="16" height="26" rx="7" fill="#f3ead8"/><rect x="105" y="52" width="16" height="26" rx="7" fill="#f3ead8"/></svg><em>14:07</em></div><div><b>Pourquoi les baladeurs reviennent en force</b><small>Studio Onde</small><small>88 k vues · il y a 5 jours</small></div></div>
+          <div class="reco"><div class="v"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#27344d"/><rect x="42" y="24" width="84" height="50" rx="7" fill="#efe6d4"/><rect x="54" y="34" width="60" height="20" rx="10" fill="#27344d"/><circle cx="67" cy="44" r="5.5" fill="#efe6d4"/><circle cx="101" cy="44" r="5.5" fill="#efe6d4"/><path d="M58 74l5-10h42l5 10z" fill="#d6c9ae"/></svg><em>9:31</em></div><div><b>J’ai ressorti mon Walkman : le verdict</b><small>Le Coin Tech</small><small>412 k vues · il y a 2 semaines</small></div></div>
+          <div class="reco"><div class="v"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#dcc097"/><rect x="58" y="14" width="46" height="70" rx="8" fill="#c9ccd3"/><rect x="58" y="14" width="46" height="70" rx="8" fill="none" stroke="#fff" stroke-opacity=".7"/><circle cx="81" cy="49" r="7" fill="#aeb2bb"/><path d="M116 22l22 44" stroke="#7a4a22" stroke-width="5" stroke-linecap="round"/><path d="M112 14l6 12" stroke="#d94f3a" stroke-width="7" stroke-linecap="round"/></svg><em>22:48</em></div><div><b>Réparer un iPod classic en 2026 : batterie, disque</b><small>Atelier Pixel</small><small>1,2 M de vues · il y a 1 an</small></div></div>
+          <div class="reco"><div class="v"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#3f7d5a"/><rect x="66" y="14" width="36" height="66" rx="7" fill="none" stroke="#eef4e6" stroke-width="4"/><path d="M52 76l64-58" stroke="#eef4e6" stroke-width="5" stroke-linecap="round"/></svg><em>17:20</em></div><div><b>30 jours sans smartphone : mon bilan</b><small>Clara Dumont</small><small>230 k vues · il y a 3 mois</small></div></div>
+          <div class="reco"><div class="v"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#d7694f"/><circle cx="84" cy="50" r="34" fill="#1b1b1e"/><circle cx="84" cy="50" r="23" fill="none" stroke="#3a3a3f" stroke-width="2"/><circle cx="84" cy="50" r="11" fill="#f1d9a2"/><circle cx="84" cy="50" r="2" fill="#1b1b1e"/></svg><em>11:02</em></div><div><b>Vinyles : pourquoi tout le monde y retourne</b><small>Face B</small><small>64 k vues · il y a 1 mois</small></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- barre des menus -->
+  <div class="mb" aria-hidden="true">
+    <div class="menus" id="menus">
+      <svg viewBox="0 0 14 17"><path fill="currentColor" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>
+      <b>Chrome</b><span>Fichier</span><span>Modifier</span><span>Afficher</span><span>Historique</span><span>Fenêtre</span><span>Aide</span>
+    </div>
+    <div class="etats" id="etats">
+      <span class="heure">Mer. 11 nov.&nbsp;&nbsp;9:41</span>
+      <span><svg viewBox="0 0 18 16" width="17" height="15" fill="none" stroke="currentColor" stroke-width="1.35"><rect x="1" y="1.5" width="16" height="5.4" rx="2.7"/><circle cx="12.9" cy="4.2" r="1.45" fill="currentColor" stroke="none"/><rect x="1" y="9.1" width="16" height="5.4" rx="2.7"/><circle cx="5.1" cy="11.8" r="1.45" fill="currentColor" stroke="none"/></svg></span>
+      <span><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="6.8" cy="6.8" r="4.9"/><path d="M10.5 10.5l3.9 3.9"/></svg></span>
+      <span><svg viewBox="0 0 18 14" width="18" height="14"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M1.7 5.2a10.4 10.4 0 0 1 14.6 0"/><path d="M4.5 8.1a6.4 6.4 0 0 1 9 0"/></g><circle cx="9" cy="11.4" r="1.5" fill="currentColor"/></svg></span>
+      <span><svg viewBox="0 0 28 14" width="27" height="13.5"><rect x=".7" y=".7" width="23.6" height="12.6" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".42"/><rect x="2.5" y="2.5" width="16.4" height="9" rx="2.3" fill="currentColor"/><path d="M26.2 4.7v4.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" opacity=".42"/></svg></span>
+    </div>
+  </div>
+
+  <!-- l'îlot -->
+  <svg id="forme-svg" class="calque" viewBox="-400 0 800 260" aria-hidden="true">
+    <defs>
+      <filter id="goo" x="-60%" y="-80%" width="220%" height="260%" color-interpolation-filters="sRGB">
+        <feGaussianBlur id="gooFlou" in="SourceGraphic" stdDeviation="5"/>
+        <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10"/>
+      </filter>
+    </defs>
+    <g id="gooCalque" filter="url(#goo)" style="display:none">
+      <rect id="gooIlot" x="40" y="-14" width="88" height="47" rx="9" fill="#000"/>
+      <rect id="gooBulle" x="70" y="4" width="52" height="25" rx="12.5" fill="#000"/>
+    </g>
+    <g id="ombre"><path id="forme" class="clic" fill="#000" d=""/></g>
+    <g id="bulle" class="clic">
+      <rect id="bulleFond" x="70" y="4" width="52" height="25" rx="12.5" fill="#000"/>
+      <text id="bulleTemps" x="78.5" y="21.2" fill="#ff9f0a">10:00</text>
+    </g>
+  </svg>
+  <div id="contenu" class="calque"></div>
+  <svg id="encoche-svg" class="calque" viewBox="-400 0 800 260" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/>
+    <circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+  <div class="calque-c" aria-hidden="true"><svg id="curseur" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+</section>
+
+<!-- ===== régie ===== -->
+<section class="regie">
+  <div class="r-haut">
+    <div class="r-mains" aria-hidden="true">
+      <svg class="pad" id="pad" data-m="repos" viewBox="0 0 132 88">
+        <rect class="fond" x=".5" y=".5" width="131" height="87" rx="13"/>
+        <g id="pd-deux">
+          <rect class="trainee" id="pd-t1" x="48.5" y="60" width="13" height="0" rx="6.5"/>
+          <rect class="trainee" id="pd-t2" x="72.5" y="56" width="13" height="0" rx="6.5"/>
+          <circle class="doigt" id="pd-d1" cx="55" cy="60" r="7.5"/>
+          <circle class="doigt" id="pd-d2" cx="79" cy="56" r="7.5"/>
+        </g>
+        <g id="pd-un">
+          <circle class="onde" id="pd-onde" cx="66" cy="46" r="13"/>
+          <circle class="doigt" cx="66" cy="46" r="7.5"/>
+        </g>
+      </svg>
+      <div class="r-geste" id="geste"></div>
+    </div>
+    <div aria-live="polite">
+      <div class="r-num" id="num">Concept 2 · La pile et la bulle</div>
+      <h1 class="r-titre" id="titre">La vidéo joue</h1>
+      <p class="r-phrase" id="phrase"></p>
+    </div>
+    <div class="r-cmd">
+      <button class="bouton creux" id="rejouer">Rejouer</button>
+      <button class="bouton plein" id="suivant">Étape suivante</button>
+      <div class="r-opts">
+        <label><input type="checkbox" id="autoCase" checked> Lecture automatique</label>
+        <label><input type="checkbox" id="lentCase"> Ralenti ×4</label>
+      </div>
+    </div>
+  </div>
+  <ol class="pas" id="pas"></ol>
+  <div class="notes">
+    <div><b>À essayer.</b> Pointeur sur l’îlot noir, puis deux doigts sur le trackpad : les cartes défilent. Clique une durée.</div>
+    <div><b>D’où ça vient.</b> Pile et points : la Smart Stack de l’Apple Watch, les piles de widgets. Deux activités : la Dynamic Island de l’iPhone.</div>
+    <div><b>Ce qui change.</b> Rien au survol ni au clic. L’accueil devient des cartes derrière la lecture. Îlot noir, aucun verre.</div>
+    <div><b>Limites.</b> Le geste ne se devine pas : à montrer une fois. Avec la bulle, l’onde disparaît, il reste la miniature.</div>
+  </div>
+</section>
+<pre id="verif"></pre>
+
+<script>
+'use strict';
+/* =========================================================
+   Constantes de l'écran (MacBook) — 1 px CSS = 1 pt
+   ========================================================= */
+const Q = new URLSearchParams(location.search);
+const $ = id => document.getElementById(id);
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const B = 33;            // hauteur de la barre des menus
+const CAM = 180;         // largeur de l'encoche
+const HC = CAM / 2;
+const LIM = HC + 66;     // demi-largeur maximale dans la bande de la barre
+const OX = 400;          // décalage des calques (centre)
+const HCAL = 260;        // hauteur des calques
+const FIGE = Q.has('fige');
+const VERIF = Q.has('verif');
+const DANS_INDEX = Q.has('cadre') && window.parent !== window;   // présentée dans index.html
+let K = Q.has('lent') ? 4 : 1;
+document.documentElement.style.setProperty('--k', K);
+
+/* =========================================================
+   Glyphes (dessinés à la main, façon symboles SF)
+   ========================================================= */
+const G = {
+  suivant:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M3.4 6.2c0-1 1.1-1.6 1.9-1l8.3 5.8c.7.5.7 1.5 0 2l-8.3 5.8c-.8.6-1.9 0-1.9-1z"/><rect fill="currentColor" x="16.2" y="5" width="3.6" height="14" rx="1.3"/></svg>',
+  play:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M6.6 4.3c0-1.1 1.2-1.8 2.1-1.2l12 7.6c.9.6.9 1.9 0 2.5l-12 7.6c-.9.6-2.1-.1-2.1-1.2z"/></svg>',
+  pause:'<svg viewBox="0 0 24 24"><rect fill="currentColor" x="5.2" y="3.4" width="4.9" height="17.2" rx="1.5"/><rect fill="currentColor" x="13.9" y="3.4" width="4.9" height="17.2" rx="1.5"/></svg>',
+  moins10:'<svg viewBox="0 0 24 24"><path d="M12 3.9a8.3 8.3 0 1 1-7.9 5.7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path fill="currentColor" d="M12.9 1.2 8.4 3.9l4.5 2.7z"/><text x="12" y="15.6" text-anchor="middle" font-size="7.6" font-weight="700" fill="currentColor" font-family="-apple-system,sans-serif">10</text></svg>',
+  plus10:'<svg viewBox="0 0 24 24"><path d="M12 3.9a8.3 8.3 0 1 0 7.9 5.7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path fill="currentColor" d="M11.1 1.2l4.5 2.7-4.5 2.7z"/><text x="12" y="15.6" text-anchor="middle" font-size="7.6" font-weight="700" fill="currentColor" font-family="-apple-system,sans-serif">10</text></svg>',
+  croix:'<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>',
+  cloche:'<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.4c-3.4 0-6 2.7-6 6.1v3.7l-1.6 3c-.5.9.1 1.9 1.1 1.9h13c1 0 1.6-1 1.1-1.9l-1.6-3V8.5c0-3.4-2.6-6.1-6-6.1zM9.3 18.6a2.8 2.8 0 0 0 5.4 0z"/></svg>',
+  micro:'<svg viewBox="0 0 24 24"><rect fill="currentColor" x="8.6" y="2.4" width="6.8" height="12" rx="3.4"/><path d="M5.6 11.2a6.4 6.4 0 0 0 12.8 0M12 17.8v3.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  minuteur:'<svg viewBox="0 0 24 24"><circle cx="12" cy="13.4" r="8" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 13.4V9M9.6 2.6h4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  camera:'<svg viewBox="0 0 24 24"><rect fill="currentColor" x="2" y="6" width="13.5" height="12" rx="3"/><path fill="currentColor" d="M16.8 10.4l4.1-2.7c.5-.3 1.1 0 1.1.6v7.4c0 .6-.6.9-1.1.6l-4.1-2.7z"/></svg>',
+  calendrier:'<svg viewBox="0 0 24 24"><rect x="3.2" y="5" width="17.6" height="15.4" rx="3.6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M3.8 10.2h16.4M8 2.8v4M16 2.8v4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>'
+};
+
+/* =========================================================
+   Images dessinées : la miniature (îlot) et l'image de la vidéo (lecteur)
+   ========================================================= */
+const MINIATURE = `<svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice">
+  <defs><radialGradient id="mi-f" cx="72%" cy="40%" r="85%"><stop offset="0" stop-color="#ffd54a"/><stop offset=".55" stop-color="#ffab1f"/><stop offset="1" stop-color="#e2620c"/></radialGradient>
+  <linearGradient id="mi-e" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fd0ff"/><stop offset="1" stop-color="#2f6fd0"/></linearGradient>
+  <linearGradient id="mi-c" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dcdde2"/></linearGradient></defs>
+  <rect width="160" height="90" fill="url(#mi-f)"/>
+  <circle cx="118" cy="44" r="44" fill="#fff" opacity=".18"/>
+  <g transform="rotate(-9 112 48)">
+    <rect x="92" y="12" width="44" height="72" rx="8" fill="#000" opacity=".22" transform="translate(3 4)"/>
+    <rect x="92" y="12" width="44" height="72" rx="8" fill="url(#mi-c)"/>
+    <rect x="97" y="17" width="34" height="25" rx="2.5" fill="url(#mi-e)"/>
+    <rect x="100" y="21" width="15" height="2.2" rx="1" fill="#fff" opacity=".9"/>
+    <rect x="100" y="25.5" width="22" height="2.2" rx="1" fill="#fff" opacity=".55"/>
+    <rect x="100" y="30" width="18" height="2.2" rx="1" fill="#fff" opacity=".55"/>
+    <circle cx="114" cy="62" r="14" fill="#e9e9ed"/><circle cx="114" cy="62" r="5" fill="#fbfbfc"/>
+  </g>
+  <text x="8" y="40" font-size="25" font-weight="900" fill="#fff" stroke="#111" stroke-width="2.4" paint-order="stroke" font-family="-apple-system,sans-serif" letter-spacing="-.6">L'iPod</text>
+  <rect x="8" y="47" width="58" height="17" rx="2.5" fill="#111"/>
+  <text x="12" y="60" font-size="13" font-weight="800" fill="#ffd54a" font-family="-apple-system,sans-serif">en 2026 ?</text>
+</svg>`;
+$('image').innerHTML = `<svg viewBox="0 0 640 360" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="im-mur" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6ead6"/><stop offset="1" stop-color="#ecd3a6"/></linearGradient>
+    <radialGradient id="im-jour" cx="14%" cy="6%" r="72%"><stop offset="0" stop-color="#fff8e6"/><stop offset="1" stop-color="#fff8e6" stop-opacity="0"/></radialGradient>
+    <linearGradient id="im-bois" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d7954f"/><stop offset="1" stop-color="#a9682f"/></linearGradient>
+    <linearGradient id="im-corps" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d3d6de"/></linearGradient>
+    <linearGradient id="im-ecran" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fd0ff"/><stop offset="1" stop-color="#2f6fd0"/></linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#im-mur)"/>
+  <rect width="640" height="360" fill="url(#im-jour)"/>
+  <rect x="56" y="38" width="138" height="100" rx="3" fill="#fff" opacity=".75"/>
+  <rect x="66" y="48" width="118" height="80" fill="#f0b765"/>
+  <circle cx="146" cy="82" r="18" fill="#ffe7ad"/>
+  <path d="M66 128l38-36 28 24 22-17 30 29z" fill="#c9743a"/>
+  <rect y="258" width="640" height="102" fill="url(#im-bois)"/>
+  <rect y="258" width="640" height="2.5" fill="#f3c58c" opacity=".85"/>
+  <g>
+    <path d="M548 150c-22-34-6-66 14-78 10 30 6 56-14 78z" fill="#3f7a4c"/>
+    <path d="M552 160c4-40 30-58 54-56-6 30-26 50-54 56z" fill="#4f8f5b"/>
+    <path d="M546 164c-30-10-46-34-44-58 26 6 44 28 44 58z" fill="#5a9c66"/>
+    <path d="M520 172h60l-7 88h-46z" fill="#ece6dc"/>
+    <path d="M520 172h60l-1.4 16h-57.2z" fill="#d9d1c3"/>
+  </g>
+  <g transform="rotate(-8 330 190)">
+    <ellipse cx="338" cy="287" rx="86" ry="9" fill="#5a3413" opacity=".35"/>
+    <rect x="262" y="62" width="136" height="222" rx="20" fill="url(#im-corps)"/>
+    <rect x="262.75" y="62.75" width="134.5" height="220.5" rx="19.3" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="1.5"/>
+    <rect x="276" y="76" width="108" height="82" rx="6" fill="url(#im-ecran)"/>
+    <rect x="285" y="87" width="46" height="6" rx="3" fill="#fff" opacity=".95"/>
+    <rect x="285" y="100" width="70" height="6" rx="3" fill="#fff" opacity=".6"/>
+    <rect x="285" y="113" width="58" height="6" rx="3" fill="#fff" opacity=".6"/>
+    <rect x="285" y="126" width="64" height="6" rx="3" fill="#fff" opacity=".6"/>
+    <circle cx="330" cy="224" r="46" fill="#e5e7ed"/><circle cx="330" cy="224" r="17" fill="#fcfcfd"/>
+    <text x="330" y="195" text-anchor="middle" font-size="9" font-weight="700" fill="#a3a6b0" font-family="-apple-system,sans-serif">MENU</text>
+  </g>
+  <path d="M404 268c36 22 62-4 90 8s24 30 52 26" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".92"/>
+  <rect x="542" y="294" width="16" height="12" rx="6" fill="#fff"/>
+</svg>`;
+
+/* =========================================================
+   Géométrie : les états de la forme (demi-largeurs depuis le centre)
+   ng / nd = cou à gauche / à droite dans la barre, bw / bd = corps sous la barre (gauche / droite), h = hauteur,
+   rs = épaule creuse en haut, rb = coin bas, rt = coin haut du corps, f = congé du cou
+   ========================================================= */
+const GEO = {
+  repos:    {ng:128, nd:128, bw:128, bd:128, h:33,  rs:6, rb:10, rt:0,  f:0},   // lecture seule : deux ailes de 38 pt
+  duo:      {ng:128, nd:HC,  bw:128, bd:HC,  h:33,  rs:6, rb:10, rt:0,  f:0},   // deux activités : l'aile droite est rendue à la bulle
+  lecture:  {ng:144, nd:144, bw:234, bd:234, h:208, rs:6, rb:34, rt:18, f:10},
+  minuteur: {ng:144, nd:144, bw:200, bd:200, h:133, rs:6, rb:30, rt:16, f:10},
+  rappel:   {ng:144, nd:144, bw:200, bd:200, h:133, rs:6, rb:30, rt:16, f:10},
+  rdv:      {ng:144, nd:144, bw:200, bd:200, h:133, rs:6, rb:30, rt:16, f:10}
+};
+const NOTCH = {ng:HC, nd:HC, bw:HC, bd:HC, h:B, rs:4, rb:8, rt:0, f:0};
+const PILE = ['lecture', 'minuteur', 'rappel', 'rdv'];
+const BULLE = {x:97, y:4, h:25, marge:8.5, rentree:70, cachee:84};   // la bulle se pose à 7 pt de la caméra
+const COURSE = 150;      // course d'une carte de la pile, en points
+
+/* Coin continu (courbure nulle aux extrémités) : portée 1,6 r, poignées à 0,18 de la portée */
+const PORTEE = 1.6, POIGNEE = 0.18;
+function cote(g, n, bw){
+  const corps = Math.max(0, g.h - B);
+  const u = Math.min(corps, 40) / 40;
+  const e = 1 - Math.pow(1 - u, 2.5);            // le corps s'élargit dès qu'il existe sous la barre
+  const d = Math.max(0, bw - n) * e;
+  const W = n + d;
+  const serre = 1 - clamp((n - HC) / 24, 0, 1);  // 1 quand ce côté colle à la caméra : il reprend les rayons de l'encoche
+  const rs = g.rs + (4 - g.rs) * serre;
+  const rbv = lerp(g.rb + (8 - g.rb) * serre, g.rb, clamp(corps / 12, 0, 1));
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6);
+  const dispo = (1 - lam) * (g.h - rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(rbv, dispo / PORTEE, W / PORTEE));
+  return {n, W, d, fe, rte, rbe, rs, bande:Math.max(n + rs, n + fe)};
+}
+const f2 = v => (Math.round(v * 100) / 100);
+function chemin(g, ox){
+  const o = ox || 0, h = g.h;
+  const L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd);
+  const X = x => f2(x + o), Y = y => f2(y);
+  const a1 = PORTEE * L.rte, c1 = POIGNEE * a1, a2 = PORTEE * L.rbe, c2 = POIGNEE * a2;
+  const b1 = PORTEE * D.rte, d1 = POIGNEE * b1, b2 = PORTEE * D.rbe, d2 = POIGNEE * b2;
+  let p = `M${X(-L.n - L.rs)} ${Y(-1)}L${X(-L.n - L.rs)} 0Q${X(-L.n)} 0 ${X(-L.n)} ${Y(L.rs)}`;
+  if (L.d > 0.5) p += `L${X(-L.n)} ${Y(B - L.fe)}Q${X(-L.n)} ${B} ${X(-L.n - L.fe)} ${B}L${X(-L.W + a1)} ${B}C${X(-L.W + c1)} ${B} ${X(-L.W)} ${Y(B + c1)} ${X(-L.W)} ${Y(B + a1)}`;
+  p += `L${X(-L.W)} ${Y(h - a2)}C${X(-L.W)} ${Y(h - c2)} ${X(-L.W + c2)} ${Y(h)} ${X(-L.W + a2)} ${Y(h)}`;
+  p += `L${X(D.W - b2)} ${Y(h)}C${X(D.W - d2)} ${Y(h)} ${X(D.W)} ${Y(h - d2)} ${X(D.W)} ${Y(h - b2)}`;
+  if (D.d > 0.5) p += `L${X(D.W)} ${Y(B + b1)}C${X(D.W)} ${Y(B + d1)} ${X(D.W - d1)} ${B} ${X(D.W - b1)} ${B}L${X(D.n + D.fe)} ${B}Q${X(D.n)} ${B} ${X(D.n)} ${Y(B - D.fe)}`;
+  p += `L${X(D.n)} ${Y(D.rs)}Q${X(D.n)} 0 ${X(D.n + D.rs)} 0L${X(D.n + D.rs)} ${Y(-1)}Z`;
+  return p;
+}
+
+/* =========================================================
+   Ressorts (réponse en s, amortissement ζ) — interruptibles :
+   une nouvelle cible part de la valeur ET de la vitesse courantes.
+   ========================================================= */
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = 1; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){
+      this.attente -= dt;
+      if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; }
+    }
+    const w = 2 * Math.PI / this.rep, k = w * w, c = 2 * this.z * w;
+    const a = k * (this.cible - this.x) - c * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+const CLES = ['ng', 'nd', 'bw', 'bd', 'h', 'rs', 'rb', 'rt', 'f'];
+const LARG = ['ng', 'nd', 'bw', 'bd'], HAUT = ['h', 'rs', 'rb', 'rt', 'f'];
+const R = {};
+CLES.forEach(k => R[k] = new Ressort(GEO.repos[k]));
+const P = new Ressort(0);                 // page de la pile (0 = Lecture, 1 = Minuteur, …)
+const BX = new Ressort(BULLE.rentree);    // bord gauche de la bulle
+const BW = new Ressort(52);               // largeur de la bulle (elle épouse le temps affiché)
+const TOUS = CLES.map(k => R[k]).concat([P, BX, BW]);
+const geoCourante = () => { const g = {}; CLES.forEach(k => g[k] = R[k].x); return g; };
+
+/* Courbe CSS « ressort » (même formule) pour les zooms d'entrée */
+(function(){
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){
+    pts.push(x);
+    const steps = Math.round((T / N) / dt);
+    for (let s = 0; s < steps; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; }
+  }
+  pts[pts.length - 1] = 1;
+  document.documentElement.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+/* =========================================================
+   Le monde : ce qui se passe (indépendant du dessin)
+   ========================================================= */
+const monde = {ouvert:false, page:0, lance:false, jeu:true};
+const minut = {total:600, reste:600, jeu:true};
+const video = {duree:774, pos:202};
+const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+
+/* =========================================================
+   Contenu : une carte par page de la pile, posée sur une grille commune (marge 16 pt)
+   ========================================================= */
+const contenu = $('contenu');
+function el(html){ const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
+function place(n, r){
+  if (r.x != null) n.style.left = (OX + r.x) + 'px';
+  if (r.y != null) n.style.top = r.y + 'px';
+  if (r.w != null) n.style.width = r.w + 'px';
+  if (r.h != null) n.style.height = r.h + 'px';
+}
+const pile = el('<div class="pile"></div>'); contenu.appendChild(pile);
+const CARTES = PILE.map((cle, i) => { const n = el(`<div class="carte" data-c="${cle}"></div>`); pile.appendChild(n); return {cle, i, n}; });
+const C = {}; CARTES.forEach(c => C[c.cle] = c);
+const ELS = [];
+function ajoute(parent, html, r, o){
+  const n = el(html); place(n, r); n.classList.add('e');
+  if (o.o) n.classList.add(o.o);
+  n.dataset.k = o.k;
+  parent.appendChild(n);
+  ELS.push({n, i:o.i || 0, quand:o.quand, k:o.k, carte:o.carte == null ? -1 : o.carte});
+  return n;
+}
+const ouvert = () => monde.ouvert;
+const libre = () => monde.ouvert && !monde.lance;
+const encours = () => monde.ouvert && monde.lance;
+
+/* ---- carte Lecture ---- */
+const ART_C = {x:-123, y:8.5, w:28.4, h:16, r:4};
+const ART_X = {x:-218, y:49, w:128, h:72, r:10};
+const lTitre = ajoute(C.lecture.n, `<div class="titre"><span>Je détestais la mode des iPods, donc j’en ai racheté un en 2026</span></div>`, {x:-76, y:63, w:290, h:22}, {i:0, o:'o-g', k:'titre', carte:0, quand:ouvert});
+ajoute(C.lecture.n, `<div class="source">Le Coin Tech · YouTube</div>`, {x:-76, y:87, w:290, h:17}, {i:1, o:'o-g', k:'source', carte:0, quand:ouvert});
+const lProg = ajoute(C.lecture.n, `<div class="prog"><span class="tps g">0:00</span><div class="piste"><div class="plein"></div></div><span class="tps d">0:00</span></div>`, {x:-218, y:131, w:432, h:20}, {i:2, k:'prog', carte:0, quand:ouvert});
+const lCmd = ajoute(C.lecture.n, `<div></div>`, {x:-102, y:158, w:200, h:40}, {i:3, k:'cmd', carte:0, quand:ouvert});
+ajoute(C.lecture.n, `<div class="suiv">${G.suivant}</div>`, {x:192, y:167, w:22, h:22}, {i:3, k:'suivant', carte:0, quand:ouvert});   // piste suivante, estompée, comme dans l'app
+
+/* ---- carte Minuteur : trois durées, pas plus ---- */
+ajoute(C.minuteur.n, `<div class="tete"><span class="g ambre">${G.minuteur}</span>Minuteur</div>`, {x:-184, y:47, w:150, h:17}, {i:0, o:'o-g', k:'teteM', carte:1, quand:libre});
+const PRESETS = {};
+[5, 10, 25].forEach((m, j) => { PRESETS[m] = ajoute(C.minuteur.n, `<button class="preset" data-min="${m}" aria-label="Minuteur de ${m} minutes">${m} min</button>`, {x:-184 + j * 121.33, y:72, w:113.33, h:44}, {i:1 + j, k:'duree' + m, carte:1, quand:libre}); });
+/* … et la même carte quand un minuteur tourne */
+ajoute(C.minuteur.n, `<div class="tete"><span class="g ambre">${G.minuteur}</span><span id="mLbl">Minuteur · 10 min</span></div>`, {x:-184, y:47, w:220, h:17}, {i:0, o:'o-g', k:'teteE', carte:1, quand:encours});
+const mTps = ajoute(C.minuteur.n, `<div class="grand-temps">10:00</div>`, {x:-184, y:68, w:210, h:48}, {i:1, o:'o-g', k:'tempsE', carte:1, quand:encours});
+const mPause = ajoute(C.minuteur.n, `<button class="rond ambre" data-a="pauseM" aria-label="Pause">${G.pause}</button>`, {x:76, y:72, w:44, h:44}, {i:2, k:'pauseE', carte:1, quand:encours});
+ajoute(C.minuteur.n, `<button class="rond gris" data-a="stopM" aria-label="Arrêter le minuteur">${G.croix}</button>`, {x:128, y:72, w:44, h:44}, {i:3, k:'stopE', carte:1, quand:encours});
+
+/* ---- carte Rappel ---- */
+ajoute(C.rappel.n, `<div class="tete"><span class="g jaune">${G.cloche}</span>Rappel</div>`, {x:-184, y:47, w:120, h:17}, {i:0, o:'o-g', k:'teteR', carte:2, quand:ouvert});
+ajoute(C.rappel.n, `<div class="exemple">Dis « appeler Paul à 15 h »</div>`, {x:-38, y:47, w:210, h:17}, {i:0, o:'o-d', k:'exempleR', carte:2, quand:ouvert});
+ajoute(C.rappel.n, `<button class="preset"><span class="gl">${G.micro}Dire un rappel</span></button>`, {x:-184, y:72, w:356, h:44}, {i:1, k:'dire', carte:2, quand:ouvert});
+
+/* ---- carte Rendez-vous ---- */
+ajoute(C.rdv.n, `<div class="tete"><span class="g rouge">${G.calendrier}</span>Rendez-vous · dans 12 min</div>`, {x:-184, y:47, w:260, h:17}, {i:0, o:'o-g', k:'teteV', carte:3, quand:ouvert});
+ajoute(C.rdv.n, `<div class="rdv-t">Point équipe</div>`, {x:-184, y:70, w:230, h:26}, {i:1, o:'o-g', k:'titreV', carte:3, quand:ouvert});
+ajoute(C.rdv.n, `<div class="rdv-s">9:53 · Google Meet</div>`, {x:-184, y:98, w:230, h:17}, {i:1, o:'o-g', k:'sousV', carte:3, quand:ouvert});
+ajoute(C.rdv.n, `<button class="preset vert"><span class="gl">${G.camera}Rejoindre</span></button>`, {x:58.67, y:72, w:113.33, h:44}, {i:2, k:'rejoindre', carte:3, quand:ouvert});
+
+/* ---- hors des cartes : la pochette (elle voyage), l'onde, les points de page ---- */
+const art = el(`<div class="art">${MINIATURE}</div>`); place(art, ART_C); art.style.borderRadius = ART_C.r + 'px'; contenu.appendChild(art);
+const eq = ajoute(contenu, `<div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>`, {x:100, y:9.5, w:19.4, h:14}, {i:0, k:'onde', quand:() => !(monde.lance && !monde.ouvert)});
+const points = ajoute(contenu, `<div class="points" aria-hidden="true">${'<i></i>'.repeat(PILE.length)}</div>`, {x:0, y:0}, {i:4, k:'points', quand:ouvert});
+const pointsI = [...points.children];
+
+lCmd.innerHTML = [['moins10', 'Reculer de 10 secondes', 16, ''], ['pp', 'Pause', 80, ' grand'], ['plus10', 'Avancer de 10 secondes', 144, '']]
+  .map(([a, lab, x, cl]) => `<button class="bt${cl}" style="left:${x}px" data-a="${a}" aria-label="${lab}">${a === 'pp' ? G.pause : G[a]}</button>`).join('');
+
+/* =========================================================
+   Données vivantes
+   ========================================================= */
+const bulleTemps = $('bulleTemps'), bulleFond = $('bulleFond');
+function majVideo(){
+  lProg.querySelector('.plein').style.width = (100 * video.pos / video.duree) + '%';
+  lProg.querySelector('.g').textContent = fmt(video.pos);
+  lProg.querySelector('.d').textContent = '−' + fmt(video.duree - video.pos);
+  $('yt-plein').style.width = (100 * video.pos / video.duree) + '%';
+  $('yt-tps').textContent = fmt(video.pos) + ' / ' + fmt(video.duree);
+  contenu.classList.toggle('arret', !monde.jeu);
+  lCmd.querySelector('[data-a="pp"]').innerHTML = monde.jeu ? G.pause : G.play;
+}
+function largeurBulle(){ return BULLE.marge * 2 + bulleTemps.getComputedTextLength(); }
+function majMinuteur(pose){
+  const t = fmt(minut.reste);
+  bulleTemps.textContent = t; mTps.textContent = t;
+  $('mLbl').textContent = 'Minuteur · ' + Math.round(minut.total / 60) + ' min';
+  mPause.innerHTML = minut.jeu ? G.pause : G.play;
+  mPause.setAttribute('aria-label', minut.jeu ? 'Pause' : 'Reprendre');
+  const w = largeurBulle();
+  if (pose || gele) BW.poser(w);
+  else if (Math.abs(w - BW.cible) > .3){ BW.viser(w, .38, .82, 0); demarrer(); }
+}
+let tic = 0;
+function lancerTic(){
+  clearInterval(tic);
+  tic = setInterval(() => {
+    if (gele) return;
+    if (monde.jeu){ video.pos = video.pos >= video.duree ? 0 : video.pos + 1; majVideo(); }
+    if (monde.lance && minut.jeu){
+      minut.reste = Math.max(0, minut.reste - 1); majMinuteur();
+      if (minut.reste === 0) arreterMinuteur();
+    }
+  }, 1000);
+}
+
+/* =========================================================
+   Choix de la forme et passages
+   ========================================================= */
+function cible(){
+  if (monde.ouvert) return GEO[PILE[monde.page]];
+  return monde.lance ? GEO.duo : GEO.repos;
+}
+let etaitOuvert = false;
+function appliquer(o){
+  o = o || {};
+  const snap = !!o.snap || gele;
+  const g = cible();
+  const ouvre = monde.ouvert && !etaitOuvert, ferme = !monde.ouvert && etaitOuvert;
+  etaitOuvert = monde.ouvert;
+  if (snap){
+    CLES.forEach(k => R[k].poser(g[k])); P.poser(monde.page);
+  } else if (ferme){
+    // le contenu part d'abord ; le corps se replie en hauteur et en largeur ensemble (jamais de bandeau plat
+    // plus large que le cou), les ailes en dernier — sans rebond
+    HAUT.forEach(k => R[k].viser(g[k], .40, 1, .06));
+    R.bw.viser(g.bw, .40, 1, .06); R.bd.viser(g.bd, .40, 1, .06); R.ng.viser(g.ng, .45, 1, .11);
+    // avec un minuteur, l'aile droite se retire après le corps : c'est elle qui laisse la bulle derrière elle
+    if (monde.lance) R.nd.viser(g.nd, .5, .78, .2); else R.nd.viser(g.nd, .45, 1, .11);
+  } else if (ouvre){
+    LARG.forEach(k => R[k].viser(g[k], .40, .80, 0));
+    HAUT.forEach(k => R[k].viser(g[k], .48, .75, 0));
+    P.poser(monde.page);
+  } else {
+    // changement de carte (la forme épouse la nouvelle carte), ou repos ↔ deux activités
+    CLES.forEach(k => R[k].viser(g[k], .46, .82, 0));
+    P.viser(monde.page, .5, .8, 0);
+  }
+  // la bulle : dehors seulement si un minuteur tourne et que l'îlot est replié
+  const dehors = monde.lance && !monde.ouvert;
+  const bx = dehors ? BULLE.x : (monde.lance ? BULLE.cachee : BULLE.rentree);
+  if (snap) BX.poser(bx);
+  else if (dehors) BX.viser(bx, .5, .62, ferme ? .3 : .08);
+  else BX.viser(bx, .34, 1, 0);
+  majContenu(ouvre);
+  demarrer();
+}
+function majContenu(cascade){
+  for (const E of ELS){
+    const vis = E.quand(), deja = E.n.classList.contains('on');
+    // le nouveau arrive après la forme : 0,12 s puis 35 ms par bloc
+    E.n.style.setProperty('--d', (vis && !deja ? (cascade ? .12 + .035 * E.i : .05) : 0) + 's');
+    E.n.classList.toggle('on', vis);
+  }
+}
+function lancer(min){
+  minut.total = min * 60; minut.reste = minut.total; minut.jeu = true;
+  monde.lance = true; monde.ouvert = false;
+  majMinuteur(true); lancerTic(); appliquer();
+}
+function arreterMinuteur(){
+  monde.lance = false; monde.ouvert = false; appliquer();
+}
+
+/* =========================================================
+   Boucle d'animation : ne tourne que tant que quelque chose bouge
+   ========================================================= */
+let enCours = false, tPrec = 0, gele = false;
+const tweens = [];
+const forme = $('forme'), ombre = $('ombre'), svgForme = $('forme-svg');
+const gooCalque = $('gooCalque'), gooIlot = $('gooIlot'), gooBulle = $('gooBulle'), gooFlou = $('gooFlou');
+function demarrer(){
+  if (gele){ rendu(); return; }
+  if (!enCours){ enCours = true; tPrec = performance.now(); requestAnimationFrame(boucle); }
+}
+function avancer(dt){
+  const N = Math.max(1, Math.ceil(dt * 240)), h = dt / N;
+  for (let i = 0; i < N; i++) for (const r of TOUS) r.pas(h);
+  let bouge = false;
+  for (const r of TOUS) if (!r.pose()) bouge = true;
+  return bouge;
+}
+function boucle(t){
+  if (gele){ enCours = false; return; }
+  const dt = Math.min(.05, (t - tPrec) / 1000) / K; tPrec = t;
+  for (let i = tweens.length - 1; i >= 0; i--){
+    const w = tweens[i]; w.t += dt;
+    const u = clamp(w.t / w.d, 0, 1); w.fn(u);
+    if (u >= 1){ tweens.splice(i, 1); w.fin(); }
+  }
+  let bouge = avancer(dt);
+  if (tweens.length) bouge = true;
+  rendu();
+  if (bouge) requestAnimationFrame(boucle);
+  else { enCours = false; repos(); }
+}
+function repos(){
+  gooCalque.style.display = 'none';
+  if (!monde.ouvert){
+    if (monde.page !== 0){ monde.page = 0; P.poser(0); }
+    if (!enPassage || monde.lance) presetEtat(null);   // la durée choisie est consommée
+    rendu();
+  }
+}
+
+/* Cadre d'un élément qui voyage, en fonction de l'ouverture p (0 replié → 1 déplié).
+   La descente mène, la taille suit, le glissement de côté vient en dernier :
+   la pochette ne passe jamais sous la caméra ni hors de la forme. */
+function voyage(a, b, p){
+  const q = clamp(p, 0, 1), over = Math.max(0, p - 1);
+  const ty = 1 - Math.pow(1 - q, 3) + over;
+  const ts = Math.pow(clamp((q - .15) / .85, 0, 1), 1.1) + over;
+  const tx = Math.pow(q, 1.4) + over;
+  return {x:lerp(a.x, b.x, tx), y:lerp(a.y, b.y, ty), w:lerp(a.w, b.w, ts), h:lerp(a.h, b.h, ts), r:lerp(a.r, b.r, ts)};
+}
+/* la pochette n'est grande que sur la carte Lecture : dès qu'on fait défiler, elle remonte dans son aile */
+function cadreArt(g){
+  const ouv = clamp((g.h - B) / (GEO.lecture.h - B), 0, 1.12);
+  return voyage(ART_C, ART_X, ouv * (1 - clamp(P.x * 2.1, 0, 1)));
+}
+function rendu(){
+  const g = geoCourante();
+  forme.setAttribute('d', chemin(g, 0));
+  contenu.style.clipPath = `path('${chemin(g, OX)}')`;
+  const s = clamp((g.h - B) / 70, 0, 1);
+  ombre.style.filter = s > 0.01 ? `drop-shadow(0 ${(6 * s).toFixed(1)}px ${(18 * s).toFixed(1)}px rgba(10,20,40,${(.34 * s).toFixed(3)}))` : 'none';
+
+  // la pochette
+  const c = cadreArt(g);
+  place(art, c); art.style.borderRadius = c.r.toFixed(2) + 'px';
+
+  // la pile : une vraie page qui glisse. La carte qui part monte sous la barre, la suivante monte du bas ;
+  // elles ne se recouvrent jamais (course = hauteur d'une carte).
+  const p = P.x;
+  for (const ca of CARTES){
+    const o = ca.i - p, a = Math.abs(o), n = ca.n;
+    if (a >= 1){ if (n.style.visibility !== 'hidden') n.style.visibility = 'hidden'; continue; }
+    n.style.visibility = 'visible';
+    n.style.transform = a < .001 ? 'none' : `translateY(${(o * COURSE).toFixed(2)}px) scale(${(1 - .04 * a).toFixed(4)})`;
+    n.style.opacity = clamp((1 - a) * 2.2, 0, 1).toFixed(3);
+    n.style.filter = a > .5 ? `blur(${Math.min(4, (a - .5) * 8).toFixed(2)}px)` : 'none';
+    n.classList.toggle('hors', a > .4);
+  }
+  // les points de page, collés au bord droit de la forme
+  const D = cote(g, g.nd, g.bd);
+  points.style.left = (OX + D.W - 14.5).toFixed(2) + 'px';
+  points.style.top = ((B + g.h) / 2 - (PILE.length * 10 - 5) / 2).toFixed(2) + 'px';
+  pointsI.forEach((d, i) => {
+    const pr = 1 - clamp(Math.abs(i - p), 0, 1);
+    d.style.opacity = (.3 + .7 * pr).toFixed(3);
+    d.style.transform = `scale(${(1 + .2 * pr).toFixed(3)})`;
+  });
+
+  // la bulle et sa goutte : elle reste derrière quand l'aile droite se retire
+  const bx = BX.x, bw = BW.x;
+  bulleFond.setAttribute('x', bx.toFixed(2)); bulleFond.setAttribute('width', bw.toFixed(2));
+  bulleTemps.setAttribute('x', (bx + BULLE.marge).toFixed(2));
+  const ecart = bx - g.nd;                       // écart entre le bord de l'îlot et la bulle
+  const depasse = bx + bw > g.nd - 3;            // la bulle pointe hors de l'îlot
+  bulleTemps.classList.toggle('on', monde.lance && !monde.ouvert && ecart > 4.2);
+  const goo = depasse && ecart < 6.6 && g.h < 60;
+  if (goo){
+    gooCalque.style.display = '';
+    gooFlou.setAttribute('stdDeviation', (ecart < 1 ? 5 : clamp(5 - (ecart - 1) * .8, .5, 5)).toFixed(2));
+    gooIlot.setAttribute('width', Math.max(0, g.nd - 40).toFixed(2));
+    gooBulle.setAttribute('x', bx.toFixed(2)); gooBulle.setAttribute('width', bw.toFixed(2));
+  } else if (gooCalque.style.display !== 'none') gooCalque.style.display = 'none';
+}
+
+/* =========================================================
+   Régie : les mains, le faux curseur, les étapes
+   ========================================================= */
+const curseur = $('curseur'), pad = $('pad');
+const REPOS = [-78, 318], SUR_ILOT = [105, 29], SUR_10 = [30, 100];
+function curseurVers(pt, vu, sec){
+  if (pt){
+    curseur.style.transitionDuration = sec ? '0s' : '';
+    curseur.style.transform = `translate(${pt[0] - 1.5}px,${pt[1] - 1.5}px)`;
+    if (sec){ void curseur.getBoundingClientRect(); curseur.style.transitionDuration = ''; }
+  }
+  if (vu != null) curseur.classList.toggle('vu', vu);
+}
+const GESTES = {repos:'', deux:'deux doigts vers le haut', un:'un clic'};
+function mains(m){ pad.dataset.m = m; $('geste').textContent = GESTES[m]; }
+function doigts(u){
+  const dy = -30 * u;
+  [['pd-d1', 'pd-t1', 60], ['pd-d2', 'pd-t2', 56]].forEach(([d, t, y0]) => {
+    $(d).setAttribute('cy', (y0 + dy).toFixed(2));
+    $(t).setAttribute('y', (y0 + dy).toFixed(2)); $(t).setAttribute('height', (-dy).toFixed(2));
+  });
+}
+function clicPad(){
+  if (gele) return;
+  $('pd-onde').animate([{r:'8px', opacity:.9}, {r:'22px', opacity:0}], {duration:520 * K, easing:'cubic-bezier(.2,.7,.2,1)'});
+}
+function presetEtat(min, e){
+  for (const m in PRESETS){
+    const n = PRESETS[m], moi = +m === min;
+    n.classList.toggle('survol', moi && (e === 'survol' || e === 'appui'));
+    n.classList.toggle('appui', moi && e === 'appui');
+    n.classList.toggle('choisie', moi && (e === 'appui' || e === 'choisie'));
+  }
+}
+function survolVideo(v){ $('lecteur').classList.toggle('survol', v); }
+
+const ETAPES = [null,
+  {c:'La vidéo joue', t:'La vidéo joue',
+   p:'L’îlot est pris par la lecture : la miniature à gauche, l’onde à droite. Aujourd’hui, l’accueil et ses minuteurs ne s’ouvrent que si l’îlot est vide.', m:'repos'},
+  {c:'Deux doigts sur l’îlot', t:'Deux doigts sur l’îlot : la pile défile',
+   p:'Au survol, l’îlot se déplie comme aujourd’hui. Nouveau : on fait défiler à deux doigts et la carte suivante monte, Minuteur. Les points à droite disent où l’on est. La miniature remonte dans son aile : la vidéo reste là.', m:'deux'},
+  {c:'Choisir la durée', t:'Choisir la durée',
+   p:'Trois durées, pas plus. Un clic sur 10 min : la capsule passe à l’orange, puis tout se referme.', m:'un'},
+  {c:'Le minuteur se détache', t:'Le minuteur se détache en bulle',
+   p:'L’îlot se replie et se coupe en deux, comme sur l’iPhone. La vidéo reste attachée à la caméra. Le minuteur devient une bulle à côté, avec le temps qui reste.', m:'un'},
+  {c:'Retour à la lecture', t:'Retour à la lecture',
+   p:'La vidéo n’a jamais quitté l’îlot. La bulle a pris la place de l’onde, dans l’aile droite : rien ne passe sur la barre des menus. Un clic sur la bulle ouvre le minuteur.', m:'repos'}
+];
+$('pas').innerHTML = ETAPES.slice(1).map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${e.c}</button></li>`).join('');
+let etape = 1;
+function majRegie(n){
+  etape = n;
+  const e = ETAPES[n];
+  $('num').textContent = `Concept 2 · La pile et la bulle · étape ${n} sur 5`;
+  $('titre').textContent = e.t; $('phrase').textContent = e.p;
+  document.querySelectorAll('#pas button').forEach(b => b.classList.toggle('actif', +b.dataset.e === n));
+}
+
+/* ---- état posé à la fin de chaque étape (sans mouvement) ---- */
+function etatFin(n){
+  const b = {ouvert:false, page:0, lance:false, reste:600, cur:REPOS, vu:true, survol:true, mains:'repos', u:0, preset:null};
+  if (n <= 1) return b;
+  if (n === 2) return Object.assign(b, {ouvert:true, page:1, cur:SUR_ILOT, survol:false, mains:'deux', u:1});
+  if (n === 3) return Object.assign(b, {ouvert:true, page:1, cur:SUR_10, survol:false, mains:'un', preset:10});
+  if (n === 4) return Object.assign(b, {lance:true, reste:598, cur:SUR_10, survol:false, mains:'un'});
+  return Object.assign(b, {lance:true, reste:594});
+}
+const MODES = {
+  lecture:    {ouvert:true, page:0, lance:false},
+  rappel:     {ouvert:true, page:2, lance:false},
+  rdv:        {ouvert:true, page:3, lance:false},
+  encours:    {ouvert:true, page:1, lance:true},
+  lectureduo: {ouvert:true, page:0, lance:true}
+};
+let jeton = 0, enPassage = false, autoActif = false;
+function poser(E){
+  jeton++; enPassage = false; tweens.length = 0;
+  document.documentElement.classList.add('snap');
+  monde.ouvert = E.ouvert; monde.page = E.page; monde.lance = E.lance; monde.jeu = true;
+  minut.total = 600; minut.reste = E.reste == null ? 582 : E.reste; minut.jeu = true;
+  video.pos = 202;
+  presetEtat(E.preset || null, E.preset ? 'appui' : null);
+  mains(E.mains || 'repos'); doigts(E.u || 0);
+  survolVideo(!!E.survol); curseurVers(E.cur || REPOS, !!E.vu, true);
+  majVideo(); majMinuteur(true); appliquer({snap:true}); rendu(); gooCalque.style.display = 'none';
+  void document.body.offsetWidth;
+  if (!gele) requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('snap')));
+}
+function poserScene(n){ poser(etatFin(n)); majRegie(clamp(n, 1, 5)); }
+
+/* ---- passages animés vers chaque étape ---- */
+const attendre = (s, j) => new Promise((ok, ko) => setTimeout(() => (j === jeton ? ok() : ko('stop')), s * 1000 * K));
+const tween = (d, fn, j) => new Promise((ok, ko) => { tweens.push({t:0, d, fn, fin:() => (j === jeton ? ok() : ko('stop'))}); demarrer(); });
+const PASSAGES = [null,
+  async j => {                                   // 1 · la vidéo joue (au retour de boucle, la bulle rentre)
+    if (monde.lance || monde.ouvert){ monde.lance = false; monde.ouvert = false; appliquer(); }
+    presetEtat(null); mains('repos'); doigts(0); survolVideo(true); curseurVers(REPOS, true);
+    await attendre(2.4, j);
+  },
+  async j => {                                   // 2 · survol, puis deux doigts : la pile défile
+    survolVideo(false); curseurVers(SUR_ILOT, true);
+    await attendre(1.05, j);
+    monde.page = 0; monde.ouvert = true; appliquer();        // le survol déplie la lecture, comme aujourd'hui
+    await attendre(1.45, j);
+    mains('deux'); doigts(0);
+    await attendre(.38, j);
+    await tween(.44, u => { const e = 1 - Math.pow(1 - u, 2.2); P.poser(.46 * e); doigts(e); }, j);   // la carte suit les doigts
+    monde.page = 1; P.v = 1.5; appliquer();                  // on lâche : le ressort finit le geste
+    await attendre(1.6, j);
+  },
+  async j => {                                   // 3 · le choix de la durée
+    mains('un'); curseurVers(SUR_10, true);
+    await attendre(.78, j);
+    presetEtat(10, 'survol');
+    await attendre(.55, j);
+    presetEtat(10, 'appui'); clicPad();
+    await attendre(1.0, j);
+  },
+  async j => {                                   // 4 · le minuteur part : l'îlot se coupe en deux
+    presetEtat(10, 'choisie');
+    await attendre(.14, j);
+    lancer(10);
+    await attendre(2.7, j);
+  },
+  async j => {                                   // 5 · retour à la lecture
+    mains('repos'); survolVideo(true); curseurVers(REPOS, true);
+    await attendre(3.6, j);
+  }
+];
+async function passage(n){
+  const j = ++jeton; enPassage = true; majRegie(n);
+  try { await PASSAGES[n](j); enPassage = false; return true; } catch (_) { return false; }
+}
+async function suite(n, boucle){
+  while (true){
+    if (!(await passage(n))) return;
+    if (n === 5 && !boucle) return;
+    if (!autoActif && boucle) return;
+    n = n % 5 + 1;
+  }
+}
+function arreterAuto(){ autoActif = false; $('autoCase').checked = false; }
+$('suivant').addEventListener('click', () => { arreterAuto(); const n = etape % 5 + 1; poserScene(etape); passage(n); });
+$('rejouer').addEventListener('click', () => { arreterAuto(); poserScene(1); suite(1, false); });
+$('pas').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const n = +b.dataset.e; arreterAuto(); poserScene(Math.max(1, n - 1)); passage(n);
+});
+$('autoCase').addEventListener('change', e => { if (e.target.checked){ poserScene(etape); autoActif = true; suite(etape % 5 + 1, true); } else autoActif = false; });
+$('lentCase').checked = K === 4;
+$('lentCase').addEventListener('change', e => { K = e.target.checked ? 4 : 1; document.documentElement.style.setProperty('--k', K); });
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === 'ArrowRight'){ $('suivant').click(); e.preventDefault(); }
+  else if (e.key === 'r' || e.key === 'R') $('rejouer').click();
+  else if (e.key === 'Escape' && monde.ouvert){ reprendreLaMain(); monde.ouvert = false; appliquer(); }
+});
+
+/* =========================================================
+   Le vrai pointeur : survol, défilement à deux doigts, clics (la maquette se manipule)
+   ========================================================= */
+let survol = false, tOuvre = 0, tFerme = 0;
+function versIlot(e){ const r = svgForme.getBoundingClientRect(); return {x:e.clientX - r.left - OX, y:e.clientY - r.top}; }
+function surIlot(p){
+  if (p.y < 0 || p.y > HCAL) return false;
+  try { return forme.isPointInFill(new DOMPoint(p.x, p.y)); } catch (_) { return false; }
+}
+function surBulle(e){ return !!(e.target && e.target.closest && e.target.closest('#bulle')) && monde.lance && !monde.ouvert; }
+function reprendreLaMain(){
+  arreterAuto();
+  if (enPassage){ jeton++; enPassage = false; tweens.length = 0; }
+  curseur.classList.remove('vu'); mains('repos'); presetEtat(null);
+}
+document.addEventListener('pointermove', e => {
+  if (!e.isTrusted || gele) return;
+  const bulle = surBulle(e), dedans = bulle || surIlot(versIlot(e));
+  if (dedans === survol) return;
+  survol = dedans;
+  if (dedans){
+    reprendreLaMain(); clearTimeout(tFerme);
+    if (!monde.ouvert){
+      clearTimeout(tOuvre);
+      // revenue pendant une fermeture : on repart vers l'ouvert tout de suite, depuis la vitesse courante
+      if (R.h.x > R.h.cible + 2){ monde.ouvert = true; appliquer(); }
+      else tOuvre = setTimeout(() => { monde.page = bulle ? 1 : 0; monde.ouvert = true; appliquer(); }, 240 * K);
+    }
+  } else {
+    clearTimeout(tOuvre);
+    if (monde.ouvert){ clearTimeout(tFerme); tFerme = setTimeout(() => { monde.ouvert = false; appliquer(); }, 320 * K); }
+  }
+});
+$('ecran').addEventListener('pointerdown', e => {
+  if (!e.isTrusted || gele) return;
+  if (surBulle(e)){ reprendreLaMain(); clearTimeout(tOuvre); monde.page = 1; monde.ouvert = true; appliquer(); return; }
+  if (e.target.closest && e.target.closest('button')) return;
+  if (!surIlot(versIlot(e))){
+    if (monde.ouvert){ reprendreLaMain(); monde.ouvert = false; appliquer(); }
+    return;
+  }
+  reprendreLaMain(); clearTimeout(tOuvre);
+  if (!monde.ouvert){ monde.page = 0; monde.ouvert = true; } else monde.ouvert = false;
+  appliquer();
+});
+contenu.addEventListener('click', e => {
+  if (!e.isTrusted || gele) return;
+  const d = e.target.closest('[data-min]');
+  if (d){
+    reprendreLaMain(); const min = +d.dataset.min; presetEtat(min, 'choisie');
+    majRegie(4);                              // à la main aussi, la régie suit ce qu'on voit
+    setTimeout(() => lancer(min), 150 * K); return;
+  }
+  const a = e.target.closest('[data-a]'); if (!a) return;
+  reprendreLaMain();
+  const k = a.dataset.a;
+  if (k === 'pp'){ monde.jeu = !monde.jeu; majVideo(); }
+  else if (k === 'moins10'){ video.pos = Math.max(0, video.pos - 10); majVideo(); }
+  else if (k === 'plus10'){ video.pos = Math.min(video.duree, video.pos + 10); majVideo(); }
+  else if (k === 'pauseM'){ minut.jeu = !minut.jeu; majMinuteur(); }
+  else if (k === 'stopM') arreterMinuteur();
+});
+/* défilement : une carte par geste ; la carte suit les doigts, puis le ressort tranche */
+let cumul = 0, dernierDefil = 0, verrou = false, tFinDefil = 0;
+$('ecran').addEventListener('wheel', e => {
+  if (gele) return;
+  if (!(surBulle(e) || surIlot(versIlot(e)))) return;
+  e.preventDefault();
+  reprendreLaMain();
+  if (etape !== 2) majRegie(2);
+  const t = performance.now(), pause = t - dernierDefil > 90; dernierDefil = t;
+  if (verrou){ if (!pause) return; verrou = false; cumul = 0; }      // l'élan d'un geste ne tourne pas deux cartes
+  if (!monde.ouvert){ clearTimeout(tOuvre); monde.page = 0; monde.ouvert = true; appliquer(); }
+  cumul += e.deltaY;
+  const max = PILE.length - 1;
+  let c = monde.page + clamp(cumul / 120, -1, 1) * .5;
+  if (c < 0) c *= .3; else if (c > max) c = max + (c - max) * .3;    // élastique aux deux bouts de la pile
+  P.poser(c); demarrer();
+  clearTimeout(tFinDefil);
+  if (Math.abs(cumul) >= 72){
+    const n = clamp(monde.page + Math.sign(cumul), 0, max);
+    verrou = true; cumul = 0;
+    if (n !== monde.page){ monde.page = n; P.v = Math.sign(e.deltaY) * 1.3; }
+    appliquer();
+  } else tFinDefil = setTimeout(() => { cumul = 0; appliquer(); }, 150);
+}, {passive:false});
+
+/* =========================================================
+   Démarrage, images figées, contrôle automatique
+   ========================================================= */
+$('encoche').setAttribute('d', chemin(NOTCH, 0));
+function geler(){
+  gele = true; jeton++; tweens.length = 0;
+  document.documentElement.classList.add('fige');
+  rendu();
+  document.getAnimations().forEach(a => { try { a.pause(); } catch (_) {} });
+}
+lancerTic();
+if (VERIF){
+  document.documentElement.classList.add('verif', 'snap', 'fige');
+  gele = true; poserScene(1);
+  setTimeout(verifier, 80);
+} else if (Q.has('mode')){
+  if (FIGE){ gele = true; document.documentElement.classList.add('fige'); }
+  poser(Object.assign(etatFin(1), MODES[Q.get('mode')] || MODES.lecture, {vu:false, survol:false, reste:582}));
+  majRegie(2); arreterAuto();
+} else if (Q.has('etape')){
+  const n = clamp(+Q.get('etape') || 1, 1, 5);
+  arreterAuto();
+  if (Q.has('joue') || Q.has('t')){
+    poserScene(Q.has('depuis') ? clamp(+Q.get('depuis') || 1, 1, 5) : Math.max(1, n - 1));
+    setTimeout(() => { passage(n); if (Q.has('t')) setTimeout(geler, parseFloat(Q.get('t')) * 1000 * K); }, 420);
+  } else {
+    if (FIGE){ gele = true; document.documentElement.classList.add('fige'); }
+    poserScene(n);
+  }
+} else {
+  poserScene(1);
+  if (DANS_INDEX) $('autoCase').checked = false;
+  else setTimeout(() => { if ($('autoCase').checked){ autoActif = true; suite(2, true); } }, 1600);
+}
+/* Dans index.html (?cadre=1), c'est la page qui lance la démonstration quand la maquette est à l'écran, et qui l'arrête quand elle en sort */
+window.addEventListener('message', e => {
+  const m = e.data && e.data.verbe;
+  if (gele) return;
+  if (m === 'joue'){ if (!autoActif){ poserScene(1); $('autoCase').checked = true; autoActif = true; suite(2, true); } }
+  else if (m === 'pause'){ arreterAuto(); jeton++; tweens.length = 0; poserScene(1); }
+});
+
+/* ---------- contrôle : chevauchements, rognage, barre des menus, bulle ---------- */
+function verifier(){
+  const out = [];
+  const sv = () => svgForme.getBoundingClientRect();
+  const rIlot = n => { const a = n.getBoundingClientRect(), s = sv(); return {x:a.left - s.left - OX, y:a.top - s.top, w:a.width, h:a.height}; };
+  const dedans = (x, y) => forme.isPointInFill(new DOMPoint(x, y));
+  const croise = (a, b) => a.x < b.x + b.w - .5 && b.x < a.x + a.w - .5 && a.y < b.y + b.h - .5 && b.y < a.y + a.h - .5;
+  const ec = $('ecran').getBoundingClientRect(), cx = ec.left + ec.width / 2;
+  const vus = id => [...$(id).children].filter(n => n.offsetTop < 8);
+  const mr = Math.max(...vus('menus').map(n => n.getBoundingClientRect().right)) - cx;
+  const el0 = Math.min(...vus('etats').map(n => n.getBoundingClientRect().left)) - cx;
+  out.push(`barre des menus : derniers menus à ${(-mr).toFixed(0)} pt de la caméra (limite ${LIM} → ${-mr >= LIM ? 'OK' : 'TROP PRÈS'}), premières icônes à ${el0.toFixed(0)} pt (${el0 >= LIM ? 'OK' : 'TROP PRÈS'})`);
+  const fixe = E => () => poser(Object.assign(etatFin(1), E, {vu:false}));
+  const ETATS = [
+    ['1 repos', () => poserScene(1)], ['survol : lecture', fixe(MODES.lecture)], ['2 carte minuteur', () => poserScene(2)],
+    ['3 durée choisie', () => poserScene(3)], ['4 bulle', () => poserScene(4)], ['5 retour', () => poserScene(5)],
+    ['carte rappel', fixe(MODES.rappel)], ['carte rendez-vous', fixe(MODES.rdv)],
+    ['minuteur déplié', fixe(MODES.encours)], ['survol avec minuteur', fixe(MODES.lectureduo)]
+  ];
+  let fautes = 0;
+  for (const [nom, pose] of ETATS){
+    pose(); rendu();
+    const pb = [], g = geoCourante(), L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd);
+    if (Math.max(L.bande, D.bande) > LIM + .01) pb.push(`bande barre ${Math.max(L.bande, D.bande).toFixed(1)} > ${LIM}`);
+    const vis = ELS.filter(E => E.n.classList.contains('on') && (E.carte < 0 || E.carte === monde.page));
+    const rects = vis.map(E => ({k:E.k, r:rIlot(E.n), n:E.n}));
+    rects.push({k:'pochette', r:rIlot(art), n:art});
+    for (const {k, r, n} of rects){
+      if (r.w === 0) continue;
+      const m = k === 'points' ? 3 : 4, ri = (parseFloat(getComputedStyle(n).borderTopLeftRadius) || 0) * .29;
+      const pts = [[r.x - m + ri, r.y - m + ri], [r.x + r.w + m - ri, r.y - m + ri], [r.x - m + ri, r.y + r.h + m - ri], [r.x + r.w + m - ri, r.y + r.h + m - ri]];
+      const hors = pts.filter(([x, y]) => !dedans(x, y));
+      if (hors.length) pb.push(`${k} : à moins de ${m} pt du bord ou dehors (${hors.length} coins)`);
+      if (r.y < B && r.x < HC && r.x + r.w > -HC) pb.push(`${k} : passe sous la caméra`);
+      if (r.y < B && (r.x < -L.n || r.x + r.w > D.n)) pb.push(`${k} : dans la barre hors des ailes`);
+      const textes = n.matches('.tete,.source,.exemple,.rdv-t,.rdv-s,.preset,.grand-temps') ? [n] : [];
+      textes.forEach(t => { if (t.scrollWidth > t.clientWidth + 1) pb.push(`${k} : texte coupé (${t.textContent.trim().slice(0, 22)})`); });
+    }
+    for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++)
+      if (croise(rects[i].r, rects[j].r)) pb.push(`chevauchement ${rects[i].k} / ${rects[j].k}`);
+    if (monde.lance && !monde.ouvert){
+      const d = BX.x + BW.x;
+      if (d > LIM + .01) pb.push(`bulle : bord droit à ${d.toFixed(1)} pt > ${LIM}`);
+      if (BX.x - g.nd < 6) pb.push(`bulle : collée à l’îlot (${(BX.x - g.nd).toFixed(1)} pt)`);
+      const tb = bulleTemps.getBBox();
+      if (tb.x < BX.x + 6 || tb.x + tb.width > BX.x + BW.x - 6) pb.push('bulle : temps trop près du bord');
+      if (d + 8 > el0) pb.push('bulle : touche les icônes de la barre');
+      if (!bulleTemps.classList.contains('on')) pb.push('bulle : temps caché');
+      out.push(`  (bulle : de ${BX.x.toFixed(1)} à ${d.toFixed(1)} pt de l’axe, limite ${LIM} ; écart avec la caméra ${(BX.x - g.nd).toFixed(1)} pt)`);
+    } else if (BX.x + BW.x > g.nd - 1 && g.h < 40) pb.push('bulle visible alors qu’elle devrait être rentrée');
+    fautes += pb.length;
+    out.push(`${nom.padEnd(22)} ${pb.length ? '✗ ' + pb.join(' ; ') : '✓'}`);
+  }
+  // passages : la bande de la barre, la pochette et la bulle pendant chaque mouvement
+  const PAIRES = [
+    ['repos → lecture (survol)', () => poserScene(1), () => { monde.ouvert = true; }],
+    ['lecture → minuteur (pile)', fixe(MODES.lecture), () => { monde.page = 1; }],
+    ['minuteur → lecture (pile)', () => poserScene(2), () => { monde.page = 0; }],
+    ['minuteur → bulle (lancement)', () => poserScene(3), () => { monde.lance = true; monde.ouvert = false; }],
+    ['bulle → lecture (survol)', () => poserScene(5), () => { monde.ouvert = true; }],
+    ['lecture → bulle (sortie)', fixe(MODES.lectureduo), () => { monde.ouvert = false; }],
+    ['bulle → repos (fin du minuteur)', () => poserScene(5), () => { monde.lance = false; }],
+    ['lecture → repos (sortie)', fixe(MODES.lecture), () => { monde.ouvert = false; }]
+  ];
+  for (const [nom, depart, change] of PAIRES){
+    depart(); rendu();
+    gele = false; change(); appliquer(); gele = true;
+    let maxB = 0, horsArt = 0, cam = 0, maxBulle = 0, t = 0, tFin = 0;
+    for (let i = 0; i < 720; i++){
+      const bouge = avancer(1 / 240); t += 1 / 240; if (bouge) tFin = t;
+      const g = geoCourante(), L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd);
+      maxB = Math.max(maxB, L.bande, D.bande);
+      if (BX.x + BW.x > g.nd) maxBulle = Math.max(maxBulle, BX.x + BW.x);
+      if (i % 3 === 0){
+        rendu();
+        const r = cadreArt(g);
+        const pts = [[r.x + 1, r.y + 1], [r.x + r.w - 1, r.y + 1], [r.x + 1, r.y + r.h - 1], [r.x + r.w - 1, r.y + r.h - 1]];
+        if (pts.some(([x, y]) => !dedans(x, y))) horsArt++;
+        if (r.y < B && r.x + r.w > -HC) cam++;
+      }
+    }
+    const ok = maxB <= LIM + .01 && maxBulle <= LIM + .01 && !horsArt && !cam;
+    if (!ok) fautes++;
+    out.push(`mouvement ${nom.padEnd(32)} ${ok ? '✓' : '✗'} bande max ${maxB.toFixed(1)} · bulle max ${maxBulle ? maxBulle.toFixed(1) : '—'} (≤ ${LIM}) · pochette hors forme ${horsArt} · sous la caméra ${cam} · posé en ${tFin.toFixed(2)} s`);
+  }
+  poserScene(1);
+  out.push(fautes ? `\n${fautes} point(s) à corriger` : '\nTout est bon.');
+  $('verif').textContent = out.join('\n');
+  document.title = fautes ? 'VERIF KO' : 'VERIF OK';
+}
+</script>
+</body>
+</html>

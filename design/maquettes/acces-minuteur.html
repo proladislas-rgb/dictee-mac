@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minuteur pendant la lecture</title>
+<style>
+:root{
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",sans-serif;
+  --encre:#f5f5f7; --encre2:rgba(245,245,247,.62); --encre3:rgba(245,245,247,.4);
+  --ambre:#ff9f0a; --jaune:#ffd60a; --bleu:#4c8dff;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#e9e9ee;font-family:var(--sans);color:#1d1d1f;-webkit-font-smoothing:antialiased}
+header{max-width:1240px;margin:0 auto;padding:36px 20px 8px}
+h1{font-size:28px;font-weight:700;letter-spacing:-.4px}
+header p{margin-top:8px;font-size:15px;line-height:22px;color:#55555c;max-width:760px}
+.prop{max-width:1240px;margin:28px auto 0;padding:0 20px}
+.tete{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.lettre{font-size:13px;font-weight:700;color:#fff;background:#1d1d1f;border-radius:6px;padding:3px 8px}
+.tete h2{font-size:20px;font-weight:650;letter-spacing:-.2px}
+.tete span{font-size:14px;color:#6e6e73}
+.duo{display:grid;grid-template-columns:repeat(auto-fit,minmax(560px,1fr));gap:16px;margin-top:12px}
+@media (max-width:620px){.duo{grid-template-columns:1fr}}
+.cadre{position:relative;height:330px;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#fdfdfd 0,#f2f2f5 100%);box-shadow:0 1px 0 rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.08)}
+.etiquette{position:absolute;left:14px;bottom:12px;font-size:12.5px;font-weight:600;color:#6e6e73;background:rgba(255,255,255,.85);padding:4px 9px;border-radius:7px}
+.rejouer{position:absolute;right:12px;bottom:10px;font:600 12.5px var(--sans);color:#0a64d8;background:#fff;border:0;border-radius:8px;padding:6px 10px;cursor:pointer;box-shadow:0 0 0 .5px rgba(0,0,0,.12)}
+/* fausse barre des menus */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;background:rgba(246,246,248,.92);display:flex;justify-content:space-between;align-items:center;font-size:13.5px;font-weight:500;color:#1d1d1f;padding:0 14px}
+.mb .g{display:flex;gap:18px}.mb .g b{font-weight:700}
+.mb .d{display:flex;gap:14px;color:#3a3a3c}
+/* l'îlot : cou dans la barre + corps dessous, un seul noir */
+.ilot{position:absolute;left:50%;top:0;transform:translateX(-50%);width:468px}
+.cou{position:absolute;left:50%;top:0;width:268px;height:40px;transform:translateX(-50%);background:#000;border-radius:0 0 10px 10px}
+.cou::before,.cou::after{content:"";position:absolute;top:0;width:10px;height:10px;background:radial-gradient(circle at 0 100%,transparent 9.5px,#000 10px)}
+.cou::before{left:-10px;background:radial-gradient(circle at 0 100%,transparent 9.5px,#000 10px)}
+.cou::after{right:-10px;background:radial-gradient(circle at 100% 100%,transparent 9.5px,#000 10px)}
+.onde{position:absolute;top:10px;right:22px;display:flex;gap:2.5px;align-items:center;height:14px}
+.onde i{display:block;width:2.6px;border-radius:2px;background:#ff8a3d}
+.corps{position:absolute;left:0;top:33px;width:468px;background:#000;border-radius:18px 18px 34px 34px;box-shadow:0 18px 40px -12px rgba(0,0,0,.45);overflow:hidden;transition:height .5s var(--ressort)}
+.vue{position:absolute;inset:0;padding:16px 18px 0;transition:opacity .28s ease,filter .28s ease,transform .38s var(--ressort)}
+.cachee{opacity:0;filter:blur(8px);transform:scale(.94);pointer-events:none}
+/* lecture */
+.l1{display:flex;gap:14px;align-items:center}
+.mini{width:128px;height:72px;border-radius:9px;flex:none;position:relative;overflow:hidden;
+  background:linear-gradient(135deg,#ffd29a 0,#ff7a59 45%,#c33b6e 100%)}
+.mini::after{content:"";position:absolute;left:14px;bottom:-14px;width:62px;height:62px;border-radius:50%;background:radial-gradient(circle at 50% 40%,#ffe9b8,#ffb35c)}
+.mini b{position:absolute;right:8px;top:7px;font:800 10px var(--sans);color:#fff;background:#c40000;padding:1px 4px;border-radius:2px;z-index:1}
+.txt{min-width:0;flex:1}
+.titre{font-size:16.5px;line-height:21px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.src{font-size:13px;line-height:17px;font-weight:500;color:var(--encre2);margin-top:2px}
+.prog{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:12px;font-weight:500;color:var(--encre3);font-variant-numeric:tabular-nums}
+.piste{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.16);position:relative}
+.piste::before{content:"";position:absolute;left:0;top:0;bottom:0;width:22%;border-radius:3px;background:#ff8a3d}
+.cmd{position:relative;height:52px;margin-top:6px;display:flex;justify-content:center;align-items:center;gap:30px;color:#fff}
+.cmd svg{display:block}
+.cmd .suiv{position:absolute;right:0;top:50%;transform:translateY(-50%);opacity:.55}
+/* petits boutons ronds */
+.rond{width:30px;height:30px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.12);color:#fff;border:0;cursor:pointer;transition:transform .3s var(--ressort),background .15s}
+.rond:hover{background:rgba(255,255,255,.2)}.rond:active{transform:scale(.9)}
+.halo{box-shadow:0 0 0 2px #fff,0 0 0 5px rgba(76,141,255,.75);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 2px #fff,0 0 0 8px rgba(76,141,255,.25)}}
+/* accueil */
+.acc-tete{display:flex;align-items:center;gap:10px;height:30px}
+.acc-tete .retour{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border-radius:15px;padding:3px 12px 3px 3px;color:#fff;font-size:12.5px;font-weight:600;border:0;cursor:pointer}
+.acc-tete .retour i{width:24px;height:24px;border-radius:12px;background:linear-gradient(135deg,#ffd29a,#ff7a59 45%,#c33b6e)}
+.acc-tete .h{margin-left:auto;font-size:12.5px;color:var(--encre3);font-weight:500}
+.tuiles{display:grid;grid-template-columns:1.25fr 1fr;gap:10px;margin-top:14px}
+.tuile{background:rgba(255,255,255,.08);border-radius:16px;padding:12px 14px;color:#fff;min-height:96px}
+.tuile .t{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--encre2)}
+.puces{display:flex;gap:7px;margin-top:12px}
+.puce{flex:1;height:38px;border-radius:12px;background:rgba(255,159,10,.18);color:var(--ambre);font:650 15px var(--sans);font-variant-numeric:tabular-nums;border:0;cursor:pointer;transition:transform .25s var(--ressort),background .15s}
+.puce:hover{background:rgba(255,159,10,.28)}.puce:active{transform:scale(.94)}
+.puce small{font-size:11px;font-weight:600;opacity:.8;margin-left:1px}
+.dire{margin-top:12px;font-size:14px;line-height:19px;color:#fff;font-weight:500}
+.dire em{display:block;font-style:normal;font-size:12px;color:var(--encre3);margin-top:3px}
+/* onglets (B) */
+.onglets{position:absolute;left:18px;right:18px;bottom:12px;height:34px;display:flex;gap:4px;background:rgba(255,255,255,.07);border-radius:12px;padding:3px}
+.og{flex:1;border:0;border-radius:9px;background:transparent;color:var(--encre2);display:flex;align-items:center;justify-content:center;gap:6px;font:600 12.5px var(--sans);cursor:pointer}
+.og.actif{background:rgba(255,255,255,.14);color:#fff}
+/* raccourcis (C) */
+.rac{display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08)}
+.rac .lb{font-size:12px;font-weight:600;color:var(--encre3);display:flex;align-items:center;gap:6px;margin-right:2px}
+.chip{height:28px;border-radius:14px;padding:0 12px;border:0;background:rgba(255,159,10,.16);color:var(--ambre);font:650 12.5px var(--sans);font-variant-numeric:tabular-nums;cursor:pointer;transition:transform .25s var(--ressort),background .15s}
+.chip:hover{background:rgba(255,159,10,.26)}.chip:active{transform:scale(.93)}
+.chip.gris{background:rgba(255,255,255,.1);color:#fff}
+/* pastille minuteur sous l'îlot */
+.pastille{position:absolute;top:0;right:0;height:26px;border-radius:13px;background:#000;display:flex;align-items:center;gap:6px;padding:0 10px 0 7px;color:var(--ambre);font:650 13px var(--sans);font-variant-numeric:tabular-nums;box-shadow:0 8px 20px -8px rgba(0,0,0,.5);opacity:0;transform:translateY(-14px) scale(.6);transition:opacity .3s, transform .5s var(--ressort)}
+.pastille.la{opacity:1;transform:none}
+.anneau{width:15px;height:15px;border-radius:50%;background:conic-gradient(var(--ambre) 0 92%,rgba(255,159,10,.25) 0)}
+.pied{max-width:1240px;margin:34px auto 60px;padding:18px 20px 0;border-top:1px solid rgba(0,0,0,.08);font-size:14px;line-height:21px;color:#55555c}
+.pied b{color:#1d1d1f}
+</style>
+</head>
+<body>
+<header>
+  <h1>Lancer un minuteur pendant qu'une vidéo joue</h1>
+  <p>Trois façons de faire. Pour chacune : à gauche l'îlot ouvert sur la lecture, à droite ce qui se passe après le clic. Les boutons marchent : clique dans l'îlot de gauche pour voir le mouvement, ou sur « Rejouer ». Le bouton à toucher est entouré de bleu (ce cercle n'existe que dans la maquette).</p>
+</header>
+
+<!-- ========== A ========== -->
+<section class="prop" data-p="A">
+  <div class="tete"><span class="lettre">A</span><h2>Un bouton qui bascule vers l'accueil</h2><span>discret, la lecture reste comme aujourd'hui</span></div>
+  <div class="duo">
+    <div class="cadre" data-cadre="A1"></div>
+    <div class="cadre" data-cadre="A2"></div>
+  </div>
+</section>
+
+<!-- ========== B ========== -->
+<section class="prop" data-p="B">
+  <div class="tete"><span class="lettre">B</span><h2>Des onglets en bas de l'îlot</h2><span>on voit tout ce que l'îlot sait faire</span></div>
+  <div class="duo">
+    <div class="cadre" data-cadre="B1"></div>
+    <div class="cadre" data-cadre="B2"></div>
+  </div>
+</section>
+
+<!-- ========== C ========== -->
+<section class="prop" data-p="C">
+  <div class="tete"><span class="lettre">C</span><h2>Les minuteurs directement sous la lecture</h2><span>un seul clic, on ne quitte jamais la vidéo</span></div>
+  <div class="duo">
+    <div class="cadre" data-cadre="C1"></div>
+    <div class="cadre" data-cadre="C2"></div>
+  </div>
+</section>
+
+<div class="pied">
+  <b>Dans les trois</b> : une fois le minuteur lancé, la vidéo reste dans l'îlot et le minuteur se range dans la petite pastille noire sous l'encoche (son compte à rebours en orange). Survoler la pastille l'ouvre, cliquer dessus échange les deux.<br>
+  <b>Et à la voix</b> : avec l'îlot ouvert, que ce soit sur la lecture ou l'accueil, tenir fn et dire « minuteur dix minutes » marche aussi.<br>
+  <b>Mon avis</b> : C est le plus rapide (un clic). A est le plus propre et le plus « Apple » (la lecture ne change pas, l'accueil complet est à un clic). B montre tout mais charge l'îlot en permanence.
+</div>
+
+<script>
+const ico = {
+  recul:'<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M8 7a10 10 0 1 1-3 7"/><path d="M8 2.5V7H3.5"/><text x="14" y="18" text-anchor="middle" font-size="8.5" font-weight="700" fill="#fff" stroke="none" font-family="-apple-system">10</text></svg>',
+  avance:'<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M20 7a10 10 0 1 0 3 7"/><path d="M20 2.5V7h4.5"/><text x="14" y="18" text-anchor="middle" font-size="8.5" font-weight="700" fill="#fff" stroke="none" font-family="-apple-system">10</text></svg>',
+  pause:'<svg width="26" height="30" viewBox="0 0 26 30"><rect x="4" y="2" width="6" height="26" rx="2" fill="#fff"/><rect x="16" y="2" width="6" height="26" rx="2" fill="#fff"/></svg>',
+  suiv:'<svg width="22" height="18" viewBox="0 0 22 18"><path d="M2 2l12 7-12 7z" fill="#fff"/><rect x="16" y="2" width="3.2" height="14" rx="1.2" fill="#fff"/></svg>',
+  grille:'<svg width="14" height="14" viewBox="0 0 14 14" fill="#fff"><rect x="0" y="0" width="6" height="6" rx="1.8"/><rect x="8" y="0" width="6" height="6" rx="1.8"/><rect x="0" y="8" width="6" height="6" rx="1.8"/><rect x="8" y="8" width="6" height="6" rx="1.8"/></svg>',
+  chrono:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8" cy="9" r="5.8"/><path d="M8 9V6M6 1.5h4"/></svg>',
+  cloche:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1.3 1.3H2.7z"/><path d="M6.6 14.5a1.5 1.5 0 0 0 2.8 0" stroke-linecap="round"/></svg>',
+  note:'<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M6 12.2V3.5l8-1.8v8.6" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="4.2" cy="12.4" r="2.2"/><circle cx="12.2" cy="10.6" r="2.2"/></svg>',
+  cal:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1.8" y="2.8" width="12.4" height="11.4" rx="2.4"/><path d="M1.8 6.5h12.4M5 1.2v3M11 1.2v3" stroke-linecap="round"/></svg>',
+};
+const onde = '<div class="onde">'+[6,11,14,8,12].map(h=>`<i style="height:${h}px"></i>`).join('')+'</div>';
+const lecture = (extra='', hautDroite='') => `
+  <div class="l1"><div class="mini"><b>HÔTEL</b></div>
+    <div class="txt"><div class="titre">Ce couple fait craquer Etchebest !</div><div class="src">Snaptrox · Chrome</div></div>${hautDroite}</div>
+  <div class="prog"><span>8:26</span><div class="piste"></div><span>−32:29</span></div>
+  <div class="cmd">${ico.recul}${ico.pause}${ico.avance}<span class="suiv">${ico.suiv}</span></div>${extra}`;
+const accueil = (retour=true) => `
+  <div class="acc-tete">${retour?'<button class="retour" data-act="retour"><i></i>Lecture</button>':''}<span class="h">Accueil</span></div>
+  <div class="tuiles">
+    <div class="tuile"><div class="t">${ico.chrono} Minuteur</div>
+      <div class="puces"><button class="puce" data-act="go">5<small>min</small></button><button class="puce" data-act="go">10<small>min</small></button><button class="puce" data-act="go">25<small>min</small></button></div></div>
+    <div class="tuile"><div class="t">${ico.cloche} Rappel</div><div class="dire">Tiens fn et dis-le<em>« rappelle-moi d'appeler Paul à 15 h »</em></div></div>
+  </div>`;
+
+function ilot(h, vues, pastille=false){
+  return `<div class="mb"><div class="g"><b></b><span>Fichier</span><span>Édition</span><span>Présentation</span></div><div class="d"><span>⌕</span><span>Mar. 11 nov. 01:09</span></div></div>
+  <div class="ilot"><div class="cou">${onde}</div>
+    <div class="corps" style="height:${h}px">${vues}</div>
+    <div style="position:absolute;top:${33+h+8}px;right:20px"><div class="pastille ${pastille?'la':''}"><span class="anneau"></span>9:58</div></div>
+  </div>`;
+}
+
+const scenes = {
+  A: { h1:182, h2:196,
+    lect: () => lecture('', `<button class="rond halo" data-act="ouvrir" title="Accueil" style="align-self:flex-start">${ico.grille}</button>`),
+    acc: () => accueil(true) },
+  B: { h1:226, h2:226,
+    lect: () => lecture(),
+    acc: () => accueil(false) },
+  C: { h1:232, h2:232,
+    lect: () => lecture(`<div class="rac"><span class="lb">${ico.chrono} Minuteur</span><button class="chip halo" data-act="go">5 min</button><button class="chip" data-act="go">10 min</button><button class="chip" data-act="go">25 min</button><button class="chip gris" style="margin-left:auto" data-act="rien">${ico.cloche.replace('currentColor','#fff')} Rappel</button></div>`) },
+};
+const onglets = actif => `<div class="onglets">
+  <button class="og ${actif==='l'?'actif':''}" data-act="${actif==='l'?'rien':'retour'}">${ico.note} Lecture</button>
+  <button class="og ${actif==='m'?'actif':''} ${actif==='l'?'halo':''}" data-act="ouvrir">${ico.chrono} Minuteur</button>
+  <button class="og" data-act="rien">${ico.cloche} Rappel</button>
+  <button class="og" data-act="rien">${ico.cal} Agenda</button></div>`;
+
+function monter(id){
+  const p = id[0], etape = id[1], s = scenes[p], cadre = document.querySelector(`[data-cadre="${id}"]`);
+  const interactif = etape === '1';
+  let html;
+  if (p === 'A') html = ilot(s.h1, `<div class="vue" data-v="lect">${s.lect()}</div><div class="vue cachee" data-v="acc">${s.acc()}</div>`);
+  if (p === 'B') html = ilot(s.h1, `<div class="vue" data-v="lect">${s.lect()}</div><div class="vue cachee" data-v="acc">${s.acc()}</div>${onglets('l')}`);
+  if (p === 'C') html = ilot(s.h1, `<div class="vue" data-v="lect">${s.lect()}</div>`);
+  cadre.innerHTML = html + `<span class="etiquette">${interactif ? 'Avant : clique sur le bouton entouré' : 'Après : le minuteur est lancé, la vidéo continue'}</span>` + (interactif ? '<button class="rejouer" data-act="rejouer">Rejouer</button>' : '');
+  if (!interactif) etatFinal(cadre, p);
+}
+function montrer(cadre, v){ cadre.querySelectorAll('.vue').forEach(e => e.classList.toggle('cachee', e.dataset.v !== v)); }
+function etatFinal(cadre, p){
+  // après : on est revenu à la lecture, la pastille du minuteur est là
+  cadre.querySelectorAll('.halo').forEach(e => e.classList.remove('halo'));
+  montrer(cadre, 'lect');
+  if (p === 'B') cadre.querySelector('.onglets').outerHTML = onglets('l').replace(/ halo/g,'');
+  const pa = cadre.querySelector('.pastille'); pa.style.transition = 'none'; pa.classList.add('la');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const cadre = b.closest('.cadre'), id = cadre.dataset.cadre, p = id[0], act = b.dataset.act;
+  if (act === 'rejouer') return monter(id);
+  if (id[1] !== '1') return;
+  if (act === 'ouvrir') {
+    cadre.querySelectorAll('.halo').forEach(x => x.classList.remove('halo'));
+    montrer(cadre, 'acc');
+    if (p === 'A') cadre.querySelector('.corps').style.height = scenes.A.h2 + 'px';
+    if (p === 'B') cadre.querySelector('.onglets').outerHTML = onglets('m');
+    setTimeout(() => cadre.querySelector('.puce')?.classList.add('halo'), 420);
+  } else if (act === 'retour') {
+    montrer(cadre, 'lect');
+    if (p === 'A') cadre.querySelector('.corps').style.height = scenes.A.h1 + 'px';
+    if (p === 'B') cadre.querySelector('.onglets').outerHTML = onglets('l');
+  } else if (act === 'go') {
+    cadre.querySelectorAll('.halo').forEach(x => x.classList.remove('halo'));
+    if (p !== 'C') { montrer(cadre, 'lect'); if (p === 'A') cadre.querySelector('.corps').style.height = scenes.A.h1 + 'px'; if (p === 'B') cadre.querySelector('.onglets').outerHTML = onglets('l').replace(/ halo/g,''); }
+    setTimeout(() => cadre.querySelector('.pastille').classList.add('la'), p === 'C' ? 60 : 300);
+  }
+});
+['A1','A2','B1','B2','C1','C2'].forEach(monter);
+</script>
+</body>
+</html>
