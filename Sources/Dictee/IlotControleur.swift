@@ -85,6 +85,10 @@ final class IlotControleur {
     private(set) var minuteur: MinuteurIlot?
     private(set) var rappels: ListeRappels
     var stockage: RappelsStore
+    /// L'étagère (IlotEtagere.swift) : les signets des fichiers gardés, leur fichier, et leurs icônes du Finder (lues une fois).
+    var etagere: EtagereIlot
+    var etagereStore: EtagereStore
+    var iconesEtagere: [UUID: NSImage] = [:]
     private var reveilMinuteur: DispatchWorkItem?
     private var reveilRappels: DispatchWorkItem?
     private var reveilAgenda: DispatchWorkItem?
@@ -98,9 +102,11 @@ final class IlotControleur {
     private var armeJusqua: Date = .distantPast
     private var armeFormulaire = false
 
-    init(stockage: RappelsStore = RappelsStore(url: RappelsStore.urlParDefaut)) {
+    init(stockage: RappelsStore = RappelsStore(url: RappelsStore.urlParDefaut), etagere etagereStore: EtagereStore = EtagereStore(url: EtagereStore.urlParDefaut)) {
         self.stockage = stockage
         rappels = stockage.lire()
+        self.etagereStore = etagereStore
+        etagere = etagereStore.lire()
         moteur = IlotMoteur(lecture: lecture.modele)
         panneau = IlotPanneau(moteur: moteur)
         lecture.surIlot = { [weak self] visible in self?.lectureVisible(visible) }
@@ -122,6 +128,7 @@ final class IlotControleur {
             NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
         }
         lecture.modele.surClicIlot = { [weak self] in self?.moteur.clicForme() }
+        panneau.surDepot = { [weak self] urls in self?.ranger(urls) }
         claudeSource.surLignes = { [weak self] l, relecture in self?.lignesClaude(l, relecture: relecture) }
         micro.surChangement = { [weak self] in self?.microChange() }
     }
@@ -189,6 +196,7 @@ final class IlotControleur {
         else { telechargementsSource.arreter(); rafale = RafaleTelechargements() }
         niveauxActifs = Settings.ilotNiveaux
         activerClaude(Settings.ilotClaude)
+        activerEtagere(Settings.ilotEtagere)
         activerLeMicro(Settings.ilotMicro)
         surRaccourciMicro(Settings.ilotMicro ? Settings.raccourciMicro : nil)
         moteur.donneesChangees()
@@ -340,6 +348,7 @@ final class IlotControleur {
         moteur.rendezVousSuivant = PlanAgenda.prochain(evenements, a: maintenant())
         moteur.rappelsAVenir = rappels.aVenir(a: maintenant())
         if Settings.ilotEnergie, appareilsSource.actif { appareilsSource.relireSiAncien() }
+        if moteur.etagereActive { relireEtagere() }
         lecture.ilotDeplie()
     }
     private func ageLisible(_ date: Date) -> String {
@@ -392,6 +401,8 @@ final class IlotControleur {
         case .claudeOuvrir(let app):
             if moteur.bandeau?.vue == .claudeAttend || moteur.bandeau?.vue == .claudeTermine { moteur.quitterBandeau() } else { moteur.fermer() }
             ramenerApp(app)
+        case .etagereOuvrir, .etagereRetirer, .etagereVider:
+            agirEtagere(action)
         case .collerLaDerniereDictee:
             if let d = HistoriqueStore.shared.historique.entrees.first?.texte, !d.isEmpty { moteur.fermer(); surColler(d) }
         }

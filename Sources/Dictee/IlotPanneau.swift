@@ -76,6 +76,7 @@ final class IlotPanneau {
 
     func fermer() {
         retirerMoniteur()
+        ecouterLesGlissers(false)
         laisserPasser(false)
         if let surveilleEcran { NotificationCenter.default.removeObserver(surveilleEcran) }
         surveilleEcran = nil
@@ -111,7 +112,10 @@ final class IlotPanneau {
         v.frame = NSRect(x: 0, y: 0, width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax)
         v.autoresizingMask = []
         v.surPointeur = { [weak self] p in self?.pointeur(p) }
-        let c = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
+        // le fond de la fenêtre reçoit les fichiers lâchés (l'étagère) ; la vue SwiftUI au-dessus n'en veut pas, ils lui passent dessous
+        let c = ConteneurIlot(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
+        c.panneau = self
+        c.registerForDraggedTypes([.fileURL])
         c.addSubview(v)
         f.contentView = c
         fenetre = f; vue = v; conteneur = c
@@ -122,7 +126,7 @@ final class IlotPanneau {
     /// Place la fenêtre sur ce que l'îlot veut couvrir. Elle grandit tout de suite, rétrécit 0,65 s plus tard (le temps que la forme se referme).
     func ajuster() {
         guard let f = fenetre, let ecran else { return }
-        let veut = moteur.cache || (!encocheReelle && moteur.resolution.principal == .repos && moteur.pastille == nil)
+        let veut = moteur.cache || (!encocheReelle && moteur.resolution.principal == .repos && moteur.pastille == nil && !moteur.depot)
         if veut {
             laisserPasser(false)
             if f.isVisible, moteur.courante == .repos, moteur.geo.allSatisfy(\.fini) { f.orderOut(nil) }
@@ -234,6 +238,145 @@ final class IlotPanneau {
         if pastille != sousPastille { sousPastille = pastille; moteur.survolPastille(pastille) }
     }
 
+    // MARK: étagère (des fichiers glissés sur l'encoche)
+
+    /// Le réglage « Étagère » : on écoute, sans rien prendre, les glissers de la souris (moniteur global : il ne voit que les événements,
+    /// il ne les retient pas, et ne demande aucune autorisation). Rien ne tourne entre deux glissers.
+    var etagereActive = false { didSet { if etagereActive != oldValue { ecouterLesGlissers(etagereActive) } } }
+    /// Des fichiers viennent d'être lâchés sur l'îlot.
+    var surDepot: ([URL]) -> Void = { _ in }
+    private var moniteurGlisser: Any?
+    private var moniteurFinGlisser: Any?
+    private var suiviGlisser = SuiviGlisser()
+    /// Le glisser en cours porte-t-il des fichiers ? nil : pas encore regardé (on ne lit le presse-papiers du glisser qu'une fois par
+    /// glisser, et seulement près de l'encoche).
+    private var glisserDeFichiers: Bool?
+    /// Des fichiers viennent d'être lâchés : l'îlot les montre un instant, la fin du glisser ne le referme pas.
+    private(set) var depotLache = false
+    private let pressePapiersGlisser = NSPasteboard(name: .drag)
+    /// La fenêtre accepte-t-elle des fichiers lâchés ? (essais)
+    var accepteLesFichiers: Bool { (fenetre?.contentView?.registeredDraggedTypes.contains(.fileURL) ?? false) && etagereActive }
+
+    private func ecouterLesGlissers(_ oui: Bool) {
+        if oui {
+            // en essai (fenêtre invisible), jamais : les vrais glissers de l'utilisateur ne doivent rien ouvrir
+            guard moniteurGlisser == nil, !invisible else { return }
+            moniteurGlisser = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] e in
+                let type = e.type
+                MainActor.assumeIsolated { self?.glisserGlobal(type) }
+            }
+        } else {
+            if let m = moniteurGlisser { NSEvent.removeMonitor(m) }
+            moniteurGlisser = nil
+            finDuGlisser()
+        }
+    }
+
+    private func glisserGlobal(_ type: NSEvent.EventType) {
+        switch type {
+        case .leftMouseDown:
+            suiviGlisser.bouton(enfonce: true, compte: pressePapiersGlisser.changeCount)
+            glisserDeFichiers = nil; depotLache = false
+        case .leftMouseDragged:
+            guard let p = pointEcran(NSEvent.mouseLocation) else { return }
+            glisser(p) { [pressePapiersGlisser, suiviGlisser] in
+                suiviGlisser.nouveau(compte: pressePapiersGlisser.changeCount) && Self.contientDesFichiers(pressePapiersGlisser)
+            }
+        case .leftMouseUp:
+            suiviGlisser.bouton(enfonce: false, compte: 0)
+            glisserDeFichiers = nil
+            finDuGlisser()
+        default: break
+        }
+    }
+
+    static func contientDesFichiers(_ pb: NSPasteboard) -> Bool {
+        pb.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
+    }
+
+    /// Le pointeur glisse quelque chose en `p` (points depuis le centre de l'encoche et le haut de l'écran). `fichiers` n'est appelé
+    /// qu'une fois par glisser, et seulement près de l'encoche : loin d'elle, on ne regarde même pas ce qui est glissé.
+    func glisser(_ p: CGPoint, fichiers: () -> Bool) {
+        guard etagereActive else { return }
+        guard moteur.depot || procheEncoche(p) else { return }
+        if glisserDeFichiers == nil { glisserDeFichiers = fichiers() }
+        guard glisserDeFichiers == true else { return }
+        approcher(p)
+    }
+
+    private func procheEncoche(_ p: CGPoint) -> Bool {
+        ApprocheEtagere.proche(x: Double(p.x), y: Double(p.y), demiCamera: Double(moteur.demiCamera), barre: Double(moteur.geometrie.hauteur))
+    }
+
+    /// Des fichiers glissés sont en `p` : près de l'encoche, l'îlot s'ouvre en « Déposez ici » et la fenêtre les accepte ; ouvert, il le
+    /// reste tant que le pointeur est sur la zone ou tout près ; la zone s'éclaire quand le pointeur est sur la forme.
+    func approcher(_ p: CGPoint) {
+        let r = moteur.rectCible()
+        let ouvert = moteur.depot ? (demiLargeur: Double(r.maxX), hauteur: Double(r.height)) : nil
+        let proche = ApprocheEtagere.proche(x: Double(p.x), y: Double(p.y), demiCamera: Double(moteur.demiCamera), barre: Double(moteur.geometrie.hauteur), ouvert: ouvert)
+        if proche, !moteur.depot {
+            moteur.montrerDepot(true)
+            if moteur.depot { accepterLeDepot(true) }
+        } else if !proche, moteur.depot, !depotLache {
+            moteur.montrerDepot(false)
+            accepterLeDepot(false)
+        }
+        if moteur.depot, !depotLache { moteur.depotSurvole = moteur.contient(p) }
+    }
+
+    /// La zone est ouverte : la fenêtre prend la souris (sinon le dépôt passerait aux menus dessous) ; un petit moniteur guette la fin
+    /// du glisser (le premier mouvement sans bouton), au cas où le relâchement ne nous parviendrait pas. Il disparaît avec la zone.
+    private func accepterLeDepot(_ oui: Bool) {
+        if oui {
+            laisserPasser(false)
+            if let f = fenetre, !invisible { f.ignoresMouseEvents = false }
+            guard moniteurFinGlisser == nil, !invisible else { return }
+            moniteurFinGlisser = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseUp]) { [weak self] _ in
+                MainActor.assumeIsolated { if NSEvent.pressedMouseButtons & 1 == 0 { self?.finDuGlisser() } }
+            }
+        } else {
+            if let m = moniteurFinGlisser { NSEvent.removeMonitor(m) }
+            moniteurFinGlisser = nil
+        }
+    }
+
+    /// Le glisser est fini (lâché ailleurs, ou annulé) : la zone se referme, sauf si les fichiers viennent d'être lâchés sur l'îlot
+    /// (il les montre un instant, puis se referme de lui-même).
+    func finDuGlisser() {
+        glisserDeFichiers = nil
+        accepterLeDepot(false)
+        if moteur.depot, !depotLache { moteur.montrerDepot(false) }
+    }
+
+    /// Le glisser passe sur la fenêtre de l'îlot (le système le dit lui-même) : s'il n'avait pas été vu venir, la zone s'ouvre ici.
+    func glisserSurLIlot(_ p: CGPoint) -> Bool {
+        guard etagereActive, !moteur.cache else { return false }
+        glisserDeFichiers = true
+        approcher(p)
+        return moteur.depot
+    }
+    func glisserHorsDeLIlot() { if !depotLache { moteur.depotSurvole = false } }
+
+    /// Des fichiers sont lâchés sur l'îlot : ils sont rangés (des signets, jamais des copies), l'îlot les montre 0,9 s puis se referme.
+    @discardableResult
+    func deposer(_ urls: [URL]) -> Bool {
+        let fichiers = urls.filter(\.isFileURL)
+        guard etagereActive, moteur.depot, !fichiers.isEmpty else { finDuGlisser(); return false }
+        depotLache = true
+        accepterLeDepot(false)
+        surDepot(fichiers)
+        moteur.depotTermine()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in MainActor.assumeIsolated { self?.depotLache = false } }
+        return true
+    }
+
+    /// Un point de l'écran (coordonnées de AppKit) en points depuis le centre de l'encoche et le haut de l'écran ; nil hors de l'écran
+    /// de l'îlot.
+    func pointEcran(_ e: NSPoint) -> CGPoint? {
+        guard let ecran, ecran.frame.insetBy(dx: 0, dy: -1).contains(e) else { return nil }
+        return CGPoint(x: e.x - centre, y: ecran.frame.maxY - e.y)
+    }
+
     // MARK: clic ailleurs
 
     private func installerMoniteur() {
@@ -245,5 +388,34 @@ final class IlotPanneau {
     private func retirerMoniteur() {
         if let moniteurClic { NSEvent.removeMonitor(moniteurClic) }
         moniteurClic = nil
+    }
+}
+
+/// Le fond de la fenêtre de l'îlot : il reçoit les fichiers lâchés sur l'encoche (l'étagère). La vue SwiftUI posée dessus ne s'inscrit
+/// pour aucun type glissé : le système remonte jusqu'à ce fond.
+final class ConteneurIlot: NSView {
+    weak var panneau: IlotPanneau?
+    /// Pas de rappel périodique pendant que le pointeur ne bouge pas : seulement quand il bouge.
+    override func wantsPeriodicDraggingUpdates() -> Bool { false }
+
+    private func point(_ s: NSDraggingInfo) -> CGPoint? {
+        guard let w = window else { return nil }
+        return panneau?.pointEcran(w.convertPoint(toScreen: s.draggingLocation))
+    }
+    /// On garde un LIEN vers le fichier (un signet), jamais une copie : le curseur le dit (flèche de lien), si la source le permet.
+    static func operation(_ masque: NSDragOperation) -> NSDragOperation {
+        masque.contains(.link) ? .link : (masque.contains(.copy) ? .copy : .generic)
+    }
+    private func accepte(_ s: NSDraggingInfo) -> NSDragOperation {
+        guard let panneau, let p = point(s), IlotPanneau.contientDesFichiers(s.draggingPasteboard), panneau.glisserSurLIlot(p) else { return [] }
+        return Self.operation(s.draggingSourceOperationMask)
+    }
+    override func draggingEntered(_ s: NSDraggingInfo) -> NSDragOperation { accepte(s) }
+    override func draggingUpdated(_ s: NSDraggingInfo) -> NSDragOperation { accepte(s) }
+    override func draggingExited(_ s: NSDraggingInfo?) { panneau?.glisserHorsDeLIlot() }
+    override func prepareForDragOperation(_ s: NSDraggingInfo) -> Bool { panneau?.moteur.depot ?? false }
+    override func performDragOperation(_ s: NSDraggingInfo) -> Bool {
+        let urls = s.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        return panneau?.deposer(urls) ?? false
     }
 }

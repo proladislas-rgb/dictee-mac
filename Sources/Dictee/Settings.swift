@@ -259,6 +259,12 @@ enum Settings {
     }
     /// « Claude au travail » : l'îlot montre où en est Claude Code (crochets branchés depuis les Réglages). ALLUMÉ par défaut : tant que
     /// les crochets ne sont pas branchés, le dossier des sessions reste vide et rien ne s'affiche.
+    /// L'étagère : des fichiers glissés sur l'encoche y restent (un signet, jamais une copie) ; on les reprend depuis l'accueil.
+    /// ALLUMÉE par défaut ; aucune autorisation demandée.
+    static var ilotEtagere: Bool {
+        get { defaults.object(forKey: "ilotEtagere") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "ilotEtagere") }
+    }
     static var ilotClaude: Bool {
         get { defaults.object(forKey: "ilotClaude") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotClaude") }

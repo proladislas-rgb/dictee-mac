@@ -45,6 +45,14 @@ struct TelechargementIlot {
     var urls: [URL] { rafale.fichiers.map(\.url) }
 }
 
+/// Un fichier de l'étagère tel que l'îlot le montre : son icône du Finder est lue une fois, au rangement.
+struct FichierEtagere: Identifiable {
+    var id: UUID
+    var nom: String
+    var url: URL
+    var icone: NSImage
+}
+
 /// Ce que l'îlot demande aux contrôleurs (le moteur ne sait rien du minuteur, des rappels ni du calendrier : il montre et il relaie).
 enum ActionIlot {
     case minuteurLancer(minutes: Double)
@@ -63,6 +71,8 @@ enum ActionIlot {
     case microRouvrir
     /// « Ouvrir » sur Claude au travail : ramène l'app d'où vient la session (le Terminal), par son identifiant.
     case claudeOuvrir(String?)
+    /// L'étagère : ouvrir un fichier (clic sur sa tuile), le retirer (« × »), tout vider.
+    case etagereOuvrir(UUID), etagereRetirer(UUID), etagereVider
 }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
@@ -177,6 +187,14 @@ final class IlotMoteur: ObservableObject {
     /// La session de Claude Code que l'îlot montre (au travail, ou qui attend une réponse) ; la dernière vue, pour un écran qui s'efface.
     var claude: SessionClaude? { didSet { if let claude { dernierClaude = claude } } }
     private(set) var dernierClaude: SessionClaude?
+    /// L'étagère (réglage allumé) et ses fichiers, dans l'ordre où ils ont été rangés.
+    var etagereActive = false
+    var etagere: [FichierEtagere] = []
+    /// Un glisser de fichiers est près de l'encoche : l'îlot s'ouvre en « Déposez ici ». `depotSurvole` : le pointeur est sur la zone,
+    /// elle s'éclaire.
+    private(set) var depot = false
+    var depotSurvole = false { didSet { if depotSurvole != oldValue { rev += 1 } } }
+    private var finDepot: DispatchWorkItem?
     /// La batterie du Mac (nil : Mac sans batterie, ou réglage éteint) et les écouteurs connectés : les épaules de l'îlot déplié.
     var energie: EnergieIlot?
     var ecouteurs: AppareilIlot?
@@ -272,6 +290,7 @@ final class IlotMoteur: ObservableObject {
     func donneesChangees() {
         if cache {
             if appuiEnCours { annulerAppui() }
+            if depot { depot = false; depotSurvole = false; finDepot?.cancel() }
             if resolution.principal != .repos || courante != .repos || pastille != nil {
                 resolution = ResolutionIlot(principal: .repos, survol: nil, verrou: true, pastille: nil)
                 epingle = false; survole = false; sousVue = nil
@@ -288,7 +307,10 @@ final class IlotMoteur: ObservableObject {
         if resolution.verrou { epingle = false; survole = false; sousVue = nil }
         if ancien.principal != resolution.principal, !(survole || epingle) { sousVue = nil }
         if sousVue == .lectureMinuteur, FamilleIlot.de(resolution.principal) != .lecture || resolution.verrou { sousVue = nil }
-        let voulu = sousVue ?? ((survole || epingle) && resolution.survol != nil && !resolution.verrou ? resolution.survol! : resolution.principal)
+        if sousVue == .etagere, !etagereActive { sousVue = nil }
+        if depot, !etagereActive { depot = false; depotSurvole = false }
+        // un glisser de fichiers près de l'encoche passe avant tout le reste : on vise la zone, puis l'îlot revient où il en était
+        let voulu = depot ? .etagereDepot : (sousVue ?? ((survole || epingle) && resolution.survol != nil && !resolution.verrou ? resolution.survol! : resolution.principal))
         afficher(voulu)
         majPastille()
         programmerReveil()
@@ -300,10 +322,20 @@ final class IlotMoteur: ObservableObject {
     /// l'écran qui s'efface garde sa grille.
     private(set) var contenus: [VueIlot: CGFloat] = [:]
     private func cible(_ v: VueIlot) -> [Double] {
-        GeoIlot.valeurs(v, hauteurBarre: Double(geometrie.hauteur), demiCamera: Double(demiCamera), contenu: contenus[v].map(Double.init), epaules: epaules)
+        GeoIlot.valeurs(v, hauteurBarre: Double(geometrie.hauteur), demiCamera: Double(demiCamera), contenu: contenus[v].map(Double.init), epaules: epaules,
+                        enPlus: Double(hauteursEnPlus[v] ?? 0))
     }
     /// La grille du contenu (mêmes largeurs que la forme).
-    var grille: GrilleIlot { GrilleIlot(hc: demiCamera, barre: geometrie.hauteur, contenus: contenus, epaules: epaules) }
+    var grille: GrilleIlot { GrilleIlot(hc: demiCamera, barre: geometrie.hauteur, contenus: contenus, epaules: epaules, enPlus: hauteursEnPlus) }
+    /// Ce qu'un contenu variable ajoute à la hauteur d'un écran : la ligne de l'étagère en bas de l'accueil, la deuxième rangée de
+    /// fichiers de la carte Étagère. Pendant une vidéo, l'accueil n'est pas atteignable : la ligne se pose sous la rangée Minuteur de la
+    /// lecture dépliée (appui long).
+    var hauteursEnPlus: [VueIlot: CGFloat] {
+        var d: [VueIlot: CGFloat] = [:]
+        if etagereActive, !etagere.isEmpty { d[.accueil] = CGFloat(GeoIlot.ligneAccueil); d[.lectureMinuteur] = CGFloat(GeoIlot.ligneAccueil) }
+        if EtagereIlot.rangees(etagere.count) > 1 { d[.etagere] = CGFloat(GeoIlot.rangeeEtagere) }
+        return d
+    }
 
     /// Montre une vue. La forme se déforme vers sa géométrie avec les ressorts de la maquette ; le contenu nouveau arrive après la forme,
     /// l'ancien part avant elle ; ce qui appartient à la même activité (pochette, anneau, heure) voyage.
@@ -333,7 +365,7 @@ final class IlotMoteur: ObservableObject {
         // un écran fait de plusieurs couches (la lecture + sa rangée) : seules les couches qui changent partent ou arrivent
         if avant != v { for c in Self.couches(avant) where !Self.couches(v).contains(c) { sortir(&apparitions[c]) } }
         for c in Self.couches(v) { entrer(&apparitions[c], delai: delai) }
-        if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe { surDepliage() }
+        if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere { surDepliage() }
     }
 
     /// Les couches de contenu d'un écran : la rangée Minuteur se pose sous la lecture dépliée, qui ne s'efface pas pour autant.
@@ -647,6 +679,35 @@ final class IlotMoteur: ObservableObject {
         pastilleOuverte.cible = 0
         survole = false; epingle = false; sousVue = nil
         donneesChangees(); fermerMoniteur()
+    }
+
+    // MARK: étagère
+
+    /// Un glisser de fichiers approche de l'encoche (ou s'en éloigne) : l'îlot s'ouvre en « Déposez ici », puis revient où il en était.
+    /// Rien pendant la dictée ou la réunion (l'îlot est effacé), ni si l'étagère est éteinte dans les réglages.
+    func montrerDepot(_ oui: Bool) {
+        finDepot?.cancel(); finDepot = nil
+        let voulu = oui && etagereActive && !cache
+        if !voulu { depotSurvole = false }
+        guard voulu != depot else { return }
+        depot = voulu
+        if voulu { intention?.cancel(); fermeture?.cancel() }
+        donneesChangees()
+    }
+    /// Les fichiers sont lâchés sur l'îlot : la zone s'éteint, les nouveaux paraissent parmi les derniers rangés (un coup d'œil de
+    /// 0,9 s), puis l'îlot revient où il en était. Un seul réveil, aucune minuterie.
+    func depotTermine(apres: TimeInterval = 0.9) {
+        depotSurvole = false
+        finDepot?.cancel()
+        let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.montrerDepot(false) } }
+        finDepot = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + apres, execute: item)
+    }
+    /// La ligne « Étagère » de l'accueil : la carte des fichiers gardés.
+    func ouvrirEtagere() {
+        guard etagereActive, !cache else { return }
+        sousVue = .etagere; epingle = true; survole = true
+        donneesChangees(); surDepliageMoniteur()
     }
 
     func ouvrirFormulaireRappel() {

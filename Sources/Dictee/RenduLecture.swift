@@ -327,6 +327,28 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.claude = claude() }) }, "ilot-21h-video-et-claude-en-bulle")
         ecrire(bureau(hauteur: grandBureau) { ilot(miCourse(scene { $0.claude = claude() }, 0.16) { $0.survole = true }) }, "ilot-21i-claude-survol-mi-course")
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.claude = claude(total: 0); $0.survole = true }) }, "ilot-21j-claude-survol-sans-liste")
+        // l'étagère (maquette ilot-apple.html, cinq idées de plus, 2) : « Déposez ici » pendant qu'on glisse des fichiers près de l'encoche
+        // (vide, puis sous les derniers fichiers rangés, éclairé quand le pointeur est dessus), la ligne de l'accueil, la carte (une et deux
+        // rangées, noms longs coupés au milieu, vide), pendant une vidéo, et l'ouverture à mi-course
+        func etagere(_ l: [(String, UTType)]) -> [FichierEtagere] {
+            l.map { FichierEtagere(id: UUID(), nom: $0.0, url: URL(fileURLWithPath: "/Users/exemple/Desktop/" + $0.0), icone: NSWorkspace.shared.icon(for: $0.1)) }
+        }
+        let deux = etagere([("Contrat.pdf", .pdf), ("Photo.heic", .heic)])
+        let huit = etagere([("Contrat.pdf", .pdf), ("Photo.heic", .heic), ("Rapport-annuel-2026-direction-financière-v3.pdf", .pdf), ("Devis.xlsx", .spreadsheet),
+                            ("Notes de réunion.txt", .plainText), ("Maquette.png", .png), ("Présentation client.key", .presentation), ("Archive.zip", .zip)])
+        func depot(_ f: [FichierEtagere], survol: Bool) -> (IlotMoteur) -> Void { { m in m.etagereActive = true; m.etagere = f; m.montrerDepot(true); m.depotSurvole = survol } }
+        ecrire(bureau(hauteur: petitBureau + 80) { ilot(scene(depot([], survol: false))) }, "ilot-22a-etagere-deposez-ici-vide")
+        ecrire(bureau(hauteur: petitBureau + 80) { ilot(scene(depot(deux, survol: true))) }, "ilot-22b-etagere-deposez-ici-survol")
+        ecrire(bureau(hauteur: petitBureau + 80, clair: false) { ilot(scene(depot(Array(huit.prefix(5)), survol: false))) }, "ilot-22c-etagere-cinq-fichiers-sombre")
+        ecrire(bureau(hauteur: grandBureau + 50) { ilot(scene { m in m.etagereActive = true; m.etagere = deux; m.epingle = true; m.survole = true
+            m.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); m.rendezVousSuivant = rdv }) }, "ilot-22d-accueil-ligne-etagere")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.etagereActive = true; m.etagere = Array(huit.prefix(3)); m.energie = batterie; m.ouvrirEtagere() }) }, "ilot-22e-carte-etagere")
+        ecrire(bureau(hauteur: grandBureau + 40, clair: false) { ilot(scene { m in m.etagereActive = true; m.etagere = huit; m.ouvrirEtagere() }) }, "ilot-22f-carte-etagere-deux-rangees")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.etagereActive = true; m.etagere = []; m.ouvrirEtagere() }) }, "ilot-22g-carte-etagere-vide")
+        ecrire(bureau(hauteur: petitBureau + 80) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.minuteur = minut(10, restant: 372); depot(deux, survol: false)(m) }) }, "ilot-22h-etagere-pendant-video")
+        ecrire(bureau(hauteur: petitBureau + 80) { ilot(miCourse(scene { m in m.etagereActive = true; m.etagere = deux }, 0.16) { $0.montrerDepot(true) }) }, "ilot-22i-etagere-ouverture-mi-course")
+        ecrire(bureau(hauteur: grandBureau + 70) { ilot(scene(lecture: videoLongue) { m in m.etagereActive = true; m.etagere = deux; m.lecturePresente = true
+            m.donneesChangees(); m.appuiLong(minuteurActif: true) }) }, "ilot-22j-lecture-rangee-et-etagere")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)

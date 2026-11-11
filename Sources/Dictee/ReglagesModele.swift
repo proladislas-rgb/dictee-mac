@@ -32,6 +32,7 @@ final class ReglagesModele: ObservableObject {
     @Published var ilotTelechargements: Bool { didSet { if !installe { return }; Settings.ilotTelechargements = ilotTelechargements; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotMicro: Bool { didSet { if !installe { return }; Settings.ilotMicro = ilotMicro; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotNiveaux: Bool { didSet { if !installe { return }; Settings.ilotNiveaux = ilotNiveaux; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
+    @Published var ilotEtagere: Bool { didSet { if !installe { return }; Settings.ilotEtagere = ilotEtagere; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotClaude: Bool { didSet { if !installe { return }; Settings.ilotClaude = ilotClaude; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     /// Les crochets de Verbe sont dans ~/.claude/settings.json ; `avisClaude` : ce qui n'a pas marché.
     @Published private(set) var claudeBranche = false
@@ -113,6 +114,7 @@ final class ReglagesModele: ObservableObject {
         ilotTelechargements = reel ? Settings.ilotTelechargements : true
         ilotMicro = reel ? Settings.ilotMicro : true
         ilotNiveaux = reel ? Settings.ilotNiveaux : true
+        ilotEtagere = reel ? Settings.ilotEtagere : true
         ilotClaude = reel ? Settings.ilotClaude : true
         claudeBranche = reel ? InstallationClaude.parDefaut.estBranche : false
         raccourciMicro = reel ? Settings.raccourciMicro : .microParDefaut

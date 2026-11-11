@@ -129,6 +129,7 @@ func controlesIlot() {
         verifier(VueIlot.volume.estBandeau && VueIlot.luminosite.estNiveau && !VueIlot.telecharge.estNiveau && GeoIlot.profondeur(.volume) == 0, "volume et luminosité : des bandeaux compacts")
     }
     controlesClaude(t0)
+    controlesEtagere(t0)
     groupe("Îlot : Téléchargé (fichiers arrivés dans Téléchargements)")
     do {
         typealias F = FiltreTelechargements
@@ -770,4 +771,85 @@ func controlesClaude(_ t0: Date) {
             verifier(p.bande - demi <= GeoIlot.aileMax + 0.001 && p.hauteur == barre, "\(v.rawValue) : dans la barre, \(Int(p.bande - demi)) pt de chaque côté de la caméra (≤ 66), rien sous la barre")
         }
     }
+}
+
+/// L'étagère : ce qu'on garde (signets, sans doublon, capacité), ce qui disparaît, le fichier, et quand le glisser ouvre l'îlot.
+func controlesEtagere(_ t0: Date) {
+    groupe("Îlot : l'étagère (fichiers glissés sur l'encoche)")
+    func el(_ chemin: String, _ s: Double = 0) -> ElementEtagere { ElementEtagere(chemin: chemin, signet: Data(chemin.utf8), ajout: t0.addingTimeInterval(s)) }
+    var e = EtagereIlot()
+    verifier(e.estVide && e.resume == "Vide" && e.apercu.isEmpty, "étagère neuve : vide")
+    let r1 = e.ajouter([el("/Users/h/Desktop/Contrat.pdf"), el("/Users/h/Pictures/Photo.heic", 1)])
+    verifier(r1.ajoutes.count == 2 && r1.doublons == 0 && r1.sortis.isEmpty && e.elements.map(\.nom) == ["Contrat.pdf", "Photo.heic"], "deux fichiers rangés, dans l'ordre du dépôt, nom = dernier élément du chemin")
+    verifier(e.resume == "2 fichiers" && EtagereIlot.resume(1) == "1 fichier", "« 2 fichiers », « 1 fichier »")
+    verifier(e.apercu == "Photo.heic, Contrat.pdf", "aperçu de l'accueil : le plus récent d'abord")
+    let id0 = e.elements[0].id
+    let r2 = e.ajouter([el("/Users/h/Desktop/Contrat.pdf"), el("/Users/h/Desktop/./Contrat.pdf"), el("/Users/h/Desktop/Devis.pdf"), el("/Users/h/Desktop/Devis.pdf")])
+    verifier(r2.ajoutes.map(\.nom) == ["Devis.pdf"] && r2.doublons == 3 && e.elements.count == 3, "sans doublon : déjà là (même chemin, « ./ » compris) ou deux fois dans le même dépôt")
+    verifier(e.elements[0].id == id0, "un fichier redéposé garde sa place (et son identifiant)")
+    // capacité : les plus anciens sortent
+    var pleine = EtagereIlot()
+    pleine.ajouter((1...10).map { el("/f/\($0).txt", Double($0)) })
+    let r3 = pleine.ajouter([el("/f/11.txt"), el("/f/12.txt")])
+    verifier(pleine.elements.count == EtagereIlot.capacite && r3.sortis.map(\.nom) == ["1.txt", "2.txt"] && pleine.elements.first?.nom == "3.txt" && pleine.elements.last?.nom == "12.txt",
+             "au-delà de 10 : les deux plus anciens sortent, les nouveaux sont au bout")
+    verifier(EtagereIlot.rangees(0) == 1 && EtagereIlot.rangees(5) == 1 && EtagereIlot.rangees(6) == 2 && EtagereIlot.rangees(10) == 2 && EtagereIlot.rangees(40) == 2, "rangées de la carte : 1 jusqu'à 5 fichiers, 2 au-delà")
+    // retrait, vider
+    verifier(e.retirer(id0) && !e.retirer(id0) && e.elements.map(\.nom) == ["Photo.heic", "Devis.pdf"], "« × » retire le fichier (une seule fois)")
+    var v = e; v.vider()
+    verifier(v.estVide, "« Tout vider »")
+    // relire : disparu, déplacé, corbeille, deux signets vers le même fichier, signet renouvelé
+    var d = EtagereIlot()
+    d.ajouter([el("/a/Contrat.pdf"), el("/a/Photo.heic"), el("/a/Devis.pdf"), el("/a/Notes.txt"), el("/a/Copie.pdf")])
+    let retires = d.relire { x in
+        switch x.nom {
+        case "Photo.heic": return .disparu
+        case "Devis.pdf": return .present(chemin: "/b/Devis signé.pdf", signet: Data("neuf".utf8))
+        case "Notes.txt": return .present(chemin: "/Users/h/.Trash/Notes.txt", signet: nil)
+        case "Copie.pdf": return .present(chemin: "/a/Contrat.pdf", signet: nil)
+        default: return .present(chemin: x.chemin, signet: nil)
+        }
+    }
+    verifier(retires.map(\.nom) == ["Photo.heic", "Notes.txt", "Copie.pdf"], "relu : supprimé, mis à la Corbeille, et un 2e signet vers le même fichier sont retirés (\(retires.map(\.nom)))")
+    verifier(d.elements.map(\.nom) == ["Contrat.pdf", "Devis signé.pdf"] && d.elements[1].chemin == "/b/Devis signé.pdf" && d.elements[1].signet == Data("neuf".utf8),
+             "déplacé et renommé : il suit (nouveau chemin, nouveau nom, signet renouvelé)")
+    verifier(d.elements[0].signet == Data("/a/Contrat.pdf".utf8), "signet encore bon : gardé tel quel")
+    verifier(EtagereIlot.estALaCorbeille("/Volumes/Clé/.Trashes/501/a.pdf") && !EtagereIlot.estALaCorbeille("/Users/h/Trash notes.txt"), "corbeille d'un disque externe ; un nom qui contient « Trash » n'en est pas une")
+    // fichier : aller-retour, illisible
+    if let data = d.donnees(), let relu = EtagereIlot.depuis(data) {
+        verifier(relu == d, "fichier : aller-retour identique (signets compris)")
+    } else { verifier(false, "fichier : encodage") }
+    verifier(EtagereIlot.depuis(Data("pas du json".utf8)) == nil, "fichier abîmé : refusé (gardé à part par l'app)")
+
+    groupe("Îlot : l'étagère, le glisser près de l'encoche")
+    typealias A = ApprocheEtagere
+    verifier(A.ecart(x: 0, y: 10, demiCamera: 92, barre: 32) == 0 && A.ecart(x: 152, y: 20, demiCamera: 92, barre: 32) == 60, "écart : 0 sur l'encoche, 60 pt à droite de la caméra")
+    verifier(A.proche(x: 150, y: 20, demiCamera: 92, barre: 32) && !A.proche(x: 160, y: 20, demiCamera: 92, barre: 32), "à 58 pt de la caméra : ouvert ; à 68 pt : rien")
+    verifier(A.proche(x: 0, y: 90, demiCamera: 92, barre: 32) && !A.proche(x: 0, y: 100, demiCamera: 92, barre: 32), "sous l'encoche : jusqu'à 60 pt sous la barre")
+    verifier(!A.proche(x: -400, y: 5, demiCamera: 92, barre: 32), "dans la barre des menus, loin de la caméra : rien")
+    verifier(A.proche(x: 260, y: 160, demiCamera: 92, barre: 32, ouvert: (demiLargeur: 236, hauteur: 134)) && !A.proche(x: 260, y: 160, demiCamera: 92, barre: 32),
+             "zone ouverte : elle le reste tant qu'on est dessus ou à 40 pt autour (sinon on la perdrait en la visant)")
+    verifier(!A.proche(x: 300, y: 200, demiCamera: 92, barre: 32, ouvert: (demiLargeur: 236, hauteur: 134)), "au-delà des 40 pt : elle se referme")
+    var sg = SuiviGlisser()
+    verifier(!sg.nouveau(compte: 5), "sans appui vu : pas un glisser de fichiers")
+    sg.bouton(enfonce: true, compte: 5)
+    verifier(!sg.nouveau(compte: 5), "presse-papiers du glisser inchangé depuis l'appui (texte étiré, fenêtre déplacée) : rien, même s'il garde les fichiers d'avant")
+    verifier(sg.nouveau(compte: 6), "il a changé depuis l'appui : un vrai glisser")
+    sg.bouton(enfonce: false, compte: 0)
+    verifier(!sg.nouveau(compte: 7) && sg.compteAuClic == nil, "bouton relâché : oublié")
+
+    groupe("Îlot : l'étagère, géométrie")
+    for (barre, demi) in [(32.0, 92.0), (37.0, 100.0)] {
+        for (vue, plus) in [(VueIlot.etagereDepot, 0.0), (.etagere, 0), (.etagere, GeoIlot.rangeeEtagere), (.accueil, GeoIlot.ligneAccueil), (.lectureMinuteur, GeoIlot.ligneAccueil)] {
+            let g = GeoIlot.valeurs(vue, hauteurBarre: barre, demiCamera: demi, epaules: true, enPlus: plus)
+            let p = TraceIlot.calculer(g, demiCamera: demi, barre: barre)
+            verifier(p.bande <= demi + GeoIlot.aileMax + 0.001, "\(vue.rawValue)\(plus > 0 ? " + \(Int(plus)) pt" : "") : \(String(format: "%.0f", p.bande - demi)) pt dans la barre de chaque côté (≤ 66)")
+            verifier(g[2] + 0 <= 330, "\(vue.rawValue)\(plus > 0 ? " + \(Int(plus)) pt" : "") : \(Int(g[2])) pt de haut, dans la zone de dessin (330)")
+        }
+    }
+    let acc = GeoIlot.valeurs(.accueil, hauteurBarre: 32), accPlus = GeoIlot.valeurs(.accueil, hauteurBarre: 32, enPlus: GeoIlot.ligneAccueil)
+    verifier(accPlus[2] - acc[2] == 42 && accPlus[1] == acc[1], "accueil avec l'étagère : une ligne de 42 pt de plus, même largeur")
+    verifier(GeoIlot.valeurs(.etagereDepot, hauteurBarre: 32)[1] == GeoIlot.valeurs(.accueil, hauteurBarre: 32)[1], "« Déposez ici » : la largeur de l'accueil")
+    verifier(GeoIlot.profondeur(.etagereDepot) == 16 + 70 + 16, "« Déposez ici » : 70 pt de zone, 16 pt de marge dessus et dessous (maquette)")
+    verifier(!VueIlot.etagereDepot.estBandeau && !VueIlot.etagere.estBandeau && !GeoIlot.ajusteAuContenu(.etagere), "ni bandeau ni écran ajusté au contenu")
 }

@@ -23,6 +23,9 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// Claude Code au travail : l'étoile seule (pas de liste de tâches), ou l'étoile dans son anneau et « 3 sur 7 » (ou « Attend ») ;
     /// au survol, le projet, où il en est et « Ouvrir ». Bandeaux : Claude attend ta réponse, Claude a terminé.
     case claudeMinimal, claudeCompact, claudeEtendu, claudeAttend, claudeTermine
+    /// L'étagère : pendant qu'on glisse des fichiers près de l'encoche, la zone « Déposez ici » (et les derniers fichiers rangés) ;
+    /// depuis l'accueil, la carte des fichiers gardés (icône, nom, glissables vers une app).
+    case etagereDepot, etagere
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
@@ -50,6 +53,10 @@ public enum GeoIlot {
     public static let aileMax: Double = 66
     /// Ce que la rangée Minuteur ajoute sous la lecture dépliée (maquette : 208 → 262 pt de haut).
     public static let rangeeMinuteur: Double = 54
+    /// Une ligne de l'accueil (42 pt) : celle de l'étagère s'ajoute en bas quand elle garde des fichiers.
+    public static let ligneAccueil: Double = 42
+    /// Une rangée de plus de fichiers dans la carte Étagère (tuile de 72 pt + 8 pt d'écart).
+    public static let rangeeEtagere: Double = 80
     /// Repos d'une activité : rien sous la barre, le cou serré contre la caméra (la place de la pochette, de l'anneau, de l'heure).
     static func compact(_ cou: Double) -> [Double] { [cou, cou, 0, 6, 10, 0, 0] }
     /// Bandeau passager : cou étroit (les menus restent visibles), deux lignes sous la barre. Le corps s'ajuste à son contenu (comme la
@@ -84,6 +91,10 @@ public enum GeoIlot {
         // anneau (aile gauche) et « 3 sur 7 » (43 pt mesurés, aile droite : 48 pt) ; 60 + 6 = 66. La maquette posait l'anneau à côté du
         // texte : ensemble ils font 61 pt, ça déborderait. Au survol et pour les annonces, un bandeau qui épouse son contenu
         .claudeMinimal: compact(36), .claudeCompact: compact(60), .claudeEtendu: bandeau, .claudeAttend: bandeau, .claudeTermine: bandeau,
+        // l'étagère, de la largeur de l'accueil : « Déposez ici » sous les derniers fichiers rangés (16 + 70 + 16 pt, maquette) ; la carte :
+        // l'en-tête (42 pt) et une rangée de tuiles (72 pt) ; une deuxième rangée s'ajoute (`enPlus`) au-delà de cinq fichiers
+        .etagereDepot: [14, 144, 102, 6, 30, 16, 10],
+        .etagere: [14, 144, 10 + 42 + 8 + 72 + 12, 6, 34, 18, 10],
     ]
     /// Indices des valeurs : largeurs (cou, corps) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur mène ; à la
     /// fermeture la hauteur se replie d'abord.
@@ -103,7 +114,7 @@ public enum GeoIlot {
     /// la batterie du Mac (à gauche) et celle des écouteurs (à droite). 56 + le congé du cou déplié (10 pt) = la limite des ailes (66 pt).
     public static let epaules: Double = 56
     public static func aEpaules(_ v: VueIlot) -> Bool {
-        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil].contains(v)
+        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere].contains(v)
     }
 
     /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.
@@ -113,10 +124,11 @@ public enum GeoIlot {
     }
 
     /// Les sept valeurs pour une vue, la hauteur comptée depuis le haut de l'écran avec la vraie barre des menus. `contenu` : la largeur
-    /// mesurée du contenu (pt) pour un écran qui s'y ajuste ; nil = le plus large de la table.
-    public static func valeurs(_ v: VueIlot, hauteurBarre: Double, demiCamera: Double = 0, contenu: Double? = nil, epaules avecEpaules: Bool = false) -> [Double] {
+    /// mesurée du contenu (pt) pour un écran qui s'y ajuste ; nil = le plus large de la table. `enPlus` : la hauteur qu'un contenu
+    /// variable ajoute (la ligne de l'étagère dans l'accueil, une deuxième rangée de fichiers).
+    public static func valeurs(_ v: VueIlot, hauteurBarre: Double, demiCamera: Double = 0, contenu: Double? = nil, epaules avecEpaules: Bool = false, enPlus: Double = 0) -> [Double] {
         var g = table[v] ?? table[.repos]!
-        g[2] += hauteurBarre
+        g[2] += hauteurBarre + max(0, enPlus)
         if avecEpaules, aEpaules(v) { g[0] = max(g[0], epaules) }
         if let contenu, ajusteAuContenu(v) { g[1] = corps(v, contenu: contenu, demiCamera: demiCamera) }
         return g

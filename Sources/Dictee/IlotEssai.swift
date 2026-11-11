@@ -27,7 +27,8 @@ enum IlotEssai {
         var finder: [[URL]] = []
         var notes = 0
         func fabriquer() -> IlotControleur {
-            let c = IlotControleur(stockage: RappelsStore(url: fichier))
+            // l'étagère aussi dans le dossier temporaire : jamais le vrai etagere.json
+            let c = IlotControleur(stockage: RappelsStore(url: fichier), etagere: EtagereStore(url: dossier.appendingPathComponent("etagere.json")))
             c.maintenant = { Date().addingTimeInterval(decalage) }
             c.sons = IlotControleur.SonsIlot(minuteurFini: { compteurs.minuteur += 1 }, rappel: { compteurs.rappel += 1 }, doux: { compteurs.doux += 1 }, silencieux: { compteurs.silence += 1 })
             c.ouvrir = { liensOuverts.append($0) }
@@ -713,6 +714,113 @@ enum IlotEssai {
         verifier(abs((c.minuteur?.restant(a: c.maintenant()) ?? 0) - 600) < 2, "le minuteur dicté dure 10 minutes")
         c.agir(.minuteurArreter)
         verifier(c.intercepter("Minuteur 10 minutes.") == false, "la commande n'est utilisable qu'une fois par dictée armée")
+
+        // --- l'étagère : des fichiers TEMPORAIRES (jamais ceux de l'utilisateur), un etagere.json temporaire ; le glisser est simulé en
+        // appelant directement les méthodes du panneau (en essai, aucun moniteur global : les vrais glissers de l'utilisateur n'ouvrent rien)
+        do {
+            // le bandeau « Minuteur lancé » de la commande dictée se retire d'abord
+            attendre(3.0) { m.bandeau != nil }
+            c.moteur.fermer(); attendre(0.8)
+            let rayon = dossier.appendingPathComponent("Étagère", isDirectory: true)
+            try? FileManager.default.createDirectory(at: rayon, withIntermediateDirectories: true)
+            func creer(_ nom: String) -> URL { let u = rayon.appendingPathComponent(nom); try? Data("essai".utf8).write(to: u); return u }
+            let contrat = creer("Contrat.pdf"), photo = creer("Photo.heic"), notes = creer("Notes.txt")
+            verifier(c.etagereStore.url.path.hasPrefix(dossier.path) && c.etagere.estVide, "étagère d'essai : fichier temporaire, vide au départ")
+            c.activerEtagere(true); attendre(0.2)
+            verifier(c.panneau.accepteLesFichiers, "réglage allumé : la fenêtre accepte les fichiers lâchés (URL de fichiers)")
+            let hc = Double(m.demiCamera), barre = Double(g.hauteur)
+            var lu = 0
+            c.panneau.glisser(CGPoint(x: 400, y: 300)) { lu += 1; return true }; attendre(0.3)
+            verifier(!m.depot && m.courante == .repos && lu == 0, "glisser loin de l'encoche : rien, et ce qui est glissé n'est même pas regardé (\(m.depot), \(m.courante), lu \(lu))")
+            c.panneau.glisser(CGPoint(x: 0, y: barre + 30)) { lu += 1; return false }; attendre(0.3)
+            c.panneau.glisser(CGPoint(x: 10, y: barre + 20)) { lu += 1; return false }; attendre(0.2)
+            verifier(!m.depot && lu == 1, "texte étiré près de l'encoche : rien (regardé une seule fois par glisser)")
+            c.panneau.finDuGlisser()
+            c.panneau.glisser(CGPoint(x: hc + 50, y: 12)) { lu += 1; return true }; attendre(0.9)
+            verifier(m.depot && m.courante == .etagereDepot && lu == 2, "fichiers glissés à 50 pt de la caméra : l'îlot s'ouvre en « Déposez ici »")
+            verifier(m.trace.bande <= hc + GeoIlot.aileMax + 0.01 && m.trace.hauteur > barre + 90, "« Déposez ici » sous la barre ; dans la barre, \(Int(m.trace.bande - hc)) pt de chaque côté de la caméra (≤ 66)")
+            if let f = c.panneau.cadre { verifier(Double(f.height) >= m.trace.hauteur && Double(f.width) >= 2 * m.trace.corps, "la fenêtre couvre la zone (\(Int(f.width)) × \(Int(f.height)))") }
+            verifier(!m.depotSurvole, "pointeur à côté de la forme : la zone n'est pas encore éclairée")
+            c.panneau.glisser(CGPoint(x: 0, y: barre + 50)) { true }; attendre(0.1)
+            verifier(m.depotSurvole, "pointeur sur la zone : elle s'éclaire")
+            attendre(1.2) { m.boucleActive }
+            verifier(!m.boucleActive, "« Déposez ici » posé : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
+            c.panneau.glisser(CGPoint(x: m.trace.corps + 30, y: barre + 60)) { true }; attendre(0.3)
+            verifier(m.depot, "pointeur 30 pt à côté de la zone : elle reste ouverte (on ne la perd pas en la visant)")
+            c.panneau.glisser(CGPoint(x: 600, y: 420)) { true }; attendre(0.9)
+            verifier(!m.depot && m.courante == .repos, "pointeur reparti loin sans lâcher : la zone se referme")
+            c.panneau.finDuGlisser()
+            // lâché sur l'îlot
+            c.panneau.glisser(CGPoint(x: 0, y: barre + 10)) { true }; attendre(0.5)
+            verifier(c.panneau.glisserSurLIlot(CGPoint(x: 0, y: barre + 40)) && m.depotSurvole, "le système dit que le glisser est sur la fenêtre : accepté, la zone s'éclaire")
+            verifier(ConteneurIlot.operation([.copy, .link, .generic]) == .link && ConteneurIlot.operation([.copy]) == .copy, "curseur : flèche de lien (on garde un lien, pas une copie)")
+            verifier(c.panneau.deposer([contrat, photo]), "fichiers lâchés : acceptés")
+            verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Photo.heic"] && m.etagere.map(\.nom) == ["Contrat.pdf", "Photo.heic"], "deux fichiers sur l'étagère, dans l'ordre")
+            verifier(FileManager.default.fileExists(atPath: contrat.path) && FileManager.default.fileExists(atPath: photo.path), "les fichiers n'ont pas bougé (ni copiés, ni déplacés)")
+            let droits = (try? FileManager.default.attributesOfItem(atPath: c.etagereStore.url.path)[.posixPermissions] as? Int) ?? -1
+            verifier(droits == 0o600, "etagere.json écrit en 0600 (\(String(droits, radix: 8)))")
+            verifier(m.depot && !m.depotSurvole, "juste après : les fichiers paraissent dans l'îlot, la zone s'éteint")
+            c.panneau.finDuGlisser()
+            verifier(m.depot, "le relâchement du bouton, qui suit le dépôt, ne coupe pas ce coup d'œil")
+            attendre(1.6)
+            verifier(!m.depot && m.courante == .repos, "0,9 s plus tard : l'îlot se referme de lui-même")
+            c.panneau.glisser(CGPoint(x: 0, y: 10)) { true }; attendre(0.3)
+            c.panneau.deposer([photo, notes, URL(string: "https://exemple.fr/page")!]); attendre(1.6)
+            verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Photo.heic", "Notes.txt"], "redéposé : pas de doublon ; un lien web est ignoré")
+            verifier(fabriquer().etagere.elements.map(\.nom) == ["Contrat.pdf", "Photo.heic", "Notes.txt"], "après relance : l'étagère est relue depuis son fichier")
+            // pendant la dictée : rien ne s'ouvre
+            occ.dictee = true; c.occupationChangee(); attendre(0.3)
+            c.panneau.glisser(CGPoint(x: 0, y: 10)) { true }; attendre(0.3)
+            verifier(!m.depot, "pendant la dictée : un glisser n'ouvre rien")
+            c.panneau.finDuGlisser()
+            occ.dictee = false; c.occupationChangee(); attendre(0.9)
+            // l'accueil et sa ligne
+            m.clicForme(); attendre(0.9)
+            let hAccueil = barre + GeoIlot.profondeur(.accueil) + GeoIlot.ligneAccueil
+            verifier(m.courante == .accueil && abs(m.geo[2].x - hAccueil) < 0.5, "accueil : la ligne « Étagère · 3 fichiers » en plus (\(Int(m.geo[2].x)) pt de haut)")
+            // un fichier supprimé, un autre déplacé et renommé, pendant que l'accueil est ouvert
+            try? FileManager.default.removeItem(at: notes)
+            let sous = rayon.appendingPathComponent("Rangé", isDirectory: true)
+            try? FileManager.default.createDirectory(at: sous, withIntermediateDirectories: true)
+            let photo2 = sous.appendingPathComponent("Photo de vacances.heic")
+            try? FileManager.default.moveItem(at: photo, to: photo2)
+            // vrai clic sur la ligne de l'étagère (la 5e de l'accueil)
+            let za = m.grille.zone(.accueil, haut: 10, bas: 12)
+            let pl = CGPoint(x: za.minX + 120, y: za.minY + 4 * 42 + 21)
+            c.panneau.envoyerSouris(.leftMouseDown, en: pl); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pl); attendre(0.9)
+            verifier(m.courante == .etagere, "vrai clic sur la ligne de l'étagère : la carte s'ouvre")
+            verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Photo de vacances.heic"], "à l'ouverture : le fichier supprimé est retiré, le fichier déplacé suit (\(c.etagere.elements.map(\.nom)))")
+            verifier(c.etagere.elements.last?.chemin == SignetsEtagere.cheminReel(photo2), "… avec son nouveau chemin")
+            verifier(m.trace.bande <= hc + GeoIlot.aileMax + 0.01, "carte : dans la barre, \(Int(m.trace.bande - hc)) pt de chaque côté (≤ 66)")
+            attendre(1.2) { m.boucleActive }
+            verifier(!m.boucleActive, "carte posée : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
+            // vrai clic sur la première tuile : le fichier s'ouvre (capturé)
+            let zc = m.grille.zone(.etagere, haut: 10, bas: 12)
+            let pt = CGPoint(x: zc.minX + TuileEtagere.largeur(zc.width) / 2, y: zc.minY + 42 + 8 + 26)
+            liensOuverts = []
+            c.panneau.envoyerSouris(.leftMouseDown, en: pt); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pt); attendre(0.6)
+            verifier(liensOuverts.map { SignetsEtagere.cheminReel($0) } == [SignetsEtagere.cheminReel(contrat)], "vrai clic sur une tuile : le fichier est ouvert (capturé, jamais réel)")
+            verifier(m.courante == .repos && c.etagere.elements.count == 2, "ouvert : l'îlot se referme, le fichier reste sur l'étagère")
+            // « × » et « Tout vider »
+            m.clicForme(); attendre(0.5); m.ouvrirEtagere(); attendre(0.5)
+            if let id = c.etagere.elements.first?.id { c.agir(.etagereRetirer(id)) }
+            verifier(c.etagere.elements.map(\.nom) == ["Photo de vacances.heic"] && m.courante == .etagere, "« × » : retiré, la carte reste ouverte")
+            c.agir(.etagereVider); attendre(0.6)
+            verifier(c.etagere.estVide && m.etagere.isEmpty && m.courante == .etagere && fabriquer().etagere.estVide, "« Tout vider » : vide, et le fichier aussi")
+            verifier(FileManager.default.fileExists(atPath: contrat.path) && FileManager.default.fileExists(atPath: photo2.path), "vider l'étagère ne touche à aucun fichier")
+            m.fermer(); attendre(0.6)
+            m.clicForme(); attendre(0.9)
+            verifier(m.courante == .accueil && abs(m.geo[2].x - (barre + GeoIlot.profondeur(.accueil))) < 0.5, "étagère vide : l'accueil reprend sa taille, sans la ligne")
+            m.fermer(); attendre(0.6)
+            // réglage éteint
+            c.ranger([contrat]); c.activerEtagere(false); attendre(0.3)
+            c.panneau.glisser(CGPoint(x: 0, y: 10)) { true }; attendre(0.4)
+            verifier(!m.depot && !c.panneau.accepteLesFichiers && !(c.panneau.glisserSurLIlot(CGPoint(x: 0, y: 10))), "réglage éteint : plus de « Déposez ici », la fenêtre refuse les fichiers")
+            c.panneau.finDuGlisser()
+            m.clicForme(); attendre(0.9)
+            verifier(m.courante == .accueil && abs(m.geo[2].x - (barre + GeoIlot.profondeur(.accueil))) < 0.5, "réglage éteint : pas de ligne Étagère dans l'accueil")
+            m.fermer(); attendre(0.8)
+        }
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)
