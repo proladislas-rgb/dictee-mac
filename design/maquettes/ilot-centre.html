@@ -1,0 +1,1123 @@
+<!doctype html>
+<!--
+Verbe — « Le Centre » : un seul endroit pour tout régler, dans l'îlot, comme le Centre de contrôle de l'iPhone.
+Pourquoi : les nouveautés étaient cachées (raccourci clavier, interrupteur enfoui dans les Réglages, étagère qu'on ne
+découvre qu'en glissant un fichier, accueil qui ne s'ouvre que sur l'îlot vide). Ici, tout se fait depuis l'îlot, à la
+souris. La seule touche gardée est fn (la dictée) ; aucun autre raccourci.
+Le principe : on survole l'îlot (même pendant une vidéo), il s'ouvre. Deux cartes empilées : la vidéo, puis le Centre.
+On passe de l'une à l'autre en un clic (bouton « Centre », points à droite), ou en faisant défiler (en bonus).
+Après un clic dans le Centre, l'îlot reste ouvert (punaise) : on enchaîne plusieurs réglages. « Modifier » ajoute,
+retire ou range les boutons.
+Format repris de apple-acces/3-spotlight.html et ilot-cinq.html (forme de l'îlot, ressorts, régie).
+Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt.
+Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
+                   ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbe · Le Centre</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --ambre:#ff9f0a; --vert:#30d158; --rouge:#ff453a; --corail:#e8835c; --bleu:#0a84ff; --jaune:#ffd60a;
+  --regie:#0f0f11;
+  --clair:#f5f5f7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--regie)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--clair);min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block;overflow:visible}
+html.fige *,html.fige *::before,html.fige *::after{animation-play-state:paused!important}
+
+/* =====================================================================
+   Le faux écran : haut d'un MacBook, macOS 26, apparence claire (repris de 3-spotlight.html)
+   ===================================================================== */
+#ecran{position:relative;height:clamp(500px,calc(100vh - 236px),740px);overflow:hidden;isolation:isolate;
+  user-select:none;-webkit-user-select:none;background:#dbe4ee;transition:opacity calc(.26s*var(--k)) ease}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(70% 90% at 90% 4%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 60%),
+  radial-gradient(60% 80% at 4% 100%,rgba(248,228,210,.95) 0,rgba(248,228,210,0) 62%),
+  linear-gradient(168deg,#c6d6ea 0%,#d9e4f0 40%,#ebe8e6 74%,#f0e2d6 100%)}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ---- barre des menus ---- */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;z-index:4;
+  font-size:13.5px;color:#1d1d1f;white-space:nowrap;pointer-events:none}
+.menus,.etats{display:flex;flex-wrap:wrap;align-content:flex-start;height:33px;overflow:hidden;max-width:calc(50% - 172px)}
+.menus{column-gap:19px;padding-left:18px}
+.menus>*{height:33px;line-height:33px;font-weight:500}
+.menus>svg{height:17px;margin-top:7px;flex:none}
+.menus>b{font-weight:700}
+.etats{flex-direction:row-reverse;column-gap:15px;padding-right:15px}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats svg{width:17px;height:17px;color:#1d1d1f}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* ---- fenêtres ---- */
+.fen{position:absolute;color:#1d1d1f;border-radius:13px;overflow:hidden;z-index:1;background:#fff;display:flex;flex-direction:column;pointer-events:none;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.26),0 36px 80px -20px rgba(24,36,60,.42),0 12px 26px -10px rgba(24,36,60,.22);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.fen.chrome{left:max(18px,5.2%);right:max(18px,5.2%);top:41px;bottom:20px}
+.fen.cache{opacity:0;transform:scale(.965)}
+.fen.arriere{box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 18px 40px -16px rgba(24,36,60,.3)}
+.feux{position:absolute;left:15px;top:15px;display:flex;gap:8px;z-index:1}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.fen.arriere .feux i{background:#d3d3d7}
+.tabs{height:42px;flex:none;background:#dde3ec;display:flex;align-items:flex-end;padding-left:84px;position:relative}
+.fen.arriere .tabs{background:#e6e9ee}
+.tab{position:relative;height:34px;width:222px;flex:none;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:8px;padding:0 9px 0 12px;font-size:12px;color:#454a52}
+.tab.act{background:#fff;color:#1f1f1f}
+.tab.act::before,.tab.act::after{content:"";position:absolute;bottom:0;width:10px;height:10px}
+.tab.act::before{left:-10px;background:radial-gradient(circle at 0 0,transparent 9.5px,#fff 10px)}
+.tab.act::after{right:-10px;background:radial-gradient(circle at 100% 0,transparent 9.5px,#fff 10px)}
+.tab .tt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent)}
+.tab svg{flex:none}
+.tab-plus{width:28px;height:28px;margin:0 0 4px 6px;display:grid;place-items:center;color:#454a52;flex:none}
+.outils{height:46px;flex:none;display:flex;align-items:center;gap:4px;padding:0 10px;border-bottom:1px solid #e7e9ee;color:#5b6069}
+.outils .ib{width:30px;height:30px;display:grid;place-items:center;flex:none}
+.omni{flex:1;min-width:0;height:34px;border-radius:17px;background:#edf1f8;display:flex;align-items:center;gap:9px;padding:0 12px 0 4px;margin:0 6px;font-size:13.5px;color:#1f1f1f;white-space:nowrap;overflow:hidden}
+.omni .rg{width:26px;height:26px;border-radius:13px;background:#fff;display:grid;place-items:center;flex:none}
+.omni .u{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.omni .u span{color:#6b7078}
+.profil{width:24px;height:24px;border-radius:50%;background:linear-gradient(160deg,#c7ccd6,#8d95a3);flex:none;margin:0 4px}
+
+/* la page : YouTube, thème clair */
+.page{flex:1;min-height:0;overflow:hidden;color:#0f0f0f;background:#fff}
+.yt-h{height:56px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 18px 0 20px}
+.yt-g{display:flex;align-items:center;gap:20px}
+.yt-logo{display:flex;align-items:center;gap:4px;font-size:19.5px;font-weight:700;letter-spacing:-1.1px}
+.yt-logo sup{font-size:9.5px;font-weight:500;color:#606060;letter-spacing:0;align-self:flex-start;margin:1px 0 0 3px}
+.yt-rech{display:flex;align-items:center;gap:12px}
+.yt-champ{width:min(436px,32vw);height:40px;border:1px solid #d5d5d5;border-radius:20px;display:flex;align-items:center;overflow:hidden}
+.yt-champ span{flex:1;padding-left:18px;font-size:15px;color:#8c8c8c}
+.yt-champ i{width:62px;height:100%;background:#f7f7f7;border-left:1px solid #d5d5d5;display:grid;place-items:center}
+.yt-rond{width:40px;height:40px;border-radius:20px;background:#f2f2f2;display:grid;place-items:center;flex:none}
+.yt-d{display:flex;align-items:center;gap:18px;justify-content:flex-end}
+.yt-creer{height:36px;border-radius:18px;background:#f2f2f2;display:flex;align-items:center;gap:6px;padding:0 15px 0 10px;font-size:14px;font-weight:500}
+.yt-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(150deg,#e8b48a,#b9764c)}
+.yt-c{display:grid;grid-template-columns:minmax(0,700px) minmax(260px,372px);justify-content:center;gap:24px;padding:24px 24px 0}
+.lecteur{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#111}
+.lecteur>svg{position:absolute;left:-1px;top:-1px;width:calc(100% + 2px);height:calc(100% + 2px)}
+.lecteur::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 140px rgba(70,26,0,.28);pointer-events:none}
+.flotte{transform-box:view-box;transform-origin:200px 90px;animation:flotte 7s ease-in-out infinite alternate}
+@keyframes flotte{0%{transform:translate(0,0) rotate(-1.2deg)}100%{transform:translate(-3px,-2px) rotate(1.1deg)}}
+.ctl{position:absolute;left:0;right:0;bottom:0;height:96px;background:linear-gradient(0deg,rgba(0,0,0,.5),rgba(0,0,0,0));z-index:1}
+.ctl .barre{position:absolute;left:14px;right:14px;bottom:54px;height:4px;border-radius:2px;background:rgba(255,255,255,.3)}
+.ctl .barre b{position:absolute;left:0;top:0;bottom:0;width:41%;border-radius:2px;background:rgba(255,255,255,.34)}
+.ctl .barre i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#ff0033}
+.ctl .barre i::after{content:"";position:absolute;right:-6px;top:-4px;width:12px;height:12px;border-radius:50%;background:#ff0033}
+.ctl .bas{position:absolute;left:12px;right:12px;bottom:9px;display:flex;justify-content:space-between;color:#fff}
+.ctl .grp{height:36px;border-radius:18px;background:rgba(0,0,0,.36);display:flex;align-items:center;gap:15px;padding:0 15px;font-size:13px;font-weight:500;font-variant-numeric:tabular-nums}
+.vt{font-size:20px;line-height:28px;font-weight:700;letter-spacing:-.2px;margin-top:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chaine{display:flex;align-items:center;gap:12px;margin-top:12px}
+.chaine .av{width:40px;height:40px;border-radius:50%;background:linear-gradient(150deg,#ffcf70,#f08a2a);flex:none}
+.chaine .nom{font-size:15.5px;line-height:20px;font-weight:600}
+.chaine .ab{font-size:12px;line-height:16px;color:#606060}
+.chaine .sab{height:36px;border-radius:18px;background:#0f0f0f;color:#fff;font-size:14px;font-weight:500;display:grid;place-items:center;padding:0 16px;margin-left:12px}
+.chaine .pil{height:36px;border-radius:18px;background:#f2f2f2;font-size:14px;font-weight:500;display:flex;align-items:center;gap:7px;padding:0 15px;margin-left:auto}
+.chaine .pil+.pil{margin-left:0}
+.puces{display:flex;gap:8px;overflow:hidden;white-space:nowrap}
+.puces span{height:32px;border-radius:8px;background:#f2f2f2;font-size:14px;font-weight:500;display:grid;place-items:center;padding:0 12px;flex:none}
+.puces span.on{background:#0f0f0f;color:#fff}
+.sug{display:grid;grid-template-columns:168px minmax(0,1fr);gap:8px;margin-top:10px}
+.sug .vg{position:relative;height:94px;border-radius:8px;overflow:hidden}
+.sug .vg svg{width:100%;height:100%}
+.sug .vg b{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.78);color:#fff;font-size:12px;font-weight:500;line-height:16px;padding:0 4px;border-radius:4px;font-variant-numeric:tabular-nums}
+.sug p{font-size:14px;line-height:20px;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:3px}
+.sug span{display:block;font-size:12px;line-height:18px;color:#606060;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Finder (repris de ilot-cinq.html) */
+.fi-barre{height:52px;flex:none;display:flex;align-items:center;gap:16px;padding-left:150px;border-bottom:1px solid #e4e4e8;font-size:14px;font-weight:700;color:#1d1d1f}
+.fi-barre .chev{display:flex;gap:14px;color:#9a9aa0}
+.fi-corps{flex:1;min-height:0;display:flex}
+.fi-cote{width:136px;flex:none;background:#f1f1f4;padding:4px 10px;font-size:12.5px;color:#3a3a3f;border-right:1px solid #e4e4e8;margin-top:-52px;padding-top:56px}
+.fi-cote .ti{font-size:11px;font-weight:600;color:#9a9aa0;margin:10px 0 4px 6px}
+.fi-cote div.r{height:26px;display:flex;align-items:center;gap:8px;padding:0 6px;border-radius:6px}
+.fi-cote div.r.sel{background:rgba(0,0,0,.07);font-weight:500}
+.fi-cote svg{width:15px;height:15px;color:#2e7cf6}
+.fi-grille{flex:1;display:grid;grid-template-columns:repeat(3,94px);grid-auto-rows:92px;gap:2px 6px;padding:14px 16px;align-content:start}
+.fic{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11.5px;color:#1d1d1f;text-align:center}
+.fic .ic{height:52px;display:grid;place-items:end center;padding:2px 6px;border-radius:7px}
+.fic .nm{padding:1px 5px;border-radius:4px;max-width:92px;line-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fic.sel .ic{background:rgba(0,0,0,.08)}
+.fic.sel .nm{background:#2e7cf6;color:#fff}
+
+/* la question de macOS (une seule fois) */
+.alerte{position:absolute;left:50%;top:296px;width:300px;margin-left:-150px;z-index:3;border-radius:22px;padding:18px 18px 16px;text-align:center;color:#1d1d1f;
+  background:rgba(246,246,248,.97);box-shadow:0 0 0 .5px rgba(0,0,0,.22),0 28px 64px -12px rgba(20,30,50,.48),0 8px 20px -8px rgba(20,30,50,.25);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.alerte.cache{opacity:0;transform:scale(.92);pointer-events:none}
+.alerte .al-ic{width:44px;height:44px;margin:0 auto;border-radius:12px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(160deg,#3a3a3e,#111114);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18),0 2px 6px rgba(0,0,0,.2)}
+.alerte b{display:block;font-size:13px;line-height:17px;font-weight:700;margin-top:11px;letter-spacing:-.1px}
+.alerte p{font-size:11.5px;line-height:15px;color:#6e6e73;margin-top:6px}
+.alerte .al-bt{display:flex;gap:8px;margin-top:14px}
+.alerte .al-bt button{flex:1;height:28px;border-radius:14px;font-size:13px;font-weight:500;background:rgba(0,0,0,.07);color:#1d1d1f;cursor:pointer}
+.alerte .al-bt button.bleu{background:#0a84ff;color:#fff}
+
+/* =====================================================================
+   L'îlot (noir, opaque) et ce qu'il affiche
+   ===================================================================== */
+.calque{position:absolute;left:calc(50% - 500px);top:0;width:1000px;height:360px;pointer-events:none}
+#forme-svg{z-index:5}
+#contenu{z-index:6}
+#encoche-svg{z-index:7}
+.c{position:absolute;color:#fff;white-space:nowrap;text-align:left;font-family:var(--sans)}
+/* le contenu arrive après la forme : fondu, flou, léger zoom (et glissé quand on change de carte) */
+.e{opacity:0;filter:blur(7px);transform:translateY(var(--sy,0px)) scale(.965);
+  transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
+.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+  transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+.t15{font-size:15px;line-height:19px;font-weight:600;letter-spacing:-.2px}
+.t125{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(255,255,255,.55);margin-top:3px}
+.t135{font-size:13.5px;line-height:17px;font-weight:600;letter-spacing:-.1px;font-variant-numeric:tabular-nums}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.art{position:relative;overflow:hidden;background:#111;border-radius:4px;width:28px;height:16px}
+.art::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16)}
+.eq{display:flex;align-items:center;justify-content:space-between;width:18.4px;height:14px}
+.eq i{display:block;width:2.6px;height:14px;border-radius:1.3px;background:#ffab3d;transform:scaleY(.3);animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(1){animation-duration:.82s;animation-delay:-.3s}
+.eq i:nth-child(2){animation-duration:1.06s;animation-delay:-.7s}
+.eq i:nth-child(3){animation-duration:.74s;animation-delay:-.1s}
+.eq i:nth-child(4){animation-duration:.95s;animation-delay:-.5s}
+.eq i:nth-child(5){animation-duration:1.18s;animation-delay:-.2s}
+@keyframes eq{0%{transform:scaleY(.28)}22%{transform:scaleY(.95)}41%{transform:scaleY(.5)}63%{transform:scaleY(1)}82%{transform:scaleY(.36)}100%{transform:scaleY(.28)}}
+.epaule{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;height:17px}
+.coach{width:268px;text-align:center;font-size:14px;line-height:20px;font-weight:500;color:rgba(255,255,255,.8)}
+.coach b{color:#fff;font-weight:700}
+
+/* carte 1 : la vidéo */
+.lc{width:420px}
+.lc-haut{display:flex;gap:14px;height:64px;align-items:center}
+.lc-art{width:104px;height:64px;border-radius:10px;overflow:hidden;flex:none;position:relative}
+.lc-art::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16)}
+.lc-tx{min-width:0;flex:1}
+.lc-prog{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:12px;font-weight:600;color:rgba(255,255,255,.5);font-variant-numeric:tabular-nums;height:16px}
+.lc-barre{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.18);position:relative;overflow:hidden}
+.lc-barre b{position:absolute;left:0;top:0;bottom:0;background:#ffab3d;border-radius:3px}
+.lc-btn{display:flex;justify-content:center;align-items:center;gap:38px;margin-top:10px;height:36px}
+.lc-pied{display:flex;align-items:center;gap:10px;margin-top:12px;height:30px;padding-top:0}
+/* le bouton qui mène au Centre : visible, un clic suffit */
+.vers-centre{height:30px;border-radius:15px;padding:0 13px 0 9px;display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);
+  font-size:13px;font-weight:600;cursor:pointer;transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.vers-centre:hover{background:rgba(255,255,255,.2)}
+.vers-centre .mini-ic{display:flex;gap:5px;margin-left:3px;color:rgba(255,255,255,.55)}
+.indice{font-size:12px;font-weight:500;color:rgba(255,255,255,.45);display:flex;align-items:center;gap:6px;transition:opacity .3s ease}
+.indice.parti{opacity:0}
+
+/* carte 2 : le Centre */
+.cc{width:420px}
+.cc-tete{display:flex;align-items:center;gap:8px;height:26px}
+.pil{height:26px;border-radius:13px;padding:0 11px;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.12);font-size:12.5px;font-weight:600;cursor:pointer;flex:none;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.pil:hover{background:rgba(255,255,255,.2)}
+.pil.retour{padding-left:7px}
+.pil.ok{background:#fff;color:#000}
+.cc-titre{font-size:13.5px;font-weight:600;color:rgba(255,255,255,.55);display:none}
+.cc.edit .cc-titre{display:block}
+.cc.edit .pil.retour,.cc.edit .punaise{display:none}
+.punaise{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.5);opacity:0;transition:opacity .25s ease}
+.punaise.vu{opacity:1}
+.cc.edit .bout-modif{margin-left:auto}
+.cc-ronds{display:flex;justify-content:space-around;margin-top:12px;height:96px}
+.tg{width:84px;display:flex;flex-direction:column;align-items:center;cursor:pointer;color:#fff;flex:none}
+.tg .rd{position:relative;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center;
+  transition:background-color .2s ease,box-shadow .2s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.tg:hover .rd{filter:brightness(1.18)}
+.tg b{font-size:11.5px;line-height:15px;font-weight:600;margin-top:7px;letter-spacing:-.25px}
+.tg i{font-style:normal;font-size:11.5px;line-height:14px;color:rgba(255,255,255,.55);font-weight:500;margin-top:1px}
+.tg.rouge .rd{background:var(--rouge)}
+.tg.rouge i{color:#ff6961}
+.tg.bleu .rd{background:var(--bleu)}
+.tg.bleu i{color:#5eb0ff}
+.tg.attente .rd{box-shadow:inset 0 0 0 2px var(--bleu)}
+.tg.corail .rd{background:var(--corail)}
+.tg.lien i{color:#5eb0ff}
+.tg.vide .rd{background:transparent;border:1.5px dashed rgba(255,255,255,.4)}
+.tg.ajout{display:none}
+.cc.edit .tg.ajout{display:flex}
+.tg.ajout .rd{background:transparent;border:1.5px dashed rgba(255,255,255,.4);color:rgba(255,255,255,.7)}
+.tg.ajout b{color:rgba(255,255,255,.6)}
+.tg.cache{display:none}
+.cc-larges{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;height:76px}
+.tl{position:relative;border-radius:20px;background:rgba(255,255,255,.1);padding:11px 14px}
+.tl-t{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600}
+.tl-caps{display:flex;gap:6px;margin-top:8px;align-items:center}
+.cap{height:28px;width:44px;border-radius:14px;background:rgba(255,255,255,.14);font-size:13px;font-weight:600;display:grid;place-items:center;cursor:pointer;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.cap:hover{background:rgba(255,255,255,.22)}
+.cap.choisi{background:var(--ambre);color:#000}
+.tl-u{font-size:12px;font-weight:500;color:rgba(255,255,255,.5);margin-left:3px}
+.tl-eta{background:transparent;border:1.5px dashed rgba(255,255,255,.3);padding:9.5px 12.5px;transition:border-color .2s ease,background-color .2s ease}
+.tl-eta.survol{border-color:rgba(255,255,255,.9);background:rgba(10,132,255,.2)}
+.tl-eta.plein{border-style:solid;border-color:transparent;background:rgba(255,255,255,.1)}
+.tl-t .nb{margin-left:auto;font-style:normal;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:rgba(255,255,255,.2);font-size:12px;font-weight:700;display:none;place-items:center}
+.tl-eta.plein .nb{display:grid}
+.eta-vide{font-size:12.5px;line-height:16px;color:rgba(255,255,255,.55);margin-top:12px;font-weight:500}
+.tl-eta.survol .eta-vide{color:#fff}
+.eta-plein{display:none;align-items:center;gap:9px;margin-top:5px}
+.tl-eta.plein .eta-vide{display:none}
+.tl-eta.plein .eta-plein{display:flex}
+.eta-plein .nm{font-size:12.5px;line-height:15px;font-weight:600}
+.eta-plein .sub{font-size:11px;line-height:14px;color:rgba(255,255,255,.5);font-weight:500}
+/* mode Modifier : on retire (–), on ajoute (+), on range en glissant */
+.moins{position:absolute;left:-5px;top:-5px;width:20px;height:20px;border-radius:50%;background:#5a5a5f;color:#fff;display:none;place-items:center;
+  box-shadow:0 0 0 2px #000;z-index:1}
+.tl .moins{left:-6px;top:-6px}
+.cc.edit .moins{display:grid}
+.cc.edit .tg:not(.ajout) .rd,.cc.edit .tl{animation:tremble calc(.26s*var(--k)) ease-in-out infinite alternate}
+.cc.edit .tg:nth-child(2n) .rd,.cc.edit .tl+.tl{animation-delay:-.13s}
+@keyframes tremble{0%{transform:rotate(-1.4deg)}100%{transform:rotate(1.4deg)}}
+.cc-ajout{display:none;align-items:center;gap:7px;margin-top:10px;height:40px;padding:0 6px 0 12px;border-radius:14px;background:rgba(255,255,255,.07);
+  font-size:12px;font-weight:500;color:rgba(255,255,255,.5)}
+.cc.edit .cc-ajout{display:flex}
+.puce{height:28px;border-radius:14px;padding:0 11px 0 8px;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.14);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;
+  transition:opacity .2s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.puce.cache{display:none}
+.pts{display:flex;flex-direction:column;gap:2px;transition:transform calc(.42s*var(--k)) var(--ressort)}
+.pts button{width:16px;height:14px;display:grid;place-items:center;cursor:pointer}
+.pts i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3);transition:background-color .2s ease,transform .2s ease}
+.pts button:hover i{background:rgba(255,255,255,.6)}
+.pts button.on i{background:#fff;transform:scale(1.1)}
+
+/* faux pointeur (et le fichier qu'il porte) */
+.pointeur{position:absolute;left:0;top:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .22s}
+.pointeur.vu{opacity:1}
+.pointeur .fleche{position:relative;width:18px;height:26px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));transform-origin:2px 2px;transition:transform .12s ease}
+.pointeur.appui .fleche{transform:scale(.86)}
+.fantome{position:absolute;left:-46px;top:-12px;width:110px;display:flex;flex-direction:column;align-items:center;gap:3px;opacity:0;transform:scale(.6);
+  transition:opacity .16s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.fantome.vu{opacity:.9;transform:none}
+.fantome.aspire{opacity:0;transform:translateY(-6px) scale(.3);transition:opacity calc(.26s*var(--k)) ease,transform calc(.3s*var(--k)) ease}
+.fantome span{white-space:nowrap;font-size:11px;font-weight:600;color:#fff;background:#2e7cf6;border-radius:4px;padding:0 5px;line-height:15px}
+
+/* =====================================================================
+   La régie, sous la scène (reprise de 3-spotlight.html)
+   ===================================================================== */
+.regie{max-width:1340px;margin:0 auto;padding:14px 28px 18px}
+.r-haut{display:grid;grid-template-columns:minmax(0,1fr) 250px auto;gap:36px;align-items:center;min-height:96px}
+.r-num{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(245,245,247,.46);font-variant-numeric:tabular-nums}
+.r-titre{font-size:21px;line-height:27px;font-weight:600;letter-spacing:-.3px;margin-top:2px}
+.r-phrase{font-size:14px;line-height:20px;color:rgba(245,245,247,.64);margin-top:4px;max-width:660px;min-height:40px}
+.r-mains{display:flex;align-items:center;gap:14px}
+.pad{position:relative;width:96px;height:62px;border-radius:12px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);flex:none}
+.pad i{position:absolute;top:30px;left:32px;width:14px;height:14px;border-radius:50%;background:var(--clair);opacity:0;transform:translateY(var(--t,0px));transition:opacity .15s}
+.pad i+i{left:52px;top:26px}
+.pad.un i:first-child,.pad.deux i{opacity:1}
+.pad i::after{content:"";position:absolute;left:4.5px;top:8px;width:5px;height:calc(-1 * var(--t,0px));border-radius:3px;background:linear-gradient(180deg,rgba(245,245,247,.5),rgba(245,245,247,0))}
+.r-geste{font-size:12.5px;line-height:16px;color:rgba(245,245,247,.55);min-height:32px;max-width:140px}
+.r-cmd{display:grid;grid-template-columns:auto auto;gap:10px 8px;align-items:center}
+.bouton{height:34px;padding:0 17px;border-radius:17px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s ease}
+.bouton:active{transform:scale(.95)}
+.bouton.creux{background:rgba(255,255,255,.1)}
+.bouton.creux:hover{background:rgba(255,255,255,.16)}
+.bouton.plein{background:var(--clair);color:var(--regie)}
+.bouton.plein:hover{background:#fff}
+.r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:var(--clair)}
+.r-pas{display:flex;flex-wrap:wrap;gap:2px 4px;list-style:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.r-pas button{height:30px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:8px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+.r-pas button span{font-variant-numeric:tabular-nums;opacity:.7}
+.r-pas button:hover{color:rgba(245,245,247,.8)}
+.r-pas button.ici{color:var(--clair);background:rgba(255,255,255,.09)}
+.notes{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 32px;font-size:12.5px;line-height:18px;color:rgba(245,245,247,.42)}
+.notes b{color:rgba(245,245,247,.7);font-weight:600}
+@media (max-width:900px){.r-haut{grid-template-columns:1fr;gap:16px}.yt-c{grid-template-columns:minmax(0,1fr)}.col2{display:none}}
+</style>
+</head>
+<body>
+<section id="ecran" aria-label="Faux écran de MacBook, taille réelle">
+  <div class="papier" aria-hidden="true">
+    <svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMid slice">
+      <path d="M0 0H1440V190C1190 290 930 180 660 240S210 350 0 280Z" fill="#b7cbe4" opacity=".28"/>
+      <path d="M0 560C260 470 540 520 780 600S1250 720 1440 620V760H0Z" fill="#fff" opacity=".2"/>
+    </svg>
+  </div>
+
+  <!-- ===== fenêtre Chrome (YouTube) ===== -->
+  <div class="fen chrome" data-f="chrome" aria-hidden="true">
+    <div class="tabs">
+      <div class="feux"><i></i><i></i><i></i></div>
+      <div class="tab act">
+        <svg width="16" height="12" viewBox="0 0 16 12"><rect width="16" height="12" rx="3.4" fill="#ff0033"/><path d="M6.4 3.4v5.2L10.9 6z" fill="#fff"/></svg>
+        <span class="tt">Je détestais la mode des iPods, donc j’en ai racheté un en 2026 - YouTube</span>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.3v3.4h2.3l3 2.5V3.8l-3 2.5z" fill="#5b6069"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.5 4a5.6 5.6 0 0 1 0 8"/></svg>
+        <svg width="14" height="14" viewBox="0 0 14 14" stroke="#5b6069" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l6 6M10 4l-6 6"/></svg>
+      </div>
+      <div class="tab">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.2 2 2.2 10 0 12M8 2c-2.2 2-2.2 10 0 12"/></svg>
+        <span class="tt">Nouvel onglet</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" stroke="#5b6069" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l6 6M10 4l-6 6"/></svg>
+      </div>
+      <div class="tab-plus"><svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg></div>
+    </div>
+    <div class="outils">
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 9h-11M8 4.2 3.2 9 8 13.8"/></svg></span>
+      <span class="ib" style="opacity:.42"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9h11M10 4.2 14.8 9 10 13.8"/></svg></span>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 9a5.6 5.6 0 1 1-1.7-4"/><path d="M14.8 2.6v3.2h-3.2"/></svg></span>
+      <div class="omni">
+        <span class="rg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.5" stroke-linecap="round"><path d="M2 5h6M12 5h2M2 11h2M8 11h6"/><circle cx="10" cy="5" r="1.9"/><circle cx="6" cy="11" r="1.9"/></svg></span>
+        <span class="u">youtube.com<span>/watch?v=k7Rm2NnIpod</span></span>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4" stroke-linejoin="round"><path d="M8 2.2l1.7 3.7 4 .5-3 2.7.8 4L8 11.1 4.5 13l.8-4-3-2.7 4-.5z"/></svg>
+      </div>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M7 3.2h1.2a1.6 1.6 0 1 1 3.1 0h2.5v3a1.6 1.6 0 1 0 0 3.1v4.5h-3.7a1.6 1.6 0 1 0-3.1 0H3.2v-3.9a1.6 1.6 0 1 0 0-3.1V3.2z"/></svg></span>
+      <span class="profil"></span>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><circle cx="9" cy="4" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="9" cy="14" r="1.5"/></svg></span>
+    </div>
+    <div class="page">
+      <div class="yt-h">
+        <div class="yt-g">
+          <svg width="20" height="20" viewBox="0 0 20 20" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 5h15M2.5 10h15M2.5 15h15"/></svg>
+          <div class="yt-logo"><svg width="29" height="20" viewBox="0 0 29 20"><rect width="29" height="20" rx="6.2" fill="#ff0033"/><path d="M11.7 5.7v8.6l7.5-4.3z" fill="#fff"/></svg><span>YouTube</span><sup>FR</sup></div>
+        </div>
+        <div class="yt-rech">
+          <div class="yt-champ"><span>Rechercher</span><i><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><circle cx="8.6" cy="8.6" r="5.9"/><path d="M13 13l4.4 4.4"/></svg></i></div>
+          <div class="yt-rond"><svg width="20" height="20" viewBox="0 0 24 24" fill="#0f0f0f"><rect x="8.8" y="2.6" width="6.4" height="11.6" rx="3.2"/><path d="M5.8 11.4a6.2 6.2 0 0 0 12.4 0M12 17.8v3.4" fill="none" stroke="#0f0f0f" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        </div>
+        <div class="yt-d">
+          <div class="yt-creer"><svg width="20" height="20" viewBox="0 0 20 20" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><path d="M10 3.5v13M3.5 10h13"/></svg>Créer</div>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3.2c-3.2 0-5.6 2.5-5.6 5.8v3.6L4.6 16h14.8l-1.8-3.4V9c0-3.3-2.4-5.8-5.6-5.8zM9.6 19a2.5 2.5 0 0 0 4.8 0"/></svg>
+          <div class="yt-av"></div>
+        </div>
+      </div>
+      <div class="yt-c">
+        <div class="col1">
+          <div class="lecteur" id="lecteur">
+            <div class="ctl">
+              <div class="barre"><b></b><i id="vprog"></i></div>
+              <div class="bas">
+                <span class="grp">
+                  <svg width="15" height="16" viewBox="0 0 15 16" fill="#fff"><rect x="1.5" y="1" width="4" height="14" rx="1.2"/><rect x="9.5" y="1" width="4" height="14" rx="1.2"/></svg>
+                  <svg width="17" height="16" viewBox="0 0 17 16" fill="#fff"><path d="M1.5 2.2c0-.8.9-1.3 1.6-.8l8 5.6c.6.4.6 1.2 0 1.6l-8 5.6c-.7.5-1.6 0-1.6-.8z"/><rect x="13" y="1.4" width="2.6" height="13.2" rx="1"/></svg>
+                  <svg width="20" height="16" viewBox="0 0 20 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5.6v4.8h3l4 3.3V2.3l-4 3.3z" fill="#fff"/><path d="M12.6 5a4.2 4.2 0 0 1 0 6M15 2.8a7.4 7.4 0 0 1 0 10.4"/></svg>
+                  <span id="vtps">3:22 / 12:54</span>
+                </span>
+                <span class="grp">
+                  <svg width="20" height="16" viewBox="0 0 20 16" fill="none" stroke="#fff" stroke-width="1.5"><rect x="1.5" y="1.5" width="17" height="13" rx="3"/><path d="M8.2 6.4a2 2 0 1 0 0 3.2M14.4 6.4a2 2 0 1 0 0 3.2" stroke-linecap="round"/></svg>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#fff" stroke-width="1.5"><circle cx="9" cy="9" r="2.6"/><path d="M9 1.6v2.2M9 14.2v2.2M1.6 9h2.2M14.2 9h2.2M3.8 3.8l1.5 1.5M12.7 12.7l1.5 1.5M3.8 14.2l1.5-1.5M12.7 5.3l1.5-1.5" stroke-linecap="round"/></svg>
+                  <svg width="18" height="16" viewBox="0 0 18 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.6 5.6V2h4.2M16.4 5.6V2h-4.2M1.6 10.4V14h4.2M16.4 10.4V14h-4.2"/></svg>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="vt">Je détestais la mode des iPods, donc j’en ai racheté un en 2026</div>
+          <div class="chaine">
+            <span class="av"></span>
+            <div><div class="nom">Le Coin Tech</div><div class="ab">1,24 M d’abonnés</div></div>
+            <span class="sab">S’abonner</span>
+            <span class="pil"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="#0f0f0f" stroke-width="1.5" stroke-linejoin="round"><path d="M6.2 8.8 9.6 2.6c1.1 0 1.9.9 1.7 2L10.8 8h4.6c1 0 1.7.9 1.5 1.9l-1.2 5.6c-.2.8-.9 1.3-1.6 1.3H6.2zM2.8 8.8h3.4v8H2.8z"/></svg>18 k</span>
+            <span class="pil">Partager</span>
+          </div>
+        </div>
+        <div class="col2">
+          <div class="puces"><span class="on">Tous</span><span>Le Coin Tech</span><span>Baladeurs</span><span>Récemment ajoutées</span></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#cdbd9e"/><rect x="50" y="16" width="68" height="52" rx="6" fill="#5a5145"/><rect x="57" y="22" width="54" height="36" rx="3" fill="#1d2a22"/><rect x="62" y="28" width="30" height="3" fill="#79d37c"/><rect x="62" y="35" width="40" height="3" fill="#79d37c" opacity=".7"/><rect x="62" y="42" width="24" height="3" fill="#79d37c" opacity=".7"/><rect x="42" y="70" width="84" height="12" rx="3" fill="#70675a"/></svg><b>18:42</b></div><div><p>J’ai utilisé un Minitel pendant une semaine</p><span>Le Coin Tech</span><span>412 k vues · il y a 2 semaines</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#27364d"/><rect x="48" y="28" width="72" height="46" rx="7" fill="#e8593a"/><rect x="58" y="37" width="52" height="19" rx="4" fill="#27364d"/><circle cx="72" cy="46.5" r="5.5" fill="#f3efe6"/><circle cx="96" cy="46.5" r="5.5" fill="#f3efe6"/><rect x="64" y="62" width="40" height="5" rx="2.5" fill="#b9432b"/></svg><b>12:08</b></div><div><p>Pourquoi les baladeurs reviennent à la mode</p><span>Tech &amp; Rétro</span><span>96 k vues · il y a 5 jours</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#e7e2da"/><rect x="34" y="14" width="42" height="68" rx="6" fill="#fff" stroke="#c8ccd3"/><rect x="39" y="20" width="32" height="24" rx="2" fill="#5b93dc"/><circle cx="55" cy="62" r="12" fill="#eceef1" stroke="#d3d6dc"/><rect x="92" y="24" width="46" height="30" rx="3" fill="#2c8a5b"/><rect x="98" y="30" width="14" height="8" fill="#1c5a3b"/><rect x="92" y="62" width="50" height="5" rx="2.5" fill="#9aa3ad"/><rect x="92" y="72" width="34" height="5" rx="2.5" fill="#9aa3ad"/></svg><b>24:31</b></div><div><p>Restaurer un iPod Classic : batterie, mémoire, coque</p><span>L’Atelier du son</span><span>1,1 M de vues · il y a 3 mois</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#1f6c75"/><rect x="44" y="18" width="62" height="58" rx="5" fill="#dfe3e6"/><circle cx="75" cy="47" r="21" fill="#f4f5f6" stroke="#b8bec4"/><circle cx="75" cy="47" r="5" fill="#1f6c75"/><rect x="114" y="30" width="28" height="34" rx="4" fill="#12474d"/></svg><b>9:57</b></div><div><p>Le son du MiniDisc en 2026, ça vaut quoi ?</p><span>Hi-Fi Magazine</span><span>58 k vues · il y a 1 jour</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#f0c64a"/><text x="16" y="66" font-size="56" font-weight="800" fill="#161616" font-family="-apple-system,Helvetica,Arial,sans-serif" letter-spacing="-3">10</text><rect x="92" y="22" width="56" height="50" rx="6" fill="#161616"/><rect x="99" y="29" width="42" height="26" rx="2" fill="#7fb4e8"/><rect x="99" y="60" width="20" height="5" rx="2.5" fill="#f0c64a"/></svg><b>21:15</b></div><div><p>10 objets des années 2000 qu’on regrette vraiment</p><span>Rewind</span><span>733 k vues · il y a 1 mois</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Finder (arrive à l'étape 5) ===== -->
+  <div class="fen cache" data-f="finder" style="left:64px;top:206px;width:452px;height:262px" aria-hidden="true">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="fi-barre"><span class="chev"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 2 2 8l6 6"/></svg><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".5"><path d="M2 2l6 6-6 6"/></svg></span>Documents</div>
+    <div class="fi-corps"><div class="fi-cote"><div class="ti">Favoris</div>
+      <div class="r"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.6V8l2.4 1.6" stroke-linecap="round"/></svg>Récents</div>
+      <div class="r"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.8" y="3" width="12.4" height="9" rx="1.6"/><path d="M5.5 14h5"/></svg>Bureau</div>
+      <div class="r sel"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 1.8h5.4L12.5 5v9.2H4z"/></svg>Documents</div>
+      <div class="r"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.5v6.4M5.4 8.4 8 11l2.6-2.6" stroke-linecap="round"/></svg>Téléchargements</div></div>
+      <div class="fi-grille" id="grille"></div></div>
+  </div>
+
+  <!-- ===== barre des menus ===== -->
+  <div class="mb" aria-hidden="true"><div class="menus" id="menus"></div><div class="etats" id="etats"></div></div>
+
+  <!-- ===== la question de macOS, une seule fois ===== -->
+  <div class="alerte cache" id="alerte" role="dialog" aria-label="Autorisation macOS">
+    <div class="al-ic" id="alIc"></div>
+    <b>« Verbe » souhaite accéder aux fichiers de votre dossier Téléchargements.</b>
+    <p>Verbe montrera chaque fichier reçu dans l’îlot.</p>
+    <div class="al-bt"><button id="refuser">Ne pas autoriser</button><button class="bleu" id="autoriser">Autoriser</button></div>
+  </div>
+
+  <!-- ===== l'îlot ===== -->
+  <svg id="forme-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true"><g id="ombre"><path id="forme" fill="#000" d=""/></g></svg>
+  <div id="contenu" class="calque"></div>
+  <svg id="encoche-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/>
+    <circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+
+  <div class="pointeur" id="pointeur" aria-hidden="true"><div class="fantome" id="fantome"></div><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+</section>
+
+<!-- ===== régie ===== -->
+<section class="regie">
+  <div class="r-haut">
+    <div aria-live="polite">
+      <div class="r-num" id="num"></div>
+      <h1 class="r-titre" id="titre"></h1>
+      <p class="r-phrase" id="phrase"></p>
+    </div>
+    <div class="r-mains" aria-hidden="true"><div class="pad" id="pad"><i></i><i></i></div><div class="r-geste" id="geste"></div></div>
+    <div class="r-cmd">
+      <button class="bouton creux" id="rejouer">Rejouer</button>
+      <button class="bouton plein" id="suivant">Étape suivante</button>
+      <div class="r-opts">
+        <label><input type="checkbox" id="autoCase" checked> Lecture automatique</label>
+        <label><input type="checkbox" id="lentCase"> Ralenti ×4</label>
+      </div>
+    </div>
+  </div>
+  <ol class="r-pas" id="pas"></ol>
+  <div class="notes">
+    <div><b>À essayer ici.</b> Décochez Lecture automatique, puis passez la souris sur l’îlot noir. Cliquez sur « Centre », sur les points à droite, ou faites défiler. Tous les boutons marchent.</div>
+    <div><b>Un seul endroit.</b> Micro, micro de la dictée, minuteur, étagère, téléchargements, Claude : tout est dans le Centre, à la souris. Aucun raccourci à retenir ; seule la touche fn reste, pour dicter.</div>
+    <div><b>Ce qui ne bouge pas.</b> L’îlot reste noir et opaque. Les batteries du Mac et des AirPods restent dans ses épaules, de part et d’autre de la caméra.</div>
+  </div>
+</section>
+
+<script>
+'use strict';
+/* =========================================================
+   Constantes — 1 px CSS = 1 pt
+   ========================================================= */
+const B = 33;                 // hauteur de la barre des menus
+const HC = 90;                // demi-caméra (encoche de 180 pt)
+const N0 = 133;               // demi-largeur de l'îlot compact de la lecture (ailes de 43 pt)
+const NO = 154;               // îlot ouvert : épaules de 64 pt dans la barre (limite 66)
+const BW = 232;               // îlot ouvert : demi-largeur du corps (464 pt, limite 470)
+const GX = -BW + 16;          // bord gauche des cartes
+const HL = B + 14 + 182 + 14;            // hauteur : carte vidéo (243)
+const HCC = B + 14 + 26 + 12 + 96 + 10 + 76 + 14;   // hauteur : le Centre (281)
+const HCE = HCC + 10 + 40;               // hauteur : le Centre en mode Modifier (331)
+const CW = 150, HCO = B + 40;            // la bulle « Nouveau »
+const Q = new URLSearchParams(location.search);
+const racine = document.documentElement;
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const f2 = v => Math.round(v * 100) / 100;
+const mid = t => (B - t) / 2;
+const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+let K = 1;
+const FIGE = Q.has('fige');
+const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+let REDUIT = mq.matches;
+mq.addEventListener && mq.addEventListener('change', e => { REDUIT = e.matches; });
+if (FIGE) racine.classList.add('fige');
+
+/* =========================================================
+   Forme de l'îlot (reprise de ilot-cinq.html)
+   ng / nd = cou à gauche / à droite dans la barre, bw / bd = corps sous la barre, h = hauteur,
+   rs = épaule creuse en haut, rb = coin bas, rt = coin haut du corps, f = congé du cou
+   ========================================================= */
+const PORTEE = 1.6, POIGNEE = 0.18;
+function cote(g, n, bw){
+  const corps = Math.max(0, g.h - B), u = Math.min(corps, 40) / 40, e = 1 - Math.pow(1 - u, 2.5);
+  const d = Math.max(0, bw - n) * e, W = n + d, serre = 1 - clamp((n - HC) / 24, 0, 1);
+  const rs = g.rs + (4 - g.rs) * serre, rbv = lerp(g.rb + (8 - g.rb) * serre, g.rb, clamp(corps / 12, 0, 1));
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6), dispo = (1 - lam) * (g.h - rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(rbv, dispo / PORTEE, W / PORTEE));
+  return {n, W, d, fe, rte, rbe, rs};
+}
+function chemin(g){
+  const h = g.h, L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd), X = f2, Y = f2;
+  const a1 = PORTEE * L.rte, c1 = POIGNEE * a1, a2 = PORTEE * L.rbe, c2 = POIGNEE * a2;
+  const b1 = PORTEE * D.rte, d1 = POIGNEE * b1, b2 = PORTEE * D.rbe, d2 = POIGNEE * b2;
+  let p = `M${X(-L.n - L.rs)} ${Y(-1)}L${X(-L.n - L.rs)} 0Q${X(-L.n)} 0 ${X(-L.n)} ${Y(L.rs)}`;
+  if (L.d > 0.5) p += `L${X(-L.n)} ${Y(B - L.fe)}Q${X(-L.n)} ${B} ${X(-L.n - L.fe)} ${B}L${X(-L.W + a1)} ${B}C${X(-L.W + c1)} ${B} ${X(-L.W)} ${Y(B + c1)} ${X(-L.W)} ${Y(B + a1)}`;
+  p += `L${X(-L.W)} ${Y(h - a2)}C${X(-L.W)} ${Y(h - c2)} ${X(-L.W + c2)} ${Y(h)} ${X(-L.W + a2)} ${Y(h)}`;
+  p += `L${X(D.W - b2)} ${Y(h)}C${X(D.W - d2)} ${Y(h)} ${X(D.W)} ${Y(h - d2)} ${X(D.W)} ${Y(h - b2)}`;
+  if (D.d > 0.5) p += `L${X(D.W)} ${Y(B + b1)}C${X(D.W)} ${Y(B + d1)} ${X(D.W - d1)} ${B} ${X(D.W - b1)} ${B}L${X(D.n + D.fe)} ${B}Q${X(D.n)} ${B} ${X(D.n)} ${Y(B - D.fe)}`;
+  p += `L${X(D.n)} ${Y(D.rs)}Q${X(D.n)} 0 ${X(D.n + D.rs)} 0L${X(D.n + D.rs)} ${Y(-1)}Z`;
+  return p;
+}
+const CLES = ['ng', 'nd', 'bw', 'bd', 'h', 'rs', 'rb', 'rt', 'f'];
+const REPOS = {ng:HC, nd:HC, bw:HC, bd:HC, h:B, rs:4, rb:8, rt:0, f:0};                  // l'encoche seule
+const compact = (g, d) => ({ng:g, nd:d, bw:g, bd:d, h:B, rs:6, rb:10, rt:0, f:0});       // des ailes dans la barre
+const bandeau = (w, h, n) => ({ng:n, nd:n, bw:w, bd:w, h, rs:6, rb:30, rt:16, f:10});    // il descend sous la barre
+$('#encoche').setAttribute('d', chemin(REPOS));
+
+/* =========================================================
+   Ressorts (réponse en s, amortissement) — interruptibles
+   ========================================================= */
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = .8; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){
+      this.attente -= dt;
+      if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; }
+    }
+    const w = 2 * Math.PI / this.rep, a = w * w * (this.cible - this.x) - 2 * this.z * w * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+(function(){   // courbe CSS « ressort » (même formule), pour les zooms d'entrée
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){
+    pts.push(x);
+    for (let s = 0, n = Math.round((T / N) / dt); s < n; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; }
+  }
+  pts[pts.length - 1] = 1;
+  racine.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+/* =========================================================
+   Glyphes (dessinés à la main, façon symboles SF)
+   ========================================================= */
+const micro = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const micBarre = (t, c, fond = '#000') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/><path d="M3 2.5l14 15" stroke="${fond}" stroke-width="3.6" stroke-linecap="round"/><path d="M3 2.5l14 15" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const airpods = (t, c = '#fff') => { const b = 'M5.6 3a3.1 3.1 0 0 0-3.1 3.1v.9a3.1 3.1 0 0 0 3.1 3.1h.3v6.4a1.2 1.2 0 0 0 2.4 0V5.9A3 3 0 0 0 5.6 3z';
+  return `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><path d="${b}"/><path d="${b}" transform="matrix(-1 0 0 1 20 0)"/></svg>`; };
+const portable = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="3.6" y="4" width="12.8" height="8.8" rx="1.6" fill="none" stroke="${c}" stroke-width="1.6"/><path d="M1.5 15.4h17" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+const flecheBas = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.4" fill="none" stroke="${c}" stroke-width="1.7"/><path d="M10 5.4v8.2M6.6 10.4 10 13.8l3.4-3.4" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const etoile = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20">${[0, 30, 60, 90, 120, 150].map(a => `<rect x="9" y="1.5" width="2" height="17" rx="1" fill="${c}" transform="rotate(${a} 10 10)"/>`).join('')}</svg>`;
+const minuteurG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><circle cx="12" cy="13.4" r="7.6" fill="none" stroke="${c}" stroke-width="2.1"/><path d="M12 13.4V9.2M9.5 2.8h5" stroke="${c}" stroke-width="2.1" stroke-linecap="round"/></svg>`;
+const plateauG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M2.6 11.2 4.9 4.6A2 2 0 0 1 6.8 3.3h6.4a2 2 0 0 1 1.9 1.3l2.3 6.6v4a2 2 0 0 1-2 2H4.6a2 2 0 0 1-2-2z"/><path d="M2.8 11.2h4.1l1 2.2h4.2l1-2.2h4.1"/></svg>`;
+const cloche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><path fill="${c}" d="M12 2.6c-3.3 0-5.8 2.6-5.8 5.9v3.6l-1.6 2.9c-.5.9.1 1.9 1.1 1.9h12.6c1 0 1.6-1 1.1-1.9l-1.6-2.9V8.5c0-3.3-2.5-5.9-5.8-5.9zM9.4 18.7a2.7 2.7 0 0 0 5.2 0z"/></svg>`;
+const guillemets = (t, c = '#fff') => `<svg width="${t}" height="${f2(t * .7)}" viewBox="-.45 -.3 3 2.1"><g fill="${c}"><path d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><path transform="translate(1.1 0)" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/></g></svg>`;
+const grilleG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><circle cx="6" cy="6" r="3.3"/><circle cx="14" cy="6" r="3.3"/><rect x="2.7" y="11.2" width="14.6" height="6.4" rx="3.2"/></svg>`;
+const punaiseG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><path d="M6.6 2.4h6.8l-1.2 5.2 3 3.2H4.8l3-3.2z" fill="${c}"/><path d="M10 10.6v7" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const chevG = (t, c, d = 'g') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d === 'g' ? 'M12.5 4.5 7 10l5.5 5.5' : d === 'h' ? 'M4.5 12.5 10 7l5.5 5.5' : 'M4.5 7.5 10 13l5.5-5.5'}"/></svg>`;
+const plusG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" stroke="${c}" stroke-width="2.2" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>`;
+const moinsG = '<svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5h6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>';
+const pauseG = t => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="#fff"><rect x="4" y="2.5" width="4.4" height="15" rx="1.3"/><rect x="11.6" y="2.5" width="4.4" height="15" rx="1.3"/></svg>`;
+const saut = (t, avant) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"${avant ? ' style="transform:scaleX(-1)"' : ''}><path d="M12 4.4a8 8 0 1 1-7.4 5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M12.4 1.2v6.4L8 4.4z" fill="#fff"/><text x="12" y="16.2" font-size="7.6" font-weight="700" text-anchor="middle" fill="#fff" font-family="-apple-system,Helvetica,sans-serif"${avant ? ' transform="matrix(-1 0 0 1 24 0)"' : ''}>10</text></svg>`;
+const batterie = n => `<svg width="28" height="13" viewBox="0 0 28 13"><rect width="24" height="13" rx="4" fill="#fff"/><text x="12" y="10" font-size="9.6" font-weight="700" text-anchor="middle" fill="#000" font-family="-apple-system,Helvetica,sans-serif">${n}</text><path d="M26 4.6v3.8" stroke="rgba(255,255,255,.5)" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const doc = (t, coul = '#ff453a', lbl = 'PDF') => `<svg width="${f2(t * 0.8)}" height="${t}" viewBox="0 0 32 40"><path d="M4 1h17l10 10v26a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="#f2f2f7" stroke="rgba(0,0,0,.12)" stroke-width=".8"/><path d="M21 1v8a2 2 0 0 0 2 2h8" fill="#d1d1d6"/><rect x="5" y="24" width="22" height="9" rx="2" fill="${coul}"/><text x="16" y="31" text-anchor="middle" font-size="7" font-weight="800" fill="#fff" font-family="-apple-system,sans-serif">${lbl}</text></svg>`;
+const dossier = t => `<svg width="${t}" height="${f2(t * 0.8)}" viewBox="0 0 50 40"><path d="M3 6a3 3 0 0 1 3-3h11.5l4 4H44a3 3 0 0 1 3 3v3H3z" fill="#3d9df3"/><rect x="3" y="10.5" width="44" height="27.5" rx="3.2" fill="#62b6fb"/></svg>`;
+const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
+const MENUS = {Chrome:['Fichier', 'Modifier', 'Afficher', 'Historique', 'Favoris', 'Profils', 'Onglet', 'Fenêtre', 'Aide'], Finder:['Fichier', 'Édition', 'Présentation', 'Aller', 'Fenêtre', 'Aide']};
+
+/* Icônes de la barre des menus, de la droite vers la gauche (reprises de 3-spotlight.html) */
+(function(){
+  const s = d => `<span><svg viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg></span>`;
+  $('#etats').innerHTML = '<span class="heure">Mer. 11 nov.&nbsp; 14:30</span>' +
+    s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
+    s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
+    s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>' +
+    `<span style="color:#1d1d1f">${guillemets(16, '#1d1d1f')}</span>`;
+})();
+$('#alIc').innerHTML = guillemets(25);
+
+/* L'image de la vidéo (dessinée, reprise de 3-spotlight.html) */
+function affiche(p){
+  return `<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
+  <defs>
+    <linearGradient id="${p}mur" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9d282"/><stop offset="1" stop-color="#f0a146"/></linearGradient>
+    <radialGradient id="${p}lum" cx="72%" cy="28%" r="62%"><stop offset="0" stop-color="#fff2c9" stop-opacity=".95"/><stop offset="1" stop-color="#fff2c9" stop-opacity="0"/></radialGradient>
+    <linearGradient id="${p}tab" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a95b27"/><stop offset="1" stop-color="#743612"/></linearGradient>
+    <linearGradient id="${p}coq" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dcdfe5"/></linearGradient>
+    <linearGradient id="${p}ecr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9ddff"/><stop offset="1" stop-color="#3b7edb"/></linearGradient>
+  </defs>
+  <rect width="320" height="180" fill="url(#${p}mur)"/><rect width="320" height="180" fill="url(#${p}lum)"/>
+  <circle cx="44" cy="54" r="31" fill="#fff" opacity=".09"/><circle cx="102" cy="30" r="17" fill="#fff" opacity=".08"/><circle cx="286" cy="92" r="23" fill="#fff" opacity=".07"/>
+  <rect y="136" width="320" height="44" fill="url(#${p}tab)"/><rect y="136" width="320" height="1.2" fill="#fff" opacity=".24"/>
+  <ellipse cx="205" cy="143" rx="46" ry="5.2" fill="#3a1804" opacity=".42"/>
+  <g class="flotte"><g transform="rotate(-6 200 88)">
+    <rect x="168" y="31" width="64" height="110" rx="9.5" fill="url(#${p}coq)" stroke="#c7cad1" stroke-width=".8"/>
+    <rect x="175" y="39" width="50" height="38" rx="3" fill="url(#${p}ecr)"/>
+    <rect x="179" y="44" width="22" height="3" rx="1.5" fill="#fff" opacity=".95"/><rect x="179" y="51" width="33" height="3" rx="1.5" fill="#fff" opacity=".6"/><rect x="179" y="58" width="26" height="3" rx="1.5" fill="#fff" opacity=".6"/><rect x="179" y="65" width="30" height="3" rx="1.5" fill="#fff" opacity=".6"/>
+    <circle cx="200" cy="109" r="21.5" fill="#eceef1" stroke="#d2d5db" stroke-width=".8"/><circle cx="200" cy="109" r="7.6" fill="#fbfbfc" stroke="#d8dae0" stroke-width=".6"/>
+  </g></g></svg>`;
+}
+$('#lecteur').insertAdjacentHTML('afterbegin', affiche('g'));
+
+/* Le Finder */
+const FICHIERS = [['devis', doc(42), 'Devis-cuisine.pdf'], ['', dossier(50), 'Factures'], ['', doc(42, '#1f9d55', 'XLS'), 'Budget-2026.xlsx'],
+  ['', doc(42, '#2f6fde', 'DOC'), 'Lettre-banque.docx'], ['', dossier(50), 'Photos'], ['', dossier(50), 'Impôts']];
+$('#grille').innerHTML = FICHIERS.map(([id, ic, nm]) => `<div class="fic" ${id ? `data-fic="${id}"` : ''}><div class="ic">${ic}</div><div class="nm">${nm}</div></div>`).join('');
+const fantomeDoc = `${doc(36)}<span>Devis-cuisine.pdf</span>`;
+
+/* =========================================================
+   Ce que l'îlot affiche : [nom, x (depuis le centre), y, html]
+   ========================================================= */
+const CARTE_VIDEO = `<div class="lc">
+  <div class="lc-haut"><div class="lc-art">${affiche('l')}</div>
+    <div class="lc-tx"><div class="t15 ell">Je détestais la mode des iPods, donc j’en ai racheté un en 2026</div><div class="t125">Le Coin Tech · YouTube</div></div></div>
+  <div class="lc-prog"><span id="lcPos">3:22</span><div class="lc-barre"><b id="lcBarre" style="width:26%"></b></div><span id="lcReste">−9:32</span></div>
+  <div class="lc-btn">${saut(26, false)}${pauseG(30)}${saut(26, true)}</div>
+  <div class="lc-pied"><button class="vers-centre" data-act="centre">${grilleG(15)}Centre<span class="mini-ic">${micro(13, 'currentColor')}${plateauG(13, 'currentColor')}${flecheBas(13, 'currentColor')}</span></button>
+    <span class="indice" id="indice">${chevG(12, 'rgba(255,255,255,.45)', 'g')}Fais défiler ou clique ici</span></div>
+</div>`;
+const tuile = (t, b) => `<button class="tg" data-t="${t}"><span class="rd"><span class="moins">${moinsG}</span><span class="gl"></span></span><b>${b}</b><i></i></button>`;
+const CARTE_CENTRE = `<div class="cc" id="cc">
+  <div class="cc-tete">
+    <button class="pil retour" data-act="video">${chevG(13, '#fff', 'g')}Vidéo</button>
+    <span class="cc-titre">Modifier le Centre</span>
+    <span class="punaise" id="punaise">${punaiseG(12, 'rgba(255,255,255,.5)')}Reste ouvert</span>
+    <button class="pil bout-modif" data-act="modifier" id="boutModif">Modifier</button>
+  </div>
+  <div class="cc-ronds" id="ronds">${tuile('micro', 'Micro')}${tuile('dictee', 'Dictée')}${tuile('dl', 'Téléchargements')}${tuile('claude', 'Claude Code')}${tuile('rappel', 'Rappel')}
+    <button class="tg ajout" data-act="ajouter"><span class="rd">${plusG(20, 'rgba(255,255,255,.7)')}</span><b>Ajouter</b><i>&nbsp;</i></button></div>
+  <div class="cc-larges">
+    <div class="tl tl-minu"><span class="moins">${moinsG}</span><div class="tl-t">${minuteurG(17, 'var(--ambre)')}Minuteur</div>
+      <div class="tl-caps"><button class="cap" data-min="5">5</button><button class="cap" data-min="10">10</button><button class="cap" data-min="25">25</button><span class="tl-u">min</span></div></div>
+    <div class="tl tl-eta" id="eta"><span class="moins">${moinsG}</span><div class="tl-t">${plateauG(17, '#5eb0ff')}Étagère<em class="nb">1</em></div>
+      <div class="eta-vide" id="etaVide">Glisse un fichier ici</div>
+      <div class="eta-plein">${doc(28)}<div><div class="nm">Devis-cuisine.pdf</div><div class="sub">glisse-le vers une app</div></div></div></div>
+  </div>
+  <div class="cc-ajout">Ajouter :<button class="puce" data-act="ajouter" id="puceRappel">${plusG(11)}Rappel</button><button class="puce" data-act="rien">${plusG(11)}Dernière dictée</button><button class="puce" data-act="rien">${plusG(11)}Réunion</button></div>
+</div>`;
+const CONTENUS = [
+  ['mini', -125, 8.5, `<div class="art">${affiche('m')}</div>`],
+  ['onde', 103, 9.5, '<div class="eq"><i></i><i></i><i></i><i></i><i></i></div>'],
+  ['coach', -134, B + 10, '<div class="coach"><b>Nouveau</b> : survole l’îlot</div>'],
+  ['mcoupe', -(HC + 30), mid(18), micBarre(18, 'var(--rouge)')],
+  ['tcoupe', HC + 12, mid(17), '<span class="t135" style="color:var(--rouge)">Coupé</span>'],
+  ['batt', -NO + 13, mid(13), `<span class="epaule">${batterie(64)}</span>`],
+  ['airp', HC + 8, mid(17), `<span class="epaule">${airpods(15)}78 %</span>`],
+  ['video', GX, B + 14, CARTE_VIDEO],
+  ['centre', GX, B + 14, CARTE_CENTRE],
+  ['points', BW - 23, 0, '<div class="pts" id="pts"><button data-act="video" aria-label="Carte vidéo"><i></i></button><button data-act="centre" aria-label="Le Centre"><i></i></button></div>']
+];
+const contenu = $('#contenu');
+contenu.innerHTML = CONTENUS.map(([nom, x, y, html]) => `<div class="c e" data-c="${nom}" style="left:${f2(500 + x)}px;top:${f2(y)}px">${html}</div>`).join('');
+const c = {}; contenu.querySelectorAll('[data-c]').forEach(n => c[n.dataset.c] = n);
+const tg = t => contenu.querySelector(`.tg[data-t="${t}"]`);
+
+/* =========================================================
+   L'état de Verbe
+   ========================================================= */
+const st = {};
+function remettre(){
+  Object.assign(st, {carte:null, coachVu:false, indice:true, punaise:false, edit:false, micCoupe:false, dictee:'airpods',
+    dl:'off', permis:false, claude:'non', rappel:false, eta:0, survol:false, question:false, minu:0});
+}
+const LECT = () => compact(N0, N0);
+const COACH = () => bandeau(CW, HCO, N0);
+const COUPE = () => compact(HC + 40, Math.min(HC + 66, HC + 10 + c.tcoupe.offsetWidth + 12));
+const HAUTEUR = {video:() => HL, centre:() => st.edit ? HCE : HCC};
+const FORME = carte => bandeau(BW, HAUTEUR[carte](), NO);
+
+function majCentre(pop){
+  const pose = (t, cl, gl, sous) => {
+    const n = tg(t); n.className = 'tg ' + cl; n.querySelector('.gl').innerHTML = gl; n.querySelector('i').textContent = sous;
+    if (pop === t && !instant && !REDUIT) n.querySelector('.rd').animate([{transform:'scale(1)'}, {transform:'scale(.86)'}, {transform:'scale(1.06)'}, {transform:'scale(1)'}], {duration:380 * K, easing:'ease-out'});
+  };
+  pose('micro', st.micCoupe ? 'rouge' : '', st.micCoupe ? micBarre(24, '#fff', 'var(--rouge)') : micro(24, '#fff'), st.micCoupe ? 'Coupé' : 'Ouvert');
+  pose('dictee', '', st.dictee === 'airpods' ? airpods(24) : portable(24), st.dictee === 'airpods' ? 'AirPods' : 'Mac');
+  pose('dl', st.dl === 'on' ? 'bleu' : st.dl === 'attente' ? 'attente' : '', flecheBas(24), st.dl === 'on' ? 'Allumé' : st.dl === 'attente' ? 'Un instant…' : 'Éteint');
+  pose('claude', st.claude === 'oui' ? 'corail' : 'vide lien', etoile(22, st.claude === 'oui' ? '#fff' : 'rgba(255,255,255,.75)'), st.claude === 'oui' ? 'Prêt' : 'Brancher');
+  pose('rappel', st.rappel ? '' : 'cache', cloche(23, 'var(--jaune)'), 'Dire un rappel');
+  $('#puceRappel').classList.toggle('cache', st.rappel);
+  contenu.querySelector('.tg.ajout').style.display = st.rappel ? 'none' : '';
+  const e = $('#eta'); e.classList.toggle('survol', st.survol); e.classList.toggle('plein', st.eta > 0 && !st.survol);
+  $('#etaVide').textContent = st.survol ? 'Lâche ici' : 'Glisse un fichier ici';
+  contenu.querySelectorAll('.cap').forEach(b => b.classList.toggle('choisi', +b.dataset.min === st.minu));
+  $('#cc').classList.toggle('edit', st.edit);
+  $('#boutModif').textContent = st.edit ? 'OK' : 'Modifier';
+  $('#boutModif').classList.toggle('ok', st.edit);
+  $('#punaise').classList.toggle('vu', st.punaise);
+  $('#indice').classList.toggle('parti', !st.indice);
+}
+
+/* =========================================================
+   Minuteries et attentes annulables (reprises de ilot-cinq.html)
+   ========================================================= */
+let jeton = 0, instant = false, enCoursN = 0, cibleN = 0, auto = false;
+const minuteries = new Set();
+function apres(t, fn){ const id = setTimeout(() => { minuteries.delete(id); fn(); }, t * 1000 * K); minuteries.add(id); return id; }
+function annuler(){ minuteries.forEach(clearTimeout); minuteries.clear(); }
+function suite(){ const j = jeton; return Promise.resolve().then(() => { if (j !== jeton) throw 'stop'; }); }
+function attendre(t){
+  if (instant) return suite();
+  const j = jeton;
+  return new Promise((ok, ko) => apres(t, () => (j === jeton ? ok() : ko('stop'))));
+}
+function tween(duree, fn){
+  if (instant){ fn(1); return suite(); }
+  const j = jeton, t0 = performance.now();
+  return new Promise((ok, ko) => {
+    const pas = () => {
+      if (j !== jeton) return ko('stop');
+      const u = clamp((performance.now() - t0) / (duree * 1000 * K), 0, 1);
+      fn(u);
+      if (u < 1) requestAnimationFrame(pas); else ok();
+    };
+    pas();
+  });
+}
+const fin = () => instant && enCoursN === cibleN;   // dans un état posé, le retour au calme de la dernière étape n'est pas joué
+const facile = u => 1 - Math.pow(1 - u, 3);
+
+/* =========================================================
+   L'îlot : ressorts, forme, contenu
+   ========================================================= */
+const forme = $('#forme'), ombre = $('#ombre');
+const R = {}; CLES.forEach(k => R[k] = new Ressort(LECT()[k]));
+const TOUS = CLES.map(k => R[k]);
+let cible = LECT(), enCours = false, tPrec = 0;
+function ilot(g, o = {}){
+  const grand = (g.bw + g.bd) * g.h >= (cible.bw + cible.bd) * cible.h - .5;
+  const rep = o.rep ?? (grand ? .46 : .38), z = o.z ?? (grand ? .78 : 1), att = o.attente ?? (grand ? 0 : .06);
+  cible = {...g};
+  for (const k of CLES){
+    if (instant) R[k].poser(g[k]);
+    else { const haut = k === 'h' && grand; R[k].viser(g[k], haut ? rep * 1.06 : rep, z, att + (haut ? .02 : 0)); }
+  }
+  demarrer();
+}
+function montre(noms, d = .14){
+  const vus = new Set(noms);
+  for (const nom in c){
+    const n = c[nom], on = vus.has(nom);
+    if (on && !n.classList.contains('on')) n.style.setProperty('--d', d + 's');
+    n.classList.toggle('on', on);
+  }
+}
+function demarrer(){
+  if (FIGE || instant){ rendu(); return; }
+  if (!enCours){ enCours = true; tPrec = performance.now(); requestAnimationFrame(boucle); }
+}
+function boucle(){
+  const t = performance.now(), dt = clamp((t - tPrec) / 1000, 0, .05) / K; tPrec = t;
+  const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+  for (let i = 0; i < n; i++) for (const r of TOUS) r.pas(h);
+  let bouge = false;
+  for (const r of TOUS) if (!r.pose()) bouge = true;
+  rendu();
+  if (bouge) requestAnimationFrame(boucle); else enCours = false;
+}
+function rendu(){
+  const g = {}; for (const k of CLES) g[k] = R[k].x;
+  forme.setAttribute('d', chemin(g));
+  const a = clamp((g.h - B - 6) / 40, 0, 1);
+  ombre.style.filter = a > .01 ? `drop-shadow(0 ${(9 * a).toFixed(1)}px ${(18 * a).toFixed(1)}px rgba(10,20,40,${(.32 * a).toFixed(3)}))` : 'none';
+}
+function points(carte){
+  const h = HAUTEUR[carte](), pts = $('#pts');
+  pts.style.transform = `translateY(${f2(B + (h - B) / 2 - 14)}px)`;
+  pts.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.act === carte));
+}
+const OUVERT = carte => ['batt', 'airp', carte, 'points'];
+function ouvrir(carte){                       // depuis l'îlot replié
+  st.carte = carte; st.coachVu = true;
+  montre([], 0);
+  ilot(FORME(carte));
+  montre(OUVERT(carte), .14);
+  points(carte);
+}
+function changer(carte){                      // d'une carte à l'autre, îlot ouvert
+  if (!st.carte){ ouvrir(carte); return; }
+  if (st.carte === carte) return;
+  const bas = carte === 'centre', vient = c[carte], part = c[st.carte];
+  vient.style.transition = 'none'; vient.style.setProperty('--sy', (bas ? 26 : -26) + 'px'); void vient.offsetWidth; vient.style.transition = '';
+  part.style.setProperty('--sy', (bas ? -26 : 26) + 'px');
+  st.carte = carte; if (carte === 'centre') st.indice = false;
+  ilot(FORME(carte));
+  montre(OUVERT(carte), .1);
+  points(carte); majCentre();
+}
+function replier(){
+  st.carte = null; st.punaise = false; st.edit = false; majCentre();
+  montre([], 0);
+  if (st.micCoupe){ ilot(COUPE()); montre(['mcoupe', 'tcoupe'], .16); }
+  else { ilot(LECT()); montre(['mini', 'onde'], .16); }
+}
+function reformer(){ if (st.carte){ ilot(FORME(st.carte)); points(st.carte); } }
+
+/* =========================================================
+   L'écran : fenêtres, barre des menus, pointeur, mains
+   ========================================================= */
+const ecran = $('#ecran'), pointeur = $('#pointeur'), fantome = $('#fantome'), pad = $('#pad'), alerte = $('#alerte');
+const F = {chrome:$('.fen.chrome'), finder:$('[data-f="finder"]')};
+let ordre = ['finder', 'chrome'];
+function devant(nom){
+  ordre = ordre.filter(n => n !== nom).concat(nom);
+  ordre.forEach((n, i) => { F[n].style.zIndex = i + 1; F[n].classList.toggle('arriere', n !== nom); });
+  const app = nom === 'chrome' ? 'Chrome' : 'Finder';
+  $('#menus').innerHTML = POMME + `<b>${app}</b>` + MENUS[app].map(m => `<span>${m}</span>`).join('');
+}
+function fenetre(nom, vu){ F[nom].classList.toggle('cache', !vu); }
+function question(vu){ st.question = vu; alerte.classList.toggle('cache', !vu); }
+const XR = dx => ecran.clientWidth / 2 + dx;
+function ou(el){ const r = el.getBoundingClientRect(), e = ecran.getBoundingClientRect(); return [r.left + r.width / 2 - e.left, r.top + r.height / 2 - e.top]; }
+function cur(x, y, o = {}){
+  const saute = instant || o.saute;
+  pointeur.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
+  pointeur.style.transform = `translate(${f2(x)}px,${f2(y)}px)`;
+  if (saute){ void pointeur.offsetWidth; pointeur.style.transition = ''; }
+  pointeur.classList.toggle('vu', o.vu !== false);
+}
+async function va(x, y, d = .75){ cur(x, y, {duree:d}); await attendre(d); }
+async function vers(el, d = .75, dx = 0, dy = 0){ const [x, y] = ou(el); await va(x + dx, y + dy, d); }
+function doigts(t, mode){ pad.className = 'pad' + (mode ? ' ' + mode : ''); pad.style.setProperty('--t', f2(t) + 'px'); }
+async function clic(){
+  if (instant) return suite();
+  doigts(0, 'un'); pointeur.classList.add('appui');
+  await attendre(.13);
+  pointeur.classList.remove('appui'); doigts(0, '');
+}
+function prend(html){ fantome.className = 'fantome'; fantome.innerHTML = html; void fantome.offsetWidth; fantome.classList.add('vu'); }
+function lache(aspire){ fantome.classList.remove('vu'); if (aspire) fantome.classList.add('aspire'); }
+const rd = t => tg(t).querySelector('.rd');
+
+/* =========================================================
+   Les étapes
+   ========================================================= */
+function init(){
+  remettre();
+  fenetre('finder', false); devant('chrome'); question(false);
+  document.querySelector('[data-fic="devis"]').classList.remove('sel');
+  majCentre();
+  ilot(LECT()); montre(['mini', 'onde']); points('video');
+  cur(XR(250), 380, {vu:false, saute:true});
+  fantome.className = 'fantome'; pointeur.classList.remove('appui');
+  doigts(0, '');
+}
+const ETAPES = [
+  {t:'La vidéo joue', g:'Mains au repos',
+   p:'L’îlot montre la vidéo, comme aujourd’hui. La toute première fois, il ajoute une seule bulle : « Nouveau : survole l’îlot ». Rien d’autre à apprendre.',
+   async jeu(){ await attendre(.6); ilot(COACH()); montre(['mini', 'onde', 'coach'], .2); await attendre(.5); }},
+  {t:'Survoler l’îlot : la vidéo', g:'Pointeur sur l’îlot',
+   p:'Le pointeur sur l’îlot, même pendant une vidéo : il s’ouvre sur la vidéo. En bas, un bouton « Centre » ; à droite, deux points. La bulle « Nouveau » ne reviendra plus.',
+   async jeu(){
+     cur(XR(250), 330, {saute:true}); await attendre(.05);
+     await va(XR(34), 20, .8); await attendre(.1);
+     ouvrir('video'); await attendre(.7);
+   }},
+  {t:'Un clic sur « Centre »', g:'Un clic (ou faire défiler)',
+   p:'Un clic suffit. On peut aussi cliquer sur le 2e point, ou faire défiler avec deux doigts, en bonus. Quand rien ne joue, l’îlot s’ouvre directement sur le Centre.',
+   async jeu(){
+     await vers(c.video.querySelector('.vers-centre'), .6, -4, 4); await clic();
+     changer('centre'); await attendre(.8);
+   }},
+  {t:'Un clic sur Micro : coupé', g:'Un clic',
+   p:'Le bouton devient rouge. Aucun raccourci à retenir. Après ce clic, l’îlot reste ouvert (« Reste ouvert ») : on peut enchaîner d’autres réglages, même si le pointeur s’en va.',
+   async jeu(){
+     await vers(rd('micro'), .6, 2, 4); await clic();
+     st.micCoupe = true; st.punaise = true; majCentre('micro'); await attendre(.8);
+   }},
+  {t:'Glisser un fichier sur l’Étagère', g:'Cliquer-glisser vers l’îlot',
+   p:'Dans le Finder, on prend un fichier et on le pousse vers l’îlot. La tuile Étagère s’allume : on lâche, c’est rangé. L’îlot est resté ouvert pendant tout ce temps.',
+   async jeu(){
+     fenetre('finder', true); devant('finder'); await attendre(.4);
+     const f = document.querySelector('[data-fic="devis"]');
+     await vers(f.querySelector('.ic'), .8, 2, 4);
+     f.classList.add('sel'); pointeur.classList.add('appui'); prend(fantomeDoc); doigts(0, 'un'); await attendre(.22);
+     cur(XR(-40), 210, {duree:.6}); await attendre(.4);
+     st.survol = true; majCentre();
+     await vers($('#eta'), .5, 10, 6); await attendre(.45);
+     pointeur.classList.remove('appui'); lache(true); doigts(0, '');
+     st.survol = false; st.eta = 1; majCentre(); f.classList.remove('sel');
+     await attendre(.8);
+   }},
+  {t:'Téléchargements : macOS demande', g:'Un clic',
+   p:'Un clic sur Téléchargements. macOS pose sa question, une seule fois dans la vie de l’app. L’îlot reste ouvert pendant la question.',
+   async jeu(){
+     await vers(rd('dl'), .6, 2, 4); await clic();
+     st.dl = 'attente'; majCentre('dl'); await attendre(.3);
+     question(true); await attendre(.6);
+   }},
+  {t:'Autoriser : c’est allumé', g:'Un clic sur Autoriser',
+   p:'On clique sur Autoriser. La tuile passe au bleu, « Allumé ». Désormais, chaque fichier téléchargé s’affiche dans l’îlot, prêt à ouvrir.',
+   async jeu(){
+     await vers($('#autoriser'), .7, 4, 3); await clic();
+     question(false); st.permis = true; await attendre(.25);
+     st.dl = 'on'; majCentre('dl');
+     await vers(rd('dl'), .6, 44, 6); await attendre(.5);
+   }},
+  {t:'Claude : brancher en un clic', g:'Un clic',
+   p:'La première fois, la tuile dit « Brancher ». Un clic, et c’est fait : « Prêt ». Ensuite, la même tuile montre où en est la tâche de Claude.',
+   async jeu(){
+     await vers(rd('claude'), .6, 2, 4); await clic();
+     st.claude = 'oui'; majCentre('claude'); await attendre(.8);
+   }},
+  {t:'Modifier : ajouter un bouton', g:'Clic sur Modifier, sur + Rappel, sur OK',
+   p:'Comme sur l’iPhone : « Modifier ». Les boutons tremblent ; le « – » en retire un, on les range en les glissant. En bas, on en ajoute : ici « Rappel ». OK, c’est enregistré.',
+   async jeu(){
+     await vers($('#boutModif'), .6, 0, 3); await clic();
+     st.edit = true; majCentre(); reformer(); await attendre(.7);
+     await vers($('#puceRappel'), .6, 0, 3); await clic();
+     st.rappel = true; majCentre('rappel'); await attendre(.3);
+     await vers(rd('rappel'), .5, 24, 26); await attendre(.6);
+     if (fin()) return;
+     await vers($('#boutModif'), .6, 0, 3); await clic();
+     st.edit = false; majCentre(); reformer(); await attendre(.6);
+   }},
+  {t:'Clic ailleurs : l’îlot se range', g:'Un clic sur la page',
+   p:'Un clic hors de l’îlot le referme. Le micro reste coupé : l’îlot replié le dit en rouge, « Coupé », jusqu’à ce qu’on le rouvre d’un clic dans le Centre.',
+   async jeu(){
+     if (st.edit){ st.edit = false; majCentre(); reformer(); }
+     await va(XR(-260), 420, .8); await clic();
+     replier(); fenetre('finder', false); devant('chrome');
+     await attendre(1.0);
+   }}
+];
+const N = ETAPES.length;
+const PAUSES = [1.6, 1.6, 1.6, 1.4, 1.4, 1.4, 1.4, 1.4, 1.8, 2.6];
+
+/* =========================================================
+   Régie (reprise de ilot-cinq.html)
+   ========================================================= */
+let etape = 0;
+$('#pas').innerHTML = ETAPES.map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${e.t}</button></li>`).join('');
+function majRegie(n){
+  etape = n;
+  const m = Math.max(1, n), e = ETAPES[m - 1];
+  $('#num').textContent = `Le Centre · tout depuis l’îlot · étape ${m} sur ${N}`;
+  const fr = t => t.replace(/ ([:»?!;])/g, '\u00a0$1').replace(/« /g, '«\u00a0');
+  $('#titre').textContent = fr(e.t); $('#phrase').textContent = fr(e.p); $('#geste').textContent = e.g;
+  document.querySelectorAll('#pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === m));
+}
+async function poser(n){
+  annuler();
+  instant = true; racine.classList.add('snap');
+  try {
+    cibleN = n; enCoursN = 0;
+    init();
+    for (let i = 1; i <= n; i++){ enCoursN = i; await ETAPES[i - 1].jeu(); }
+  } finally { instant = false; }
+  majRegie(n); rendu();
+  void ecran.offsetWidth;
+  requestAnimationFrame(() => requestAnimationFrame(() => racine.classList.remove('snap')));
+}
+async function jouer(n){
+  majRegie(n);
+  if (REDUIT) return poser(n);
+  racine.classList.remove('snap'); void ecran.offsetWidth;
+  cibleN = 0; enCoursN = n;
+  await ETAPES[n - 1].jeu();
+}
+function arreter(){ jeton++; auto = false; annuler(); doigts(0, ''); }
+const autoCase = $('#autoCase');
+async function tourner(){
+  arreter(); const j = jeton; auto = true;
+  try {
+    await poser(0); await attendre(.9);
+    for (;;){
+      for (let n = 1; n <= N; n++){ await jouer(n); await attendre(PAUSES[n - 1]); }
+      if (!autoCase.checked) break;
+      ecran.style.opacity = 0; await attendre(.3);
+      await poser(0); ecran.style.opacity = 1; await attendre(1.0);
+    }
+  } catch (e){ if (e !== 'stop') console.error(e); }
+  ecran.style.opacity = 1;
+  if (j === jeton) auto = false;
+}
+function lance(n){
+  arreter(); ecran.style.opacity = 1;
+  poser(n - 1).then(() => jouer(n)).catch(e => { if (e !== 'stop') console.error(e); });
+}
+$('#rejouer').addEventListener('click', () => { if (autoCase.checked) tourner(); else lance(Math.max(1, etape)); });
+$('#suivant').addEventListener('click', () => { autoCase.checked = false; lance(etape >= N ? 1 : etape + 1); });
+$('#pas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; autoCase.checked = false; lance(+b.dataset.e); });
+autoCase.addEventListener('change', () => { if (autoCase.checked) tourner(); else arreter(); });
+function ralenti(oui){ K = oui ? 4 : 1; racine.style.setProperty('--k', K); $('#lentCase').checked = oui; }
+$('#lentCase').addEventListener('change', e => ralenti(e.target.checked));
+
+/* =========================================================
+   À la main : la vraie souris marche aussi (survol, clics, défilement)
+   ========================================================= */
+function aLaMain(){ if (auto || autoCase.checked){ autoCase.checked = false; arreter(); } pointeur.classList.remove('vu'); }
+function local(e){ const r = ecran.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top]; }
+function dansIlot(x, y){
+  if (st.carte) return Math.abs(x) <= BW + 4 && y <= cible.h + 4;
+  return y <= cible.h + 4 && Math.abs(x) <= Math.max(cible.ng, cible.nd, cible.bw) + 4;
+}
+let tFerme = 0, verrou = 0;
+ecran.addEventListener('mousemove', e => {
+  if (FIGE) return;
+  const [x, y] = local(e), dedans = dansIlot(x, y);
+  if (dedans){
+    clearTimeout(tFerme); tFerme = 0;
+    if (!st.carte){ aLaMain(); ouvrir('video'); }
+  } else if (st.carte && !st.punaise && !st.question && !tFerme && !auto){
+    tFerme = setTimeout(() => { tFerme = 0; if (!st.punaise && !st.question) replier(); }, 320);
+  }
+});
+ecran.addEventListener('pointerdown', e => {
+  if (FIGE || e.target.closest('#contenu .c') || e.target.closest('#alerte')) return;
+  const [x, y] = local(e);
+  if (st.carte && !st.question && !dansIlot(x, y)){ aLaMain(); replier(); }
+});
+ecran.addEventListener('wheel', e => {
+  if (FIGE || !st.carte || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  const [x, y] = local(e); if (!dansIlot(x, y)) return;
+  e.preventDefault();
+  if (performance.now() < verrou || Math.abs(e.deltaY) < 4) return;
+  verrou = performance.now() + 500; aLaMain();
+  changer(e.deltaY > 0 ? 'centre' : 'video');
+}, {passive:false});
+contenu.addEventListener('click', e => {
+  if (FIGE) return;
+  const a = e.target.closest('[data-act]'), t = e.target.closest('.tg[data-t]'), cap = e.target.closest('.cap');
+  if (!a && !t && !cap) return;
+  aLaMain();
+  if (st.carte === 'centre') st.punaise = true;
+  if (cap){ st.minu = st.minu === +cap.dataset.min ? 0 : +cap.dataset.min; majCentre(); return; }
+  if (a){
+    const act = a.dataset.act;
+    if (act === 'centre' || act === 'video') changer(act);
+    else if (act === 'modifier'){ st.edit = !st.edit; majCentre(); reformer(); }
+    else if (act === 'ajouter'){ st.rappel = true; majCentre('rappel'); }
+    return;
+  }
+  if (st.edit) return;
+  const k = t.dataset.t;
+  if (k === 'micro') st.micCoupe = !st.micCoupe;
+  else if (k === 'dictee') st.dictee = st.dictee === 'airpods' ? 'mac' : 'airpods';
+  else if (k === 'claude') st.claude = st.claude === 'oui' ? 'non' : 'oui';
+  else if (k === 'dl'){
+    if (st.dl !== 'off') st.dl = 'off';
+    else if (st.permis) st.dl = 'on';                 // macOS ne demande qu'une fois
+    else { st.dl = 'attente'; question(true); }
+  }
+  majCentre(k);
+});
+$('#autoriser').addEventListener('click', () => { if (FIGE) return; aLaMain(); question(false); st.permis = true; st.dl = 'on'; majCentre('dl'); });
+$('#refuser').addEventListener('click', () => { if (FIGE) return; aLaMain(); question(false); st.dl = 'off'; majCentre('dl'); });
+
+/* la vidéo avance (sauf figé) */
+const video = {pos:202, duree:774};
+function majVideo(){
+  $('#vprog').style.width = (100 * video.pos / video.duree).toFixed(2) + '%';
+  $('#vtps').textContent = fmt(video.pos) + ' / ' + fmt(video.duree);
+  $('#lcPos').textContent = fmt(video.pos); $('#lcReste').textContent = '−' + fmt(video.duree - video.pos);
+  $('#lcBarre').style.width = (100 * video.pos / video.duree).toFixed(2) + '%';
+}
+majVideo();
+setInterval(() => { if (FIGE) return; video.pos = (video.pos + 1) % video.duree; majVideo(); }, 1000);
+
+/* =========================================================
+   Démarrage
+   ========================================================= */
+if (Q.has('lent')) ralenti(true);
+const e0 = clamp(+(Q.get('etape') || 0), 0, N);
+if (FIGE){ autoCase.checked = false; poser(e0).catch(() => {}); }
+else if (Q.has('joue') && e0 >= 1){ autoCase.checked = false; poser(e0 - 1).then(() => setTimeout(() => jouer(e0).catch(() => {}), 400)); }
+else setTimeout(() => tourner(), 300);
+window.verbe = {poser, jouer, st, R, ralenti};
+</script>
+</body>
+</html>
