@@ -20,6 +20,8 @@ enum MicroErreur: Error, LocalizedError {
 /// si rien n'arrive 0,9 s plus tard, la dictée est abandonnée (`MicroErreur.aucunSon`) : l'app ne reste jamais bloquée.
 final class AudioCapture: @unchecked Sendable {
     private var engine = AVAudioEngine()
+    /// Le micro imposé, ouvert directement (sans passer par le micro par défaut : voir EntreeHAL). nil = AVAudioEngine.
+    private var direct: EntreeHAL?
     private let file = DispatchQueue(label: "dictee.audio")
     private let surveillance = DispatchQueue(label: "dictee.audio.surveillance")
     private var pipeline: RecordingPipeline?
@@ -147,16 +149,28 @@ final class AudioCapture: @unchecked Sendable {
     /// Un moteur neuf, relié au micro que `ChoixMicro` désigne. Remplace l'ancien : aucun format n'est conservé.
     private func construireMoteur(motif: String) {
         if let o = observateur { NotificationCenter.default.removeObserver(o); observateur = nil }
-        if enCours { engine.inputNode.removeTap(onBus: 0); engine.stop(); enCours = false }
+        if enCours {
+            if let d = direct { d.arreter() } else { engine.inputNode.removeTap(onBus: 0); engine.stop() }
+            enCours = false
+        }
+        direct = nil
+        let decision = Self.decider()
+        decisionDuMoteur = decision
+        reglageDuMoteur = Settings.micro
+        moteurPerime = false
+        // micro imposé (le micro du Mac quand des AirPods sont là, ou celui choisi dans les réglages) : ouvert directement, sans jamais
+        // toucher au micro par défaut ; AVAudioEngine n'est alors pas utilisé du tout (son nœud d'entrée n'est jamais créé)
+        if case .impose(let p, _) = decision, let id = Self.identifiant(uid: p.uid), let d = EntreeHAL(appareil: id) {
+            direct = d
+            engine = AVAudioEngine()
+            Log.ecrire("micro : moteur construit (\(motif)) ; \(decision.raison) ; \(description())")
+            return
+        }
         let neuf = AVAudioEngine()
         engine = neuf
         observateur = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: neuf, queue: nil) { [weak self] _ in
             self?.file.async { self?.reconfigurer() }
         }
-        let decision = Self.decider()
-        decisionDuMoteur = decision
-        reglageDuMoteur = Settings.micro
-        moteurPerime = false
         if case .impose(let p, _) = decision, let unite = neuf.inputNode.audioUnit, var id = Self.identifiant(uid: p.uid) {
             let statut = AudioUnitSetProperty(unite, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &id, UInt32(MemoryLayout<AudioDeviceID>.size))
             if statut != noErr { Log.ecrire("micro : impossible d'imposer « \(p.nom) » (erreur \(statut)), micro du système utilisé") }
@@ -180,6 +194,11 @@ final class AudioCapture: @unchecked Sendable {
     }
 
     private func installerEtDemarrer() throws {
+        if let d = direct {
+            let p = pipeline
+            try d.demarrer { tampon in p?.traiter(tampon) }
+            return
+        }
         let entree = engine.inputNode
         let format = entree.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
@@ -201,6 +220,7 @@ final class AudioCapture: @unchecked Sendable {
     }
 
     private func arreterMoteur() {
+        if enCours, let d = direct { d.arreter(); enCours = false; return }
         if enCours {
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()
@@ -212,6 +232,8 @@ final class AudioCapture: @unchecked Sendable {
     /// Le micro a changé pendant la dictée (casque branché…) : on repart avec le nouveau micro et son format.
     private func reconfigurer() {
         guard enCours else { moteurPerime = true; return }
+        // le micro direct ne dépend pas de la configuration d'AVAudioEngine : rien à refaire
+        guard direct == nil else { return }
         Log.ecrire("micro : configuration changée pendant la dictée, redémarrage de la capture")
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
@@ -224,6 +246,9 @@ final class AudioCapture: @unchecked Sendable {
     /// Où en est le micro, pour le journal : périphérique choisi et format du moteur.
     private func description() -> String {
         var morceaux: [String] = []
+        if let d = direct, case .impose(let p, _)? = decisionDuMoteur {
+            return "micro direct « \(p.nom) », format \(Int(d.format.sampleRate)) Hz, 1 canal, \(d.enMarche ? "en marche" : "arrêté")"
+        }
         switch decisionDuMoteur {
         case .impose(let p, _)?: morceaux.append("micro imposé « \(p.nom) »")
         default: if let d = Self.peripheriqueParDefaut() { morceaux.append("micro du système « \(d.nom) » (\(Self.nomTransport(d.transport)))") }
