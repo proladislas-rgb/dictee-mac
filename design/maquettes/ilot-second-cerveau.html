@@ -1,0 +1,1138 @@
+<!doctype html>
+<!--
+Verbe — « Second cerveau » dans l'îlot.
+Second cerveau (l'app perso de Hugues : messages reçus, choses « à toi », personnes à relancer) quitte la barre des menus
+(plus d'icône cerveau) et vit dans l'îlot de Verbe : une bulle à côté de l'îlot pendant une vidéo, ou les ailes si rien
+ne joue ; une large tuile en haut du Centre ; une carte à trois parties ; un bandeau quand quelqu'un écrit.
+Verbe ne fait que LIRE un petit fichier déposé par l'app : ~/.config/second-cerveau/ilot.json (titre court, 2 ou 3 lignes,
+compteurs, date de mise à jour, lien pour ouvrir l'app). Rien n'est écrit, rien ne part du Mac.
+Signe provisoire (le logo n'est pas prêt) : quatre points reliés par des traits fins, blanc et gris.
+Aucun raccourci clavier : seule la touche fn reste (dicter).
+Format repris tel quel de ilot-centre.html et ilot-claude-plus.html (forme `chemin`/`cote`, ressorts, faux écran, régie) ;
+la bulle reprend FormeBulle de l'app (fente de 11 pt, hauteur de la barre, épaule de 6 pt à droite).
+Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt.
+Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
+                   ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbe · Second cerveau</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --serif:"Newsreader","New York",ui-serif,Charter,Georgia,serif;
+  --mono:"SF Mono",ui-monospace,Menlo,Monaco,monospace;
+  --ambre:#ff9f0a; --vert:#30d158; --rouge:#ff453a; --corail:#e8835c; --bleu:#0a84ff; --jaune:#ffd60a;
+  --regie:#0f0f11;
+  --clair:#f5f5f7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--regie)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--clair);min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default;text-align:left}
+svg{display:block;overflow:visible}
+html.fige *,html.fige *::before,html.fige *::after{animation-play-state:paused!important}
+
+/* ---- le chapeau ---- */
+.hero{max-width:1340px;margin:0 auto;padding:12px 28px 10px;display:flex;align-items:center;gap:20px;min-height:58px}
+.hero h1{font-size:16.5px;line-height:21px;font-weight:700;letter-spacing:-.2px;white-space:nowrap}
+.hero h1 span{display:block;font-size:12px;line-height:15px;font-weight:500;color:rgba(245,245,247,.45);letter-spacing:0}
+.hero .lit{height:34px;border-radius:17px;padding:0 14px 0 8px;background:rgba(255,255,255,.07);font-size:12.5px;color:rgba(245,245,247,.68);display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;min-width:0}
+.hero .lit em{font-style:normal;width:24px;height:24px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.12);flex:none}
+.hero .lit code{font:500 12px var(--mono);color:#fff}
+
+/* =====================================================================
+   Le faux écran : haut d'un MacBook, macOS 26, apparence claire (repris de ilot-centre.html)
+   ===================================================================== */
+#ecran{position:relative;height:clamp(500px,calc(100vh - 294px),740px);overflow:hidden;isolation:isolate;
+  user-select:none;-webkit-user-select:none;background:#dbe4ee;transition:opacity calc(.26s*var(--k)) ease}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(70% 90% at 90% 4%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 60%),
+  radial-gradient(60% 80% at 4% 100%,rgba(248,228,210,.95) 0,rgba(248,228,210,0) 62%),
+  linear-gradient(168deg,#c6d6ea 0%,#d9e4f0 40%,#ebe8e6 74%,#f0e2d6 100%)}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ---- barre des menus ---- */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;z-index:4;
+  font-size:13.5px;color:#1d1d1f;white-space:nowrap;pointer-events:none}
+.menus,.etats{display:flex;flex-wrap:wrap;align-content:flex-start;height:33px;overflow:hidden;max-width:calc(50% - 172px)}
+.menus{column-gap:19px;padding-left:18px}
+.menus>*{height:33px;line-height:33px;font-weight:500}
+.menus>svg{height:17px;margin-top:7px;flex:none}
+.menus>b{font-weight:700}
+.etats{flex-direction:row-reverse;column-gap:15px;padding-right:15px}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats svg{width:17px;height:17px;color:#1d1d1f}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* ---- fenêtres ---- */
+.fen{position:absolute;color:#1d1d1f;border-radius:13px;overflow:hidden;z-index:1;background:#fff;display:flex;flex-direction:column;pointer-events:none;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.26),0 36px 80px -20px rgba(24,36,60,.42),0 12px 26px -10px rgba(24,36,60,.22);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.fen.chrome{left:max(18px,5.2%);right:max(18px,5.2%);top:41px;bottom:20px}
+.fen.cache{opacity:0;transform:scale(.965)}
+.fen.arriere{box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 18px 40px -16px rgba(24,36,60,.3)}
+.feux{position:absolute;left:15px;top:15px;display:flex;gap:8px;z-index:1}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.fen.arriere .feux i{background:#d3d3d7}
+.tabs{height:42px;flex:none;background:#dde3ec;display:flex;align-items:flex-end;padding-left:84px;position:relative}
+.fen.arriere .tabs{background:#e6e9ee}
+.tab{position:relative;height:34px;width:222px;flex:none;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:8px;padding:0 9px 0 12px;font-size:12px;color:#454a52}
+.tab.act{background:#fff;color:#1f1f1f}
+.tab.act::before,.tab.act::after{content:"";position:absolute;bottom:0;width:10px;height:10px}
+.tab.act::before{left:-10px;background:radial-gradient(circle at 0 0,transparent 9.5px,#fff 10px)}
+.tab.act::after{right:-10px;background:radial-gradient(circle at 100% 0,transparent 9.5px,#fff 10px)}
+.tab .tt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent)}
+.tab svg{flex:none}
+.tab-plus{width:28px;height:28px;margin:0 0 4px 6px;display:grid;place-items:center;color:#454a52;flex:none}
+.outils{height:46px;flex:none;display:flex;align-items:center;gap:4px;padding:0 10px;border-bottom:1px solid #e7e9ee;color:#5b6069}
+.outils .ib{width:30px;height:30px;display:grid;place-items:center;flex:none}
+.omni{flex:1;min-width:0;height:34px;border-radius:17px;background:#edf1f8;display:flex;align-items:center;gap:9px;padding:0 12px 0 4px;margin:0 6px;font-size:13.5px;color:#1f1f1f;white-space:nowrap;overflow:hidden}
+.omni .rg{width:26px;height:26px;border-radius:13px;background:#fff;display:grid;place-items:center;flex:none}
+.omni .u{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.omni .u span{color:#6b7078}
+.profil{width:24px;height:24px;border-radius:50%;background:linear-gradient(160deg,#c7ccd6,#8d95a3);flex:none;margin:0 4px}
+
+/* la page : YouTube, thème clair (repris de ilot-centre.html) */
+.page{flex:1;min-height:0;overflow:hidden;color:#0f0f0f;background:#fff}
+.yt-h{height:56px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 18px 0 20px}
+.yt-g{display:flex;align-items:center;gap:20px}
+.yt-logo{display:flex;align-items:center;gap:4px;font-size:19.5px;font-weight:700;letter-spacing:-1.1px}
+.yt-logo sup{font-size:9.5px;font-weight:500;color:#606060;letter-spacing:0;align-self:flex-start;margin:1px 0 0 3px}
+.yt-rech{display:flex;align-items:center;gap:12px}
+.yt-champ{width:min(436px,32vw);height:40px;border:1px solid #d5d5d5;border-radius:20px;display:flex;align-items:center;overflow:hidden}
+.yt-champ span{flex:1;padding-left:18px;font-size:15px;color:#8c8c8c}
+.yt-champ i{width:62px;height:100%;background:#f7f7f7;border-left:1px solid #d5d5d5;display:grid;place-items:center}
+.yt-d{display:flex;align-items:center;gap:18px;justify-content:flex-end}
+.yt-creer{height:36px;border-radius:18px;background:#f2f2f2;display:flex;align-items:center;gap:6px;padding:0 15px 0 10px;font-size:14px;font-weight:500}
+.yt-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(150deg,#e8b48a,#b9764c)}
+.yt-c{display:grid;grid-template-columns:minmax(0,700px) minmax(260px,372px);justify-content:center;gap:24px;padding:24px 24px 0}
+.lecteur{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#111}
+.lecteur>svg{position:absolute;left:-1px;top:-1px;width:calc(100% + 2px);height:calc(100% + 2px)}
+.lecteur::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 140px rgba(70,26,0,.28);pointer-events:none}
+.flotte{transform-box:view-box;transform-origin:200px 90px;animation:flotte 7s ease-in-out infinite alternate}
+@keyframes flotte{0%{transform:translate(0,0) rotate(-1.2deg)}100%{transform:translate(-3px,-2px) rotate(1.1deg)}}
+.ctl{position:absolute;left:0;right:0;bottom:0;height:96px;background:linear-gradient(0deg,rgba(0,0,0,.5),rgba(0,0,0,0));z-index:1}
+.ctl .barre{position:absolute;left:14px;right:14px;bottom:54px;height:4px;border-radius:2px;background:rgba(255,255,255,.3)}
+.ctl .barre b{position:absolute;left:0;top:0;bottom:0;width:41%;border-radius:2px;background:rgba(255,255,255,.34)}
+.ctl .barre i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#ff0033}
+.ctl .barre i::after{content:"";position:absolute;right:-6px;top:-4px;width:12px;height:12px;border-radius:50%;background:#ff0033}
+.ctl .bas{position:absolute;left:12px;right:12px;bottom:9px;display:flex;justify-content:space-between;color:#fff}
+.ctl .grp{height:36px;border-radius:18px;background:rgba(0,0,0,.36);display:flex;align-items:center;gap:15px;padding:0 15px;font-size:13px;font-weight:500;font-variant-numeric:tabular-nums}
+.vt{font-size:20px;line-height:28px;font-weight:700;letter-spacing:-.2px;margin-top:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chaine{display:flex;align-items:center;gap:12px;margin-top:12px}
+.chaine .av{width:40px;height:40px;border-radius:50%;background:linear-gradient(150deg,#ffcf70,#f08a2a);flex:none}
+.chaine .nom{font-size:15.5px;line-height:20px;font-weight:600}
+.chaine .ab{font-size:12px;line-height:16px;color:#606060}
+.chaine .sab{height:36px;border-radius:18px;background:#0f0f0f;color:#fff;font-size:14px;font-weight:500;display:grid;place-items:center;padding:0 16px;margin-left:12px}
+.puces{display:flex;gap:8px;overflow:hidden;white-space:nowrap}
+.puces span{height:32px;border-radius:8px;background:#f2f2f2;font-size:14px;font-weight:500;display:grid;place-items:center;padding:0 12px;flex:none}
+.puces span.on{background:#0f0f0f;color:#fff}
+.sug{display:grid;grid-template-columns:168px minmax(0,1fr);gap:8px;margin-top:10px}
+.sug .vg{position:relative;height:94px;border-radius:8px;overflow:hidden}
+.sug .vg svg{width:100%;height:100%}
+.sug .vg b{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.78);color:#fff;font-size:12px;font-weight:500;line-height:16px;padding:0 4px;border-radius:4px;font-variant-numeric:tabular-nums}
+.sug p{font-size:14px;line-height:20px;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:3px}
+.sug span{display:block;font-size:12px;line-height:18px;color:#606060;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---- la fenêtre de Second cerveau (sobre, peu détaillée) ---- */
+.fen.app{left:calc(50% - 340px);width:680px;top:70px;bottom:26px;background:#fff}
+.ap-barre{height:46px;flex:none;display:flex;align-items:center;gap:8px;padding-left:200px;border-bottom:1px solid #ececf0;font-size:13.5px;font-weight:700}
+.ap-barre .ap-rech{margin-left:auto;margin-right:14px;width:180px;height:28px;border-radius:8px;background:#f1f1f4;display:flex;align-items:center;gap:6px;padding:0 9px;font-size:12.5px;font-weight:400;color:#8e8e93}
+.ap-corps{flex:1;min-height:0;display:flex}
+.ap-cote{width:186px;flex:none;background:#f4f4f6;border-right:1px solid #e6e6ea;margin-top:-46px;padding:58px 10px 10px;font-size:13px;color:#3a3a3f}
+.ap-cote .r{height:28px;display:flex;align-items:center;gap:9px;padding:0 8px;border-radius:7px}
+.ap-cote .r.sel{background:rgba(0,0,0,.075);font-weight:600;color:#1d1d1f}
+.ap-cote .r i{font-style:normal;margin-left:auto;font-size:12px;color:#8e8e93;font-variant-numeric:tabular-nums}
+.ap-cote .ti{font-size:11px;font-weight:600;color:#9a9aa0;margin:14px 0 4px 8px}
+.ap-cote svg{color:#6e6e73}
+.ap-main{flex:1;min-width:0;padding:20px 26px;overflow:hidden}
+.ap-main h3{font-size:22px;line-height:28px;font-weight:700;letter-spacing:-.3px}
+.ap-main .sous{font-size:13px;color:#8e8e93;margin-top:1px}
+.ap-bloc{margin-top:16px}
+.ap-bloc h4{font-size:12px;font-weight:600;color:#8e8e93;margin-bottom:4px;display:flex;gap:6px}
+.ap-l{display:flex;align-items:center;gap:10px;min-height:34px;padding:0 10px;border-radius:8px;font-size:13.5px;border-bottom:1px solid #f0f0f3;transition:background-color .3s ease}
+.ap-l b{font-weight:600;flex:none}
+.ap-l .x{flex:1;min-width:0;color:#6e6e73;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ap-l .x.noir{color:#1d1d1f}
+.ap-l .h{font-size:12px;color:#8e8e93;flex:none}
+.ap-l .h.ambre{color:#c46a00;font-weight:600}
+.ap-l .cb{width:15px;height:15px;border-radius:4.5px;box-shadow:inset 0 0 0 1.4px #b8b8bf;flex:none}
+.ap-l .av{width:24px;height:24px;border-radius:50%;background:#e5e5ea;color:#6e6e73;font-size:11px;font-weight:700;display:grid;place-items:center;flex:none}
+.ap-l.sel{background:#eaf1fd;border-bottom-color:transparent}
+
+/* =====================================================================
+   L'îlot (noir, opaque) et ce qu'il affiche
+   ===================================================================== */
+.calque{position:absolute;left:calc(50% - 500px);top:0;width:1000px;height:360px;pointer-events:none}
+#forme-svg{z-index:5}
+#contenu{z-index:6}
+#encoche-svg{z-index:7}
+.c{position:absolute;color:#fff;white-space:nowrap;text-align:left;font-family:var(--sans)}
+.e{opacity:0;filter:blur(7px);transform:translateY(var(--sy,0px)) scale(.965);
+  transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
+.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+  transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.epaule{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;height:17px}
+
+/* l'îlot replié : la vidéo (reprise de ilot-centre.html) */
+.art{position:relative;overflow:hidden;background:#111;border-radius:4px;width:28px;height:16px}
+.art::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16)}
+.eq{display:flex;align-items:center;justify-content:space-between;width:18.4px;height:14px}
+.eq i{display:block;width:2.6px;height:14px;border-radius:1.3px;background:#ffab3d;transform:scaleY(.3);animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(1){animation-duration:.82s;animation-delay:-.3s}
+.eq i:nth-child(2){animation-duration:1.06s;animation-delay:-.7s}
+.eq i:nth-child(3){animation-duration:.74s;animation-delay:-.1s}
+.eq i:nth-child(4){animation-duration:.95s;animation-delay:-.5s}
+.eq i:nth-child(5){animation-duration:1.18s;animation-delay:-.2s}
+@keyframes eq{0%{transform:scaleY(.28)}22%{transform:scaleY(.95)}41%{transform:scaleY(.5)}63%{transform:scaleY(1)}82%{transform:scaleY(.36)}100%{transform:scaleY(.28)}}
+
+/* la bulle de Second cerveau (2e activité, comme FormeBulle) et les ailes */
+.bu{display:flex;align-items:center;gap:5px;height:16px}
+.nbp{min-width:15px;height:15px;border-radius:8px;background:#fff;color:#000;font-size:10.5px;line-height:15px;font-weight:800;text-align:center;padding:0 4px;font-variant-numeric:tabular-nums}
+#bulleC{opacity:0;transition:opacity calc(.18s*var(--k)) ease}
+#bulleC.on{opacity:1;pointer-events:auto;cursor:pointer}
+
+/* bandeaux */
+.ban{display:flex;align-items:center;gap:13px;padding:0 2px}
+.ban .ic{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center;flex:none}
+.ban .tx b{display:block;font-size:15px;line-height:19px;font-weight:700;letter-spacing:-.2px}
+.ban .tx span{display:block;font-size:12.5px;line-height:16px;color:rgba(255,255,255,.5);font-weight:600;max-width:250px;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.ban .act{height:30px;border-radius:15px;padding:0 14px;background:rgba(255,255,255,.14);font-size:13.5px;font-weight:700;cursor:pointer;margin-left:8px;transition:background-color .15s ease}
+.ban .act:hover{background:rgba(255,255,255,.22)}
+
+/* carte : le Centre (reprise de ilot-claude-plus.html), avec la nouvelle tuile large en haut */
+.cc{width:420px}
+.cc-tete{display:flex;align-items:center;gap:8px;height:26px}
+.pil{height:26px;border-radius:13px;padding:0 11px;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.12);font-size:12.5px;font-weight:600;cursor:pointer;flex:none;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.pil:hover{background:rgba(255,255,255,.2)}
+.pil.retour{padding-left:7px}
+.pil.blanc{background:#fff;color:#000}
+.pil.blanc:hover{background:#e8e8ea}
+.punaise{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.5);opacity:0;transition:opacity .25s ease}
+.punaise.vu{opacity:1}
+.titre-c{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:700;margin-left:4px}
+.titre-c span{font-size:12px;font-weight:500;color:rgba(255,255,255,.45)}
+.cc-defil{margin-top:10px;max-height:234px;overflow-y:auto;scrollbar-width:none}
+.cc-defil::-webkit-scrollbar{display:none}
+.cc-defil.defile{-webkit-mask-image:linear-gradient(#000 calc(100% - 30px),transparent);mask-image:linear-gradient(#000 calc(100% - 30px),transparent)}
+.cc-ronds{display:flex;justify-content:space-between;margin-top:10px;height:96px}
+.tg{width:80px;display:flex;flex-direction:column;align-items:center;cursor:pointer;color:#fff;flex:none}
+.tg .rd{position:relative;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center}
+.tg:hover .rd{filter:brightness(1.18)}
+.tg b{font-size:11.5px;line-height:15px;font-weight:600;margin-top:7px;letter-spacing:-.25px}
+.tg i{font-style:normal;font-size:11.5px;line-height:14px;color:rgba(255,255,255,.55);font-weight:500;margin-top:1px}
+.tg[data-t="dl"]{width:96px}
+.tg.bleu .rd{background:var(--bleu)}
+.tg.bleu i{color:#5eb0ff}
+.tg.corail .rd{background:var(--corail)}
+.cc-larges{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;height:76px}
+.tl{position:relative;border-radius:20px;background:rgba(255,255,255,.1);padding:11px 14px}
+.tl-t{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600}
+.tl-caps{display:flex;gap:6px;margin-top:8px;align-items:center}
+.cap{height:28px;min-width:44px;padding:0 10px;border-radius:14px;background:rgba(255,255,255,.14);font-size:13px;font-weight:600;display:grid;place-items:center;cursor:pointer}
+.tl-u{font-size:12px;font-weight:500;color:rgba(255,255,255,.5);margin-left:3px}
+.tl-t .nb{margin-left:auto;font-style:normal;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:rgba(255,255,255,.2);font-size:12px;font-weight:700;display:grid;place-items:center}
+.eta-plein{display:flex;align-items:center;gap:9px;margin-top:5px}
+.eta-plein .nm{font-size:12.5px;line-height:15px;font-weight:600}
+.eta-plein .sub{font-size:11px;line-height:14px;color:rgba(255,255,255,.5);font-weight:500}
+.tr{position:relative;display:flex;align-items:center;gap:10px;width:100%;height:40px;margin-top:10px;border-radius:20px;padding:0 16px 0 14px;
+  background:rgba(255,255,255,.1);font-size:13.5px;font-weight:600;cursor:pointer;text-align:left}
+.tr-pt{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1.8px var(--rouge);background:radial-gradient(circle,var(--rouge) 0 3.6px,transparent 4.2px)}
+.tr-s{margin-left:auto;font-size:12px;font-weight:500;color:rgba(255,255,255,.5)}
+
+/* la tuile large « Second cerveau » */
+.sct{display:block;width:100%;border-radius:20px;background:rgba(255,255,255,.1);padding:10px 14px 9px;cursor:pointer;transition:background-color .2s ease}
+.sct:hover,.sct.survol{background:rgba(255,255,255,.15)}
+.sct-h{display:flex;align-items:center;gap:7px;height:19px;font-size:13.5px;font-weight:600}
+.sct-h .maj{margin-left:auto;font-size:11.5px;font-weight:500;color:rgba(255,255,255,.42)}
+.sct-h .nbp{margin-left:2px}
+.sct-l{display:flex;align-items:center;gap:8px;height:18px;margin-top:1px;font-size:12.5px;font-weight:500;color:rgba(255,255,255,.55);overflow:hidden}
+.sct-l:first-of-type{margin-top:6px}
+.sct-l b{color:#fff;font-weight:600}
+.sct-l em{font-style:normal;color:#ffb340;font-weight:600}
+.sct-l svg{flex:none}
+
+/* carte : Second cerveau */
+.sk{width:420px}
+.sk-corps{margin-top:8px}
+.sk-s{display:grid;grid-template-columns:88px minmax(0,1fr);column-gap:10px;padding:4px 0;border-top:1px solid rgba(255,255,255,.09)}
+.sk-s:first-child{border-top:0;padding-top:0}
+.sk-lb{padding:4px 0 0 2px;font-size:12px;line-height:15px;font-weight:600;color:rgba(255,255,255,.6);white-space:normal}
+.sk-lb span{display:block;font-size:11px;line-height:14px;font-weight:500;color:rgba(255,255,255,.36);margin-top:2px}
+.sk-r{display:flex;align-items:center;gap:8px;height:24px;padding:0 8px;border-radius:8px;cursor:pointer;font-size:13px;line-height:16px;transition:background-color .12s ease}
+.sk-r:hover,.sk-r.survol{background:rgba(255,255,255,.1)}
+.sk-r b{font-weight:600;flex:none}
+.sk-r .x{flex:1;min-width:0;color:rgba(255,255,255,.55);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sk-r .x.blanc{color:#fff}
+.sk-r .h{flex:none;font-size:11.5px;font-weight:500;color:rgba(255,255,255,.4);font-variant-numeric:tabular-nums}
+.sk-r .h.ambre{color:#ffb340;font-weight:600}
+.sk-r .pt{width:6px;height:6px;border-radius:50%;background:#fff;flex:none;margin-left:-2px}
+.sk-r .pt.lu{background:transparent}
+.sk-r .cb{width:13px;height:13px;border-radius:4px;box-shadow:inset 0 0 0 1.4px rgba(255,255,255,.4);flex:none}
+.sk-pied{display:flex;align-items:center;gap:8px;height:38px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.1)}
+.sk-lu{display:flex;align-items:center;gap:6px;height:26px;padding:0 9px 0 6px;border-radius:13px;font-size:12px;font-weight:500;color:rgba(255,255,255,.5);cursor:pointer;transition:background-color .15s ease,color .15s ease}
+.sk-lu:hover,.sk-lu.ici{background:rgba(255,255,255,.1);color:rgba(255,255,255,.8)}
+.sk-pied .pil.blanc{margin-left:auto;height:28px;border-radius:14px;padding:0 14px;font-size:13px;font-weight:700}
+
+/* carte : d'où viennent les infos */
+.so-t{font-size:13px;line-height:18px;font-weight:500;color:rgba(255,255,255,.72);white-space:normal}
+.so-t b{color:#fff;font-weight:600}
+.so-f{display:flex;align-items:center;gap:8px;height:30px;margin-top:8px;padding:0 10px;border-radius:10px;background:rgba(255,255,255,.07)}
+.so-f code{font:500 11.5px var(--mono);color:rgba(255,255,255,.75);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.so-f span{font-size:11.5px;font-weight:500;color:rgba(255,255,255,.4)}
+.so-o{margin-top:6px}
+.so-r{display:flex;align-items:center;height:30px;padding:0 4px 0 10px;font-size:13px;font-weight:500;cursor:pointer}
+.so-r+.so-r{border-top:1px solid rgba(255,255,255,.07)}
+.so-r .sw{margin-left:auto}
+.sw{width:32px;height:19px;border-radius:10px;background:rgba(255,255,255,.22);position:relative;flex:none;transition:background-color .2s ease}
+.sw::after{content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:transform calc(.3s*var(--k)) var(--ressort)}
+.sw.on{background:var(--vert)}
+.sw.on::after{transform:translateX(13px)}
+
+/* faux pointeur */
+.pointeur{position:absolute;left:0;top:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .22s}
+.pointeur.vu{opacity:1}
+.pointeur .fleche{position:relative;width:18px;height:26px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));transform-origin:2px 2px;transition:transform .12s ease}
+.pointeur.appui .fleche{transform:scale(.86)}
+
+/* =====================================================================
+   La régie, sous la scène (reprise de ilot-claude-plus.html)
+   ===================================================================== */
+.regie{max-width:1340px;margin:0 auto;padding:14px 28px 18px}
+.r-haut{display:grid;grid-template-columns:minmax(0,1fr) 300px auto;gap:30px;align-items:center;min-height:96px}
+.r-num{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(245,245,247,.46);font-variant-numeric:tabular-nums}
+.r-titre{font-size:21px;line-height:27px;font-weight:600;letter-spacing:-.3px;margin-top:2px}
+.r-phrase{font-size:14px;line-height:20px;color:rgba(245,245,247,.64);margin-top:4px;max-width:680px;min-height:40px}
+.r-mains{display:flex;align-items:center;gap:12px}
+.pad{position:relative;width:96px;height:62px;border-radius:12px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);flex:none}
+.pad i{position:absolute;top:30px;left:32px;width:14px;height:14px;border-radius:50%;background:var(--clair);opacity:0;transition:opacity .15s}
+.pad.un i:first-child{opacity:1}
+.touche{width:44px;height:40px;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2);background:rgba(255,255,255,.045);flex:none;display:flex;align-items:flex-end;padding:0 0 5px 7px;
+  font-size:12px;font-weight:600;color:rgba(245,245,247,.6);cursor:pointer;transition:background-color .12s ease,color .12s ease,transform .12s ease}
+.touche.on{background:var(--clair);color:var(--regie);transform:translateY(1px)}
+.r-geste{font-size:12.5px;line-height:16px;color:rgba(245,245,247,.55);min-height:32px;max-width:130px}
+.r-cmd{display:grid;grid-template-columns:auto auto;gap:10px 8px;align-items:center}
+.bouton{height:34px;padding:0 17px;border-radius:17px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s ease}
+.bouton:active{transform:scale(.95)}
+.bouton.creux{background:rgba(255,255,255,.1)}
+.bouton.creux:hover{background:rgba(255,255,255,.16)}
+.bouton.plein{background:var(--clair);color:var(--regie)}
+.bouton.plein:hover{background:#fff}
+.r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:var(--clair)}
+.r-pas{display:flex;flex-wrap:wrap;gap:2px 4px;list-style:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.r-pas button{height:30px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:8px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+.r-pas button span{font-variant-numeric:tabular-nums;opacity:.7}
+.r-pas button:hover{color:rgba(245,245,247,.8)}
+.r-pas button.ici{color:var(--clair);background:rgba(255,255,255,.09)}
+.notes{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 32px;font-size:12.5px;line-height:18px;color:rgba(245,245,247,.42)}
+.notes b{color:rgba(245,245,247,.7);font-weight:600}
+.notes code{font:500 11.5px var(--mono);color:rgba(245,245,247,.6)}
+@media (max-width:900px){.r-haut{grid-template-columns:1fr;gap:16px}.hero{flex-wrap:wrap}.yt-c{grid-template-columns:minmax(0,1fr)}.col2{display:none}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Second cerveau, dans l’îlot<span>Verbe · maquette à cliquer</span></h1>
+  <div class="lit"><em id="heroSigne"></em>Verbe lit <code>~/.config/second-cerveau/ilot.json</code>, sans rien écrire ni rien envoyer</div>
+</header>
+
+<section id="ecran" aria-label="Faux écran de MacBook, taille réelle">
+  <div class="papier" aria-hidden="true">
+    <svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMid slice">
+      <path d="M0 0H1440V190C1190 290 930 180 660 240S210 350 0 280Z" fill="#b7cbe4" opacity=".28"/>
+      <path d="M0 560C260 470 540 520 780 600S1250 720 1440 620V760H0Z" fill="#fff" opacity=".2"/>
+    </svg>
+  </div>
+
+  <!-- ===== fenêtre Chrome (YouTube, repris de ilot-centre.html) ===== -->
+  <div class="fen chrome" data-f="chrome" aria-hidden="true">
+    <div class="tabs">
+      <div class="feux"><i></i><i></i><i></i></div>
+      <div class="tab act">
+        <svg width="16" height="12" viewBox="0 0 16 12"><rect width="16" height="12" rx="3.4" fill="#ff0033"/><path d="M6.4 3.4v5.2L10.9 6z" fill="#fff"/></svg>
+        <span class="tt">Je détestais la mode des iPods, donc j’en ai racheté un en 2026 - YouTube</span>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.3v3.4h2.3l3 2.5V3.8l-3 2.5z" fill="#5b6069"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.5 4a5.6 5.6 0 0 1 0 8"/></svg>
+        <svg width="14" height="14" viewBox="0 0 14 14" stroke="#5b6069" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l6 6M10 4l-6 6"/></svg>
+      </div>
+      <div class="tab">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.2 2 2.2 10 0 12M8 2c-2.2 2-2.2 10 0 12"/></svg>
+        <span class="tt">Nouvel onglet</span>
+      </div>
+      <div class="tab-plus"><svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg></div>
+    </div>
+    <div class="outils">
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 9h-11M8 4.2 3.2 9 8 13.8"/></svg></span>
+      <span class="ib" style="opacity:.42"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9h11M10 4.2 14.8 9 10 13.8"/></svg></span>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 9a5.6 5.6 0 1 1-1.7-4"/><path d="M14.8 2.6v3.2h-3.2"/></svg></span>
+      <div class="omni">
+        <span class="rg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.5" stroke-linecap="round"><path d="M2 5h6M12 5h2M2 11h2M8 11h6"/><circle cx="10" cy="5" r="1.9"/><circle cx="6" cy="11" r="1.9"/></svg></span>
+        <span class="u">youtube.com<span>/watch?v=k7Rm2NnIpod</span></span>
+      </div>
+      <span class="profil"></span>
+    </div>
+    <div class="page">
+      <div class="yt-h">
+        <div class="yt-g">
+          <svg width="20" height="20" viewBox="0 0 20 20" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 5h15M2.5 10h15M2.5 15h15"/></svg>
+          <div class="yt-logo"><svg width="29" height="20" viewBox="0 0 29 20"><rect width="29" height="20" rx="6.2" fill="#ff0033"/><path d="M11.7 5.7v8.6l7.5-4.3z" fill="#fff"/></svg><span>YouTube</span><sup>FR</sup></div>
+        </div>
+        <div class="yt-rech">
+          <div class="yt-champ"><span>Rechercher</span><i><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><circle cx="8.6" cy="8.6" r="5.9"/><path d="M13 13l4.4 4.4"/></svg></i></div>
+        </div>
+        <div class="yt-d">
+          <div class="yt-creer"><svg width="20" height="20" viewBox="0 0 20 20" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><path d="M10 3.5v13M3.5 10h13"/></svg>Créer</div>
+          <div class="yt-av"></div>
+        </div>
+      </div>
+      <div class="yt-c">
+        <div class="col1">
+          <div class="lecteur" id="lecteur">
+            <div class="ctl">
+              <div class="barre"><b></b><i id="vprog"></i></div>
+              <div class="bas">
+                <span class="grp">
+                  <span id="vbt"></span>
+                  <svg width="20" height="16" viewBox="0 0 20 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5.6v4.8h3l4 3.3V2.3l-4 3.3z" fill="#fff"/><path d="M12.6 5a4.2 4.2 0 0 1 0 6M15 2.8a7.4 7.4 0 0 1 0 10.4"/></svg>
+                  <span id="vtps">3:22 / 12:54</span>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="vt">Je détestais la mode des iPods, donc j’en ai racheté un en 2026</div>
+          <div class="chaine">
+            <span class="av"></span>
+            <div><div class="nom">Le Coin Tech</div><div class="ab">1,24 M d’abonnés</div></div>
+            <span class="sab">S’abonner</span>
+          </div>
+        </div>
+        <div class="col2">
+          <div class="puces"><span class="on">Tous</span><span>Le Coin Tech</span><span>Baladeurs</span><span>Récemment ajoutées</span></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#cdbd9e"/><rect x="50" y="16" width="68" height="52" rx="6" fill="#5a5145"/><rect x="57" y="22" width="54" height="36" rx="3" fill="#1d2a22"/><rect x="62" y="28" width="30" height="3" fill="#79d37c"/><rect x="62" y="35" width="40" height="3" fill="#79d37c" opacity=".7"/><rect x="62" y="42" width="24" height="3" fill="#79d37c" opacity=".7"/><rect x="42" y="70" width="84" height="12" rx="3" fill="#70675a"/></svg><b>18:42</b></div><div><p>J’ai utilisé un Minitel pendant une semaine</p><span>Le Coin Tech</span><span>412 k vues · il y a 2 semaines</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#27364d"/><rect x="48" y="28" width="72" height="46" rx="7" fill="#e8593a"/><rect x="58" y="37" width="52" height="19" rx="4" fill="#27364d"/><circle cx="72" cy="46.5" r="5.5" fill="#f3efe6"/><circle cx="96" cy="46.5" r="5.5" fill="#f3efe6"/><rect x="64" y="62" width="40" height="5" rx="2.5" fill="#b9432b"/></svg><b>12:08</b></div><div><p>Pourquoi les baladeurs reviennent à la mode</p><span>Tech &amp; Rétro</span><span>96 k vues · il y a 5 jours</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#1f6c75"/><rect x="44" y="18" width="62" height="58" rx="5" fill="#dfe3e6"/><circle cx="75" cy="47" r="21" fill="#f4f5f6" stroke="#b8bec4"/><circle cx="75" cy="47" r="5" fill="#1f6c75"/><rect x="114" y="30" width="28" height="34" rx="4" fill="#12474d"/></svg><b>9:57</b></div><div><p>Le son du MiniDisc en 2026, ça vaut quoi ?</p><span>Hi-Fi Magazine</span><span>58 k vues · il y a 1 jour</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== la fenêtre de Second cerveau (arrive à l'étape 4) ===== -->
+  <div class="fen app cache" data-f="app" aria-hidden="true">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="ap-barre"><span id="apSigne"></span>Second cerveau<span class="ap-rech"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#8e8e93" stroke-width="1.7" stroke-linecap="round"><circle cx="6.9" cy="6.9" r="4.9"/><path d="M10.6 10.6 14.2 14.2"/></svg>Rechercher</span></div>
+    <div class="ap-corps"><div class="ap-cote" id="apCote"></div><div class="ap-main" id="apMain"></div></div>
+  </div>
+
+  <!-- ===== barre des menus ===== -->
+  <div class="mb" aria-hidden="true"><div class="menus" id="menus"></div><div class="etats" id="etats"></div></div>
+
+  <!-- ===== l'îlot ===== -->
+  <svg id="forme-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true"><g id="ombre"><path id="forme" fill="#000" d=""/><path id="bulle" fill="#000" d=""/></g></svg>
+  <div id="contenu" class="calque"></div>
+  <svg id="encoche-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/>
+    <circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+
+  <div class="pointeur" id="pointeur" aria-hidden="true"><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+</section>
+
+<!-- ===== régie ===== -->
+<section class="regie">
+  <div class="r-haut">
+    <div aria-live="polite">
+      <div class="r-num" id="num"></div>
+      <h2 class="r-titre" id="titre"></h2>
+      <p class="r-phrase" id="phrase"></p>
+    </div>
+    <div class="r-mains"><div class="pad" id="pad" aria-hidden="true"><i></i><i></i></div><button class="touche" id="fn" title="Maintenir pour dicter">fn</button><div class="r-geste" id="geste"></div></div>
+    <div class="r-cmd">
+      <button class="bouton creux" id="rejouer">Rejouer</button>
+      <button class="bouton plein" id="suivant">Étape suivante</button>
+      <div class="r-opts">
+        <label><input type="checkbox" id="autoCase" checked> Lecture automatique</label>
+        <label><input type="checkbox" id="lentCase"> Ralenti ×4</label>
+      </div>
+    </div>
+  </div>
+  <ol class="r-pas" id="pas"></ol>
+  <div class="notes">
+    <div><b>À essayer ici.</b> Décochez Lecture automatique, puis passez la souris sur l’îlot noir ou sur la bulle. Tout se clique : la tuile Second cerveau, une ligne de la carte, « Ouvrir Second cerveau », « Lu sur ce Mac seulement », « Voir » dans le bandeau.</div>
+    <div><b>Ce que Verbe lit.</b> Un petit fichier rangé par l’app, <code>~/.config/second-cerveau/ilot.json</code> : un titre court, 2 ou 3 lignes, les nombres (nouveautés, à toi, à relancer), l’heure de mise à jour et le lien qui ouvre l’app au bon endroit. Verbe ne coche rien, n’écrit rien, n’envoie rien.</div>
+    <div><b>Ce qui ne bouge pas.</b> Îlot noir et opaque, 464 pt de large, 331 de haut au plus (le Centre défile au-delà), rien dans la barre des menus à plus de 66 pt de la caméra, sauf la bulle, déjà à cette place dans Verbe. Seule la touche fn reste. Le signe est provisoire.</div>
+  </div>
+</section>
+
+<script>
+'use strict';
+/* =========================================================
+   Constantes — 1 px CSS = 1 pt
+   ========================================================= */
+const B = 33;                 // hauteur de la barre des menus
+const HC = 90;                // demi-caméra (encoche de 180 pt)
+const N0 = 133;               // îlot compact de la lecture (ailes de 43 pt, repris de ilot-centre.html)
+const AILE = 58;              // îlot replié sans vidéo : aile de 58 pt + épaule de 6 = 64 pt dans la barre (limite 66)
+const NO = 154;               // îlot ouvert : épaules de 64 pt dans la barre (limite 66)
+const BW = 232;               // îlot ouvert : demi-largeur du corps (464 pt, limite 470)
+const GX = -BW + 16;          // bord gauche des cartes
+const HMAX = 331;             // hauteur maximale de l'îlot ouvert (limite 330 + 1 de ressort)
+const ECART = 11;             // la fente entre le cou de l'îlot et la bulle (IlotMoteur.ecartBulle)
+const BULLE_W = 55;           // la bulle : 10 + signe 16 + 5 + pastille 15 + 9
+const RANG = {centre:1, sc:2, source:3};
+const Q = new URLSearchParams(location.search);
+const racine = document.documentElement;
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const f2 = v => Math.round(v * 100) / 100;
+const mid = t => (B - t) / 2;
+const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+let K = 1;
+const FIGE = Q.has('fige');
+const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+let REDUIT = mq.matches;
+mq.addEventListener && mq.addEventListener('change', e => { REDUIT = e.matches; });
+if (FIGE) racine.classList.add('fige');
+
+/* =========================================================
+   Forme de l'îlot (reprise telle quelle de ilot-centre.html / ilot-claude-plus.html)
+   ========================================================= */
+const PORTEE = 1.6, POIGNEE = 0.18;
+function cote(g, n, bw){
+  const corps = Math.max(0, g.h - B), u = Math.min(corps, 40) / 40, e = 1 - Math.pow(1 - u, 2.5);
+  const d = Math.max(0, bw - n) * e, W = n + d, serre = 1 - clamp((n - HC) / 24, 0, 1);
+  const rs = g.rs + (4 - g.rs) * serre, rbv = lerp(g.rb + (8 - g.rb) * serre, g.rb, clamp(corps / 12, 0, 1));
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6), dispo = (1 - lam) * (g.h - rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(rbv, dispo / PORTEE, W / PORTEE));
+  return {n, W, d, fe, rte, rbe, rs};
+}
+function chemin(g){
+  const h = g.h, L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd), X = f2, Y = f2;
+  const a1 = PORTEE * L.rte, c1 = POIGNEE * a1, a2 = PORTEE * L.rbe, c2 = POIGNEE * a2;
+  const b1 = PORTEE * D.rte, d1 = POIGNEE * b1, b2 = PORTEE * D.rbe, d2 = POIGNEE * b2;
+  let p = `M${X(-L.n - L.rs)} ${Y(-1)}L${X(-L.n - L.rs)} 0Q${X(-L.n)} 0 ${X(-L.n)} ${Y(L.rs)}`;
+  if (L.d > 0.5) p += `L${X(-L.n)} ${Y(B - L.fe)}Q${X(-L.n)} ${B} ${X(-L.n - L.fe)} ${B}L${X(-L.W + a1)} ${B}C${X(-L.W + c1)} ${B} ${X(-L.W)} ${Y(B + c1)} ${X(-L.W)} ${Y(B + a1)}`;
+  p += `L${X(-L.W)} ${Y(h - a2)}C${X(-L.W)} ${Y(h - c2)} ${X(-L.W + c2)} ${Y(h)} ${X(-L.W + a2)} ${Y(h)}`;
+  p += `L${X(D.W - b2)} ${Y(h)}C${X(D.W - d2)} ${Y(h)} ${X(D.W)} ${Y(h - d2)} ${X(D.W)} ${Y(h - b2)}`;
+  if (D.d > 0.5) p += `L${X(D.W)} ${Y(B + b1)}C${X(D.W)} ${Y(B + d1)} ${X(D.W - d1)} ${B} ${X(D.W - b1)} ${B}L${X(D.n + D.fe)} ${B}Q${X(D.n)} ${B} ${X(D.n)} ${Y(B - D.fe)}`;
+  p += `L${X(D.n)} ${Y(D.rs)}Q${X(D.n)} 0 ${X(D.n + D.rs)} 0L${X(D.n + D.rs)} ${Y(-1)}Z`;
+  return p;
+}
+/* la bulle (FormeBulle de l'app) : accrochée au haut de l'écran, coins bas de 10 pt, épaule creuse de 6 pt à droite */
+function cheminBulle(x, l, h){
+  const rb = Math.min(10, h / 2, l / 2), e = 6, X = f2, x1 = x + l;
+  return `M${X(x)} -1L${X(x)} ${X(h - rb)}Q${X(x)} ${X(h)} ${X(x + rb)} ${X(h)}L${X(x1 - rb)} ${X(h)}Q${X(x1)} ${X(h)} ${X(x1)} ${X(h - rb)}L${X(x1)} ${e}Q${X(x1)} 0 ${X(x1 + e)} 0L${X(x1 + e)} -1Z`;
+}
+const CLES = ['ng', 'nd', 'bw', 'bd', 'h', 'rs', 'rb', 'rt', 'f'];
+const REPOS = {ng:HC, nd:HC, bw:HC, bd:HC, h:B, rs:4, rb:8, rt:0, f:0};                  // l'encoche seule
+const compact = (g, d) => ({ng:g, nd:d, bw:g, bd:d, h:B, rs:6, rb:10, rt:0, f:0});       // des ailes dans la barre
+const bandeau = (w, h, n) => ({ng:n, nd:n, bw:w, bd:w, h, rs:6, rb:30, rt:16, f:10});    // il descend sous la barre
+$('#encoche').setAttribute('d', chemin(REPOS));
+
+/* =========================================================
+   Ressorts (réponse en s, amortissement) — interruptibles
+   ========================================================= */
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = .8; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){
+      this.attente -= dt;
+      if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; }
+    }
+    const w = 2 * Math.PI / this.rep, a = w * w * (this.cible - this.x) - 2 * this.z * w * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+(function(){   // courbe CSS « ressort » (même formule), pour les zooms d'entrée
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){
+    pts.push(x);
+    for (let s = 0, n = Math.round((T / N) / dt); s < n; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; }
+  }
+  pts[pts.length - 1] = 1;
+  racine.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+/* =========================================================
+   Glyphes (dessinés à la main, façon symboles SF)
+   ========================================================= */
+/* le signe provisoire de Second cerveau : quatre points reliés par des traits fins */
+const signe = (t, c = '#fff', trait = 'rgba(255,255,255,.5)') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><g fill="none" stroke="${trait}" stroke-width="1.15" stroke-linecap="round"><path d="M4.4 6.6 11.6 3.6 15.8 11 7.4 16Z"/><path d="M11.6 3.6 7.4 16"/></g><g fill="${c}"><circle cx="4.4" cy="6.6" r="2.1"/><circle cx="11.6" cy="3.6" r="1.75"/><circle cx="15.8" cy="11" r="2.3"/><circle cx="7.4" cy="16" r="1.9"/></g></svg>`;
+const micro = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const airpods = (t, c = '#fff') => { const b = 'M5.6 3a3.1 3.1 0 0 0-3.1 3.1v.9a3.1 3.1 0 0 0 3.1 3.1h.3v6.4a1.2 1.2 0 0 0 2.4 0V5.9A3 3 0 0 0 5.6 3z';
+  return `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><path d="${b}"/><path d="${b}" transform="matrix(-1 0 0 1 20 0)"/></svg>`; };
+const flecheBas = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.4" fill="none" stroke="${c}" stroke-width="1.7"/><path d="M10 5.4v8.2M6.6 10.4 10 13.8l3.4-3.4" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const rayons = c => [0, 30, 60, 90, 120, 150].map(a => `<rect x="9" y="1.5" width="2" height="17" rx="1" fill="${c}" transform="rotate(${a} 10 10)"/>`).join('');
+const etoile = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20">${rayons(c)}</svg>`;
+const minuteurG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><circle cx="12" cy="13.4" r="7.6" fill="none" stroke="${c}" stroke-width="2.1"/><path d="M12 13.4V9.2M9.5 2.8h5" stroke="${c}" stroke-width="2.1" stroke-linecap="round"/></svg>`;
+const plateauG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M2.6 11.2 4.9 4.6A2 2 0 0 1 6.8 3.3h6.4a2 2 0 0 1 1.9 1.3l2.3 6.6v4a2 2 0 0 1-2 2H4.6a2 2 0 0 1-2-2z"/><path d="M2.8 11.2h4.1l1 2.2h4.2l1-2.2h4.1"/></svg>`;
+const cloche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><path fill="${c}" d="M12 2.6c-3.3 0-5.8 2.6-5.8 5.9v3.6l-1.6 2.9c-.5.9.1 1.9 1.1 1.9h12.6c1 0 1.6-1 1.1-1.9l-1.6-2.9V8.5c0-3.3-2.5-5.9-5.8-5.9zM9.4 18.7a2.7 2.7 0 0 0 5.2 0z"/></svg>`;
+const guillemets = (t, c = '#fff') => `<svg width="${t}" height="${f2(t * .7)}" viewBox="-.45 -.3 3 2.1"><g fill="${c}"><path d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><path transform="translate(1.1 0)" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/></g></svg>`;
+const punaiseG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><path d="M6.6 2.4h6.8l-1.2 5.2 3 3.2H4.8l3-3.2z" fill="${c}"/><path d="M10 10.6v7" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const chevG = (t, c, d = 'g') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d === 'g' ? 'M12.5 4.5 7 10l5.5 5.5' : d === 'd' ? 'M7.5 4.5 13 10l-5.5 5.5' : d === 'h' ? 'M4.5 12.5 10 7l5.5 5.5' : 'M4.5 7.5 10 13l5.5-5.5'}"/></svg>`;
+const batterie = n => `<svg width="28" height="13" viewBox="0 0 28 13"><rect width="24" height="13" rx="4" fill="#fff"/><text x="12" y="10" font-size="9.6" font-weight="700" text-anchor="middle" fill="#000" font-family="-apple-system,Helvetica,sans-serif">${n}</text><path d="M26 4.6v3.8" stroke="rgba(255,255,255,.5)" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const doc = (t, coul = '#ff453a', lbl = 'PDF') => `<svg width="${f2(t * 0.8)}" height="${t}" viewBox="0 0 32 40"><path d="M4 1h17l10 10v26a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="#f2f2f7" stroke="rgba(0,0,0,.12)" stroke-width=".8"/><path d="M21 1v8a2 2 0 0 0 2 2h8" fill="#d1d1d6"/><rect x="5" y="24" width="22" height="9" rx="2" fill="${coul}"/><text x="16" y="31" text-anchor="middle" font-size="7" font-weight="800" fill="#fff" font-family="-apple-system,sans-serif">${lbl}</text></svg>`;
+const cadenas = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="4" y="9" width="12" height="8.6" rx="2.2" fill="${c}"/><path d="M6.7 9V6.7a3.3 3.3 0 0 1 6.6 0V9" fill="none" stroke="${c}" stroke-width="1.8"/></svg>`;
+/* trois petits glyphes au trait pour les lignes de la tuile (1,7 sur 20, comme les autres) */
+const messageG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round"><path d="M3 5.4A2.4 2.4 0 0 1 5.4 3h9.2A2.4 2.4 0 0 1 17 5.4v6.2a2.4 2.4 0 0 1-2.4 2.4H9.4L5.6 17v-3H5.4A2.4 2.4 0 0 1 3 11.6z"/></svg>`;
+const caseG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="3.6"/><path d="M6.8 10.2 9 12.4l4.2-4.8"/></svg>`;
+const relanceG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7.4 3.6 3.6 7.4l3.8 3.8"/><path d="M3.8 7.4h8.4a4.4 4.4 0 0 1 0 8.8H9.6"/></svg>`;
+const dossierG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.6" stroke-linejoin="round"><path d="M2.6 5.2A1.6 1.6 0 0 1 4.2 3.6h3.6l1.8 2h6.2a1.6 1.6 0 0 1 1.6 1.6v7.6a1.6 1.6 0 0 1-1.6 1.6H4.2a1.6 1.6 0 0 1-1.6-1.6z"/></svg>`;
+const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
+const MENUS = {Chrome:['Fichier', 'Modifier', 'Afficher', 'Historique', 'Favoris', 'Profils', 'Onglet', 'Fenêtre', 'Aide'],
+  'Second cerveau':['Fichier', 'Édition', 'Présentation', 'Fenêtre', 'Aide']};
+$('#heroSigne').innerHTML = signe(14);
+$('#apSigne').innerHTML = signe(16, '#1d1d1f', 'rgba(0,0,0,.4)');
+
+/* Icônes de la barre des menus, de la droite vers la gauche : plus d'icône cerveau (Second cerveau vit dans l'îlot) */
+(function(){
+  const s = d => `<span><svg viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg></span>`;
+  $('#etats').innerHTML = '<span class="heure">Mer. 11 nov.&nbsp; 14:44</span>' +
+    s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
+    s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
+    s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>';
+})();
+
+/* L'image de la vidéo (dessinée, reprise de ilot-centre.html) */
+function affiche(p){
+  return `<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
+  <defs>
+    <linearGradient id="${p}mur" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9d282"/><stop offset="1" stop-color="#f0a146"/></linearGradient>
+    <radialGradient id="${p}lum" cx="72%" cy="28%" r="62%"><stop offset="0" stop-color="#fff2c9" stop-opacity=".95"/><stop offset="1" stop-color="#fff2c9" stop-opacity="0"/></radialGradient>
+    <linearGradient id="${p}tab" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a95b27"/><stop offset="1" stop-color="#743612"/></linearGradient>
+    <linearGradient id="${p}coq" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dcdfe5"/></linearGradient>
+    <linearGradient id="${p}ecr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9ddff"/><stop offset="1" stop-color="#3b7edb"/></linearGradient>
+  </defs>
+  <rect width="320" height="180" fill="url(#${p}mur)"/><rect width="320" height="180" fill="url(#${p}lum)"/>
+  <circle cx="44" cy="54" r="31" fill="#fff" opacity=".09"/><circle cx="102" cy="30" r="17" fill="#fff" opacity=".08"/><circle cx="286" cy="92" r="23" fill="#fff" opacity=".07"/>
+  <rect y="136" width="320" height="44" fill="url(#${p}tab)"/><rect y="136" width="320" height="1.2" fill="#fff" opacity=".24"/>
+  <ellipse cx="205" cy="143" rx="46" ry="5.2" fill="#3a1804" opacity=".42"/>
+  <g class="flotte"><g transform="rotate(-6 200 88)">
+    <rect x="168" y="31" width="64" height="110" rx="9.5" fill="url(#${p}coq)" stroke="#c7cad1" stroke-width=".8"/>
+    <rect x="175" y="39" width="50" height="38" rx="3" fill="url(#${p}ecr)"/>
+    <rect x="179" y="44" width="22" height="3" rx="1.5" fill="#fff" opacity=".95"/><rect x="179" y="51" width="33" height="3" rx="1.5" fill="#fff" opacity=".6"/><rect x="179" y="58" width="26" height="3" rx="1.5" fill="#fff" opacity=".6"/><rect x="179" y="65" width="30" height="3" rx="1.5" fill="#fff" opacity=".6"/>
+    <circle cx="200" cy="109" r="21.5" fill="#eceef1" stroke="#d2d5db" stroke-width=".8"/><circle cx="200" cy="109" r="7.6" fill="#fbfbfc" stroke="#d8dae0" stroke-width=".6"/>
+  </g></g></svg>`;
+}
+$('#lecteur').insertAdjacentHTML('afterbegin', affiche('g'));
+
+/* =========================================================
+   Ce que Verbe lit dans ilot.json (exemple)
+   ========================================================= */
+const MSG = {
+  pierre:{id:'pierre', n:'Pierre', x:'Pour vendredi : le plan, les chiffres et la liste des invités', h:'9:12', resume:'3 choses demandées'},
+  julie:{id:'julie', n:'Julie', x:'Merci pour hier ! Je t’envoie les photos ce soir', h:'8:47', resume:'un message'},
+  camille:{id:'camille', n:'Camille', x:'On décale le point de jeudi ?', h:'14:46', resume:'« On décale le point de jeudi ? »'}
+};
+const TACHES = [
+  {id:'t1', x:'Répondre aux 3 questions de Pierre', d:'samedi'},
+  {id:'t2', x:'Relire le bail du local', d:'lundi'},
+  {id:'t3', x:'Réserver le train pour Lyon', d:'le 20'}
+];
+const RELANCES = [
+  {id:'ladislas', n:'Ladislas', x:'le partenariat', j:'40 jours'},
+  {id:'marc', n:'Marc', x:'le devis du site', j:'22 jours'}
+];
+
+/* =========================================================
+   Ce que l'îlot affiche : [nom, x (depuis le centre), y, html]
+   ========================================================= */
+const tuile = (t, b) => `<button class="tg" data-t="${t}"><span class="rd"><span class="gl"></span></span><b>${b}</b><i></i></button>`;
+const punaise = `<span class="punaise">${punaiseG(12, 'rgba(255,255,255,.5)')}Reste ouvert</span>`;
+const retour = (vers, txt) => `<button class="pil retour" data-act="${vers}">${chevG(13, '#fff', 'g')}${txt}</button>`;
+const CARTE_CENTRE = `<div class="cc" id="cc">
+  <div class="cc-tete">
+    ${punaise}
+    <button class="pil" data-act="rien">${guillemets(12)}Dictées</button>
+    <button class="pil" data-act="rien">Modifier</button>
+  </div>
+  <div class="cc-defil" id="ccDefil">
+    <button class="sct" data-act="sc" id="sct"></button>
+    <div class="cc-ronds">${tuile('micro', 'Micro')}${tuile('dictee', 'Dictée')}${tuile('dl', 'Téléchargements')}${tuile('claude', 'Claude Code')}${tuile('rappel', 'Rappel')}</div>
+    <div class="cc-larges">
+      <div class="tl"><div class="tl-t">${minuteurG(17, 'var(--ambre)')}Minuteur</div>
+        <div class="tl-caps"><button class="cap">5</button><button class="cap">10</button><button class="cap">25</button><span class="tl-u">min</span></div></div>
+      <div class="tl"><div class="tl-t">${plateauG(17, '#5eb0ff')}Étagère<em class="nb">1</em></div>
+        <div class="eta-plein">${doc(28)}<div><div class="nm">Contrat.pdf</div><div class="sub">glisse-le vers une app</div></div></div></div>
+    </div>
+    <button class="tr"><span class="tr-pt"></span><span>Noter la réunion</span><span class="tr-s">Verbe écrit tout ce qui se dit</span></button>
+  </div>
+</div>`;
+const PIED = (ici) => `<div class="sk-pied"><button class="sk-lu${ici ? ' ici' : ''}" data-act="${ici ? 'sc' : 'source'}">${cadenas(12, 'currentColor')}Lu sur ce Mac seulement${ici ? '' : chevG(11, 'currentColor', 'd')}</button>
+  <button class="pil blanc" data-act="ouvrir-app">Ouvrir Second cerveau</button></div>`;
+const CARTE_SC = `<div class="sk" id="sk">
+  <div class="cc-tete">${retour('centre', 'Centre')}<span class="titre-c">${signe(15)}Second cerveau<span>· il y a 2 min</span></span>${punaise}</div>
+  <div class="sk-corps" id="skCorps"></div>
+  ${PIED(false)}
+</div>`;
+const CARTE_SOURCE = `<div class="sk" id="so">
+  <div class="cc-tete">${retour('sc', 'Second cerveau')}<span class="titre-c">D’où viennent ces infos</span>${punaise}</div>
+  <div class="sk-corps">
+    <p class="so-t">Elles viennent de ton app <b>Second cerveau</b>, qui les range dans un petit fichier sur ce Mac. Verbe le relit chaque minute : il ne change rien, ne coche rien et n’envoie rien.</p>
+    <div class="so-f">${dossierG(15, 'rgba(255,255,255,.55)')}<code>~/.config/second-cerveau/ilot.json</code><span>lu à 14:42</span></div>
+    <div class="so-o">
+      <div class="so-r" data-sw="ilot">Montrer dans l’îlot<span class="sw"></span></div>
+      <div class="so-r" data-sw="bulle">La bulle pendant une vidéo<span class="sw"></span></div>
+      <div class="so-r" data-sw="annonce">Annoncer qui t’écrit<span class="sw"></span></div>
+    </div>
+  </div>
+  ${PIED(true)}
+</div>`;
+const BAN_C = `<div class="ban"><span class="ic">${signe(20)}</span><div class="tx"><b>Camille t’a écrit</b><span>« On décale le point de jeudi ? »</span></div><button class="act" data-act="voir">Voir</button></div>`;
+const CONTENUS = [
+  ['mini', -125, 8.5, `<div class="art">${affiche('m')}</div>`],
+  ['onde', 103, 9.5, '<div class="eq"><i></i><i></i><i></i><i></i><i></i></div>'],
+  ['scG', -(HC + AILE - 8), mid(18), `<div class="bu">${signe(18)}</div>`],
+  ['scD', HC + AILE - 8 - 15, mid(15), '<span class="nbp" id="scN">3</span>'],
+  ['batt', -NO + 13, mid(13), `<span class="epaule">${batterie(64)}</span>`],
+  ['airp', HC + 8, mid(17), `<span class="epaule">${airpods(15)}78 %</span>`],
+  ['banC', 0, B + 12, BAN_C],
+  ['centre', GX, B + 14, CARTE_CENTRE],
+  ['sc', GX, B + 14, CARTE_SC],
+  ['source', GX, B + 14, CARTE_SOURCE]
+];
+const contenu = $('#contenu');
+contenu.innerHTML = CONTENUS.map(([nom, x, y, html]) => `<div class="c e" data-c="${nom}" style="left:${f2(500 + x)}px;top:${f2(y)}px">${html}</div>`).join('') +
+  `<div class="c" id="bulleC" style="top:${mid(16)}px"><div class="bu">${signe(16)}<span class="nbp" id="buN">3</span></div></div>`;
+const c = {}; contenu.querySelectorAll('[data-c]').forEach(n => c[n.dataset.c] = n);
+const bulleC = $('#bulleC');
+const tg = t => contenu.querySelector(`.tg[data-t="${t}"]`);
+
+/* =========================================================
+   L'état
+   ========================================================= */
+const st = {};
+function remettre(){
+  Object.assign(st, {carte:null, ban:null, punaise:false, video:true, badge:3, bulle:false,
+    msgs:['pierre', 'julie'], neufs:new Set(['pierre', 'julie', 'ladislas']), survol:null,
+    app:false, appSel:null, sw:{ilot:true, bulle:true, annonce:true}});
+}
+
+/* --- la tuile large du Centre --- */
+function majTuile(){
+  const m = MSG[st.msgs[0]];
+  $('#sct').innerHTML = `<div class="sct-h">${signe(17)}Second cerveau${st.badge ? `<span class="nbp">${st.badge}</span>` : ''}<span class="maj">mis à jour il y a 2 min</span>${chevG(12, 'rgba(255,255,255,.4)', 'd')}</div>
+    <div class="sct-l">${messageG(14, 'rgba(255,255,255,.5)')}<span class="ell"><b>${m.n} t’a écrit</b> · ${m.resume}</span></div>
+    <div class="sct-l">${caseG(14, 'rgba(255,255,255,.5)')}<span class="ell"><b>14 à toi</b> · la plus proche samedi</span></div>
+    <div class="sct-l">${relanceG(14, 'rgba(255,255,255,.5)')}<span class="ell"><b>Relancer Ladislas</b> · <em>40 jours</em></span></div>`;
+}
+/* --- le Centre : ronds et défilement --- */
+function majCentre(){
+  const pose = (t, cl, gl, sous) => { const n = tg(t); n.className = 'tg ' + cl; n.querySelector('.gl').innerHTML = gl; n.querySelector('i').textContent = sous; };
+  pose('micro', '', micro(24, '#fff'), 'Ouvert');
+  pose('dictee', '', airpods(24), 'AirPods');
+  pose('dl', 'bleu', flecheBas(24), 'Allumé');
+  pose('claude', 'corail', etoile(22, '#fff'), 'Prêt');
+  pose('rappel', '', cloche(23, 'var(--jaune)'), 'Dire un rappel');
+  majTuile();
+  contenu.querySelectorAll('.punaise').forEach(p => p.classList.toggle('vu', st.punaise));
+  const d = $('#ccDefil'); d.classList.toggle('defile', d.scrollTop + d.clientHeight < d.scrollHeight - 1);
+}
+/* --- la carte Second cerveau : trois parties courtes --- */
+function majCarte(){
+  const sv = id => st.survol === id ? ' survol' : '';
+  const msgs = st.msgs.map(id => { const m = MSG[id];
+    return `<div class="sk-r${sv(id)}" data-item="${id}"><span class="pt${st.neufs.has(id) ? '' : ' lu'}"></span><b>${m.n}</b><span class="x">${m.x}</span><span class="h">${m.h}</span></div>`; }).join('');
+  const taches = TACHES.map(t => `<div class="sk-r${sv(t.id)}" data-item="${t.id}"><span class="cb"></span><span class="x blanc">${t.x}</span><span class="h">${t.d}</span></div>`).join('');
+  const rel = RELANCES.map(r => `<div class="sk-r${sv(r.id)}" data-item="${r.id}"><b>${r.n}</b><span class="x">${r.x}</span><span class="h${r.j === '40 jours' ? ' ambre' : ''}">${r.j}</span></div>`).join('');
+  $('#skCorps').innerHTML =
+    `<div class="sk-s"><div class="sk-lb">Nouveaux messages<span>${st.msgs.length} à lire</span></div><div>${msgs}</div></div>` +
+    `<div class="sk-s"><div class="sk-lb">À toi aujourd’hui<span>3 sur 14</span></div><div>${taches}</div></div>` +
+    `<div class="sk-s"><div class="sk-lb">À relancer<span>2 personnes</span></div><div>${rel}</div></div>`;
+}
+function majSource(){ contenu.querySelectorAll('[data-sw]').forEach(r => r.querySelector('.sw').classList.toggle('on', st.sw[r.dataset.sw])); }
+/* --- la bulle et les ailes --- */
+function majBadge(){ $('#buN').textContent = st.badge; $('#scN').textContent = st.badge; }
+/* --- la fenêtre de Second cerveau --- */
+function majApp(){
+  const it = (ic, t, n, sel) => `<div class="r${sel ? ' sel' : ''}">${ic}${t}${n ? `<i>${n}</i>` : ''}</div>`;
+  $('#apCote').innerHTML = it(signe(15, '#6e6e73', 'rgba(0,0,0,.3)'), 'Aujourd’hui', '', true) + it(messageG(15, '#6e6e73'), 'Messages', st.msgs.length) +
+    it(caseG(15, '#6e6e73'), 'À toi', 14) + it(relanceG(15, '#6e6e73'), 'À relancer', 2) +
+    '<div class="ti">Classement</div>' + it(dossierG(15, '#6e6e73'), 'Projets', '') + it(dossierG(15, '#6e6e73'), 'Personnes', '') + it(dossierG(15, '#6e6e73'), 'Notes', '');
+  const sel = id => st.appSel === id ? ' sel' : '';
+  $('#apMain').innerHTML = `<h3>Aujourd’hui</h3><div class="sous">Mercredi 11 novembre</div>
+    <div class="ap-bloc"><h4>Nouveaux messages</h4>${st.msgs.map(id => { const m = MSG[id]; return `<div class="ap-l${sel(id)}"><span class="av">${m.n[0]}</span><b>${m.n}</b><span class="x">${m.x}</span><span class="h">${m.h}</span></div>`; }).join('')}</div>
+    <div class="ap-bloc"><h4>À toi aujourd’hui</h4>${TACHES.map(t => `<div class="ap-l${sel(t.id)}"><span class="cb"></span><span class="x noir">${t.x}</span><span class="h">${t.d}</span></div>`).join('')}</div>
+    <div class="ap-bloc"><h4>À relancer</h4>${RELANCES.map(r => `<div class="ap-l${sel(r.id)}"><span class="av">${r.n[0]}</span><b>${r.n}</b><span class="x">${r.x}</span><span class="h${r.j === '40 jours' ? ' ambre' : ''}">${r.j}</span></div>`).join('')}</div>`;
+}
+function majTout(){ majCentre(); majCarte(); majSource(); majBadge(); majApp(); }
+
+/* =========================================================
+   Minuteries et attentes annulables (reprises de ilot-centre.html)
+   ========================================================= */
+let jeton = 0, instant = false, enCoursN = 0, cibleN = 0, auto = false;
+const minuteries = new Set();
+function apres(t, fn){ const id = setTimeout(() => { minuteries.delete(id); fn(); }, t * 1000 * K); minuteries.add(id); return id; }
+function annuler(){ minuteries.forEach(clearTimeout); minuteries.clear(); }
+function suite(){ const j = jeton; return Promise.resolve().then(() => { if (j !== jeton) throw 'stop'; }); }
+function attendre(t){
+  if (instant) return suite();
+  const j = jeton;
+  return new Promise((ok, ko) => apres(t, () => (j === jeton ? ok() : ko('stop'))));
+}
+const fin = () => instant && enCoursN === cibleN;   // dans un état posé, le retour au calme de la dernière étape n'est pas joué
+
+/* =========================================================
+   L'îlot : ressorts, forme, bulle, contenu
+   ========================================================= */
+const forme = $('#forme'), formeBulle = $('#bulle'), ombre = $('#ombre');
+const R = {}; CLES.forEach(k => R[k] = new Ressort(compact(N0, N0)[k]));
+R.pc = new Ressort(0);                        // la sortie de la bulle : 0 = rangée sous l'aile droite, 1 = posée
+const TOUS = [...CLES.map(k => R[k]), R.pc];
+let cible = compact(N0, N0), anime = false, tPrec = 0;
+function ilot(g, o = {}){
+  const grand = (g.bw + g.bd) * g.h >= (cible.bw + cible.bd) * cible.h - .5;
+  const rep = o.rep ?? (grand ? .46 : .38), z = o.z ?? (grand ? .78 : 1), att = o.attente ?? (grand ? 0 : .06);
+  cible = {...g};
+  for (const k of CLES){
+    if (instant) R[k].poser(g[k]);
+    else { const haut = k === 'h' && grand; R[k].viser(g[k], haut ? rep * 1.06 : rep, z, att + (haut ? .02 : 0)); }
+  }
+  demarrer();
+}
+/* la bulle sort de l'aile droite en glissant (ressort souple), ou y rentre vite */
+function bulle(oui){
+  st.bulle = oui;
+  if (instant) R.pc.poser(oui ? 1 : 0);
+  else if (oui) R.pc.viser(1, .52, .74, .18);
+  else R.pc.viser(0, .3, 1, 0);
+  demarrer();
+}
+function montre(noms, d = .14){
+  const vus = new Set(noms);
+  for (const nom in c){
+    const n = c[nom], on = vus.has(nom);
+    if (on && !n.classList.contains('on')) n.style.setProperty('--d', d + 's');
+    n.classList.toggle('on', on);
+  }
+}
+function demarrer(){
+  if (FIGE || instant){ rendu(); return; }
+  if (!anime){ anime = true; tPrec = performance.now(); requestAnimationFrame(boucle); }
+}
+function boucle(){
+  const t = performance.now(), dt = clamp((t - tPrec) / 1000, 0, .05) / K; tPrec = t;
+  const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+  for (let i = 0; i < n; i++) for (const r of TOUS) r.pas(h);
+  let bouge = false;
+  for (const r of TOUS) if (!r.pose()) bouge = true;
+  rendu();
+  if (bouge) requestAnimationFrame(boucle); else anime = false;
+}
+const xBulle = () => { const cou = R.nd.x; return lerp(cou - BULLE_W, cou + ECART, clamp(R.pc.x, -.05, 1.05)); };
+function rendu(){
+  const g = {}; for (const k of CLES) g[k] = R[k].x;
+  forme.setAttribute('d', chemin(g));
+  const a = clamp((g.h - B - 6) / 40, 0, 1);
+  ombre.style.filter = a > .01 ? `drop-shadow(0 ${(9 * a).toFixed(1)}px ${(18 * a).toFixed(1)}px rgba(10,20,40,${(.32 * a).toFixed(3)}))` : 'none';
+  const pc = R.pc.x, x0 = xBulle();
+  formeBulle.setAttribute('d', pc > .005 ? cheminBulle(x0, BULLE_W, B) : '');
+  bulleC.style.left = f2(500 + x0 + 10) + 'px';
+  bulleC.classList.toggle('on', st.bulle && pc > .82);
+}
+/* l'îlot épouse sa carte, jusqu'à 331 pt */
+const HAUTEUR = carte => Math.min(HMAX, B + 14 + c[carte].firstElementChild.offsetHeight + 14);
+const FORME = carte => bandeau(BW, HAUTEUR(carte), NO);
+const OUVERT = carte => ['batt', 'airp', carte];
+/* l'îlot replié : la vidéo garde l'îlot et Second cerveau prend la bulle ; sans vidéo, il prend les ailes */
+function plie(){
+  const montrer = st.sw.ilot && st.badge > 0;
+  if (st.video){ ilot(compact(N0, N0)); montre(['mini', 'onde'], .16); bulle(montrer && st.sw.bulle); }
+  else if (montrer){ ilot(compact(HC + AILE, HC + AILE)); montre(['scG', 'scD'], .16); bulle(false); }
+  else { ilot(REPOS); montre([]); bulle(false); }
+}
+function ouvrir(carte){
+  st.carte = carte; st.ban = null;
+  bulle(false);
+  montre([], 0);
+  ilot(FORME(carte));
+  montre(OUVERT(carte), .14);
+}
+function changer(carte){
+  if (!st.carte){ ouvrir(carte); return; }
+  if (st.carte === carte) return;
+  const bas = RANG[carte] > RANG[st.carte], vient = c[carte], part = c[st.carte];
+  vient.style.transition = 'none'; vient.style.setProperty('--sy', (bas ? 26 : -26) + 'px'); void vient.offsetWidth; vient.style.transition = '';
+  part.style.setProperty('--sy', (bas ? -26 : 26) + 'px');
+  st.carte = carte; st.survol = null; majCarte();
+  ilot(FORME(carte));
+  montre(OUVERT(carte), .1);
+}
+function replier(){
+  st.carte = null; st.ban = null; st.punaise = false; st.survol = null; majCentre(); majCarte();
+  montre([], 0);
+  plie();
+}
+function banniere(nom){
+  st.carte = null; st.ban = nom;
+  const n = c[nom], w = n.offsetWidth, h = n.offsetHeight;
+  n.style.left = f2(500 - w / 2) + 'px';
+  bulle(false);
+  montre([], 0);
+  ilot(bandeau(w / 2 + 20, B + 12 + h + 14, HC + 6));
+  montre([nom], .14);
+}
+
+/* =========================================================
+   L'écran : fenêtres, barre des menus, pointeur, mains
+   ========================================================= */
+const ecran = $('#ecran'), pointeur = $('#pointeur'), pad = $('#pad'), fnT = $('#fn');
+const F = {chrome:$('[data-f="chrome"]'), app:$('[data-f="app"]')};
+const APP = {chrome:'Chrome', app:'Second cerveau'};
+let ordre = ['chrome', 'app'];
+function devant(nom){
+  ordre = ordre.filter(n => n !== nom).concat(nom);
+  ordre.forEach((n, i) => { F[n].style.zIndex = i + 1; F[n].classList.toggle('arriere', n !== nom); });
+  const app = APP[nom];
+  $('#menus').innerHTML = POMME + `<b>${app}</b>` + MENUS[app].map(m => `<span>${m}</span>`).join('');
+}
+function fenetre(nom, vu){ F[nom].classList.toggle('cache', !vu); }
+/* « Ouvrir » ou un clic sur une ligne : l'app passe devant, sur la page du jour (et sur la ligne choisie) ; tout est vu */
+function ouvrirApp(item){
+  st.appSel = item || null; st.badge = 0; st.neufs.clear(); st.app = true;
+  majBadge(); majApp(); replier(); majTuile();
+  fenetre('app', true); devant('app');
+}
+const XR = dx => ecran.clientWidth / 2 + dx;
+function ou(el){ const r = el.getBoundingClientRect(), e = ecran.getBoundingClientRect(); return [r.left + r.width / 2 - e.left, r.top + r.height / 2 - e.top]; }
+function cur(x, y, o = {}){
+  const saute = instant || o.saute;
+  pointeur.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
+  pointeur.style.transform = `translate(${f2(x)}px,${f2(y)}px)`;
+  if (saute){ void pointeur.offsetWidth; pointeur.style.transition = ''; }
+  pointeur.classList.toggle('vu', o.vu !== false);
+}
+async function va(x, y, d = .75){ cur(x, y, {duree:d}); await attendre(d); }
+async function vers(el, d = .75, dx = 0, dy = 0){ const [x, y] = ou(el); await va(x + dx, y + dy, d); }
+function doigts(mode){ pad.className = 'pad' + (mode ? ' ' + mode : ''); }
+async function clic(){
+  if (instant) return suite();
+  doigts('un'); pointeur.classList.add('appui');
+  await attendre(.13);
+  pointeur.classList.remove('appui'); doigts('');
+}
+
+/* la vidéo avance (sauf figé) */
+const video = {pos:202, duree:774};
+const PAUSE_YT = '<svg width="15" height="16" viewBox="0 0 15 16" fill="#fff"><rect x="1.5" y="1" width="4" height="14" rx="1.2"/><rect x="9.5" y="1" width="4" height="14" rx="1.2"/></svg>';
+const REJOUER_YT = '<svg width="17" height="16" viewBox="0 0 18 18" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 9a5.8 5.8 0 1 0 1.9-4.3"/><path d="M4.6 1.8v3.4H8"/></svg>';
+function majVideo(){
+  $('#vbt').innerHTML = st.video === false ? REJOUER_YT : PAUSE_YT;
+  $('#vprog').style.width = (100 * video.pos / video.duree).toFixed(2) + '%';
+  $('#vtps').textContent = fmt(video.pos) + ' / ' + fmt(video.duree);
+}
+majVideo();
+setInterval(() => { if (FIGE || !st.video) return; video.pos = (video.pos + 1) % video.duree; majVideo(); }, 1000);
+
+/* =========================================================
+   Les étapes
+   ========================================================= */
+function init(){
+  remettre();
+  fenetre('app', false); devant('chrome');
+  video.pos = 202; majVideo();   // après remettre() : la vidéo joue
+  majTout();
+  ilot(compact(N0, N0)); montre(['mini', 'onde']); bulle(false);
+  cur(XR(300), 380, {vu:false, saute:true});
+  pointeur.classList.remove('appui');
+  doigts('');
+}
+const ETAPES = [
+  {t:'La vidéo joue : Second cerveau en bulle', g:'Mains au repos',
+   p:'Une vidéo joue dans Chrome : elle garde l’îlot. Second cerveau sort à côté, dans une petite bulle : son signe et « 3 », trois nouveautés depuis ton dernier coup d’œil (deux messages, une personne à relancer). L’icône cerveau de la barre des menus n’existe plus.',
+   async jeu(){ await attendre(.7); st.badge = 3; majBadge(); bulle(true); await attendre(.9); }},
+  {t:'Survoler : la tuile Second cerveau', g:'Pointeur sur la bulle',
+   p:'Le pointeur sur la bulle (ou sur l’îlot) : le Centre s’ouvre. Tout en haut, une large tuile « Second cerveau » : trois lignes à lire d’un coup d’œil, et l’heure de la dernière mise à jour. Le reste du Centre est juste en dessous.',
+   async jeu(){
+     cur(XR(320), 330, {saute:true}); await attendre(.05);
+     await va(XR(170), 17, .8); await attendre(.1);
+     ouvrir('centre'); await va(XR(150), 150, .5); await attendre(.3);
+   }},
+  {t:'Un clic sur la tuile : la carte', g:'Un clic',
+   p:'Trois parties courtes : les nouveaux messages (qui, et les premiers mots), ce qui est à toi aujourd’hui, les personnes à relancer. Les cases ne se cochent pas ici, Verbe ne fait que lire : un clic sur une ligne ouvre Second cerveau sur cette ligne.',
+   async jeu(){
+     await vers($('#sct'), .6, -110, -18); await clic();
+     st.punaise = true; majCentre(); changer('sc'); await attendre(.7);
+     const l = contenu.querySelector('.sk-r[data-item="t1"]');
+     await vers(l, .5, -40, 2); st.survol = 't1'; majCarte(); await attendre(.5);
+   }},
+  {t:'« Ouvrir Second cerveau » : l’app passe devant', g:'Un clic',
+   p:'La fenêtre de Second cerveau passe devant, sur la page du jour. L’îlot se range. Tout a été vu : la bulle rentre sous l’aile, la vidéo reste seule.',
+   async jeu(){
+     st.survol = null; majCarte();
+     await vers(contenu.querySelector('[data-c="sc"] .pil.blanc'), .6, 0, 3); await clic();
+     ouvrirApp(null); await attendre(.4);
+     await va(XR(300), 380, .7); await attendre(.4);
+   }},
+  {t:'Camille écrit : un bandeau, 4 secondes', g:'Mains au repos',
+   p:'Retour sur la vidéo. Camille écrit : l’îlot le dit pendant quatre secondes, avec ses premiers mots et « Voir ». Puis la vidéo reprend l’îlot et la bulle revient, avec « 1 ».',
+   async jeu(){
+     devant('chrome'); fenetre('app', false); cur(XR(300), 380, {vu:false, saute:true}); await attendre(.9);
+     st.msgs = ['camille', 'pierre']; st.neufs.add('camille'); st.badge = 1; majTout();
+     banniere('banC'); await attendre(.9);
+     if (fin()) return;
+     await attendre(3.1); replier(); await attendre(.8);
+   }},
+  {t:'D’où viennent ces infos', g:'Survol, puis deux clics',
+   p:'En bas de la carte : « Lu sur ce Mac seulement ». Un clic dit d’où viennent les infos : ton app les range dans un petit fichier sur ce Mac, Verbe le relit, ne change rien et n’envoie rien. Trois réglages simples.',
+   async jeu(){
+     cur(XR(320), 330, {saute:true}); await va(XR(170), 17, .8);
+     ouvrir('centre'); await va(XR(150), 150, .4); await attendre(.3);
+     await vers($('#sct'), .55, -110, -18); await clic();
+     st.punaise = true; majCentre(); changer('sc'); await attendre(.6);
+     await vers(contenu.querySelector('[data-c="sc"] .sk-lu'), .6, -30, 2); await clic();
+     changer('source'); await attendre(.8);
+   }},
+  {t:'Sans vidéo : dans les ailes', g:'Un clic ailleurs',
+   p:'La vidéo est finie : plus besoin de bulle. Second cerveau prend les ailes de l’îlot, son signe à gauche, le nombre de nouveautés à droite (ici Camille, pas encore lue). Au survol, le Centre s’ouvre comme avant.',
+   async jeu(){
+     await va(XR(-320), 470, .8); await clic();
+     st.video = false; video.pos = video.duree; majVideo(); replier(); await attendre(.4);
+     await va(XR(-260), 420, .5); await attendre(.6);
+   }}
+];
+const N = ETAPES.length;
+const PAUSES = [1.6, 1.8, 2.0, 1.6, 1.2, 2.2, 2.4];
+
+/* =========================================================
+   Régie (reprise de ilot-claude-plus.html)
+   ========================================================= */
+let etape = 0;
+$('#pas').innerHTML = ETAPES.map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${e.t}</button></li>`).join('');
+function majRegie(n){
+  etape = n;
+  const m = Math.max(1, n), e = ETAPES[m - 1];
+  $('#num').textContent = `Second cerveau dans l’îlot · étape ${m} sur ${N}`;
+  const fr = t => t.replace(/ ([:»?!;])/g, ' $1').replace(/« /g, '« ');
+  $('#titre').textContent = fr(e.t); $('#phrase').textContent = fr(e.p); $('#geste').textContent = e.g;
+  document.querySelectorAll('#pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === m));
+}
+async function poser(n){
+  annuler();
+  instant = true; racine.classList.add('snap');
+  try {
+    cibleN = n; enCoursN = 0;
+    init();
+    for (let i = 1; i <= n; i++){ enCoursN = i; await ETAPES[i - 1].jeu(); }
+  } finally { instant = false; }
+  majRegie(n); rendu();
+  void ecran.offsetWidth;
+  requestAnimationFrame(() => requestAnimationFrame(() => racine.classList.remove('snap')));
+}
+async function jouer(n){
+  majRegie(n);
+  if (REDUIT) return poser(n);
+  racine.classList.remove('snap'); void ecran.offsetWidth;
+  cibleN = 0; enCoursN = n;
+  await ETAPES[n - 1].jeu();
+}
+function arreter(){ jeton++; auto = false; annuler(); doigts(''); }
+const autoCase = $('#autoCase');
+async function tourner(){
+  arreter(); const j = jeton; auto = true;
+  try {
+    await poser(0); await attendre(.9);
+    for (;;){
+      for (let n = 1; n <= N; n++){ await jouer(n); await attendre(PAUSES[n - 1]); }
+      if (!autoCase.checked) break;
+      ecran.style.opacity = 0; await attendre(.3);
+      await poser(0); ecran.style.opacity = 1; await attendre(1.0);
+    }
+  } catch (e){ if (e !== 'stop') console.error(e); }
+  ecran.style.opacity = 1;
+  if (j === jeton) auto = false;
+}
+function lance(n){
+  arreter(); ecran.style.opacity = 1;
+  poser(n - 1).then(() => jouer(n)).catch(e => { if (e !== 'stop') console.error(e); });
+}
+$('#rejouer').addEventListener('click', () => { if (autoCase.checked) tourner(); else lance(Math.max(1, etape)); });
+$('#suivant').addEventListener('click', () => { autoCase.checked = false; lance(etape >= N ? 1 : etape + 1); });
+$('#pas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; autoCase.checked = false; lance(+b.dataset.e); });
+autoCase.addEventListener('change', () => { if (autoCase.checked) tourner(); else arreter(); });
+function ralenti(oui){ K = oui ? 4 : 1; racine.style.setProperty('--k', K); $('#lentCase').checked = oui; }
+$('#lentCase').addEventListener('change', e => ralenti(e.target.checked));
+
+/* =========================================================
+   À la main : la vraie souris marche aussi (survol, clics, défilement)
+   ========================================================= */
+function aLaMain(){ if (auto || autoCase.checked){ autoCase.checked = false; arreter(); } pointeur.classList.remove('vu'); }
+function local(e){ const r = ecran.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top]; }
+function dansIlot(x, y){
+  if (st.carte || st.ban) return Math.abs(x) <= Math.max(cible.bw, cible.ng) + 4 && y <= cible.h + 4;
+  if (st.bulle && y <= B + 4 && x >= xBulle() - 4 && x <= xBulle() + BULLE_W + 4) return true;
+  return y <= cible.h + 4 && Math.abs(x) <= Math.max(cible.ng, cible.nd, cible.bw) + 4;
+}
+let tFerme = 0;
+ecran.addEventListener('mousemove', e => {
+  if (FIGE) return;
+  const [x, y] = local(e), dedans = dansIlot(x, y);
+  if (dedans){
+    clearTimeout(tFerme); tFerme = 0;
+    if (!st.carte && !st.ban){ aLaMain(); ouvrir('centre'); }
+  } else if (st.carte && !st.punaise && !tFerme && !auto){
+    tFerme = setTimeout(() => { tFerme = 0; if (!st.punaise) replier(); }, 320);
+  }
+});
+ecran.addEventListener('pointerdown', e => {
+  if (FIGE || e.target.closest('#contenu .c')) return;
+  const [x, y] = local(e);
+  if ((st.carte || st.ban) && !dansIlot(x, y)){ aLaMain(); replier(); }
+});
+$('#ccDefil').addEventListener('scroll', () => { const d = $('#ccDefil'); d.classList.toggle('defile', d.scrollTop + d.clientHeight < d.scrollHeight - 1); });
+contenu.addEventListener('click', e => {
+  if (FIGE) return;
+  aLaMain();
+  if (st.carte) st.punaise = true;
+  contenu.querySelectorAll('.punaise').forEach(p => p.classList.toggle('vu', st.punaise));
+  const item = e.target.closest('[data-item]');
+  if (item){ ouvrirApp(item.dataset.item); return; }
+  const sw = e.target.closest('[data-sw]');
+  if (sw){ st.sw[sw.dataset.sw] = !st.sw[sw.dataset.sw]; majSource(); return; }
+  const a = e.target.closest('[data-act]');
+  if (!a) return;
+  const act = a.dataset.act;
+  if (RANG[act]) changer(act);
+  else if (act === 'ouvrir-app') ouvrirApp(null);
+  else if (act === 'voir') ouvrirApp('camille');
+});
+
+/* =========================================================
+   Démarrage
+   ========================================================= */
+if (Q.has('lent')) ralenti(true);
+const e0 = clamp(+(Q.get('etape') || 0), 0, N);
+if (FIGE){ autoCase.checked = false; poser(e0).catch(() => {}); }
+else if (Q.has('joue') && e0 >= 1){ autoCase.checked = false; poser(e0 - 1).then(() => setTimeout(() => jouer(e0).catch(() => {}), 400)); }
+else setTimeout(() => tourner(), 300);
+window.verbe = {poser, jouer, st, R, ralenti};
+</script>
+</body>
+</html>
