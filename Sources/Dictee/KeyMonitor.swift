@@ -36,6 +36,10 @@ final class KeyMonitor {
     private var microAvale: Int64?
     /// Les Réglages enregistrent un nouveau raccourci : on laisse passer la touche jusqu'à eux.
     static var enregistrementEnCours = false
+    /// « Volume et luminosité » : les touches spéciales (volume, muet, luminosité) ; vrai = avalée (l'îlot l'applique et la montre).
+    var onNiveau: ((EvenementNiveau, CGEventFlags) -> Bool)?
+    /// Les événements « systemDefined » (NX_SYSDEFINED) : touches de volume, de luminosité, de lecture.
+    nonisolated static let typeSysteme = CGEventType(rawValue: 14)!
     private(set) var detector = FnGestureDetector()
 
     private var tap: CFMachPort?
@@ -53,7 +57,8 @@ final class KeyMonitor {
         let masque: CGEventMask =
             (1 << CGEventType.flagsChanged.rawValue) |
             (1 << CGEventType.keyDown.rawValue) |
-            (1 << CGEventType.keyUp.rawValue)
+            (1 << CGEventType.keyUp.rawValue) |
+            (1 << Self.typeSysteme.rawValue)
         let rappel: CGEventTapCallBack = { _, type, event, refcon in
             guard let refcon else { return Unmanaged.passUnretained(event) }
             let moi = Unmanaged<KeyMonitor>.fromOpaque(refcon).takeUnretainedValue()
@@ -95,6 +100,11 @@ final class KeyMonitor {
 
     /// Renvoie `true` si l'événement doit être avalé.
     private func recevoir(type: CGEventType, event: CGEvent) -> Bool {
+        if type == Self.typeSysteme {
+            guard let onNiveau, event.getIntegerValueField(.eventSourceUserData) != Self.marqueInterne,
+                  let e = Self.evenementNiveau(event) else { return false }
+            return onNiveau(e, event.flags)
+        }
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             Log.ecrire("écoute du clavier : coupée par macOS (\(type == .tapDisabledByTimeout ? "trop lent" : "entrée utilisateur")), on la rallume")
@@ -154,6 +164,12 @@ final class KeyMonitor {
         default:
             return false
         }
+    }
+
+    /// Une touche de volume ou de luminosité (nil : un autre événement « systemDefined », boutons de souris, touches de lecture…).
+    static func evenementNiveau(_ event: CGEvent) -> EvenementNiveau? {
+        guard event.type == typeSysteme, let ns = NSEvent(cgEvent: event), ns.type == .systemDefined else { return nil }
+        return EvenementNiveau.decoder(sousType: Int(ns.subtype.rawValue), data1: ns.data1)
     }
 
     /// La touche est-elle ce raccourci ? Les touches de modification d'abord (le cas courant : aucune, on s'arrête là), puis le caractère

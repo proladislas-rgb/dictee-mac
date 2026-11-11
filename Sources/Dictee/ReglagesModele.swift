@@ -31,6 +31,7 @@ final class ReglagesModele: ObservableObject {
     @Published var ilotEnergie: Bool { didSet { if !installe { return }; Settings.ilotEnergie = ilotEnergie; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotTelechargements: Bool { didSet { if !installe { return }; Settings.ilotTelechargements = ilotTelechargements; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotMicro: Bool { didSet { if !installe { return }; Settings.ilotMicro = ilotMicro; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
+    @Published var ilotNiveaux: Bool { didSet { if !installe { return }; Settings.ilotNiveaux = ilotNiveaux; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var raccourciMicro: RaccourciIlot { didSet { if !installe { return }; Settings.raccourciMicro = raccourciMicro; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var sonFinMinuteur: String { didSet { if !installe { return }; Settings.sonFinMinuteur = sonFinMinuteur } }
     var phraseCalendrier: String {
@@ -92,6 +93,7 @@ final class ReglagesModele: ObservableObject {
         ilotEnergie = reel ? Settings.ilotEnergie : true
         ilotTelechargements = reel ? Settings.ilotTelechargements : true
         ilotMicro = reel ? Settings.ilotMicro : true
+        ilotNiveaux = reel ? Settings.ilotNiveaux : true
         raccourciMicro = reel ? Settings.raccourciMicro : .microParDefaut
         modeleWhisper = reel ? Settings.modeleWhisper : ModeleWhisper.parDefaut
         testPrecision = reel ? Settings.testPrecisionRestant > 0 : false

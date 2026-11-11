@@ -47,6 +47,11 @@ final class IlotControleur {
     private(set) var veilleMicro = VeilleMicro()
     /// Le raccourci de « Micro coupé » à donner à l'écoute du clavier (nil : réglage éteint, la touche n'est plus avalée).
     var surRaccourciMicro: (RaccourciIlot?) -> Void = { _ in }
+    /// Volume et luminosité (IlotNiveaux.swift) : le vrai son et le vrai écran (des faux dans les essais), le réglage, et la mémoire des
+    /// touches avalées (appui, répétitions, relâchement).
+    var niveaux: PiloteNiveaux = NiveauxSysteme()
+    var niveauxActifs = Settings.ilotNiveaux
+    var aiguillageNiveau = AiguillageNiveau()
 
     /// Ce qui occupe l'encoche en dehors de la dictée de ce contrôleur (rempli par l'AppDelegate).
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
@@ -173,6 +178,7 @@ final class IlotControleur {
         // le dossier Téléchargements : macOS demande une fois l'accès, à la première ouverture (sur une file à part)
         if Settings.ilotTelechargements { telechargementsSource.demarrer() }
         else { telechargementsSource.arreter(); rafale = RafaleTelechargements() }
+        niveauxActifs = Settings.ilotNiveaux
         activerLeMicro(Settings.ilotMicro)
         surRaccourciMicro(Settings.ilotMicro ? Settings.raccourciMicro : nil)
         moteur.donneesChangees()

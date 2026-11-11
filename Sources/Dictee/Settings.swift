@@ -251,6 +251,12 @@ enum Settings {
         get { defaults.object(forKey: "ilotMicro") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotMicro") }
     }
+    /// « Volume et luminosité dans l'îlot » : les touches du clavier s'affichent dans l'îlot au lieu de l'affichage de macOS. ALLUMÉ
+    /// par défaut : rien n'est demandé à macOS (l'écoute du clavier est déjà là pour fn).
+    static var ilotNiveaux: Bool {
+        get { defaults.object(forKey: "ilotNiveaux") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "ilotNiveaux") }
+    }
     /// Le raccourci de « Micro coupé » (⌃⌥M par défaut ; un raccourci rangé mais devenu invalide revient à ⌃⌥M).
     static var raccourciMicro: RaccourciIlot {
         get { defaults.string(forKey: "raccourciMicro").flatMap(RaccourciIlot.init(texte:)).flatMap { $0.estValide ? $0 : nil } ?? .microParDefaut }

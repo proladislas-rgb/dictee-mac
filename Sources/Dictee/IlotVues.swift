@@ -125,7 +125,29 @@ struct IlotCalques: View {
         case .microCompact: heureAile(v, "Coupé", CouleursIlot.rouge).accessibilityLabel("Micro coupé")
         case .microEtendu: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .microOuvert: microOuvert(v)
+        case .volume, .luminosite: niveauAiles(v)
         }
+    }
+
+    /// Volume et luminosité : le haut-parleur (ou le soleil) dans l'aile gauche, une barre fine dans l'aile droite qui suit la valeur
+    /// sur son ressort. Le haut-parleur est calé à gauche dans la place de sa version la plus large (trois ondes) : quand les ondes
+    /// changent, le corps du haut-parleur ne bouge pas.
+    private func niveauAiles(_ v: VueIlot) -> some View {
+        let genre: GenreNiveau = v == .volume ? .volume : .luminosite
+        let n = m.niveauVu(genre)
+        let c = g.centreAile(v, droite: false)
+        let place = genre == .volume ? MesureIlot.symbole("speaker.wave.3.fill", 15) : 36
+        let (x, l) = JaugeNiveau.barre(demiCamera: Double(g.hc), cou: Double(g.cou(v) - g.hc))
+        return ZStack(alignment: .topLeading) {
+            Image(systemName: n.symbole).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+                .posee(CGRect(x: c - place / 2, y: 0, width: place, height: g.barre), m.aspect(v, rang: 0), ancre: .center,
+                       genre == .volume ? .leading : .center)
+            BarreNiveau(valeur: m.jauge(genre).x, largeur: CGFloat(l))
+                .posee(CGRect(x: CGFloat(x), y: 0, width: CGFloat(l), height: g.barre), m.aspect(v, rang: 1), ancre: .leading, .leading)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(genre == .volume ? (n.muet ? "Son coupé" : "Volume") : "Luminosité")
+        .accessibilityValue(n.muet ? "" : "\(n.pourcent) %")
     }
 
     /// Le micro rouvert : le micro (sans barre) dans l'aile gauche, « Ouvert » dans l'aile droite, en vert, le temps d'un coup d'œil.

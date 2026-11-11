@@ -18,17 +18,21 @@ public enum VueIlot: String, CaseIterable, Sendable {
     case telecharge
     /// Le micro est coupé (micro barré rouge, « Coupé ») ; au survol, son nom et « Rouvrir » ; rouvert : un bandeau vert court.
     case microCompact, microEtendu, microOuvert
+    /// Une touche de volume ou de luminosité : le haut-parleur (ou le soleil) dans l'aile gauche, une barre fine dans l'aile droite.
+    case volume, luminosite
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
         switch self {
         case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
-             .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert: return true
+             .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .volume, .luminosite: return true
         default: return false
         }
     }
     /// Ces écrans sont des alertes : l'îlot s'ouvre de lui-même, vibre, sonne, et attend un geste.
     public var estAlerte: Bool { self == .minuteurFini || self == .rappelEtendu || self == .agendaDebut }
+    /// Volume et luminosité : un bandeau qui suit les touches du clavier (1,5 s après la dernière).
+    public var estNiveau: Bool { self == .volume || self == .luminosite }
 }
 
 /// Géométrie de la forme (maquette design/maquettes/ilot-pro-A.html), sept valeurs :
@@ -70,6 +74,9 @@ public enum GeoIlot {
         // micro coupé : le micro barré (aile gauche) et « Coupé » (41 pt mesurés, aile droite : 60 − 8 − 4 = 48 pt) ; 60 + 6 = 66 ;
         // au survol, un petit déplié qui épouse « Micro coupé », le nom du micro et « Rouvrir » ; rouvert, « Ouvert » (44 pt) en vert
         .microCompact: compact(60), .microEtendu: bandeau, .microOuvert: compact(60),
+        // volume et luminosité : le haut-parleur (aile gauche) et une barre fine de 44 pt (aile droite : 8 pt de la caméra, 8 pt du
+        // cou) ; 60 + 6 = 66. La maquette dessinait 96 pt : ça déborderait sur les icônes de la barre des menus
+        .volume: compact(60), .luminosite: compact(60),
     ]
     /// Indices des valeurs : largeurs (cou, corps) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur mène ; à la
     /// fermeture la hauteur se replie d'abord.
@@ -205,6 +212,9 @@ public enum ArbitrageIlot {
     public static func resoudre(_ e: EtatIlot, echange: ActiviteIlot? = nil) -> ResolutionIlot {
         let p = ordre(e, echange: echange)
         if let a = e.alerte { return ResolutionIlot(principal: a, survol: nil, verrou: true, pastille: p.first) }
+        // volume et luminosité : un coup d'œil de 1,5 s qui passe par-dessus l'activité ; la bulle ne bouge pas (pas de vidéo qui saute
+        // dans la bulle et en revient à chaque touche)
+        if let b = e.bandeau, b.estNiveau { return ResolutionIlot(principal: b, survol: nil, verrou: true, pastille: p.count > 1 ? p[1] : nil) }
         if let b = e.bandeau { return ResolutionIlot(principal: b, survol: nil, verrou: true, pastille: p.first) }
         if let premiere = p.first {
             let v = vues(premiere)

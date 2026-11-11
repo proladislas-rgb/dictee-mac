@@ -32,6 +32,8 @@ struct BandeauIlot {
     var energie: EnergieIlot?
     /// Les fichiers arrivés dans Téléchargements (bandeau `.telecharge`).
     var telechargement: TelechargementIlot?
+    /// Le volume ou la luminosité (bandeaux `.volume` et `.luminosite`).
+    var niveau: NiveauIlot?
 }
 
 /// Ce que montre le bandeau « Téléchargé » : la rafale (noms, tailles, AirDrop) et les icônes du Finder, lues une fois à l'annonce.
@@ -208,6 +210,13 @@ final class IlotMoteur: ObservableObject {
     private(set) var lien = false
     private var dernierMode: [FamilleIlot: Double] = [:]
     var secousse = RessortIlot(0, reponse: 0.17, amortissement: 0.13)
+    /// Les barres du volume et de la luminosité (0…1) : elles suivent la valeur sur un ressort. Une par genre : la barre qui s'efface
+    /// garde sa valeur pendant que l'autre arrive.
+    var jaugeVolume = RessortIlot(0, reponse: JaugeNiveau.reponse, amortissement: JaugeNiveau.amortissement)
+    var jaugeLuminosite = RessortIlot(0, reponse: JaugeNiveau.reponse, amortissement: JaugeNiveau.amortissement)
+    func jauge(_ g: GenreNiveau) -> RessortIlot { g == .volume ? jaugeVolume : jaugeLuminosite }
+    /// Le dernier volume et la dernière luminosité montrés (le symbole de l'écran qui s'efface ne change pas sous les yeux).
+    private(set) var derniersNiveaux: [GenreNiveau: NiveauIlot] = [:]
     /// 0 = la bulle est rentrée sous l'aile droite de l'îlot, 1 = posée à côté (elle glisse hors de l'îlot).
     var pastilleChute = RessortIlot(0, reponse: 0.5, amortissement: 0.62)
     var pastilleOuverte = RessortIlot(0, reponse: 0.36, amortissement: 0.88)
@@ -452,6 +461,39 @@ final class IlotMoteur: ObservableObject {
         }
     }
     func quitterAlerte() { alerte = nil; donneesChangees() }
+
+    // MARK: volume et luminosité
+
+    /// L'îlot peut-il montrer une touche de volume ou de luminosité ? Pas pendant la dictée, la réunion ou une autre annonce de l'encoche
+    /// (il est effacé), ni pendant une alerte (elle attend un geste) : la touche reste alors à macOS, avec son propre affichage.
+    var peutMontrerNiveau: Bool { !cache && alerte == nil }
+
+    /// Une touche de volume ou de luminosité vient d'être appliquée : le bandeau reste 1,5 s après la DERNIÈRE touche ; la barre part
+    /// de `avant` (la valeur d'avant la touche) et glisse sur son ressort. Une touche tenue (répétitions) prolonge le même bandeau,
+    /// sans rien rejouer : seule la barre avance.
+    func montrerNiveau(_ n: NiveauIlot, avant: Double, duree: TimeInterval = 1.5) {
+        guard peutMontrerNiveau else { return }
+        let vue: VueIlot = n.genre == .volume ? .volume : .luminosite
+        let dejaLa = bandeau?.vue == vue
+        derniersNiveaux[n.genre] = n
+        var r = jauge(n.genre)
+        if !dejaLa { r.viser(min(1, max(0, avant)), reponse: JaugeNiveau.reponse, amortissement: JaugeNiveau.amortissement); r.poser() }
+        JaugeNiveau.viser(&r, vers: n.affiche, reduire: reduire)
+        if n.genre == .volume { jaugeVolume = r } else { jaugeLuminosite = r }
+        let b = BandeauIlot(vue: vue, jusqua: maintenant().addingTimeInterval(duree), ligne1: "", ligne2: "", niveau: n)
+        if dejaLa {
+            bandeau = b
+            programmerReveil()
+            demarrerBoucle()
+        } else {
+            annoncer(bandeau: b)
+        }
+    }
+    /// Le niveau qu'un écran de volume ou de luminosité montre (celui du bandeau, sinon le dernier vu).
+    func niveauVu(_ g: GenreNiveau) -> NiveauIlot {
+        if let n = bandeau?.niveau, n.genre == g { return n }
+        return derniersNiveaux[g] ?? NiveauIlot(genre: g, valeur: 0.5)
+    }
     func quitterBandeau() { bandeau = nil; donneesChangees() }
 
     private func programmerReveil() {
@@ -613,13 +655,15 @@ final class IlotMoteur: ObservableObject {
         var l: [String] = []
         for (i, r) in geo.enumerated() where !r.fini { l.append("geo[\(i)] \(r.x)→\(r.cible)") }
         if !secousse.fini { l.append("secousse") }
+        if !jaugeVolume.fini { l.append("barre du volume \(jaugeVolume.x)→\(jaugeVolume.cible)") }
+        if !jaugeLuminosite.fini { l.append("barre de la luminosité \(jaugeLuminosite.x)→\(jaugeLuminosite.cible)") }
         if !pastilleChute.fini { l.append("bulle \(pastilleChute.x)→\(pastilleChute.cible)") }
         if !pastilleOuverte.fini { l.append("bulle ouverte \(pastilleOuverte.x)→\(pastilleOuverte.cible)") }
         if !contenuPose { l.append("contenu (apparitions)") }
         return l.isEmpty ? "rien" : l.joined(separator: ", ")
     }
     private var tousLesRessorts: Bool {
-        geo.allSatisfy(\.fini) && secousse.fini && pastilleChute.fini && pastilleOuverte.fini && contenuPose
+        geo.allSatisfy(\.fini) && secousse.fini && pastilleChute.fini && pastilleOuverte.fini && jaugeVolume.fini && jaugeLuminosite.fini && contenuPose
     }
     /// La boucle d'animation, calée sur l'écran (CADisplayLink : 60 ou 120 images par seconde), ne tourne que si quelque chose bouge.
     func demarrerBoucle() {
@@ -641,6 +685,8 @@ final class IlotMoteur: ObservableObject {
         if secousse.fini { secousse.poser() } else { secousse.avancer(dt) }
         if pastilleChute.fini { pastilleChute.poser() } else { pastilleChute.avancer(dt) }
         if pastilleOuverte.fini { pastilleOuverte.poser() } else { pastilleOuverte.avancer(dt) }
+        if jaugeVolume.fini { jaugeVolume.poser() } else { jaugeVolume.avancer(dt) }
+        if jaugeLuminosite.fini { jaugeLuminosite.poser() } else { jaugeLuminosite.avancer(dt) }
         rev += 1
         if tousLesRessorts { cadence.arreter(); vider(); surFenetre() }
     }
@@ -648,7 +694,7 @@ final class IlotMoteur: ObservableObject {
     /// Tout est posé tout de suite à sa place (rendus PNG, essais) : ressorts sur leur cible, fondus terminés.
     func poser() {
         for i in 0..<geo.count { geo[i].poser() }
-        secousse.poser(); pastilleChute.poser(); pastilleOuverte.poser()
+        secousse.poser(); pastilleChute.poser(); pastilleOuverte.poser(); jaugeVolume.poser(); jaugeLuminosite.poser()
         tAnim += 30
         cadence.arreter()
         rev += 1

@@ -18,6 +18,116 @@ func controlesIlot() {
             }
         }
     }
+    groupe("Îlot : volume et luminosité (touches du clavier)")
+    do {
+        typealias E = EvenementNiveau
+        // décodage des événements « systemDefined » : code dans les 16 bits du haut, 0xA enfoncée / 0xB relâchée, bit 0 = répétition
+        verifier(E.decoder(sousType: 8, data1: 0x0000_0A00) == E(touche: .volumePlus, enfoncee: true), "data1 0x0A00 : volume +, enfoncée")
+        verifier(E.decoder(sousType: 8, data1: 0x0001_0A01) == E(touche: .volumeMoins, enfoncee: true, repetition: true), "data1 0x10A01 : volume −, répétition")
+        verifier(E.decoder(sousType: 8, data1: 0x0007_0B00) == E(touche: .muet, enfoncee: false), "data1 0x70B00 : muet, relâchée")
+        verifier(E.decoder(sousType: 8, data1: 0x0002_0A00)?.touche == .luminositePlus && E.decoder(sousType: 8, data1: 0x0003_0A00)?.touche == .luminositeMoins, "codes 2 et 3 : luminosité + et −")
+        verifier(E.decoder(sousType: 7, data1: 0x0000_0A00) == nil, "sous-type 7 (boutons de souris) : ignoré")
+        verifier(E.decoder(sousType: 8, data1: 0x0010_0A00) == nil && E.decoder(sousType: 8, data1: 0x0015_0A00) == nil, "lecture (16), clavier rétroéclairé (21) : pas pour nous")
+        verifier(E.decoder(sousType: 8, data1: 0x0000_0C00) == nil, "état inconnu : ignoré")
+        verifier(ToucheNiveau.allCases.allSatisfy { t in [true, false].allSatisfy { d in [true, false].allSatisfy { r in
+            let e = E(touche: t, enfoncee: d, repetition: r); return E.decoder(sousType: 8, data1: e.data1) == e } } }, "aller-retour data1 pour les 5 touches")
+        verifier(ToucheNiveau.muet.genre == .volume && ToucheNiveau.luminositeMoins.genre == .luminosite, "genres")
+
+        // pas : 16 crans (1/16 comme macOS), 64 avec ⌥⇧, calés sur la grille, bornés
+        typealias P = PasNiveau
+        verifier(P.suivant(0.5, sens: 1, fin: false) == 0.5625 && P.suivant(0.5, sens: -1, fin: false) == 0.4375, "0,5 : un cran = 1/16")
+        verifier(P.suivant(0.30, sens: 1, fin: false) == 0.3125 && P.suivant(0.30, sens: -1, fin: false) == 0.25, "0,30 (réglé ailleurs) : recalé sur la grille des crans")
+        verifier(P.suivant(0.5, sens: 1, fin: true) == 0.515625 && P.suivant(0.5, sens: -1, fin: true) == 0.484375, "⌥⇧ : un quart de cran (1/64)")
+        verifier(P.suivant(1, sens: 1, fin: false) == 1 && P.suivant(0, sens: -1, fin: false) == 0 && P.suivant(0.98, sens: 1, fin: false) == 1, "bornes 0 et 1")
+        var v = 0.0; for _ in 0..<16 { v = P.suivant(v, sens: 1, fin: false) }
+        verifier(v == 1, "16 crans de 0 : exactement 1")
+        verifier(P.suivant(0.5624, sens: 1, fin: false) == 0.5625, "0,5624 (arrondi par l'appareil) sans recalage : resterait sur place")
+        verifier(P.recaler(lu: 0.5617, ecrit: 0.5625) == 0.5625 && P.recaler(lu: 0.30, ecrit: 0.5625) == 0.30 && P.recaler(lu: 0.4, ecrit: nil) == 0.4,
+                 "recalage sur la valeur écrite (et seulement si elle est proche)")
+        verifier(P.suivant(P.recaler(lu: 0.5617, ecrit: 0.5625), sens: 1, fin: false) == 0.625, "relu 0,5617 après 0,5625 : « + » monte bien à 10/16")
+        // touches de modification
+        verifier(P.mode(option: false, maj: false, controle: false, commande: false) == false && P.mode(option: true, maj: true, controle: false, commande: false) == true,
+                 "sans touche : un cran ; ⌥⇧ : petits pas")
+        verifier(P.mode(option: true, maj: false, controle: false, commande: false) == nil && P.mode(option: false, maj: true, controle: false, commande: false) == nil
+                 && P.mode(option: false, maj: false, controle: true, commande: false) == nil && P.mode(option: true, maj: true, controle: false, commande: true) == nil,
+                 "⌥ seul (réglages Son de macOS), ⇧ seul, ⌃, ⌘ : laissés à macOS")
+        // le niveau après une touche
+        let coupe = NiveauIlot(genre: .volume, valeur: 0.5, muet: true)
+        verifier(P.apres(coupe, touche: .volumePlus, fin: false) == NiveauIlot(genre: .volume, valeur: 0.5625), "son coupé + volume + : le son revient, un cran plus haut")
+        verifier(P.apres(coupe, touche: .muet, fin: false) == NiveauIlot(genre: .volume, valeur: 0.5) && P.apres(NiveauIlot(genre: .volume, valeur: 0.5), touche: .muet, fin: false).muet,
+                 "muet : bascule, le volume ne change pas")
+        verifier(P.apres(NiveauIlot(genre: .luminosite, valeur: 0.3), touche: .luminositeMoins, fin: false) == NiveauIlot(genre: .luminosite, valeur: 0.25), "luminosité − : un cran")
+        verifier(NiveauIlot(genre: .luminosite, valeur: 2, muet: true) == NiveauIlot(genre: .luminosite, valeur: 1), "luminosité : bornée, jamais « muette »")
+        // symboles
+        verifier(NiveauIlot(genre: .volume, valeur: 0).symbole == "speaker.slash.fill" && coupe.symbole == "speaker.slash.fill" && coupe.affiche == 0,
+                 "zéro ou muet : haut-parleur barré, barre vide")
+        verifier(NiveauIlot(genre: .volume, valeur: 0.2).symbole == "speaker.wave.1.fill" && NiveauIlot(genre: .volume, valeur: 0.5).symbole == "speaker.wave.2.fill"
+                 && NiveauIlot(genre: .volume, valeur: 0.9).symbole == "speaker.wave.3.fill" && NiveauIlot(genre: .luminosite, valeur: 0.1).symbole == "sun.max.fill",
+                 "une, deux, trois ondes ; le soleil")
+        verifier(NiveauIlot(genre: .volume, valeur: 0.5625).pourcent == 56, "VoiceOver : 56 %")
+
+        // aiguillage : appui, répétitions, relâchement
+        typealias A = AiguillageNiveau
+        let oui = A.Conditions(reglage: true, ilot: true, reglable: true)
+        var ai = A()
+        verifier(ai.recevoir(E(touche: .volumePlus, enfoncee: true), fin: false, conditions: oui) == .appliquer(.volumePlus, fin: false), "appui : avalé et appliqué")
+        verifier(ai.recevoir(E(touche: .volumePlus, enfoncee: true, repetition: true), fin: false, conditions: oui) == .appliquer(.volumePlus, fin: false), "touche tenue : chaque répétition est un cran")
+        verifier(ai.recevoir(E(touche: .volumePlus, enfoncee: false), fin: false, conditions: oui) == .avaler && !ai.avalee(.volumePlus), "relâchement : avalé (macOS n'a jamais vu l'appui)")
+        verifier(ai.recevoir(E(touche: .volumePlus, enfoncee: false), fin: false, conditions: oui) == .laisser, "relâchement sans appui avalé : laissé")
+        for (nom, c) in [("réglage éteint", A.Conditions(reglage: false, ilot: true, reglable: true)), ("îlot occupé (dictée, alerte)", A.Conditions(reglage: true, ilot: false, reglable: true)),
+                         ("sortie sans volume réglable (HDMI) ou DisplayServices absent", A.Conditions(reglage: true, ilot: true, reglable: false))] {
+            var b = A()
+            verifier(b.recevoir(E(touche: .volumeMoins, enfoncee: true), fin: false, conditions: c) == .laisser
+                     && b.recevoir(E(touche: .volumeMoins, enfoncee: true, repetition: true), fin: false, conditions: oui) == .laisser
+                     && b.recevoir(E(touche: .volumeMoins, enfoncee: false), fin: false, conditions: oui) == .laisser, "\(nom) : appui, répétitions et relâchement restent à macOS")
+        }
+        var b = A()
+        verifier(b.recevoir(E(touche: .volumePlus, enfoncee: true), fin: nil, conditions: oui) == .laisser, "⌥ seul : laissé à macOS")
+        verifier(b.recevoir(E(touche: .luminositePlus, enfoncee: true), fin: true, conditions: oui) == .appliquer(.luminositePlus, fin: true), "⌥⇧ luminosité + : petit pas")
+        verifier(b.recevoir(E(touche: .luminositePlus, enfoncee: true, repetition: true), fin: true, conditions: A.Conditions(reglage: true, ilot: false, reglable: false)) == .avaler,
+                 "tenue pendant qu'une dictée commence : avalée sans rien faire jusqu'au relâchement")
+        verifier(b.recevoir(E(touche: .luminositePlus, enfoncee: false), fin: true, conditions: oui) == .avaler, "puis le relâchement est avalé aussi")
+        var mu = A()
+        verifier(mu.recevoir(E(touche: .muet, enfoncee: true), fin: false, conditions: oui) == .appliquer(.muet, fin: false)
+                 && mu.recevoir(E(touche: .muet, enfoncee: true, repetition: true), fin: false, conditions: oui) == .avaler, "muet tenu : une seule bascule")
+        // une touche tenue de 0,25 : 1 appui + 20 répétitions, jamais au-delà de 1
+        var tenue = A(), n = NiveauIlot(genre: .volume, valeur: 0.25), vus: [Double] = []
+        for i in 0...20 {
+            if case .appliquer(let t, let f) = tenue.recevoir(E(touche: .volumePlus, enfoncee: true, repetition: i > 0), fin: false, conditions: oui) {
+                n = P.apres(n, touche: t, fin: f); vus.append(n.valeur)
+            }
+        }
+        verifier(vus.count == 21 && vus.prefix(12) == ArraySlice((5...16).map { Double($0) / 16 }) && vus.allSatisfy { $0 <= 1 } && n.valeur == 1,
+                 "touche tenue depuis 0,25 : 5/16, 6/16… puis 1, sans dépasser")
+
+        // la barre : sur son ressort, elle suit une touche tenue sans marche et se pose vite
+        var r = RessortIlot(0.25, reponse: JaugeNiveau.reponse, amortissement: JaugeNiveau.amortissement)
+        var x = 0.25, maxi = 0.0, recule = false
+        for k in 0..<8 {
+            JaugeNiveau.viser(&r, vers: 0.25 + Double(k + 1) / 16, reduire: false)
+            for _ in 0..<5 { r.avancer(1.0 / 60); recule = recule || r.x < x - 1e-9; x = r.x; maxi = max(maxi, r.x) }
+        }
+        verifier(!recule, "touche tenue (un cran toutes les 83 ms) : la barre ne recule jamais")
+        var t = 0.0
+        while !r.fini, t < 2 { r.avancer(1.0 / 60); t += 1.0 / 60; maxi = max(maxi, r.x) }
+        verifier(r.fini && t < 0.75 && maxi <= 0.75 + 0.01, "après la dernière touche : posée en \(Int(t * 1000)) ms, presque sans rebond (max \(String(format: "%.3f", maxi)))")
+        var rr = RessortIlot(0.2, reponse: JaugeNiveau.reponse, amortissement: JaugeNiveau.amortissement)
+        JaugeNiveau.viser(&rr, vers: 1.4, reduire: true)
+        verifier(rr.fini && rr.x == 1, "« Réduire les animations » : la barre saute à sa place (bornée à 1)")
+        let bar = JaugeNiveau.barre(demiCamera: 100, cou: 60)
+        verifier(bar.x == 108 && bar.largeur == 44 && bar.x + bar.largeur <= 100 + 60 - 8, "la barre : 44 pt, de 8 pt après la caméra à 8 pt du cou")
+
+        // l'îlot : 1,5 s par-dessus l'activité, la bulle ne bouge pas
+        var e = EtatIlot(); e.lecture = true; e.bandeau = .volume
+        verifier(ArbitrageIlot.resoudre(e) == ResolutionIlot(principal: .volume, survol: nil, verrou: true, pastille: nil), "volume pendant une vidéo : l'îlot montre le volume, pas de bulle")
+        e.minuteur = true
+        verifier(ArbitrageIlot.resoudre(e).pastille == .minuteur, "vidéo + minuteur en bulle : la bulle reste le minuteur")
+        e.bandeau = nil
+        verifier(ArbitrageIlot.resoudre(e).principal == .lectureCompact && ArbitrageIlot.resoudre(e).pastille == .minuteur, "puis la vidéo revient")
+        e.bandeau = .telecharge
+        verifier(ArbitrageIlot.resoudre(e).pastille == .lecture, "un autre bandeau garde sa règle (la lecture en bulle)")
+        verifier(VueIlot.volume.estBandeau && VueIlot.luminosite.estNiveau && !VueIlot.telecharge.estNiveau && GeoIlot.profondeur(.volume) == 0, "volume et luminosité : des bandeaux compacts")
+    }
     groupe("Îlot : Téléchargé (fichiers arrivés dans Téléchargements)")
     do {
         typealias F = FiltreTelechargements

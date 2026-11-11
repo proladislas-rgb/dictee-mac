@@ -115,6 +115,9 @@ struct ReglagesVue: View {
                     .disabled(!r.ilotMicro)
                 Interrupteur(actif: $r.ilotMicro, etiquette: "Micro coupé")
             }
+            LigneReglage(libelle: "Volume et luminosité dans l\u{2019}îlot", note: "Les touches du volume et de la luminosité s\u{2019}affichent dans l\u{2019}îlot, à la place de l\u{2019}affichage de macOS. Avec ⌥⇧, par petits pas.") {
+                Interrupteur(actif: $r.ilotNiveaux, etiquette: "Volume et luminosité dans l\u{2019}îlot")
+            }
             LigneReglage(libelle: "Calendrier", note: r.phraseCalendrier) {
                 Interrupteur(actif: $r.ilotCalendrier, etiquette: "Calendrier")
             }

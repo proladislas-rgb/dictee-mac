@@ -294,6 +294,19 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .microOuvert, jusqua: t0, ligne1: "Micro ouvert", ligne2: "") }) }, "ilot-19e-micro-ouvert")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.microCoupe = true; m.donneesChangees(); m.poser(); m.cliquerPastille(); m.poser() }) }, "ilot-19f-video-et-bulle-micro-coupe")
         ecrire(bureau(hauteur: grandBureau) { ilot(miCourse(scene { $0.microCoupe = true; $0.nomMicro = "Micro MacBook Air" }, 0.16) { $0.survole = true }) }, "ilot-19g-micro-coupe-survol-mi-course")
+        // volume et luminosité (maquette ilot-apple.html, cinq idées de plus, 4) : le haut-parleur et la barre dans les ailes (66 pt de
+        // chaque côté au plus) ; pendant une vidéo avec un minuteur en bulle (la bulle ne bouge pas) ; son coupé ; une onde, trois ondes ;
+        // la luminosité ; et l'arrivée à mi-course depuis la vidéo (la forme s'élargit, la barre glisse de l'ancienne valeur)
+        func niveau(_ g: GenreNiveau, _ v: Double, muet: Bool = false, avant: Double? = nil) -> (IlotMoteur) -> Void {
+            { $0.montrerNiveau(NiveauIlot(genre: g, valeur: v, muet: muet), avant: avant ?? v) }
+        }
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(niveau(.volume, 0.5625, avant: 0.5))) }, "ilot-20a-volume")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.minuteur = minut(10, restant: 372); niveau(.volume, 0.5625)(m) }) }, "ilot-20b-volume-pendant-video-et-minuteur")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(niveau(.volume, 0.6, muet: true))) }, "ilot-20c-son-coupe")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(niveau(.volume, 0.125))) }, "ilot-20d-volume-bas")
+        ecrire(bureau(hauteur: petitBureau, clair: false) { ilot(scene(niveau(.volume, 1))) }, "ilot-20e-volume-max-sombre")
+        ecrire(bureau(hauteur: petitBureau, clair: false) { ilot(scene(niveau(.luminosite, 0.3125, avant: 0.25))) }, "ilot-20f-luminosite")
+        ecrire(bureau(hauteur: petitBureau) { ilot(miCourse(scene(lecture: videoLongue) { $0.lecturePresente = true }, 0.22, niveau(.volume, 0.75, avant: 0.6875))) }, "ilot-20g-volume-mi-course")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)

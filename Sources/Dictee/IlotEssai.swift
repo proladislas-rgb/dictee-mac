@@ -375,6 +375,121 @@ enum IlotEssai {
             verifier(!m.boucleActive, "micro : tout est posé, aucune boucle d'animation")
         }
 
+        // --- volume et luminosité : un son et un écran FACTICES (jamais CoreAudio ni DisplayServices, jamais de son) ; les touches sont
+        // de vrais événements « systemDefined » fabriqués et décodés comme dans l'écoute du clavier, jamais envoyés au système
+        do {
+            let faux = NiveauxFactices()
+            c.niveaux = faux
+            c.niveauxActifs = true
+            attendre(1.8) { m.bandeau != nil }
+            verifier(m.resolution.principal == .lectureCompact && m.bandeau == nil, "au départ : la vidéo a l'îlot")
+            /// Une touche passée par le même chemin que l'écoute du clavier ; vrai = avalée.
+            func touche(_ t: ToucheNiveau, enfoncee: Bool = true, repetition: Bool = false, _ f: CGEventFlags = []) -> Bool {
+                let d1 = EvenementNiveau(touche: t, enfoncee: enfoncee, repetition: repetition).data1
+                guard let ns = NSEvent.otherEvent(with: .systemDefined, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+                                                  subtype: Int16(EvenementNiveau.sousTypeTouches), data1: d1, data2: -1),
+                      let cg = ns.cgEvent else { verifier(false, "événement systemDefined impossible à fabriquer"); return false }
+                cg.flags = f
+                guard let e = KeyMonitor.evenementNiveau(cg) else { verifier(false, "événement fabriqué illisible (data1 \(d1))"); return false }
+                return c.toucheNiveau(e, option: cg.flags.contains(.maskAlternate), maj: cg.flags.contains(.maskShift),
+                                      controle: cg.flags.contains(.maskControl), commande: cg.flags.contains(.maskCommand))
+            }
+            func appuyer(_ t: ToucheNiveau, _ f: CGEventFlags = []) -> (bas: Bool, haut: Bool) { let b = touche(t, f); let h = touche(t, enfoncee: false, f); return (b, h) }
+            // volume + : avalé, appliqué, montré dans l'îlot (la barre part de l'ancienne valeur)
+            let p1 = touche(.volumePlus)
+            verifier(p1 && faux.son.valeur == 0.5625 && faux.ecritures == ["volume 0.5625"], "volume + : avalé, volume 0,5 → 0,5625 (un cran de 1/16)")
+            verifier(m.bandeau?.vue == .volume && m.jaugeVolume.x == 0.5 && m.jaugeVolume.cible == 0.5625, "la barre part de 0,5 et vise 0,5625 sur son ressort")
+            verifier(touche(.volumePlus, enfoncee: false), "relâchement : avalé aussi")
+            attendre(0.7)
+            verifier(m.courante == .volume && m.resolution.pastille == nil && m.niveauVu(.volume).symbole == "speaker.wave.2.fill",
+                     "l'îlot montre le haut-parleur (deux ondes) et la barre ; la vidéo ne saute pas dans la bulle")
+            verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && abs(m.trace.hauteur - Double(g.hauteur)) < 0.01,
+                     "volume : dans les ailes, \(Int(m.trace.bande - Double(m.demiCamera))) pt de chaque côté de la caméra (≤ 66), rien sous la barre")
+            let cou = Double(m.grille.cou(.volume) - m.demiCamera)
+            let barre = JaugeNiveau.barre(demiCamera: Double(m.demiCamera), cou: cou)
+            verifier(barre.largeur >= 40 && barre.x + barre.largeur <= Double(m.demiCamera) + cou - 8 + 0.01,
+                     "la barre (\(Int(barre.largeur)) pt) tient dans l'aile droite, à 8 pt du bord")
+            let hp = MesureIlot.symbole("speaker.wave.3.fill", 15), soleil = MesureIlot.symbole("sun.max.fill", 15)
+            verifier(hp <= CGFloat(cou) - 16 && soleil <= CGFloat(cou) - 16, "haut-parleur (\(Int(hp)) pt) et soleil (\(Int(soleil)) pt) tiennent dans l'aile gauche (\(Int(cou) - 16) pt)")
+            // touche tenue : une répétition toutes les 83 ms (le réglage par défaut de macOS), la barre suit d'un seul mouvement
+            let n0 = faux.ecritures.count
+            _ = touche(.volumePlus)
+            var boucle = false
+            for _ in 0..<5 { attendre(0.083); boucle = boucle || m.boucleActive; _ = touche(.volumePlus, repetition: true) }
+            let derniere = Date()
+            _ = touche(.volumePlus, enfoncee: false)
+            verifier(faux.ecritures.count == n0 + 6 && faux.son.valeur == 0.9375 && m.jaugeVolume.cible == 0.9375 && boucle,
+                     "touche tenue : 6 crans (0,5625 → 0,9375), la barre suit sur son ressort")
+            verifier(m.niveauVu(.volume).symbole == "speaker.wave.3.fill", "trois ondes au-dessus des deux tiers")
+            for _ in 0..<4 { _ = appuyer(.volumePlus) }
+            verifier(faux.son.valeur == 1, "plus haut que 1 : non, borné")
+            // reste 1,5 s après la DERNIÈRE touche, puis la vidéo revient
+            attendre(max(0, 1.3 - Date().timeIntervalSince(derniere)))
+            verifier(m.bandeau?.vue == .volume, "1,3 s après la dernière touche : encore là")
+            attendre(0.6)
+            verifier(m.bandeau == nil && m.resolution.principal == .lectureCompact, "1,9 s après : il se retire, la vidéo revient")
+            // muet : une seule bascule, même tenue ; barre vide, haut-parleur barré
+            let mu = touche(.muet); _ = touche(.muet, repetition: true); _ = touche(.muet, repetition: true); _ = touche(.muet, enfoncee: false)
+            verifier(mu && faux.son.muet && faux.son.valeur == 1 && m.niveauVu(.volume).symbole == "speaker.slash.fill" && m.jaugeVolume.cible == 0,
+                     "muet (tenu) : une seule bascule, haut-parleur barré, barre vide, le volume est gardé")
+            _ = appuyer(.volumeMoins)
+            verifier(!faux.son.muet && faux.son.valeur == 0.9375, "volume − sur un son coupé : le son revient, un cran plus bas")
+            // ⌥⇧ : petits pas ; ⌥ seul : macOS (il ouvre les réglages Son)
+            let fin = appuyer(.volumeMoins, [.maskAlternate, .maskShift])
+            verifier(fin.bas && fin.haut && faux.son.valeur == 0.921875, "⌥⇧ volume − : un quart de cran (1/64)")
+            let n1 = faux.ecritures.count
+            let opt = appuyer(.volumeMoins, [.maskAlternate])
+            verifier(!opt.bas && !opt.haut && faux.ecritures.count == n1, "⌥ seul : laissé à macOS (réglages Son), rien n'est réglé")
+            // luminosité, puis le volume aussitôt : l'un remplace l'autre
+            let l1 = appuyer(.luminositePlus)
+            attendre(0.5)
+            verifier(l1.bas && l1.haut && faux.lumiere.valeur == 0.3125 && m.courante == .luminosite && m.niveauVu(.luminosite).symbole == "sun.max.fill"
+                     && m.jaugeLuminosite.cible == 0.3125, "luminosité + : 0,3 → 0,3125, le soleil et sa barre")
+            // la forme posée (le glissement de 44 à 60 pt peut dépasser d'un centième de point pendant qu'il se pose, comme le micro coupé)
+            verifier(m.traceCible.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01, "luminosité : la forme visée tient dans les ailes (≤ 66 pt)")
+            attendre(1.0) { !m.geo.allSatisfy(\.fini) }
+            verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01, "luminosité, posée : \(String(format: "%.1f", m.trace.bande - Double(m.demiCamera))) pt de chaque côté de la caméra (≤ 66)")
+            _ = appuyer(.volumeMoins); attendre(0.5)
+            verifier(m.courante == .volume && m.jaugeLuminosite.x == 0.3125, "volume juste après : le volume remplace la luminosité, chaque barre garde sa valeur")
+            attendre(1.7) { m.bandeau != nil }
+            attendre(1.2) { m.boucleActive }
+            verifier(!m.boucleActive && m.resolution.principal == .lectureCompact, "tout est posé : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
+            // ce qui reste à macOS : sortie HDMI, DisplayServices absent, réglage éteint, dictée en cours
+            let n2 = faux.ecritures.count
+            faux.volumeReglable = false
+            let hdmi = appuyer(.volumePlus)
+            faux.volumeReglable = true; faux.muetPossible = false
+            let sansMuet = appuyer(.muet)
+            faux.muetPossible = true; faux.luminositeDisponible = false
+            let sansEcran = appuyer(.luminositeMoins)
+            faux.luminositeDisponible = true
+            verifier(!hdmi.bas && !hdmi.haut && !sansMuet.bas && !sansEcran.bas && !sansEcran.haut && faux.ecritures.count == n2 && m.bandeau == nil,
+                     "sortie HDMI, sortie sans muet, DisplayServices absent : les touches restent à macOS, l'îlot ne bouge pas")
+            c.niveauxActifs = false
+            let eteint = appuyer(.volumePlus)
+            c.niveauxActifs = true
+            verifier(!eteint.bas && !eteint.haut && faux.ecritures.count == n2, "réglage éteint : rien n'est avalé")
+            occ.dictee = true; c.occupationChangee(); attendre(0.3)
+            let dictee = appuyer(.volumePlus)
+            verifier(m.cache && !dictee.bas && faux.ecritures.count == n2 && m.bandeau == nil, "pendant la dictée : la touche reste à macOS, rien n'attend la fin")
+            // tenue au moment où la dictée commence : la suite est avalée sans rien faire, jusqu'au relâchement
+            occ.dictee = false; c.occupationChangee(); attendre(0.5)
+            _ = touche(.volumePlus)
+            occ.dictee = true; c.occupationChangee()
+            let n3 = faux.ecritures.count
+            let rep = touche(.volumePlus, repetition: true), haut = touche(.volumePlus, enfoncee: false)
+            verifier(rep && haut && faux.ecritures.count == n3, "touche tenue quand la dictée commence : répétitions et relâchement avalés, rien de réglé")
+            occ.dictee = false; c.occupationChangee(); attendre(0.3)
+            // « Réduire les animations » : la barre saute à sa place
+            m.reduire = true
+            _ = appuyer(.volumeMoins)
+            verifier(m.jaugeVolume.fini && m.jaugeVolume.x == faux.son.valeur, "« Réduire les animations » : la barre est posée tout de suite")
+            m.reduire = false
+            attendre(1.8) { m.bandeau != nil }
+            attendre(1.2) { m.boucleActive }
+            verifier(!m.boucleActive && m.bandeau == nil, "volume et luminosité : fini, aucune boucle d'animation")
+        }
+
         // --- réunion : rien à l'écran, vibration seule
         occ.reunion = true; c.occupationChangee(); attendre(0.5)
         let s0 = compteurs
