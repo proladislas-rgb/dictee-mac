@@ -28,6 +28,7 @@ enum IlotEssai {
         var notes = 0
         var pressePapiers: [String] = []
         var fenetres: [Onglet] = []
+        var ecransRallumes = 0
         func fabriquer() -> IlotControleur {
             // l'étagère et la bibliothèque aussi dans le dossier temporaire : jamais le vrai etagere.json ni le vrai bibliotheque.json ; les
             // sources de la bibliothèque lisent des dossiers temporaires (jamais Téléchargements ni le Bureau), sans toucher aux réglages
@@ -38,9 +39,22 @@ enum IlotEssai {
             // les fichiers des dossiers d'essai sont datés par leur date de création (posée par l'essai), pas par leur arrivée dans le dossier
             bib.lireDossiers = { s, d in SourcesBibliotheque.lire(s, dossiers: d).map { e in
                 var x = e; if let c = try? FileManager.default.attributesOfItem(atPath: e.chemin)[.creationDate] as? Date { x.date = c }; return x } }
-            let c = IlotControleur(stockage: RappelsStore(url: fichier), etagere: EtagereStore(url: dossier.appendingPathComponent("etagere.json")), bibliotheque: bib)
+            // le réveil aussi dans le dossier temporaire (jamais le vrai reveil.json), l'écran jamais rallumé ; le calendrier jamais demandé ni lu
+            let c = IlotControleur(stockage: RappelsStore(url: fichier), etagere: EtagereStore(url: dossier.appendingPathComponent("etagere.json")), bibliotheque: bib,
+                                   reveil: ReveilStore(url: dossier.appendingPathComponent("reveil.json")))
+            c.allumerEcran = { ecransRallumes += 1 }
+            c.statutCalendrier = { .nonDemande }
+            c.demanderCalendrier = { false }
+            c.lireEvenements = { _ in [] }
+            c.reglagesCentre.calendrier = { false }
+            c.reglagesCentre.reglerCalendrier = { _ in }
+            c.reglagesCentre.nouveautes = { [] }
+            c.reglagesCentre.marquerNouveautes = { _ in }
+            c.reglagesCentre.disposition = { nil }
+            c.reglagesCentre.enregistrerDisposition = { _ in }
             c.maintenant = { Date().addingTimeInterval(decalage) }
-            c.sons = IlotControleur.SonsIlot(minuteurFini: { compteurs.minuteur += 1 }, rappel: { compteurs.rappel += 1 }, doux: { compteurs.doux += 1 }, silencieux: { compteurs.silence += 1 })
+            c.sons = IlotControleur.SonsIlot(minuteurFini: { compteurs.minuteur += 1 }, rappel: { compteurs.rappel += 1 }, doux: { compteurs.doux += 1 }, silencieux: { compteurs.silence += 1 },
+                                             reveil: { compteurs.minuteur += 1 })
             c.ouvrir = { liensOuverts.append($0) }
             c.montrer = { finder.append($0) }
             c.surNoter = { _ in notes += 1 }
@@ -61,11 +75,15 @@ enum IlotEssai {
         let g = m.geometrie
         print("caméra : \(Int(g.largeur)) × \(Int(g.hauteur)) pt")
 
-        // `DICTEE_ESSAI_SEUL=bibliotheque` : la section de la Bibliothèque seule (pour la mettre au point sans attendre tout l'essai)
-        if ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"] == "bibliotheque" {
+        // `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`) : une section seule (pour la mettre au point sans attendre tout l'essai)
+        if let seul = ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"], ["bibliotheque", "reveil"].contains(seul) {
             attendre(0.4)
-            IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
-                                   fenetres: { fenetres }, relancer: { fabriquer() })
+            if seul == "bibliotheque" {
+                IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
+                                       fenetres: { fenetres }, relancer: { fabriquer() })
+            } else {
+                IlotEssai.reveilEtCalendrier(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
+            }
             c.arreter()
             print(echecs == 0 ? "essai terminé : tout est vert" : "essai terminé : \(echecs) échec(s)")
             return echecs == 0 ? 0 : 1
@@ -985,6 +1003,7 @@ enum IlotEssai {
         IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
         IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
                                fenetres: { fenetres }, relancer: { fabriquer() })
+        IlotEssai.reveilEtCalendrier(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)

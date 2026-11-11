@@ -452,6 +452,39 @@ enum RenduLecture {
             ecrire(bureau(hauteur: hCentre) { ilot(miCourse(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpodsPro
                 m.donneesChangees(); m.survole = true; m.donneesChangees() }, t) { $0.allerA(.centre) }) }, "ilot-23n\(nom)-centre-passage-\(Int(t * 1000))ms")
         }
+        // le Réveil et le Calendrier (maquette ilot-bibliotheque.html, étapes 7 à 13) : le Centre à six ronds (ordre de la maquette), l'onglet
+        // Réveil (rien, 9:00 choisi, « Autre… »), le bandeau « Réveil réglé » (à la voix), le réveil replié, l'alerte, la bulle pendant une
+        // vidéo ; le rond Calendrier (un instant, allumé, refusé), le bandeau 10 min avant, la petite aile, l'alerte « Rejoindre · Noter »
+        let sixMaquette = DispositionCentre([.micro, .telechargements, .dictee, .calendrier, .claude, .rappel, .minuteur, .etagere, .reunion])
+        let etagereMaquette = etagere([("Devis-cuisine.pdf", .pdf), ("Plan-salon.jpg", .jpeg), ("Contrat.pdf", .pdf), ("Lettre-banque.docx", UTType(filenameExtension: "docx") ?? .data)])
+        let neuf = ReveilIlot(heure: 9, minute: 0, apres: t0)
+        let meet = URL(string: "https://meet.google.com/abc-defg-hij")!
+        let pointClient = EvenementAgenda(id: "pc", titre: "Point client", debut: t0.addingTimeInterval(600), fin: t0.addingTimeInterval(2400), lien: meet)
+        let pointClientMaintenant = EvenementAgenda(id: "pc", titre: "Point client", debut: t0, fin: t0.addingTimeInterval(1800), lien: meet)
+        func centreVide(_ config: @escaping (IlotMoteur) -> Void = { _ in }) -> (IlotMoteur) -> Void {
+            { m in m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpodsPro
+                m.choixMicro = ("AirPods Pro de Hugues", true); m.etagereActive = true; m.etagere = etagereMaquette; m.disposition = sixMaquette
+                m.telechargementsActifs = true; m.claudeBranche = true; m.calendrierActif = false
+                m.donneesChangees(); m.survole = true; m.donneesChangees(); m.epinglerLeCentre(); config(m); m.donneesChangees() }
+        }
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(centreVide { m in m.ongletMinuteur = .reveil })) }, "ilot-26a-reveil-7-onglet-reveil")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(centreVide { m in m.reveil = neuf })) }, "ilot-26b-reveil-7-neuf-heures-choisi")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(centreVide { m in m.ongletMinuteur = .reveil; m.reveilAutre = (7, 30) })) }, "ilot-26c-reveil-autre-moins-plus")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { m in m.reveil = neuf
+            m.bandeau = BandeauIlot(vue: .reveilRegle, jusqua: t0, ligne1: "Réveil réglé \u{00B7} 9:00", ligne2: neuf.ligneReglee(maintenant: t0)) }) }, "ilot-26d-reveil-8-regle-a-la-voix")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { m in m.reveil = neuf }) }, "ilot-26e-reveil-8-replie-9-00")
+        ecrire(bureau(hauteur: moyenBureau) { ilot(scene { m in m.alerte = AlerteIlot(vue: .reveilFini, jusqua: nil, libelle: "9:00") }) }, "ilot-26f-reveil-9-sonne")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.reveil = neuf }) }, "ilot-26g-reveil-dans-la-bulle-pendant-video")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(centreVide { m in m.calendrierAttente = true })) }, "ilot-26h-calendrier-10-un-instant")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(centreVide { m in m.calendrierActif = true })) }, "ilot-26i-calendrier-10-allume")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(centreVide { m in m.calendrierRefuse = true; m.avisCentre = .calendrierRefuse })) }, "ilot-26j-calendrier-acces-refuse")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { m in m.rendezVous = pointClient; m.rendezVousProche = true
+            m.bandeau = BandeauIlot(vue: .agendaAvant, jusqua: t0, ligne1: "Point client", ligne2: "Dans 10 min \u{00B7} Visio", evenement: pointClient) }) }, "ilot-26k-calendrier-11-dans-10-min")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { m in m.rendezVous = pointClient; m.rendezVousProche = true }) }, "ilot-26l-calendrier-11-aile-10-min")
+        ecrire(bureau(hauteur: moyenBureau + 20) { ilot(scene { m in m.rendezVous = pointClientMaintenant; m.alerte = AlerteIlot(vue: .agendaDebut, jusqua: nil, evenement: pointClientMaintenant) }) },
+               "ilot-26m-calendrier-12-rejoindre-et-noter")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(centreVide { m in var d = DispositionCentre(); d.ajouter(.rappel); m.disposition = d; m.reveil = neuf; m.calendrierActif = true })) },
+               "ilot-26n-centre-six-ronds-noms-sur-deux-lignes-sombre")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)

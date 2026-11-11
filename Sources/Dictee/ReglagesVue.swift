@@ -93,10 +93,10 @@ struct ReglagesVue: View {
     private var ilot: some View {
         VStack(alignment: .leading, spacing: 0) {
             EnteteSection(titre: "Îlot", phrase: "Le minuteur, les rappels et les rendez-vous dans l\u{2019}encoche.", compte: nil)
-            LigneReglage(libelle: "Minuteur", note: "Depuis le Centre de l\u{2019}îlot (survol de l\u{2019}encoche vide, ou bouton « Centre » sous la lecture), ou en dictant « minuteur 10 minutes » quand le Centre est ouvert.", premiere: true) {
-                Interrupteur(actif: $r.ilotMinuteur, etiquette: "Minuteur")
+            LigneReglage(libelle: "Minuteur et réveil", note: "Depuis le Centre de l\u{2019}îlot (survol de l\u{2019}encoche vide, ou bouton « Centre » sous la lecture), ou en dictant « minuteur 10 minutes » quand le Centre est ouvert. Le réveil : onglet « Réveil » de la case Minuteur, ou « réveille-moi à 9 h » dicté, même l\u{2019}îlot fermé ; il sonne comme le minuteur. Limite : si le Mac dort à l\u{2019}heure du réveil (capot fermé, veille), Verbe ne peut pas le réveiller (macOS réserve ce droit à l\u{2019}administrateur) : le réveil sonne dès que le Mac se réveille, jusqu\u{2019}à 2 h de retard. Écran éteint mais Mac allumé, il sonne à l\u{2019}heure.", premiere: true) {
+                Interrupteur(actif: $r.ilotMinuteur, etiquette: "Minuteur et réveil")
             }
-            LigneReglage(libelle: "Son de fin du minuteur", note: "Joué quand un minuteur ou un rappel sonne ; le volume du Mac le coupe.") {
+            LigneReglage(libelle: "Son de fin du minuteur", note: "Joué quand un minuteur, un réveil ou un rappel sonne ; le volume du Mac le coupe.") {
                 ChoixReglage(libelle: "Son de fin du minuteur", valeur: $r.sonFinMinuteur, options: Settings.sonsDisponibles.map { ($0, $0) })
                 BoutonCadre("Écouter") { Retours.sonIlot(r.sonFinMinuteur) }
             }

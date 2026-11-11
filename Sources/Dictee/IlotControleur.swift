@@ -99,6 +99,8 @@ final class IlotControleur {
         var rappel: @MainActor () -> Void = { Retours.rappelSonne() }
         var doux: @MainActor () -> Void = { Retours.bandeauDoux() }
         var silencieux: @MainActor () -> Void = { Retours.alerteSilencieuse() }
+        /// Le réveil qui sonne : comme le minuteur fini (trois sons, trois frappes).
+        var reveil: @MainActor () -> Void = { Retours.minuteurFini() }
     }
 
     private(set) var minuteur: MinuteurIlot?
@@ -114,6 +116,18 @@ final class IlotControleur {
     /// La Bibliothèque (Bibliotheque.swift) : tout ce qui est passé par l'étagère, plus les sources allumées. Partagée avec l'onglet
     /// « Bibliothèque » de la fenêtre.
     let bibliotheque: BibliothequeModele
+    /// Le réveil (IlotReveil.swift) : réglé, son fichier (Application Support, 0600), son unique échéance (sur l'horloge murale : le
+    /// temps passé en veille compte), l'écoute du réveil du Mac, et l'écran rallumé au moment de sonner (injectable : un essai ne
+    /// rallume jamais l'écran).
+    var reveil: ReveilIlot?
+    var reveilStore: ReveilStore
+    var echeanceReveil: DispatchWorkItem?
+    var observateurReveilMac: NSObjectProtocol?
+    var allumerEcran: () -> Void = { IlotControleur.declarerActivite() }
+    /// Le calendrier du Mac, injectable : les essais ne demandent jamais l'accès et ne lisent jamais les vrais rendez-vous (nil : EventKit).
+    var statutCalendrier: () -> AgendaSysteme.Statut = { AgendaSysteme.statutSysteme }
+    var demanderCalendrier: (@MainActor () async -> Bool)?
+    var lireEvenements: ((Date) -> [EvenementAgenda])?
     private var reveilMinuteur: DispatchWorkItem?
     private var reveilRappels: DispatchWorkItem?
     private var reveilAgenda: DispatchWorkItem?
@@ -128,8 +142,9 @@ final class IlotControleur {
     private var armeFormulaire = false
 
     init(stockage: RappelsStore = RappelsStore(url: RappelsStore.urlParDefaut), etagere etagereStore: EtagereStore = EtagereStore(url: EtagereStore.urlParDefaut),
-         bibliotheque: BibliothequeModele? = nil) {
+         bibliotheque: BibliothequeModele? = nil, reveil reveilStore: ReveilStore = ReveilStore(url: ReveilStore.urlParDefaut)) {
         self.stockage = stockage
+        self.reveilStore = reveilStore
         rappels = stockage.lire()
         self.etagereStore = etagereStore
         etagere = etagereStore.lire()
@@ -183,8 +198,26 @@ final class IlotControleur {
         verifierLesRappels()
         // le Centre : l'aide sous le bouton « Centre » tant qu'il n'a pas servi ; au tout premier lancement, la bulle « Nouveau »
         moteur.aideCentre = !reglagesCentre.centreUtilise()
-        moteur.disposition = DispositionCentre(identifiants: reglagesCentre.disposition())
+        moteur.disposition = dispositionAvecNouveautes()
         if !reglagesCentre.bulleVue() { moteur.montrerBulle() }
+        // le réveil gardé (Verbe relancé, Mac redémarré) : il reprend, ou sonne s'il est passé pendant que Verbe était fermé
+        demarrerLeReveil()
+    }
+
+    /// Ce que le Centre montre, relu des réglages ; un Centre rangé avant l'arrivée du calendrier le reçoit une fois, à sa place.
+    func dispositionAvecNouveautes() -> DispositionCentre {
+        let ids = reglagesCentre.disposition()
+        let d = DispositionCentre(identifiants: ids)
+        guard ids != nil else { return d }
+        let vues = Set(reglagesCentre.nouveautes())
+        let r = d.avecNouveautes(dejaProposees: vues)
+        guard !r.proposees.isEmpty else { return d }
+        reglagesCentre.marquerNouveautes(Array(vues) + r.proposees.map(\.rawValue))
+        if r.disposition != d {
+            reglagesCentre.enregistrerDisposition(r.disposition.identifiants)
+            Log.ecrire("centre : ajouté une fois au Centre rangé : \(r.proposees.map(\.rawValue).joined(separator: ", "))")
+        }
+        return r.disposition
     }
 
     func arreter() {
@@ -197,32 +230,14 @@ final class IlotControleur {
         activerClaude(false)
         agenda.arreter()
         panneau.fermer()
-        [reveilMinuteur, reveilRappels, reveilAgenda].forEach { $0?.cancel() }
+        [reveilMinuteur, reveilRappels, reveilAgenda, echeanceReveil].forEach { $0?.cancel() }
+        if let o = observateurReveilMac { NSWorkspace.shared.notificationCenter.removeObserver(o) }
+        observateurReveilMac = nil
     }
 
     /// Lecture de `Settings` : chaque activité s'allume ou s'éteint. Le calendrier ne demande son autorisation qu'ici, à l'activation.
     func appliquerLesReglages() {
-        moteur.calendrierActif = Settings.ilotCalendrier && agenda.statut == .autorise
-        if Settings.ilotCalendrier {
-            switch agenda.statut {
-            case .autorise: agenda.ecouter(); relireAgenda()
-            case .nonDemande:
-                Task { @MainActor in
-                    let ok = await agenda.demander()
-                    if !ok { Settings.ilotCalendrier = false; Log.ecrire("calendrier : accès refusé, réglage éteint") }
-                    else { agenda.ecouter() }
-                    NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
-                    appliquerLesReglages()
-                }
-            case .refuse:
-                Settings.ilotCalendrier = false
-                Log.ecrire("calendrier : accès refusé dans Réglages Système, réglage éteint")
-                NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
-            }
-        } else {
-            agenda.arreter(); evenements = []; reveilAgenda?.cancel()
-            moteur.rendezVous = nil; moteur.rendezVousProche = false; moteur.rendezVousSuivant = nil
-        }
+        appliquerLeCalendrier()
         if Settings.ilotNotifications {
             if !notificationsSource.actif, !notificationsSource.demarrer() { Log.ecrire("notifications : non démarrées (voir plus haut)") }
         } else { notificationsSource.arreter(); moteur.notifications = [] }
@@ -244,6 +259,39 @@ final class IlotControleur {
         activerEtagere(Settings.ilotEtagere)
         activerLeMicro(Settings.ilotMicro)
         moteur.donneesChangees()
+    }
+
+    /// Le calendrier (Réglages › Îlot, ou le rond Calendrier du Centre) : allumé, on écoute EventKit et on relit les prochaines heures ;
+    /// l'accès n'est demandé qu'ici, quand on vient de l'allumer (jamais au lancement) ; refusé, le réglage s'éteint.
+    func appliquerLeCalendrier() {
+        let allume = reglagesCentre.calendrier()
+        moteur.calendrierActif = allume && statutCalendrier() == .autorise
+        if allume {
+            switch statutCalendrier() {
+            case .autorise: agenda.ecouter(); relireAgenda()
+            case .nonDemande:
+                Task { @MainActor in
+                    let ok = await demanderLAccesAuCalendrier()
+                    if !ok { reglagesCentre.reglerCalendrier(false); Log.ecrire("calendrier : accès refusé, réglage éteint") }
+                    NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
+                    appliquerLeCalendrier()
+                }
+            case .refuse:
+                reglagesCentre.reglerCalendrier(false)
+                moteur.calendrierActif = false
+                Log.ecrire("calendrier : accès refusé dans Réglages Système, réglage éteint")
+                NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
+            }
+        } else {
+            agenda.arreter(); evenements = []; reveilAgenda?.cancel()
+            moteur.rendezVous = nil; moteur.rendezVousProche = false; moteur.rendezVousSuivant = nil
+        }
+        moteur.donneesChangees()
+    }
+    /// La question de macOS (une seule fois) ; injectable.
+    func demanderLAccesAuCalendrier() async -> Bool {
+        if let d = demanderCalendrier { return await d() }
+        return await agenda.demander()
     }
 
     // MARK: micro coupé
@@ -410,6 +458,7 @@ final class IlotControleur {
         if moteur.reunion { sons.silencieux(); return }
         switch v {
         case .minuteurFini: sons.minuteurFini(); moteur.bourdonner()
+        case .reveilFini: sons.reveil(); moteur.bourdonner()
         case .rappelEtendu, .agendaDebut: sons.rappel(); moteur.bourdonner()
         default: sons.doux()
         }
@@ -475,7 +524,8 @@ final class IlotControleur {
                 NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
             }
             lancerLeMinuteur(secondes: minutes * 60, bandeau: false, fermer: false)
-        case .centreMicro, .centreTelechargements, .centreClaude, .etagereAllumer, .centreReunion, .centreAvis: agirCentre(action)
+        case .centreMicro, .centreTelechargements, .centreClaude, .etagereAllumer, .centreReunion, .centreAvis, .centreCalendrier: agirCentre(action)
+        case .reveilRegler, .reveilAnnuler, .reveilEncore, .reveilOK: agirReveil(action)
         case .alerteOK: moteur.quitterAlerte()
         case .rappelPlusTard(let id):
             rappels.reporter(id, depuis: maintenant()); sauver()
@@ -647,8 +697,8 @@ final class IlotControleur {
     // MARK: calendrier
 
     func relireAgenda() {
-        guard Settings.ilotCalendrier, agenda.statut == .autorise else { return }
-        evenements = agenda.prochains(depuis: maintenant())
+        guard reglagesCentre.calendrier(), statutCalendrier() == .autorise else { return }
+        evenements = lireEvenements?(maintenant()) ?? agenda.prochains(depuis: maintenant())
         moteur.calendrierActif = true
         planifierAgenda()
     }
@@ -694,7 +744,7 @@ final class IlotControleur {
         moteur.donneesChangees()
     }
     private func relireAgendaOuPlanifier() {
-        if Settings.ilotCalendrier, agenda.statut == .autorise { evenements = agenda.prochains(depuis: maintenant()) }
+        if reglagesCentre.calendrier(), statutCalendrier() == .autorise { evenements = lireEvenements?(maintenant()) ?? agenda.prochains(depuis: maintenant()) }
         planifierAgenda()
     }
 
@@ -712,7 +762,14 @@ final class IlotControleur {
     /// Appelée avec le texte final d'une dictée, avant le collage. Vrai si c'était une commande de l'îlot (le texte n'est alors PAS collé).
     /// Ne s'applique que si l'accueil de l'îlot était ouvert au début de la dictée : une dictée normale n'est jamais mangée.
     func intercepter(_ texte: String) -> Bool {
-        guard armeJusqua > maintenant() else { return false }
+        // l'îlot fermé, une seule commande : le réveil, et seulement si la phrase entière l'est (« réveille-moi à 9 h ») ; une phrase qui
+        // le contient (« dis-lui de me réveiller à 9 h ») est collée normalement (maquette, étape 8 : « sans rien ouvrir »)
+        guard armeJusqua > maintenant() else {
+            guard reglagesCentre.minuteurActif(), let r = AnalyseCommandeIlot.reveil(texte) else { return false }
+            reglerLeReveil(heure: r.heure, minute: r.minute, aLaVoix: true)
+            Log.ecrire("îlot : réveil dicté (îlot fermé)")
+            return true
+        }
         let formulaire = armeFormulaire
         armeJusqua = .distantPast; armeFormulaire = false
         guard let commande = AnalyseCommandeIlot.analyser(texte, maintenant: maintenant(), exigerPrefixe: !formulaire) else { return false }
@@ -722,6 +779,9 @@ final class IlotControleur {
             lancerLeMinuteur(secondes: secondes, bandeau: true)
         case .rappel(let t, let quand):
             guard Settings.ilotRappels, ajouterUnRappel(texte: t, quand: quand) != nil else { return false }
+        case .reveil(let h, let mn):
+            guard reglagesCentre.minuteurActif() else { return false }
+            reglerLeReveil(heure: h, minute: mn, aLaVoix: true)
         }
         Log.ecrire("îlot : commande dictée exécutée (\(formulaire ? "formulaire" : "accueil"))")
         return true

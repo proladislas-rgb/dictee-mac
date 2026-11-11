@@ -43,6 +43,8 @@ struct ContenuAnnonce {
     var glisser: URL? = nil
     /// À la place du symbole : l'étoile de Claude (dessinée, en corail).
     var etoile = false
+    /// À la place du symbole : le réveil qui se secoue (l'alerte du réveil).
+    var reveil = false
 
     static let cote: CGFloat = 26, espace: CGFloat = 12, espaceBoutons: CGFloat = 8, espaceJauges: CGFloat = 8
     /// L'icône d'un fichier : 38 pt, presque la hauteur des deux lignes (maquette ilot-apple.html, « Téléchargé »).
@@ -68,6 +70,17 @@ enum ContenuAgenda {
         return b
     }
     static func ligneLieu(_ e: EvenementAgenda) -> String { e.lien.map { ($0.host ?? "") + $0.path } ?? e.lieu ?? "" }
+    /// Le rendez-vous qui commence (maquette ilot-bibliotheque.html, étape 12) : « Rejoindre » (vert, s'il y a un lien de visio) et « Noter
+    /// la réunion », côte à côte, de même largeur, sous la ligne de l'annonce.
+    static func boutonsDebut(_ e: EvenementAgenda) -> [ContenuAnnonce.Bouton] {
+        var b: [ContenuAnnonce.Bouton] = []
+        if e.lien != nil {
+            b.append(.init(titre: "Rejoindre", icone: "video.fill", style: .vert,
+                           etiquette: "Rejoindre la visio (\(e.lien.map(LienVisio.service) ?? "Visio"))", action: .rendezVousRejoindre(e)))
+        }
+        b.append(.init(titre: "Noter la réunion", icone: "record.circle", action: .rendezVousNoter(e)))
+        return b
+    }
 }
 
 /// Mesures au point près avec les polices de l'îlot (Core Text, comme SwiftUI), arrondies vers le haut : un texte mesuré ne finit
@@ -130,10 +143,19 @@ extension IlotMoteur {
             return ContenuAnnonce(glyphe: GlypheIlot(nom: GlypheIlot.calendrier, couleur: CouleursIlot.rouge, taille: 21), l1: b?.ligne1 ?? e?.titre ?? "",
                                   l2: b?.ligne2 ?? "", droite: e.map { .meta(FormatIlot.heure($0.debut)) } ?? .rien)
         case .agendaDebut:
-            let e = rdvVu, visio = e?.lien != nil
+            // la ligne du haut ; « Rejoindre » et « Noter la réunion » sont dessous (`ContenuAgenda.boutonsDebut`, IlotVues)
+            let e = rdvVu
             return ContenuAnnonce(glyphe: GlypheIlot(nom: GlypheIlot.calendrier, couleur: CouleursIlot.rouge, taille: 21),
-                                  l1: (e?.titre ?? "") + " commence", l2: "Maintenant" + (visio ? " \u{00B7} Visio" : ""),
-                                  droite: e.flatMap { e in visio ? .boutons([.init(titre: "Rejoindre", icone: "video.fill", style: .vert, action: .rendezVousRejoindre(e))]) : nil } ?? .rien)
+                                  l1: (e?.titre ?? "") + " commence", l2: "Maintenant" + (e?.lien.map { " \u{00B7} " + LienVisio.service($0) } ?? ""),
+                                  droite: e.map { .meta(FormatIlot.heure($0.debut)) } ?? .rien)
+        case .reveilRegle:
+            return ContenuAnnonce(glyphe: GlypheIlot(nom: "alarm", couleur: CouleursIlot.ambre, taille: 21), l1: b?.ligne1 ?? "Réveil réglé",
+                                  l2: b?.ligne2 ?? "", droite: .boutons([.init(titre: "Annuler", etiquette: "Annuler le réveil", action: .reveilAnnuler)]))
+        case .reveilFini:
+            // le réveil se secoue à l'arrivée (sa place est gardée : `ReveilSecoue`, IlotVues)
+            return ContenuAnnonce(glyphe: nil, l1: "Réveil \u{00B7} " + (alerteVu?.libelle ?? ""), l2: ReveilIlot.salut(maintenant()),
+                                  droite: .boutons([.init(titre: "Encore 10 min", etiquette: "Encore 10 minutes", action: .reveilEncore),
+                                                    .init(titre: "OK", style: .ambre, etiquette: "Arrêter le réveil", action: .reveilOK)]), reveil: true)
         case .notification:
             guard let x = notifications.last else { return nil }
             return ContenuAnnonce(glyphe: Self.glypheApp(x.app), l1: x.titre.isEmpty ? x.app : x.titre, l2: x.corps.isEmpty ? x.app : x.corps, droite: .meta("maintenant"))
@@ -203,6 +225,13 @@ extension IlotMoteur {
             return ContenuAgenda.retrait + max(textes, MesureIlot.boutons(ContenuAgenda.boutons(e), memeLargeur: true))
         }
         guard let c = contenuAnnonce(v) else { return nil }
+        // le rendez-vous qui commence : la ligne du haut, ou les deux boutons de même largeur dessous (le plus large des deux)
+        if v == .agendaDebut, let e = rdvVu {
+            let bs = ContenuAgenda.boutonsDebut(e)
+            let haut = c.coteSymbole + ContenuAnnonce.espace + max(MesureIlot.texte(c.l1, 17, .semibold, interlettre: ContenuAnnonce.interlettreL1), MesureIlot.texte(c.l2, 12.5, .medium))
+                + ContenuAnnonce.espace + MesureIlot.texte(FormatIlot.heure(e.debut), 13, .semibold, chiffres: true)
+            return max(haut, MesureIlot.boutons(bs, memeLargeur: true))
+        }
         let textes = max(MesureIlot.texte(c.l1, 17, .semibold, interlettre: ContenuAnnonce.interlettreL1), MesureIlot.texte(c.l2, 12.5, .medium))
         var l = c.coteSymbole + ContenuAnnonce.espace + textes
         switch c.droite {

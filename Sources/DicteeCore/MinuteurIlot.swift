@@ -52,6 +52,9 @@ public struct MinuteurIlot: Equatable, Sendable {
 public enum CommandeIlot: Equatable, Sendable {
     case minuteur(secondes: Double)
     case rappel(texte: String, quand: Date)
+    /// « réveille-moi à 9 h » (ReveilIlot.swift) : la seule commande qu'on peut aussi dicter l'îlot fermé, et seulement si la phrase entière
+    /// est la commande.
+    case reveil(heure: Int, minute: Int)
 }
 
 public enum AnalyseCommandeIlot {
@@ -173,9 +176,10 @@ public enum AnalyseCommandeIlot {
         return premier.uppercased() + t.dropFirst()
     }
 
-    /// La commande dictée, s'il y en a une (le minuteur d'abord, puis le rappel).
+    /// La commande dictée, s'il y en a une (le minuteur d'abord, puis le réveil, puis le rappel).
     public static func analyser(_ texte: String, maintenant: Date, calendrier: Calendar = .current, exigerPrefixe: Bool = true) -> CommandeIlot? {
         if let s = minuteur(texte) { return .minuteur(secondes: s) }
+        if let r = reveil(texte) { return .reveil(heure: r.heure, minute: r.minute) }
         if let r = rappel(texte, maintenant: maintenant, calendrier: calendrier, exigerPrefixe: exigerPrefixe) { return .rappel(texte: r.texte, quand: r.quand) }
         return nil
     }

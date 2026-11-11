@@ -146,13 +146,13 @@ extension IlotEssai {
         // la Dictée : seulement avec un micro Bluetooth
         c.lireMicros = { [PeripheriqueEntree(uid: "essai-airpods", nom: "AirPods Pro", transport: .bluetooth)] }
         m.allerA(.centre); pause(0.9)
-        verifier(m.courante == .centre && m.rondsCentre == [.micro, .dictee, .telechargements, .claude], "AirPods là : le bouton Dictée paraît (4 boutons)")
+        verifier(m.courante == .centre && m.rondsCentre == [.micro, .dictee, .telechargements, .calendrier, .claude], "AirPods là : le bouton Dictée paraît (5 boutons)")
         clic(rond(.dictee), 0.5)
         verifier(memoire.micro == "essai-airpods" && m.choixMicro?.airpods == true && m.courante == .centre, "vrai clic sur Dictée : la dictée écoutera les AirPods")
         clic(rond(.dictee), 0.5)
         verifier(memoire.micro == nil && m.choixMicro?.airpods == false, "second clic : le micro du Mac (réglage Automatique)")
         c.lireMicros = { [] }; c.relireChoixMicro(); m.donneesChangees(); pause(0.5)
-        verifier(m.rondsCentre.count == 3, "AirPods partis : trois boutons")
+        verifier(m.rondsCentre.count == 4, "AirPods partis : quatre boutons")
 
         // --- un fichier glissé sur le Centre ouvert : la case Étagère s'éclaire, la forme ne bouge pas, le Centre reste ouvert
         let rayon = dossier.appendingPathComponent("Centre-étagère", isDirectory: true)

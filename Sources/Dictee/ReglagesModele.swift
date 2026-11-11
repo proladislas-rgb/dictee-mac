@@ -57,7 +57,7 @@ final class ReglagesModele: ObservableObject {
     @Published var sonFinMinuteur: String { didSet { if !installe { return }; Settings.sonFinMinuteur = sonFinMinuteur } }
     var phraseCalendrier: String {
         if reel, !ilotCalendrier, EKAutorisation.refusee { return "L\u{2019}accès est refusé : à autoriser dans Réglages Système › Confidentialité et sécurité › Calendriers." }
-        return "10 minutes avant et au début d\u{2019}un rendez-vous, avec « Rejoindre ». Lit les calendriers du Mac ; la demande d\u{2019}accès n\u{2019}apparaît qu\u{2019}ici."
+        return "10 minutes avant et au début d\u{2019}un rendez-vous, avec « Rejoindre » (Meet, Zoom, Teams) et « Noter la réunion ». Lit les calendriers du Mac ; la demande d\u{2019}accès n\u{2019}apparaît qu\u{2019}ici ou au premier clic sur le rond Calendrier du Centre."
     }
     @Published var modeleWhisper: ModeleWhisper { didSet { if !installe { return }; Settings.modeleWhisper = modeleWhisper } }
     /// La phrase sous « Vitesse de transcription » (avec les latences mesurées chez Hugues).

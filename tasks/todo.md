@@ -223,3 +223,13 @@ Rien n'est retiré du Centre ni de l'étagère : on AJOUTE.
 - [x] 5. Essai à vrais clics (IlotEssaiBibliotheque), rendus 25*, comparaison à la maquette, commits
   → 2 138 contrôles, `--ilot-essai` tout vert (515 vérifications dont la section Bibliothèque à vrais clics, touches et défilements), rendus 25a-25j (+ 22e/22f/22g/23m, la ligne « Bibliothèque » ajoutée à la carte Étagère).
 - [ ] Hugues : essayer en vrai (glisser plusieurs fichiers vers Mail avec « Glisser les 3 » ; allumer Téléchargés/Captures dans l'onglet : macOS demande l'accès une fois). Non vérifié d'ici : le vrai glisser vers une autre app (l'essai ne fait que préparer les 3 éléments), les vignettes QuickLook de vrais fichiers, la question d'accès de macOS.
+
+## Le Réveil et le Calendrier (branche bibliotheque, 11/11 soir) — même maquette, étapes 7 à 13
+Rien n'est retiré du Centre : on AJOUTE (un onglet Réveil dans la case Minuteur, un 6e rond Calendrier).
+- [x] 1. DicteeCore : ReveilIlot (heure, prochaine sonnerie, « Encore 10 min », fichier JSON), commande dictée « réveille-moi à 9 h » / « réveil à 7 h 30 » (stricte : la phrase entière), vues reveilCompact / reveilRegle / reveilFini, activité .reveil, ElementCentre.calendrier, six ronds, noms sur deux lignes mesurés
+- [x] 2. App : réveil gardé dans Application Support (0600), une seule échéance sur l'horloge murale (la veille compte), relu au réveil du Mac ; pas de réveil du Mac endormi (IOPMSchedulePowerEvent exige root) : limite écrite dans la note du réglage ; écran rallumé (activité déclarée) au moment de sonner, injectable
+- [x] 3. Centre : sélecteur « Minuteur · Réveil », 7:00 · 8:00 · 9:00 · Autre… (− / + par 15 min, OK), « demain » ; cases 1,16 / 0,84 (maquette) ; rond Calendrier (Éteint → clic → macOS demande une fois → Allumé ; refusé : « Accès refusé » + ligne vers Réglages Système)
+- [x] 4. Alerte de début d'un rendez-vous : « Rejoindre » ET « Noter la réunion » (maquette, 2e ligne) ; nom du service (Google Meet, Zoom, Teams)
+- [x] 5. Contrôles, essai à vrais clics (IlotEssaiReveil), rendus 26*, comparaison à la maquette, commit
+  → contrôles et `--ilot-essai` tout verts (68 vérifications de plus pour le Réveil et le Calendrier, à vrais clics), rendus 26a-26n ; le calendrier s'ajoute UNE fois à un Centre déjà rangé (« Modifier »), retiré ensuite il ne revient pas.
+- [ ] Hugues : essayer en vrai (onglet Réveil, « réveille-moi à 9 h » îlot fermé, rond Calendrier : macOS demande une fois, un vrai rendez-vous Meet/Zoom). Non vérifié d'ici : la vraie question de macOS pour les calendriers, le vrai son et l'écran rallumé au réveil, un réveil pendant la veille du Mac (il ne PEUT pas réveiller le Mac : root).

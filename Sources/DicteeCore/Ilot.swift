@@ -10,6 +10,9 @@ public enum VueIlot: String, CaseIterable, Sendable {
     case lectureCompact, lectureEtendu, lectureMinuteur
     case rappelEtendu, rappelCompact, rappelAjoute, rappelFait, rappelReporte, rappelListe
     case agendaAvant, agendaCompact, agendaEtendu, agendaDebut
+    /// Le réveil (maquette ilot-bibliotheque.html, étapes 7 à 9) : replié, le réveil dans l'aile gauche et « 9:00 » dans l'aile droite ;
+    /// réglé à la voix, le bandeau « Réveil réglé · 9:00 » (rien n'a été collé) ; à l'heure, l'alerte (« Encore 10 min », « OK »).
+    case reveilCompact, reveilRegle, reveilFini
     case notification, notifications
     case accueil
     /// Des écouteurs (ou une souris, un clavier) se connectent ; le chargeur est branché ; la batterie est faible.
@@ -42,12 +45,12 @@ public enum VueIlot: String, CaseIterable, Sendable {
     public var estBandeau: Bool {
         switch self {
         case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
-             .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .volume, .luminosite, .claudeAttend, .claudeTermine: return true
+             .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .volume, .luminosite, .claudeAttend, .claudeTermine, .reveilRegle: return true
         default: return false
         }
     }
     /// Ces écrans sont des alertes : l'îlot s'ouvre de lui-même, vibre, sonne, et attend un geste.
-    public var estAlerte: Bool { self == .minuteurFini || self == .rappelEtendu || self == .agendaDebut }
+    public var estAlerte: Bool { self == .minuteurFini || self == .rappelEtendu || self == .agendaDebut || self == .reveilFini }
     /// Volume et luminosité : un bandeau qui suit les touches du clavier (1,5 s après la dernière).
     public var estNiveau: Bool { self == .volume || self == .luminosite }
 }
@@ -82,6 +85,9 @@ public enum GeoIlot {
     /// Les Dictées à leur plus haut (la liste à sa hauteur maximale) : la table la donne, une liste plus courte la raccourcit (`enPlus`,
     /// `CarteDictees.profondeur`).
     public static let profondeurDictees: Double = CarteDictees.profondeurMax
+    /// Le rendez-vous qui commence : 16 de marge, la ligne (titre, « Maintenant · Google Meet », l'heure ; 40), 10, les deux boutons
+    /// (32), 16.
+    public static let profondeurDebutRendezVous: Double = 16 + 40 + 10 + 32 + 16
     /// Repos d'une activité : rien sous la barre, le cou serré contre la caméra (la place de la pochette, de l'anneau, de l'heure).
     static func compact(_ cou: Double) -> [Double] { [cou, cou, 0, 6, 10, 0, 0] }
     /// Bandeau passager : cou étroit (les menus restent visibles), deux lignes sous la barre. Le corps s'ajuste à son contenu (comme la
@@ -100,7 +106,12 @@ public enum GeoIlot {
         .lectureMinuteur: [44, 144, profondeurLecture + rangeeMinuteur, 6, 34, 18, 10],
         .rappelEtendu: alerte, .rappelCompact: compact(48), .rappelAjoute: bandeau,
         .rappelFait: bandeau, .rappelReporte: bandeau, .rappelListe: [14, 144, 136, 6, 34, 18, 10],
-        .agendaAvant: bandeau, .agendaCompact: compact(50), .agendaEtendu: [50, 150, 130, 6, 34, 18, 10], .agendaDebut: bandeau,
+        // le rendez-vous qui commence : la ligne de l'annonce, puis « Rejoindre » et « Noter la réunion » côte à côte (maquette
+        // ilot-bibliotheque.html, étape 12) : 16 + 40 + 10 + 32 + 16
+        .agendaAvant: bandeau, .agendaCompact: compact(50), .agendaEtendu: [50, 150, 130, 6, 34, 18, 10], .agendaDebut: [14, 150, profondeurDebutRendezVous, 6, 30, 16, 10],
+        // le réveil replié : le réveil (15 pt) dans l'aile gauche, « 10:30 » (38 pt mesurés) dans l'aile droite ; 50 + 6 = 56 pt dans la
+        // barre. La maquette mettait les deux dans l'aile gauche : ensemble ils font 51 pt, ça ne tiendrait pas dans une aile (44 pt utiles)
+        .reveilCompact: compact(50), .reveilRegle: bandeau, .reveilFini: alerte,
         .notification: bandeau, .notifications: bandeau,
         // l'accueil, devenu la carte sous le Centre : le prochain rendez-vous, « Dire un rappel », la dernière dictée (3 lignes de 42 pt).
         // Le minuteur, le choix du micro et l'étagère sont passés dans le Centre
@@ -211,6 +222,8 @@ public enum ActiviteIlot: String, Sendable, Equatable {
     case micro
     /// Claude Code travaille (ou attend une réponse) dans le Terminal.
     case claude
+    /// Un réveil est réglé (il attend son heure dans les ailes).
+    case reveil
 }
 
 /// Ce qui est vrai à l'instant, pour décider qui a l'îlot et qui a la pastille.
@@ -223,6 +236,7 @@ public struct EtatIlot: Equatable, Sendable {
     public var claude = false              // Claude Code travaille ou attend une réponse
     public var claudeAttend = false        // … il attend une réponse (il passe alors avant la lecture)
     public var claudeListe = false         // … il a une liste de tâches (l'anneau et « 3 sur 7 »)
+    public var reveil = false              // un réveil est réglé
     public var alerte: VueIlot?            // minuteurFini, rappelEtendu ou agendaDebut, en cours
     public var bandeau: VueIlot?           // un bandeau passager
     public init() {}
@@ -255,6 +269,8 @@ public enum ArbitrageIlot {
         if e.lecture { p.append(.lecture) }
         if e.minuteur { p.append(.minuteur) }
         if e.claude, !e.claudeAttend { p.append(.claude) }
+        // le réveil attend des heures (toute la nuit) : il passe après tout le reste, et cède l'îlot à la moindre activité
+        if e.reveil { p.append(.reveil) }
         if let echange, p.contains(echange) { p = [echange] + p.filter { $0 != echange } }
         return p
     }
@@ -267,6 +283,8 @@ public enum ArbitrageIlot {
         case .lecture: return (.lectureCompact, .lectureEtendu)
         case .micro: return (.microCompact, .microEtendu)
         case .claude: return (.claudeCompact, .claudeEtendu)
+        // au survol, le Centre : sa case Minuteur montre le réveil (onglet Réveil), on le change ou l'annule d'un clic
+        case .reveil: return (.reveilCompact, .centre)
         case .alerte: return (.repos, .repos)
         }
     }
@@ -294,7 +312,7 @@ public enum ArbitrageIlot {
         if dictee { return 1 }
         if reunion { return 2 }
         switch ecran {
-        case .minuteurFini, .rappelEtendu, .agendaDebut, .agendaAvant, .agendaCompact, .rappelCompact, .rappelAjoute,
+        case .minuteurFini, .rappelEtendu, .agendaDebut, .agendaAvant, .agendaCompact, .rappelCompact, .rappelAjoute, .reveilFini,
              .microCompact, .microEtendu, .microOuvert: return 3
         case .lectureCompact, .lectureEtendu, .lectureMinuteur: return 4
         default: return 5

@@ -299,6 +299,11 @@ enum Settings {
         get { defaults.stringArray(forKey: "ilotCentreBoutons") }
         set { defaults.set(newValue, forKey: "ilotCentreBoutons") }
     }
+    /// Les nouveautés déjà données une fois à un Centre rangé (le calendrier) : retirées ensuite, elles ne reviennent pas.
+    static var ilotCentreNouveautes: [String] {
+        get { defaults.stringArray(forKey: "ilotCentreNouveautes") ?? [] }
+        set { defaults.set(newValue, forKey: "ilotCentreNouveautes") }
+    }
     /// Pour un micro sans muet, coupé en mettant son volume d'entrée à 0 : son ancien volume, par micro (UID CoreAudio), pour le rendre.
     static var microVolumesGardes: [String: Double] {
         get { defaults.dictionary(forKey: "microVolumesGardes") as? [String: Double] ?? [:] }

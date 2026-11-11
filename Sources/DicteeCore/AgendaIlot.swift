@@ -40,6 +40,19 @@ public enum LienVisio {
     }
     /// Le nom du service, pour « Visio » : jamais l'adresse entière si elle est longue.
     public static func nom(_ url: URL) -> String { url.host?.replacingOccurrences(of: "www.", with: "") ?? "Visio" }
+    /// Le service, en clair (« Maintenant · Google Meet », maquette ilot-bibliotheque.html, étape 12) ; « Visio » pour les autres.
+    public static func service(_ url: URL) -> String {
+        let h = url.host?.lowercased() ?? ""
+        func est(_ d: String) -> Bool { h == d || h.hasSuffix("." + d) }
+        if est("meet.google.com") { return "Google Meet" }
+        if est("zoom.us") { return "Zoom" }
+        if est("teams.microsoft.com") || est("teams.live.com") { return "Teams" }
+        if est("webex.com") { return "Webex" }
+        if est("whereby.com") { return "Whereby" }
+        if est("facetime.apple.com") { return "FaceTime" }
+        if est("meet.jit.si") { return "Jitsi" }
+        return "Visio"
+    }
 }
 
 /// Quand l'îlot parle d'un rendez-vous : 10 minutes avant (bandeau « Dans 10 min », puis compte à rebours dans l'aile), au début (alerte).

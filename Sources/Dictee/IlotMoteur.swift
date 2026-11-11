@@ -91,7 +91,16 @@ enum ActionIlot {
     /// de la bibliothèque (le fichier reste où il est), annuler ce retrait, donner ou rendre le clavier au champ « Rechercher un fichier ».
     case bibliothequeOuvrir(String), bibliothequeEpingler(String), bibliothequeRetirer(String), bibliothequeAnnuler
     case bibliothequeClavier(Bool)
+    /// Le réveil (IlotReveil.swift) : réglé d'un clic dans la case Minuteur du Centre (onglet Réveil), annulé (un clic sur l'heure choisie,
+    /// « Annuler » du bandeau), repoussé (« Encore 10 min ») ou arrêté (« OK ») quand il sonne.
+    case reveilRegler(heure: Int, minute: Int), reveilAnnuler, reveilEncore, reveilOK
+    /// Le rond Calendrier du Centre : éteint, un clic l'allume (macOS demande l'accès une fois) ; allumé, un clic l'éteint.
+    case centreCalendrier
 }
+
+/// La case Minuteur du Centre a deux onglets (maquette ilot-bibliotheque.html, étape 7) : le minuteur (5 · 10 · 25 min) et le réveil
+/// (7:00 · 8:00 · 9:00 · Autre…).
+enum OngletMinuteur: Equatable { case minuteur, reveil }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
 /// une seule pièce qui grandit et glisse à sa place, jamais deux qui se croisent.
@@ -201,8 +210,26 @@ final class IlotMoteur: ObservableObject {
     var rendezVous: EvenementAgenda? { didSet { if let rendezVous { dernierRendezVous = rendezVous } } }
     var rendezVousProche = false
     var rendezVousSuivant: EvenementAgenda?
+    /// Le réveil réglé (un seul) ; le dernier vu, pour l'écran qui s'efface et l'alerte qui sonne.
+    var reveil: ReveilIlot? { didSet { if let reveil { dernierReveil = reveil } } }
+    private(set) var dernierReveil: ReveilIlot?
+    /// L'onglet de la case Minuteur choisi d'un clic (nil : celui qui a quelque chose à montrer, `ongletMontre`) ; oublié quand l'îlot
+    /// se range.
+    var ongletMinuteur: OngletMinuteur? { didSet { if ongletMinuteur != oldValue { rev += 1 } } }
+    /// « Autre… » : l'heure qu'on règle avec − et + (nil : les heures proposées).
+    var reveilAutre: (heure: Int, minute: Int)? { didSet { rev += 1 } }
+    /// L'onglet montré : celui qu'on a choisi, sinon le réveil s'il est réglé et qu'aucun minuteur ne tourne, sinon le minuteur.
+    var ongletMontre: OngletMinuteur { ongletMinuteur ?? (reveil != nil && minuteur == nil ? .reveil : .minuteur) }
+    /// Le rond Calendrier : macOS pose sa question (« Un instant… »), ou l'accès a été refusé (« Accès refusé »).
+    var calendrierAttente = false { didSet { if calendrierAttente != oldValue { rev += 1 } } }
+    var calendrierRefuse = false { didSet { if calendrierRefuse != oldValue { rev += 1 } } }
     var lecturePresente = false
-    var alerte: AlerteIlot? { didSet { if let alerte { alerteVu = alerte; if let r = alerte.rappel { dernierRappel = r }; if let e = alerte.evenement { dernierRendezVous = e } } } }
+    var alerte: AlerteIlot? { didSet {
+        if let alerte { alerteVu = alerte; if let r = alerte.rappel { dernierRappel = r }; if let e = alerte.evenement { dernierRendezVous = e } }
+        if alerte?.vue == .reveilFini, oldValue?.vue != .reveilFini { sonnerieReveil = UUID() }
+    } }
+    /// Change à chaque réveil qui sonne : le réveil de l'alerte se secoue (deux fois, puis plus rien ne tourne).
+    private(set) var sonnerieReveil: UUID?
     var bandeau: BandeauIlot? { didSet { if let bandeau { bandeauVu = bandeau } } }
     /// Rendus PNG : pas d'animation Core Animation (ImageRenderer ne sait pas les dessiner).
     var statique = false
@@ -319,7 +346,7 @@ final class IlotMoteur: ObservableObject {
     private var pointeurSurForme = false
     private var intention: DispatchWorkItem?
     private var fermeture: DispatchWorkItem?
-    private var reveil: DispatchWorkItem?
+    private var prochainReveil: DispatchWorkItem?
     private let cadence = CadenceEcran()
     private var dernierPas: TimeInterval = 0
 
@@ -350,6 +377,7 @@ final class IlotMoteur: ObservableObject {
         e.claude = claude != nil
         e.claudeAttend = claude?.etat == .attend
         e.claudeListe = claude?.progres != nil
+        e.reveil = reveil != nil
         e.alerte = alerte?.vue
         e.bandeau = bandeau?.vue
         return e
@@ -404,6 +432,8 @@ final class IlotMoteur: ObservableObject {
         // choisis, rien ne change : ils sont en route)
         if bibliotheque.rechercheActive, cache || courante != .bibliotheque || !fenetreOuverte { bibliotheque.rechercheActive = false; surAction(.bibliothequeClavier(false)) }
         if !fenetreOuverte, courante != .bibliotheque, !glisserSortant, bibliotheque.aRemettre { bibliotheque.reinitialiser() }
+        // la case Minuteur : l'îlot rangé, elle reprend son onglet par défaut et ses heures proposées
+        if !fenetreOuverte, ongletMinuteur != nil || reveilAutre != nil { ongletMinuteur = nil; reveilAutre = nil }
         // la ligne d'avis reste jusqu'à ce qu'on l'ait vue : posée Centre fermé (macOS a répondu après coup), elle attend la prochaine
         // ouverture ; vue, elle part quand le Centre se range
         if avisCentre != nil { if courante == .centre { avisVu = true } else if avisVu, !fenetreOuverte { avisCentre = nil } }
@@ -445,7 +475,7 @@ final class IlotMoteur: ObservableObject {
         if etagereActive, !etagere.isEmpty { d[.lectureMinuteur] = CGFloat(GeoIlot.ligneAccueil) }
         if EtagereIlot.rangees(etagere.count) > 1 { d[.etagere] = CGFloat(GeoIlot.rangeeEtagere) }
         // le Centre suit ce qu'il montre (« Modifier ») : ronds, cases et bande de la réunion, la hauteur de la table
-        let p = DispositionCentre.plan(ronds: !rondsCentre.isEmpty, cases: !disposition.cases.isEmpty, bande: disposition.bande).profondeur
+        let p = planDuCentre.profondeur
         if p != GeoIlot.profondeurCentre { d[.centre] = CGFloat(p - GeoIlot.profondeurCentre) }
         // les Dictées épousent leur liste (« Aucun résultat », trois lignes, une ligne dépliée…), jusqu'à 200 pt ; elle défile au-delà
         dictees.largeurTexte = PlanDictees.largeurTexte(demiCamera: demiCamera)
@@ -685,12 +715,12 @@ final class IlotMoteur: ObservableObject {
     func quitterBandeau() { bandeau = nil; donneesChangees() }
 
     private func programmerReveil() {
-        reveil?.cancel()
+        prochainReveil?.cancel()
         let echeances = [alerte?.jusqua, bandeau?.jusqua].compactMap { $0 }
         guard let prochaine = echeances.min() else { return }
         let attente = max(0.02, prochaine.timeIntervalSince(maintenant()))
         let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.reveilleToi() } }
-        reveil = item
+        prochainReveil = item
         DispatchQueue.main.asyncAfter(deadline: .now() + attente, execute: item)
     }
     private func reveilleToi() {
@@ -844,7 +874,7 @@ final class IlotMoteur: ObservableObject {
     /// d'un clic dans SA fenêtre (un autre processus), et le Centre doit rester là pour montrer la réponse (« Allumé », ou la ligne
     /// « Accès refusé »).
     func clicAilleurs() {
-        guard !telechargementsAttente else { return }
+        guard !telechargementsAttente, !calendrierAttente else { return }
         fermer()
     }
 
@@ -1146,6 +1176,8 @@ final class IlotMoteur: ObservableObject {
         case .claude:
             let t = texteClaude(claude ?? dernierClaude, taille: 12.5)
             return t.isEmpty ? 33 : 39 + MesureIlot.texte(t, 12.5, .semibold, chiffres: true)
+        // le réveil et « 9:00 » : 10 + glyphe + 6 + texte + 10
+        case .reveil: return 26 + MesureIlot.symbole("alarm", 12) + MesureIlot.texte((reveil ?? dernierReveil)?.libelle() ?? "10:30", 12.5, .semibold, chiffres: true)
         case .alerte: return 30
         }
     }

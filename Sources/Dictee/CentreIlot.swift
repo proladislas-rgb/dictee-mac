@@ -51,22 +51,34 @@ enum PlanCentre {
     /// Une rangée (nil : elle n'est pas montrée).
     static func cadre(_ r: DispositionCentre.Rangee, _ m: IlotMoteur, _ g: GrilleIlot? = nil) -> CGRect? {
         let g = g ?? m.grille
-        let p = DispositionCentre.plan(ronds: !m.rondsCentre.isEmpty, cases: !m.disposition.cases.isEmpty, bande: m.disposition.bande)
+        let p = m.planDuCentre
         guard let y = p.hauts[r] else { return nil }
         let z = zone(g)
         let h: Double
-        switch r { case .ronds: h = DispositionCentre.ronds; case .cases: h = DispositionCentre.cases; case .bande: h = DispositionCentre.bande }
+        switch r {
+        case .ronds: h = DispositionCentre.ronds + (m.nomsSurDeuxLignes ? DispositionCentre.ligneNom : 0)
+        case .cases: h = DispositionCentre.cases
+        case .bande: h = DispositionCentre.bande
+        }
         return CGRect(x: z.minX, y: g.barre + CGFloat(y), width: z.width, height: CGFloat(h))
     }
     static func cadreRonds(_ m: IlotMoteur, _ g: GrilleIlot? = nil) -> CGRect { cadre(.ronds, m, g) ?? .zero }
     static func cadreBande(_ m: IlotMoteur, _ g: GrilleIlot? = nil) -> CGRect { cadre(.bande, m, g) ?? .zero }
-    /// Une grande case : seule, elle prend toute la largeur ; à deux, chacune la moitié (10 pt entre elles).
+    /// Une grande case : seule, elle prend toute la largeur ; à deux, le Minuteur un peu plus large que l'Étagère (maquette
+    /// ilot-bibliotheque.html : 1,16 / 0,84, pour « Minuteur · Réveil » et ses quatre heures), 10 pt entre elles.
     static func cadreCase(_ m: IlotMoteur, _ e: ElementCentre, _ g: GrilleIlot? = nil) -> CGRect {
         guard let c = cadre(.cases, m, g) else { return .zero }
         let cs = m.disposition.cases
         guard cs.count > 1, let i = cs.firstIndex(of: e) else { return c }
-        let l = (c.width - CGFloat(DispositionCentre.ecart)) / 2
-        return CGRect(x: i == 0 ? c.minX : c.minX + l + CGFloat(DispositionCentre.ecart), y: c.minY, width: l, height: c.height)
+        let utile = c.width - CGFloat(DispositionCentre.ecart)
+        let poids = cs.map { CGFloat(DispositionCentre.poidsCase($0)) }, total = poids.reduce(0, +)
+        let l0 = (utile * poids[0] / total).rounded()
+        return i == 0 ? CGRect(x: c.minX, y: c.minY, width: l0, height: c.height)
+                      : CGRect(x: c.minX + l0 + CGFloat(DispositionCentre.ecart), y: c.minY, width: utile - l0, height: c.height)
+    }
+    /// La largeur de la rangée des ronds, calculée sans la grille (la hauteur du Centre dépend des noms : pas de boucle).
+    static func largeurRonds(_ hc: CGFloat) -> CGFloat {
+        2 * (hc + CGFloat(GeoIlot.valeurs(.centre, hauteurBarre: 0, demiCamera: Double(hc))[1])) - 2 * GrilleIlot.marge - GrilleIlot.placePoints
     }
     /// La largeur d'une colonne de la rangée des ronds.
     static func colonne(_ m: IlotMoteur, _ g: GrilleIlot? = nil) -> CGFloat { cadreRonds(m, g).width / CGFloat(max(1, m.rondsCentre.count)) }
@@ -77,18 +89,56 @@ enum PlanCentre {
     }
     /// Les places des textes d'une ligne sous les ronds (noms, ou états), et la taille de chacun : un texte court laisse de la place à son
     /// voisin long, deux voisins gardent `ecartNoms` entre eux.
-    static func tailles(_ textes: [String], colonne: CGFloat, poids: NSFont.Weight, interlettre: CGFloat = 0) -> [(place: CGFloat, taille: CGFloat)] {
-        let l = textes.map { Double(MesureIlot.texte($0, policeNom, poids, interlettre: interlettre)) }
-        let p = DispositionCentre.largeursPermises(l, colonne: Double(colonne), ecart: Double(ecartNoms))
-        return zip(textes, p).map { (CGFloat($1), police($0, place: CGFloat($1), poids: poids, interlettre: interlettre)) }
+    /// `couper` (les noms) : un nom qui devrait descendre sous `seuilDeuxLignes` pour tenir passe sur deux lignes (six ronds :
+    /// « Télécharge- / ments » à côté de « Calendrier »), plutôt que d'être écrit trop petit ou serré contre son voisin.
+    static func tailles(_ textes: [String], colonne: CGFloat, poids: NSFont.Weight, interlettre: CGFloat = 0, couper: Bool = false) -> [(texte: String, place: CGFloat, taille: CGFloat)] {
+        var t = textes
+        func l(_ x: [String]) -> [Double] { x.map { Double(largeur($0, policeNom, poids, interlettre: interlettre)) } }
+        var p = DispositionCentre.largeursPermises(l(t), colonne: Double(colonne), ecart: Double(ecartNoms))
+        if couper {
+            // un nom qui ne tient pas en entier avec `ecartConfort` pt de ses voisins passe sur deux lignes, le plus serré d'abord, un à un
+            // (« Télécharge- / ments » ; puis son voisin « Claude Code » tient souvent sur une ligne) ; puis les tailles avec `ecartNoms`
+            var change = false
+            while true {
+                let lt = l(t)
+                let confort = DispositionCentre.largeursPermises(lt, colonne: Double(colonne), ecart: Double(ecartConfort))
+                let serres = t.indices.filter { !t[$0].contains("\n") && confort[$0] < lt[$0] - 0.01 && deuxLignes(t[$0]) != nil }
+                guard let i = serres.max(by: { lt[$0] - confort[$0] < lt[$1] - confort[$1] }), let d = deuxLignes(t[i]) else { break }
+                t[i] = d; change = true
+            }
+            // et, comme avant, un nom qui devrait descendre sous `seuilDeuxLignes` pour tenir
+            for i in t.indices where !t[i].contains("\n") {
+                guard police(t[i], place: CGFloat(p[i]), poids: poids, interlettre: interlettre) < seuilDeuxLignes, let d = deuxLignes(t[i]) else { continue }
+                t[i] = d; change = true
+            }
+            if change { p = DispositionCentre.largeursPermises(l(t), colonne: Double(colonne), ecart: Double(ecartNoms)) }
+        }
+        return zip(t, p).map { ($0, CGFloat($1), police($0, place: CGFloat($1), poids: poids, interlettre: interlettre)) }
+    }
+    /// En deçà, un nom passe sur deux lignes (s'il sait se couper).
+    static let seuilDeuxLignes: CGFloat = 10.5
+    /// L'écart confortable entre deux noms voisins : en deçà (« Téléchargements Dictée » collés à 4 pt, qu'on lit comme un seul nom), le
+    /// nom qui sait se couper passe sur deux lignes.
+    static let ecartConfort: CGFloat = 8
+    /// Un nom coupé en deux lignes : à l'espace le plus proche du milieu (« Claude / Code »), ou au trait d'union de « Télécharge- /
+    /// ments » ; nil s'il ne se coupe pas.
+    static func deuxLignes(_ s: String) -> String? {
+        if s == "Téléchargements" { return "Télécharge-\nments" }
+        let espaces = s.indices.filter { s[$0] == " " }
+        guard let milieu = espaces.min(by: { abs(s.distance(from: s.startIndex, to: $0) - s.count / 2) < abs(s.distance(from: s.startIndex, to: $1) - s.count / 2) }) else { return nil }
+        var r = s; r.replaceSubrange(milieu...milieu, with: "\n"); return r
+    }
+    /// La largeur d'un texte d'une ou deux lignes (la plus longue).
+    static func largeur(_ texte: String, _ taille: CGFloat, _ poids: NSFont.Weight, interlettre: CGFloat = 0) -> CGFloat {
+        texte.split(separator: "\n").map { MesureIlot.texte(String($0), taille, poids, interlettre: interlettre) }.max() ?? 0
     }
     /// La taille d'un texte sous un rond, mesurée pour tenir dans `place` pt.
     static func police(_ texte: String, place: CGFloat, poids: NSFont.Weight, interlettre: CGFloat = 0) -> CGFloat {
-        let l = MesureIlot.texte(texte, policeNom, poids, interlettre: interlettre)
+        let l = largeur(texte, policeNom, poids, interlettre: interlettre)
         guard l > place, l > 0 else { return policeNom }
         // la largeur suit la taille (à 0,1 pt près, l'interlettre compris) : on réduit, puis on vérifie
         var t = max(policeMin, (policeNom * place / l * 10).rounded(.down) / 10)
-        while t > policeMin, MesureIlot.texte(texte, t, poids, interlettre: interlettre) > place { t -= 0.1 }
+        while t > policeMin, largeur(texte, t, poids, interlettre: interlettre) > place { t -= 0.1 }
         return t
     }
 }
@@ -100,6 +150,7 @@ extension ElementCentre {
         case .micro: return "Micro"
         case .dictee: return "Dictée"
         case .telechargements: return "Téléchargements"
+        case .calendrier: return "Calendrier"
         case .claude: return "Claude Code"
         case .rappel: return "Rappel"
         case .derniereDictee: return "Dernière dictée"
@@ -113,14 +164,27 @@ extension ElementCentre {
 extension IlotMoteur {
     /// Un élément peut-il paraître ? Le choix du micro de la dictée n'existe qu'avec des AirPods (un micro Bluetooth) branchés.
     func disponibleDansLeCentre(_ e: ElementCentre) -> Bool { e != .dictee || choixMicro != nil }
-    /// Les ronds montrés, dans l'ordre (cinq au plus).
+    /// Les ronds montrés, dans l'ordre (six au plus).
     var rondsCentre: [ElementCentre] { disposition.ronds(disponible: disponibleDansLeCentre) }
+    /// Les noms sous les ronds, mesurés ensemble (un nom trop long passe sur deux lignes), et leur taille.
+    var nomsCentre: [(texte: String, place: CGFloat, taille: CGFloat)] {
+        let rs = rondsCentre
+        return PlanCentre.tailles(rs.map(\.nom), colonne: PlanCentre.largeurRonds(demiCamera) / CGFloat(max(1, rs.count)), poids: .semibold,
+                                  interlettre: PlanCentre.interlettreNom, couper: true)
+    }
+    /// Un nom au moins est sur deux lignes : la rangée des ronds s'allonge d'une ligne.
+    var nomsSurDeuxLignes: Bool { nomsCentre.contains { $0.texte.contains("\n") } }
+    /// Les rangées du Centre (ce qu'il montre, « Modifier ») et sa profondeur sous la barre.
+    var planDuCentre: (hauts: [DispositionCentre.Rangee: Double], profondeur: Double) {
+        DispositionCentre.plan(ronds: !rondsCentre.isEmpty, cases: !disposition.cases.isEmpty, bande: disposition.bande, nomsSurDeuxLignes: nomsSurDeuxLignes)
+    }
     /// L'état écrit sous un rond (« Coupé », « Allumé », « 3 sur 7 »…).
     func etatCentre(_ e: ElementCentre) -> String {
         switch e {
         case .micro: return microCoupe ? "Coupé" : "Ouvert"
         case .dictee: return choixMicro?.airpods == true ? "AirPods" : "Mac"
         case .telechargements: return telechargementsAttente ? "Un instant\u{2026}" : (telechargementsActifs ? "Allumé" : "Éteint")
+        case .calendrier: return calendrierAttente ? "Un instant\u{2026}" : (calendrierActif ? "Allumé" : (calendrierRefuse ? "Accès refusé" : "Éteint"))
         case .claude:
             if let s = claude { let t = texteClaude(s, taille: PlanCentre.policeNom); return t.isEmpty ? "Au travail" : t }
             return claudeBranche ? "Prêt" : "Brancher"
@@ -179,14 +243,16 @@ struct CentreVue: View {
         let rs = m.rondsCentre
         let cadre = PlanCentre.cadreRonds(m, g)
         let l = PlanCentre.colonne(m, g)
-        // les noms et les états, mesurés ensemble : un texte court laisse de la place à son voisin long
-        let noms = PlanCentre.tailles(rs.map(\.nom), colonne: l, poids: .semibold, interlettre: PlanCentre.interlettreNom)
+        // les noms et les états, mesurés ensemble : un texte court laisse de la place à son voisin long ; un nom qui devrait devenir trop
+        // petit passe sur deux lignes (la rangée s'allonge alors d'une ligne)
+        let noms = m.nomsCentre
         let etats = PlanCentre.tailles(rs.map(m.etatCentre), colonne: l, poids: .medium)
+        let hauteur = CGFloat(DispositionCentre.ronds + (m.nomsSurDeuxLignes ? DispositionCentre.ligneNom : 0))
         return HStack(spacing: 0) {
             ForEach(Array(rs.enumerated()), id: \.element) { i, e in
                 let milieu = cadre.minX + l * (CGFloat(i) + 0.5)
-                bouton(e, colonne: l, rang: i, tailles: (noms[i].taille, etats[i].taille))
-                    .frame(width: l, height: CGFloat(DispositionCentre.ronds), alignment: .top)
+                bouton(e, colonne: l, rang: i, tailles: (noms[i].taille, etats[i].taille), nomAffiche: noms[i].texte)
+                    .frame(width: l, height: hauteur, alignment: .top)
                     .contentShape(Rectangle())
                     .offset(x: glisse.flatMap { $0.element == e ? $0.x - $0.prise - milieu : nil } ?? 0)
                     .zIndex(glisse?.element == e ? 1 : 0)
@@ -241,7 +307,7 @@ struct CentreVue: View {
     /// Un clic sur un bouton : l'îlot reste ouvert, puis l'action (celles de l'îlot, déjà construites).
     private func agir(_ a: ActionIlot) { m.epinglerLeCentre(); m.surAction(a) }
 
-    @ViewBuilder private func bouton(_ e: ElementCentre, colonne l: CGFloat, rang: Int, tailles t: (nom: CGFloat, etat: CGFloat)) -> some View {
+    @ViewBuilder private func bouton(_ e: ElementCentre, colonne l: CGFloat, rang: Int, tailles t: (nom: CGFloat, etat: CGFloat), nomAffiche: String) -> some View {
         let ed = m.editionCentre
         let etat = m.etatCentre(e)
         let fige = m.reduire || m.statique
@@ -249,44 +315,55 @@ struct CentreVue: View {
         switch e {
         case .micro:
             let coupe = m.microCoupe
-            TuileRonde(nom: e.nom, etat: etat, couleurEtat: coupe ? Color(hex: 0xFF6961) : CouleursIlot.encre2,
+            TuileRonde(nom: e.nom, nomAffiche: nomAffiche, etat: etat, couleurEtat: coupe ? Color(hex: 0xFF6961) : CouleursIlot.encre2,
                        fond: coupe ? CouleursIlot.rouge : nil, colonne: l, tailleNom: t.nom, tailleEtat: t.etat, reduire: fige, edition: ed, rang: rang, statique: m.statique, retirer: retirer,
                        etiquette: coupe ? "Micro coupé : le rouvrir" : "Micro ouvert : le couper") {
                 Image(systemName: coupe ? "mic.slash.fill" : "mic.fill").font(.system(size: 21, weight: .semibold)).foregroundStyle(.white)
             } action: { agir(.centreMicro) }
         case .dictee:
             let airpods = m.choixMicro?.airpods ?? false
-            TuileRonde(nom: e.nom, etat: etat, couleurEtat: CouleursIlot.encre2, fond: nil, colonne: l, tailleNom: t.nom, tailleEtat: t.etat,
+            TuileRonde(nom: e.nom, nomAffiche: nomAffiche, etat: etat, couleurEtat: CouleursIlot.encre2, fond: nil, colonne: l, tailleNom: t.nom, tailleEtat: t.etat,
                        reduire: fige, edition: ed, rang: rang, statique: m.statique, retirer: retirer,
                        etiquette: airpods ? "La dictée écoute les AirPods : passer au micro du Mac" : "La dictée écoute le micro du Mac : passer aux AirPods") {
                 Image(systemName: airpods ? "airpodspro" : "laptopcomputer").font(.system(size: airpods ? 22 : 20, weight: .semibold)).foregroundStyle(.white)
             } action: { agir(.microChoisir(airpods: !airpods)) }
         case .telechargements:
             let on = m.telechargementsActifs, attente = m.telechargementsAttente
-            TuileRonde(nom: e.nom, etat: etat,
+            TuileRonde(nom: e.nom, nomAffiche: nomAffiche, etat: etat,
                        couleurEtat: on && !attente ? Color(hex: 0x5EB0FF) : CouleursIlot.encre2,
                        fond: on && !attente ? CouleursIlot.bleu : nil, anneau: attente, colonne: l, tailleNom: t.nom, tailleEtat: t.etat, reduire: fige, edition: ed, rang: rang,
                        statique: m.statique, retirer: retirer,
                        etiquette: attente ? "Téléchargements : macOS demande l\u{2019}accès" : (on ? "Téléchargements allumé : l'éteindre" : "Téléchargements éteint : l'allumer")) {
                 Image(systemName: "arrow.down.circle").font(.system(size: 22, weight: .semibold)).foregroundStyle(.white)
             } action: { agir(.centreTelechargements) }
+        case .calendrier:
+            // éteint : gris ; un clic l'allume (macOS demande l'accès une fois : « Un instant… », un anneau) ; allumé : rouge, comme le
+            // calendrier des rendez-vous ; refusé : « Accès refusé », la ligne d'avis mène à Réglages Système
+            let on = m.calendrierActif, attente = m.calendrierAttente
+            TuileRonde(nom: e.nom, nomAffiche: nomAffiche, etat: etat,
+                       couleurEtat: on && !attente ? Color(hex: 0xFF6961) : (m.calendrierRefuse && !attente ? Color(hex: 0xFF6961) : CouleursIlot.encre2),
+                       fond: on && !attente ? CouleursIlot.rouge : nil, anneau: attente, colonne: l, tailleNom: t.nom, tailleEtat: t.etat, reduire: fige, edition: ed,
+                       rang: rang, statique: m.statique, retirer: retirer,
+                       etiquette: attente ? "Calendrier : macOS demande l\u{2019}accès" : (on ? "Calendrier allumé : l'éteindre" : "Calendrier éteint : l'allumer")) {
+                GlypheIlot(nom: GlypheIlot.calendrier, couleur: .white, taille: 20).frame(width: 24, height: 24)
+            } action: { agir(.centreCalendrier) }
         case .claude:
             let s = m.claude
             let branche = m.claudeBranche || s != nil
-            TuileRonde(nom: e.nom, etat: etat, couleurEtat: branche ? CouleursIlot.encre2 : Color(hex: 0x5EB0FF),
+            TuileRonde(nom: e.nom, nomAffiche: nomAffiche, etat: etat, couleurEtat: branche ? CouleursIlot.encre2 : Color(hex: 0x5EB0FF),
                        fond: branche ? CouleursIlot.corail : nil, pointille: !branche, colonne: l, tailleNom: t.nom, tailleEtat: t.etat, reduire: fige, edition: ed, rang: rang,
                        statique: m.statique, retirer: retirer,
                        etiquette: s != nil ? "Claude Code, \(etat) : ouvrir" : (branche ? "Claude Code prêt" : "Brancher Claude Code")) {
                 EtoileClaude(couleur: branche ? .white : Color.white.opacity(0.75)).frame(width: 21, height: 21)
             } action: { agir(.centreClaude) }
         case .rappel:
-            TuileRonde(nom: e.nom, etat: etat, couleurEtat: CouleursIlot.encre2, fond: nil, colonne: l, tailleNom: t.nom, tailleEtat: t.etat, reduire: fige, edition: ed,
+            TuileRonde(nom: e.nom, nomAffiche: nomAffiche, etat: etat, couleurEtat: CouleursIlot.encre2, fond: nil, colonne: l, tailleNom: t.nom, tailleEtat: t.etat, reduire: fige, edition: ed,
                        rang: rang, statique: m.statique, retirer: retirer, etiquette: "Dire un rappel") {
                 Image(systemName: "bell.fill").font(.system(size: 20, weight: .semibold)).foregroundStyle(CouleursIlot.jaune)
             } action: { agir(.rappelFormulaire) }
         case .derniereDictee:
             let la = m.derniereDictee != nil
-            TuileRonde(nom: e.nom, etat: etat, couleurEtat: la ? Color(hex: 0x5EB0FF) : CouleursIlot.encre3, fond: nil, colonne: l, tailleNom: t.nom, tailleEtat: t.etat,
+            TuileRonde(nom: e.nom, nomAffiche: nomAffiche, etat: etat, couleurEtat: la ? Color(hex: 0x5EB0FF) : CouleursIlot.encre3, fond: nil, colonne: l, tailleNom: t.nom, tailleEtat: t.etat,
                        reduire: fige, edition: ed, rang: rang, statique: m.statique, retirer: retirer,
                        etiquette: la ? "Coller la dernière dictée" : "Aucune dictée à coller") {
                 Image(systemName: "quote.opening").font(.system(size: 19, weight: .bold)).foregroundStyle(.white.opacity(la ? 1 : 0.5))
@@ -311,6 +388,8 @@ struct GlisseCentre: Equatable {
 /// « Modifier » : le rond tremble, un « – » le retire, un clic dessus ne fait rien (on le range en le glissant).
 struct TuileRonde<Glyphe: View>: View {
     var nom: String
+    /// Le nom tel qu'il est écrit (sur deux lignes : « Télécharge-\nments ») ; nil : `nom`.
+    var nomAffiche: String? = nil
     var etat: String
     var couleurEtat: Color
     var fond: Color?
@@ -367,9 +446,10 @@ struct TuileRonde<Glyphe: View>: View {
             }
             .tremblement(edition && (statique || !reduire), amplitude: 1.4, decale: rang % 2 == 1, fige: statique)
             // le nom et l'état, mesurés : plus petits s'ils ne tiennent pas dans la colonne (jamais tassés contre le voisin)
-            Text(nom).font(.system(size: tailleNom, weight: .semibold)).tracking(PlanCentre.interlettreNom)
-                .foregroundStyle(.white).lineLimit(1).fixedSize()
+            Text(nomAffiche ?? nom).font(.system(size: tailleNom, weight: .semibold)).tracking(PlanCentre.interlettreNom)
+                .foregroundStyle(.white).lineLimit(2).multilineTextAlignment(.center).lineSpacing(-1).fixedSize()
                 .padding(.top, 7)
+                .accessibilityLabel(nom)
             Text(etat).font(.system(size: tailleEtat, weight: .medium)).foregroundStyle(couleurEtat)
                 .lineLimit(1).fixedSize()
                 .contentTransition(.opacity)
@@ -447,49 +527,175 @@ private struct FondCase: View {
     }
 }
 
-/// La case Minuteur : 5 · 10 · 25 min ; un minuteur qui tourne montre son temps, pause (ou reprise) et arrêt.
+/// La case Minuteur : deux onglets (maquette ilot-bibliotheque.html, étape 7), « Minuteur · Réveil ».
+/// - Minuteur : 5 · 10 · 25 min ; un minuteur qui tourne montre son temps, pause (ou reprise) et arrêt ;
+/// - Réveil : 7:00 · 8:00 · 9:00 · Autre… ; l'heure choisie en ambre, « demain » en haut à droite ; un clic sur l'heure choisie l'annule ;
+///   « Autre… » : − et + (15 min), puis « OK » (pas de clavier dans l'îlot).
 struct CaseMinuteur: View {
     @ObservedObject var m: IlotMoteur
+    /// Les mesures de la case (essais : où cliquer) : 10 pt en haut, le sélecteur (20), 7, la rangée (28), 11 en bas ; 14 de chaque côté.
+    static let haut: CGFloat = 10, selecteur: CGFloat = 20, ecart: CGFloat = 7, rangee: CGFloat = 28, cote: CGFloat = 14
+    /// Le milieu de la rangée, depuis le haut de la case.
+    static var milieuRangee: CGFloat { haut + selecteur + ecart + rangee / 2 }
 
     var body: some View {
-        let mn = m.minuteur
+        let onglet = m.ongletMontre
         ZStack(alignment: .topLeading) {
             FondCase(plein: true)
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 7) {
-                    GlypheIlot(nom: "timer", couleur: CouleursIlot.ambre, taille: 15).frame(width: 18, height: 17)
-                    Text("Minuteur").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
-                    Spacer(minLength: 4)
-                    if let mn {
-                        TimelineView(.periodic(from: mn.echeance ?? Date(timeIntervalSinceReferenceDate: 0), by: 1)) { _ in
-                            Text(FormatIlot.duree(mn.restant(a: m.maintenant()))).font(.system(size: 13.5, weight: .semibold).monospacedDigit())
-                                .foregroundStyle(CouleursIlot.ambre).lineLimit(1).fixedSize()
-                                .accessibilityLabel("Temps restant").accessibilityValue(FormatIlot.duree(mn.restant(a: m.maintenant())))
-                        }
+            VStack(alignment: .leading, spacing: Self.ecart) {
+                HStack(spacing: 0) {
+                    HStack(spacing: 7) {
+                        GlypheIlot(nom: "timer", couleur: CouleursIlot.ambre, taille: 15).frame(width: 18, height: 17)
+                        SelecteurMinuteur(m: m, onglet: onglet)
                     }
+                    Spacer(minLength: Self.avantDroite)
+                    droite(onglet)
                 }
-                .frame(height: 17)
-                if let mn {
-                    HStack(spacing: 8) {
-                        BoutonRondIlot(symbole: mn.enPause ? "play.fill" : "pause.fill", couleur: CouleursIlot.ambre, fond: CouleursIlot.ambre.opacity(0.22),
-                                       etiquette: mn.enPause ? "Reprendre le minuteur" : "Mettre le minuteur en pause", cote: 28) { agir(.minuteurBasculer) }
-                        BoutonRondIlot(symbole: "xmark", couleur: .white, fond: Color.white.opacity(0.14), etiquette: "Arrêter le minuteur", cote: 28) { agir(.minuteurArreter) }
-                        Text(mn.enPause ? "En pause" : "fin à " + FormatIlot.heure(mn.heureDeFin(a: m.maintenant())))
-                            .font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
-                    }
-                    .frame(height: 28)
-                } else {
-                    HStack(spacing: 6) {
-                        ForEach([5, 10, 25], id: \.self) { n in CapMinutes(minutes: n) { agir(.minuteurLancerDansLeCentre(minutes: Double(n))) } }
-                        Text("min").font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5)).padding(.leading, 3)
-                    }
-                    .frame(height: 28)
+                .frame(height: Self.selecteur)
+                Group {
+                    if onglet == .reveil { rangeeReveil } else { rangeeMinuteur }
                 }
+                .frame(height: Self.rangee)
             }
-            .padding(.horizontal, 14).padding(.vertical, 11)
+            .padding(.horizontal, Self.cote).padding(.top, Self.haut).padding(.bottom, 11)
+        }
+        .animation(m.reduire || m.statique ? nil : .easeOut(duration: 0.18), value: onglet)
+    }
+
+    /// En haut à droite : le temps du minuteur (onglet Minuteur), ou le jour du réveil (« demain »), s'il tient.
+    @ViewBuilder private func droite(_ onglet: OngletMinuteur) -> some View {
+        if onglet == .minuteur, let mn = m.minuteur {
+            TimelineView(.periodic(from: mn.echeance ?? Date(timeIntervalSinceReferenceDate: 0), by: 1)) { _ in
+                Text(FormatIlot.duree(mn.restant(a: m.maintenant()))).font(.system(size: 13.5, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(CouleursIlot.ambre).lineLimit(1).fixedSize()
+                    .accessibilityLabel("Temps restant").accessibilityValue(FormatIlot.duree(mn.restant(a: m.maintenant())))
+            }
+        } else if onglet == .reveil, let r = m.reveil {
+            let j = ReveilIlot.jour(r.sonnerie, maintenant: m.maintenant())
+            if Self.jourTient(j, m) {
+                Text(j).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Color(hex: 0xFFB340)).lineLimit(1).fixedSize()
+                    .accessibilityLabel("Le réveil sonnera \(j)")
+            }
         }
     }
+    /// Le jour tient-il à droite du sélecteur ? (Mesuré : jamais coupé ni serré ; sinon il n'est pas écrit, l'heure en ambre suffit.)
+    static func jourTient(_ j: String, _ m: IlotMoteur) -> Bool {
+        let c = PlanCentre.cadreCase(m, .minuteur)
+        return 18 + 7 + SelecteurMinuteur.largeur + avantDroite + MesureIlot.texte(j, 11.5, .semibold) <= c.width - 2 * cote
+    }
+    /// Au moins cet écart entre le sélecteur et ce qui est à droite (le temps, le jour).
+    static let avantDroite: CGFloat = 6
+
+    @ViewBuilder private var rangeeMinuteur: some View {
+        if let mn = m.minuteur {
+            HStack(spacing: 8) {
+                BoutonRondIlot(symbole: mn.enPause ? "play.fill" : "pause.fill", couleur: CouleursIlot.ambre, fond: CouleursIlot.ambre.opacity(0.22),
+                               etiquette: mn.enPause ? "Reprendre le minuteur" : "Mettre le minuteur en pause", cote: 28) { agir(.minuteurBasculer) }
+                BoutonRondIlot(symbole: "xmark", couleur: .white, fond: Color.white.opacity(0.14), etiquette: "Arrêter le minuteur", cote: 28) { agir(.minuteurArreter) }
+                Text(mn.enPause ? "En pause" : "fin à " + FormatIlot.heure(mn.heureDeFin(a: m.maintenant())))
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
+            }
+        } else {
+            HStack(spacing: 6) {
+                ForEach([5, 10, 25], id: \.self) { n in CapMinutes(minutes: n) { agir(.minuteurLancerDansLeCentre(minutes: Double(n))) } }
+                Text("min").font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5)).padding(.leading, 3)
+            }
+        }
+    }
+
+    /// Les heures proposées, l'heure choisie (ambre) et « Autre… » ; ou, après « Autre… », − l'heure + et « OK ».
+    @ViewBuilder private var rangeeReveil: some View {
+        let r = m.reveil
+        if let a = m.reveilAutre {
+            HStack(spacing: 6) {
+                BoutonRondIlot(symbole: "minus", couleur: .white, fond: Color.white.opacity(0.14), etiquette: "15 minutes plus tôt", cote: 28) {
+                    m.epinglerLeCentre(); m.reveilAutre = ReveilIlot.decaler(heure: a.heure, minute: a.minute, de: -1)
+                }
+                Text(ReveilIlot.texte(a.heure, a.minute)).font(.system(size: 15, weight: .semibold).monospacedDigit()).foregroundStyle(.white)
+                    .frame(width: Self.largeurHeure).accessibilityLabel("Heure du réveil").accessibilityValue(ReveilIlot.texte(a.heure, a.minute))
+                BoutonRondIlot(symbole: "plus", couleur: .white, fond: Color.white.opacity(0.14), etiquette: "15 minutes plus tard", cote: 28) {
+                    m.epinglerLeCentre(); m.reveilAutre = ReveilIlot.decaler(heure: a.heure, minute: a.minute, de: 1)
+                }
+                CapIlot(titre: "OK", style: .ambre, hauteur: 28, etiquette: "Régler le réveil à \(ReveilIlot.texte(a.heure, a.minute))") {
+                    agir(.reveilRegler(heure: a.heure, minute: a.minute))
+                }
+                .padding(.leading, 2)
+            }
+        } else {
+            HStack(spacing: Self.espaceHeures) {
+                ForEach(Array(ReveilIlot.proposees.enumerated()), id: \.offset) { _, h in
+                    let choisie = r.map { !$0.repousse && $0.heure == h.heure && $0.minute == h.minute } ?? false
+                    CapHeure(titre: ReveilIlot.texte(h.heure, h.minute), choisie: choisie,
+                             etiquette: choisie ? "Réveil à \(ReveilIlot.texte(h.heure, h.minute)) : l'annuler" : "Réveil à \(ReveilIlot.texte(h.heure, h.minute))") {
+                        agir(.reveilRegler(heure: h.heure, minute: h.minute))
+                    }
+                }
+                // une autre heure choisie (ou repoussée de 10 min) : elle prend la place d'« Autre… », en ambre ; un clic l'annule
+                if let r, r.repousse || !ReveilIlot.proposees.contains(where: { $0.heure == r.heure && $0.minute == r.minute }) {
+                    CapHeure(titre: r.libelle(), choisie: true, etiquette: "Réveil à \(r.libelle()) : l'annuler") { agir(.reveilAnnuler) }
+                } else {
+                    CapHeure(titre: Self.autre, choisie: false, etiquette: "Une autre heure") {
+                        m.epinglerLeCentre(); m.reveilAutre = r.map { ($0.heure, $0.minute) } ?? (7, 30)
+                    }
+                }
+            }
+        }
+    }
+    static let autre = "Autre\u{2026}"
+    static let espaceHeures: CGFloat = 5
+    static let largeurHeure: CGFloat = 46
     private func agir(_ a: ActionIlot) { m.epinglerLeCentre(); m.surAction(a) }
+}
+
+/// « Minuteur · Réveil » : deux onglets dans une capsule (maquette : 22 pt ; 20 ici, la case garde ses 76 pt).
+struct SelecteurMinuteur: View {
+    @ObservedObject var m: IlotMoteur
+    var onglet: OngletMinuteur
+    static let titres: [(OngletMinuteur, String)] = [(.minuteur, "Minuteur"), (.reveil, "Réveil")]
+    /// Chaque onglet : 9 pt de chaque côté du texte (12 pt semi-gras) ; 2 pt autour.
+    static func largeurOnglet(_ t: String) -> CGFloat { MesureIlot.texte(t, 12, .semibold) + 18 }
+    static var largeur: CGFloat { titres.map { largeurOnglet($0.1) }.reduce(0, +) + 4 }
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Self.titres, id: \.1) { o, t in
+                Button { m.epinglerLeCentre(); m.ongletMinuteur = o; m.reveilAutre = nil } label: {
+                    Text(t).font(.system(size: 12, weight: .semibold)).foregroundStyle(onglet == o ? .white : Color.white.opacity(0.6))
+                        .lineLimit(1).fixedSize()
+                        .frame(width: Self.largeurOnglet(t), height: 16)
+                        .background(Capsule().fill(Color.white.opacity(onglet == o ? 0.22 : 0)))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(t)
+                .accessibilityAddTraits(onglet == o ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(Capsule().fill(Color.white.opacity(0.1)))
+    }
+}
+
+/// Une heure du réveil (« 7:00 », « Autre… ») : 28 pt de haut, 44 au moins ; l'heure choisie en ambre (texte noir).
+struct CapHeure: View {
+    var titre: String
+    var choisie: Bool
+    var etiquette: String
+    var action: () -> Void
+    @State private var survol = false
+    static func largeur(_ t: String) -> CGFloat { max(40, MesureIlot.texte(t, 13, .semibold, chiffres: true) + 14) }
+    var body: some View {
+        Button(action: action) {
+            Text(titre).font(.system(size: 13, weight: .semibold).monospacedDigit()).foregroundStyle(choisie ? Color(hex: 0x231300) : .white)
+                .lineLimit(1).fixedSize()
+                .frame(width: Self.largeur(titre), height: 28)
+                .background(Capsule().fill(choisie ? CouleursIlot.ambre.opacity(survol ? 0.88 : 1) : Color.white.opacity(survol ? 0.22 : 0.14)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(AppuiIlot(echelle: 0.9))
+        .onHover { survol = $0 }
+        .accessibilityLabel(etiquette)
+        .accessibilityAddTraits(choisie ? .isSelected : [])
+    }
 }
 
 /// « 5 », « 10 », « 25 » : 44 × 28 pt (maquette).
@@ -558,13 +764,15 @@ struct CaseEtagere: View {
                         icone(un, cote: 28)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(un.nom).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1).truncationMode(.middle)
-                            Text("glisse-le vers une app").font(.system(size: 11, weight: .medium)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
+                            Text(Self.aideGlisser(largeur: PlanCentre.cadreCase(m, .etagere).width - 28 - 28 - 9))
+                                .font(.system(size: 11, weight: .medium)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
                         }
                     }
                 } else {
-                    // les plus récents d'abord, autant que la case en tient (28 pt + 6 d'écart) ; « +3 » pour le reste
+                    // les plus récents d'abord, autant que la case en tient (28 pt + 6 d'écart, mesuré : la case est plus étroite à côté du
+                    // Minuteur) ; « +3 » pour le reste
                     HStack(spacing: 6) {
-                        let montres = Array(f.reversed().prefix(4))
+                        let montres = Array(f.reversed().prefix(Self.iconesQuiTiennent(f.count, largeur: PlanCentre.cadreCase(m, .etagere).width - 28)))
                         ForEach(montres) { x in icone(x, cote: 28) }
                         if f.count > montres.count {
                             Text("+\(f.count - montres.count)").font(.system(size: 12, weight: .semibold).monospacedDigit()).foregroundStyle(Color.white.opacity(0.6))
@@ -577,6 +785,22 @@ struct CaseEtagere: View {
         .animation(m.reduire || m.statique ? nil : .easeOut(duration: 0.2), value: depot)
     }
 
+    /// Sous le nom du fichier : la phrase la plus longue qui tient (la case est plus étroite à côté du Minuteur), jamais coupée.
+    static func aideGlisser(largeur: CGFloat) -> String {
+        let phrases = ["glisse-le vers une app", "glisse-le où tu veux", "à glisser"]
+        return phrases.first { MesureIlot.texte($0, 11, .medium) <= largeur } ?? phrases[phrases.count - 1]
+    }
+    /// Combien d'icônes de 28 pt (6 pt d'écart) tiennent dans `largeur`, avec « +N » après elles s'il en reste (4 au plus).
+    static func iconesQuiTiennent(_ n: Int, largeur: CGFloat) -> Int {
+        var k = min(4, n)
+        while k > 1 {
+            let reste = n - k
+            let l = CGFloat(k) * 28 + CGFloat(k - 1) * 6 + (reste > 0 ? 6 + MesureIlot.texte("+\(reste)", 12, .semibold, chiffres: true) : 0)
+            if l <= largeur { return k }
+            k -= 1
+        }
+        return k
+    }
     /// L'icône d'un fichier rangé : on la glisse vers une app (le fichier lui-même), un clic l'ouvre.
     private func icone(_ x: FichierEtagere, cote: CGFloat) -> some View {
         Image(nsImage: x.icone).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
@@ -780,11 +1004,19 @@ struct ReglagesCentre {
     /// Le minuteur (Réglages › Îlot) : éteint, un clic sur « 5 », « 10 » ou « 25 » dans le Centre l'allume, puis lance le minuteur.
     var minuteurActif: () -> Bool = { Settings.ilotMinuteur }
     var allumerMinuteur: () -> Void = { Settings.ilotMinuteur = true }
+    /// Le calendrier (Réglages › Îlot, ou le rond Calendrier du Centre).
+    var calendrier: () -> Bool = { Settings.ilotCalendrier }
+    var reglerCalendrier: (Bool) -> Void = { Settings.ilotCalendrier = $0 }
+    /// Les nouveautés déjà données une fois à un Centre rangé (`DispositionCentre.avecNouveautes`).
+    var nouveautes: () -> [String] = { Settings.ilotCentreNouveautes }
+    var marquerNouveautes: ([String]) -> Void = { Settings.ilotCentreNouveautes = $0 }
 }
 
 extension IlotControleur {
     /// Le volet de Réglages Système où l'on rend l'accès à Téléchargements (Confidentialité et sécurité › Fichiers et dossiers).
     static let reglagesFichiers = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders")!
+    /// Le volet où l'on rend l'accès aux calendriers (Confidentialité et sécurité › Calendriers).
+    static let reglagesCalendriers = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!
 
     /// Les boutons du Centre. Chacun réutilise ce qui existe (micro coupé, téléchargements, crochets de Claude, étagère, réunion) ; l'îlot
     /// reste ouvert (sauf pour aller au Terminal ou noter une réunion). Les autorisations se demandent ici, au premier clic, jamais avant.
@@ -800,7 +1032,10 @@ extension IlotControleur {
             reglerTelechargements(!moteur.telechargementsActifs)
         case .centreAvis:
             if moteur.avisCentre == .telechargementsRefuses { ouvrir(Self.reglagesFichiers) }
+            if moteur.avisCentre == .calendrierRefuse { ouvrir(Self.reglagesCalendriers) }
             moteur.avisCentre = nil
+        case .centreCalendrier:
+            basculerLeCalendrier()
         case .centreClaude:
             // une session au travail : on la rejoint ; branché : le Terminal (ou l'app de la dernière session) ; sinon, on branche (les
             // crochets s'écrivent dans ~/.claude/settings.json, l'ancien gardé à côté en .verbe-sauvegarde, comme le bouton des Réglages)
@@ -829,6 +1064,50 @@ extension IlotControleur {
             NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
         default: break
         }
+    }
+
+    /// Le rond Calendrier (maquette ilot-bibliotheque.html, étape 10). Allumé : un clic l'éteint. Éteint : un clic l'allume ; la première
+    /// fois, macOS demande l'accès (« Un instant… » sous le rond, le Centre reste là pendant qu'on répond dans SA fenêtre) ; refusé (tout
+    /// de suite ou plus tôt dans Réglages Système) : « Accès refusé » sous le rond, et la ligne d'avis mène à Réglages Système.
+    func basculerLeCalendrier() {
+        moteur.avisCentre = nil
+        if reglagesCentre.calendrier(), statutCalendrier() == .autorise {
+            reglagesCentre.reglerCalendrier(false)
+            Log.ecrire("calendrier : éteint depuis le Centre")
+            NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
+            appliquerLeCalendrier()
+            return
+        }
+        switch statutCalendrier() {
+        case .autorise:
+            allumerLeCalendrier()
+        case .refuse:
+            calendrierRefuse()
+        case .nonDemande:
+            moteur.calendrierAttente = true
+            moteur.donneesChangees()
+            Task { @MainActor in
+                let ok = await demanderLAccesAuCalendrier()
+                moteur.calendrierAttente = false
+                if ok { allumerLeCalendrier() } else { calendrierRefuse() }
+            }
+        }
+    }
+    private func allumerLeCalendrier() {
+        moteur.calendrierRefuse = false
+        reglagesCentre.reglerCalendrier(true)
+        Log.ecrire("calendrier : allumé depuis le Centre")
+        NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
+        appliquerLeCalendrier()
+    }
+    private func calendrierRefuse() {
+        reglagesCentre.reglerCalendrier(false)
+        moteur.calendrierActif = false
+        moteur.calendrierRefuse = true
+        moteur.avisCentre = .calendrierRefuse
+        Log.ecrire("calendrier : accès refusé (depuis le Centre)")
+        NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
+        moteur.donneesChangees()
     }
 
     /// Coupe le micro du Mac, ou le rouvre : le bouton Micro du Centre, et l'entrée du menu de Verbe (barre des menus), seul chemin

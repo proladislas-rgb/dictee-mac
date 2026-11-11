@@ -422,9 +422,12 @@ struct TitreDefilant: View {
 struct ClocheSecouee: View {
     var taille: CGFloat
     var sonnerie: UUID?
+    /// La cloche du rappel, ou le réveil (qui sonne de la même façon : deux secousses à l'arrivée, puis plus rien qui tourne).
+    var symbole = "bell.fill"
+    var couleur = CouleursIlot.jaune
     @State private var lancer = false
     var body: some View {
-        Image(systemName: "bell.fill").font(.system(size: taille, weight: .semibold)).foregroundStyle(CouleursIlot.jaune)
+        Image(systemName: symbole).font(.system(size: taille, weight: .semibold)).foregroundStyle(couleur)
             .keyframeAnimator(initialValue: 0.0, trigger: lancer) { v, a in
                 v.rotationEffect(.degrees(a), anchor: UnitPoint(x: 0.5, y: 0.12))
             } keyframes: { _ in

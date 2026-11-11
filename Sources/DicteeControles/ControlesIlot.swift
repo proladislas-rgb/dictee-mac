@@ -131,6 +131,7 @@ func controlesIlot() {
     controlesClaude(t0)
     controlesEtagere(t0)
     controlesBibliotheque(t0)
+    controlesReveil()
     groupe("Îlot : Téléchargé (fichiers arrivés dans Téléchargements)")
     do {
         typealias F = FiltreTelechargements
@@ -1023,9 +1024,10 @@ func controlesDispositionCentre() {
     let sansAirPods: (ElementCentre) -> Bool = { $0 != .dictee }
     // la valeur par défaut, et ce qui est rangé dans les réglages
     let d0 = D(identifiants: nil)
-    verifier(d0.elements == [.micro, .dictee, .telechargements, .claude, .minuteur, .etagere, .reunion], "jamais modifié : micro, dictée, Téléchargements, Claude Code, minuteur, étagère, réunion (maquette, étape 3)")
-    verifier(d0.ronds(disponible: sansAirPods) == [.micro, .telechargements, .claude] && d0.ronds(disponible: tout).count == 4 && d0.cases == [.minuteur, .etagere] && d0.bande,
-             "par défaut : 3 ronds sans AirPods (4 avec), les deux cases, la bande « Noter la réunion »")
+    verifier(d0.elements == [.micro, .dictee, .telechargements, .calendrier, .claude, .minuteur, .etagere, .reunion],
+             "jamais modifié : micro, dictée, Téléchargements, Calendrier, Claude Code, minuteur, étagère, réunion (maquettes ilot-centre, étape 3, et ilot-bibliotheque, étape 10)")
+    verifier(d0.ronds(disponible: sansAirPods) == [.micro, .telechargements, .calendrier, .claude] && d0.ronds(disponible: tout).count == 5 && d0.cases == [.minuteur, .etagere] && d0.bande,
+             "par défaut : 4 ronds sans AirPods (5 avec), les deux cases, la bande « Noter la réunion »")
     verifier(D(identifiants: d0.identifiants) == d0 && d0.identifiants.contains("derniere-dictee") == false && ElementCentre.derniereDictee.rawValue == "derniere-dictee",
              "les identifiants rangés se relisent à l'identique")
     verifier(D(identifiants: ["claude", "fusee", "micro", "claude", "etagere"]).elements == [.claude, .micro, .etagere], "identifiants inconnus et doublons ignorés, l'ordre gardé")
@@ -1033,21 +1035,21 @@ func controlesDispositionCentre() {
     verifier(D(identifiants: []).elements.isEmpty, "une liste vide est un choix (tout retiré) : gardée vide")
     // retirer
     var d = d0
-    verifier(d.retirer(.telechargements) && !d.retirer(.telechargements) && d.ronds(disponible: tout) == [.micro, .dictee, .claude], "« – » sur Téléchargements : retiré (une seule fois)")
+    verifier(d.retirer(.telechargements) && !d.retirer(.telechargements) && d.ronds(disponible: tout) == [.micro, .dictee, .calendrier, .claude], "« – » sur Téléchargements : retiré (une seule fois)")
     verifier(d.retirer(.minuteur) && d.cases == [.etagere], "« – » sur Minuteur : l'étagère reste seule")
     // ajouter : ce qui n'est pas montré, dans l'ordre du catalogue ; à la fin de son genre
     verifier(d.aAjouter(disponible: tout) == [.telechargements, .rappel, .derniereDictee, .minuteur], "« Ajouter : » propose ce qui n'est pas montré, dans l'ordre du catalogue")
     verifier(d0.aAjouter(disponible: sansAirPods) == [.rappel, .derniereDictee], "par défaut : « + Rappel », « + Dernière dictée » (maquette, étape 9) ; sans AirPods, pas le choix du micro")
-    verifier(d.ajouter(.rappel) && d.elements == [.micro, .dictee, .claude, .rappel, .etagere, .reunion], "+ Rappel : à la fin des ronds (l'ordre d'ajout), avant les cases")
+    verifier(d.ajouter(.rappel) && d.elements == [.micro, .dictee, .calendrier, .claude, .rappel, .etagere, .reunion], "+ Rappel : à la fin des ronds (l'ordre d'ajout), avant les cases")
     verifier(d.ajouter(.minuteur) && d.cases == [.etagere, .minuteur], "+ Minuteur : après l'étagère")
     verifier(d.retirer(.reunion) && !d.bande && d.ajouter(.reunion) && d.bande && d.elements.last == .reunion, "« – » puis « + » Réunion : la bande revient en bas")
     verifier(!d.ajouter(.rappel) && d.elements.filter { $0 == .rappel }.count == 1, "déjà là : pas ajouté deux fois")
-    verifier(d.ajouter(.telechargements) && d.ronds(disponible: tout) == [.micro, .dictee, .claude, .rappel, .telechargements], "cinq ronds")
-    verifier(!d.peutAjouter(.derniereDictee, disponible: tout) && !d.ajouter(.derniereDictee, disponible: tout), "rangée pleine (5) : un 6e rond est refusé")
-    verifier(d.peutAjouter(.derniereDictee, disponible: sansAirPods) && d.ronds(disponible: sansAirPods).count == 4, "sans AirPods, la dictée ne prend pas de place : il en reste une")
-    let pleine = D([.micro, .dictee, .telechargements, .claude, .rappel, .derniereDictee])
+    verifier(d.ajouter(.telechargements) && d.ronds(disponible: tout) == [.micro, .dictee, .calendrier, .claude, .rappel, .telechargements], "six ronds")
+    verifier(!d.peutAjouter(.derniereDictee, disponible: tout) && !d.ajouter(.derniereDictee, disponible: tout), "rangée pleine (6) : un 7e rond est refusé")
+    verifier(d.peutAjouter(.derniereDictee, disponible: sansAirPods) && d.ronds(disponible: sansAirPods).count == 5, "sans AirPods, la dictée ne prend pas de place : il en reste une")
+    let pleine = D([.micro, .dictee, .telechargements, .calendrier, .claude, .rappel, .derniereDictee])
     verifier(pleine.ronds(disponible: tout).count == D.maxRonds && pleine.ronds(disponible: sansAirPods).last == .derniereDictee,
-             "six ronds rangés (AirPods partis puis revenus) : cinq au plus à l'écran")
+             "sept ronds rangés (AirPods partis puis revenus) : six au plus à l'écran")
     // ranger en glissant
     var r = D([.micro, .dictee, .telechargements, .claude, .minuteur, .etagere])
     let vis = r.ronds(disponible: tout)
