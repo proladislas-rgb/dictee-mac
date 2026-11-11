@@ -36,6 +36,7 @@ enum IlotEssai {
             c.surNoter = { _ in notes += 1 }
             c.panneau.invisible = true
             c.lireMicros = { [] }
+            c.lireDerniereDictee = { nil }   // jamais le vrai historique
             c.lecture.essaiInvisible = true
             return c
         }
@@ -317,8 +318,8 @@ enum IlotEssai {
         verifier(m.alerte?.vue == .minuteurFini && compteurs.minuteur == avantDictee.minuteur + 1 && !m.cache, "dictée finie : l'alerte attendue s'affiche, avec son")
         c.agir(.alerteOK); attendre(0.4)
 
-        // --- micro coupé : un micro FACTICE (jamais CoreAudio, jamais le vrai micro) ; le raccourci est essayé sur des touches fabriquées,
-        // jamais envoyées au système
+        // --- micro coupé : un micro FACTICE (jamais CoreAudio, jamais le vrai micro) ; la bascule est celle du bouton Micro du Centre (de
+        // vrais clics sur ce bouton dans l'essai du Centre)
         do {
             let faux = MicroFactice()
             c.micro = faux
@@ -327,7 +328,7 @@ enum IlotEssai {
             c.activerLeMicro(true); attendre(0.9)
             verifier(faux.actif && !m.microCoupe && m.resolution.principal == .lectureCompact, "micro ouvert au départ : rien ne change, la lecture garde l'îlot")
             c.basculerLeMicro(); attendre(0.9)
-            verifier(faux.commandes == ["couper integre"] && faux.coupe && m.microCoupe, "raccourci : le micro est coupé (une seule commande, sur ce micro)")
+            verifier(faux.commandes == ["couper integre"] && faux.coupe && m.microCoupe, "bascule : le micro est coupé (une seule commande, sur ce micro)")
             verifier(m.courante == .microCompact && m.pastille == .lecture, "micro coupé : il prend l'îlot, la lecture devient la bulle")
             verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && abs(m.trace.hauteur - Double(g.hauteur)) < 0.01,
                      "micro coupé : dans les ailes, \(Int(m.trace.bande - Double(m.demiCamera))) pt de chaque côté de la caméra (≤ 66), rien sous la barre")
@@ -345,7 +346,7 @@ enum IlotEssai {
             let pc = PiedLecture.pointBouton(m.grille)
             c.panneau.envoyerSouris(.leftMouseDown, en: pc); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pc); attendre(0.9)
             verifier(m.courante == .centre, "vrai clic sur « Centre » : le Centre (\(m.courante))")
-            let pm = PlanCentre.centreRond(m.grille, 0, sur: m.boutonsCentre.count)
+            let pm = PlanCentre.centreRond(m, .micro)
             c.panneau.envoyerSouris(.leftMouseDown, en: pm); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pm); attendre(0.4)
             verifier(faux.commandes.last == "rouvrir integre" && !faux.coupe && !m.microCoupe, "vrai clic sur le bouton Micro (« Coupé ») : le micro est rouvert")
             verifier(m.courante == .centre && m.epingle && m.bandeau == nil, "le Centre reste ouvert (« Reste ouvert ») ; pas de bandeau « Micro ouvert », qui le refermerait")
@@ -400,47 +401,13 @@ enum IlotEssai {
                      "les AirPods arrivés pendant la dictée ne sont jamais coupés ; le micro du Mac l'est de nouveau")
             faux.debrancher("airpods"); faux.microDictee = nil; attendre(0.4)
             verifier(m.microCoupe && m.bandeau == nil, "AirPods rangés : le micro du Mac, coupé, revient dans l'îlot")
-            // le raccourci, sur des touches fabriquées (jamais envoyées) : « m » selon la disposition du clavier de ce Mac
-            let src = CGEventSource(stateID: .privateState)
-            func touche(_ code: CGKeyCode, _ f: CGEventFlags) -> CGEvent? { let e = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: true); e?.flags = f; return e }
-            if let codeM = (0..<128).map({ CGKeyCode($0) }).first(where: { touche($0, []).flatMap { NSEvent(cgEvent: $0)?.charactersIgnoringModifiers } == "m" }),
-               let codeA = (0..<128).map({ CGKeyCode($0) }).first(where: { touche($0, []).flatMap { NSEvent(cgEvent: $0)?.charactersIgnoringModifiers } == "a" }) {
-                let r = RaccourciIlot.microParDefaut
-                verifier(touche(codeM, [.maskControl, .maskAlternate]).map { KeyMonitor.correspond($0, a: r) } == true, "⌃⌥M (touche \(codeM) sur ce clavier) : reconnu")
-                verifier(touche(codeM, [.maskControl]).map { KeyMonitor.correspond($0, a: r) } == false
-                         && touche(codeM, [.maskControl, .maskAlternate, .maskCommand]).map { KeyMonitor.correspond($0, a: r) } == false
-                         && touche(codeA, [.maskControl, .maskAlternate]).map { KeyMonitor.correspond($0, a: r) } == false
-                         && touche(codeM, []).map { KeyMonitor.correspond($0, a: r) } == false, "⌃M, ⌃⌥⌘M, ⌃⌥A, m seul : pas le raccourci")
-            } else { verifier(false, "touche « m » introuvable sur ce clavier") }
-            // la touche n'est avalée que si elle a servi (KeyMonitor sans écoute réelle : les touches fabriquées lui sont passées)
-            if let codeM = (0..<128).map({ CGKeyCode($0) }).first(where: { touche($0, []).flatMap { NSEvent(cgEvent: $0)?.charactersIgnoringModifiers } == "m" }),
-               let bas = touche(codeM, [.maskControl, .maskAlternate]), let haut = CGEvent(keyboardEventSource: src, virtualKey: codeM, keyDown: false) {
-                haut.flags = [.maskControl, .maskAlternate]
-                let clavier = KeyMonitor()
-                clavier.raccourciMicro = .microParDefaut
-                clavier.onMicro = { c.basculerLeMicro() }
-                let n6 = faux.commandes.count
-                verifier(clavier.recevoir(type: .keyDown, event: bas) && clavier.recevoir(type: .keyUp, event: haut) && faux.commandes.count == n6 + 1,
-                         "⌃⌥M qui rouvre le micro : appui et relâchement avalés")
-                attendre(1.8)
-                faux.reglable = false
-                verifier(!clavier.recevoir(type: .keyDown, event: bas) && !clavier.recevoir(type: .keyUp, event: haut) && faux.commandes.count == n6 + 1,
-                         "micro qui ne se coupe pas : ⌃⌥M n'est PAS avalé (l'app au premier plan le reçoit), aucune commande")
-                verifier(!m.microCoupe && m.resolution.principal == .lectureCompact && m.bandeau == nil, "micro qui refuse d'être coupé : l'îlot ne ment pas")
-                faux.reglable = true
-                c.surRaccourciMicro = { clavier.raccourciMicro = $0 }
-                c.activerLeMicro(false); c.surRaccourciMicro(nil)
-                verifier(!clavier.recevoir(type: .keyDown, event: bas) && !clavier.recevoir(type: .keyUp, event: haut), "réglage éteint : ⌃⌥M n'est plus avalé")
-                c.surRaccourciMicro = { _ in }
-                c.activerLeMicro(true); attendre(0.4)
-            } else { verifier(false, "touche « m » introuvable sur ce clavier") }
-            // réglage éteint : plus d'écoute ; le micro reste comme il est
-            c.basculerLeMicro(); attendre(0.6)
+            // réglage éteint : plus d'écoute ; le micro reste comme il est (le micro rouvert d'abord, le bandeau « Micro ouvert » parti)
+            c.basculerLeMicro(); attendre(2.2) { m.bandeau != nil }
             c.activerLeMicro(false); attendre(0.6)
             verifier(!faux.actif && !m.microCoupe && m.resolution.principal == .lectureCompact, "réglage éteint : l'îlot ne montre plus le micro")
             let n3 = faux.commandes.count
             let servi = c.basculerLeMicro(); faux.depuisLeSysteme(coupe: false); attendre(0.4)
-            verifier(!servi && faux.commandes.count == n3 && m.bandeau == nil, "réglage éteint : le raccourci et CoreAudio ne font plus rien")
+            verifier(!servi && faux.commandes.count == n3 && m.bandeau == nil, "réglage éteint : la bascule et CoreAudio ne font plus rien")
             attendre(1.2) { m.boucleActive }
             verifier(!m.boucleActive, "micro : tout est posé, aucune boucle d'animation")
         }
@@ -952,7 +919,7 @@ enum IlotEssai {
             let photo2 = sous.appendingPathComponent("Photo de vacances.heic")
             try? FileManager.default.moveItem(at: photo, to: photo2)
             // vrai clic sur le titre de la case Étagère du Centre
-            let ce = PlanCentre.cadreCase(m.grille, droite: true)
+            let ce = PlanCentre.cadreCase(m, .etagere)
             let pl = CGPoint(x: ce.minX + 60, y: ce.minY + 11 + 8)
             c.panneau.envoyerSouris(.leftMouseDown, en: pl); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pl); attendre(0.9)
             verifier(m.courante == .etagere, "vrai clic sur le titre de la case Étagère : la carte s'ouvre (\(m.courante))")
@@ -990,6 +957,7 @@ enum IlotEssai {
         }
 
         IlotEssai.centre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.modifierCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)

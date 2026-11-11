@@ -19,10 +19,7 @@ extension IlotEssai {
             for (i, d) in pas.enumerated() { c.panneau.envoyerDefilement(dy: d, en: p, phase: i == 0 ? 1 : 2); pause(0.016) }
             c.panneau.envoyerDefilement(dy: 0, en: p, phase: 4); pause(0.02)
         }
-        func rond(_ b: BoutonCentre) -> CGPoint {
-            let bs = m.boutonsCentre
-            return PlanCentre.centreRond(m.grille, bs.firstIndex(of: b) ?? 0, sur: bs.count)
-        }
+        func rond(_ e: ElementCentre) -> CGPoint { PlanCentre.centreRond(m, e) }
 
         print("Le Centre")
         // les réglages, en mémoire
@@ -109,7 +106,7 @@ extension IlotEssai {
         if let f = c.panneau.cadre { verifier(Double(f.height) >= m.trace.hauteur && Double(f.width) >= 2 * m.trace.corps, "la fenêtre couvre le Centre (\(Int(f.width)) × \(Int(f.height)))") }
         // les noms sous les ronds, mesurés : sur une ligne, sans toucher le voisin (3 ou 4 colonnes)
         for nb in [3, 4] {
-            let col = PlanCentre.cadreRonds(m.grille).width / CGFloat(nb)
+            let col = PlanCentre.cadreRonds(m).width / CGFloat(nb)
             let l = MesureIlot.texte("Téléchargements", PlanCentre.policeNom, .semibold, interlettre: PlanCentre.interlettreNom)
             verifier(l <= col - 8, "« Téléchargements » (\(Int(l)) pt) tient sur une ligne dans sa colonne (\(Int(col)) pt, \(nb) boutons)")
         }
@@ -121,7 +118,7 @@ extension IlotEssai {
         verifier(m.courante == .centre && m.epingle, "après ce clic : « Reste ouvert », toujours le Centre")
         c.panneau.simulerPointeur(forme: false); pause(0.7)
         verifier(m.courante == .centre, "la souris s'en va : le Centre reste ouvert (épinglé)")
-        let cm = PlanCentre.cadreCase(m.grille, droite: false)
+        let cm = PlanCentre.cadreCase(m, .minuteur)
         let yCaps = cm.minY + 11 + 17 + 8 + 14
         clic(CGPoint(x: cm.minX + 14 + 22, y: yCaps), 0.5)
         verifier(abs((c.minuteur?.restant(a: c.maintenant()) ?? 0) - 300) < 2 && m.courante == .centre && m.bandeau == nil,
@@ -145,13 +142,13 @@ extension IlotEssai {
         // la Dictée : seulement avec un micro Bluetooth
         c.lireMicros = { [PeripheriqueEntree(uid: "essai-airpods", nom: "AirPods Pro", transport: .bluetooth)] }
         m.allerA(.centre); pause(0.9)
-        verifier(m.courante == .centre && m.boutonsCentre == [.micro, .dictee, .telechargements, .claude], "AirPods là : le bouton Dictée paraît (4 boutons)")
+        verifier(m.courante == .centre && m.rondsCentre == [.micro, .dictee, .telechargements, .claude], "AirPods là : le bouton Dictée paraît (4 boutons)")
         clic(rond(.dictee), 0.5)
         verifier(memoire.micro == "essai-airpods" && m.choixMicro?.airpods == true && m.courante == .centre, "vrai clic sur Dictée : la dictée écoutera les AirPods")
         clic(rond(.dictee), 0.5)
         verifier(memoire.micro == nil && m.choixMicro?.airpods == false, "second clic : le micro du Mac (réglage Automatique)")
         c.lireMicros = { [] }; c.relireChoixMicro(); m.donneesChangees(); pause(0.5)
-        verifier(m.boutonsCentre.count == 3, "AirPods partis : trois boutons")
+        verifier(m.rondsCentre.count == 3, "AirPods partis : trois boutons")
 
         // --- un fichier glissé sur le Centre ouvert : la case Étagère s'éclaire, la forme ne bouge pas, le Centre reste ouvert
         let rayon = dossier.appendingPathComponent("Centre-étagère", isDirectory: true)
@@ -160,7 +157,7 @@ extension IlotEssai {
         c.activerEtagere(true); pause(0.3)
         let avantDepot = c.etagere.elements.count
         let hAvant = m.geo[2].x
-        let ce = PlanCentre.cadreCase(m.grille, droite: true)
+        let ce = PlanCentre.cadreCase(m, .etagere)
         let pd = CGPoint(x: ce.midX, y: ce.midY)
         verifier(c.panneau.glisserSurLIlot(pd) && m.depot && m.depotSurvole && m.courante == .centre, "fichier glissé sur la case Étagère : accepté, la case s'éclaire (« Lâche ici »), toujours le Centre")
         pause(0.4)

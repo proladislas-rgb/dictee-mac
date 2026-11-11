@@ -52,7 +52,6 @@ final class ReglagesModele: ObservableObject {
         catch { avisClaude = error.localizedDescription }
         claudeBranche = i.estBranche
     }
-    @Published var raccourciMicro: RaccourciIlot { didSet { if !installe { return }; Settings.raccourciMicro = raccourciMicro; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var sonFinMinuteur: String { didSet { if !installe { return }; Settings.sonFinMinuteur = sonFinMinuteur } }
     var phraseCalendrier: String {
         if reel, !ilotCalendrier, EKAutorisation.refusee { return "L\u{2019}accès est refusé : à autoriser dans Réglages Système › Confidentialité et sécurité › Calendriers." }
@@ -117,7 +116,6 @@ final class ReglagesModele: ObservableObject {
         ilotEtagere = reel ? Settings.ilotEtagere : true
         ilotClaude = reel ? Settings.ilotClaude : true
         claudeBranche = reel ? InstallationClaude.parDefaut.estBranche : false
-        raccourciMicro = reel ? Settings.raccourciMicro : .microParDefaut
         modeleWhisper = reel ? Settings.modeleWhisper : ModeleWhisper.parDefaut
         testPrecision = reel ? Settings.testPrecisionRestant > 0 : false
         langue = reel ? Settings.langueReglage : ChoixLangue.defaut

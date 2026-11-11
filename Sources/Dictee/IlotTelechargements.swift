@@ -17,6 +17,8 @@ final class SourceTelechargements {
     /// L'accès au dossier a été refusé (EPERM / EACCES : refus dans la demande de macOS, ou dans Réglages Système). Un dossier absent
     /// ou illisible sur le moment n'est pas un refus : la surveillance s'arrête, le réglage reste, elle reprendra au prochain lancement.
     var surRefus: () -> Void = {}
+    /// Le dossier est ouvert et lu : l'accès est accordé (la question de macOS, s'il y en avait une, a eu sa réponse).
+    var surPret: () -> Void = {}
     /// Le dossier surveillé (les essais en donnent un temporaire : jamais le vrai, qui demanderait une autorisation).
     var dossier: URL = SourceTelechargements.dossierParDefaut
     private var travail: SurveillanceDossier?
@@ -35,6 +37,9 @@ final class SourceTelechargements {
         // ce qui arrive après un arrêt (ou d'une ancienne surveillance) est ignoré
         t.surArrivee = { [weak self, weak t] l in
             DispatchQueue.main.async { MainActor.assumeIsolated { guard let self, let t, self.travail === t else { return }; self.surArrivee(l) } }
+        }
+        t.surPret = { [weak self, weak t] in
+            DispatchQueue.main.async { MainActor.assumeIsolated { guard let self, let t, self.travail === t else { return }; self.surPret() } }
         }
         t.surEchec = { [weak self, weak t] refus in
             DispatchQueue.main.async { MainActor.assumeIsolated { guard let self, let t, self.travail === t else { return }; self.arreter(); if refus { self.surRefus() } } }
@@ -55,6 +60,7 @@ private final class SurveillanceDossier: @unchecked Sendable {
     var surArrivee: ([FichierTelecharge]) -> Void = { _ in }
     /// L'ouverture a échoué ; vrai : c'est un refus d'accès.
     var surEchec: (_ refus: Bool) -> Void = { _ in }
+    var surPret: () -> Void = {}
     private var source: DispatchSourceFileSystemObject?
     private var veille: VeilleTelechargements?
     private var relecture: DispatchWorkItem?
@@ -96,6 +102,7 @@ private final class SurveillanceDossier: @unchecked Sendable {
         source = s
         s.resume()
         Log.ecrire("téléchargements : surveillance du dossier (\(noms.count) éléments déjà là)")
+        surPret()
     }
 
     private func relire() {

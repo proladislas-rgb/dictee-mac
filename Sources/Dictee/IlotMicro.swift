@@ -22,7 +22,7 @@ protocol PiloteMicro: AnyObject {
     var nom: String? { get }
     /// Ce micro est-il coupé ? nil : il n'existe pas (débranché).
     func estCoupe(_ uid: String) -> Bool?
-    /// Faux si ce micro ne se coupe pas (ni muet ni volume réglable) : le raccourci n'a alors aucun effet et n'est pas avalé.
+    /// Faux si ce micro ne se coupe pas (ni muet ni volume réglable) : le bouton Micro du Centre n'a alors aucun effet.
     func peutCouper(_ uid: String) -> Bool
     func couper(_ uid: String) -> Bool
     func rouvrir(_ uid: String) -> Bool

@@ -1,67 +1,10 @@
 import Foundation
 
 // « Micro coupé » (maquette design/maquettes/ilot-apple.html, « Cinq idées de plus », 5) : logique pure, sans CoreAudio ni clavier.
-// Un raccourci global coupe le micro d'entrée par défaut du Mac et le rouvre ; tant qu'il est coupé, l'îlot le montre (micro barré rouge,
+// Le bouton Micro du Centre de l'îlot coupe le micro d'entrée par défaut du Mac et le rouvre (plus de raccourci clavier depuis le 11/11 :
+// le Centre est le seul chemin, seule la touche fn reste, pour dicter) ; tant qu'il est coupé, l'îlot le montre (micro barré rouge,
 // « Coupé »). La dictée de Verbe rouvre le micro qu'elle écoute s'il est coupé, le temps de dicter, puis le recoupe. Ce que fait le
 // système (Réglages Système) fait foi.
-
-/// Un raccourci clavier : une touche (le caractère que la disposition du clavier donne, en minuscule : « m » sur un AZERTY comme sur un
-/// QWERTY, quelle que soit la place de la touche) et ses touches de modification.
-public struct RaccourciIlot: Equatable, Sendable {
-    public var touche: String
-    public var controle: Bool
-    public var option: Bool
-    public var maj: Bool
-    public var commande: Bool
-
-    public init(touche: String, controle: Bool = false, option: Bool = false, maj: Bool = false, commande: Bool = false) {
-        self.touche = touche.lowercased(); self.controle = controle; self.option = option; self.maj = maj; self.commande = commande
-    }
-
-    /// ⌃⌥M : par défaut pour couper le micro.
-    public static let microParDefaut = RaccourciIlot(touche: "m", controle: true, option: true)
-
-    /// Ceux que macOS ou Verbe utilisent déjà : ⌥⌘N (noter la réunion), ⌃⌘Q (verrouiller), ⇧⌘3/4/5 (captures), ⌃⌘F (plein écran),
-    /// ⌥⌘D (Dock), ⌃⌘Espace (emoji).
-    static let reserves: [RaccourciIlot] = [
-        RaccourciIlot(touche: "n", option: true, commande: true), RaccourciIlot(touche: "q", controle: true, commande: true),
-        RaccourciIlot(touche: "3", maj: true, commande: true), RaccourciIlot(touche: "4", maj: true, commande: true),
-        RaccourciIlot(touche: "5", maj: true, commande: true), RaccourciIlot(touche: "f", controle: true, commande: true),
-        RaccourciIlot(touche: "d", option: true, commande: true), RaccourciIlot(touche: " ", controle: true, commande: true),
-    ]
-
-    /// Un raccourci global acceptable : une seule touche visible, au moins deux touches de modification dont ⌃ ou ⌘ (⌥ seul tape des
-    /// caractères : ⌥M donne « µ » ; ⌘ seul est pris par les apps : ⌘M réduit la fenêtre), et pas un raccourci déjà pris.
-    public var estValide: Bool {
-        let n = [controle, option, maj, commande].filter { $0 }.count
-        return touche.count == 1 && touche != "\u{1B}" && n >= 2 && (controle || commande) && !Self.reserves.contains(self)
-    }
-
-    /// « ⌃⌥M » : les touches dans l'ordre d'Apple (⌃ ⌥ ⇧ ⌘), puis la touche en capitale.
-    public var libelle: String {
-        (controle ? "\u{2303}" : "") + (option ? "\u{2325}" : "") + (maj ? "\u{21E7}" : "") + (commande ? "\u{2318}" : "")
-            + (touche == " " ? "Espace" : touche.uppercased())
-    }
-
-    /// « ctrl+opt+m » : la forme rangée dans les réglages.
-    public var texte: String {
-        ([controle ? "ctrl" : nil, option ? "opt" : nil, maj ? "maj" : nil, commande ? "cmd" : nil].compactMap { $0 } + [touche]).joined(separator: "+")
-    }
-    public init?(texte: String) {
-        var morceaux = texte.components(separatedBy: "+")
-        // la touche « + » elle-même : « ctrl+opt++ »
-        if texte.hasSuffix("++") { morceaux = Array(morceaux.dropLast(2)) + ["+"] }
-        guard let t = morceaux.last, t.count == 1 else { return nil }
-        let m = Set(morceaux.dropLast())
-        guard m.isSubset(of: ["ctrl", "opt", "maj", "cmd"]) else { return nil }
-        self.init(touche: t, controle: m.contains("ctrl"), option: m.contains("opt"), maj: m.contains("maj"), commande: m.contains("cmd"))
-    }
-
-    /// La touche pressée est-elle ce raccourci ? Les touches de modification doivent être exactement les mêmes (⌃⌥⌘M n'est pas ⌃⌥M).
-    public func correspond(touche t: String, controle c: Bool, option o: Bool, maj s: Bool, commande k: Bool) -> Bool {
-        t.lowercased() == touche && c == controle && o == option && s == maj && k == commande
-    }
-}
 
 /// Ce que Verbe sait des micros et ce qu'il doit faire. L'îlot montre `coupe` (le micro PAR DÉFAUT, celui que les apps entendent) ;
 /// les commandes partent vers CoreAudio, chacune pour un micro précis (son UID). Le système fait foi : chaque changement qu'il signale

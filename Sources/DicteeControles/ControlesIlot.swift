@@ -237,24 +237,6 @@ func controlesIlot() {
 
     groupe("Îlot : micro coupé")
     do {
-        let d = RaccourciIlot.microParDefaut
-        verifier(d.libelle == "\u{2303}\u{2325}M" && d.texte == "ctrl+opt+m" && d.estValide, "par défaut : ⌃⌥M, rangé « ctrl+opt+m », valide")
-        verifier(RaccourciIlot(texte: "ctrl+opt+m") == d && RaccourciIlot(texte: d.texte) == d, "« ctrl+opt+m » relu à l'identique")
-        verifier(RaccourciIlot(texte: "ctrl+opt++")?.touche == "+" && RaccourciIlot(texte: "ctrl+opt++")?.controle == true, "la touche « + » elle-même")
-        verifier(RaccourciIlot(texte: "") == nil && RaccourciIlot(texte: "ctrl+opt+mm") == nil && RaccourciIlot(texte: "hyper+m") == nil, "textes abîmés refusés")
-        verifier(RaccourciIlot(touche: "M", controle: true, option: true) == d, "la touche est rangée en minuscule")
-        verifier(d.correspond(touche: "m", controle: true, option: true, maj: false, commande: false) && d.correspond(touche: "M", controle: true, option: true, maj: false, commande: false),
-                 "⌃⌥M reconnu (minuscule ou capitale)")
-        verifier(!d.correspond(touche: "m", controle: true, option: true, maj: false, commande: true) && !d.correspond(touche: "m", controle: true, option: false, maj: false, commande: false)
-                 && !d.correspond(touche: ",", controle: true, option: true, maj: false, commande: false), "⌃⌥⌘M, ⌃M, ⌃⌥, : pas le raccourci")
-        verifier(!RaccourciIlot(touche: "m", option: true).estValide, "⌥M seul : refusé (il tape « µ »)")
-        verifier(!RaccourciIlot(touche: "m", commande: true).estValide, "⌘M seul : refusé (réduire la fenêtre)")
-        verifier(!RaccourciIlot(touche: "m", option: true, maj: true).estValide, "⌥⇧M : refusé (ni ⌃ ni ⌘)")
-        verifier(!RaccourciIlot(touche: "n", option: true, commande: true).estValide && !RaccourciIlot(touche: "q", controle: true, commande: true).estValide,
-                 "⌥⌘N (noter la réunion) et ⌃⌘Q (verrouiller) : déjà pris")
-        verifier(RaccourciIlot(touche: "m", maj: true, commande: true).estValide && RaccourciIlot(touche: "u", controle: true, commande: true).estValide, "⇧⌘M, ⌃⌘U : acceptés")
-        verifier(RaccourciIlot(touche: " ", controle: true, option: true).libelle == "\u{2303}\u{2325}Espace", "la barre d'espace s'écrit « Espace »")
-
         typealias R = VeilleMicro.Reponse
         let mac = "integre", air = "airpods"
         var w = VeilleMicro()
@@ -952,7 +934,11 @@ func controlesCentre() {
         let c = GeoIlot.valeurs(.centre, hauteurBarre: barre, demiCamera: demi, epaules: true)
         let t = TraceIlot.calculer(c, demiCamera: demi, barre: barre)
         verifier(t.bande <= demi + GeoIlot.aileMax + 0.001, "Centre (caméra \(Int(2 * demi)), barre \(Int(barre))) : dans la barre, \(String(format: "%.0f", t.bande - demi)) pt de chaque côté (≤ 66), épaules comprises")
-        verifier(c[2] + 30 <= 330, "Centre : \(Int(c[2])) pt de haut, + 30 pt d'ombre, dans la zone de dessin (330)")
+        verifier(c[2] == barre + 298 && c[2] + 30 <= 380, "Centre (avec la bande de la réunion) : \(Int(c[2])) pt de haut (maquette : 331 avec une barre de 33), + 30 pt d'ombre, dans la zone de dessin (380)")
+        // sans la bande (« Modifier ») : 50 pt de moins
+        let ps = DispositionCentre.plan(ronds: true, cases: true, bande: false).profondeur
+        let cs = GeoIlot.valeurs(.centre, hauteurBarre: barre, demiCamera: demi, epaules: true, enPlus: ps - GeoIlot.profondeurCentre)
+        verifier(cs[2] == barre + 248, "Centre sans la réunion : \(Int(cs[2])) pt de haut (maquette sans la bande : 281)")
         verifier(c[1] == GeoIlot.valeurs(.lectureEtendu, hauteurBarre: barre)[1] && c[1] == GeoIlot.valeurs(.accueil, hauteurBarre: barre)[1],
                  "Centre, lecture, accueil : la même largeur (on passe d'une carte à l'autre sans que la forme s'élargisse)")
         // la bulle « Nouveau » sous la lecture repliée et sous l'îlot vide
@@ -965,5 +951,74 @@ func controlesCentre() {
         }
     }
     verifier(GeoIlot.aEpaules(.centre) && !VueIlot.centre.estBandeau && !GeoIlot.ajusteAuContenu(.centre), "Centre : un écran déplié, avec les épaules (batterie, AirPods)")
-    verifier(GeoIlot.profondeur(.centre) == 248, "Centre : 14 + 26 + 12 + 96 + 10 + 76 + 14 = 248 pt sous la barre (maquette : 281 − 33)")
+    verifier(GeoIlot.profondeur(.centre) == 298, "Centre : 14 + 26 + 12 + 96 + 10 + 76 + 10 + 40 + 14 = 298 pt sous la barre (maquette : 331 − 33)")
+    controlesDispositionCentre()
+}
+
+/// « Modifier » le Centre : ce qu'il montre, dans quel ordre, ce qui est rangé dans les réglages, et la place que ça prend.
+func controlesDispositionCentre() {
+    groupe("Îlot : le Centre, « Modifier » (ajouter, retirer, ranger)")
+    typealias D = DispositionCentre
+    let tout: (ElementCentre) -> Bool = { _ in true }
+    let sansAirPods: (ElementCentre) -> Bool = { $0 != .dictee }
+    // la valeur par défaut, et ce qui est rangé dans les réglages
+    let d0 = D(identifiants: nil)
+    verifier(d0.elements == [.micro, .dictee, .telechargements, .claude, .minuteur, .etagere, .reunion], "jamais modifié : micro, dictée, Téléchargements, Claude Code, minuteur, étagère, réunion (maquette, étape 3)")
+    verifier(d0.ronds(disponible: sansAirPods) == [.micro, .telechargements, .claude] && d0.ronds(disponible: tout).count == 4 && d0.cases == [.minuteur, .etagere] && d0.bande,
+             "par défaut : 3 ronds sans AirPods (4 avec), les deux cases, la bande « Noter la réunion »")
+    verifier(D(identifiants: d0.identifiants) == d0 && d0.identifiants.contains("derniere-dictee") == false && ElementCentre.derniereDictee.rawValue == "derniere-dictee",
+             "les identifiants rangés se relisent à l'identique")
+    verifier(D(identifiants: ["claude", "fusee", "micro", "claude", "etagere"]).elements == [.claude, .micro, .etagere], "identifiants inconnus et doublons ignorés, l'ordre gardé")
+    verifier(D(identifiants: ["fusee", "laser"]) == d0, "plus rien de connu dans une liste non vide (réglage abîmé, version plus récente) : la valeur par défaut")
+    verifier(D(identifiants: []).elements.isEmpty, "une liste vide est un choix (tout retiré) : gardée vide")
+    // retirer
+    var d = d0
+    verifier(d.retirer(.telechargements) && !d.retirer(.telechargements) && d.ronds(disponible: tout) == [.micro, .dictee, .claude], "« – » sur Téléchargements : retiré (une seule fois)")
+    verifier(d.retirer(.minuteur) && d.cases == [.etagere], "« – » sur Minuteur : l'étagère reste seule")
+    // ajouter : ce qui n'est pas montré, dans l'ordre du catalogue ; à la fin de son genre
+    verifier(d.aAjouter(disponible: tout) == [.telechargements, .rappel, .derniereDictee, .minuteur], "« Ajouter : » propose ce qui n'est pas montré, dans l'ordre du catalogue")
+    verifier(d0.aAjouter(disponible: sansAirPods) == [.rappel, .derniereDictee], "par défaut : « + Rappel », « + Dernière dictée » (maquette, étape 9) ; sans AirPods, pas le choix du micro")
+    verifier(d.ajouter(.rappel) && d.elements == [.micro, .dictee, .claude, .rappel, .etagere, .reunion], "+ Rappel : à la fin des ronds (l'ordre d'ajout), avant les cases")
+    verifier(d.ajouter(.minuteur) && d.cases == [.etagere, .minuteur], "+ Minuteur : après l'étagère")
+    verifier(d.retirer(.reunion) && !d.bande && d.ajouter(.reunion) && d.bande && d.elements.last == .reunion, "« – » puis « + » Réunion : la bande revient en bas")
+    verifier(!d.ajouter(.rappel) && d.elements.filter { $0 == .rappel }.count == 1, "déjà là : pas ajouté deux fois")
+    verifier(d.ajouter(.telechargements) && d.ronds(disponible: tout) == [.micro, .dictee, .claude, .rappel, .telechargements], "cinq ronds")
+    verifier(!d.peutAjouter(.derniereDictee, disponible: tout) && !d.ajouter(.derniereDictee, disponible: tout), "rangée pleine (5) : un 6e rond est refusé")
+    verifier(d.peutAjouter(.derniereDictee, disponible: sansAirPods) && d.ronds(disponible: sansAirPods).count == 4, "sans AirPods, la dictée ne prend pas de place : il en reste une")
+    let pleine = D([.micro, .dictee, .telechargements, .claude, .rappel, .derniereDictee])
+    verifier(pleine.ronds(disponible: tout).count == D.maxRonds && pleine.ronds(disponible: sansAirPods).last == .derniereDictee,
+             "six ronds rangés (AirPods partis puis revenus) : cinq au plus à l'écran")
+    // ranger en glissant
+    var r = D([.micro, .dictee, .telechargements, .claude, .minuteur, .etagere])
+    let vis = r.ronds(disponible: tout)
+    verifier(r.deplacer(.claude, versRang: 0, parmi: vis) && r.ronds(disponible: tout) == [.claude, .micro, .dictee, .telechargements], "Claude glissé tout à gauche")
+    verifier(r.deplacer(.claude, versRang: 9, parmi: r.ronds(disponible: tout)) && r.ronds(disponible: tout) == [.micro, .dictee, .telechargements, .claude], "puis tout à droite (rang borné)")
+    verifier(!r.deplacer(.claude, versRang: 3, parmi: r.ronds(disponible: tout)), "lâché à sa place : rien ne change")
+    verifier(r.deplacer(.micro, versRang: 1, parmi: r.ronds(disponible: sansAirPods)) && r.elements == [.dictee, .telechargements, .micro, .claude, .minuteur, .etagere],
+             "sans AirPods, Micro glissé d'un cran : il passe après Téléchargements, la dictée (cachée) garde sa place")
+    verifier(r.deplacer(.etagere, versRang: 0, parmi: r.cases) && r.cases == [.etagere, .minuteur] && !r.deplacer(.reunion, versRang: 0, parmi: r.cases), "les cases s'échangent ; un élément absent ne bouge rien")
+    verifier(D(identifiants: r.identifiants) == r, "l'ordre rangé se relit à l'identique")
+    // la place
+    let p0 = D.plan(ronds: true, cases: true, bande: true)
+    verifier(p0.profondeur == GeoIlot.profondeurCentre && p0.hauts[.ronds] == 52 && p0.hauts[.cases] == 158 && p0.hauts[.bande] == 244,
+             "par défaut : la profondeur de la table (298), ronds à 52 pt, cases à 158 pt, bande à 244 pt")
+    verifier(D.plan(ronds: true, cases: true, bande: false).profondeur == 248, "sans la bande : 248 pt (maquette sans la réunion : 281 − 33)")
+    verifier(D.plan(ronds: false, cases: true, bande: false).hauts[.cases] == 52 && D.plan(ronds: false, cases: true, bande: false).profondeur == 54 + 12 + 76,
+             "sans ronds : les cases montent sous l'en-tête (12 pt d'écart)")
+    verifier(D.plan(ronds: false, cases: false, bande: false).profondeur == 54, "tout retiré : l'en-tête seul (« Modifier » pour en remettre)")
+    let g = GeoIlot.valeurs(.centre, hauteurBarre: 33, enPlus: 54 - GeoIlot.profondeurCentre)
+    verifier(g[2] == 33 + 54, "une profondeur plus petite que la table passe par `enPlus` négatif")
+    // les noms sous les ronds : un nom court laisse sa place à un voisin long ; deux longs cèdent ; jamais moins de `ecart` entre eux
+    let lp = D.largeursPermises([36, 95, 70], colonne: 84, ecart: 4)
+    verifier(lp == [36, 90, 70], "« Micro », « Téléchargements » (95 pt), « Claude Code » dans 84 pt : le long déborde chez « Micro », cède 5 pt pour garder 4 pt avec « Claude Code »")
+    let lq = D.largeursPermises([95, 84.5, 36], colonne: 84, ecart: 4)
+    verifier(lq[0] <= 84 && (lq[0] + lq[1]) / 2 + 4 <= 84 + 1e-9 && lq[2] == 36, "« Téléchargements » au bord, « Dernière dictée » à côté : le bord tient dans sa colonne, les deux voisins gardent 4 pt")
+    let lr = D.largeursPermises([95, 95, 95, 95, 95], colonne: 84, ecart: 4)
+    verifier(lr.allSatisfy { abs($0 - 80) < 1e-9 }, "cinq noms trop longs : chacun 80 pt (84 − 4)")
+    verifier(D.largeursPermises([], colonne: 84, ecart: 4).isEmpty && D.largeursPermises([120], colonne: 400, ecart: 4) == [120], "rien, ou un seul nom qui tient : inchangé")
+    // les pastilles « Ajouter : » qui tiennent dans la ligne
+    let m3: (Int) -> Double = { _ in 20 }
+    verifier(D.pastillesQuiTiennent([70, 120, 80], place: 300, ecart: 6, marque: m3) == 3, "trois pastilles qui tiennent : toutes")
+    verifier(D.pastillesQuiTiennent([70, 120, 80, 90], place: 300, ecart: 6, marque: m3) == 2, "une de trop : deux, puis « +2 » (qui doit tenir aussi)")
+    verifier(D.pastillesQuiTiennent([400], place: 300, ecart: 6, marque: m3) == 0 && D.pastillesQuiTiennent([], place: 300, ecart: 6, marque: m3) == 0, "aucune ne tient, ou rien à ajouter : zéro")
 }

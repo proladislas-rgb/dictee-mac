@@ -66,8 +66,10 @@ public enum GeoIlot {
     /// Le pied de la lecture dépliée : le bouton « Centre » (30 pt) et sa marge (maquette : 12 pt dessus, 14 dessous ; ici 6 + 30 + 4,
     /// les boutons de la lecture ont déjà 7 pt de vide sous leur glyphe).
     public static let piedLecture: Double = 40
-    /// Le Centre : 14 de marge, l'en-tête (26), 12, la rangée des ronds (96), 10, les deux grandes cases (76), 14 (maquette : 281 − 33).
-    public static let profondeurCentre: Double = 14 + 26 + 12 + 96 + 10 + 76 + 14
+    /// Le Centre tel qu'il est la première fois : 14 de marge, l'en-tête (26), 12, la rangée des ronds (96), 10, les deux grandes cases
+    /// (76), 10, la bande « Noter la réunion » (40), 14 (maquette : 331 − 33). « Modifier » l'allonge ou le raccourcit (`enPlus`,
+    /// DispositionCentre.plan).
+    public static let profondeurCentre: Double = 14 + 26 + 12 + 96 + 10 + 76 + 10 + 40 + 14
     /// Repos d'une activité : rien sous la barre, le cou serré contre la caméra (la place de la pochette, de l'anneau, de l'heure).
     static func compact(_ cou: Double) -> [Double] { [cou, cou, 0, 6, 10, 0, 0] }
     /// Bandeau passager : cou étroit (les menus restent visibles), deux lignes sous la barre. Le corps s'ajuste à son contenu (comme la
@@ -141,10 +143,10 @@ public enum GeoIlot {
 
     /// Les sept valeurs pour une vue, la hauteur comptée depuis le haut de l'écran avec la vraie barre des menus. `contenu` : la largeur
     /// mesurée du contenu (pt) pour un écran qui s'y ajuste ; nil = le plus large de la table. `enPlus` : la hauteur qu'un contenu
-    /// variable ajoute (la ligne de l'étagère dans l'accueil, une deuxième rangée de fichiers).
+    /// variable ajoute (la ligne de l'étagère dans l'accueil, une deuxième rangée de fichiers) ou retire (un Centre sans ses cases).
     public static func valeurs(_ v: VueIlot, hauteurBarre: Double, demiCamera: Double = 0, contenu: Double? = nil, epaules avecEpaules: Bool = false, enPlus: Double = 0) -> [Double] {
         var g = table[v] ?? table[.repos]!
-        g[2] += hauteurBarre + max(0, enPlus)
+        g[2] = max(0, g[2] + enPlus) + hauteurBarre
         if avecEpaules, aEpaules(v) { g[0] = max(g[0], epaules) }
         if let contenu, ajusteAuContenu(v) { g[1] = corps(v, contenu: contenu, demiCamera: demiCamera) }
         return g

@@ -78,6 +78,8 @@ enum ActionIlot {
     /// Les boutons du Centre (CentreIlot.swift) : couper ou rouvrir le micro, allumer ou éteindre Téléchargements, brancher Claude Code
     /// (ou ramener sa session), allumer l'étagère éteinte dans les réglages.
     case centreMicro, centreTelechargements, centreClaude, etagereAllumer
+    /// La bande « Noter la réunion » du Centre ; la ligne d'avis « Accès refusé » (elle ouvre Réglages Système).
+    case centreReunion, centreAvis
     /// Un minuteur lancé depuis le Centre : ni bandeau ni fermeture (on enchaîne d'autres réglages), il part dans la case Minuteur.
     case minuteurLancerDansLeCentre(minutes: Double)
 }
@@ -168,7 +170,7 @@ enum CourbesIlot {
 final class IlotMoteur: ObservableObject {
     /// Zone de dessin : l'origine des coordonnées de la maquette (centre de l'encoche) est au milieu, en haut.
     static let largeur: CGFloat = 800
-    static let hauteurMax: CGFloat = 330
+    static let hauteurMax: CGFloat = 380
 
     @Published private(set) var rev = 0
     var geometrie = GeometrieEncoche()
@@ -199,7 +201,7 @@ final class IlotMoteur: ObservableObject {
     var derniereDictee: (texte: String, age: String)?
     /// Dit à l'accueil si le calendrier est branché (sinon la tuile propose de l'activer).
     var calendrierActif = false
-    /// Le micro du Mac est coupé (raccourci ⌃⌥M, ou Réglages Système), et son nom pour le déplié (« Micro MacBook Air »).
+    /// Le micro du Mac est coupé (bouton Micro du Centre, ou Réglages Système), et son nom pour le déplié (« Micro MacBook Air »).
     var microCoupe = false
     var nomMicro: String?
     /// La session de Claude Code que l'îlot montre (au travail, ou qui attend une réponse) ; la dernière vue, pour un écran qui s'efface.
@@ -238,8 +240,18 @@ final class IlotMoteur: ObservableObject {
     var aideCentre = false
     var surBulleVue: () -> Void = {}
     var surCentreUtilise: () -> Void = {}
-    /// « Modifier » (ajouter, retirer, ranger les boutons du Centre) : branché au prochain lot ; rien pour l'instant.
-    var surModifierCentre: () -> Void = {}
+    /// Ce que le Centre montre, dans l'ordre (« Modifier », CentreModifier.swift) ; le contrôleur la relit des réglages au lancement.
+    var disposition = DispositionCentre() { didSet { if disposition != oldValue { rev += 1 } } }
+    /// « Modifier » : les boutons tremblent, « – » retire, « Ajouter : » ajoute, on les range en les glissant ; « OK » enregistre
+    /// (`surDispositionCentre`). Un Centre qui se range (clic ailleurs, alerte) enregistre aussi.
+    var editionCentre = false { didSet { if editionCentre != oldValue { rev += 1 } } }
+    var surDispositionCentre: (DispositionCentre) -> Void = { _ in }
+    /// La ligne « Ajouter : » montre les pastilles qui tiennent, puis « +2 › » : un clic montre les suivantes (à partir de celle-ci).
+    var debutAjouts = 0 { didSet { if debutAjouts != oldValue { rev += 1 } } }
+    /// Téléchargements allumé depuis le Centre : macOS pose sa question (« Un instant… » sous le bouton) jusqu'à la réponse.
+    var telechargementsAttente = false { didSet { if telechargementsAttente != oldValue { rev += 1 } } }
+    /// Une ligne en haut du Centre quand une action n'a pas pu se faire (accès refusé, crochets de Claude impossibles à écrire).
+    var avisCentre: AvisCentre? { didSet { if avisCentre != oldValue { rev += 1 } } }
     private var finBulle: DispatchWorkItem?
     private var defilement = DefilementIlot()
 
@@ -357,6 +369,9 @@ final class IlotMoteur: ObservableObject {
         // Centre ouvert, c'est la case Étagère qui reçoit les fichiers : la forme ne bouge pas
         let voulu = depot && carte != .centre ? .etagereDepot : carte
         afficher(voulu)
+        // le Centre s'est rangé (clic ailleurs, alerte, autre carte) : « Modifier » se termine et enregistre ; la ligne d'avis s'en va
+        if editionCentre, courante != .centre { finirEditionCentre() }
+        if avisCentre != nil, !fenetreOuverte { avisCentre = nil }
         majExtras()
         majPastille()
         programmerReveil()
@@ -382,6 +397,9 @@ final class IlotMoteur: ObservableObject {
         var d: [VueIlot: CGFloat] = [:]
         if etagereActive, !etagere.isEmpty { d[.lectureMinuteur] = CGFloat(GeoIlot.ligneAccueil) }
         if EtagereIlot.rangees(etagere.count) > 1 { d[.etagere] = CGFloat(GeoIlot.rangeeEtagere) }
+        // le Centre suit ce qu'il montre (« Modifier ») : ronds, cases et bande de la réunion, la hauteur de la table
+        let p = DispositionCentre.plan(ronds: !rondsCentre.isEmpty, cases: !disposition.cases.isEmpty, bande: disposition.bande).profondeur
+        if p != GeoIlot.profondeurCentre { d[.centre] = CGFloat(p - GeoIlot.profondeurCentre) }
         return d
     }
 
@@ -847,7 +865,8 @@ final class IlotMoteur: ObservableObject {
     }
     /// Une carte plus bas (+1) ou plus haut (−1). Depuis la carte Étagère (ouverte depuis le Centre), on revient au Centre.
     func defiler(_ pas: Int) {
-        guard fenetreOuverte, !cache, !resolution.verrou else { return }
+        // « Modifier » : on range les boutons, la molette ne change pas de carte
+        guard fenetreOuverte, !cache, !resolution.verrou, !editionCentre else { return }
         if courante == .etagere { allerA(.centre); return }
         guard let c = carteCourante, let v = CartesIlot.voisine(cartes, de: c, pas: pas) else { return }
         allerA(v)

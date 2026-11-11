@@ -359,7 +359,7 @@ enum RenduLecture {
         // le Centre (maquette ilot-centre.html, mêmes étapes) : la bulle « Nouveau », la lecture et son bouton « Centre », le Centre et
         // ses boutons (micro coupé et « Reste ouvert », l'étagère qui reçoit un fichier, Téléchargements allumé, Claude prêt), puis d'autres
         // états (îlot vide, minuteur qui tourne, Claude au travail, l'accueil sous le Centre, la carte Étagère, le passage à mi-course)
-        let hCentre = geometrie.hauteur + 300
+        let hCentre = geometrie.hauteur + 350
         let airpodsPro = AppareilIlot(nom: "AirPods Pro de Hugues", genre: .ecouteurs, gauche: 80, droit: 78, etui: 45)
         func centre(_ config: @escaping (IlotMoteur) -> Void = { _ in }) -> (IlotMoteur) -> Void {
             { m in m.lecturePresente = true; m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpodsPro
@@ -380,6 +380,26 @@ enum RenduLecture {
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.choixMicro = nil; m.claude = claude(); m.epinglerLeCentre() })) }, "ilot-23k-centre-claude-au-travail-sans-airpods")
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); m.rendezVousSuivant = rdv; m.allerA(.accueil) })) }, "ilot-23l-centre-accueil-dessous")
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.etagere = deux; m.ouvrirEtagere() })) }, "ilot-23m-centre-carte-etagere-retour")
+        // « Modifier » (maquette, étape 9) : le Centre avec Rappel ajouté (cinq ronds) ; « Modifier » lui-même (inclinaison figée : dans
+        // l'app, ils tremblent), « Ajouter : + Rappel + Dernière dictée », puis Rappel ajouté ; « Modifier » quand les ajouts ne tiennent
+        // pas tous (« +3 › ») ; enfin les autorisations (« Un instant… », accès refusé et sa ligne d'avis)
+        let maquette = DispositionCentre([.micro, .dictee, .telechargements, .claude, .rappel, .minuteur, .etagere, .reunion])
+        let hReunion = hCentre
+        func etape8(_ m: IlotMoteur) { m.microCoupe = true; m.etagere = Array(deux.prefix(1)); m.telechargementsActifs = true; m.claudeBranche = true }
+        ecrire(bureau(hauteur: hReunion) { ilot(scene(lecture: videoLongue, centre { m in m.disposition = maquette; etape8(m); m.epinglerLeCentre() })) }, "ilot-23oa-centre-cinq-ronds-et-reunion")
+        ecrire(bureau(hauteur: hReunion) { ilot(scene(lecture: videoLongue, centre { m in m.disposition = DispositionCentre(); etape8(m)
+            m.commencerEditionCentre() })) }, "ilot-23ob-centre-9-modifier")
+        ecrire(bureau(hauteur: hReunion) { ilot(scene(lecture: videoLongue, centre { m in m.disposition = maquette; etape8(m); m.commencerEditionCentre() })) }, "ilot-23oc-centre-9-modifier-rappel-ajoute")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.disposition = DispositionCentre([.micro, .claude, .minuteur, .etagere]); etape8(m)
+            m.commencerEditionCentre() })) }, "ilot-23od-centre-modifier-ajouts-qui-ne-tiennent-pas")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.disposition = DispositionCentre([.claude, .etagere]); etape8(m); m.commencerEditionCentre() })) },
+               "ilot-23oe-centre-modifier-presque-vide")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.microCoupe = true; m.epinglerLeCentre(); m.etagere = Array(deux.prefix(1))
+            m.telechargementsAttente = true; m.telechargementsActifs = true })) }, "ilot-23pa-centre-6-telechargements-un-instant")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.microCoupe = true; m.epinglerLeCentre(); m.etagere = Array(deux.prefix(1))
+            m.avisCentre = .telechargementsRefuses })) }, "ilot-23pb-centre-telechargements-refuse")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(lecture: videoLongue, centre { m in m.epinglerLeCentre(); m.avisCentre = .claudeImpossible(ecriture: false) })) },
+               "ilot-23pc-centre-claude-illisible-sombre")
         for (t, nom) in [(0.08, "a"), (0.18, "b")] {
             ecrire(bureau(hauteur: hCentre) { ilot(miCourse(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpodsPro
                 m.donneesChangees(); m.survole = true; m.donneesChangees() }, t) { $0.allerA(.centre) }) }, "ilot-23n\(nom)-centre-passage-\(Int(t * 1000))ms")

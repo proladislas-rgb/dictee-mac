@@ -30,14 +30,6 @@ final class KeyMonitor {
     var onReunion: (() -> Void)?
     private var reunionAvalee = false
     private let codeN: Int64 = 45
-    /// « Micro coupé » : le raccourci (⌃⌥M par défaut ; nil = réglage éteint) coupe ou rouvre le micro. `onMicro` rend vrai si la
-    /// touche a servi : elle est alors avalée (appui, répétitions, relâchement) ; faux (aucun micro, micro qui ne se coupe pas, commande
-    /// refusée) : elle va à l'app au premier plan, qui l'attendait peut-être.
-    var raccourciMicro: RaccourciIlot?
-    var onMicro: (() -> Bool)?
-    private var microAvale: Int64?
-    /// Les Réglages enregistrent un nouveau raccourci : on laisse passer la touche jusqu'à eux.
-    static var enregistrementEnCours = false
     /// « Volume et luminosité » : les touches spéciales (volume, muet, luminosité) ; vrai = avalée (l'îlot l'applique et la montre).
     var onNiveau: ((EvenementNiveau, CGEventFlags) -> Bool)?
     /// macOS a coupé puis rallumé l'écoute : des relâchements ont pu se perdre, ce qui retenait des touches (volume, luminosité)
@@ -118,7 +110,7 @@ final class KeyMonitor {
             if detector.isActive { onAction?(.cancel) }
             detector.reset()
             fnEnfoncee = false
-            microAvale = nil; reunionAvalee = false; echapAvale = false
+            reunionAvalee = false; echapAvale = false
             onReinitialisation?()
             return false
 
@@ -141,17 +133,6 @@ final class KeyMonitor {
                 if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { reunionAvalee = true; onReunion?() }
                 return true
             }
-            if let r = raccourciMicro, let onMicro, !Self.enregistrementEnCours, Self.correspond(event, a: r) {
-                // l'appui décide pour ses répétitions et son relâchement : avalé seulement si le micro a vraiment été coupé ou rouvert
-                if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 {
-                    if microAvale == code { return true }
-                } else if onMicro() {
-                    microAvale = code
-                    return true
-                } else {
-                    microAvale = nil
-                }
-            }
             frappes += 1
             // Les répétitions de touche ne comptent pas comme de nouvelles frappes.
             if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return echapAvale && code == keyCodeEchap }
@@ -167,7 +148,6 @@ final class KeyMonitor {
 
         case .keyUp:
             if event.getIntegerValueField(.keyboardEventKeycode) == codeN, reunionAvalee { reunionAvalee = false; return true }
-            if let c = microAvale, event.getIntegerValueField(.keyboardEventKeycode) == c { microAvale = nil; return true }
             if event.getIntegerValueField(.keyboardEventKeycode) == keyCodeEchap, echapAvale {
                 echapAvale = false
                 return true
@@ -183,16 +163,6 @@ final class KeyMonitor {
     static func evenementNiveau(_ event: CGEvent) -> EvenementNiveau? {
         guard event.type == typeSysteme, let ns = NSEvent(cgEvent: event), ns.type == .systemDefined else { return nil }
         return EvenementNiveau.decoder(sousType: Int(ns.subtype.rawValue), data1: ns.data1)
-    }
-
-    /// La touche est-elle ce raccourci ? Les touches de modification d'abord (le cas courant : aucune, on s'arrête là), puis le caractère
-    /// que la disposition du clavier donne à la touche (« m » sur un AZERTY comme sur un QWERTY), sans ⌃ ni ⌥.
-    static func correspond(_ event: CGEvent, a r: RaccourciIlot) -> Bool {
-        let f = event.flags
-        let c = f.contains(.maskControl), o = f.contains(.maskAlternate), s = f.contains(.maskShift), k = f.contains(.maskCommand)
-        guard c == r.controle, o == r.option, s == r.maj, k == r.commande else { return false }
-        guard let t = NSEvent(cgEvent: event)?.charactersIgnoringModifiers, !t.isEmpty else { return false }
-        return r.correspond(touche: t, controle: c, option: o, maj: s, commande: k)
     }
 
     @discardableResult

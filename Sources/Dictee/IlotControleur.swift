@@ -45,8 +45,6 @@ final class IlotControleur {
     /// Le micro du Mac (CoreAudio ; un micro factice dans les essais, jamais le vrai).
     var micro: PiloteMicro = MicroSysteme() { didSet { micro.surChangement = { [weak self] in self?.microChange() } } }
     private(set) var veilleMicro = VeilleMicro()
-    /// Le raccourci de « Micro coupé » à donner à l'écoute du clavier (nil : réglage éteint, la touche n'est plus avalée).
-    var surRaccourciMicro: (RaccourciIlot?) -> Void = { _ in }
     /// Volume et luminosité (IlotNiveaux.swift) : le vrai son et le vrai écran (des faux dans les essais), le réglage, et la mémoire des
     /// touches avalées (appui, répétitions, relâchement).
     var niveaux: PiloteNiveaux = NiveauxSysteme()
@@ -70,6 +68,11 @@ final class IlotControleur {
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
     /// Recolle un texte dans la dernière app (rempli par l'AppDelegate).
     var surColler: (String) -> Void = { _ in }
+    /// La dernière dictée (la plus récente qui a un texte) : celle que l'accueil et le Centre montrent, et que « Coller » colle en entier
+    /// (injectable : les essais ne lisent jamais l'historique).
+    var lireDerniereDictee: () -> (texte: String, date: Date)? = {
+        HistoriqueStore.shared.historique.entrees.first(where: { $0.insere || !$0.texte.isEmpty }).map { ($0.texte, $0.date) }
+    }
     /// Lance la prise de notes d'une réunion (rempli par l'AppDelegate).
     var surNoter: (EvenementAgenda?) -> Void = { _ in }
     /// Ouvre un lien ou un fichier (injectable pour les essais : jamais d'ouverture réelle).
@@ -131,18 +134,18 @@ final class IlotControleur {
         appareilsSource.surChangement = { [weak self] in self?.appareilsChanges() }
         appareilsSource.surConnexion = { [weak self] a in self?.appareilConnecte(a) }
         telechargementsSource.surArrivee = { [weak self] l in self?.fichiersArrives(l) }
-        telechargementsSource.surRefus = { [weak self] in
-            Settings.ilotTelechargements = false
-            Log.ecrire("téléchargements : accès au dossier refusé, réglage éteint")
-            NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
-            self?.moteur.telechargementsActifs = false; self?.moteur.donneesChangees()
-        }
+        telechargementsSource.surRefus = { [weak self] in self?.telechargementsRefuses() }
+        telechargementsSource.surPret = { [weak self] in self?.moteur.telechargementsAttente = false }
         lecture.modele.surClicIlot = { [weak self] in self?.moteur.clicForme() }
         panneau.surDepot = { [weak self] urls in self?.ranger(urls) }
         claudeSource.surLignes = { [weak self] l, relecture in self?.lignesClaude(l, relecture: relecture) }
         micro.surChangement = { [weak self] in self?.microChange() }
         moteur.surBulleVue = { [weak self] in self?.reglagesCentre.marquerBulleVue() }
         moteur.surCentreUtilise = { [weak self] in self?.reglagesCentre.marquerCentreUtilise() }
+        moteur.surDispositionCentre = { [weak self] d in
+            self?.reglagesCentre.enregistrerDisposition(d.identifiants)
+            Log.ecrire("centre : \(d.identifiants.joined(separator: ", "))")
+        }
     }
 
     // MARK: vie
@@ -158,6 +161,7 @@ final class IlotControleur {
         verifierLesRappels()
         // le Centre : l'aide sous le bouton « Centre » tant qu'il n'a pas servi ; au tout premier lancement, la bulle « Nouveau »
         moteur.aideCentre = !reglagesCentre.centreUtilise()
+        moteur.disposition = DispositionCentre(identifiants: reglagesCentre.disposition())
         if !reglagesCentre.bulleVue() { moteur.montrerBulle() }
     }
 
@@ -168,7 +172,6 @@ final class IlotControleur {
         telechargementsSource.arreter()
         niveaux.arreter()
         activerLeMicro(false)
-        surRaccourciMicro(nil)
         activerClaude(false)
         agenda.arreter()
         panneau.fermer()
@@ -212,12 +215,12 @@ final class IlotControleur {
         if Settings.ilotTelechargements { telechargementsSource.demarrer() }
         else { telechargementsSource.arreter(); rafale = RafaleTelechargements() }
         moteur.telechargementsActifs = Settings.ilotTelechargements
+        if !Settings.ilotTelechargements { moteur.telechargementsAttente = false }
         niveauxActifs = Settings.ilotNiveaux
         if niveauxActifs { niveaux.demarrer() } else { niveaux.arreter() }
         activerClaude(Settings.ilotClaude)
         activerEtagere(Settings.ilotEtagere)
         activerLeMicro(Settings.ilotMicro)
-        surRaccourciMicro(Settings.ilotMicro && micro.actif ? Settings.raccourciMicro : nil)
         moteur.donneesChangees()
     }
 
@@ -239,13 +242,12 @@ final class IlotControleur {
         }
     }
 
-    /// Le raccourci (⌃⌥M) : coupe le micro par défaut, ou le rouvre. Renvoie vrai si la touche a servi (elle est alors avalée) ; faux
-    /// quand la fonction ne peut rien (réglage éteint, aucun micro, micro sans muet ni volume réglable, commande refusée) : la touche
-    /// va alors à l'app au premier plan, qui l'attendait peut-être.
+    /// Le bouton Micro du Centre : coupe le micro par défaut, ou le rouvre. Faux quand il ne peut rien (réglage éteint, aucun micro,
+    /// micro sans muet ni volume réglable, commande refusée).
     @discardableResult
     func basculerLeMicro() -> Bool {
         guard micro.actif, let d = micro.defaut, let c = micro.estCoupe(d), micro.peutCouper(d) else { return false }
-        // l'état réel d'abord (une notification de CoreAudio peut être encore en route) : le raccourci agit sur ce qui est vrai
+        // l'état réel d'abord (une notification de CoreAudio peut être encore en route) : le bouton agit sur ce qui est vrai
         _ = veilleMicro.systeme(defaut: d, coupe: c)
         return executer(veilleMicro.basculer())
     }
@@ -303,6 +305,8 @@ final class IlotControleur {
     /// Le bouton Téléchargements du Centre : allume (macOS demande une fois l'accès au dossier, après ce clic) ou éteint le réglage.
     func reglerTelechargements(_ oui: Bool) {
         reglagesCentre.reglerTelechargements(oui)
+        // « Un instant… » jusqu'à la réponse (ouvert et lu : `surPret` ; refusé : `telechargementsRefuses`)
+        moteur.telechargementsAttente = oui && !telechargementsSource.actif
         if oui { telechargementsSource.demarrer() } else { telechargementsSource.arreter(); rafale = RafaleTelechargements() }
         moteur.telechargementsActifs = oui
         Log.ecrire("téléchargements : \(oui ? "allumé" : "éteint") depuis le Centre")
@@ -403,7 +407,7 @@ final class IlotControleur {
 
     private func depliage() {
         relireChoixMicro()
-        if let e = HistoriqueStore.shared.historique.entrees.first(where: { $0.insere || !$0.texte.isEmpty }) {
+        if let e = lireDerniereDictee() {
             let texte = e.texte.trimmingCharacters(in: .whitespacesAndNewlines)
             moteur.derniereDictee = (String(texte.prefix(90)), ageLisible(e.date))
         } else { moteur.derniereDictee = nil }
@@ -440,7 +444,7 @@ final class IlotControleur {
             minuteur?.ajouter(60, a: maintenant()); mettreAJourLeMinuteur()
         case .minuteurArreter: arreterLeMinuteur(); if !moteur.centreOuvert { moteur.fermer() }
         case .minuteurLancerDansLeCentre(let minutes): lancerLeMinuteur(secondes: minutes * 60, bandeau: false, fermer: false)
-        case .centreMicro, .centreTelechargements, .centreClaude, .etagereAllumer: agirCentre(action)
+        case .centreMicro, .centreTelechargements, .centreClaude, .etagereAllumer, .centreReunion, .centreAvis: agirCentre(action)
         case .alerteOK: moteur.quitterAlerte()
         case .rappelPlusTard(let id):
             rappels.reporter(id, depuis: maintenant()); sauver()
@@ -481,7 +485,7 @@ final class IlotControleur {
             moteur.donneesChangees()
             NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
         case .collerLaDerniereDictee:
-            if let d = HistoriqueStore.shared.historique.entrees.first?.texte, !d.isEmpty { moteur.fermer(); surColler(d) }
+            if let d = lireDerniereDictee()?.texte, !d.isEmpty { moteur.fermer(); surColler(d) }
         }
     }
 

@@ -280,10 +280,11 @@ enum Settings {
         get { defaults.bool(forKey: "ilotCentreUtilise") }
         set { defaults.set(newValue, forKey: "ilotCentreUtilise") }
     }
-    /// Le raccourci de « Micro coupé » (⌃⌥M par défaut ; un raccourci rangé mais devenu invalide revient à ⌃⌥M).
-    static var raccourciMicro: RaccourciIlot {
-        get { defaults.string(forKey: "raccourciMicro").flatMap(RaccourciIlot.init(texte:)).flatMap { $0.estValide ? $0 : nil } ?? .microParDefaut }
-        set { defaults.set(newValue.texte, forKey: "raccourciMicro") }
+    /// Ce que le Centre de l'îlot montre, dans l'ordre (« Modifier ») : des identifiants (`ElementCentre`) ; nil = jamais modifié (la
+    /// disposition par défaut). Les identifiants inconnus sont ignorés à la lecture.
+    static var ilotCentreBoutons: [String]? {
+        get { defaults.stringArray(forKey: "ilotCentreBoutons") }
+        set { defaults.set(newValue, forKey: "ilotCentreBoutons") }
     }
     /// Pour un micro sans muet, coupé en mettant son volume d'entrée à 0 : son ancien volume, par micro (UID CoreAudio), pour le rendre.
     static var microVolumesGardes: [String: Double] {
