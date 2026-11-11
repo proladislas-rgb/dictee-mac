@@ -348,16 +348,28 @@ final class ReunionController: ObservableObject {
 
     // MARK: proposition « Noter cet appel ? » (jamais d'enregistrement sans clic)
 
+    /// Aucun sondage au repos : le système prévient quand une app commence ou arrête d'écouter le micro. Seulement PENDANT qu'une
+    /// app d'appel écoute, un relevé toutes les 3 s tient le compte des 6 s d'écoute continue avant de proposer (SuiveurAppel).
+    private var veilleProcessus: VeilleProcessusAudio?
+    private var releveSuivant: DispatchWorkItem?
     func demarrerSurveillanceDesAppels() {
-        let t = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.releverLesAppels() }
+        guard veilleProcessus == nil else { return }
+        let v = VeilleProcessusAudio { [weak self] in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.releverLesAppels() } }
         }
-        RunLoop.main.add(t, forMode: .common)
+        veilleProcessus = v
+        v.demarrer()
     }
 
     private func releverLesAppels() {
+        releveSuivant?.cancel(); releveSuivant = nil
         guard Settings.proposerLesAppels else { return }
         let app = DetectionAppel.appEnAppel(bundleIDs: ProcessusAudio.identifiantsEcoutantLeMicro())
+        if app != nil {
+            let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.releverLesAppels() } }
+            releveSuivant = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: item)
+        }
         guard let proposee = suiveur.observer(app: app, reunionEnCours: machine.enregistre, maintenant: BudgetRequetes.maintenant()) else { return }
         guard machine.proposer(app: proposee.nom) else { return }
         Log.ecrire("réunion : \(proposee.nom) utilise le micro, proposition « Noter cet appel ? »")

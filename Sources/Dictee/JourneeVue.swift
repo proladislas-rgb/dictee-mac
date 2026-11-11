@@ -47,8 +47,10 @@ final class JourneeModele: ObservableObject {
         jour = debut
         vue = JourneeModele.calculer(jour: debut, entrees: dictees.store.historique.entrees, reunions: reunions.store.reunions, cochees: [], maintenant: horloge(), calendrier: calendrier)
         // Une dictée de plus, une note qui change, une action cochée dans la note : la page se met à jour.
-        store.$historique.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.recalculer() } }.store(in: &abonnements)
-        reunionsStore.$reunions.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.recalculer() } }.store(in: &abonnements)
+        // Seulement si la page est À L'ÉCRAN : pendant une réunion, la note change à chaque phrase et le calcul relit tout l'historique
+        // (~0,2 s) ; page fermée, on note juste qu'il faudra recalculer en l'ouvrant.
+        store.$historique.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.recalculerSiAffichee() } }.store(in: &abonnements)
+        reunionsStore.$reunions.dropFirst().sink { [weak self] _ in DispatchQueue.main.async { self?.recalculerSiAffichee() } }.store(in: &abonnements)
     }
 
     static func calculer(jour: Date, entrees: [EntreeHistorique], reunions: [Reunion], cochees: Set<UUID>, maintenant: Date, calendrier: Calendar) -> VueJournee {
@@ -68,6 +70,10 @@ final class JourneeModele: ObservableObject {
             actions: Journee.actions(jour: jour, reunions: reunions, aussi: cochees, maintenant: maintenant, calendrier: calendrier),
             piedDePage: Journee.piedDePage(sansDuree: resume.sansDuree))
     }
+
+    /// La page est à l'écran (onAppear / onDisappear de JourneeVue).
+    var affichee = false
+    func recalculerSiAffichee() { if affichee { recalculer() } }
 
     func recalculer() {
         vue = Self.calculer(jour: jour, entrees: store.historique.entrees, reunions: reunionsStore.reunions, cochees: cochees, maintenant: horloge(), calendrier: calendrier)
@@ -162,8 +168,8 @@ struct JourneeVue: View {
                 Button("") { m.droite() }.keyboardShortcut(.rightArrow, modifiers: [])
             }.opacity(0).frame(width: 0, height: 0)
         )
-        .onAppear { m.recalculer() }
-        .onDisappear { m.heureOuverte = nil }
+        .onAppear { m.affichee = true; m.recalculer() }
+        .onDisappear { m.affichee = false; m.heureOuverte = nil }
     }
 
     // MARK: navigation par jour

@@ -16,6 +16,9 @@ final class MicroReunion: @unchecked Sendable {
 
     private let file = DispatchQueue(label: "dictee.reunion.micro")
     private var engine: AVAudioEngine?
+    /// Micro imposé (le Mac quand des AirPods sont là, ou celui des Réglages) : ouvert directement, sans passer par le micro par défaut
+    /// (même défaut que la dictée le 11/11 : AVAudioEngine faisait basculer les AirPods et redémarrait en boucle).
+    private var direct: EntreeHAL?
     private var observateur: NSObjectProtocol?
     private var surTampon: ((AVAudioPCMBuffer) -> Void)?
     private var enMarche = false
@@ -35,6 +38,7 @@ final class MicroReunion: @unchecked Sendable {
                 _ = VerbeEssayer { e.inputNode.removeTap(onBus: 0); e.stop() }
             }
             engine = nil
+            direct?.arreter(); direct = nil
             surTampon = nil
         }
     }
@@ -42,9 +46,17 @@ final class MicroReunion: @unchecked Sendable {
     // MARK: sur la file
 
     private func lancer() throws {
+        let decision = ChoixMicro.decider(reglage: Settings.micro, peripheriques: AudioCapture.peripheriquesEntree(), defautUID: AudioCapture.peripheriqueParDefaut()?.uid)
+        if case .impose(let p, _) = decision, let id = AudioCapture.identifiant(uid: p.uid), let d = EntreeHAL(appareil: id) {
+            let sortie = surTampon
+            try d.demarrer { tampon in sortie?(tampon) }
+            direct = d
+            enMarche = true
+            Log.ecrire("réunion : micro direct démarré (\(decision.raison) ; \(Int(d.format.sampleRate)) Hz, 1 canal)")
+            return
+        }
         let neuf = AVAudioEngine()
         engine = neuf
-        let decision = ChoixMicro.decider(reglage: Settings.micro, peripheriques: AudioCapture.peripheriquesEntree(), defautUID: AudioCapture.peripheriqueParDefaut()?.uid)
         _ = neuf.inputNode   // le nœud d'entrée doit exister avant `prepare()`
         if case .impose(let p, _) = decision, let unite = neuf.inputNode.audioUnit, var id = AudioCapture.identifiant(uid: p.uid) {
             let statut = AudioUnitSetProperty(unite, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &id, UInt32(MemoryLayout<AudioDeviceID>.size))

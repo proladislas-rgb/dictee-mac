@@ -126,11 +126,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dictee.surEchecInsertion = { [weak self] raison in self?.priseEnMain.modele.insertionImpossible(raison) }
         demarrerPriseEnMainSiBesoin()
         Task { await verifierAutorisations() }
-        // Tant qu'il manque quelque chose, on surveille (l'accord se donne dans les Réglages, app ouverte).
+        // Tant qu'il manque quelque chose, on surveille (l'accord se donne dans les Réglages, app ouverte) ; tout accordé, on arrête :
+        // plus rien ne tourne au repos. Verbe qui revient au premier plan relance une vérification (et la surveillance si besoin).
+        relancerLaSurveillanceDesAutorisations()
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.relancerLaSurveillanceDesAutorisations() }
+        }
+    }
+
+    private func relancerLaSurveillanceDesAutorisations() {
+        surveillerAutorisations()
+        guard pollTimer == nil, !toutEstAccorde else { return }
         pollTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.surveillerAutorisations() }
         }
     }
+    private var toutEstAccorde: Bool { Permissions.premierManquant == nil && Permissions.microOK && clavier.actif }
 
     func applicationWillTerminate(_ notification: Notification) {
         ilot.arreter()
@@ -174,6 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !clavier.actif { clavier.demarrer() }
         let situation = Permissions.resume() + " clavier=\(clavier.actif ? "oui" : "non")"
         if Permissions.microOK, !microDejaPrepare { microDejaPrepare = true; dictee.microAutorise() }
+        if toutEstAccorde, pollTimer != nil { pollTimer?.invalidate(); pollTimer = nil; Log.ecrire("autorisations : tout est accordé, la surveillance s'arrête") }
         guard situation != derniereSituation else { return }
         derniereSituation = situation
         Log.ecrire("autorisations : \(situation)")

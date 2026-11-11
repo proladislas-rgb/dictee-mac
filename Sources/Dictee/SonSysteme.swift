@@ -156,17 +156,65 @@ final class SonSysteme: @unchecked Sendable {
     }
 }
 
+/// Prévient quand la liste des apps qui écoutent le micro PEUT avoir changé, sans aucun sondage : le système signale l'arrivée ou le
+/// départ d'un processus audio, et chaque processus signale quand il commence ou arrête d'écouter le micro. (Avant : une question
+/// à tous les processus toutes les 2 s, même sans appel ; elle coûtait du processeur à Verbe et au service audio de macOS.)
+final class VeilleProcessusAudio: @unchecked Sendable {
+    private let file = DispatchQueue(label: "verbe.audio.processus")
+    private var ecoutes: [AudioObjectID: AudioObjectPropertyListenerBlock] = [:]
+    private var blocListe: AudioObjectPropertyListenerBlock?
+    private let surChangement: @Sendable () -> Void
+
+    init(surChangement: @escaping @Sendable () -> Void) { self.surChangement = surChangement }
+
+    func demarrer() {
+        file.async { [self] in
+            guard blocListe == nil else { return }
+            var a = Self.adresse(kAudioHardwarePropertyProcessObjectList)
+            let bloc: AudioObjectPropertyListenerBlock = { [weak self] _, _ in self?.rebrancher() }
+            guard AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &a, file, bloc) == noErr else { return }
+            blocListe = bloc
+            rebrancher()
+        }
+    }
+
+    /// Sur la file : écoute chaque processus présent (et seulement eux), puis prévient.
+    private func rebrancher() {
+        let presents = Set(ProcessusAudio.processus())
+        for (id, bloc) in ecoutes where !presents.contains(id) {
+            var a = Self.adresse(kAudioProcessPropertyIsRunningInput)
+            AudioObjectRemovePropertyListenerBlock(id, &a, file, bloc)
+            ecoutes[id] = nil
+        }
+        for id in presents where ecoutes[id] == nil {
+            var a = Self.adresse(kAudioProcessPropertyIsRunningInput)
+            let bloc: AudioObjectPropertyListenerBlock = { [weak self] _, _ in self?.surChangement() }
+            if AudioObjectAddPropertyListenerBlock(id, &a, file, bloc) == noErr { ecoutes[id] = bloc }
+        }
+        surChangement()
+    }
+
+    private static func adresse(_ s: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
+        AudioObjectPropertyAddress(mSelector: s, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+    }
+}
+
 /// Qui utilise le micro en ce moment ? Lecture seule des propriétés des processus audio (aucune autorisation, aucun son capté) :
 /// sert à proposer « Noter cet appel ? » quand une app d'appel écoute le micro.
 enum ProcessusAudio {
-    static func identifiantsEcoutantLeMicro() -> [String] {
+    /// Les processus audio du moment.
+    static func processus() -> [AudioObjectID] {
         var adresse = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyProcessObjectList, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
         var taille: UInt32 = 0
         guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &adresse, 0, nil, &taille) == noErr, taille > 0 else { return [] }
         var ids = [AudioObjectID](repeating: 0, count: Int(taille) / MemoryLayout<AudioObjectID>.size)
         guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &adresse, 0, nil, &taille, &ids) == noErr else { return [] }
+        return ids
+    }
+
+    static func identifiantsEcoutantLeMicro() -> [String] {
         var sortie: [String] = []
-        for id in ids {
+        for id in processus() {
             var a = AudioObjectPropertyAddress(mSelector: kAudioProcessPropertyIsRunningInput, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
             var ecoute: UInt32 = 0
             var t = UInt32(MemoryLayout<UInt32>.size)
