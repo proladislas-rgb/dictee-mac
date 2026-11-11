@@ -26,6 +26,10 @@ struct BandeauIlot {
     var rappelId: UUID?
     var evenement: EvenementAgenda?
     var rendezVous: EvenementAgenda? { evenement }
+    /// Les écouteurs qui viennent de se connecter (bandeau `.appareil`).
+    var appareil: AppareilIlot?
+    /// La batterie au moment de l'annonce (bandeaux `.batterieCharge` et `.batterieFaible`).
+    var energie: EnergieIlot?
 }
 
 /// Ce que l'îlot demande aux contrôleurs (le moteur ne sait rien du minuteur, des rappels ni du calendrier : il montre et il relaie).
@@ -144,6 +148,18 @@ final class IlotMoteur: ObservableObject {
     var derniereDictee: (texte: String, age: String)?
     /// Dit à l'accueil si le calendrier est branché (sinon la tuile propose de l'activer).
     var calendrierActif = false
+    /// La batterie du Mac (nil : Mac sans batterie, ou réglage éteint) et les écouteurs connectés : les épaules de l'îlot déplié.
+    var energie: EnergieIlot?
+    var ecouteurs: AppareilIlot?
+    /// Les épaules s'ouvrent (cou de 56 pt) quand il y a quelque chose à y montrer.
+    var epaules: Bool { energie != nil || ecouteurs != nil }
+    /// 0 → 1 : les épaules paraissent quand le cou s'est élargi ET que le corps est descendu ; à la fermeture, le cou se resserre
+    /// d'abord et elles s'effacent avant d'être rognées.
+    var ouvertureEpaules: Double {
+        guard epaules, geo.count > 2 else { return 0 }
+        let corps = (geo[2].x - Double(geometrie.hauteur) - 24) / 40, cou = (geo[0].x - (GeoIlot.epaules - 10)) / 8
+        return min(1, max(0, min(corps, cou)))
+    }
 
     // MARK: masques (dictée, réunion, autres annonces : l'îlot s'efface)
     var dictee = false
@@ -174,7 +190,7 @@ final class IlotMoteur: ObservableObject {
     private(set) var lien = false
     private var dernierMode: [FamilleIlot: Double] = [:]
     var secousse = RessortIlot(0, reponse: 0.17, amortissement: 0.13)
-    /// 0 = la pastille est rentrée dans l'îlot, 1 = posée sous la barre (elle « goutte »).
+    /// 0 = la bulle est rentrée sous l'aile droite de l'îlot, 1 = posée à côté (elle glisse hors de l'îlot).
     var pastilleChute = RessortIlot(0, reponse: 0.5, amortissement: 0.62)
     var pastilleOuverte = RessortIlot(0, reponse: 0.36, amortissement: 0.88)
     private(set) var apparitionPastille = ApparitionIlot(debut: -10, entre: false, delai: 0, depart: 0)
@@ -244,10 +260,10 @@ final class IlotMoteur: ObservableObject {
     /// l'écran qui s'efface garde sa grille.
     private(set) var contenus: [VueIlot: CGFloat] = [:]
     private func cible(_ v: VueIlot) -> [Double] {
-        GeoIlot.valeurs(v, hauteurBarre: Double(geometrie.hauteur), demiCamera: Double(demiCamera), contenu: contenus[v].map(Double.init))
+        GeoIlot.valeurs(v, hauteurBarre: Double(geometrie.hauteur), demiCamera: Double(demiCamera), contenu: contenus[v].map(Double.init), epaules: epaules)
     }
     /// La grille du contenu (mêmes largeurs que la forme).
-    var grille: GrilleIlot { GrilleIlot(hc: demiCamera, barre: geometrie.hauteur, contenus: contenus) }
+    var grille: GrilleIlot { GrilleIlot(hc: demiCamera, barre: geometrie.hauteur, contenus: contenus, epaules: epaules) }
 
     /// Montre une vue. La forme se déforme vers sa géométrie avec les ressorts de la maquette ; le contenu nouveau arrive après la forme,
     /// l'ancien part avant elle ; ce qui appartient à la même activité (pochette, anneau, heure) voyage.
@@ -355,7 +371,7 @@ final class IlotMoteur: ObservableObject {
 
     // MARK: pastille
 
-    /// La pastille est posée sous la barre seulement quand l'îlot est au repos d'une activité (pas déplié, pas d'alerte, pas de bandeau).
+    /// La bulle est posée à côté de l'îlot seulement quand il est replié (pas déplié, pas d'alerte ni de bandeau qui descendent).
     var pastilleMontree: Bool {
         guard pastille != nil, !cache else { return false }
         return GeoIlot.profondeur(courante) == 0 && courante != .repos
@@ -410,7 +426,11 @@ final class IlotMoteur: ObservableObject {
         let l = enAttente; enAttente = []
         // l'alerte la plus récente gagne, le dernier bandeau aussi
         if let a = l.last(where: { $0.alerte != nil })?.alerte { afficherMaintenant(alerte: a, bandeau: nil) }
-        else if let b = l.last(where: { $0.bandeau != nil })?.bandeau { afficherMaintenant(alerte: nil, bandeau: b) }
+        else if var b = l.last(where: { $0.bandeau != nil })?.bandeau {
+            // il a attendu la fin de la dictée : il reste au moins 3 s à l'écran au lieu de clignoter, déjà échu
+            b.jusqua = max(b.jusqua, maintenant().addingTimeInterval(3))
+            afficherMaintenant(alerte: nil, bandeau: b)
+        }
     }
     func quitterAlerte() { alerte = nil; donneesChangees() }
     func quitterBandeau() { bandeau = nil; donneesChangees() }
@@ -569,6 +589,16 @@ final class IlotMoteur: ObservableObject {
     // MARK: ressorts et boucle
 
     var boucleActive: Bool { cadence.active }
+    /// Ce qui bouge encore (diagnostic des essais).
+    var ceQuiBouge: String {
+        var l: [String] = []
+        for (i, r) in geo.enumerated() where !r.fini { l.append("geo[\(i)] \(r.x)→\(r.cible)") }
+        if !secousse.fini { l.append("secousse") }
+        if !pastilleChute.fini { l.append("bulle \(pastilleChute.x)→\(pastilleChute.cible)") }
+        if !pastilleOuverte.fini { l.append("bulle ouverte \(pastilleOuverte.x)→\(pastilleOuverte.cible)") }
+        if !contenuPose { l.append("contenu (apparitions)") }
+        return l.isEmpty ? "rien" : l.joined(separator: ", ")
+    }
     private var tousLesRessorts: Bool {
         geo.allSatisfy(\.fini) && secousse.fini && pastilleChute.fini && pastilleOuverte.fini && contenuPose
     }
@@ -644,12 +674,12 @@ final class IlotMoteur: ObservableObject {
         return chemin.contains(point) || chemin.contains(CGPoint(x: point.x, y: point.y + 1.5))
     }
 
-    /// La pastille : sous la barre, son bord droit aligné sur le bord droit du cou de l'îlot (maquette A) ; elle s'ouvre vers la gauche
-    /// (sous la barre, rien ne gêne les icônes). Elle ne dépasse donc jamais de l'îlot à droite, ni posée ni pendant la goutte.
+    /// La pastille, devenue « bulle » (maquette ilot-apple.html, comme les deux activités de la Dynamic Island) : À DROITE de l'îlot,
+    /// à la même hauteur que lui, accrochée au haut de l'écran, séparée par une fente de `ecartBulle` pt. Elle s'ouvre vers la droite.
     func largeurPastille(_ a: ActiviteIlot) -> CGFloat {
         switch a {
         case .lecture: return 62
-        case .minuteur: return 76
+        case .minuteur: return 74
         case .rendezVous: return 84
         case .rappel: return 76
         case .alerte: return 30
@@ -663,23 +693,31 @@ final class IlotMoteur: ObservableObject {
         default: return largeurPastille(a)
         }
     }
-    static let hauteurPastille: CGFloat = 26
-    /// Bord droit de la pastille (depuis le centre) : le cou de l'îlot tel qu'il est dessiné.
-    var bordPastille: CGFloat { CGFloat(trace.cou) }
+    /// La fente entre l'îlot et la bulle (bord du cou → bord gauche de la bulle) : l'épaule de l'îlot (6 pt) y tient, il reste 5 pt.
+    static let ecartBulle: CGFloat = 11
+    /// Hauteur de la bulle : celle de l'îlot replié, c'est-à-dire la barre des menus.
+    var hauteurPastille: CGFloat { geometrie.hauteur }
+    /// Bord gauche de la bulle posée (depuis le centre) : le cou de l'îlot tel qu'il est dessiné, plus la fente.
+    var bordPastille: CGFloat { CGFloat(trace.cou) + Self.ecartBulle }
     func largeurPastilleActuelle(_ a: ActiviteIlot) -> CGFloat {
         largeurPastille(a) + (largeurPastilleOuverte(a) - largeurPastille(a)) * CGFloat(min(1, max(0, pastilleOuverte.x)))
     }
+    /// Bord gauche de la bulle selon sa sortie (`pastilleChute` : 0 = rangée sous l'aile droite de l'îlot, noir sur noir ; 1 = posée).
+    func xPastille(_ a: ActiviteIlot) -> CGFloat {
+        let rentree = CGFloat(trace.cou) - largeurPastille(a)
+        return rentree + (bordPastille - rentree) * CGFloat(pastilleChute.x)
+    }
     func rectPastille() -> CGRect? {
-        guard let p = pastille, pastilleMontree else { return nil }
-        let l = largeurPastilleActuelle(p)
-        return CGRect(x: bordPastille - l, y: geometrie.hauteur + 6, width: l, height: Self.hauteurPastille)
+        // tant que la bulle n'est pas sortie, sa place ne prend aucun clic (l'icône de la barre à côté reste cliquable)
+        guard let p = pastille, pastilleMontree, pastilleChute.x >= 0.5 else { return nil }
+        return CGRect(x: bordPastille, y: 0, width: largeurPastilleActuelle(p), height: hauteurPastille)
     }
     /// Le rectangle que la fenêtre doit couvrir (centre = 0) : la forme voulue, la pastille et une marge pour l'ombre et la secousse.
     func fenetreVoulue() -> CGRect {
         var r = rectCible()
         if let p = rectPastille(), !cache {
             let l = largeurPastilleOuverte(pastille ?? .minuteur)
-            r = r.union(CGRect(x: CGFloat(traceCible.cou) - l, y: p.minY, width: l, height: p.height))
+            r = r.union(CGRect(x: CGFloat(traceCible.cou) + Self.ecartBulle, y: 0, width: l + 6, height: p.height))
         }
         // au repos ou en compact : à peine plus que la forme (aucun clic pris aux icônes voisines) ; déplié : de la place pour l'ombre
         let petit = r.height <= CGFloat(geometrie.hauteur) + 40
@@ -695,9 +733,11 @@ final class CadenceEcran: NSObject {
     private var minuterie: Timer?
     var tic: () -> Void = {}
     var active: Bool { lien != nil || minuterie != nil }
+    /// Les essais (`--ilot-essai`) tournent sur la minuterie : écran éteint, le lien de l'écran ne bat plus et rien ne bougerait.
+    nonisolated(unsafe) static var minuterieSeulement = false
     func demarrer() {
         guard !active else { return }
-        if let ecran = NSScreen.screens.first {
+        if !Self.minuterieSeulement, let ecran = NSScreen.screens.first {
             let l = ecran.displayLink(target: self, selector: #selector(image(_:)))
             l.add(to: .main, forMode: .common)
             lien = l

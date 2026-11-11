@@ -180,3 +180,12 @@ Maquette : `design/maquettes/apple-acces/1-controles.html`. Hugues ne trouvait p
 - [x] 7. Contrôles + essai + rendus, relecture par un agent (3 défauts corrigés : bond de la pochette au repli, appui resté en plan pendant une dictée, appui long pointeur parti ; + action VoiceOver), installation dans /Applications, push.
   → 1 369 contrôles, `--ilot-essai` 77/77 (vrais clics : court, appui long, « 25 min »), rendus `ilot-1n*`.
 - [ ] Hugues : essayer en vrai (garder le clic sur l'îlot pendant une vidéo). Non vérifié d'ici : le geste avec un vrai trackpad, le fondu du titre en mouvement.
+
+## Îlot « à la Apple » (11/11, go de Hugues : « c'est très bien, on va partir sur ça ») — maquette design/maquettes/ilot-apple.html
+- [x] 1. Bulle à côté : la pastille quitte le dessous de la barre et se pose À DROITE de l'îlot, même hauteur, accrochée au haut de l'écran (fente de 11 pt), elle sort de l'îlot en glissant (pont liquide horizontal) ; survol : elle s'ouvre vers la droite ; clic = échange
+- [x] 2. Épaules au survol : dès qu'un écran est déplié (cou porté à 60 pt), batterie du Mac à gauche, AirPods à droite (l'onde de la lecture laisse la place s'ils sont là) ; minuteur de la lecture dépliée : pause + arrêt ronds
+- [x] 3. AirPods (ou souris, clavier) qui se connectent : bandeau 3 s, nom, « Connectés », jauges gauche / droit / étui (IOBluetooth, sélecteurs batteryPercent*, non documentés)
+- [x] 4. Énergie : chargeur branché = « En charge » + 33 % vert 3 s ; batterie 20 % puis 10 % = « Faible » rouge, une fois par seuil (IOPowerSources, notification, pas de sondage)
+- [x] 5. Réglage « Batterie et appareils » (Réglages › Îlot), NSBluetoothAlwaysUsageDescription dans l'Info.plist
+- [x] 6. Contrôles (géométrie, bulle, épaules), essai îlot, rendus comparés à la maquette, relecture par un agent, installation, push
+- [ ] Hugues : essayer en vrai (bulle à côté pendant une vidéo + minuteur, survol = batterie et AirPods, brancher le chargeur, connecter les AirPods ; macOS demande une fois le Bluetooth). Non vérifié d'ici : la batterie de vrais AirPods (méthodes non documentées).

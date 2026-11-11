@@ -103,6 +103,9 @@ struct ReglagesVue: View {
             LigneReglage(libelle: "Rappels", note: "Gardés sur ce Mac seulement. Ils reviennent après un redémarrage.") {
                 Interrupteur(actif: $r.ilotRappels, etiquette: "Rappels")
             }
+            LigneReglage(libelle: "Batterie et appareils", note: "La batterie du Mac et de tes AirPods quand l\u{2019}îlot s\u{2019}ouvre, le chargeur branché, la batterie faible, les écouteurs qui se connectent. macOS demande une fois l\u{2019}accès au Bluetooth.") {
+                Interrupteur(actif: $r.ilotEnergie, etiquette: "Batterie et appareils")
+            }
             LigneReglage(libelle: "Calendrier", note: r.phraseCalendrier) {
                 Interrupteur(actif: $r.ilotCalendrier, etiquette: "Calendrier")
             }

@@ -265,6 +265,14 @@ enum RenduLecture {
         ecrire(bureau(hauteur: moyenBureau) { ilot(miCourse(scene { $0.minuteur = minut(10, restant: 392) }, 0.2) { $0.survole = true }) }, "ilot-9g-minuteur-mi-course")
         // la dictée prend la place : tout est effacé, il ne reste que l'encoche de la dictée
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: musique) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 372); $0.dictee = true }) }, "ilot-10-dictee-efface-tout")
+        // batterie et appareils (maquette ilot-apple.html) : épaules du déplié, écouteurs connectés, chargeur branché, batterie faible
+        let batterie = EnergieIlot(pourcent: 33, secteur: true, enCharge: true)
+        let airpods = AppareilIlot(nom: "AirPods Pro de Hugues", genre: .ecouteurs, gauche: 80, droit: 78, etui: 45)
+        ecrire(bureau(hauteur: geometrie.hauteur + 300, clair: false) { ilot(scene(lecture: videoLongue) { m in m.energie = batterie; m.ecouteurs = airpods; m.lecturePresente = true; m.minuteur = minut(10, restant: 578); m.donneesChangees(); m.appuiLong(minuteurActif: true) }) }, "ilot-11a-epaules-lecture-minuteur")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpods; m.epingle = true; m.survole = true; m.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); m.rendezVousSuivant = rdv }) }, "ilot-11b-epaules-accueil")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.energie = batterie; $0.bandeau = BandeauIlot(vue: .appareil, jusqua: t0, ligne1: airpods.titre, ligne2: "", appareil: airpods) }) }, "ilot-11c-airpods-connectes")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.energie = batterie; $0.bandeau = BandeauIlot(vue: .batterieCharge, jusqua: t0, ligne1: "En charge", ligne2: "", energie: batterie) }) }, "ilot-11d-en-charge")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { let e = EnergieIlot(pourcent: 20, secteur: false, enCharge: false); $0.energie = e; $0.lecturePresente = true; $0.bandeau = BandeauIlot(vue: .batterieFaible, jusqua: t0, ligne1: "Batterie faible", ligne2: "", energie: e) }) }, "ilot-11e-batterie-faible-pendant-video")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)

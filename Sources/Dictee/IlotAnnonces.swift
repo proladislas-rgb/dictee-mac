@@ -15,8 +15,11 @@ struct ContenuAnnonce {
         var etiquette: String? = nil
         var action: ActionIlot?
     }
+    /// Une jauge de batterie (écouteur gauche, droit, étui).
+    struct Jauge { var nom: String; var pourcent: Int; var etui = false }
     enum Droite {
         case rien
+        case jauges([Jauge])
         case meta(String)
         /// Le temps restant du minuteur (il change chaque seconde ; mesuré sur la durée totale, le plus large).
         case temps
@@ -29,8 +32,10 @@ struct ContenuAnnonce {
     /// Une partie du sous-titre en blanc (l'heure du rappel).
     var fort: String? = nil
     var droite: Droite = .rien
+    /// Le sous-titre en couleur (« Connectés » en vert).
+    var couleurL2: Color? = nil
 
-    static let cote: CGFloat = 26, espace: CGFloat = 12, espaceBoutons: CGFloat = 8
+    static let cote: CGFloat = 26, espace: CGFloat = 12, espaceBoutons: CGFloat = 8, espaceJauges: CGFloat = 8
     static let interlettreL1: CGFloat = -0.2
     static let policeMeta = Font.system(size: 13, weight: .semibold).monospacedDigit()
     static let policeTemps = Font.system(size: 15, weight: .semibold).monospacedDigit()
@@ -124,6 +129,17 @@ extension IlotMoteur {
         case .notifications:
             return ContenuAnnonce(glyphe: GlypheIlot(nom: "bell.badge.fill", couleur: Color.white.opacity(0.85), taille: 21),
                                   l1: LectureNotifications.titreDeGroupe(max(2, notifications.count)), l2: LectureNotifications.ligneDeGroupe(notifications))
+        case .appareil:
+            guard let a = b?.appareil else { return nil }
+            var js: [ContenuAnnonce.Jauge] = []
+            if let g = a.gauche { js.append(.init(nom: "Gauche", pourcent: g)) }
+            if let d = a.droit { js.append(.init(nom: "Droit", pourcent: d)) }
+            if let e = a.etui { js.append(.init(nom: "Étui", pourcent: e, etui: true)) }
+            if js.isEmpty, let u = a.unique { js.append(.init(nom: "Batterie", pourcent: u)) }
+            let accord: String
+            switch a.genre { case .ecouteurs: accord = "Connectés"; case .souris: accord = "Connectée"; default: accord = "Connecté" }
+            return ContenuAnnonce(glyphe: GlypheIlot(nom: a.symbole, couleur: .white, taille: 22), l1: a.titre, l2: accord,
+                                  droite: .jauges(js), couleurL2: CouleursIlot.vert)
         default:
             return nil
         }
@@ -160,6 +176,7 @@ extension IlotMoteur {
             let mn = minuteur ?? dernierMinuteur
             l += ContenuAnnonce.espace + MesureIlot.texte(FormatIlot.duree(mn.total), 15, .semibold, chiffres: true)
         case .boutons(let bs): l += ContenuAnnonce.espace + MesureIlot.boutons(bs)
+        case .jauges(let js): l += ContenuAnnonce.espace + CGFloat(js.count) * JaugeIlot.largeur + ContenuAnnonce.espaceJauges * CGFloat(max(0, js.count - 1))
         }
         return l
     }

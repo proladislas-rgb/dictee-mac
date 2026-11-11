@@ -12,11 +12,14 @@ public enum VueIlot: String, CaseIterable, Sendable {
     case agendaAvant, agendaCompact, agendaEtendu, agendaDebut
     case notification, notifications
     case accueil
+    /// Des écouteurs (ou une souris, un clavier) se connectent ; le chargeur est branché ; la batterie est faible.
+    case appareil, batterieCharge, batterieFaible
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
         switch self {
-        case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications: return true
+        case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
+             .appareil, .batterieCharge, .batterieFaible: return true
         default: return false
         }
     }
@@ -55,6 +58,9 @@ public enum GeoIlot {
         .agendaAvant: bandeau, .agendaCompact: compact(50), .agendaEtendu: [50, 150, 130, 6, 34, 18, 10], .agendaDebut: bandeau,
         .notification: bandeau, .notifications: bandeau,
         .accueil: [14, 144, 190, 6, 34, 18, 10],
+        // les jauges des écouteurs (anneau + nom) demandent un peu plus de hauteur qu'un bandeau ; l'énergie tient dans les ailes
+        .appareil: [14, 150, 80, 6, 30, 16, 10],
+        .batterieCharge: compact(60), .batterieFaible: compact(60),
     ]
     /// Indices des valeurs : largeurs (cou, corps) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur mène ; à la
     /// fermeture la hauteur se replie d'abord.
@@ -68,7 +74,14 @@ public enum GeoIlot {
     public static let evasementMin: Double = 38
 
     /// Écrans dont le corps épouse le contenu (bandeaux, alertes, rendez-vous déplié) : ni texte collé à gauche ni grand vide à droite.
-    public static func ajusteAuContenu(_ v: VueIlot) -> Bool { v.estBandeau || v.estAlerte || v == .agendaEtendu }
+    public static func ajusteAuContenu(_ v: VueIlot) -> Bool { ((v.estBandeau || v.estAlerte) && profondeur(v) > 0) || v == .agendaEtendu }
+
+    /// Les épaules (maquette ilot-apple.html) : dans un écran déplié, le cou s'élargit à 56 pt de chaque côté de la caméra pour montrer
+    /// la batterie du Mac (à gauche) et celle des écouteurs (à droite). 56 + le congé du cou déplié (10 pt) = la limite des ailes (66 pt).
+    public static let epaules: Double = 56
+    public static func aEpaules(_ v: VueIlot) -> Bool {
+        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil].contains(v)
+    }
 
     /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.
     public static func corps(_ v: VueIlot, contenu largeur: Double, demiCamera: Double) -> Double {
@@ -78,9 +91,10 @@ public enum GeoIlot {
 
     /// Les sept valeurs pour une vue, la hauteur comptée depuis le haut de l'écran avec la vraie barre des menus. `contenu` : la largeur
     /// mesurée du contenu (pt) pour un écran qui s'y ajuste ; nil = le plus large de la table.
-    public static func valeurs(_ v: VueIlot, hauteurBarre: Double, demiCamera: Double = 0, contenu: Double? = nil) -> [Double] {
+    public static func valeurs(_ v: VueIlot, hauteurBarre: Double, demiCamera: Double = 0, contenu: Double? = nil, epaules avecEpaules: Bool = false) -> [Double] {
         var g = table[v] ?? table[.repos]!
         g[2] += hauteurBarre
+        if avecEpaules, aEpaules(v) { g[0] = max(g[0], epaules) }
         if let contenu, ajusteAuContenu(v) { g[1] = corps(v, contenu: contenu, demiCamera: demiCamera) }
         return g
     }

@@ -18,6 +18,46 @@ func controlesIlot() {
             }
         }
     }
+    groupe("Îlot : épaules (batterie, écouteurs) et énergie")
+    for (barre, demi) in [(32.0, 100.0), (33.0, 89.5)] {
+        for v in VueIlot.allCases {
+            let g = GeoIlot.valeurs(v, hauteurBarre: barre, demiCamera: demi, epaules: true)
+            let p = TraceIlot.calculer(g, demiCamera: demi, barre: barre)
+            verifier(p.bande <= demi + GeoIlot.aileMax + 0.001, "\(v.rawValue), épaules ouvertes : \(String(format: "%.0f", p.bande - demi)) pt de chaque côté de la caméra, ≤ 66")
+            if GeoIlot.aEpaules(v) {
+                verifier(g[0] == GeoIlot.epaules, "\(v.rawValue) déplié : le cou passe à 56 pt (la place de « 33 % » et de sa pile)")
+            } else {
+                verifier(g == GeoIlot.valeurs(v, hauteurBarre: barre, demiCamera: demi), "\(v.rawValue) : les épaules ne changent rien (pas un écran déplié)")
+            }
+        }
+    }
+    for v in [VueIlot.batterieCharge, .batterieFaible] {
+        verifier(v.estBandeau && GeoIlot.profondeur(v) == 0 && !GeoIlot.ajusteAuContenu(v), "\(v.rawValue) : un bandeau qui tient dans les ailes (rien sous la barre)")
+    }
+    verifier(VueIlot.appareil.estBandeau && GeoIlot.ajusteAuContenu(.appareil) && GeoIlot.profondeur(.appareil) >= 79, "écouteurs connectés : un bandeau qui épouse ses jauges, assez haut pour l'anneau et son nom")
+    verifier(ArbitrageIlot.resoudre({ var e = EtatIlot(); e.lecture = true; e.minuteur = true; e.bandeau = .batterieCharge; return e }()).pastille == .lecture,
+             "chargeur branché pendant une vidéo : la vidéo passe en bulle le temps de l'annonce")
+    do {
+        let e = EnergieIlot(pourcent: 33, secteur: false, enCharge: false)
+        verifier(e.texte == "33\u{202F}%" && e.symbole == "battery.25percent", "33 % : « 33 % » (espace fine), pile au quart")
+        verifier(EnergieIlot(pourcent: 80, secteur: true, enCharge: true).symbole == "battery.100percent.bolt", "branché : la pile avec l'éclair")
+        let a = AppareilIlot(nom: "AirPods Pro de Hugues", genre: .ecouteurs, gauche: 80, droit: 72, etui: 45)
+        verifier(a.niveau == 72 && a.symbole == "airpodspro", "écouteurs : l'épaule montre le côté le plus bas (72), symbole AirPods Pro")
+        verifier(AppareilIlot(nom: "", genre: .souris, unique: 60).niveau == 60 && AppareilIlot(nom: "", genre: .souris).titre == "Souris", "souris : un seul niveau ; sans nom, « Souris »")
+        var w = VeilleEnergie()
+        verifier(w.lire(EnergieIlot(pourcent: 15, secteur: false, enCharge: false)) == nil, "lancement à 15 % : pas d'annonce (on ne prévient pas pour une batterie qu'on connaît)")
+        verifier(w.lire(EnergieIlot(pourcent: 14, secteur: false, enCharge: false)) == nil, "15 → 14 % : rien (le seuil des 20 % est déjà passé)")
+        verifier(w.lire(EnergieIlot(pourcent: 10, secteur: false, enCharge: false)) == .faible(10), "→ 10 % : « Faible », une fois")
+        verifier(w.lire(EnergieIlot(pourcent: 9, secteur: false, enCharge: false)) == nil, "→ 9 % : pas une deuxième fois")
+        verifier(w.lire(EnergieIlot(pourcent: 9, secteur: true, enCharge: true)) == .charge, "on branche : « En charge »")
+        verifier(w.lire(EnergieIlot(pourcent: 10, secteur: true, enCharge: true)) == nil, "toujours branché : rien de plus")
+        verifier(w.lire(EnergieIlot(pourcent: 30, secteur: false, enCharge: false)) == nil && w.lire(EnergieIlot(pourcent: 20, secteur: false, enCharge: false)) == .faible(20),
+                 "débranché à 30 %, puis 20 % : « Faible » de nouveau (rebrancher remet les seuils à zéro)")
+        var v = VeilleEnergie()
+        verifier(v.lire(EnergieIlot(pourcent: 50, secteur: true, enCharge: true)) == nil, "lancement déjà branché : pas d'annonce")
+        verifier(v.lire(nil) == nil, "Mac sans batterie : jamais d'annonce")
+    }
+
     let barre = 32.0, demi = 100.0
     verifier(GeoIlot.valeurs(.repos, hauteurBarre: 37)[2] == 37, "le repos épouse exactement la barre (37)")
     verifier(GeoIlot.valeurs(.minuteurCompact, hauteurBarre: 32)[2] == 32 && GeoIlot.valeurs(.minuteurCompact, hauteurBarre: 37)[2] == 37, "compact : exactement la hauteur de la barre, rien ne dépasse dessous")

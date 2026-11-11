@@ -233,6 +233,12 @@ enum Settings {
         get { defaults.object(forKey: "ilotNotifications") as? Bool ?? false }
         set { defaults.set(newValue, forKey: "ilotNotifications") }
     }
+    /// La batterie du Mac et des écouteurs dans l'îlot (épaules du déplié, chargeur branché, batterie faible, écouteurs connectés).
+    /// ALLUMÉ par défaut : la batterie ne demande rien ; macOS demande une fois l'accès au Bluetooth pour les écouteurs.
+    static var ilotEnergie: Bool {
+        get { defaults.object(forKey: "ilotEnergie") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "ilotEnergie") }
+    }
     /// Le son de la fin d'un minuteur : le nom d'un son du Mac (« Pop » par défaut, celui de la dictée), ou « Aucun ».
     static var sonFinMinuteur: String {
         get { defaults.string(forKey: "sonFinMinuteur").flatMap { $0.isEmpty ? nil : $0 } ?? "Pop" }

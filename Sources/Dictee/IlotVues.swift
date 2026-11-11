@@ -15,9 +15,11 @@ struct GrilleIlot {
     var barre: CGFloat
     /// Largeur mesurée du contenu des écrans qui l'épousent (bandeaux, alertes, rendez-vous déplié) : la forme et la grille suivent.
     var contenus: [VueIlot: CGFloat] = [:]
+    /// Les épaules sont ouvertes (batterie, écouteurs) : le cou des écrans dépliés passe à 60 pt.
+    var epaules = false
     static let marge = CGFloat(GeoIlot.marge)
     private func f(_ v: VueIlot) -> [Double] {
-        GeoIlot.valeurs(v, hauteurBarre: Double(barre), demiCamera: Double(hc), contenu: contenus[v].map(Double.init))
+        GeoIlot.valeurs(v, hauteurBarre: Double(barre), demiCamera: Double(hc), contenu: contenus[v].map(Double.init), epaules: epaules)
     }
     /// Demi-largeur du corps (sous la barre) et du cou (dans la barre), depuis le centre.
     func corps(_ v: VueIlot) -> CGFloat { hc + CGFloat(f(v)[1]) }
@@ -92,6 +94,7 @@ struct IlotCalques: View {
             if m.visible(FamilleIlot.minuteur) { voyageursMinuteur }
             if m.visible(FamilleIlot.rappel) { voyageurGlyphe(.rappel) }
             if m.visible(FamilleIlot.agenda) { voyageurGlyphe(.agenda) }
+            if m.epaules, m.ouvertureEpaules > 0.001 { EpaulesIlot(m: m, g: g) }
             ForEach(VueIlot.allCases, id: \.self) { v in
                 if m.visible(v) { ecran(v) }
             }
@@ -116,7 +119,24 @@ struct IlotCalques: View {
             }
         case .agendaEtendu: agendaEtendu
         case .accueil: accueil
+        case .appareil: if let c = m.contenuAnnonce(v) { annonce(v, c) }
+        case .batterieCharge, .batterieFaible: energieAiles(v)
         }
+    }
+
+    /// Chargeur branché, batterie faible : la pile dans l'aile gauche, le pourcentage dans l'aile droite, en vert ou en rouge.
+    private func energieAiles(_ v: VueIlot) -> some View {
+        let e = m.energie ?? m.bandeauVu?.energie ?? EnergieIlot(pourcent: 0, secteur: false, enCharge: false)
+        let couleur = v == .batterieCharge ? CouleursIlot.vert : CouleursIlot.rouge
+        let c = g.centreAile(v, droite: false)
+        return ZStack(alignment: .topLeading) {
+            Image(systemName: v == .batterieCharge ? "battery.100percent.bolt" : "battery.25percent")
+                .font(.system(size: 15, weight: .semibold)).foregroundStyle(couleur)
+                .posee(CGRect(x: c - 18, y: 0, width: 36, height: g.barre), m.aspect(v, rang: 0), ancre: .center, .center)
+            heureAile(v, e.texte, couleur)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(v == .batterieCharge ? "En charge, \(e.pourcent) %" : "Batterie faible, \(e.pourcent) %")
     }
 
     // MARK: lignes d'annonce (bandeaux et alertes)
@@ -131,7 +151,7 @@ struct IlotCalques: View {
                 .frame(width: ContenuAnnonce.cote, height: ContenuAnnonce.cote).aspectIlot(m.aspect(v, rang: 0), ancre: .center)
             VStack(alignment: .leading, spacing: 2) {
                 Text(c.l1).font(TexteIlot.l1).tracking(ContenuAnnonce.interlettreL1).foregroundStyle(.white).lineLimit(1).truncationMode(.tail)
-                c.texteL2.font(TexteIlot.l2).foregroundStyle(CouleursIlot.encre2).lineLimit(1).truncationMode(.tail)
+                c.texteL2.font(TexteIlot.l2).foregroundStyle(c.couleurL2 ?? CouleursIlot.encre2).lineLimit(1).truncationMode(.tail)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .aspectIlot(m.aspect(v, rang: 1), ancre: .topLeading)
@@ -141,6 +161,11 @@ struct IlotCalques: View {
             case .temps:
                 tic { d in Text(tempsRestant(d)).font(ContenuAnnonce.policeTemps).foregroundStyle(CouleursIlot.ambre) }
                     .fixedSize().aspectIlot(m.aspect(v, rang: 2), ancre: .topTrailing)
+            case .jauges(let js):
+                HStack(spacing: ContenuAnnonce.espaceJauges) {
+                    ForEach(Array(js.enumerated()), id: \.offset) { _, j in JaugeIlot(jauge: j) }
+                }
+                .fixedSize().aspectIlot(m.aspect(v, rang: 2), ancre: .topTrailing)
             case .boutons(let bs):
                 HStack(spacing: ContenuAnnonce.espaceBoutons) {
                     ForEach(Array(bs.enumerated()), id: \.offset) { _, b in
@@ -336,9 +361,18 @@ struct IlotCalques: View {
                 ligneAccueil(v, 1, glyphe: GlypheIlot(nom: "timer", couleur: CouleursIlot.ambre, taille: 17), titre: "Minuteur",
                              sous: m.minuteur == nil ? "Lancer un compte à rebours" : "En cours \u{00B7} " + tempsRestant(d),
                              couleurSous: m.minuteur == nil ? CouleursIlot.encre2 : CouleursIlot.ambre, filet: false) {
-                    HStack(spacing: 6) {
-                        ForEach([5, 10, 25], id: \.self) { n in
-                            CapIlot(titre: "\(n) min", hauteur: 28, etiquette: "Minuteur de \(n) minutes") { m.surAction(.minuteurLancerSousLecture(minutes: Double(n))) }
+                    if let mt = m.minuteur {
+                        // il tourne : pause (ou reprise) et arrêt, ronds, comme l'activité du minuteur sur l'iPhone
+                        HStack(spacing: 8) {
+                            BoutonRondIlot(symbole: mt.enPause ? "play.fill" : "pause.fill", couleur: CouleursIlot.ambre, fond: CouleursIlot.ambre.opacity(0.22),
+                                           etiquette: mt.enPause ? "Reprendre le minuteur" : "Mettre le minuteur en pause") { m.surAction(.minuteurBasculer) }
+                            BoutonRondIlot(symbole: "xmark", couleur: .white, fond: Color.white.opacity(0.14), etiquette: "Arrêter le minuteur") { m.surAction(.minuteurArreter) }
+                        }
+                    } else {
+                        HStack(spacing: 6) {
+                            ForEach([5, 10, 25], id: \.self) { n in
+                                CapIlot(titre: "\(n) min", hauteur: 28, etiquette: "Minuteur de \(n) minutes") { m.surAction(.minuteurLancerSousLecture(minutes: Double(n))) }
+                            }
                         }
                     }
                 }
@@ -438,6 +472,8 @@ struct LectureVoyageurs: View {
                 else { EgaliseurLecture(teinte: teinte, joue: lecture.joue, animer: !m.reduire) }
             }
             .posee(CGRect(x: ce - 9.7, y: g.barre / 2 - 7, width: 19.4, height: 14), a, ancre: .center)
+            // déplié, l'épaule droite montre les écouteurs : l'onde s'efface (le bouton lecture/pause dit déjà si ça joue)
+            .opacity(m.ecouteurs?.niveau != nil ? 1 - m.ouvertureEpaules : 1)
             .accessibilityHidden(true)
         }
         // carré → 16:9 (la miniature arrive après l'icône de l'app) : la pochette s'élargit au lieu de sauter
@@ -515,58 +551,58 @@ struct LigneRappel: View {
 
 // MARK: pastille
 
-/// La deuxième activité, sous la barre : elle « goutte » de l'îlot (un pont liquide qui s'étire puis casse), puis montre son contenu.
+/// La deuxième activité, en bulle à droite de l'îlot (comme les deux activités de la Dynamic Island) : elle sort de l'aile droite en
+/// glissant (un pont liquide la retient puis casse), se pose à côté, à la même hauteur, puis montre son contenu.
 struct PastilleVue: View {
     @ObservedObject var m: IlotMoteur
 
     var body: some View {
         let chute = CGFloat(m.pastilleChute.x), ouv = CGFloat(min(1.05, max(0, m.pastilleOuverte.x)))
         if let a = m.pastille, chute > 0.005 {
-            let b = m.geometrie.hauteur
-            let y = 6 + b * chute
+            let h = m.hauteurPastille
             let l = m.largeurPastilleActuelle(a)
-            let x0 = m.bordPastille - l
-            let h = IlotMoteur.hauteurPastille
-            let ilot = m.trace
-            let ecart = y - CGFloat(ilot.hauteur)
+            let x0 = m.xPastille(a)
+            let cou = CGFloat(m.trace.cou)
+            let ecart = x0 - cou
             ZStack(alignment: .topLeading) {
-                if !m.reduire, ecart < 14, chute < 0.995 {
-                    goutte(x0: x0, y: y, l: l, ecart: ecart, cou: CGFloat(ilot.cou), hauteurIlot: CGFloat(ilot.hauteur))
+                if !m.reduire, ecart < 9, chute < 0.995 {
+                    pont(x0: x0, l: l, h: h, cou: cou)
                 }
-                Capsule().fill(Color.black)
+                FormeBulle().fill(Color.black)
                     .frame(width: l, height: h)
-                    .contentShape(Capsule())
+                    .contentShape(Rectangle())
                     .onTapGesture { m.cliquerPastille() }
                     .allowsHitTesting(m.pastilleMontree)
-                    .offset(x: IlotMoteur.largeur / 2 + x0, y: y)
+                    .offset(x: IlotMoteur.largeur / 2 + x0, y: 0)
                     .accessibilityLabel("Autre activité")
                     .accessibilityAddTraits(.isButton)
                 contenu(a, ouverture: ouv)
                     .frame(width: l, height: h, alignment: .leading)
-                    .clipShape(Capsule())
+                    .clipShape(Rectangle())
                     .opacity(m.aspectPastille.opacite)
-                    .scaleEffect(a == .lecture || a == .rappel ? 1 : 1 + 0.05 * ouv, anchor: .trailing)
+                    .scaleEffect(a == .lecture || a == .rappel ? 1 : 1 + 0.05 * ouv, anchor: .leading)
                     .allowsHitTesting(false)
-                    .offset(x: IlotMoteur.largeur / 2 + x0, y: y)
+                    .offset(x: IlotMoteur.largeur / 2 + x0, y: 0)
             }
             .opacity(m.pastilleMontree ? 1 : Double(min(1, chute * 1.2)))
         }
     }
 
-    /// Le pont liquide : la bande droite de l'îlot et la pastille, floutées puis seuillées (métaballe). Seulement pendant la chute.
-    private func goutte(x0: CGFloat, y: CGFloat, l: CGFloat, ecart: CGFloat, cou: CGFloat, hauteurIlot: CGFloat) -> some View {
-        let flou = ecart < 3 ? 5 : max(0.4, min(5, 5 - (ecart - 3) * 0.55))
+    /// Le pont liquide entre l'aile droite de l'îlot et la bulle qui en sort, flouté puis seuillé (métaballe). Seulement pendant la sortie.
+    private func pont(x0: CGFloat, l: CGFloat, h: CGFloat, cou: CGFloat) -> some View {
+        let ecart = x0 - cou
+        let flou = ecart < 2 ? 4 : max(0.4, min(4, 4 - (ecart - 2) * 0.5))
         return Canvas { ctx, taille in
             let ox = taille.width / 2
             ctx.addFilter(.alphaThreshold(min: 0.5, color: .black))
             ctx.addFilter(.blur(radius: flou * 1.6))
             ctx.drawLayer { c in
-                let gauche = x0 - 6
-                c.fill(Path(roundedRect: CGRect(x: ox + gauche, y: -14, width: max(0, cou - gauche), height: hauteurIlot + 14), cornerRadius: 10), with: .color(.black))
-                c.fill(Path(roundedRect: CGRect(x: ox + x0 + 1, y: y + 1, width: l - 2, height: IlotMoteur.hauteurPastille - 2), cornerRadius: 12), with: .color(.black))
+                c.fill(Path(roundedRect: CGRect(x: ox + cou - 24, y: -14, width: 24, height: h + 14), cornerRadius: 10), with: .color(.black))
+                c.fill(Path(roundedRect: CGRect(x: ox + x0, y: -14, width: l, height: h + 14), cornerRadius: 10), with: .color(.black))
             }
         }
         .frame(width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax)
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder private func contenu(_ a: ActiviteIlot, ouverture: CGFloat) -> some View {
@@ -620,6 +656,26 @@ struct PastilleVue: View {
     }
 }
 
+/// La bulle : accrochée au haut de l'écran comme l'îlot (bord du haut plat), coins bas arrondis comme ceux de l'îlot replié, et à droite
+/// l'épaule creuse de l'îlot (6 pt) qui la raccorde au bord de l'écran. Pas d'épaule à gauche : la fente avec l'îlot reste nette.
+struct FormeBulle: Shape {
+    static let epaule: CGFloat = 6
+    func path(in r: CGRect) -> Path {
+        let rb = min(10, r.height / 2, r.width / 2), e = Self.epaule
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: r.minY - 1))
+        p.addLine(to: CGPoint(x: r.minX, y: r.maxY - rb))
+        p.addQuadCurve(to: CGPoint(x: r.minX + rb, y: r.maxY), control: CGPoint(x: r.minX, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.maxX - rb, y: r.maxY))
+        p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.maxY - rb), control: CGPoint(x: r.maxX, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.minY + e))
+        p.addQuadCurve(to: CGPoint(x: r.maxX + e, y: r.minY), control: CGPoint(x: r.maxX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX + e, y: r.minY - 1))
+        p.closeSubpath()
+        return p
+    }
+}
+
 /// L'égaliseur de la pastille : trois barres (Core Animation).
 struct EgaliseurPetit: NSViewRepresentable {
     var teinte: Color
@@ -642,6 +698,8 @@ struct IlotVue: View {
         let forme = FormeNoire(points: m.trace)
         let s = Double(min(1, max(0, (CGFloat(m.geo[2].x) - g.barre) / 70)))
         ZStack(alignment: .topLeading) {
+            // la bulle passe SOUS l'îlot : elle sort de l'aile droite par-dessous, sans jamais couvrir l'onde ni l'heure de l'aile
+            PastilleVue(m: m)
             // l'ombre n'existe que SOUS la barre des menus : à côté du cou, elle aurait assombri les icônes voisines
             forme.fill(Color.black)
                 .shadow(color: .black.opacity(0.42 * s), radius: 10 * s, x: 0, y: 5 * s)
@@ -657,12 +715,98 @@ struct IlotVue: View {
                     .onEnded { v in m.finAppui(deplace: hypot(v.translation.width, v.translation.height) > 12) })
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { m.clicForme() }
-            PastilleVue(m: m)
         }
         .frame(width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax, alignment: .topLeading)
         .scaleEffect(m.presse ? 1.015 : 1, anchor: .top)
         .animation(m.reduire ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: m.presse)
         .offset(x: CGFloat(m.secousse.x))
         .opacity(m.cache && m.courante == .repos && m.geo.allSatisfy(\.fini) ? 0 : 1)
+    }
+}
+
+// MARK: épaules, jauges, boutons ronds
+
+/// Les épaules de l'îlot déplié (maquette ilot-apple.html) : de part et d'autre de la caméra, dans la barre des menus, la batterie du
+/// Mac (à gauche) et celle des écouteurs connectés (à droite). Elles paraissent quand le cou s'est élargi et que le corps descend.
+struct EpaulesIlot: View {
+    @ObservedObject var m: IlotMoteur
+    var g: GrilleIlot
+
+    var body: some View {
+        let a = AspectIlot(opacite: m.ouvertureEpaules, flou: 0, echelle: 1)
+        let l = CGFloat(GeoIlot.epaules) - 4
+        ZStack(alignment: .topLeading) {
+            if let e = m.energie {
+                HStack(spacing: 2.5) {
+                    Image(systemName: e.symbole).font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(e.secteur ? CouleursIlot.vert : (e.pourcent <= 20 ? CouleursIlot.rouge : Color.white))
+                    Text(e.texte).font(.system(size: 12, weight: .semibold).monospacedDigit()).foregroundStyle(.white)
+                }
+                .lineLimit(1).minimumScaleFactor(0.8)
+                .posee(CGRect(x: -g.hc - CGFloat(GeoIlot.epaules) + 2, y: 0, width: l, height: g.barre), a, ancre: .center, .center)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Batterie du Mac, \(e.pourcent) %" + (e.secteur ? ", branché" : ""))
+            }
+            if let c = m.ecouteurs, let n = c.niveau {
+                HStack(spacing: 2.5) {
+                    Image(systemName: c.symbole).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                    Text("\(n)\u{202F}%").font(.system(size: 12, weight: .semibold).monospacedDigit()).foregroundStyle(n <= 10 ? CouleursIlot.rouge : .white)
+                }
+                .lineLimit(1).minimumScaleFactor(0.8)
+                .posee(CGRect(x: g.hc + 2, y: 0, width: l, height: g.barre), a, ancre: .center, .center)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(c.titre), \(n) %")
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// Une jauge de batterie : l'anneau, le pourcentage dedans, le nom dessous (écouteur gauche, droit, étui).
+struct JaugeIlot: View {
+    var jauge: ContenuAnnonce.Jauge
+    static let largeur: CGFloat = 40
+    var body: some View {
+        let couleur = jauge.etui ? Color.white : (jauge.pourcent <= 20 ? CouleursIlot.rouge : CouleursIlot.vert)
+        VStack(spacing: 3) {
+            ZStack {
+                Circle().stroke(couleur.opacity(0.26), lineWidth: 3)
+                Circle().trim(from: 0, to: CGFloat(jauge.pourcent) / 100)
+                    .stroke(couleur, style: StrokeStyle(lineWidth: 3, lineCap: .round)).rotationEffect(.degrees(-90))
+                Text("\(jauge.pourcent)").font(.system(size: 11, weight: .semibold).monospacedDigit()).foregroundStyle(.white)
+            }
+            .frame(width: 29, height: 29)
+            Text(jauge.nom).font(.system(size: 10.5, weight: .medium)).foregroundStyle(CouleursIlot.encre2).lineLimit(1).fixedSize()
+        }
+        .frame(width: Self.largeur)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(jauge.nom), \(jauge.pourcent) %")
+    }
+}
+
+/// Un bouton rond de 32 pt (pause, arrêt) : symbole coloré sur un fond teinté, réduit à 90 % pendant l'appui.
+struct BoutonRondIlot: View {
+    var symbole: String
+    var couleur: Color
+    var fond: Color
+    var etiquette: String
+    var action: () -> Void
+    @State private var survol = false
+    private struct Style: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label.scaleEffect(configuration.isPressed ? 0.9 : 1)
+                .animation(.spring(duration: 0.18, bounce: 0.2), value: configuration.isPressed)
+        }
+    }
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbole).font(.system(size: 12, weight: .bold)).foregroundStyle(couleur)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(fond).brightness(survol ? 0.08 : 0))
+                .contentShape(Circle())
+        }
+        .buttonStyle(Style())
+        .onHover { survol = $0 }
+        .accessibilityLabel(etiquette)
     }
 }

@@ -35,6 +35,7 @@ enum IlotEssai {
             c.lecture.essaiInvisible = true
             return c
         }
+        CadenceEcran.minuterieSeulement = true
         let c = fabriquer()
         c.panneau.demarrer()
         let m = c.moteur
@@ -157,8 +158,18 @@ enum IlotEssai {
         attendre(0.3)
         verifier(m.bandeau == nil && m.courante == .lectureCompact && m.pastille == .minuteur, "le bandeau se retire : la lecture garde l'îlot, le minuteur est en pastille")
         verifier(m.resolution.pastille == .minuteur && c.minuteur != nil, "pastille = minuteur")
-        // clic sur la pastille : les deux échangent
-        m.cliquerPastille(); attendre(0.5)
+        // la bulle : à droite de l'îlot, à la même hauteur, accrochée au haut de l'écran (maquette ilot-apple.html)
+        attendre(0.6)
+        if let r = m.rectPastille() {
+            verifier(r.minY == 0 && abs(r.height - g.hauteur) < 0.01, "bulle : à la même hauteur que l'îlot (\(Int(r.height)) pt, du haut de l'écran), plus sous la barre")
+            verifier(abs(r.minX - (CGFloat(m.trace.cou) + IlotMoteur.ecartBulle)) < 0.01 && r.minX > CGFloat(m.trace.bande), "bulle : à droite de l'îlot, séparée par une fente (l'épaule de l'îlot n'y entre pas)")
+            let fen = m.fenetreVoulue()
+            verifier(fen.minY <= r.minY && fen.maxX >= r.maxX && fen.minX <= -CGFloat(m.trace.bande), "la fenêtre couvre l'îlot et la bulle")
+            // vrai clic au milieu de la bulle : les deux échangent
+            let p = CGPoint(x: r.midX, y: r.midY)
+            c.panneau.envoyerSouris(.leftMouseDown, en: p); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: p); attendre(0.5)
+            if m.courante != .minuteurCompact { m.cliquerPastille(); attendre(0.5); verifier(false, "vrai clic sur la bulle : rien ne s'est passé") }
+        } else { verifier(false, "bulle : posée (rectPastille)") ; m.cliquerPastille(); attendre(0.5) }
         verifier(m.courante == .minuteurCompact && m.pastille == .lecture, "clic sur la pastille : le minuteur prend l'îlot, la lecture devient pastille")
         // pause et +1 min
         let avantPause = c.minuteur?.restant(a: c.maintenant()) ?? 0
@@ -184,6 +195,34 @@ enum IlotEssai {
         c.agir(.minuteurRecommencer(minutes: 5)); attendre(0.5)
         verifier(m.alerte == nil && c.minuteur != nil, "« Encore 5 min » : nouvelle alerte acquittée, nouveau minuteur")
         c.agir(.minuteurArreter); attendre(0.3)
+
+        // --- batterie et appareils : épaules du déplié, chargeur branché, batterie faible, écouteurs connectés (sans le vrai Bluetooth)
+        let airpods = AppareilIlot(nom: "AirPods Pro", genre: .ecouteurs, gauche: 80, droit: 78, etui: 45)
+        c.energieChangee(EnergieIlot(pourcent: 55, secteur: false, enCharge: false))
+        m.ecouteurs = airpods; m.donneesChangees(); attendre(0.4)
+        verifier(m.courante == .lectureCompact && m.bandeau == nil, "batterie lue au départ : aucune annonce")
+        c.panneau.simulerPointeur(forme: true); attendre(1.4)
+        verifier(m.courante == .lectureEtendu && abs(m.geo[0].x - GeoIlot.epaules) < 0.05 && m.ouvertureEpaules > 0.99, "survol : la lecture se déplie, le cou s'élargit à 56 pt, les épaules (batterie, AirPods) sont là")
+        verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01, "épaules : rien ne dépasse 66 pt dans la barre des menus")
+        c.panneau.simulerPointeur(forme: false); attendre(1.2)
+        verifier(m.courante == .lectureCompact && m.ouvertureEpaules == 0, "la souris part : les épaules s'effacent avec le dépliage")
+        c.energieChangee(EnergieIlot(pourcent: 55, secteur: true, enCharge: true)); attendre(0.3)
+        verifier(m.courante == .batterieCharge && m.pastille == .lecture, "on branche : « En charge » dans les ailes, la vidéo passe en bulle")
+        verifier(m.trace.hauteur <= Double(g.hauteur) + 0.01, "« En charge » : rien ne descend sous la barre")
+        attendre(3.6) { m.bandeau != nil }
+        verifier(m.bandeau == nil && m.courante == .lectureCompact, "3 s plus tard : la vidéo reprend l'îlot")
+        c.energieChangee(EnergieIlot(pourcent: 21, secteur: false, enCharge: false)); attendre(0.2)
+        verifier(m.bandeau == nil, "débranché à 21 % : rien")
+        c.energieChangee(EnergieIlot(pourcent: 20, secteur: false, enCharge: false)); attendre(0.3)
+        verifier(m.courante == .batterieFaible, "20 % : « Faible » en rouge")
+        attendre(5.0) { m.bandeau != nil }
+        c.energieChangee(EnergieIlot(pourcent: 19, secteur: false, enCharge: false)); attendre(0.3)
+        verifier(m.bandeau == nil, "19 % : pas une deuxième fois")
+        c.appareilConnecte(airpods); attendre(0.9)
+        verifier(m.courante == .appareil && (m.contenus[.appareil] ?? 0) > 200, "AirPods connectés : le bandeau avec le nom et les trois jauges (\(Int(m.contenus[.appareil] ?? 0)) pt de contenu)")
+        attendre(4.0) { m.bandeau != nil }
+        verifier(m.bandeau == nil && m.courante == .lectureCompact, "3,5 s plus tard : il se retire")
+        m.energie = nil; m.ecouteurs = nil; m.donneesChangees(); attendre(0.4)
 
         // --- dictée : tout est effacé ; ce qui arrive attend la fin, sans son
         var occ = OccupationEncoche()
@@ -272,7 +311,7 @@ enum IlotEssai {
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)
-        verifier(!m.boucleActive, "tout est refermé : aucune boucle d'animation")
+        verifier(!m.boucleActive, "tout est refermé : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
         c.arreter()
         print(echecs == 0 ? "essai terminé : tout est vert" : "essai terminé : \(echecs) échec(s)")
         return echecs == 0 ? 0 : 1

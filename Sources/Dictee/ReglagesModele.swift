@@ -28,6 +28,7 @@ final class ReglagesModele: ObservableObject {
     /// Activer le calendrier est le seul moment où macOS demande l'autorisation (jamais au lancement) ; refusée, l'interrupteur se remet sur éteint.
     @Published var ilotCalendrier: Bool { didSet { if !installe { return }; Settings.ilotCalendrier = ilotCalendrier; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotNotifications: Bool { didSet { if !installe { return }; Settings.ilotNotifications = ilotNotifications; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
+    @Published var ilotEnergie: Bool { didSet { if !installe { return }; Settings.ilotEnergie = ilotEnergie; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var sonFinMinuteur: String { didSet { if !installe { return }; Settings.sonFinMinuteur = sonFinMinuteur } }
     var phraseCalendrier: String {
         if reel, !ilotCalendrier, EKAutorisation.refusee { return "L\u{2019}accès est refusé : à autoriser dans Réglages Système › Confidentialité et sécurité › Calendriers." }
@@ -85,6 +86,7 @@ final class ReglagesModele: ObservableObject {
         ilotCalendrier = reel ? Settings.ilotCalendrier : false
         ilotNotifications = reel ? Settings.ilotNotifications : false
         sonFinMinuteur = reel ? Settings.sonFinMinuteur : "Pop"
+        ilotEnergie = reel ? Settings.ilotEnergie : true
         modeleWhisper = reel ? Settings.modeleWhisper : ModeleWhisper.parDefaut
         testPrecision = reel ? Settings.testPrecisionRestant > 0 : false
         langue = reel ? Settings.langueReglage : ChoixLangue.defaut

@@ -37,6 +37,9 @@ final class IlotControleur {
     let panneau: IlotPanneau
     let agenda = AgendaSysteme()
     let notificationsSource = SourceNotifications()
+    let energieSource = SourceEnergie()
+    let appareilsSource = SourceAppareils()
+    private var veilleEnergie = VeilleEnergie()
 
     /// Ce qui occupe l'encoche en dehors de la dictée de ce contrôleur (rempli par l'AppDelegate).
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
@@ -88,6 +91,9 @@ final class IlotControleur {
         moteur.surDepliage = { [weak self] in self?.depliage() }
         agenda.surChangement = { [weak self] in self?.relireAgenda() }
         notificationsSource.surNotification = { [weak self] n in self?.notificationRecue(n) }
+        energieSource.surChangement = { [weak self] e in self?.energieChangee(e) }
+        appareilsSource.surChangement = { [weak self] in self?.appareilsChanges() }
+        appareilsSource.surConnexion = { [weak self] a in self?.appareilConnecte(a) }
         lecture.modele.surClicIlot = { [weak self] in self?.moteur.clicForme() }
     }
 
@@ -107,6 +113,7 @@ final class IlotControleur {
     func arreter() {
         lecture.arreter()
         notificationsSource.arreter()
+        energieSource.arreter(); appareilsSource.arreter()
         agenda.arreter()
         panneau.fermer()
         [reveilMinuteur, reveilRappels, reveilAgenda].forEach { $0?.cancel() }
@@ -139,7 +146,36 @@ final class IlotControleur {
             if !notificationsSource.actif, !notificationsSource.demarrer() { Log.ecrire("notifications : non démarrées (voir plus haut)") }
         } else { notificationsSource.arreter(); moteur.notifications = [] }
         if !Settings.ilotMinuteur, minuteur != nil { arreterLeMinuteur() }
+        if Settings.ilotEnergie {
+            energieSource.demarrer(); appareilsSource.demarrer()
+        } else {
+            energieSource.arreter(); appareilsSource.arreter(); veilleEnergie = VeilleEnergie()
+            moteur.energie = nil; moteur.ecouteurs = nil
+        }
         moteur.donneesChangees()
+    }
+
+    // MARK: batterie et appareils
+
+    /// L'alimentation a changé : la batterie des épaules, et l'annonce du chargeur branché ou de la batterie faible.
+    func energieChangee(_ e: EnergieIlot?) {
+        moteur.energie = e
+        switch veilleEnergie.lire(e) {
+        case .charge?:
+            moteur.annoncer(bandeau: BandeauIlot(vue: .batterieCharge, jusqua: maintenant().addingTimeInterval(3), ligne1: "En charge", ligne2: "", energie: e))
+        case .faible?:
+            moteur.annoncer(bandeau: BandeauIlot(vue: .batterieFaible, jusqua: maintenant().addingTimeInterval(4.5), ligne1: "Batterie faible", ligne2: "", energie: e))
+        case nil:
+            moteur.donneesChangees()
+        }
+    }
+    private func appareilsChanges() {
+        moteur.ecouteurs = appareilsSource.ecouteurs
+        moteur.donneesChangees()
+    }
+    /// Des écouteurs (ou une souris, un clavier) viennent de se connecter : 3,5 s de bandeau, avec leurs jauges.
+    func appareilConnecte(_ a: AppareilIlot) {
+        moteur.annoncer(bandeau: BandeauIlot(vue: .appareil, jusqua: maintenant().addingTimeInterval(3.5), ligne1: a.titre, ligne2: "", appareil: a))
     }
 
     // MARK: priorités
@@ -200,6 +236,7 @@ final class IlotControleur {
         } else { moteur.derniereDictee = nil }
         moteur.rendezVousSuivant = PlanAgenda.prochain(evenements, a: maintenant())
         moteur.rappelsAVenir = rappels.aVenir(a: maintenant())
+        if Settings.ilotEnergie, appareilsSource.actif { appareilsSource.relireSiAncien() }
         lecture.ilotDeplie()
     }
     private func ageLisible(_ date: Date) -> String {
