@@ -58,7 +58,8 @@ final class IlotControleur {
     /// Les vieux fichiers de sessions ont été effacés (une fois par lancement, même réglage éteint).
     var claudeNettoye = false
     var appAuPremierPlan: () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
-    var ramenerApp: (String?) -> Void = { IlotControleur.ramener($0) }
+    /// « Ouvrir » / « Voir » d'une session : ramène sa fenêtre du Terminal (injectable : l'essai capture, rien n'est activé).
+    var ramenerSession: (SessionClaude?) -> Void = { IlotControleur.ramener($0) }
     /// Le Centre (CentreIlot.swift) : l'installation des crochets de Claude Code et les réglages qu'il lit ou écrit, injectables (les
     /// essais ne touchent jamais ~/.claude, ~/Downloads ni les vrais réglages).
     var installationClaude = InstallationClaude.parDefaut
@@ -484,9 +485,10 @@ final class IlotControleur {
         case .microRouvrir:
             moteur.fermer()
             executer(veilleMicro.rouvrir())
-        case .claudeOuvrir(let app):
+        case .claudeOuvrir(let session):
+            if let id = session?.id { moteur.retirerEnAttente { $0.claude?.id == id } }
             if moteur.bandeau?.vue == .claudeAttend || moteur.bandeau?.vue == .claudeTermine { moteur.quitterBandeau() } else { moteur.fermer() }
-            ramenerApp(app)
+            ramenerSession(session)
         case .etagereOuvrir, .etagereRetirer, .etagereVider:
             agirEtagere(action)
         case .microChoisir(let airpods):

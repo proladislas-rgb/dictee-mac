@@ -213,3 +213,12 @@ Ancienne lecture (gardée si Hugues la confirme) : l'îlot ouvert devient une pi
 
 ## Ensuite : grande passe de qualité (Hugues 11/11 : « une optimisation de tout pour que tout soit vraiment parfait, qu'il n'y ait jamais de bug, clean, que ça respecte la confidentialité des gens »)
 - [ ] Audit complet (équipe) : bugs, performances/batterie, mémoire, plantages, confidentialité (ce qui est lu, gardé, envoyé : Groq, journaux, historique, crochets Claude, signets étagère, quarantaine Téléchargements), sécurité, simplicité de l'interface ; corrections ; puis publication d'une version
+
+## Claude Code en carte (11/11, maquette design/maquettes/ilot-claude-plus.html étapes 1 à 7, « je valide tout ») — branche claude-outils
+- [x] Replié : l'étoile dans son anneau, « 3/7 » (anneau seul si « 12/14 » ne tient pas), petit « 2 » quand deux sessions travaillent, le NOM de la tâche « in_progress » (sinon le titre de session de Claude Code) qui défile (une animation Core Animation, rien quand le nom tient) ; ambre « second-cerveau attend ta réponse » quand une session attend
+- [x] Bouton Claude du Centre : « 2 au travail » / « Attend » / « Prêt » (« Brancher » tant que non branché) ; un clic ouvre la carte « Claude Code »
+- [x] Carte : un bloc par session (projet, état, depuis, « 3 sur 7 », tâches cochées / en cours en gras / à faire), « Ouvrir » ramène la bonne fenêtre du Terminal (Accessibilité déjà accordée, pas d'AppleScript), défile au-delà de la hauteur du Centre, la session qui attend en haut (cadre ambre, question) ; survol = carte quand une session attend
+- [x] Bandeaux : « <projet> attend ta réponse » + premiers mots du message de notification (traduit si connu) + « Ouvrir » ; « <titre> terminée » + « projet · 42 min · 7 tâches sur 7 » + « Voir » (fenêtre du Terminal)
+- [x] Script des crochets : + message (Notification) + session_title (UserPromptSubmit), jamais « prompt » ; remplacé tout seul au lancement si branché (ancien gardé en .verbe-sauvegarde), settings.json non touché
+- [x] Épaules : borne dans TraceIlot (cou cède au congé : 66 pt au plus, même pendant les passages ; mesuré 66,83 sans la borne)
+- [ ] Hugues : essayer en vrai (deux Terminaux avec Claude, une autorisation demandée, « Ouvrir » sur la bonne fenêtre). Non vérifié d'ici : la lecture réelle des fenêtres du Terminal par l'Accessibilité (titre, document) et le défilement à l'écran.

@@ -342,6 +342,29 @@ func controlesIlot() {
             }
         }
     }
+    // pendant les passages, épaules ouvertes (le cas de tout Mac à batterie) : un repli de 60 pt (Claude, micro coupé, énergie) vers un
+    // déplié de cou 56 + congé 10, ou un cou qui dépasse sa cible au rebond, ne doit jamais sortir des 66 pt (la borne de `TraceIlot`)
+    do {
+        let (barre, demi) = (33.0, 89.5)
+        let replies: [VueIlot] = [.repos, .claudeCompact, .claudeMinimal, .microCompact, .lectureCompact, .minuteurCompact, .batterieCharge]
+        let deplies: [VueIlot] = [.centre, .claudeCarte, .lectureEtendu, .accueil, .etagere, .minuteurEtendu, .agendaEtendu]
+        var pire = 0.0, brut = 0.0
+        for de in replies + deplies {
+            for vers in replies + deplies where vers != de {
+                var r = GeoIlot.valeurs(de, hauteurBarre: barre, demiCamera: demi, epaules: true).map { RessortIlot($0, reponse: 0.4, amortissement: 1) }
+                PassageIlot.viser(&r, vers: GeoIlot.valeurs(vers, hauteurBarre: barre, demiCamera: demi, epaules: true))
+                for _ in 0..<200 {
+                    for i in 0..<r.count { r[i].avancer(1.0 / 120) }
+                    let x = r.map(\.x)
+                    pire = max(pire, TraceIlot.calculer(x, demiCamera: demi, barre: barre).bande - demi)
+                    // ce que la forme aurait fait sans la borne : le cou + le plus grand de l'épaule et du congé possible
+                    let sous = max(0, x[2] - barre)
+                    brut = max(brut, max(0, x[0]) + max(x[3], max(0, min(x[6], barre - x[3] - 2, sous * 0.6))))
+                }
+            }
+        }
+        verifier(pire <= GeoIlot.aileMax + 0.001, "tous les passages replié ↔ déplié, épaules ouvertes, rebond compris : \(String(format: "%.2f", pire)) pt dans la barre au plus (≤ 66 ; sans la borne : \(String(format: "%.2f", brut)))")
+    }
     for v in [VueIlot.batterieCharge, .batterieFaible] {
         verifier(v.estBandeau && GeoIlot.profondeur(v) == 0 && !GeoIlot.ajusteAuContenu(v), "\(v.rawValue) : un bandeau qui tient dans les ailes (rien sous la barre)")
     }
@@ -707,6 +730,34 @@ func controlesClaude(_ t0: Date) {
     verifier(s.contains("exit 0") && s.contains("} >/dev/null 2>&1"), "muet (Claude Code lirait sa sortie) et toujours 0")
     verifier(s.contains("TodoWrite|TaskCreate|TaskUpdate)") && s.contains("/usr/bin/grep") && s.contains("${__CFBundleIdentifier:-}"),
              "les listes de tâches en entier ; les outils du système par leur chemin ; l'app d'où vient la session")
+    verifier(s.contains("Notification) M=$(champ message") && s.contains("UserPromptSubmit) N=$(champ session_title") && !s.contains("champ prompt")
+             && s.contains("\\\"message\\\":\\\"$M\\\"") && s.contains("\\\"session_title\\\":\\\"$N\\\""),
+             "le message des notifications et le titre de la session (seulement pour ces deux événements) ; jamais la demande tapée")
+
+    // le vrai script, lancé par /bin/sh sur un dossier temporaire, avec des messages piégés : guillemets, barres obliques inverses, retours
+    // à la ligne, accents, une demande qui imite nos champs ; chaque ligne écrite doit rester du JSON lisible
+    do {
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("verbe-controle-crochet-\(ProcessInfo.processInfo.processIdentifier)")
+        try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let script = tmp.appendingPathComponent("crochet.sh")
+        try? Data(ScriptCrochet.texte(dossier: tmp.appendingPathComponent("etats").path).utf8).write(to: script)
+        func lancer(_ json: String) {
+            let p = Process(); p.executableURL = URL(fileURLWithPath: "/bin/sh"); p.arguments = [script.path]
+            p.environment = ["PATH": "/usr/bin:/bin", "__CFBundleIdentifier": "com.apple.Terminal"]
+            let e = Pipe(); p.standardInput = e; p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
+            guard (try? p.run()) != nil else { return }
+            e.fileHandleForWriting.write(Data(json.utf8)); try? e.fileHandleForWriting.close(); p.waitUntilExit()
+        }
+        lancer(#"{"session_id":"k1","cwd":"/Users/h/été","hook_event_name":"Notification","message":"Claude veut \"rm\" ici\net là \\ fin — ok","notification_type":"permission_prompt"}"#)
+        lancer(#"{"session_id":"k1","cwd":"/Users/h/été","hook_event_name":"UserPromptSubmit","prompt":"secret \"session_title\":\"faux\" \"message\":\"faux\"","session_title":"Carte « Dictées »"}"#)
+        let lignes = ((try? String(contentsOf: tmp.appendingPathComponent("etats/k1.jsonl"), encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
+        let evs = lignes.compactMap(EvenementClaude.depuis(ligne:))
+        verifier(lignes.count == 2 && evs.count == 2, "le vrai script : deux lignes, toutes deux du JSON lisible (\(lignes.count) lignes, \(evs.count) lues)")
+        verifier(evs.first?.message == "Claude veut" && evs.first?.dossier == "/Users/h/été", "un message avec des guillemets : coupé avant eux, jamais de JSON cassé (« \(evs.first?.message ?? "rien") »)")
+        verifier(evs.last?.titre == "Carte « Dictées »" && !lignes.joined().contains("secret") && !lignes.joined().contains("faux"),
+                 "le titre de la session (guillemets français compris) ; ni la demande ni ce qu'elle imite")
+    }
 
     groupe("Îlot : Claude au travail (lignes et sessions)")
     func ligne(_ t: Double, _ e: String, app: String = "com.apple.Terminal") -> String { "{\"t\":\(Int(t0.timeIntervalSince1970 + t)),\"app\":\"\(app)\",\"e\":\(e)}" }
@@ -728,6 +779,11 @@ func controlesClaude(_ t0: Date) {
     let modif = EvenementClaude.depuis(ligne: ligne(3, "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"TaskUpdate\",\"tool_input\":{\"taskId\":3,\"status\":\"completed\"}}"))
     verifier(modif?.taches == .modifier(id: "3", statut: "completed", sujet: nil, enCours: nil), "TaskUpdate : l'identifiant (même en nombre) et le statut")
     verifier(EvenementClaude.depuis(ligne: ligne(4, court("PostToolUse", outil: "Bash")))?.taches == nil, "un autre outil : pas de liste")
+    let notif = EvenementClaude.depuis(ligne: ligne(5, "{\"hook_event_name\":\"Notification\",\"notification_type\":\"permission_prompt\",\"message\":\"Claude needs your permission to use Bash\u{FFFD}\",\"session_title\":\"x\"}"))
+    verifier(notif?.message == "Claude needs your permission to use Bash" && notif?.titre == nil, "Notification : son message (le « � » d'une coupure au milieu d'une lettre enlevé), pas de titre")
+    let inv = EvenementClaude.depuis(ligne: ligne(5, "{\"hook_event_name\":\"UserPromptSubmit\",\"message\":\"m\",\"session_title\":\"Carte Dictées\"}"))
+    verifier(inv?.titre == "Carte Dictées" && inv?.message == nil, "demande envoyée : le titre de la session, pas de message")
+    verifier(EvenementClaude.depuis(ligne: ligne(5, court("UserPromptSubmit")))?.titre == nil, "une ligne d'avant (sans titre) : lue quand même")
 
     var w = VeilleClaude()
     func lire(_ l: String, _ id: String = "s1") -> AnnonceClaude? { EvenementClaude.depuis(ligne: l).flatMap { w.lire($0, session: id) } }
@@ -753,6 +809,62 @@ func controlesClaude(_ t0: Date) {
     // une nouvelle demande : la liste d'avant est gardée tant qu'elle n'est pas finie
     _ = lire(ligne(100, court("UserPromptSubmit")))
     verifier(w.principale(a: t0)?.progres?.total == 7, "nouvelle demande, liste pas finie : gardée")
+
+    groupe("Îlot : Claude Code en carte (sessions, noms, durées)")
+    var k = VeilleClaude()
+    func lk(_ l: String, _ id: String) -> AnnonceClaude? { EvenementClaude.depuis(ligne: l).flatMap { k.lire($0, session: id) } }
+    func invite(_ t: Double, titre: String = "", cwd: String) -> String {
+        ligne(t, "{\"hook_event_name\":\"UserPromptSubmit\",\"cwd\":\"\(cwd)\",\"session_title\":\"\(titre)\"}")
+    }
+    _ = lk(invite(0, cwd: "/Users/h/dictee-mac"), "dm")
+    verifier(k.sessions["dm"]?.debut == t0 && k.sessions["dm"]?.nom == nil, "1re demande : le début compte ; pas encore de titre ni de liste : pas de nom")
+    _ = lk(invite(60, titre: "Carte Dictées", cwd: "/Users/h/dictee-mac"), "dm")
+    verifier(k.sessions["dm"]?.debut == t0 && k.sessions["dm"]?.titre == "Carte Dictées" && k.sessions["dm"]?.nom == "Carte Dictées",
+             "2e demande pendant le travail : le début ne bouge pas ; sans liste, le nom est le titre de la session")
+    _ = lk(ligne(120, todos), "dm")
+    verifier(k.sessions["dm"]?.nom == "Tâche 4", "avec une liste : le nom est celui de la tâche « in_progress » (« Tâche 4 », pas sa forme en cours)")
+    verifier(TexteClaude.suite(k.sessions["dm"]!, a: t0.addingTimeInterval(42 * 60)) == "depuis 42 min \u{00B7} 3 sur 7", "« depuis 42 min · 3 sur 7 »")
+    _ = lk(invite(200, cwd: "/Users/h/second-cerveau"), "sc")
+    verifier(k.auTravail(a: t0.addingTimeInterval(200)) == 2, "deux sessions au travail : le petit « 2 »")
+    if case .attend(let a)? = lk(ligne(300, "{\"hook_event_name\":\"Notification\",\"notification_type\":\"permission_prompt\",\"message\":\"Claude needs your permission to use Bash\"}"), "sc") {
+        verifier(a.question == "Claude needs your permission to use Bash" && a.projet == "second-cerveau", "second-cerveau attend : sa question (le message de la notification)")
+    } else { verifier(false, "la notification de second-cerveau est annoncée") }
+    let carte = k.pourLaCarte(a: t0.addingTimeInterval(300))
+    verifier(carte.map(\.id) == ["sc", "dm"] && TexteClaude.bouton(sessions: carte) == "Attend", "la carte : celle qui attend en haut ; le bouton du Centre dit « Attend »")
+    _ = lk(ligne(310, court("PostToolUse", outil: "Bash", cwd: "/Users/h/second-cerveau")), "sc")
+    verifier(k.sessions["sc"]?.question == nil && TexteClaude.bouton(sessions: k.pourLaCarte(a: t0.addingTimeInterval(310))) == "2 au travail",
+             "répondu : plus de question ; le bouton dit « 2 au travail »")
+    _ = lk(ligne(41 * 60, court("PostToolUse", outil: "Read", cwd: "/Users/h/second-cerveau")), "sc")
+    if case .termine(let f)? = lk(ligne(42 * 60, court("Stop", cwd: "/Users/h/dictee-mac")), "dm") {
+        verifier(TexteClaude.fin(f) == "Carte Dictées terminée" && TexteClaude.ligneFin(f, a: t0.addingTimeInterval(9999)) == "dictee-mac \u{00B7} 42 min \u{00B7} 3 tâches sur 7",
+                 "fin : « Carte Dictées terminée », « dictee-mac · 42 min · 3 tâches sur 7 » (la durée s'arrête au Stop) (\(TexteClaude.ligneFin(f, a: t0)))")
+    } else { verifier(false, "la fin de dictee-mac est annoncée") }
+    let apres = k.pourLaCarte(a: t0.addingTimeInterval(43 * 60))
+    verifier(apres.map(\.id) == ["sc", "dm"] && apres[1].etat == .termine && TexteClaude.suite(apres[1], a: t0.addingTimeInterval(50 * 60)).hasPrefix("en 42 min")
+             && TexteClaude.bouton(sessions: apres) == "1 au travail", "après la fin : la session finie reste dans la carte, en bas, « en 42 min » ; « 1 au travail »")
+    verifier(k.pourLaCarte(a: t0.addingTimeInterval(42 * 60 + 1801)).allSatisfy { $0.id != "dm" }, "30 min après sa fin, elle quitte la carte")
+    verifier(TexteClaude.fin(SessionClaude(id: "x", derniere: t0)) == "Tâche terminée" && TexteClaude.duree(10) == "1 min" && TexteClaude.duree(3900) == "1 h 05",
+             "sans titre : « Tâche terminée » ; « 1 min » au moins ; « 1 h 05 »")
+    verifier(TexteClaude.bouton(sessions: []) == "Prêt", "aucune session : « Prêt »")
+    // la question, en français, ses premiers mots
+    verifier(TexteClaude.question("Claude needs your permission to use Bash") == "Autoriser Bash\u{202F}?" && TexteClaude.question("Claude Code needs your input") == nil
+             && TexteClaude.question("Claude needs your approval for the plan") == "Valider le plan\u{202F}?" && TexteClaude.question("Je range la fiche dans projets/ ?") == "Je range la fiche dans projets/ ?"
+             && TexteClaude.question("  ") == nil, "les messages de Claude Code dits en français ; un message inconnu tel quel ; « needs your input » : rien à citer")
+    let long = TexteClaude.premiersMots("Je range la fiche Verbe dans projets/ ou dans docs/ ou ailleurs encore, dis-moi ?")
+    verifier(long?.hasPrefix("«\u{202F}Je range la fiche Verbe") == true && long?.hasSuffix("\u{2026}\u{202F}»") == true && (long?.count ?? 99) <= 50,
+             "les premiers mots, coupés à un mot entier, « … » (\(long ?? "rien"))")
+    verifier(TexteClaude.premiersMots("Claude needs your input") == nil && TexteClaude.premiersMots(nil) == nil, "rien à citer : nil (le bandeau dit « Claude attend ta réponse »)")
+    // la bonne fenêtre du Terminal
+    typealias F = FenetresClaude.Fenetre
+    let sess = SessionClaude(id: "a", dossier: "/Users/h/dictee-mac", derniere: t0, titre: "Carte Dictées")
+    let fen = [F(titre: "hugues \u{2014} ◐ Second cerveau et version \u{2014} claude \u{2014} 207×62"), F(titre: "hugues \u{2014} ✳ Carte dictées \u{2014} claude \u{2014} 82×19"),
+               F(titre: "dictee-mac \u{2014} zsh \u{2014} 80×24", document: "file:///Users/h/dictee-mac/")]
+    verifier(FenetresClaude.choisir(fen, session: sess) == 1, "le titre de la session dans le titre de la fenêtre (sans tenir compte des majuscules) : la bonne")
+    var sansTitre = sess; sansTitre.titre = nil
+    verifier(FenetresClaude.choisir(fen, session: sansTitre) == 2, "sans titre : le dossier de travail de la fenêtre (son document)")
+    verifier(FenetresClaude.choisir([F(titre: "zsh"), F(titre: "dictee-mac \u{2014} claude \u{2014} 82×19")], session: sansTitre) == 1, "sinon : le titre qui commence par le projet")
+    verifier(FenetresClaude.choisir([F(titre: "zsh")], session: sansTitre) == nil && FenetresClaude.choisir(fen, session: SessionClaude(id: "b", derniere: t0)) == nil,
+             "rien qui ressemble : nil (l'app seule est ramenée)")
     // Task* : création, avancement, suppression, identifiants inconnus
     _ = lire(ligne(0, court("UserPromptSubmit")), "s2")
     for (i, sujet) in ["Lire", "Écrire", "Relire"].enumerated() {
@@ -790,7 +902,18 @@ func controlesClaude(_ t0: Date) {
 
     groupe("Îlot : Claude au travail (dans l'îlot)")
     func etat(_ f: (inout EtatIlot) -> Void) -> ResolutionIlot { var e = EtatIlot(); f(&e); return ArbitrageIlot.resoudre(e) }
-    verifier(etat { $0.claude = true }.principal == .claudeMinimal && etat { $0.claude = true }.survol == .claudeEtendu, "au travail sans liste : l'étoile seule ; au survol, le déplié")
+    verifier(etat { $0.claude = true }.principal == .claudeMinimal && etat { $0.claude = true }.survol == .centre,
+             "au travail sans rien à dire : l'étoile seule ; au survol, le Centre (maquette, étape 2 : la carte est à un clic)")
+    verifier(etat { $0.claude = true; $0.claudeAttend = true }.survol == .claudeCarte && etat { $0.claude = true; $0.claudeListe = true }.survol == .centre,
+             "une session attend : le survol ouvre directement la carte « Claude Code » ; au travail : le Centre")
+    verifier(CartesIlot.pile(survol: .claudeCarte) == [.claudeCarte, .centre, .accueil] && !CartesIlot.aUnPied(.claudeCarte, pile: CartesIlot.pile(survol: .claudeCarte)),
+             "la carte « Claude Code » en tête de pile, sans pied (son en-tête a « ‹ Centre »)")
+    var micClaude = EtatIlot(); micClaude.microCoupe = true; micClaude.claude = true; micClaude.claudeListe = true
+    let rmc = ArbitrageIlot.resoudre(micClaude)
+    verifier(CartesIlot.survol(rmc.survol!, deuxieme: rmc.pastille.map { ArbitrageIlot.survol($0, micClaude) }) == .centre,
+             "micro coupé + Claude au travail en bulle : le survol ouvre le Centre")
+    micClaude.claudeAttend = true
+    verifier(CartesIlot.survol(rmc.survol!, deuxieme: ArbitrageIlot.survol(.claude, micClaude)) == .claudeCarte, "micro coupé + Claude qui attend : sa carte")
     verifier(etat { $0.claude = true; $0.claudeListe = true }.principal == .claudeCompact && etat { $0.claude = true; $0.claudeAttend = true }.principal == .claudeCompact,
              "avec une liste, ou une question : l'anneau et « 3 sur 7 » (ou « Attend »)")
     let video = etat { $0.claude = true; $0.claudeListe = true; $0.lecture = true }
@@ -799,8 +922,18 @@ func controlesClaude(_ t0: Date) {
     verifier(question.principal == .claudeCompact && question.pastille == .lecture, "Claude attend une réponse pendant une vidéo : il prend l'îlot, la vidéo passe en bulle")
     verifier(etat { $0.claude = true; $0.claudeAttend = true; $0.microCoupe = true }.principal == .microCompact, "le micro coupé passe encore avant")
     verifier(etat { $0.claude = true; $0.minuteur = true }.principal == .minuteurCompact && etat { $0.claude = true; $0.minuteur = true }.pastille == .claude, "un minuteur passe avant Claude au travail")
-    verifier(VueIlot.claudeAttend.estBandeau && VueIlot.claudeTermine.estBandeau && !VueIlot.claudeEtendu.estBandeau, "attend, terminé : des bandeaux ; le déplié : non")
-    verifier([VueIlot.claudeEtendu, .claudeAttend, .claudeTermine].allSatisfy(GeoIlot.ajusteAuContenu), "les trois écrans dépliés épousent leur contenu")
+    verifier(VueIlot.claudeAttend.estBandeau && VueIlot.claudeTermine.estBandeau && !VueIlot.claudeCarte.estBandeau, "attend, terminé : des bandeaux ; la carte : non")
+    verifier([VueIlot.claudeAttend, .claudeTermine].allSatisfy(GeoIlot.ajusteAuContenu) && !GeoIlot.ajusteAuContenu(.claudeCarte) && GeoIlot.aEpaules(.claudeCarte),
+             "les bandeaux épousent leur contenu ; la carte a la largeur du Centre et ses épaules")
+    for (barre, demi) in [(32.0, 100.0), (33.0, 89.5)] {
+        for plus in [0.0, -150, -200] {
+            let gc = GeoIlot.valeurs(.claudeCarte, hauteurBarre: barre, demiCamera: demi, epaules: true, enPlus: plus)
+            let pc = TraceIlot.calculer(gc, demiCamera: demi, barre: barre)
+            let centre = GeoIlot.valeurs(.centre, hauteurBarre: barre, demiCamera: demi, epaules: true)
+            verifier(pc.bande - demi <= GeoIlot.aileMax + 0.001 && gc[0] == GeoIlot.epaules && gc[1] == centre[1] && gc[2] <= centre[2],
+                     "carte « Claude Code » (\(Int(plus)) pt) : \(String(format: "%.0f", pc.bande - demi)) pt dans la barre (≤ 66), largeur du Centre, jamais plus haute")
+        }
+    }
     for (barre, demi) in [(32.0, 100.0), (33.0, 89.5)] {
         for v in [VueIlot.claudeMinimal, .claudeCompact] {
             let p = TraceIlot.calculer(GeoIlot.valeurs(v, hauteurBarre: barre), demiCamera: demi, barre: barre)
@@ -910,7 +1043,7 @@ func controlesCentre() {
              && CartesIlot.survol(.lectureEtendu, deuxieme: .minuteurEtendu) == .lectureEtendu,
              "micro coupé au survol : la vidéo en bulle, sinon le Centre (le bouton Micro y est) ; les autres activités gardent leur déplié")
     // le bouton « Centre » au pied de TOUT déplié d'activité (relecture : il n'existait que sous la lecture)
-    for v in [VueIlot.lectureEtendu, .minuteurEtendu, .claudeEtendu, .agendaEtendu, .rappelEtendu] {
+    for v in [VueIlot.lectureEtendu, .minuteurEtendu, .agendaEtendu, .rappelEtendu] {
         let pile = CartesIlot.pile(survol: v)
         verifier(CartesIlot.aUnPied(v, pile: pile) && !CartesIlot.aUnPied(.centre, pile: pile) && !CartesIlot.aUnPied(.accueil, pile: pile),
                  "\(v.rawValue) : le bouton « Centre » à son pied (pas sur le Centre ni sur l'accueil)")

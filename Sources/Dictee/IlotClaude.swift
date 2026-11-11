@@ -46,26 +46,10 @@ extension IlotMoteur {
         guard let p = s.progres else { return "" }
         return MesureIlot.texte(p.texte, taille, .semibold, chiffres: true) <= Self.aileClaude ? p.texte : p.court
     }
-
-    /// La deuxième ligne du déplié : où en est la session (« 3 sur 7 · Écrire les contrôles »).
-    static func ligneClaude(_ s: SessionClaude?) -> String {
-        guard let s else { return "" }
-        switch s.etat {
-        case .attend: return "Attend ta réponse"
-        case .termine: return "Terminé"
-        case .travaille:
-            switch (s.progres?.texte, s.tacheEnCours) {
-            case let (p?, t?): return p + " \u{00B7} " + t
-            case let (p?, nil): return p
-            case let (nil, t?): return t
-            default: return "Au travail"
-            }
-        }
-    }
 }
 
-/// L'étoile, pièce qui voyage : au centre de l'aile gauche au repos (petite, dans son anneau s'il y a une liste), à sa place dans le
-/// déplié une fois survolée.
+/// L'étoile, pièce qui voyage : dans son anneau (aile gauche) au repos, ou seule au milieu de l'aile (rien à dire) ; dans l'en-tête de la
+/// carte « Claude Code » une fois survolée (une session attend). Le petit « 2 » la suit quand deux sessions travaillent.
 struct ClaudeVoyageur: View {
     @ObservedObject var m: IlotMoteur
     var g: GrilleIlot
@@ -73,48 +57,27 @@ struct ClaudeVoyageur: View {
     var body: some View {
         let p = m.ouverture(.claude)
         let a = m.aspect(FamilleIlot.claude)
-        let s = m.claude ?? m.dernierClaude
-        // dans les ailes, l'étoile suit le cou dessiné (de l'étoile seule à l'étoile dans son anneau, elle glisse avec la forme)
+        let minimal = m.resolution.principal == .claudeMinimal
+        // l'étoile seule suit le cou dessiné (de l'étoile seule à l'étoile dans son anneau, elle glisse avec la forme)
         let dansLesAiles = m.courante == .claudeMinimal || m.courante == .claudeCompact
-        let c = dansLesAiles ? -(g.hc + CGFloat(m.trace.cou)) / 2
-            : g.centreAile(m.resolution.principal == .claudeMinimal ? .claudeMinimal : .claudeCompact, droite: false)
-        let anneau = s?.etat == .travaille && s?.progres != nil && m.resolution.principal != .claudeMinimal
-        // dans son anneau, l'étoile rapetisse à mesure que le cou s'élargit (de l'étoile seule, 36 pt, à l'anneau, 60 pt)
-        let largeur = dansLesAiles ? min(1, max(0, (CGFloat(m.trace.cou) - g.hc - 36) / 24)) : 1
-        let petit: CGFloat = anneau ? 15 - 4 * largeur : 15
+        let anneau = m.cadreAnneauClaude(g, minimal ? .claudeMinimal : .claudeCompact)
+        let c: CGFloat = minimal ? (dansLesAiles ? -(g.hc + CGFloat(m.trace.cou)) / 2 : g.centreAile(.claudeMinimal, droite: false)) : anneau.midX
+        let petit: CGFloat = minimal ? 15 : 10.5
         let compact = CGRect(x: c - petit / 2, y: g.barre / 2 - petit / 2, width: petit, height: petit)
-        let z = g.zoneAnnonce(.claudeEtendu)
-        let etendu = CGRect(x: z.minX + 2.5, y: z.midY - 10.5, width: 21, height: 21)
+        let e = PlanCarteClaude.cadreEntete(g)
+        let x0 = e.minX + (m.cartes.contains(.centre) ? PlanCarteClaude.pilule + 10 : 0)
+        let etendu = CGRect(x: x0, y: e.midY - 7, width: 14, height: 14)
         let (r, _) = voyageIlot(compact, etendu, p)
-        return EtoileClaude(couleur: CouleursIlot.corail)
-            .posee(r, a, ancre: .center, .center)
-    }
-}
-
-/// Le compact avec une liste (ou une question) : l'anneau autour de l'étoile dans l'aile gauche, « 3 sur 7 » (ou « Attend ») dans
-/// l'aile droite, en corail.
-struct ClaudeAiles: View {
-    @ObservedObject var m: IlotMoteur
-    var g: GrilleIlot
-
-    var body: some View {
-        let v = VueIlot.claudeCompact
-        let s = m.claude ?? m.dernierClaude
-        let c = g.centreAile(v, droite: false)
-        let t = m.texteClaude(s)
-        let d = g.bordAile(v), l = d - g.hc - 4
+        let attend = (m.claude ?? m.dernierClaude)?.etat == .attend
         return ZStack(alignment: .topLeading) {
-            if let p = s?.progres, s?.etat == .travaille {
-                AnneauIlot(taille: 21, trait: 2.2, couleur: CouleursIlot.corail, fraction: p.fraction) {}
-                    .posee(CGRect(x: c - 10.5, y: g.barre / 2 - 10.5, width: 21, height: 21), m.aspect(v, rang: 0), ancre: .center)
+            EtoileClaude(couleur: attend && p < 0.5 ? CouleursIlot.ambre : CouleursIlot.corail)
+                .posee(r, a, ancre: .center, .center)
+            if m.claudeAuTravail >= 2, p < 0.5 {
+                BadgeClaude(nombre: m.claudeAuTravail)
+                    .posee(CGRect(x: minimal ? r.midX + 3 : anneau.maxX - 7, y: minimal ? r.minY - 6 : anneau.minY - 5, width: 16, height: 13),
+                           AspectIlot(opacite: a.opacite * (1 - 2 * p), flou: 0, echelle: 1), ancre: .center, .leading)
             }
-            Text(t).font(.system(size: 13, weight: .semibold).monospacedDigit()).tracking(-0.1).foregroundStyle(CouleursIlot.corail)
-                .lineLimit(1).fixedSize()
-                .posee(CGRect(x: d - l, y: 0, width: l, height: g.barre), m.aspect(v, rang: 1), ancre: .center, .trailing)
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(s?.etat == .attend ? "Claude attend ta réponse" : "Claude au travail")
-        .accessibilityValue(s?.etat == .travaille ? (s?.progres.map { "\($0.faites) tâches sur \($0.total)" } ?? "") : "")
     }
 }
 
@@ -338,6 +301,28 @@ struct InstallationClaude {
         try reecrire { try CrochetsClaude.brancher($0, script: script.path) }
     }
 
+    /// Une nouvelle version de Verbe peut changer le script (ici : le message des notifications et le titre de la session en plus).
+    /// Branché (nos crochets sont dans settings.json, qu'on ne fait que lire), le script est remplacé s'il diffère ou manque, l'ancien
+    /// gardé à côté (`claude-crochet.sh.verbe-sauvegarde`), par une écriture atomique. Débranché : rien. Rend vrai s'il a été écrit.
+    @discardableResult
+    func mettreAJourLeScript() -> Bool {
+        let fm = FileManager.default
+        let voulu = ScriptCrochet.texte(dossier: etats.path)
+        let actuel = try? String(contentsOf: script, encoding: .utf8)
+        guard actuel != voulu, estBranche else { return false }
+        do {
+            if let actuel { try Data(actuel.utf8).write(to: script.appendingPathExtension("verbe-sauvegarde"), options: .atomic) }
+            try fm.createDirectory(at: etats, withIntermediateDirectories: true)
+            try Data(voulu.utf8).write(to: script, options: .atomic)
+            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+            Log.ecrire("claude : script des crochets mis à jour (l'ancien gardé à côté)")
+            return true
+        } catch {
+            Log.ecrire("claude : mise à jour du script impossible (\(error.localizedDescription))")
+            return false
+        }
+    }
+
     /// Retire nos crochets ; le script reste (une session déjà ouverte peut encore l'appeler : il ne fait rien de mal).
     func debrancher() throws {
         guard try lire() != nil else { return }
@@ -383,7 +368,7 @@ extension IlotControleur {
             claudeSource.arreter()
             veilleClaude = VeilleClaude()
             reveilClaude?.cancel(); reveilClaude = nil
-            moteur.claude = nil
+            moteur.claude = nil; moteur.sessionsClaude = []; moteur.claudeAuTravail = 0
             if [.claudeAttend, .claudeTermine].contains(moteur.bandeau?.vue) { moteur.bandeau = nil }
             moteur.donneesChangees()
         }
@@ -406,12 +391,14 @@ extension IlotControleur {
         switch annonce {
         case .attend(let s):
             guard !VeilleClaude.dejaSousLesYeux(app: s.app, premierPlan: appAuPremierPlan()) else { return }
-            moteur.annoncer(bandeau: BandeauIlot(vue: .claudeAttend, jusqua: maintenant().addingTimeInterval(4.5), ligne1: "Claude attend ta réponse",
-                                                 ligne2: s.projet, claude: s))
+            // « second-cerveau attend ta réponse », les premiers mots de la question (sinon « Claude attend ta réponse »), « Ouvrir »
+            moteur.annoncer(bandeau: BandeauIlot(vue: .claudeAttend, jusqua: maintenant().addingTimeInterval(4.5), ligne1: s.projet + " attend ta réponse",
+                                                 ligne2: TexteClaude.premiersMots(s.question) ?? "Claude attend ta réponse", claude: s))
         case .termine(let s):
             guard !VeilleClaude.dejaSousLesYeux(app: s.app, premierPlan: appAuPremierPlan()) else { return }
-            moteur.annoncer(bandeau: BandeauIlot(vue: .claudeTermine, jusqua: maintenant().addingTimeInterval(3), ligne1: "Terminé",
-                                                 ligne2: s.projet, claude: s))
+            // « Carte Dictées terminée », « dictee-mac · 42 min · 7 tâches sur 7 », « Voir »
+            moteur.annoncer(bandeau: BandeauIlot(vue: .claudeTermine, jusqua: maintenant().addingTimeInterval(3.5), ligne1: TexteClaude.fin(s),
+                                                 ligne2: TexteClaude.ligneFin(s, a: maintenant()), claude: s))
         }
     }
 
@@ -419,7 +406,11 @@ extension IlotControleur {
     func majClaude() {
         let t = maintenant()
         let s = veilleClaude.principale(a: t)
-        if s != moteur.claude { moteur.claude = s; moteur.donneesChangees() }
+        let carte = veilleClaude.pourLaCarte(a: t), n = veilleClaude.auTravail(a: t)
+        if s != moteur.claude || carte != moteur.sessionsClaude || n != moteur.claudeAuTravail {
+            moteur.claude = s; moteur.sessionsClaude = carte; moteur.claudeAuTravail = n
+            moteur.donneesChangees()
+        }
         reveilClaude?.cancel(); reveilClaude = nil
         guard let quand = veilleClaude.prochainOubli(a: t) else { return }
         let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.majClaude() } }
@@ -427,10 +418,41 @@ extension IlotControleur {
         DispatchQueue.main.asyncAfter(deadline: .now() + max(1, quand.timeIntervalSince(t) + 0.5), execute: item)
     }
 
-    /// Ramène l'app d'où vient la session (le Terminal si on ne la connaît pas), comme un clic sur son icône dans le Dock : une app
-    /// d'arrière-plan comme Verbe ne peut pas toujours en activer une autre directement (activation coopérative de macOS).
-    static func ramener(_ app: String?) {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app ?? "com.apple.Terminal") else { return }
+    /// Ramène la fenêtre du Terminal où tourne la session : les fenêtres de l'app sont lues par l'Accessibilité (que Verbe a déjà, pour
+    /// la dictée : aucune autorisation de plus ; pas d'AppleScript, qui demanderait à « contrôler le Terminal »), `FenetresClaude.choisir`
+    /// prend la bonne (titre de la session, dossier, nom du projet), elle passe devant ; puis l'app est ramenée comme d'un clic sur son
+    /// icône du Dock (une app d'arrière-plan comme Verbe ne peut pas toujours en activer une autre directement). Sans Accessibilité, ou
+    /// si aucune fenêtre ne ressemble à la session : l'app seule, sur sa dernière fenêtre.
+    static func ramener(_ s: SessionClaude?) {
+        let id = s?.app ?? "com.apple.Terminal"
+        if let s, AXIsProcessTrusted(), let app = NSRunningApplication.runningApplications(withBundleIdentifier: id).first {
+            let ax = AXUIElementCreateApplication(app.processIdentifier)
+            AXUIElementSetMessagingTimeout(ax, 0.3)
+            var v: CFTypeRef?
+            if AXUIElementCopyAttributeValue(ax, kAXWindowsAttribute as CFString, &v) == .success, let fenetres = v as? [AXUIElement] {
+                func texte(_ f: AXUIElement, _ attr: String) -> String? {
+                    var r: CFTypeRef?
+                    guard AXUIElementCopyAttributeValue(f, attr as CFString, &r) == .success else { return nil }
+                    if let t = r as? String { return t }
+                    if let u = r as? URL { return u.absoluteString }
+                    return nil
+                }
+                let lues = fenetres.prefix(40).map { FenetresClaude.Fenetre(titre: texte($0, kAXTitleAttribute) ?? "", document: texte($0, kAXDocumentAttribute)) }
+                if let i = FenetresClaude.choisir(Array(lues), session: s) {
+                    let f = fenetres[i]
+                    var mini: CFTypeRef?
+                    if AXUIElementCopyAttributeValue(f, kAXMinimizedAttribute as CFString, &mini) == .success, (mini as? Bool) == true {
+                        AXUIElementSetAttributeValue(f, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+                    }
+                    AXUIElementSetAttributeValue(f, kAXMainAttribute as CFString, kCFBooleanTrue)
+                    AXUIElementPerformAction(f, kAXRaiseAction as CFString)
+                    Log.ecrire("claude : fenêtre de la session ramenée (\(i + 1) sur \(lues.count))")
+                } else {
+                    Log.ecrire("claude : aucune fenêtre ne ressemble à la session, l'app seule est ramenée")
+                }
+            }
+        }
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return }
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
         NSWorkspace.shared.openApplication(at: url, configuration: config)

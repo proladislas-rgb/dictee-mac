@@ -122,7 +122,9 @@ extension IlotMoteur {
         case .dictee: return choixMicro?.airpods == true ? "AirPods" : "Mac"
         case .telechargements: return telechargementsAttente ? "Un instant\u{2026}" : (telechargementsActifs ? "Allumé" : "Éteint")
         case .claude:
-            if let s = claude { let t = texteClaude(s, taille: PlanCentre.policeNom); return t.isEmpty ? "Au travail" : t }
+            // « 2 au travail », « Attend » (une session attend une réponse), « Prêt » ; « Brancher » tant que les crochets ne sont pas là
+            if !sessionsClaude.isEmpty { return TexteClaude.bouton(sessions: sessionsClaude) }
+            if let s = claude { return TexteClaude.bouton(sessions: [s]) }
             return claudeBranche ? "Prêt" : "Brancher"
         case .rappel: return "Dire un rappel"
         case .derniereDictee: return derniereDictee != nil ? "Coller" : "Aucune"
@@ -136,7 +138,7 @@ extension IlotMoteur {
         case .lectureEtendu, .lectureMinuteur: return lecture.genre == .musique ? "Musique" : "Vidéo"
         case .minuteurEtendu: return "Minuteur"
         case .microEtendu: return "Micro"
-        case .claudeEtendu: return "Claude"
+        case .claudeCarte: return "Claude"
         case .agendaEtendu: return "Rendez-vous"
         case .rappelEtendu, .rappelListe: return "Rappel"
         default: return nil
@@ -272,11 +274,12 @@ struct CentreVue: View {
             } action: { agir(.centreTelechargements) }
         case .claude:
             let s = m.claude
-            let branche = m.claudeBranche || s != nil
-            TuileRonde(nom: e.nom, etat: etat, couleurEtat: branche ? CouleursIlot.encre2 : Color(hex: 0x5EB0FF),
+            let branche = m.claudeBranche || s != nil || !m.sessionsClaude.isEmpty
+            let attend = m.sessionsClaude.contains { $0.etat == .attend }
+            TuileRonde(nom: e.nom, etat: etat, couleurEtat: attend ? Color(hex: 0xFFB340) : (branche ? CouleursIlot.encre2 : Color(hex: 0x5EB0FF)),
                        fond: branche ? CouleursIlot.corail : nil, pointille: !branche, colonne: l, tailleNom: t.nom, tailleEtat: t.etat, reduire: fige, edition: ed, rang: rang,
                        statique: m.statique, retirer: retirer,
-                       etiquette: s != nil ? "Claude Code, \(etat) : ouvrir" : (branche ? "Claude Code prêt" : "Brancher Claude Code")) {
+                       etiquette: branche ? "Claude Code, \(etat) : ouvrir la carte des sessions" : "Brancher Claude Code") {
                 EtoileClaude(couleur: branche ? .white : Color.white.opacity(0.75)).frame(width: 21, height: 21)
             } action: { agir(.centreClaude) }
         case .rappel:
@@ -757,10 +760,9 @@ extension IlotControleur {
             if moteur.avisCentre == .telechargementsRefuses { ouvrir(Self.reglagesFichiers) }
             moteur.avisCentre = nil
         case .centreClaude:
-            // une session au travail : on la rejoint ; branché : le Terminal (ou l'app de la dernière session) ; sinon, on branche (les
-            // crochets s'écrivent dans ~/.claude/settings.json, l'ancien gardé à côté en .verbe-sauvegarde, comme le bouton des Réglages)
-            if let s = moteur.claude { moteur.fermer(); ramenerApp(s.app); return }
-            if moteur.claudeBranche { moteur.fermer(); ramenerApp(moteur.dernierClaude?.app); return }
+            // branché (ou des sessions déjà là) : la carte « Claude Code », un bloc par session ; sinon, on branche (les crochets
+            // s'écrivent dans ~/.claude/settings.json, l'ancien gardé à côté en .verbe-sauvegarde, comme le bouton des Réglages)
+            if moteur.claudeBranche || moteur.claude != nil || !moteur.sessionsClaude.isEmpty { moteur.ouvrirCarteClaude(); return }
             moteur.avisCentre = nil
             do {
                 try installationClaude.brancher()

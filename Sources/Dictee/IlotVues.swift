@@ -139,7 +139,8 @@ struct IlotCalques: View {
         case .volume, .luminosite: niveauAiles(v)
         case .claudeMinimal: EmptyView()
         case .claudeCompact: ClaudeAiles(m: m, g: g)
-        case .claudeEtendu, .claudeAttend, .claudeTermine: if let c = m.contenuAnnonce(v) { annonce(v, c) }
+        case .claudeCarte: CarteClaudeVue(m: m, g: g)
+        case .claudeAttend, .claudeTermine: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .etagereDepot: DepotEtagere(m: m, g: g)
         case .etagere: CarteEtagere(m: m, g: g)
         case .centre: CentreVue(m: m, g: g)

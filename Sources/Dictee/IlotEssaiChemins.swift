@@ -57,26 +57,26 @@ extension IlotEssai {
         m.surAction(.minuteurArreter); pause(0.2)
         refermer()
         c.panneau.simulerPointeur(forme: true); pause(1.0)
-        verifier(m.courante == .claudeEtendu && m.visible(ExtraIlot.pied), "survol de Claude au travail : son déplié et le bouton « Centre » (\(m.courante))")
-        let zc = m.grille.zoneAnnonce(.claudeEtendu), pc = PiedCarte.cadre(m.grille, .claudeEtendu)
-        verifier(pc.minY >= zc.maxY + 8 && pc.maxY <= CGFloat(m.geo[2].x) - 10 && PiedCarte.largeurBouton <= pc.width,
-                 "Claude : le pied sous la ligne du projet, le bouton (\(Int(PiedCarte.largeurBouton)) pt) tient dans la largeur (\(Int(pc.width)) pt)")
-        verifier(!PiedCarte.aideTient(m.grille, .claudeEtendu) || PiedCarte.largeurBouton + 10 + PiedCarte.largeurAide <= pc.width,
-                 "l'aide « Fais défiler ou clique ici » ne paraît que si elle tient à côté du bouton")
-        clic(PiedCarte.pointBouton(m.grille, .claudeEtendu), 0.9)
-        verifier(m.courante == .centre, "vrai clic sur « Centre » sous Claude : le Centre (\(m.courante))")
+        // Claude au travail (maquette ilot-claude-plus.html, étape 2) : le survol ouvre le Centre ; sa carte est à un clic (bouton Claude
+        // Code), et « ‹ Centre » y ramène
+        m.sessionsClaude = [session]; m.claudeAuTravail = 1; m.claudeBranche = true; m.donneesChangees(); pause(0.3)
+        verifier(m.courante == .centre && !m.visible(ExtraIlot.pied), "survol de Claude au travail : le Centre directement (\(m.courante))")
+        clic(PlanCentre.centreRond(m, .claude), 0.9)
+        verifier(m.courante == .claudeCarte && m.epingle && m.sessionsClaude.count == 1, "vrai clic sur le bouton Claude Code : la carte « Claude Code » (\(m.courante))")
+        verifier(m.trace.bande <= hc + GeoIlot.aileMax + 0.01, "la carte : \(String(format: "%.1f", m.trace.bande - hc)) pt dans la barre de chaque côté (≤ 66)")
+        clic(PlanCarteClaude.pointCentre(m), 0.9)
+        verifier(m.courante == .centre, "vrai clic sur « ‹ Centre » : le Centre (\(m.courante))")
         refermer()
 
-        // --- micro coupé ET Claude : le survol ouvre Claude (la 2e activité) ; son pied mène au Centre, où le micro se rouvre
+        // --- micro coupé ET Claude au travail : le survol ouvre le Centre (Claude en bulle ne s'ouvre pas sur lui-même) ; le micro s'y rouvre
         c.activerLeMicro(true); c.basculerLeMicro(); pause(0.8)
         verifier(m.microCoupe && m.courante == .microCompact && m.pastille == .claude, "micro coupé : « Coupé » dans les ailes, Claude en bulle (\(m.courante))")
         c.panneau.simulerPointeur(forme: true); pause(1.0)
-        verifier(m.courante == .claudeEtendu && m.visible(ExtraIlot.pied), "survol : le déplié de Claude, avec le bouton « Centre » (le micro rouge dedans)")
-        clic(PiedCarte.pointBouton(m.grille, .claudeEtendu), 0.9)
+        verifier(m.courante == .centre, "survol : le Centre (le bouton Micro rouge y est) (\(m.courante))")
         clic(PlanCentre.centreRond(m, .micro), 0.5)
-        verifier(!faux.coupe && !m.microCoupe && m.courante == .centre, "« Centre » puis Micro : rouvert en deux clics, le Centre reste ouvert")
+        verifier(!faux.coupe && !m.microCoupe && m.courante == .centre, "Micro : rouvert d'un clic, le Centre reste ouvert")
         refermer()
-        m.claude = nil; m.donneesChangees(); pause(0.6)
+        m.claude = nil; m.sessionsClaude = []; m.claudeAuTravail = 0; m.claudeBranche = false; m.donneesChangees(); pause(0.6)
 
         // --- le menu de Verbe (barre des menus) : couper / rouvrir le micro, le chemin quand l'îlot n'a pas d'encoche où s'ouvrir
         verifier(c.titreMenuMicro == "Couper le micro", "menu de Verbe, micro ouvert : « Couper le micro »")

@@ -335,6 +335,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                     controle: f.contains(.maskControl), commande: f.contains(.maskCommand)) ?? false
         }
         ilot.demarrer()
+        // le script des crochets de Claude Code a changé avec cette version : s'il est branché, il est remplacé tout seul (l'ancien gardé à
+        // côté), hors du fil principal ; settings.json n'est pas touché (mêmes crochets, même chemin)
+        DispatchQueue.global(qos: .utility).async { InstallationClaude.parDefaut.mettreAJourLeScript() }
     }
 
     @objc private func rechercherLesMisesAJour() {

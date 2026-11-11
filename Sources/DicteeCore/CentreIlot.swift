@@ -25,8 +25,9 @@ public enum CartesIlot {
     /// La carte porte-t-elle le bouton « Centre » à son pied ? Le déplié de TOUTE activité (la vidéo, le minuteur, Claude, un rendez-vous,
     /// un rappel), c'est-à-dire la première carte d'une pile qui contient le Centre : le chemin vers le Centre se voit toujours (on n'a
     /// jamais à deviner un défilement). Le Centre et l'accueil n'en ont pas ; la rangée Minuteur de la lecture prend sa place.
+    /// La carte « Claude Code » n'en a pas : son en-tête a déjà « ‹ Centre ».
     public static func aUnPied(_ v: VueIlot, pile: [VueIlot]) -> Bool {
-        v != .centre && v != .accueil && pile.first == v && pile.contains(.centre)
+        v != .centre && v != .accueil && v != .claudeCarte && pile.first == v && pile.contains(.centre)
     }
 
     /// Ce que le pied ajoute à la hauteur d'une carte : la lecture l'a déjà dans sa géométrie, les autres dépliés l'ajoutent dessous.

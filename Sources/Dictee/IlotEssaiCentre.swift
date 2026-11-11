@@ -35,7 +35,7 @@ extension IlotEssai {
         c.installationClaude = inst
         c.claudeSource.dossier = inst.etats
         var ramenes: [String?] = []
-        c.ramenerApp = { ramenes.append($0) }
+        c.ramenerSession = { ramenes.append($0?.app) }
         let faux = (c.micro as? MicroFactice) ?? MicroFactice()
         if !(c.micro is MicroFactice) { c.micro = faux }
         m.aideCentre = !memoire.utilise
@@ -137,7 +137,8 @@ extension IlotEssai {
         verifier(inst.estBranche && m.claudeBranche && c.claudeSource.actif && m.courante == .centre && ramenes.isEmpty,
                  "vrai clic sur « Brancher » : crochets écrits (settings.json temporaire), « Prêt », le Centre reste ouvert")
         clic(rond(.claude), 0.5)
-        verifier(ramenes.count == 1 && m.courante != .centre, "« Prêt » : on va au Terminal (capturé, aucune app activée), l'îlot se range")
+        verifier(ramenes.isEmpty && m.courante == .claudeCarte && m.epingle, "« Prêt » : la carte « Claude Code » (aucune session : elle le dit) ; rien n'est activé (\(m.courante))")
+        m.fermer(); pause(0.6)
         try? inst.debrancher(); c.activerClaude(false); m.claudeBranche = false
         // la Dictée : seulement avec un micro Bluetooth
         c.lireMicros = { [PeripheriqueEntree(uid: "essai-airpods", nom: "AirPods Pro", transport: .bluetooth)] }

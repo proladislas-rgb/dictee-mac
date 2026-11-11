@@ -71,8 +71,8 @@ enum ActionIlot {
     case fichiersOuvrir([URL])
     /// « Rouvrir » sur le micro coupé déplié.
     case microRouvrir
-    /// « Ouvrir » sur Claude au travail : ramène l'app d'où vient la session (le Terminal), par son identifiant.
-    case claudeOuvrir(String?)
+    /// « Ouvrir » (ou « Voir ») sur une session de Claude Code : ramène la fenêtre du Terminal où elle tourne (sinon l'app).
+    case claudeOuvrir(SessionClaude?)
     /// L'étagère : ouvrir un fichier (clic sur sa tuile), le retirer (« × »), tout vider.
     case etagereOuvrir(UUID), etagereRetirer(UUID), etagereVider
     /// Les boutons du Centre (CentreIlot.swift) : couper ou rouvrir le micro, allumer ou éteindre Téléchargements, brancher Claude Code
@@ -95,7 +95,7 @@ enum FamilleIlot: CaseIterable {
         case .rappelCompact, .rappelEtendu: return .rappel
         case .agendaCompact, .agendaEtendu: return .agenda
         case .microCompact, .microEtendu: return .micro
-        case .claudeMinimal, .claudeCompact, .claudeEtendu: return .claude
+        case .claudeMinimal, .claudeCompact, .claudeCarte: return .claude
         default: return .autre
         }
     }
@@ -106,7 +106,7 @@ enum FamilleIlot: CaseIterable {
         case .rappel: return (.rappelCompact, .rappelEtendu)
         case .agenda: return (.agendaCompact, .agendaEtendu)
         case .micro: return (.microCompact, .microEtendu)
-        case .claude: return (.claudeCompact, .claudeEtendu)
+        case .claude: return (.claudeCompact, .claudeCarte)
         case .autre: return nil
         }
     }
@@ -207,6 +207,12 @@ final class IlotMoteur: ObservableObject {
     /// La session de Claude Code que l'îlot montre (au travail, ou qui attend une réponse) ; la dernière vue, pour un écran qui s'efface.
     var claude: SessionClaude? { didSet { if let claude { dernierClaude = claude } } }
     private(set) var dernierClaude: SessionClaude?
+    /// Toutes les sessions de la carte « Claude Code », dans l'ordre (celle qui attend en haut), et combien travaillent ou attendent
+    /// (le petit « 2 » de l'îlot replié). Poussées par le contrôleur.
+    var sessionsClaude: [SessionClaude] = []
+    var claudeAuTravail = 0
+    /// Le défilement de la carte « Claude Code » (0 = en haut) : la molette et deux doigts la font défiler au lieu de changer de carte.
+    private(set) var defilementClaude: CGFloat = 0
     /// L'étagère (réglage allumé) et ses fichiers, dans l'ordre où ils ont été rangés.
     var etagereActive = false
     /// Des écouteurs Bluetooth avec un micro sont là : l'accueil propose « Micro : Mac / AirPods » (nom des écouteurs, leur micro choisi ?).
@@ -330,7 +336,7 @@ final class IlotMoteur: ObservableObject {
         e.microCoupe = microCoupe
         e.claude = claude != nil
         e.claudeAttend = claude?.etat == .attend
-        e.claudeListe = claude?.progres != nil
+        e.claudeListe = claude?.progres != nil || claude?.nom != nil
         e.alerte = alerte?.vue
         e.bandeau = bandeau?.vue
         return e
@@ -355,7 +361,8 @@ final class IlotMoteur: ObservableObject {
         let ancien = resolution
         resolution = ArbitrageIlot.resoudre(etat, echange: echange)
         // le micro coupé s'ouvre sur la vidéo en bulle, ou sur le Centre (où est son bouton) : plus de déplié à lui
-        if let sv = resolution.survol { resolution.survol = CartesIlot.survol(sv, deuxieme: resolution.pastille.map { ArbitrageIlot.vues($0).etendu }) }
+        let e = etat
+        if let sv = resolution.survol { resolution.survol = CartesIlot.survol(sv, deuxieme: resolution.pastille.map { ArbitrageIlot.survol($0, e) }) }
         if let e = echange, resolution.pastille != e, ArbitrageIlot.ordre(etat).contains(e) == false { echange = nil }
         if resolution.verrou { epingle = false; survole = false; sousVue = nil }
         if ancien.principal != resolution.principal, !(survole || epingle) { sousVue = nil }
@@ -416,6 +423,9 @@ final class IlotMoteur: ObservableObject {
         // le Centre suit ce qu'il montre (« Modifier ») : ronds, cases et bande de la réunion, la hauteur de la table
         let p = DispositionCentre.plan(ronds: !rondsCentre.isEmpty, cases: !disposition.cases.isEmpty, bande: disposition.bande).profondeur
         if p != GeoIlot.profondeurCentre { d[.centre] = CGFloat(p - GeoIlot.profondeurCentre) }
+        // la carte « Claude Code » suit ses sessions, jusqu'à la hauteur du Centre (au-delà, elle défile)
+        let pc = PlanCarteClaude.profondeur(self)
+        if pc != CGFloat(GeoIlot.profondeurCentre) { d[.claudeCarte] = pc - CGFloat(GeoIlot.profondeurCentre) }
         return d
     }
 
@@ -453,7 +463,8 @@ final class IlotMoteur: ObservableObject {
         // un écran fait de plusieurs couches (la lecture + sa rangée) : seules les couches qui changent partent ou arrivent
         if avant != v { for c in Self.couches(avant) where !Self.couches(v).contains(c) { sortir(&apparitions[c], glisse: glisse) } }
         for c in Self.couches(v) { entrer(&apparitions[c], delai: delaiContenu, glisse: glisse) }
-        if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere || v == .centre { surDepliage() }
+        if avant != v, v == .claudeCarte { defilementClaude = 0 }
+        if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere || v == .centre || v == .claudeCarte { surDepliage() }
     }
 
     /// Les couches de contenu d'un écran : la rangée Minuteur se pose sous la lecture dépliée, qui ne s'efface pas pour autant.
@@ -588,7 +599,7 @@ final class IlotMoteur: ObservableObject {
         afficherMaintenant(alerte: a, bandeau: b)
     }
     /// Le Centre est épinglé (ou sa carte Étagère, ouverte depuis lui) : les bandeaux attendent qu'il se range.
-    var centreRetientLesBandeaux: Bool { !cache && epingle && (courante == .centre || courante == .etagere) }
+    var centreRetientLesBandeaux: Bool { !cache && epingle && (courante == .centre || courante == .etagere || courante == .claudeCarte) }
     /// Des bandeaux attendent que le Centre se range (et non la fin d'une dictée, que le contrôleur guette lui-même).
     private var attenteDuCentre = false
     private func afficherMaintenant(alerte a: AlerteIlot?, bandeau b: BandeauIlot?) {
@@ -610,6 +621,11 @@ final class IlotMoteur: ObservableObject {
         }
     }
     func quitterAlerte() { alerte = nil; donneesChangees() }
+    /// Retire les bandeaux qui attendent (la fin d'une dictée, un Centre épinglé) et qui n'ont plus lieu d'être : la session de Claude
+    /// dont on vient d'ouvrir la fenêtre n'a plus à s'annoncer quand la carte se range.
+    func retirerEnAttente(_ inutile: (BandeauIlot) -> Bool) {
+        enAttente.removeAll { $0.alerte == nil && $0.bandeau.map(inutile) == true }
+    }
 
     // MARK: volume et luminosité
 
@@ -868,6 +884,24 @@ final class IlotMoteur: ObservableObject {
         donneesChangees(); surDepliageMoniteur()
     }
 
+    /// Le bouton Claude Code du Centre : la carte « Claude Code » (un bloc par session). Elle reste ouverte comme le Centre ; « ‹ Centre »
+    /// y ramène.
+    func ouvrirCarteClaude() {
+        guard !cache, !resolution.verrou else { return }
+        intention?.cancel(); fermeture?.cancel()
+        defilementClaude = 0
+        sousVue = .claudeCarte; epingle = true; survole = true
+        donneesChangees(); surDepliageMoniteur()
+    }
+    /// Fait défiler la carte « Claude Code » de `dy` pt (sens d'AppKit : négatif = vers le bas de la liste), bornée à ce qui dépasse.
+    func defilerCarteClaude(_ dy: CGFloat) {
+        let max = PlanCarteClaude.depassement(self)
+        let v = Swift.min(max, Swift.max(0, defilementClaude - dy))
+        guard v != defilementClaude else { return }
+        defilementClaude = v
+        rev += 1
+    }
+
     func ouvrirFormulaireRappel() {
         sousVue = .rappelListe; epingle = true; survole = true
         donneesChangees(); surDepliageMoniteur()
@@ -913,6 +947,11 @@ final class IlotMoteur: ObservableObject {
     /// Un événement de défilement (molette, deux doigts) sur l'îlot ouvert : un geste = une carte, l'inertie ignorée.
     func recevoirDefilement(dy: Double, dx: Double, phase: DefilementIlot.Phase, inertie: Bool, t: Double = ProcessInfo.processInfo.systemUptime) {
         guard fenetreOuverte, !cache else { return }
+        // la carte « Claude Code » défile elle-même (sa liste peut dépasser) : la molette ne change pas de carte
+        if courante == .claudeCarte {
+            if abs(dy) >= abs(dx) { defilerCarteClaude(CGFloat(phase == .aucune && abs(dy) < 20 ? dy * 2 : dy)) }
+            return
+        }
         if let pas = defilement.recevoir(dy: dy, dx: dx, phase: phase, inertie: inertie, t: t) { defiler(pas) }
     }
     /// Un clic sur un bouton du Centre : l'îlot reste ouvert (« Reste ouvert ») pour enchaîner d'autres réglages ; il se range au clic

@@ -158,20 +158,18 @@ extension IlotMoteur {
                                   droite: .boutons([.init(titre: seul ? "Ouvrir" : "Afficher", etiquette: seul ? "Ouvrir \(premier.nom)" : "Afficher dans le Finder",
                                                           action: .fichiersOuvrir(d.urls))]),
                                   icones: d.icones, coteSymbole: ContenuAnnonce.coteIcone, coupureL1: seul ? .middle : .tail, glisser: seul ? premier.url : nil)
-        case .claudeEtendu:
-            // l'étoile voyage depuis l'aile gauche (sa place est gardée) ; le projet, puis où en est la tâche
-            let s = claude ?? dernierClaude
-            return ContenuAnnonce(glyphe: nil, l1: s?.projet ?? "Claude Code", l2: Self.ligneClaude(s),
-                                  droite: .boutons([.init(titre: "Ouvrir", etiquette: "Revenir à Claude Code", action: .claudeOuvrir(s?.app))]))
         case .claudeAttend:
+            // « second-cerveau attend ta réponse », et les premiers mots de sa question (le message de la notification de Claude Code)
             let s = b?.claude
-            return ContenuAnnonce(glyphe: nil, l1: b?.ligne1 ?? "Claude attend ta réponse", l2: b?.ligne2 ?? s?.projet ?? "",
-                                  droite: .boutons([.init(titre: "Ouvrir", etiquette: "Revenir à Claude Code", action: .claudeOuvrir(s?.app))]), etoile: true)
+            return ContenuAnnonce(glyphe: nil, l1: b?.ligne1 ?? "Claude attend ta réponse", l2: b?.ligne2 ?? "Claude attend ta réponse",
+                                  droite: .boutons([.init(titre: "Ouvrir", etiquette: "Ouvrir la fenêtre du Terminal de \(s?.projet ?? "Claude Code")", action: .claudeOuvrir(s))]),
+                                  etoile: true)
         case .claudeTermine:
+            // « Carte Dictées terminée », « dictee-mac · 42 min · 7 tâches sur 7 » ; « Voir » ramène la fenêtre du Terminal de la session
             let s = b?.claude
-            return ContenuAnnonce(glyphe: GlypheIlot(nom: "checkmark.circle.fill", couleur: CouleursIlot.vert, taille: 22), l1: b?.ligne1 ?? "Terminé",
+            return ContenuAnnonce(glyphe: GlypheIlot(nom: "checkmark.circle.fill", couleur: CouleursIlot.vert, taille: 22), l1: b?.ligne1 ?? "Tâche terminée",
                                   l2: b?.ligne2 ?? s?.projet ?? "",
-                                  droite: .boutons([.init(titre: "Ouvrir", etiquette: "Revenir à Claude Code", action: .claudeOuvrir(s?.app))]))
+                                  droite: .boutons([.init(titre: "Voir", etiquette: "Voir la fenêtre du Terminal de \(s?.projet ?? "Claude Code")", action: .claudeOuvrir(s))]))
         case .microEtendu:
             // le micro barré voyage depuis l'aile gauche (sa place est gardée) ; le nom du micro peut être long : coupé au bout
             return ContenuAnnonce(glyphe: nil, l1: "Micro coupé", l2: nomMicro ?? "Micro du Mac",
