@@ -138,6 +138,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .zone span{font-size:12px;font-weight:500;color:rgba(255,255,255,.5)}
 .zone.survol{border-color:#fff;background:rgba(10,132,255,.22)}
 .zone.plein{border-style:solid;border-color:transparent;background:rgba(255,255,255,.1)}
+.zone .vide{display:flex;flex-direction:column;align-items:center;gap:6px}
 .zone .rangé{display:none;align-items:center;gap:8px}
 .zone.plein .rangé{display:flex}
 .zone.plein .vide{display:none}
@@ -158,13 +159,13 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .av{position:absolute;inset:0;opacity:0;transform:translateY(8px) scale(.985);pointer-events:none;
   transition:opacity calc(.4s*var(--k)) ease,transform calc(.55s*var(--k)) var(--ressort)}
 .av.on{opacity:1;transform:none;pointer-events:auto}
-.av-bien{display:flex;flex-direction:column;align-items:center;text-align:center;padding:42px 56px 0}
+.av-bien{display:flex;flex-direction:column;align-items:center;text-align:center;padding:52px 36px 0}
 #accIc{width:96px;height:96px;transition:opacity .2s}
 #accIc.attend{opacity:0}
 .av-bien h2{font:400 31px/38px var(--serif);letter-spacing:-.3px;margin-top:14px;color:#fff}
 .av-bien p{font-size:14px;line-height:21px;color:var(--ink2);margin-top:10px;max-width:470px}
-.savoir{display:flex;gap:8px;margin-top:22px;flex-wrap:wrap;justify-content:center}
-.savoir span{height:30px;border-radius:15px;padding:0 13px 0 10px;display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink2);
+.savoir{display:flex;gap:6px;margin-top:22px;justify-content:center}
+.savoir span{height:30px;border-radius:15px;padding:0 12px 0 9px;display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;font-weight:600;color:var(--ink2);
   background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 .5px var(--hair2);transition:background-color .3s ease,color .3s ease,transform calc(.4s*var(--k)) var(--ressort)}
 .savoir span.ici{background:rgba(255,255,255,.13);color:#fff;transform:translateY(-2px)}
 .gros{height:36px;border-radius:18px;padding:0 26px;background:#f2efe9;color:#1b1b1a;font-size:14px;font-weight:600;margin-top:26px;cursor:pointer;transition:transform calc(.3s*var(--k)) var(--ressort)}
@@ -175,7 +176,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .pas-g{background:var(--side);margin:8px 0 8px 8px;border-radius:11px;padding:48px 14px 14px;display:flex;flex-direction:column;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.06)}
 .pas-g h4{font-size:12px;font-weight:600;color:var(--ink3);padding:0 6px 8px}
 .pas-l{list-style:none;display:flex;flex-direction:column;gap:2px}
-.pas-l li{height:34px;border-radius:8px;display:flex;align-items:center;gap:10px;padding:0 8px;font-size:13px;font-weight:500;color:var(--ink3);transition:background-color .3s,color .3s}
+.pas-l li{height:34px;border-radius:8px;display:flex;align-items:center;gap:9px;padding:0 7px;font-size:12.5px;white-space:nowrap;font-weight:500;color:var(--ink3);transition:background-color .3s,color .3s}
 .pas-l li.ici{background:rgba(255,255,255,.08);color:#fff;font-weight:600}
 .pas-l li.fait{color:var(--ink2)}
 .rond{width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11px;font-weight:700;box-shadow:inset 0 0 0 1.3px rgba(255,255,255,.25);position:relative;transition:background-color .3s,box-shadow .3s}
@@ -187,7 +188,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .rond path{stroke-dasharray:16;stroke-dashoffset:16;transition:stroke-dashoffset calc(.4s*var(--k)) ease .1s}
 .pas-l li.fait .rond path{stroke-dashoffset:0}
 .pas-pied{margin-top:auto;font-size:11.5px;line-height:16px;color:var(--ink3);padding:0 6px}
-.carte{position:relative;padding:58px 40px 0 36px;transition:opacity calc(.22s*var(--k)) ease,transform calc(.45s*var(--k)) var(--ressort),filter calc(.22s*var(--k)) ease}
+.carte{position:relative;padding:72px 40px 0 36px;transition:opacity calc(.22s*var(--k)) ease,transform calc(.45s*var(--k)) var(--ressort),filter calc(.22s*var(--k)) ease}
 .carte.sort{opacity:0;transform:translateX(-26px);filter:blur(4px)}
 .carte.entre{opacity:0;transform:translateX(26px);filter:blur(4px);transition:none}
 .ca-ic{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;background:var(--raised2);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.1)}
@@ -204,7 +205,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .carte.fait .bt.action{display:none}
 .ok i{width:20px;height:20px;border-radius:50%;background:#30a14e;display:grid;place-items:center}
 .cle{display:none;margin-top:16px;height:34px;width:330px;border-radius:9px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 .5px var(--hair2);align-items:center;padding:0 12px;font:500 13px/1 ui-monospace,Menlo,monospace;color:var(--ink3);gap:8px}
-.carte.groq .cle{display:flex}
+.carte.ca-groq .cle{display:flex}
 .cle.plein{color:var(--ink)}
 .cle .lien{margin-left:auto;font:500 12px var(--sans);color:var(--accent)}
 .ca-lien{font-size:12.5px;color:var(--ink3)}
@@ -227,7 +228,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .niveau i{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.16);transition:height .12s ease,background-color .2s}
 .niveau.vif i{background:#ffab3d}
 .es-etat{font-size:12.5px;font-weight:600;color:var(--ink3);width:120px;text-align:left}
-.bravo{position:absolute;left:0;right:0;bottom:30px;display:flex;flex-direction:column;align-items:center;opacity:0;transform:translateY(10px);
+.bravo{position:absolute;left:0;right:0;top:338px;display:flex;flex-direction:column;align-items:center;opacity:0;transform:translateY(10px);
   transition:opacity calc(.35s*var(--k)) ease,transform calc(.5s*var(--k)) var(--ressort);pointer-events:none}
 .av-essai.reussi .bravo{opacity:1;transform:none;pointer-events:auto}
 .av-essai.reussi .es-bas{opacity:0;transition:opacity .25s}
@@ -269,6 +270,8 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .corps{flex:1;min-width:0;position:relative}
 .pg{position:absolute;inset:0;padding:20px 28px 0;display:none;overflow:hidden}
 .pg.on{display:block}
+.pg[data-pg="decouvrir"]{overflow-y:auto;scrollbar-width:none;padding-bottom:22px}
+.pg[data-pg="decouvrir"]::-webkit-scrollbar{display:none}
 .pg-h h1{font-size:22px;line-height:28px;font-weight:700;letter-spacing:-.4px;color:#fff}
 .pg-h p{font-size:13px;line-height:18px;color:var(--ink2);margin-top:2px}
 .lien{color:var(--accent);font-weight:500;cursor:pointer}
@@ -288,7 +291,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .au-date{font-size:13px;font-weight:600;color:var(--ink3)}
 .au-phrase{font:400 23px/31px var(--serif);color:#fff;margin-top:5px;max-width:620px;letter-spacing:-.15px}
 .tuiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
-.tu{height:122px;padding:12px 14px;position:relative;overflow:hidden;transition:box-shadow .2s,background-color .2s}
+.tu{height:128px;padding:12px 14px;position:relative;overflow:hidden;transition:box-shadow .2s,background-color .2s}
 .tu.survol{background:#2a2a28}
 .tu-h{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink3);height:16px}
 .tu-h .lien{margin-left:auto;font-size:12px}
@@ -301,7 +304,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .tu-ser{font:400 16px/21px var(--serif);color:#fff;margin-top:7px}
 .tu-s{font-size:12.5px;line-height:17px;color:var(--ink2);margin-top:2px}
 .tu-n{position:absolute;left:14px;right:14px;bottom:11px;font-size:11.5px;line-height:15px;color:var(--ink3)}
-.cl-r{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:13px;font-weight:600;color:var(--ink)}
+.cl-r{display:flex;align-items:center;gap:8px;margin-top:9px;white-space:nowrap;font-size:13px;font-weight:600;color:var(--ink)}
 .cl-r em{font-style:normal;margin-left:auto;font-size:12px;font-weight:500;color:var(--ink2);font-variant-numeric:tabular-nums}
 .cl-r em.att{color:var(--accent)}
 .cl-b{height:3px;border-radius:2px;background:rgba(255,255,255,.1);margin:6px 0 0 22px;position:relative;overflow:hidden}
@@ -382,7 +385,10 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .fi.terne{opacity:.22}
 .fi .ic{height:58px;display:grid;place-items:end center}
 .fi b{font-size:12px;font-weight:500;color:var(--ink);max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:15px}
-.fi span{font-size:11px;color:var(--ink3);line-height:13px;margin-top:-4px}
+.fi span{font-size:11px;color:var(--ink3);line-height:13px;margin-top:-4px;white-space:nowrap;max-width:118px;overflow:hidden;text-overflow:ellipsis}
+.bi-ex{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
+.bi-ex>div{padding:12px 14px;font-size:12.5px;line-height:17px;color:var(--ink2)}
+.bi-ex b{display:flex;align-items:center;gap:7px;font-size:13px;color:#fff;font-weight:600;margin-bottom:4px}
 .fi .epingle{position:absolute;right:8px;top:8px;color:var(--accent)}
 .fi .actions{position:absolute;left:6px;right:6px;top:40px;display:none;justify-content:center;gap:4px}
 .fi.survol .actions{display:flex}
@@ -408,7 +414,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .de{padding:10px 10px 12px;border-radius:13px;transition:background-color .2s,box-shadow .2s}
 .de.ici{box-shadow:inset 0 0 0 1.5px rgba(230,160,74,.55)}
 .de h3{font-size:13.5px;font-weight:600;color:#fff;margin:10px 2px 0}
-.de p{font-size:12.5px;line-height:17px;color:var(--ink2);margin:2px 2px 0;height:34px}
+.de p{font-size:12.5px;line-height:17px;color:var(--ink2);margin:2px 2px 0;min-height:51px}
 .de-act{display:flex;align-items:center;gap:10px;margin:10px 2px 0}
 .montrer{height:26px;border-radius:13px;padding:0 12px 0 9px;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.1);font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;transition:background-color .15s,transform calc(.3s*var(--k)) var(--ressort)}
 .montrer:hover{background:rgba(255,255,255,.16)}
@@ -705,7 +711,7 @@ const compact = (g, d) => ({ng:g, nd:d, bw:g, bd:d, h:B, rs:6, rb:10, rt:0, f:0}
 const bandeau = (w, h, n) => ({ng:n, nd:n, bw:w, bd:w, h, rs:6, rb:30, rt:16, f:10});
 $('#encoche').setAttribute('d', chemin(REPOS));
 const HDEMO = B + 12 + 20 + 10 + 92 + 10 + 16 + 14;
-const HINFO = B + 16 + 58 + 18;
+const HINFO = B + 16 + 58 + 24;
 
 class Ressort{
   constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = .8; }
@@ -741,7 +747,9 @@ const guillemets = (t, c = '#fff') => `<svg width="${t}" height="${f2(t * .7)}" 
 const chevG = (t, c, d = 'g') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d === 'g' ? 'M12.5 4.5 7 10l5.5 5.5' : d === 'h' ? 'M4.5 12.5 10 7l5.5 5.5' : d === 'd' ? 'M7.5 4.5 13 10l-5.5 5.5' : 'M4.5 7.5 10 13l5.5-5.5'}"/></svg>`;
 const hautBas = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 12 12" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.6 6 2.2l2.5 2.4M3.5 7.4 6 9.8l2.5-2.4"/></svg>`;
 const doc = (t, coul = '#ff453a', lbl = 'PDF') => `<svg width="${f2(t * 0.8)}" height="${t}" viewBox="0 0 32 40"><path d="M4 1h17l10 10v26a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="#f2f2f7" stroke="rgba(0,0,0,.12)" stroke-width=".8"/><path d="M21 1v8a2 2 0 0 0 2 2h8" fill="#d1d1d6"/><rect x="5" y="24" width="22" height="9" rx="2" fill="${coul}"/><text x="16" y="31" text-anchor="middle" font-size="7" font-weight="800" fill="#fff" font-family="-apple-system,sans-serif">${lbl}</text></svg>`;
-const image = (w, h, a, b) => `<svg class="vignette" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="g${a.slice(1)}${b.slice(1)}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="${w}" height="${h}" rx="4" fill="url(#g${a.slice(1)}${b.slice(1)})"/><circle cx="${w * .72}" cy="${h * .3}" r="${h * .12}" fill="#fff" opacity=".55"/><path d="M0 ${h * .78}L${w * .35} ${h * .5}L${w * .6} ${h * .72}L${w} ${h * .55}V${h}H0z" fill="#000" opacity=".18"/></svg>`;
+let nImg = 0;
+const image = (w, h, a, b, id = 'im' + (nImg++)) => `<svg class="vignette" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="${w}" height="${h}" rx="4" fill="url(#${id})"/><circle cx="${w * .72}" cy="${h * .3}" r="${h * .12}" fill="#fff" opacity=".55"/><path d="M0 ${h * .78}L${w * .35} ${h * .5}L${w * .6} ${h * .72}L${w} ${h * .55}V${h}H0z" fill="#000" opacity=".18"/></svg>`;
+const flecheBasG = (t, c = 'currentColor') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.4" fill="none" stroke="${c}" stroke-width="1.7"/><path d="M10 5.4v8.2M6.6 10.4 10 13.8l3.4-3.4" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const loupe = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><circle cx="6.9" cy="6.9" r="4.9"/><path d="M10.6 10.6 14.2 14.2"/></svg>`;
 const coche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.6 12.8 4.6"/></svg>`;
 const trait = (d, t = 16, c = 'currentColor', w = 1.6) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -791,24 +799,26 @@ const AUJOURDHUI = `<section class="pg" data-pg="aujourdhui">
       <div class="tu-v"><b>46</b><span>2 840 mots</span></div>
       <div class="barres">${barresH.map(h => `<i class="${h === 14 ? 'max' : ''}" style="height:${h / 14 * 100}%"></i>`).join('')}</div></div>
     <div class="tu boite" id="tuReu"><div class="tu-h">${trait(G.visio, 13)}Prochaine réunion</div>
-      <div class="tu-ser">Point fournisseur emballages</div><div class="tu-s">15:00 · Google Meet · dans 30 min</div>
-      <div class="tu-n">Lucarne te prévient 10 min avant, puis te propose « Rejoindre » et « Noter ».</div></div>
+      <div class="tu-ser">Point emballages</div><div class="tu-s">15:00 · Meet · dans 30 min</div>
+      <div class="tu-n">Un bandeau 10 min avant, puis « Rejoindre ».</div></div>
     <div class="tu boite"><div class="tu-h">${etoile(12, '#e8835c')}Claude Code</div>
       <div class="cl-r">${etoile(14, '#e8835c')}dictee-mac<em>3 sur 7</em></div><div class="cl-b"><b></b></div>
-      <div class="cl-r"><span style="width:14px;display:grid;place-items:center"><i style="width:8px;height:8px;border-radius:50%;background:var(--accent);display:block"></i></span>second-cerveau<em class="att">attend ta réponse</em></div></div>
+      <div class="cl-r"><span style="width:14px;display:grid;place-items:center"><i style="width:8px;height:8px;border-radius:50%;background:var(--accent);display:block"></i></span>second-cerveau<em class="att">t’attend</em></div>
+      <div class="tu-n">Un clic dans l’encoche ouvre la bonne fenêtre du Terminal.</div></div>
     <div class="tu boite"><div class="tu-h">${plateauG(13, 'currentColor')}Étagère<span class="lien" data-page="bibliotheque">Tout voir</span></div>
       <div class="fichiers"><div>${doc(40)}<span>Devis-Brume</span></div><div>${image(40, 40, '#e7b07a', '#a8623a')}<span>Atelier.jpg</span></div><div>${doc(40, '#0a84ff', 'DOC')}<span>Contrat</span></div></div></div>
     <div class="tu boite"><div class="tu-h">${trait('<rect x="2" y="6" width="14" height="8" rx="2"/><path d="M18 9v2"/>', 13)}Batterie</div>
       <div class="bat"><div>MacBook Air<em>82 %</em></div><i><b style="width:82%"></b></i></div>
       <div class="bat"><div>AirPods Pro<em>64 %</em></div><i><b style="width:64%"></b></i></div></div>
     <div class="tu boite"><div class="tu-h">${trait(G.rappel, 13)}Minuteur et réveil</div>
-      <div class="tu-ser">Réveil demain à 7:30</div><div class="tu-s">Le Mac reste éveillé jusqu’à 16:00.</div>
-      <div class="tu-n">Dis « minuteur 10 minutes » ou « réveille-moi à 9 h ».</div></div>
+      <div class="tu-ser">Réveil demain, 7:30</div><div class="tu-s">Mac éveillé jusqu’à 16:00</div>
+      <div class="tu-n">À la voix : « réveille-moi à 9 h ».</div></div>
   </div>
   <div class="fait-h"><b>Ce que Lucarne a fait aujourd’hui</b></div>
   <div class="fl"><span class="h">14:31</span><span class="g">${trait(G.reunions, 13)}</span><span class="x">Noté la réunion <i>« Lancement de la boutique en ligne »</i>, 29 min</span><span class="lien" data-page="reunions">Ouvrir</span></div>
   <div class="fl"><span class="h">11:40</span><span class="g">${plateauG(13, 'currentColor')}</span><span class="x">Gardé 2 fichiers sur l’étagère, dont un reçu par AirDrop</span><span class="lien" data-page="bibliotheque">Voir</span></div>
   <div class="fl"><span class="h">10:05</span><span class="g">${trait(G.mots, 13)}</span><span class="x">Appris un nouveau nom : <i>Brume</i></span><span class="lien" data-page="mots">Vérifier</span></div>
+  <div class="fl"><span class="h">9:12</span><span class="g">${guillemets(12, 'currentColor')}</span><span class="x">Écrit ta première dictée du jour, dans Mail</span><span class="lien" data-page="dictees">Voir</span></div>
 </section>`;
 
 const DICTEES = [['Aujourd’hui', [['14:26', 'Bonjour Claire, je te confirme la mise en ligne le 2 décembre, si les textes arrivent avant le 25.', 'Mail'],
@@ -873,6 +883,7 @@ const PG_BIBLIO = `<section class="pg" data-pg="bibliotheque">${ent('Bibliothèq
     <div class="puces" id="biPuces"><span class="on" data-f="tout">Tout</span><span data-f="etagere">Étagère</span><span data-f="telecharge">Téléchargés</span><span data-f="airdrop">AirDrop</span><span data-f="capture">Captures</span></div></div>
   <div class="bi-g"><b>Cette semaine</b><span class="h5">10 fichiers · des liens vers tes fichiers, pas des copies</span></div>
   <div class="grille" id="biGrille">${FICHIERS.map((f, i) => `<div class="fi" data-src="${f[4]}" data-i="${i}">${f[5] ? `<span class="epingle">${trait('<path d="M7 3h6l-1 5 3 3H5l3-3zM10 11v6"/>', 12)}</span>` : ''}<div class="ic">${f[1]}</div><b>${f[0]}</b><span>${f[2]} · ${f[3]}</span><div class="actions"><i>Ouvrir</i><i>Glisser</i></div></div>`).join('')}</div>
+  <div class="bi-ex"><div class="boite"><b>${plateauG(14, 'currentColor')}L’étagère</b>10 fichiers à portée de survol. Ce qui en sort reste ici.</div><div class="boite"><b>${flecheBasG(14)}Ce que tu reçois</b>Téléchargements, AirDrop, captures : à choisir dans Réglages, partie Lucarne.</div><div class="boite"><b>${trait('<path d="M7 3h6l-1 5 3 3H5l3-3zM10 11v6"/>', 14)}Épingler</b>Un fichier épinglé reste en tête, même dans des mois.</div></div>
 </section>`;
 
 const PG_MOTS = `<section class="pg" data-pg="mots">${ent('Mots', 'Ce que Lucarne a appris de tes corrections : les noms bien écrits, et tes expressions.')}
@@ -887,6 +898,7 @@ const PG_MOTS = `<section class="pg" data-pg="mots">${ent('Mots', 'Ce que Lucarn
       <div class="expr"><q>le lien visio</q><span>→</span><b>meet.google.com/abc-defg-hij</b></div>
       <div class="expr" style="border:0"><span class="lien">Ajouter une expression</span></div></div>
   </div>
+  <div class="bi-ex"><div class="boite"><b>${trait(G.mots, 14)}Comment Lucarne apprend</b>Tu corriges un nom après une dictée : la troisième fois, Lucarne te propose de le retenir.</div><div class="boite"><b>${guillemets(13, 'currentColor')}Les expressions</b>Dis « ma signature » en dictant : la suite s’écrit toute seule.</div><div class="boite"><b>${trait(G.decouvrir, 14)}Tu décides</b>Rien n’est retenu sans ton « Oui ». Un clic retire un nom.</div></div>
 </section>`;
 
 const DECOUVRIR = [
@@ -992,7 +1004,7 @@ place('etaG', -128, mid(17), `<div class="aile">${plateauG(15)}<span id="etaN">2
 place('clG', -126, mid(16), `<div class="tourne" style="width:16px;height:16px">${etoile(16, '#e8835c')}</div>`);
 place('clD', 101, mid(17), '<div class="aile">3/7</div>');
 place('dmTete', -216, B + 12, `<div class="dm-tete"><span class="dm-pil">Démonstration</span><span class="t15">L’étagère</span><span class="t125" style="margin-left:auto">Lucarne le fait pour toi</span></div>`);
-place('dmZones', -216, B + 12 + 20 + 10, `<div class="dm-zones"><div class="zone" id="zEta"><div class="vide" style="display:contents">${plateauG(24)}<b>Étagère</b><span>Garde-le ici</span></div>
+place('dmZones', -216, B + 12 + 20 + 10, `<div class="dm-zones"><div class="zone" id="zEta"><div class="vide">${plateauG(24)}<b>Étagère</b><span>Garde-le ici</span></div>
   <div class="rangé">${doc(30)}<div><b style="display:block;font-size:13px">Devis-Brume.pdf</b><span>rangé · 84 Ko</span></div></div></div>
   <div class="zone" id="zAir">${trait('<circle cx="10" cy="11" r="1.6" fill="#fff"/><path d="M6.6 14.4a4.8 4.8 0 1 1 6.8 0M4.2 16.8a8.2 8.2 0 1 1 11.6 0"/>', 26, '#5eb0ff', 1.7)}<b>AirDrop</b><span>Vers ton iPhone</span></div></div>`);
 place('dmPied', -216, B + 12 + 20 + 10 + 92 + 10, '<div class="t125">Pour de vrai : glisse un fichier vers l’encoche.</div>');
@@ -1011,6 +1023,7 @@ function tween(duree, fn){
   return new Promise((ok, ko) => { const pas = () => { if (j !== jeton) return ko('stop'); const u = clamp((performance.now() - t0) / (duree * 1000 * K), 0, 1); fn(u); if (u < 1) requestAnimationFrame(pas); else ok(); }; pas(); });
 }
 const fin = () => instant && enCoursN === cibleN;
+const facile = u => 1 - Math.pow(1 - u, 3);
 const forme = $('#forme'), ombre = $('#ombre');
 const R = {}; CLES.forEach(k => R[k] = new Ressort(REPOS[k]));
 const TOUS = CLES.map(k => R[k]);
@@ -1047,7 +1060,7 @@ const ecran = $('#ecran'), pointeur = $('#pointeur'), pad = $('#pad'), alerte = 
 const F = {app:$('[data-f="app"]'), accueil:$('[data-f="accueil"]'), sys:$('[data-f="sys"]')};
 let ordre = ['app', 'accueil', 'sys'];
 function devant(nom){
-  ordre = ordre.filter(n => n !== nom).concat(nom);
+  ordre = ordre.filter(n => n !== nom).concat(nom ? [nom] : []);
   ordre.forEach((n, i) => { F[n].style.zIndex = i + 1; F[n].classList.toggle('arriere', n !== nom); });
   const app = nom === 'sys' ? 'Réglages Système' : nom ? 'Lucarne' : 'Finder';
   $('#menus').innerHTML = POMME + `<b>${app}</b>` + MENUS[app].map(m => `<span>${m}</span>`).join('');
@@ -1080,7 +1093,7 @@ function majAccueil(){
   $$('#pasL li').forEach(li => { const p = li.dataset.p; li.classList.toggle('fait', !!st.ok[p] || (p === 'essai' && st.reussi)); li.classList.toggle('ici', p === (st.vue === 'essai' ? 'essai' : st.carte) && st.vue !== 'bien'); });
   const k = CARTES[st.carte], ca = $('#carte');
   if (k){
-    ca.className = 'carte ' + st.carte + (st.ok[st.carte] ? ' fait' : '');
+    ca.className = 'carte ca-' + st.carte + (st.ok[st.carte] ? ' fait' : '');
     ca.innerHTML = `<div class="ca-ic">${k.g}</div><div class="ca-n">Étape ${k.n} sur 4</div><h3>${k.t}</h3><div class="ca-pq">Pourquoi</div><p>${k.p}</p>
       ${st.carte === 'groq' ? `<div class="cle${st.cle ? ' plein' : ''}">${st.cle || 'gsk_…'}${st.cle ? '' : '<span class="lien">Créer une clé gratuite</span>'}</div>` : ''}
       <div class="ca-act"><button class="bt action" id="btAction">${k.b}</button><span class="ok"><i>${coche(12, '#fff')}</i>${k.ok}</span>${st.ok[st.carte] ? '' : '<span class="ca-lien">Plus tard</span>'}</div>`;
@@ -1120,7 +1133,7 @@ function majSysteme(){
 function page(p){
   st.page = p;
   $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.page === p));
-  $$('.pg').forEach(s => s.classList.toggle('on', s.dataset.pg === p));
+  $$('.pg').forEach(s => { s.classList.toggle('on', s.dataset.pg === p); s.scrollTop = 0; });
   majApp();
 }
 function majApp(){
@@ -1135,7 +1148,7 @@ function majApp(){
 
 /* l'icône sort de l'encoche */
 function envol(){
-  if (instant) return;
+  if (instant){ $('#accIc').classList.remove('attend'); return; }
   const [tx, ty] = ou($('#accIc'));
   envolEl.style.transition = 'none'; envolEl.style.transform = `translate(${XR(-48)}px,${f2(B + (150 - B) / 2 - 48)}px) scale(.667)`;
   envolEl.classList.add('vu'); void envolEl.offsetWidth;
@@ -1188,7 +1201,7 @@ function init(){
   cur(XR(330), 520, {vu:false, saute:true}); pointeur.classList.remove('appui'); geste('');
 }
 const ETAPES = [
-  {t:'Premier lancement : Lucarne sort de l’encoche', g:'Rien à faire, on regarde',
+  {c:'L’icône sort de l’encoche', t:'Premier lancement : Lucarne sort de l’encoche', g:'Rien à faire, on regarde',
    p:'L’encoche s’ouvre et l’icône en sort, jusqu’à la fenêtre d’accueil. Puis la Lucarne se déplie quatre fois pour montrer ce qu’elle sait faire : dicter, noter une réunion, garder des fichiers, suivre Claude.',
    async jeu(){
      await attendre(.5);
@@ -1199,7 +1212,7 @@ const ETAPES = [
      for (let i = 0; i < 4; i++){ st.savoir = i; majAccueil(); ilot(vues[i][0]); montre(vues[i][1], .12); await attendre(1.15); montre([], 0); }
      st.savoir = -1; majAccueil(); ilot(REPOS); await attendre(.4);
    }},
-  {t:'Le micro : la raison, puis un clic', g:'Deux clics',
+  {c:'Le micro', t:'Le micro : la raison, puis un clic', g:'Deux clics',
    p:'Quatre réglages, un à la fois, chacun avec sa raison en une phrase. D’abord le micro : il n’écoute que pendant que tu tiens fn. macOS pose sa question une seule fois, avec l’icône Lucarne.',
    async jeu(){
      await vers($('#btCommencer'), .8); await clic();
@@ -1209,7 +1222,7 @@ const ETAPES = [
      await vers($('#autoriser'), .6); await clic();
      question(false); st.ok.micro = true; majAccueil(); await attendre(.9);
    }},
-  {t:'Écrire dans tes apps, et la touche fn', g:'Quelques clics',
+  {c:'Écrire dans les apps, et fn', t:'Écrire dans tes apps, et la touche fn', g:'Quelques clics',
    p:'La carte suivante glisse depuis la droite. L’Accessibilité sert à poser le texte au curseur : Lucarne ouvre le bon volet, un interrupteur. Puis la touche fn : « Ne rien faire » pour 🌐, et fn est à toi.',
    async jeu(){
      await carte('acces');
@@ -1223,7 +1236,7 @@ const ETAPES = [
      await vers($('#sysChoix'), .6); await clic(); st.sysFn = true; majSysteme(); await attendre(.7);
      st.sys = null; majSysteme(); devant('accueil'); st.ok.fn = true; majAccueil(); await attendre(.7);
    }},
-  {t:'La clé Groq : coller, c’est vérifié', g:'Un clic',
+  {c:'La clé Groq', t:'La clé Groq : coller, c’est vérifié', g:'Un clic',
    p:'Groq écrit ta voix en moins d’une seconde. La carte dit à quoi sert la clé et où en créer une gratuite. On colle, Lucarne vérifie tout de suite.',
    async jeu(){
      await carte('groq');
@@ -1231,7 +1244,7 @@ const ETAPES = [
      await tween(.5, u => { st.cle = 'gsk_' + '•'.repeat(Math.round(u * 22)) + (u === 1 ? '7Hq2' : ''); majAccueil(); });
      await attendre(.4); st.ok.groq = true; majAccueil(); await attendre(.9);
    }},
-  {t:'Essaie : tiens fn et dis « bonjour »', g:'Tenir fn, parler, lâcher',
+  {c:'Essaie : fn et « bonjour »', t:'Essaie : tiens fn et dis « bonjour »', g:'Tenir fn, parler, lâcher',
    p:'L’essai, en vrai. La touche s’enfonce, l’encoche écoute, le niveau bouge. On lâche : « Bonjour ! » s’écrit. Petite fête sobre : un rond vert se dessine, une onde part, une phrase. Rien de plus.',
    async jeu(){
      st.vue = 'essai'; majAccueil(); await attendre(1);
@@ -1243,7 +1256,7 @@ const ETAPES = [
      await attendre(1.4);
      if (!fin()){ montre([], 0); ilot(REPOS); }
    }},
-  {t:'La fenêtre Lucarne : « Aujourd’hui »', g:'Un clic sur « Ouvrir Lucarne »',
+  {c:'Aujourd’hui', t:'La fenêtre Lucarne : « Aujourd’hui »', g:'Un clic sur « Ouvrir Lucarne »',
    p:'La nouvelle fenêtre. À gauche, l’icône et sept rubriques. « Aujourd’hui » dit ce que Lucarne a fait : dictées, prochaine réunion, Claude, étagère, batterie, réveil, et le fil de la journée.',
    async jeu(){
      await vers($('#btOuvrir'), .7); await clic();
@@ -1251,14 +1264,14 @@ const ETAPES = [
      ilot(compact(132, 132)); montre(['clG', 'clD'], .14); await attendre(.5);
      await vers($('#tuReu'), .8, 30, 10); st.survolTu = true; majApp(); await attendre(.6);
    }},
-  {t:'Réunions : la note toute faite', g:'Un clic dans la barre latérale',
+  {c:'Réunions', t:'Réunions : la note toute faite', g:'Un clic dans la barre latérale',
    p:'La note, comme dans Wispr Flow : l’essentiel en une phrase, les sujets, les décisions, qui fait quoi. En bas, « Demander à cette réunion ». La liste à gauche, avec « Demander à mes réunions ».',
    async jeu(){
      st.survolTu = false;
      await vers($('[data-page="reunions"]'), .7); await clic(); page('reunions'); await attendre(.6);
      await vers($('#nDem'), .8, -40); st.dem = true; majApp(); await attendre(.6);
    }},
-  {t:'Bibliothèque : tout ce qui est passé', g:'Deux clics',
+  {c:'Bibliothèque', t:'Bibliothèque : tout ce qui est passé', g:'Deux clics',
    p:'Étagère, téléchargements, AirDrop, captures : un seul endroit, des liens et pas des copies. Une puce filtre ; au survol, « Ouvrir » ou « Glisser » vers une autre app.',
    async jeu(){
      st.dem = false;
@@ -1266,27 +1279,28 @@ const ETAPES = [
      await vers($('#biPuces [data-f="airdrop"]'), .6); await clic(); st.filtre = 'airdrop'; majApp(); await attendre(.5);
      await vers($('#biGrille [data-i="1"] .ic'), .6); st.survolFi = 1; majApp(); await attendre(.6);
    }},
-  {t:'Découvrir : chaque fonction en une scène', g:'Un clic',
+  {c:'Découvrir', t:'Découvrir : chaque fonction en une scène', g:'Un clic',
    p:'Une page qui explique tout : neuf petites scènes qui bougent toutes seules, une phrase chacune, « Montrer » et « Ouvrir ». Plus besoin de lire un mode d’emploi.',
    async jeu(){
      st.survolFi = -1; st.filtre = 'tout';
-     await vers($('#nav [data-page="decouvrir"]'), .7); await clic(); page('decouvrir'); await attendre(.6);
-     await va(XR(120), 400, .9); await attendre(.4);
+     await vers($('#nav [data-page="decouvrir"]'), .7); await clic(); page('decouvrir'); await attendre(.8);
+     const de = $('[data-pg="decouvrir"]'), bas = de.scrollHeight - de.clientHeight;
+     await tween(1.1, u => { de.scrollTop = bas * facile(u); }); await va(XR(120), 420, .8); await attendre(.4);
    }},
-  {t:'« Montrer » : l’encoche fait la démonstration', g:'Un clic sur « Montrer »',
+  {c:'« Montrer » en vrai', t:'« Montrer » : l’encoche fait la démonstration', g:'Un clic sur « Montrer »',
    p:'Un clic sur « Montrer » sous « L’étagère et AirDrop » : l’encoche s’ouvre en vrai, un fichier y glisse et s’y range. Elle se replie avec le fichier dans son aile. On a vu, sans rien risquer.',
    async jeu(){
      await vers($('[data-montrer="etagere"]'), .7); await clic();
      await demo('etagere');
    }},
-  {t:'Réglages : quatre parties, une phrase chacune', g:'Deux clics',
+  {c:'Réglages', t:'Réglages : quatre parties, une phrase chacune', g:'Deux clics',
    p:'Dictée, Lucarne, Confidentialité, Compte. Chaque réglage dit ce qu’il fait. Dans « Lucarne », un interrupteur par chose que l’encoche peut montrer.',
    async jeu(){
      st.montre = null; majApp();
      await vers($('#nav [data-page="reglages"]'), .7); await clic(); page('reglages'); await attendre(1);
      await vers($('[data-onglet="lucarne"]'), .6); await clic(); st.onglet = 'lucarne'; majApp(); await attendre(.6);
    }},
-  {t:'Confidentialité : ce qui reste, ce qui part', g:'Un clic',
+  {c:'Confidentialité', t:'Confidentialité : ce qui reste, ce qui part', g:'Un clic',
    p:'Dit simplement : presque tout reste sur le Mac. Seule Groq reçoit quelque chose, et seulement quand tu parles à Lucarne. En petit, pour être complet : GitHub (mise à jour) et YouTube (l’image d’une vidéo).',
    async jeu(){
      await vers($('[data-onglet="confidentialite"]'), .6); await clic(); st.onglet = 'confidentialite'; majApp(); await attendre(.5);
@@ -1298,8 +1312,8 @@ const PAUSES = [1.8, 1.6, 1.6, 1.6, 2.2, 2.2, 2.2, 2, 2.4, 2.2, 2.2, 3.4];
 
 /* ===================== régie ===================== */
 let etape = 0;
-$('#pas').innerHTML = ETAPES.map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${e.t}</button></li>`).join('');
-const fr = t => t.replace(/ ([:»?!;])/g, ' $1').replace(/« /g, '« ');
+const fr = t => t.replace(/ ([:»?!;])/g, '\u202f$1').replace(/« /g, '«\u202f');
+$('#pas').innerHTML = ETAPES.map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${fr(e.c)}</button></li>`).join('');
 function nbsp(racineEl){
   const w = document.createTreeWalker(racineEl, NodeFilter.SHOW_TEXT);
   for (let n; (n = w.nextNode());) if (/ [:»?!;]|« /.test(n.nodeValue)) n.nodeValue = fr(n.nodeValue);
