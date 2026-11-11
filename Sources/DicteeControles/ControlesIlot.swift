@@ -893,18 +893,18 @@ func controlesEtagere(_ t0: Date) {
 /// Le Centre (maquette design/maquettes/ilot-centre.html) : la pile des cartes, le défilement (un geste = une carte), la géométrie.
 func controlesCentre() {
     groupe("Îlot : le Centre, les cartes")
-    verifier(CartesIlot.pile(survol: .centre) == [.centre, .dictees, .accueil], "rien ne joue : le Centre d'abord, les Dictées, l'accueil dessous")
-    verifier(CartesIlot.pile(survol: .lectureEtendu) == [.lectureEtendu, .centre, .dictees, .accueil], "une vidéo : la lecture, le Centre, les Dictées, l'accueil (maquette : vidéo, Centre, Dictées)")
-    verifier(CartesIlot.pile(survol: .lectureMinuteur) == [.lectureEtendu, .centre, .dictees, .accueil], "la rangée Minuteur compte comme la lecture")
-    verifier(CartesIlot.pile(survol: .minuteurEtendu) == [.minuteurEtendu, .centre, .dictees, .accueil] && CartesIlot.pile(survol: .microEtendu).first == .microEtendu,
+    verifier(CartesIlot.pile(survol: .centre) == [.centre, .accueil, .dictees], "rien ne joue : le Centre d'abord, l'accueil, les Dictées en dernier (leur liste défile)")
+    verifier(CartesIlot.pile(survol: .lectureEtendu) == [.lectureEtendu, .centre, .accueil, .dictees], "une vidéo : la lecture, le Centre, l'accueil, les Dictées en dernier")
+    verifier(CartesIlot.pile(survol: .lectureMinuteur) == [.lectureEtendu, .centre, .accueil, .dictees], "la rangée Minuteur compte comme la lecture")
+    verifier(CartesIlot.pile(survol: .minuteurEtendu) == [.minuteurEtendu, .centre, .accueil, .dictees] && CartesIlot.pile(survol: .microEtendu).first == .microEtendu,
              "un minuteur, le micro coupé : leur déplié, puis le Centre")
     verifier(CartesIlot.pile(survol: nil).isEmpty, "verrouillé (alerte, bandeau) : aucune carte")
     let p = CartesIlot.pile(survol: .lectureEtendu)
-    verifier(CartesIlot.voisine(p, de: .lectureEtendu, pas: 1) == .centre && CartesIlot.voisine(p, de: .centre, pas: 1) == .dictees
-             && CartesIlot.voisine(p, de: .dictees, pas: 1) == .accueil && CartesIlot.voisine(p, de: .dictees, pas: -1) == .centre
+    verifier(CartesIlot.voisine(p, de: .lectureEtendu, pas: 1) == .centre && CartesIlot.voisine(p, de: .centre, pas: 1) == .accueil
+             && CartesIlot.voisine(p, de: .accueil, pas: 1) == .dictees && CartesIlot.voisine(p, de: .dictees, pas: -1) == .accueil
              && CartesIlot.voisine(p, de: .centre, pas: -1) == .lectureEtendu && CartesIlot.voisine(p, de: .lectureMinuteur, pas: 1) == .centre,
-             "carte suivante, précédente (le Centre → les Dictées → l'accueil ; depuis la rangée Minuteur aussi)")
-    verifier(CartesIlot.voisine(p, de: .accueil, pas: 1) == nil && CartesIlot.voisine(p, de: .lectureEtendu, pas: -1) == nil && CartesIlot.voisine(p, de: .etagere, pas: 1) == nil,
+             "carte suivante, précédente (le Centre → l'accueil → les Dictées ; depuis la rangée Minuteur aussi)")
+    verifier(CartesIlot.voisine(p, de: .dictees, pas: 1) == nil && CartesIlot.voisine(p, de: .lectureEtendu, pas: -1) == nil && CartesIlot.voisine(p, de: .etagere, pas: 1) == nil,
              "au bout de la pile : rien (on ne boucle pas) ; hors de la pile : rien")
     verifier(ArbitrageIlot.resoudre(EtatIlot()).survol == .centre, "l'îlot vide s'ouvre sur le Centre")
     verifier(CartesIlot.survol(.microEtendu, deuxieme: nil) == .centre && CartesIlot.survol(.microEtendu, deuxieme: .lectureEtendu) == .lectureEtendu
@@ -1015,8 +1015,8 @@ func controlesDictees() {
 
     groupe("Îlot : les Dictées, à qui va le geste (la liste ou les cartes)")
     var a = DefilementIlot()
-    // parti du Centre, le pointeur au milieu (là où sera la liste) : la carte change en chemin, la suite et l'inertie n'y vont pas
-    verifier(!a.pourLaListe(phase: .debut, inertie: false, surListe: false), "geste commencé sur le Centre : aux cartes")
+    // parti de l'accueil (la carte d'avant), le pointeur au milieu (là où sera la liste) : la carte change en chemin, la suite et l'inertie n'y vont pas
+    verifier(!a.pourLaListe(phase: .debut, inertie: false, surListe: false), "geste commencé sur l'accueil : aux cartes")
     verifier(!a.pourLaListe(phase: .suite, inertie: false, surListe: true) && !a.pourLaListe(phase: .fin, inertie: false, surListe: true),
              "la carte est passée aux Dictées en plein geste : la suite reste aux cartes (la liste ne bouge pas)")
     verifier(!a.pourLaListe(phase: .aucune, inertie: true, surListe: true), "son inertie non plus")

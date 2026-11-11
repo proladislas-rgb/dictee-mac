@@ -1,18 +1,19 @@
 import Foundation
 
 // Le Centre de l'îlot (maquette design/maquettes/ilot-centre.html) : logique pure, sans interface.
-// L'îlot ouvert est une pile de cartes : l'activité dépliée (la vidéo, le minuteur…), le Centre, les Dictées (l'ancien panneau de la barre
-// des menus), puis l'accueil (rendez-vous, rappel, dernière dictée). On passe de l'une à l'autre en un clic (boutons « Centre » et
+// L'îlot ouvert est une pile de cartes : l'activité dépliée (la vidéo, le minuteur…), le Centre, l'accueil (rendez-vous, rappel, dernière
+// dictée), puis les Dictées (l'ancien panneau de la barre des menus), en dernier parce que leur liste défile. On passe de l'une à l'autre en un clic (boutons « Centre » et
 // « Dictées », points de page) ou en faisant défiler (un geste = une carte).
 
 public enum CartesIlot {
     /// Les cartes de l'îlot ouvert, de haut en bas. `survol` : l'écran que l'îlot prend au survol (nil : verrouillé, pas de cartes).
     /// Rien ne joue : le Centre d'abord. Une activité : son déplié d'abord (la rangée Minuteur de la lecture compte comme la lecture).
-    /// Les Dictées suivent le Centre (maquette : vidéo, Centre, Dictées) ; l'accueil reste au fond.
+    /// Les Dictées sont la DERNIÈRE carte (Hugues, 11/11 : leur liste défile vers le bas, elle bloquait le passage vers les cartes
+    /// suivantes) : activité, Centre, accueil, puis Dictées ; arrivé au bout, on fait défiler la liste librement.
     public static func pile(survol: VueIlot?) -> [VueIlot] {
         guard let s = survol else { return [] }
-        if s == .centre || s == .accueil || s == .dictees { return [.centre, .dictees, .accueil] }
-        return [s == .lectureMinuteur ? .lectureEtendu : s, .centre, .dictees, .accueil]
+        if s == .centre || s == .accueil || s == .dictees { return [.centre, .accueil, .dictees] }
+        return [s == .lectureMinuteur ? .lectureEtendu : s, .centre, .accueil, .dictees]
     }
 
     /// Ce que l'îlot prend au survol, une fois le Centre là. Le micro coupé n'a plus de déplié à lui (son bouton, rouge, « Coupé », est
@@ -66,8 +67,8 @@ public struct DefilementIlot: Equatable, Sendable {
 
     /// Le geste va-t-il à la liste des Dictées (elle défile) plutôt qu'aux cartes ? Décidé là où il COMMENCE (premier contact, ou chaque
     /// cran de molette) : `surListe` dit si le pointeur est alors sur la liste, carte Dictées montrée. Toute la suite et l'inertie suivent
-    /// ce choix. Un geste parti du Centre, qui passe aux Dictées en chemin, ne fait donc jamais défiler la liste, ni lui ni son inertie ;
-    /// un geste parti de la liste la fait défiler jusqu'au bout, même si le pointeur en sort.
+    /// ce choix. Un geste parti de l'accueil (la carte d'avant), qui passe aux Dictées en chemin, ne fait donc jamais défiler la liste,
+    /// ni lui ni son inertie ; un geste parti de la liste la fait défiler jusqu'au bout, même si le pointeur en sort.
     public mutating func pourLaListe(phase: Phase, inertie: Bool, surListe: Bool) -> Bool {
         if !inertie, phase == .debut || phase == .aucune { gesteSurListe = surListe }
         return gesteSurListe

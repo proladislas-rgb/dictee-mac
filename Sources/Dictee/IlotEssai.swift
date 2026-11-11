@@ -346,7 +346,7 @@ enum IlotEssai {
             verifier(!m.boucleActive, "micro coupé, posé : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
             // survol : le micro coupé n'a plus de déplié à lui (son bouton est dans le Centre) : la vidéo en bulle se déplie
             c.panneau.simulerPointeur(forme: true); attendre(0.9)
-            verifier(m.courante == .lectureEtendu && m.cartes == [.lectureEtendu, .centre, .dictees, .accueil] && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01,
+            verifier(m.courante == .lectureEtendu && m.cartes == [.lectureEtendu, .centre, .accueil, .dictees] && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01,
                      "survol, micro coupé pendant une vidéo : la vidéo se déplie, le Centre est la carte suivante (\(m.courante))")
             // vrai clic sur « Centre » au pied de la lecture, puis sur le bouton Micro, rouge
             let pc = PiedCarte.pointBouton(m.grille)

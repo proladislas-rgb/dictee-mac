@@ -124,7 +124,7 @@ struct ApparitionIlot: Equatable {
     var entre: Bool
     var delai: Double
     var depart: Double
-    /// D'une carte à l'autre (lecture, Centre, accueil) : le contenu glisse aussi, vers le haut (+1, on descend dans la pile) ou vers le
+    /// D'une carte à l'autre (lecture, Centre, accueil, Dictées) : le contenu glisse aussi, vers le haut (+1, on descend dans la pile) ou vers le
     /// bas (−1). 0 : il apparaît sur place.
     var glisse: Double = 0
 }
@@ -465,7 +465,7 @@ final class IlotMoteur: ObservableObject {
             if fa != .autre { dernierMode[fa] = min(1, max(0, modeAvant)); sortir(&apparitionsFamille[fa]) }
             if fv != .autre { entrer(&apparitionsFamille[fv], delai: delai) }
         }
-        // d'une carte à l'autre de la pile (lecture, Centre, accueil) : le contenu glisse dans le sens du passage, comme une page
+        // d'une carte à l'autre de la pile (lecture, Centre, accueil, Dictées) : le contenu glisse dans le sens du passage, comme une page
         let pile = cartes
         var glisse = 0.0
         if avant != v, !reduire, let i = Self.rang(avant, pile), let j = Self.rang(v, pile), i != j { glisse = j > i ? 1 : -1 }
@@ -894,7 +894,7 @@ final class IlotMoteur: ObservableObject {
         donneesChangees(); surDepliageMoniteur()
     }
 
-    // MARK: cartes (lecture, Centre, accueil)
+    // MARK: cartes (lecture, Centre, accueil, Dictées)
 
     /// Les cartes de l'îlot ouvert, de haut en bas (vide quand il est verrouillé par une alerte ou un bandeau).
     var cartes: [VueIlot] { cache ? [] : CartesIlot.pile(survol: resolution.verrou ? nil : resolution.survol) }
@@ -936,7 +936,7 @@ final class IlotMoteur: ObservableObject {
     }
     /// Un événement de défilement (molette, deux doigts) sur l'îlot ouvert : un geste = une carte, l'inertie ignorée. Un geste qui
     /// COMMENCE sur la liste des Dictées qui dépasse sa place (`en` : le pointeur) la fait défiler, inertie comprise ; un geste parti
-    /// d'une autre carte (le Centre, qui passe aux Dictées en chemin) reste un changement de carte jusqu'au bout (`pourLaListe`).
+    /// d'une autre carte (l'accueil, qui passe aux Dictées en chemin) reste un changement de carte jusqu'au bout (`pourLaListe`).
     func recevoirDefilement(dy: Double, dx: Double, phase: DefilementIlot.Phase, inertie: Bool, en p: CGPoint? = nil, t: Double = ProcessInfo.processInfo.systemUptime) {
         guard fenetreOuverte, !cache else { return }
         let surListe = courante == .dictees && p.map { PlanDictees.cadreListe(grille).contains($0) } == true && dictees.defile
@@ -965,7 +965,7 @@ final class IlotMoteur: ObservableObject {
         // le bouton « Centre » au pied de tout déplié d'activité (la vidéo, le minuteur, Claude, un rendez-vous) : le chemin se voit
         let pied = CartesIlot.aUnPied(courante, pile: pile)
         if pied { carteDuPied = courante }
-        let points = [.lectureEtendu, .centre, .dictees, .accueil].contains(courante) && pile.count > 1 && fenetreOuverte
+        let points = [.lectureEtendu, .centre, .accueil, .dictees].contains(courante) && pile.count > 1 && fenetreOuverte
         let bulle = bulleSous(courante)
         for (e, voulu) in [(ExtraIlot.pied, pied), (.points, points), (.bulle, bulle)] {
             if voulu { entrer(&apparitionsExtra[e], delai: e == .bulle ? 0.2 : 0.14) } else { sortir(&apparitionsExtra[e]) }

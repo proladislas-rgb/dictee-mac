@@ -93,27 +93,35 @@ extension IlotEssai {
         // le micro rouvert hors du Centre s'annonce (« Micro ouvert », 1,5 s) : on attend qu'il parte
         attendre(3.0) { m.bandeau != nil }; pause(0.8)
 
-        // --- l'îlot vide s'ouvre au survol sur le Centre (non épinglé) ; un clic sur le dernier point (l'accueil, plus court) l'épingle :
-        // la forme rétrécit sous le pointeur, qui en sort, et l'îlot reste là
+        // --- l'îlot vide s'ouvre au survol sur le Centre (non épinglé) ; un clic sur le dernier point (les Dictées, plus courtes) l'épingle,
+        // puis un clic sur l'avant-dernier (l'accueil, plus court encore) : la forme rétrécit sous le pointeur, qui en sort, et l'îlot reste là
         c.panneau.simulerPointeur(forme: true); pause(1.0)
         verifier(m.courante == .centre && !m.epingle, "îlot vide, survol : le Centre (pas épinglé) (\(m.courante))")
-        let n = m.cartes.count
+        let n = m.cartes.count, hCentre = m.trace.hauteur
         let dernier = PointsCartes.centre(n - 1, sur: n, corps: CGFloat(m.trace.corps), hauteur: CGFloat(m.geo[2].x), barre: g.hauteur)
         clic(dernier, 0.9)
-        verifier(m.courante == .accueil && m.epingle, "vrai clic sur le dernier point : l'accueil (plus court que le Centre : épinglé) (\(m.courante))")
-        verifier(Double(dernier.y) > m.trace.hauteur, "le point cliqué est maintenant sous la forme rétrécie (\(Int(dernier.y)) pt, forme : \(Int(m.trace.hauteur)) pt)")
+        verifier(m.cartes.last == .dictees && m.courante == .dictees && m.epingle && m.trace.hauteur < hCentre,
+                 "vrai clic sur le dernier point : les Dictées (plus courtes que le Centre, \(Int(m.trace.hauteur)) pt sur \(Int(hCentre)) : épinglées) (\(m.courante))")
         c.panneau.simulerPointeur(forme: false); pause(0.8)
-        verifier(m.courante == .accueil, "le pointeur hors de la forme : l'accueil reste ouvert (« Coller », « Dire un rappel » atteignables)")
+        verifier(m.courante == .dictees, "le pointeur hors de la forme : les Dictées restent ouvertes (la recherche, « Coller » atteignables) (\(m.courante))")
+        refermer()
+        c.panneau.simulerPointeur(forme: true); pause(1.0)
+        let avantDernier = PointsCartes.centre(n - 2, sur: n, corps: CGFloat(m.trace.corps), hauteur: CGFloat(m.geo[2].x), barre: g.hauteur)
+        clic(avantDernier, 0.9)
+        verifier(m.courante == .accueil && m.epingle, "vrai clic sur l'avant-dernier point : l'accueil (plus court que le Centre : épinglé) (\(m.courante))")
+        verifier(Double(avantDernier.y) > m.trace.hauteur, "le point cliqué est maintenant sous la forme rétrécie (\(Int(avantDernier.y)) pt, forme : \(Int(m.trace.hauteur)) pt)")
+        c.panneau.simulerPointeur(forme: false); pause(0.8)
+        verifier(m.courante == .accueil, "le pointeur hors de la forme : l'accueil reste ouvert (« Coller », « Dire un rappel » atteignables) (\(m.courante))")
         refermer()
         // même chose avec deux doigts, le pointeur dans le bas du Centre (de vrais événements de défilement)
         c.panneau.simulerPointeur(forme: true); pause(1.0)
         let bas = CGPoint(x: 0, y: CGFloat(m.geo[2].x) - 30)
         for (i, d) in [Int32(-6), -12, -10].enumerated() { c.panneau.envoyerDefilement(dy: d, en: bas, phase: i == 0 ? 1 : 2); pause(0.016) }
         c.panneau.envoyerDefilement(dy: 0, en: bas, phase: 4); pause(0.8)
-        verifier(m.courante == .dictees && m.epingle && Double(bas.y) > m.trace.hauteur,
-                 "deux doigts, pointeur en bas du Centre : les Dictées (plus courtes), épinglées (le pointeur est sous la forme) (\(m.courante))")
+        verifier(m.courante == .accueil && m.epingle && Double(bas.y) > m.trace.hauteur,
+                 "deux doigts, pointeur en bas du Centre : l'accueil (plus court), épinglé (le pointeur est sous la forme) (\(m.courante))")
         c.panneau.simulerPointeur(forme: false); pause(0.8)
-        verifier(m.courante == .dictees, "la souris bouge : les Dictées restent ouvertes")
+        verifier(m.courante == .accueil, "la souris bouge : l'accueil reste ouvert (« Coller », « Dire un rappel » atteignables) (\(m.courante))")
         refermer()
 
         // --- le Centre épinglé : un clic dans son vide ne le range pas (ni pendant « Modifier »)

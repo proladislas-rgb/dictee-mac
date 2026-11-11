@@ -61,7 +61,7 @@ extension IlotEssai {
         c.panneau.simulerPointeur(forme: true); pause(1.0)
         verifier(m.courante == .lectureEtendu && m.visible(ExtraIlot.pied) && PiedCarte.dicteesTient(m.grille, .lectureEtendu),
                  "lecture dépliée : « Centre » et « Dictées » au pied (\(Int(PiedCarte.largeurBouton + 10 + PiedCarte.largeurDictees)) pt sur \(Int(PiedCarte.cadre(m.grille, .lectureEtendu).width)))")
-        verifier(m.cartes == [.lectureEtendu, .centre, .dictees, .accueil] && m.cartes.count == 4, "quatre cartes : la vidéo, le Centre, les Dictées, l'accueil (quatre points)")
+        verifier(m.cartes == [.lectureEtendu, .centre, .accueil, .dictees] && m.cartes.count == 4, "quatre cartes : la vidéo, le Centre, l'accueil, les Dictées en dernier (quatre points)")
         clic(PiedCarte.pointDictees(m.grille), 0.9)
         verifier(m.courante == .dictees && m.epingle, "vrai clic sur « Dictées » sous la vidéo : la carte Dictées, qui reste ouverte (\(m.courante))")
         poseeSurLaCible()
@@ -88,7 +88,8 @@ extension IlotEssai {
         verifier(m.courante == .dictees, "vrai clic sur la pilule « Dictées » du Centre : les Dictées (\(m.courante))")
         poseeSurLaCible()
 
-        // --- la liste défile dans la carte (vrais défilements de deux doigts, inertie comprise) ; ailleurs, on change de carte
+        // --- la liste défile dans la carte (vrais défilements de deux doigts, inertie comprise) ; ailleurs, on change de carte. Les Dictées
+        // sont la dernière carte : au bout de la liste, on reste sur elles ; vers le bas sur le pied, rien (on ne boucle pas)
         let liste = PlanDictees.cadreListe(m.grille)
         let surListe = CGPoint(x: liste.midX - 40, y: liste.midY)
         c.panneau.envoyerDefilement(dy: -12, en: surListe, phase: 1); pause(0.02)
@@ -100,6 +101,9 @@ extension IlotEssai {
         c.panneau.envoyerDefilement(dy: -900, en: surListe, phase: 1); pause(0.02); c.panneau.envoyerDefilement(dy: 0, en: surListe, phase: 4); pause(0.3)
         let fin = d.miseEnPage().hauteur - Double(liste.height)
         verifier(abs(d.decalage - fin) < 0.5 && m.courante == .dictees, "jusqu'au bout : la liste s'arrête sur sa dernière ligne (\(Int(d.decalage)) pt cachés, attendu \(Int(fin)))")
+        c.panneau.envoyerDefilement(dy: -6, en: surListe, phase: 1); pause(0.02); c.panneau.envoyerDefilement(dy: -40, en: surListe, phase: 2); pause(0.02)
+        c.panneau.envoyerDefilement(dy: 0, en: surListe, phase: 4); pause(0.7)
+        verifier(abs(d.decalage - fin) < 0.5 && m.courante == .dictees, "un autre geste au bout de la liste : elle reste sur sa dernière ligne, jamais une autre carte (\(m.courante))")
         let derniere = factices.last!.id
         verifier(PlanDictees.cadreLigne(derniere, m).map { $0.maxY <= liste.maxY + 0.5 } == true, "la dernière dictée est entière dans la carte")
         c.panneau.envoyerDefilement(dy: 2000, en: surListe, phase: 1); pause(0.02); c.panneau.envoyerDefilement(dy: 0, en: surListe, phase: 4); pause(0.3)
@@ -107,15 +111,19 @@ extension IlotEssai {
         let surPied = CGPoint(x: pied.midX + 60, y: pied.midY)
         c.panneau.envoyerDefilement(dy: -6, en: surPied, phase: 1); pause(0.02); c.panneau.envoyerDefilement(dy: -12, en: surPied, phase: 2); pause(0.02)
         c.panneau.envoyerDefilement(dy: 0, en: surPied, phase: 4); pause(0.7)
-        verifier(m.courante == .accueil, "le même geste sur le pied de la carte : la carte suivante, l'accueil (\(m.courante))")
+        verifier(m.courante == .dictees && d.decalage == 0, "le même geste sur le pied de la carte : au bout de la pile, on ne boucle pas (\(m.courante))")
+        c.panneau.envoyerDefilement(dy: 6, en: surPied, phase: 1); pause(0.02); c.panneau.envoyerDefilement(dy: 12, en: surPied, phase: 2); pause(0.02)
+        c.panneau.envoyerDefilement(dy: 0, en: surPied, phase: 4); pause(0.7)
+        verifier(m.courante == .accueil, "le geste inverse sur le pied : la carte d'avant, l'accueil (\(m.courante))")
         m.allerA(.dictees); pause(0.8)
 
-        // --- un geste parti du Centre, le pointeur au milieu (là où sera la liste) : la carte passe aux Dictées en chemin ; ni la suite du
-        // geste ni son inertie ne font défiler la liste (on arrive en haut, « Aujourd'hui » et les dernières dictées)
+        // --- un geste parti de l'accueil (la carte juste avant), le pointeur au milieu (là où sera la liste) : la carte passe aux Dictées en
+        // chemin ; ni la suite du geste ni son inertie ne font défiler la liste (on arrive en haut, « Aujourd'hui » et les dernières dictées)
         c.panneau.envoyerDefilement(dy: -40, en: surListe, phase: 1); pause(0.02); c.panneau.envoyerDefilement(dy: 0, en: surListe, phase: 4); pause(0.3)
         verifier(abs(d.decalage - 40) < 0.5, "la liste défilée de 40 pt avant de partir (\(Int(d.decalage)) pt)")
-        clic(PlanDictees.pointRetour(m.grille), 0.9)
-        verifier(m.courante == .centre, "« ‹ Centre » : le Centre (\(m.courante))")
+        c.panneau.envoyerDefilement(dy: 6, en: surPied, phase: 1); pause(0.02); c.panneau.envoyerDefilement(dy: 12, en: surPied, phase: 2); pause(0.02)
+        c.panneau.envoyerDefilement(dy: 0, en: surPied, phase: 4); pause(0.7)
+        verifier(m.courante == .accueil, "deux doigts vers le haut sur le pied : l'accueil (\(m.courante))")
         c.panneau.envoyerDefilement(dy: -6, en: surListe, phase: 1); pause(0.02)
         c.panneau.envoyerDefilement(dy: -12, en: surListe, phase: 2); pause(0.02)
         let passee = m.courante == .dictees
@@ -125,7 +133,7 @@ extension IlotEssai {
         for _ in 0 ..< 6 { c.panneau.envoyerDefilement(dy: -25, en: surListe, phase: 0, inertie: 2); pause(0.02) }
         c.panneau.envoyerDefilement(dy: 0, en: surListe, phase: 0, inertie: 3); pause(0.8)
         verifier(passee && m.courante == .dictees && d.decalage == 0,
-                 "deux doigts depuis le Centre (238 pt de geste et d'inertie) : les Dictées, en haut de la liste (\(Int(d.decalage)) pt défilés, \(m.courante))")
+                 "deux doigts depuis l'accueil (328 pt de geste et d'inertie) : les Dictées, en haut de la liste (\(Int(d.decalage)) pt défilés, \(m.courante))")
         c.panneau.envoyerDefilement(dy: -20, en: surListe, phase: 1); pause(0.02); c.panneau.envoyerDefilement(dy: 0, en: surListe, phase: 4); pause(0.3)
         verifier(abs(d.decalage - 20) < 0.5 && m.courante == .dictees, "le geste suivant, sur la liste : elle défile (\(Int(d.decalage)) pt)")
         clic(PlanDictees.pointRetour(m.grille), 0.9)

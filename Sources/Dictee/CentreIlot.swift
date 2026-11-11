@@ -692,7 +692,7 @@ struct BoutonPiedDictees: View {
     }
 }
 
-/// Les points de page, au bord droit des cartes (lecture, Centre, accueil) : un point par carte, celui de la carte montrée en blanc ; un
+/// Les points de page, au bord droit des cartes (lecture, Centre, accueil, Dictées) : un point par carte, celui de la carte montrée en blanc ; un
 /// clic sur un point y mène. Ils suivent le milieu du corps pendant que la forme change de hauteur.
 struct PointsCartes: View {
     @ObservedObject var m: IlotMoteur
