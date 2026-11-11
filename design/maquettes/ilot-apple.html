@@ -76,6 +76,23 @@ p.sous b{color:#f5f5f7;font-weight:600}
   </div>
 </section>
 
+
+<section>
+  <div class="sur">Et ensuite</div>
+  <h2>Cinq idées de plus.</h2>
+  <p class="sous">Toujours le même principe : l'îlot ne parle que quand ça compte, puis se fait oublier.</p>
+  <div class="scene" id="i1" style="margin-top:56px"></div>
+  <div class="legende">1 · Claude au travail<span>La tâche en cours et son avancement. Une coche verte quand c'est fini, même si vous êtes ailleurs.</span></div>
+  <div class="duo">
+    <div><div class="scene" id="i2"></div><div class="legende">2 · L'étagère<span>Glissez des fichiers sur l'encoche, reprenez-les plus tard.</span></div></div>
+    <div><div class="scene" id="i3"></div><div class="legende">3 · Téléchargé<span>Le fichier qui arrive, prêt à ouvrir. AirDrop compris.</span></div></div>
+  </div>
+  <div class="duo">
+    <div><div class="scene" id="i4"></div><div class="legende">4 · Volume et luminosité<span>Les touches du clavier s'affichent dans l'îlot, comme sur l'iPhone.</span></div></div>
+    <div><div class="scene" id="i5"></div><div class="legende">5 · Micro coupé<span>Un raccourci pour couper le micro en appel. L'îlot vous le rappelle.</span></div></div>
+  </div>
+</section>
+
 <script>
 /* ---------- la forme de l'îlot (reprise de apple-acces/2-deux-activites.html) ---------- */
 const lerp = (a, b, t) => a + (b - a) * t, clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -216,6 +233,60 @@ scene('s5', {l:440, h:90, sobre:true,
     [HC + 12, mid(18), txt('20 %', 14, 'var(--rouge)')],
     [HC + 52, mid(13), pile(20, 'var(--rouge)', false)],
   ]});
+
+/* ---------- cinq idées de plus ---------- */
+const corail = '#e8835c';
+const etoile = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" style="display:block">${[0,30,60,90,120,150].map(a => `<rect x="9" y="1.5" width="2" height="17" rx="1" fill="${c}" transform="rotate(${a} 10 10)"/>`).join('')}</svg>`;
+const coche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" style="display:block"><circle cx="10" cy="10" r="9.2" fill="${c}"/><path d="M5.8 10.4l2.8 2.8 5.6-6" fill="none" stroke="#000" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const doc = (t, coul = '#ff453a', lbl = 'PDF') => `<svg width="${t*0.8}" height="${t}" viewBox="0 0 32 40" style="display:block"><path d="M4 1h17l10 10v26a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="#f2f2f7"/><path d="M21 1v8a2 2 0 0 0 2 2h8" fill="#d1d1d6"/><rect x="5" y="24" width="22" height="9" rx="2" fill="${coul}"/><text x="16" y="31" text-anchor="middle" font-size="7" font-weight="800" fill="#fff" font-family="-apple-system,sans-serif">${lbl}</text></svg>`;
+const photo = (t) => `<div style="width:${t}px;height:${t}px;border-radius:7px;background:linear-gradient(160deg,#7fb4e0,#e8b07a 70%,#9a5c3c);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.2)"></div>`;
+const hp = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" style="display:block"><path d="M2.5 7.5h3l4.5-4v13l-4.5-4h-3z" fill="${c}"/><path d="M13 6.5a5 5 0 0 1 0 7M15.4 4.2a8.2 8.2 0 0 1 0 11.6" fill="none" stroke="${c}" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const micBarre = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" style="display:block"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/><path d="M3 2.5l14 15" stroke="#000" stroke-width="3.6" stroke-linecap="round"/><path d="M3 2.5l14 15" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const capsuleBtn = (t) => `<div style="height:30px;padding:0 14px;border-radius:15px;background:rgba(255,255,255,.14);display:flex;align-items:center;font-size:13px;font-weight:600">${t}</div>`;
+
+/* 1 — Claude au travail : compact, puis terminé */
+(function(){
+  /* deux états côte à côte : en cours (à gauche), terminé (à droite) */
+  const el = document.getElementById('i1'), l = 900, h = 96, ech = el.clientWidth / l;
+  el.style.height = Math.round(h * ech) + 'px';
+  const etat = (cx, gauche, droite) => `<svg width="${l}" height="${h}" style="position:absolute;left:0;top:0;overflow:visible"><path d="${chemin(compact(HC + 40, HC + 104), cx)}" fill="#000"/></svg>
+    <div class="c" style="left:${cx - HC - 30}px;top:${mid(20)}px">${gauche}</div><div class="c" style="left:${cx + HC + 10}px;top:${mid(18)}px">${droite}</div>`;
+  el.innerHTML = `<div class="etage" style="width:${l}px;height:${h}px;transform:scale(${ech})"><div class="mb" style="width:${l}px"><div class="g">${pomme}</div></div>
+    <div style="position:absolute;left:${l/2}px;top:44px;bottom:8px;width:.5px;background:rgba(255,255,255,.18)"></div>
+    ${etat(l * 0.25, etoile(20, corail), `<div style="display:flex;align-items:center;gap:8px">${anneau(6.8, 3/7, corail, 2.6)}${txt('3 sur 7', 13.5, corail)}</div>`)}
+    ${etat(l * 0.75, coche(20, 'var(--vert)'), txt('Terminé', 13.5, 'var(--vert)'))}
+    <div class="c" style="left:${l*0.25 - 40}px;top:${B + 22}px;font-size:12px;color:rgba(255,255,255,.7);font-weight:500">En cours</div>
+    <div class="c" style="left:${l*0.75 - 52}px;top:${B + 22}px;font-size:12px;color:rgba(255,255,255,.7);font-weight:500">Une fois fini</div></div>`;
+})();
+
+/* 2 — l'étagère */
+const G6 = {ng:120, nd:120, bw:206, bd:206, h:140, rs:6, rb:30, rt:16, f:10};
+scene('i2', {l:480, h:160, sobre:true, formes: o => [[chemin(G6, o), true]], contenus: [
+  [-206 + 18, B + 16, `<div style="display:flex;gap:12px">
+     <div style="width:84px;display:flex;flex-direction:column;align-items:center;gap:6px">${doc(40)}<span style="font-size:11px;font-weight:500;color:rgba(255,255,255,.75)">Contrat.pdf</span></div>
+     <div style="width:84px;display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:2px">${photo(38)}<span style="font-size:11px;font-weight:500;color:rgba(255,255,255,.75)">Photo.heic</span></div>
+     <div style="width:180px;height:70px;border-radius:14px;border:1.5px dashed rgba(255,255,255,.28);display:grid;place-items:center;font-size:12.5px;font-weight:600;color:rgba(255,255,255,.55)">Déposez ici</div></div>`],
+]});
+
+/* 3 — téléchargé */
+const G7 = {ng:120, nd:120, bw:206, bd:206, h:104, rs:6, rb:30, rt:16, f:10};
+scene('i3', {l:480, h:160, sobre:true, formes: o => [[chemin(G7, o), true]], contenus: [
+  [-206 + 20, B + 15, doc(40)],
+  [-206 + 66, B + 18, `<div><div style="font-size:15px;font-weight:600;letter-spacing:-.2px">Contrat-signé.pdf</div><div style="font-size:12.5px;color:rgba(255,255,255,.55);font-weight:500;margin-top:3px">Téléchargé · 2,4 Mo</div></div>`],
+  [206 - 20 - 72, B + 20, capsuleBtn('Ouvrir')],
+]});
+
+/* 4 — volume */
+scene('i4', {l:440, h:90, sobre:true, formes: o => [[chemin(compact(HC + 40, HC + 118), o)]], contenus: [
+  [-(HC + 30), mid(20), hp(20)],
+  [HC + 12, mid(6), `<div style="width:96px;height:6px;border-radius:3px;background:rgba(255,255,255,.2);position:relative"><div style="position:absolute;inset:0 38% 0 0;border-radius:3px;background:#fff"></div></div>`],
+]});
+
+/* 5 — micro coupé */
+scene('i5', {l:440, h:90, sobre:true, formes: o => [[chemin(compact(HC + 40, HC + 64), o)]], contenus: [
+  [-(HC + 30), mid(20), micBarre(20, 'var(--rouge)')],
+  [HC + 12, mid(18), txt('Coupé', 13.5, 'var(--rouge)')],
+]});
 </script>
 </body>
 </html>
