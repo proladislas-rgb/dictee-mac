@@ -1,0 +1,1366 @@
+<!doctype html>
+<!--
+Verbe — « Cinq idées de plus » (suite de ilot-apple.html), en maquettes qui se jouent.
+Une page qu'on fait défiler : cinq scènes, chacune avec un vrai haut d'écran de MacBook (macOS 26, apparence claire)
+et sa régie dessous, dans le format de apple-acces/3-spotlight.html (forme de l'îlot, ressorts, contenu après la forme).
+L'îlot reste noir et opaque : compact = ailes de part et d'autre de la caméra, à la hauteur de la barre des menus ;
+bandeau = il descend sous la barre, le corps à la taille de son contenu.
+La scène qui arrive à l'écran se joue toute seule ; elle s'arrête quand elle en sort. Une seule boucle d'animation par
+scène, et seulement tant qu'un ressort bouge.
+Fichier autonome : aucune ressource externe, polices système. Dans la scène, 1 px CSS = 1 pt ; la scène rétrécit si la place manque.
+Paramètres d'URL :
+  ?section=N                 amène l'idée N (1 à 5) à l'écran
+  ?section=N&etape=M&fige=1  pose l'idée N à la fin de l'étape M (0 = avant la première), tout figé
+  ?section=N&etape=M&joue=1  pose l'étape M-1 puis joue l'étape M une fois
+  ?lent=1                    ralenti ×4
+  &seul=1                    n'affiche que l'idée demandée (captures sans tête)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbe · Cinq idées de plus</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Monaco,monospace;
+  --ambre:#ff9f0a; --vert:#30d158; --rouge:#ff453a; --corail:#e8835c; --bleu:#0a84ff;
+  --gris:#86868b;
+  --regie:#0f0f11;
+  --clair:#f5f5f7;
+  --nav:44px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#000;scroll-behavior:smooth}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--clair);overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block;overflow:visible}
+html.fige *,html.fige *::before,html.fige *::after{animation-play-state:paused!important}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+/* =====================================================================
+   La page : un index collant, un court en-tête, cinq idées
+   ===================================================================== */
+.index{position:sticky;top:0;z-index:50;height:var(--nav);background:rgba(0,0,0,.72);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(255,255,255,.1)}
+.index .l{max-width:1212px;margin:0 auto;height:100%;padding:0 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.index .marque{font-size:17px;font-weight:600;letter-spacing:-.2px;white-space:nowrap;color:var(--clair);text-decoration:none}
+.index ol{list-style:none;display:flex;gap:4px}
+.index a.i{display:flex;align-items:center;gap:7px;height:30px;padding:0 11px 0 6px;border-radius:15px;font-size:12.5px;font-weight:500;
+  color:rgba(245,245,247,.62);text-decoration:none;white-space:nowrap;transition:background-color .2s,color .2s}
+.index a.i b{width:19px;height:19px;border-radius:10px;display:grid;place-items:center;font-size:11px;font-weight:600;background:rgba(255,255,255,.12);color:var(--clair)}
+.index a.i:hover{color:var(--clair)}
+.index a.i.ici{background:rgba(255,255,255,.12);color:var(--clair)}
+.index a.i.ici b{background:var(--clair);color:#000}
+@media (max-width:760px){.index a.i span{display:none}.index a.i{padding:0 6px}}
+@media (max-width:380px){.index .marque{font-size:15px}}
+
+.page{max-width:1212px;margin:0 auto;padding:0 16px}
+.hero{text-align:center;padding:64px 0 6px}
+.sur{font-size:17px;font-weight:600;color:var(--gris);letter-spacing:-.1px}
+.hero h1{font-size:clamp(40px,6vw,64px);line-height:1.05;font-weight:700;letter-spacing:-.025em;margin-top:8px}
+p.sous{font-size:clamp(17px,1.8vw,21px);line-height:1.38;color:var(--gris);font-weight:500;max-width:660px;margin:14px auto 0;text-wrap:balance}
+p.sous b{color:var(--clair);font-weight:600}
+.idee{padding-top:72px;scroll-margin-top:var(--nav)}
+.idee .tete{text-align:center}
+.idee h2{font-size:clamp(30px,4vw,44px);line-height:1.08;font-weight:700;letter-spacing:-.02em;margin-top:6px}
+.idee .tete .sur{font-size:15px}
+.cadre{position:relative;margin:26px auto 0;border-radius:20px;overflow:hidden;background:var(--regie);
+  box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.plateau{position:absolute;left:0;top:0;width:1180px;transform-origin:0 0}
+.pied{max-width:1180px;margin:72px auto 0;border-top:1px solid rgba(255,255,255,.1);padding:20px 0 56px;font-size:13px;line-height:19px;color:rgba(245,245,247,.42)}
+.cadre.dort *{animation-play-state:paused!important}
+
+/* =====================================================================
+   Le faux écran : haut d'un MacBook, macOS 26, apparence claire (repris de 3-spotlight.html)
+   ===================================================================== */
+.ecran{position:relative;height:480px;overflow:hidden;isolation:isolate;user-select:none;-webkit-user-select:none;background:#dbe4ee;
+  transition:opacity calc(.26s*var(--k)) ease}
+.monde{position:absolute;inset:0;transition:filter calc(.3s*var(--k)) ease}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(70% 90% at 90% 4%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 60%),
+  radial-gradient(60% 80% at 4% 100%,rgba(248,228,210,.95) 0,rgba(248,228,210,0) 62%),
+  linear-gradient(168deg,#c6d6ea 0%,#d9e4f0 40%,#ebe8e6 74%,#f0e2d6 100%)}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ---- barre des menus ---- */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;z-index:4;
+  font-size:13.5px;color:#1d1d1f;white-space:nowrap;pointer-events:none}
+.menus,.etats{display:flex;flex-wrap:wrap;align-content:flex-start;height:33px;overflow:hidden;max-width:calc(50% - 226px)}
+.menus{column-gap:19px;padding-left:18px}
+.menus>*{height:33px;line-height:33px;font-weight:500}
+.menus>svg{height:17px;margin-top:7px;flex:none}
+.menus>b{font-weight:700}
+.etats{flex-direction:row-reverse;column-gap:15px;padding-right:15px}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats svg{width:17px;height:17px;color:#1d1d1f}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* ---- fenêtres ---- */
+.fen{position:absolute;color:#1d1d1f;border-radius:13px;overflow:hidden;z-index:1;background:#fff;display:flex;flex-direction:column;pointer-events:none;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.26),0 36px 80px -20px rgba(24,36,60,.42),0 12px 26px -10px rgba(24,36,60,.22);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.fen.cache{opacity:0;transform:scale(.965)}
+.fen.arriere{box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 18px 40px -16px rgba(24,36,60,.3)}
+.feux{position:absolute;left:15px;top:15px;display:flex;gap:8px;z-index:1}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.fen.arriere .feux i{background:#d3d3d7}
+
+/* Chrome */
+.tabs{height:42px;flex:none;background:#dde3ec;display:flex;align-items:flex-end;padding-left:84px;position:relative}
+.fen.arriere .tabs{background:#e6e9ee}
+.tab{position:relative;height:34px;width:222px;flex:none;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:8px;padding:0 9px 0 12px;font-size:12px;color:#454a52}
+.tab.act{background:#fff;color:#1f1f1f}
+.tab.act::before,.tab.act::after{content:"";position:absolute;bottom:0;width:10px;height:10px}
+.tab.act::before{left:-10px;background:radial-gradient(circle at 0 0,transparent 9.5px,#fff 10px)}
+.tab.act::after{right:-10px;background:radial-gradient(circle at 100% 0,transparent 9.5px,#fff 10px)}
+.tab .tt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent)}
+.tab svg{flex:none}
+.tab-plus{width:28px;height:28px;margin:0 0 4px 6px;display:grid;place-items:center;color:#454a52;flex:none}
+.outils{height:46px;flex:none;display:flex;align-items:center;gap:4px;padding:0 10px;border-bottom:1px solid #e7e9ee;color:#5b6069}
+.outils .ib{width:30px;height:30px;display:grid;place-items:center;flex:none}
+.omni{flex:1;min-width:0;height:34px;border-radius:17px;background:#edf1f8;display:flex;align-items:center;gap:9px;padding:0 12px 0 4px;margin:0 6px;font-size:13.5px;color:#1f1f1f;white-space:nowrap;overflow:hidden}
+.omni .rg{width:26px;height:26px;border-radius:13px;background:#fff;display:grid;place-items:center;flex:none}
+.omni .u{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.omni .u span{color:#6b7078}
+.profil{width:24px;height:24px;border-radius:50%;background:linear-gradient(160deg,#c7ccd6,#8d95a3);flex:none;margin:0 4px}
+.page-w{flex:1;min-height:0;overflow:hidden;position:relative;background:#fff;color:#1d1d1f}
+.dl-ic{position:relative;opacity:0;transform:scale(.6);transition:opacity .2s,transform calc(.4s*var(--k)) var(--ressort)}
+.dl-ic.vu{opacity:1;transform:none}
+.dl-ic .arc{transition:stroke-dashoffset .3s linear}
+
+/* Terminal */
+.term{background:#fff}
+.t-barre{height:30px;flex:none;background:#ececee;border-bottom:1px solid #d9d9dd;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;color:#4b4b50;position:relative}
+.t-barre .feux{top:9px;left:11px}
+.fen.arriere .t-barre{color:#a2a2a7}
+.t-corps{flex:1;min-height:0;overflow:hidden;padding:10px 14px;font:12.5px/18.5px var(--mono);color:#1d1d1f;white-space:pre}
+.t-corps .g{color:#8a8a90}.t-corps .co{color:#d4683e}.t-corps .ve{color:#1f9d3e}
+.t-boite{display:inline-block;border:1px solid #d4683e;border-radius:6px;padding:5px 12px 5px 10px;margin:4px 0 6px}
+.tl[hidden],.taches[hidden]{display:none}
+.tache{color:#1d1d1f}
+.tache .cb{color:#8a8a90}
+.tache.fait{color:#9b9ba0}
+.tache.fait .tx{text-decoration:line-through;text-decoration-color:rgba(0,0,0,.3)}
+.tache.fait .cb{color:#1f9d3e}
+.tache.cours{font-weight:700}
+.caret{display:inline-block;width:7.5px;height:15px;background:#1d1d1f;vertical-align:-3px;margin-left:1px;animation:clign 1.06s steps(1) infinite}
+.caret[hidden]{display:none}
+@keyframes clign{0%,54%{opacity:1}55%,100%{opacity:0}}
+.statut{margin-top:8px}
+.statut .tourne-t{display:inline-block;animation:pulseT 1.2s ease-in-out infinite}
+@keyframes pulseT{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* Page article (Chrome, idée 1) */
+.ar-tete{height:52px;display:flex;align-items:center;gap:26px;padding:0 34px;border-bottom:1px solid #eee;font-size:13.5px;color:#55595f}
+.ar-tete b{font-size:17px;color:#1d1d1f;letter-spacing:-.3px;margin-right:auto;font-weight:700}
+.ar-corps{display:grid;grid-template-columns:330px minmax(0,1fr);gap:30px;padding:26px 34px}
+.ar-img{height:220px;border-radius:12px;overflow:hidden}
+.ar-img svg{width:100%;height:100%}
+.ar-sur{font-size:12.5px;font-weight:600;color:#2c7a4b}
+.ar-corps h4{font-size:27px;line-height:32px;font-weight:700;letter-spacing:-.5px;margin:6px 0 14px}
+.lignes i{display:block;height:9px;border-radius:5px;background:#e9eaee;margin:0 0 11px}
+
+/* Finder */
+.fi-barre{height:52px;flex:none;display:flex;align-items:center;gap:16px;padding-left:178px;border-bottom:1px solid #e4e4e8;font-size:14px;font-weight:700;color:#1d1d1f}
+.fi-barre .chev{display:flex;gap:14px;color:#9a9aa0}
+.fi-corps{flex:1;min-height:0;display:flex}
+.fi-cote{width:160px;flex:none;background:#f1f1f4;padding:4px 10px;font-size:12.5px;color:#3a3a3f;border-right:1px solid #e4e4e8;margin-top:-52px;padding-top:56px}
+.fi-cote .ti{font-size:11px;font-weight:600;color:#9a9aa0;margin:10px 0 4px 6px}
+.fi-cote div.r{height:26px;display:flex;align-items:center;gap:8px;padding:0 6px;border-radius:6px}
+.fi-cote div.r.sel{background:rgba(0,0,0,.07);font-weight:500}
+.fi-cote svg{width:15px;height:15px;color:#2e7cf6}
+.fi-grille{flex:1;display:grid;grid-template-columns:repeat(4,104px);grid-auto-rows:98px;gap:4px 8px;padding:18px 20px;align-content:start}
+.fic{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11.5px;color:#1d1d1f;text-align:center}
+.fic .ic{height:52px;display:grid;place-items:end center;padding:2px 6px;border-radius:7px}
+.fic .nm{padding:1px 5px;border-radius:4px;max-width:100px;line-height:15px}
+.fic.sel .ic{background:rgba(0,0,0,.08)}
+.fic.sel .nm{background:#2e7cf6;color:#fff}
+
+/* Mail */
+.ma-barre{height:52px;flex:none;display:flex;align-items:center;padding-left:84px;padding-right:16px;gap:12px;border-bottom:1px solid #e4e4e8;font-size:14px;font-weight:700}
+.ma-barre .env{margin-left:auto;width:30px;height:30px;border-radius:15px;display:grid;place-items:center;color:#2e7cf6}
+.ma-champ{height:34px;flex:none;display:flex;align-items:center;gap:8px;padding:0 18px;border-bottom:1px solid #ececf0;font-size:13.5px;color:#1d1d1f}
+.ma-champ span{color:#8a8a90;min-width:46px}
+.ma-champ .puce{background:#e8f0fe;color:#1d4fb8;border-radius:5px;padding:1px 7px;font-weight:500;min-width:0}
+.ma-corps{flex:1;padding:16px 18px;font-size:13.5px;line-height:20px;color:#1d1d1f;position:relative}
+.ma-pj{display:none;margin:12px 0 4px;width:150px;flex-direction:column;align-items:center;gap:5px;font-size:11.5px;color:#3a3a3f}
+.ma-pj.vu{display:flex;animation:pjArrive calc(.36s*var(--k)) var(--ressort)}
+html.fige .ma-pj.vu,.snap .ma-pj.vu{animation:none}
+@keyframes pjArrive{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
+
+/* Aperçu */
+.pv-barre{height:52px;flex:none;display:flex;align-items:center;padding-left:84px;gap:10px;border-bottom:1px solid #dcdce0;background:#f6f6f8}
+.pv-barre b{font-size:13.5px}
+.pv-barre span{font-size:12px;color:#8a8a90}
+.pv-corps{flex:1;min-height:0;background:#e3e3e8;display:flex;justify-content:center;padding-top:22px;overflow:hidden}
+.pv-feuille{width:330px;height:430px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12),0 6px 18px rgba(0,0,0,.08);padding:30px 32px}
+.pv-feuille h5{font-size:15px;font-weight:700;letter-spacing:-.2px;margin-bottom:4px}
+.pv-feuille .s{font-size:9.5px;color:#8a8a90;margin-bottom:16px}
+.pv-feuille i{display:block;height:6px;border-radius:3px;background:#e6e6ea;margin-bottom:8px}
+.pv-sign{display:flex;justify-content:space-between;margin-top:44px}
+.pv-sign div{width:118px;border-top:1px solid #c9c9cf;padding-top:4px;font-size:8.5px;color:#8a8a90}
+
+/* Page de signature (Chrome, idée 3) */
+.sg-tete{height:52px;display:flex;align-items:center;gap:9px;padding:0 30px;border-bottom:1px solid #eee;font-size:15px;font-weight:700;letter-spacing:-.2px}
+.sg-tete .lg{width:24px;height:24px;border-radius:7px;background:#1d1d1f;display:grid;place-items:center}
+.sg-corps{display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:34px}
+.sg-ok{width:54px;height:54px;border-radius:50%;background:#e8f7ec;display:grid;place-items:center}
+.sg-corps h4{font-size:28px;font-weight:700;letter-spacing:-.5px;margin-top:16px}
+.sg-corps p{font-size:15px;line-height:21px;color:#6e6e73;margin-top:8px}
+.sg-bouton{margin-top:22px;height:42px;padding:0 22px;border-radius:21px;background:#0071e3;color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.sg-corps small{font-size:12.5px;color:#8a8a90;margin-top:10px}
+
+/* Réunion (Chrome, idée 5) */
+.vi{position:absolute;inset:0;background:#1d1e21;color:#fff;display:flex;flex-direction:column}
+.vi-tete{height:42px;flex:none;display:flex;align-items:center;gap:12px;padding:0 18px;font-size:13.5px;font-weight:600}
+.vi-tete span{color:rgba(255,255,255,.55);font-weight:500;font-variant-numeric:tabular-nums}
+.vi-tete .rec{margin-left:auto;font-size:12px;color:rgba(255,255,255,.55);font-weight:500}
+.vi-grille{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;padding:0 14px}
+.tuile{position:relative;border-radius:12px;display:grid;place-items:center;overflow:hidden;transition:box-shadow .2s}
+.tuile .av{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-size:21px;font-weight:600;color:#fff}
+.tuile .nm{position:absolute;left:10px;bottom:8px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+.tuile .mc{width:22px;height:22px;border-radius:11px;background:rgba(0,0,0,.45);display:grid;place-items:center}
+.tuile .mc .off{display:none}
+.tuile.muet .mc{background:#ea4335}
+.tuile.muet .mc .on{display:none}.tuile.muet .mc .off{display:block}
+.tuile.parle{box-shadow:inset 0 0 0 3px #30d158}
+.tuile .niv{position:absolute;right:10px;bottom:10px;display:flex;gap:2px;align-items:center;height:14px;opacity:0;transition:opacity .2s}
+.tuile.sonore .niv{opacity:1}
+.tuile .niv i{width:3px;height:12px;border-radius:2px;background:#fff;animation:niv .8s ease-in-out infinite;transform:scaleY(.3)}
+.tuile .niv i:nth-child(2){animation-delay:-.3s}.tuile .niv i:nth-child(3){animation-delay:-.55s}
+@keyframes niv{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
+.vi-bas{height:60px;flex:none;display:flex;align-items:center;justify-content:center;gap:12px}
+.vi-bas .bt{width:42px;height:42px;border-radius:21px;background:#3c4043;display:grid;place-items:center}
+.vi-bas .bt.rouge{background:#ea4335}
+.vi-bas .quit{width:58px;border-radius:21px;background:#ea4335}
+.vi-bas .bt .off{display:none}
+.vi-bas .bt.rouge .on{display:none}.vi-bas .bt.rouge .off{display:block}
+
+/* YouTube (idée 4, repris de 3-spotlight.html) */
+.yt-h{height:56px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 18px 0 20px;color:#0f0f0f}
+.yt-g{display:flex;align-items:center;gap:20px}
+.yt-logo{display:flex;align-items:center;gap:4px;font-size:19.5px;font-weight:700;letter-spacing:-1.1px}
+.yt-logo sup{font-size:9.5px;font-weight:500;color:#606060;letter-spacing:0;align-self:flex-start;margin:1px 0 0 3px}
+.yt-rech{display:flex;align-items:center;gap:12px}
+.yt-champ{width:400px;height:40px;border:1px solid #d5d5d5;border-radius:20px;display:flex;align-items:center;overflow:hidden}
+.yt-champ span{flex:1;padding-left:18px;font-size:15px;color:#8c8c8c}
+.yt-champ i{width:62px;height:100%;background:#f7f7f7;border-left:1px solid #d5d5d5;display:grid;place-items:center}
+.yt-rond{width:40px;height:40px;border-radius:20px;background:#f2f2f2;display:grid;place-items:center;flex:none}
+.yt-d{display:flex;align-items:center;gap:18px;justify-content:flex-end}
+.yt-creer{height:36px;border-radius:18px;background:#f2f2f2;display:flex;align-items:center;gap:6px;padding:0 15px 0 10px;font-size:14px;font-weight:500}
+.yt-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(150deg,#e8b48a,#b9764c)}
+.yt-c{display:grid;grid-template-columns:minmax(0,640px) 330px;justify-content:center;gap:24px;padding:16px 24px 0;color:#0f0f0f}
+.lecteur{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#111}
+.lecteur>svg{position:absolute;left:-1px;top:-1px;width:calc(100% + 2px);height:calc(100% + 2px)}
+.lecteur::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 140px rgba(70,26,0,.28);pointer-events:none}
+.lecteur .flotte{transform-box:view-box;transform-origin:200px 90px;animation:flotte 7s ease-in-out infinite alternate}
+@keyframes flotte{0%{transform:translate(0,0) rotate(-1.2deg)}100%{transform:translate(-3px,-2px) rotate(1.1deg)}}
+.puces{display:flex;gap:8px;overflow:hidden;white-space:nowrap}
+.puces span{height:32px;border-radius:8px;background:#f2f2f2;font-size:14px;font-weight:500;display:grid;place-items:center;padding:0 12px;flex:none}
+.puces span.on{background:#0f0f0f;color:#fff}
+.sug{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px;margin-top:10px}
+.sug .vg{position:relative;height:84px;border-radius:8px;overflow:hidden}
+.sug .vg svg{width:100%;height:100%}
+.sug .vg b{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.78);color:#fff;font-size:12px;font-weight:500;line-height:16px;padding:0 4px;border-radius:4px;font-variant-numeric:tabular-nums}
+.sug p{font-size:14px;line-height:20px;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:3px}
+.sug span{display:block;font-size:12px;line-height:18px;color:#606060;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* =====================================================================
+   L'îlot (noir, opaque) et ce qu'il affiche
+   ===================================================================== */
+.calque{position:absolute;left:calc(50% - 500px);top:0;width:1000px;height:340px;pointer-events:none}
+.forme-svg{z-index:5}
+.contenu{z-index:6}
+.encoche-svg{z-index:7}
+.c{position:absolute;color:#fff;white-space:nowrap;text-align:left;font-family:var(--sans)}
+/* le contenu arrive après la forme : fondu, flou, léger zoom */
+.e{opacity:0;filter:blur(7px);transform:scale(.965);
+  transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
+.e.on{opacity:1;filter:blur(0);transform:none;
+  transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+.snap *,.snap *::before,.snap *::after{transition:none!important}
+.t15{font-size:15px;line-height:19px;font-weight:600;letter-spacing:-.2px}
+.t125{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(255,255,255,.55);margin-top:3px}
+.t135{font-size:13.5px;line-height:17px;font-weight:600;letter-spacing:-.1px;font-variant-numeric:tabular-nums}
+.rang{display:flex;align-items:center;gap:7px}
+.capsule{height:30px;padding:0 15px;border-radius:15px;background:rgba(255,255,255,.14);display:flex;align-items:center;font-size:13px;font-weight:600}
+.arc{transition:stroke-dasharray calc(.45s*var(--k)) ease}
+.c[data-c="dl-anneau"] .arc{transition:none}
+.tourne svg{animation:tourne 6s linear infinite}
+.tourne.arret svg{animation:none}
+@keyframes tourne{to{transform:rotate(360deg)}}
+.art{position:relative;overflow:hidden;background:#111;border-radius:4px;width:28px;height:16px}
+.art::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16)}
+.eq{display:flex;align-items:center;justify-content:space-between;width:18.4px;height:14px}
+.eq i{display:block;width:2.6px;height:14px;border-radius:1.3px;background:#ffab3d;transform:scaleY(.3);animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(1){animation-duration:.82s;animation-delay:-.3s}
+.eq i:nth-child(2){animation-duration:1.06s;animation-delay:-.7s}
+.eq i:nth-child(3){animation-duration:.74s;animation-delay:-.1s}
+.eq i:nth-child(4){animation-duration:.95s;animation-delay:-.5s}
+.eq i:nth-child(5){animation-duration:1.18s;animation-delay:-.2s}
+@keyframes eq{0%{transform:scaleY(.28)}22%{transform:scaleY(.95)}41%{transform:scaleY(.5)}63%{transform:scaleY(1)}82%{transform:scaleY(.36)}100%{transform:scaleY(.28)}}
+.niveau{width:96px;height:6px;border-radius:3px;background:rgba(255,255,255,.2);position:relative;overflow:hidden}
+.niveau b{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:#fff;transition:width calc(.18s*var(--k)) ease-out}
+.badge{display:grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:rgba(255,255,255,.2);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.zone{width:376px;height:72px;border-radius:16px;border:1.5px dashed rgba(255,255,255,.3);display:grid;place-items:center;
+  transition:border-color .2s ease,background-color .2s ease}
+.zone.survol{border-color:rgba(255,255,255,.78);background:rgba(255,255,255,.07)}
+.zone .z-vide{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600;color:rgba(255,255,255,.62)}
+.zone.survol .z-vide{color:#fff}
+.zone .z-plein{display:none;align-items:center;gap:11px;font-size:13.5px;font-weight:600}
+.zone .z-plein i{font-style:normal;color:var(--vert);font-size:12.5px;display:flex;align-items:center;gap:5px}
+.zone.plein{border-style:solid;border-color:transparent;background:rgba(255,255,255,.08)}
+.zone.plein .z-vide{display:none}.zone.plein .z-plein{display:flex}
+.tuileF{width:372px;height:58px;border-radius:14px;background:rgba(255,255,255,.08);display:flex;align-items:center;gap:12px;padding:0 14px;transition:opacity .2s}
+.tuileF.pris{opacity:.35}
+.halo{width:40px;height:40px;border-radius:50%;background:rgba(255,69,58,.18);display:grid;place-items:center;animation:halo 1.3s ease-in-out infinite}
+@keyframes halo{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.voix{display:flex;align-items:center;gap:2.6px;height:16px}
+.voix i{width:2.8px;height:16px;border-radius:1.4px;background:var(--rouge);transform:scaleY(.3);animation:eq .9s ease-in-out infinite}
+.voix i:nth-child(2){animation-delay:-.4s;animation-duration:1.1s}.voix i:nth-child(3){animation-delay:-.15s;animation-duration:.8s}
+.voix i:nth-child(4){animation-delay:-.6s}.voix i:nth-child(5){animation-delay:-.25s;animation-duration:1.2s}
+
+/* faux pointeur (et le fichier qu'il porte) */
+.pointeur{position:absolute;left:0;top:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .22s}
+.pointeur.vu{opacity:1}
+.pointeur .fleche{position:relative;width:18px;height:26px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));transform-origin:2px 2px;transition:transform .12s ease}
+.pointeur.appui .fleche{transform:scale(.86)}
+.fantome{position:absolute;left:-46px;top:-12px;width:110px;display:flex;flex-direction:column;align-items:center;gap:3px;opacity:0;transform:scale(.6);
+  transition:opacity .16s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.fantome.vu{opacity:.9;transform:none}
+.fantome.aspire{opacity:0;transform:translateY(-6px) scale(.3);transition:opacity calc(.26s*var(--k)) ease,transform calc(.3s*var(--k)) ease}
+.fantome span{white-space:nowrap;font-size:11px;font-weight:600;color:#fff;background:#2e7cf6;border-radius:4px;padding:0 5px;line-height:15px}
+
+/* =====================================================================
+   La régie, sous la scène (reprise de 3-spotlight.html)
+   ===================================================================== */
+.regie{padding:14px 28px 16px;background:var(--regie)}
+.r-haut{display:grid;grid-template-columns:minmax(0,1fr) 262px auto;gap:36px;align-items:center;min-height:96px}
+.r-num{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(245,245,247,.46);font-variant-numeric:tabular-nums}
+.r-titre{font-size:21px;line-height:27px;font-weight:600;letter-spacing:-.3px;margin-top:2px}
+.r-phrase{font-size:14px;line-height:20px;color:rgba(245,245,247,.64);margin-top:4px;max-width:640px;min-height:40px}
+.r-mains{display:flex;flex-direction:column;gap:9px;transition:opacity .25s ease}
+.r-ligne{display:flex;gap:14px;align-items:center}
+.pad{position:relative;width:96px;height:62px;border-radius:12px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);flex:none}
+.pad i{position:absolute;top:22px;left:40px;width:15px;height:15px;border-radius:50%;background:var(--clair);opacity:0;transform:scale(.7);transition:opacity .15s,transform .15s}
+.pad.actif i{opacity:1;transform:none}
+.touches{display:flex;gap:6px;flex-wrap:wrap}
+.touches kbd{min-width:32px;height:32px;padding:0 6px;border-radius:8px;display:grid;place-items:center;font:500 13px var(--sans);color:rgba(245,245,247,.5);
+  background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);transition:transform .12s ease,background-color .15s ease,color .15s ease}
+.touches kbd svg{width:17px;height:17px}
+.touches kbd.fait{background:rgba(255,255,255,.2);color:#fff}
+.touches kbd.appui{background:var(--clair);color:var(--regie);transform:scale(.92)}
+.r-geste{font-size:12.5px;line-height:16px;color:rgba(245,245,247,.55);min-height:32px}
+.r-cmd{display:grid;grid-template-columns:auto auto;gap:10px 8px;align-items:center}
+.bouton{height:34px;padding:0 17px;border-radius:17px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s ease}
+.bouton:active{transform:scale(.95)}
+.bouton.creux{background:rgba(255,255,255,.1)}
+.bouton.creux:hover{background:rgba(255,255,255,.16)}
+.bouton.plein{background:var(--clair);color:var(--regie)}
+.bouton.plein:hover{background:#fff}
+.r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:var(--clair)}
+.r-pas{display:flex;flex-wrap:wrap;gap:2px 4px;list-style:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.r-pas button{height:30px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:8px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+.r-pas button span{font-variant-numeric:tabular-nums;opacity:.7}
+.r-pas button:hover{color:rgba(245,245,247,.8)}
+.r-pas button.ici{color:var(--clair);background:rgba(255,255,255,.09)}
+</style>
+</head>
+<body>
+
+<nav class="index" aria-label="Les cinq idées">
+  <div class="l">
+    <a class="marque" href="#haut">Verbe · Cinq idées</a>
+    <ol>
+      <li><a class="i" href="#idee-1"><b>1</b><span>Claude</span></a></li>
+      <li><a class="i" href="#idee-2"><b>2</b><span>Étagère</span></a></li>
+      <li><a class="i" href="#idee-3"><b>3</b><span>Téléchargé</span></a></li>
+      <li><a class="i" href="#idee-4"><b>4</b><span>Volume</span></a></li>
+      <li><a class="i" href="#idee-5"><b>5</b><span>Micro</span></a></li>
+    </ol>
+  </div>
+</nav>
+
+<main class="page">
+  <header class="hero" id="haut">
+    <div class="sur">Verbe · Îlot</div>
+    <h1>Cinq idées de plus.</h1>
+    <p class="sous">Toujours le même principe : l’îlot ne parle que quand ça compte, puis se fait oublier. Chaque idée se joue toute seule en arrivant à l’écran.</p>
+  </header>
+
+  <section class="idee" id="idee-1">
+    <div class="tete"><div class="sur">Idée 1</div><h2>Claude au travail.</h2>
+      <p class="sous">Vous lancez une tâche et partez faire autre chose. L’îlot vous dit où elle en est, et quand elle a besoin de vous.</p></div>
+    <div class="cadre"></div>
+  </section>
+
+  <section class="idee" id="idee-2">
+    <div class="tete"><div class="sur">Idée 2</div><h2>L’étagère.</h2>
+      <p class="sous">Glissez un fichier sur l’encoche. Reprenez-le plus tard, depuis n’importe quelle app.</p></div>
+    <div class="cadre"></div>
+  </section>
+
+  <section class="idee" id="idee-3">
+    <div class="tete"><div class="sur">Idée 3</div><h2>Téléchargé.</h2>
+      <p class="sous">Le fichier qui arrive, prêt à ouvrir. AirDrop compris.</p></div>
+    <div class="cadre"></div>
+  </section>
+
+  <section class="idee" id="idee-4">
+    <div class="tete"><div class="sur">Idée 4</div><h2>Volume et luminosité.</h2>
+      <p class="sous">Les touches du clavier s’affichent dans l’îlot, comme sur l’iPhone. La vidéo revient une seconde et demie après.</p></div>
+    <div class="cadre"></div>
+  </section>
+
+  <section class="idee" id="idee-5">
+    <div class="tete"><div class="sur">Idée 5</div><h2>Micro coupé.</h2>
+      <p class="sous">Un raccourci pour couper le micro en réunion. L’îlot vous le rappelle si vous parlez.</p></div>
+    <div class="cadre"></div>
+  </section>
+
+  <footer class="pied">Maquettes à l’échelle : dans la scène, 1 point vaut 1 point dans l’app, sauf si la fenêtre est trop petite. L’îlot reste noir et opaque partout. Flèche droite : étape suivante de l’idée à l’écran.</footer>
+</main>
+
+<script>
+'use strict';
+/* =========================================================
+   Constantes — 1 px CSS = 1 pt dans la scène
+   ========================================================= */
+const B = 33;              // hauteur de la barre des menus
+const HC = 90;             // demi-caméra (encoche de 180 pt)
+const LE = 1180;           // largeur de la scène
+const N0 = 133;            // demi-largeur de l'îlot compact de la lecture (ailes de 43 pt)
+const Q = new URLSearchParams(location.search);
+const racine = document.documentElement;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const f2 = v => Math.round(v * 100) / 100;
+const mid = t => (B - t) / 2;
+let K = 1;
+const FIGE = Q.has('fige');
+const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+let REDUIT = mq.matches;
+mq.addEventListener && mq.addEventListener('change', e => { REDUIT = e.matches; });
+if (FIGE) racine.classList.add('fige');
+
+/* =========================================================
+   Forme de l'îlot (reprise de 2-deux-activites.html / ilot-apple.html)
+   ng / nd = cou à gauche / à droite dans la barre, bw / bd = corps sous la barre, h = hauteur,
+   rs = épaule creuse en haut, rb = coin bas, rt = coin haut du corps, f = congé du cou
+   ========================================================= */
+const PORTEE = 1.6, POIGNEE = 0.18;
+function cote(g, n, bw){
+  const corps = Math.max(0, g.h - B), u = Math.min(corps, 40) / 40, e = 1 - Math.pow(1 - u, 2.5);
+  const d = Math.max(0, bw - n) * e, W = n + d, serre = 1 - clamp((n - HC) / 24, 0, 1);
+  const rs = g.rs + (4 - g.rs) * serre, rbv = lerp(g.rb + (8 - g.rb) * serre, g.rb, clamp(corps / 12, 0, 1));
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6), dispo = (1 - lam) * (g.h - rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(rbv, dispo / PORTEE, W / PORTEE));
+  return {n, W, d, fe, rte, rbe, rs};
+}
+function chemin(g){
+  const h = g.h, L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd), X = f2, Y = f2;
+  const a1 = PORTEE * L.rte, c1 = POIGNEE * a1, a2 = PORTEE * L.rbe, c2 = POIGNEE * a2;
+  const b1 = PORTEE * D.rte, d1 = POIGNEE * b1, b2 = PORTEE * D.rbe, d2 = POIGNEE * b2;
+  let p = `M${X(-L.n - L.rs)} ${Y(-1)}L${X(-L.n - L.rs)} 0Q${X(-L.n)} 0 ${X(-L.n)} ${Y(L.rs)}`;
+  if (L.d > 0.5) p += `L${X(-L.n)} ${Y(B - L.fe)}Q${X(-L.n)} ${B} ${X(-L.n - L.fe)} ${B}L${X(-L.W + a1)} ${B}C${X(-L.W + c1)} ${B} ${X(-L.W)} ${Y(B + c1)} ${X(-L.W)} ${Y(B + a1)}`;
+  p += `L${X(-L.W)} ${Y(h - a2)}C${X(-L.W)} ${Y(h - c2)} ${X(-L.W + c2)} ${Y(h)} ${X(-L.W + a2)} ${Y(h)}`;
+  p += `L${X(D.W - b2)} ${Y(h)}C${X(D.W - d2)} ${Y(h)} ${X(D.W)} ${Y(h - d2)} ${X(D.W)} ${Y(h - b2)}`;
+  if (D.d > 0.5) p += `L${X(D.W)} ${Y(B + b1)}C${X(D.W)} ${Y(B + d1)} ${X(D.W - d1)} ${B} ${X(D.W - b1)} ${B}L${X(D.n + D.fe)} ${B}Q${X(D.n)} ${B} ${X(D.n)} ${Y(B - D.fe)}`;
+  p += `L${X(D.n)} ${Y(D.rs)}Q${X(D.n)} 0 ${X(D.n + D.rs)} 0L${X(D.n + D.rs)} ${Y(-1)}Z`;
+  return p;
+}
+const CLES = ['ng', 'nd', 'bw', 'bd', 'h', 'rs', 'rb', 'rt', 'f'];
+const REPOS = {ng:HC, nd:HC, bw:HC, bd:HC, h:B, rs:4, rb:8, rt:0, f:0};                  // l'encoche seule
+const compact = (g, d) => ({ng:g, nd:d, bw:g, bd:d, h:B, rs:6, rb:10, rt:0, f:0});       // des ailes dans la barre
+const bandeau = (w, h, n = 150) => ({ng:n, nd:n, bw:w, bd:w, h, rs:6, rb:30, rt:16, f:10}); // il descend sous la barre
+
+/* =========================================================
+   Ressorts (réponse en s, amortissement) — interruptibles
+   ========================================================= */
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = .8; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){
+      this.attente -= dt;
+      if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; }
+    }
+    const w = 2 * Math.PI / this.rep, a = w * w * (this.cible - this.x) - 2 * this.z * w * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+/* Courbe CSS « ressort » (même formule), pour les zooms d'entrée */
+(function(){
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){
+    pts.push(x);
+    for (let s = 0, n = Math.round((T / N) / dt); s < n; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; }
+  }
+  pts[pts.length - 1] = 1;
+  racine.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+/* =========================================================
+   Glyphes (dessinés à la main, façon symboles SF)
+   ========================================================= */
+const anneau = (r, coul, ep, frac = 0) => { const t = 2 * r + ep;
+  return `<svg width="${t}" height="${t}" viewBox="${-t/2} ${-t/2} ${t} ${t}"><circle r="${r}" fill="none" stroke="${coul}" stroke-opacity=".26" stroke-width="${ep}"/><circle class="arc" r="${r}" fill="none" stroke="${coul}" stroke-width="${ep}" stroke-linecap="round" pathLength="100" style="stroke-dasharray:${f2(frac*100)} 100" transform="rotate(-90)"/></svg>`; };
+const etoile = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20">${[0,30,60,90,120,150].map(a => `<rect x="9" y="1.5" width="2" height="17" rx="1" fill="${c}" transform="rotate(${a} 10 10)"/>`).join('')}</svg>`;
+const coche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9.2" fill="${c}"/><path d="M5.8 10.4l2.8 2.8 5.6-6" fill="none" stroke="#000" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const doc = (t, coul = '#ff453a', lbl = 'PDF') => `<svg width="${f2(t*0.8)}" height="${t}" viewBox="0 0 32 40"><path d="M4 1h17l10 10v26a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="#f2f2f7" stroke="rgba(0,0,0,.12)" stroke-width=".8"/><path d="M21 1v8a2 2 0 0 0 2 2h8" fill="#d1d1d6"/><rect x="5" y="24" width="22" height="9" rx="2" fill="${coul}"/><text x="16" y="31" text-anchor="middle" font-size="7" font-weight="800" fill="#fff" font-family="-apple-system,sans-serif">${lbl}</text></svg>`;
+const photo = (t, r = 7) => `<div style="width:${t}px;height:${t}px;border-radius:${r}px;background:linear-gradient(160deg,#7fb4e0,#e8b07a 70%,#9a5c3c);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.2);position:relative;overflow:hidden"><div style="position:absolute;left:12%;right:12%;bottom:-18%;height:52%;border-radius:50% 50% 0 0;background:#5d7a4a;opacity:.85"></div></div>`;
+const dossier = t => `<svg width="${t}" height="${f2(t*0.8)}" viewBox="0 0 50 40"><path d="M3 6a3 3 0 0 1 3-3h11.5l4 4H44a3 3 0 0 1 3 3v3H3z" fill="#3d9df3"/><rect x="3" y="10.5" width="44" height="27.5" rx="3.2" fill="#62b6fb"/></svg>`;
+const hp = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><path d="M2.5 7.5h3l4.5-4v13l-4.5-4h-3z" fill="${c}"/><path d="M13 6.5a5 5 0 0 1 0 7M15.4 4.2a8.2 8.2 0 0 1 0 11.6" fill="none" stroke="${c}" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const hpMoins = (t, c = 'currentColor') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><path d="M3 7.5h3l4.5-4v13L6 12.5H3z" fill="${c}"/><path d="M13.6 7.6a3.6 3.6 0 0 1 0 4.8" fill="none" stroke="${c}" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const soleil = (t, c = '#fff', grand = true) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="${grand ? 3.9 : 3.3}" fill="${c}"/>${[0,45,90,135,180,225,270,315].map(a => `<rect x="9.15" y="${grand ? 1 : 2.6}" width="1.7" height="${grand ? 3.3 : 2.2}" rx=".85" fill="${c}" transform="rotate(${a} 10 10)"/>`).join('')}</svg>`;
+const micBarre = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/><path d="M3 2.5l14 15" stroke="#000" stroke-width="3.6" stroke-linecap="round"/><path d="M3 2.5l14 15" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const micro = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const plateauG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M2.6 11.2 4.9 4.6A2 2 0 0 1 6.8 3.3h6.4a2 2 0 0 1 1.9 1.3l2.3 6.6v4a2 2 0 0 1-2 2H4.6a2 2 0 0 1-2-2z"/><path d="M2.8 11.2h4.1l1 2.2h4.2l1-2.2h4.1"/></svg>`;
+const flecheBas = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.6" fill="none" stroke="${c}" stroke-width="1.7"/><path d="M10 5.4v8.2M6.6 10.4 10 13.8l3.4-3.4" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const capsule = t => `<div class="capsule">${t}</div>`;
+const X14 = '<svg width="14" height="14" viewBox="0 0 14 14" stroke="#5b6069" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l6 6M10 4l-6 6"/></svg>';
+const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
+
+/* Icônes de la barre des menus, de la droite vers la gauche (reprises de 3-spotlight.html) */
+const ETATS = (function(){
+  const s = d => `<span><svg viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg></span>`;
+  return '<span class="heure">Mer. 11 nov.&nbsp; 14:30</span>' +
+    s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
+    s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
+    s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>' +
+    `<span><svg viewBox="-.3 -.25 2.7 2" style="width:16px;height:13px"><g fill="currentColor"><path d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><path transform="translate(1.1 0)" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/></g></svg></span>`;
+})();
+const MENUS = {
+  Chrome:['Fichier','Modifier','Afficher','Historique','Favoris','Profils','Onglet','Fenêtre','Aide'],
+  Terminal:['Shell','Édition','Présentation','Fenêtre','Aide'],
+  Finder:['Fichier','Édition','Présentation','Aller','Fenêtre','Aide'],
+  Mail:['Fichier','Édition','Présentation','Boîte aux lettres','Message','Format','Fenêtre','Aide'],
+  Aperçu:['Fichier','Édition','Présentation','Aller','Outils','Fenêtre','Aide']
+};
+
+/* L'image de la vidéo (dessinée, reprise de 3-spotlight.html) */
+function affiche(p){
+  return `<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
+  <defs>
+    <linearGradient id="${p}mur" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9d282"/><stop offset="1" stop-color="#f0a146"/></linearGradient>
+    <radialGradient id="${p}lum" cx="72%" cy="28%" r="62%"><stop offset="0" stop-color="#fff2c9" stop-opacity=".95"/><stop offset="1" stop-color="#fff2c9" stop-opacity="0"/></radialGradient>
+    <linearGradient id="${p}tab" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a95b27"/><stop offset="1" stop-color="#743612"/></linearGradient>
+    <linearGradient id="${p}coq" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dcdfe5"/></linearGradient>
+    <linearGradient id="${p}ecr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9ddff"/><stop offset="1" stop-color="#3b7edb"/></linearGradient>
+  </defs>
+  <rect width="320" height="180" fill="url(#${p}mur)"/><rect width="320" height="180" fill="url(#${p}lum)"/>
+  <circle cx="44" cy="54" r="31" fill="#fff" opacity=".09"/><circle cx="102" cy="30" r="17" fill="#fff" opacity=".08"/><circle cx="286" cy="92" r="23" fill="#fff" opacity=".07"/>
+  <rect y="136" width="320" height="44" fill="url(#${p}tab)"/><rect y="136" width="320" height="1.2" fill="#fff" opacity=".24"/>
+  <ellipse cx="205" cy="143" rx="46" ry="5.2" fill="#3a1804" opacity=".42"/>
+  <g class="flotte"><g transform="rotate(-6 200 88)">
+    <rect x="168" y="31" width="64" height="110" rx="9.5" fill="url(#${p}coq)" stroke="#c7cad1" stroke-width=".8"/>
+    <rect x="175" y="39" width="50" height="38" rx="3" fill="url(#${p}ecr)"/>
+    <rect x="179" y="44" width="22" height="3" rx="1.5" fill="#fff" opacity=".95"/><rect x="179" y="51" width="33" height="3" rx="1.5" fill="#fff" opacity=".6"/><rect x="179" y="58" width="26" height="3" rx="1.5" fill="#fff" opacity=".6"/><rect x="179" y="65" width="30" height="3" rx="1.5" fill="#fff" opacity=".6"/>
+    <circle cx="200" cy="109" r="21.5" fill="#eceef1" stroke="#d2d5db" stroke-width=".8"/><circle cx="200" cy="109" r="7.6" fill="#fbfbfc" stroke="#d8dae0" stroke-width=".6"/>
+  </g></g></svg>`;
+}
+
+/* Une fenêtre Chrome (barre d'onglets et d'outils reprises de 3-spotlight.html) */
+function chrome({f, style, titre, favicon, url, page, outils = ''}){
+  return `<div class="fen chrome" data-f="${f}" style="${style}">
+    <div class="tabs"><div class="feux"><i></i><i></i><i></i></div>
+      <div class="tab act">${favicon}<span class="tt">${titre}</span>${X14}</div>
+      <div class="tab"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.2 2 2.2 10 0 12M8 2c-2.2 2-2.2 10 0 12"/></svg><span class="tt">Nouvel onglet</span>${X14}</div>
+      <div class="tab-plus"><svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg></div></div>
+    <div class="outils">
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 9h-11M8 4.2 3.2 9 8 13.8"/></svg></span>
+      <span class="ib" style="opacity:.42"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9h11M10 4.2 14.8 9 10 13.8"/></svg></span>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 9a5.6 5.6 0 1 1-1.7-4"/><path d="M14.8 2.6v3.2h-3.2"/></svg></span>
+      <div class="omni"><span class="rg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.5" stroke-linecap="round"><path d="M2 5h6M12 5h2M2 11h2M8 11h6"/><circle cx="10" cy="5" r="1.9"/><circle cx="6" cy="11" r="1.9"/></svg></span>
+        <span class="u">${url}</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4" stroke-linejoin="round"><path d="M8 2.2l1.7 3.7 4 .5-3 2.7.8 4L8 11.1 4.5 13l.8-4-3-2.7 4-.5z"/></svg></div>
+      ${outils}
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M7 3.2h1.2a1.6 1.6 0 1 1 3.1 0h2.5v3a1.6 1.6 0 1 0 0 3.1v4.5h-3.7a1.6 1.6 0 1 0-3.1 0H3.2v-3.9a1.6 1.6 0 1 0 0-3.1V3.2z"/></svg></span>
+      <span class="profil"></span>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><circle cx="9" cy="4" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="9" cy="14" r="1.5"/></svg></span>
+    </div>
+    <div class="page-w">${page}</div></div>`;
+}
+
+/* =========================================================
+   Une idée : un écran, un îlot, une régie, des étapes
+   ========================================================= */
+const idees = [];
+class Idee{
+  constructor(num, def){
+    Object.assign(this, {num, def, N:def.etapes.length, jeton:0, minuteries:new Set(), instant:false, enCours:false,
+      etape:0, s:1, vu:false, auto:false, enCoursN:0, cibleN:0, ordre:[]});
+    this.sec = document.getElementById('idee-' + num);
+    this.cadre = this.sec.querySelector('.cadre');
+    this.cadre.innerHTML = this.gabarit();
+    const q = s => this.cadre.querySelector(s);
+    this.q = q;
+    Object.assign(this, {plateau:q('.plateau'), ecran:q('.ecran'), monde:q('.monde'), forme:q('.forme'), ombre:q('.ombre'), menus:q('.menus'),
+      pointeur:q('.pointeur'), fantome:q('.fantome'), pad:q('.pad'), autoCase:q('.autoCase'), lentCase:q('.lentCase')});
+    this.R = {}; CLES.forEach(k => this.R[k] = new Ressort(REPOS[k]));
+    this.TOUS = CLES.map(k => this.R[k]);
+    this.cible = {...REPOS};
+    this.c = {}; this.cadre.querySelectorAll('.contenu [data-c]').forEach(n => this.c[n.dataset.c] = n);
+    this.f = {}; this.cadre.querySelectorAll('[data-f]').forEach(n => this.f[n.dataset.f] = n);
+    this.cles = {}; this.cadre.querySelectorAll('.touches kbd').forEach(n => this.cles[n.dataset.k] = n);
+    this.brancher();
+  }
+
+  gabarit(){
+    const d = this.def;
+    const contenus = d.contenus.map(([nom, x, y, html]) => `<div class="c e" data-c="${nom}" style="left:${f2(500 + x)}px;top:${f2(y)}px">${html}</div>`).join('');
+    const kbds = (d.touches || []).map(([k, l]) => `<kbd data-k="${k}">${l}</kbd>`).join('');
+    const pas = d.etapes.map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${e.t}</button></li>`).join('');
+    return `<div class="plateau">
+      <section class="ecran" aria-label="Faux écran de MacBook">
+        <div class="monde"><div class="papier" aria-hidden="true"><svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMid slice"><path d="M0 0H1440V190C1190 290 930 180 660 240S210 350 0 280Z" fill="#b7cbe4" opacity=".28"/><path d="M0 560C260 470 540 520 780 600S1250 720 1440 620V760H0Z" fill="#fff" opacity=".2"/></svg></div>
+          ${d.fenetres}</div>
+        <div class="mb" aria-hidden="true"><div class="menus"></div><div class="etats">${ETATS}</div></div>
+        <svg class="calque forme-svg" viewBox="-500 0 1000 340" aria-hidden="true"><g class="ombre"><path class="forme" fill="#000" d=""/></g></svg>
+        <div class="calque contenu" aria-hidden="true">${contenus}</div>
+        <svg class="calque encoche-svg" viewBox="-500 0 1000 340" aria-hidden="true"><path fill="#000" d="${chemin(REPOS)}"/><circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/><circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/></svg>
+        <div class="pointeur" aria-hidden="true"><div class="fantome"></div><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+      </section>
+      <div class="regie">
+        <div class="r-haut">
+          <div aria-live="polite"><div class="r-num"></div><h3 class="r-titre"></h3><p class="r-phrase"></p></div>
+          <div class="r-mains" aria-hidden="true"><div class="r-ligne">${d.pad ? '<div class="pad"><i></i></div>' : ''}${kbds ? `<div class="touches">${kbds}</div>` : ''}</div><div class="r-geste"></div></div>
+          <div class="r-cmd">
+            <button class="bouton creux rejouer">Rejouer</button>
+            <button class="bouton plein suivant">Étape suivante</button>
+            <div class="r-opts"><label><input type="checkbox" class="autoCase" checked> Lecture automatique</label><label><input type="checkbox" class="lentCase"> Ralenti ×4</label></div>
+          </div>
+        </div>
+        <ol class="r-pas">${pas}</ol>
+      </div></div>`;
+  }
+
+  /* ---------- minuteries et attentes annulables ---------- */
+  apres(t, fn){ const id = setTimeout(() => { this.minuteries.delete(id); fn(); }, t * 1000 * K); this.minuteries.add(id); return id; }
+  annuler(){ this.minuteries.forEach(clearTimeout); this.minuteries.clear(); }
+  micro(){ const j = this.jeton; return Promise.resolve().then(() => { if (j !== this.jeton) throw 'stop'; }); }
+  attendre(t){
+    if (this.instant) return this.micro();
+    const j = this.jeton;
+    return new Promise((ok, ko) => this.apres(t, () => (j === this.jeton ? ok() : ko('stop'))));
+  }
+  tween(duree, fn){
+    if (this.instant){ fn(1); return this.micro(); }
+    const j = this.jeton, t0 = performance.now();
+    return new Promise((ok, ko) => {
+      const pas = () => {
+        if (j !== this.jeton) return ko('stop');
+        const u = clamp((performance.now() - t0) / (duree * 1000 * K), 0, 1);
+        fn(u);
+        if (u < 1) requestAnimationFrame(pas); else ok();
+      };
+      pas();
+    });
+  }
+  fin(){ return this.instant && this.enCoursN === this.cibleN; }   // dans un état posé, la fin d'une étape (son retour au calme) n'est pas jouée
+
+  /* ---------- l'îlot ---------- */
+  ilot(g, o = {}){
+    const c = this.cible, grand = (g.bw + g.bd) * g.h >= (c.bw + c.bd) * c.h - .5;
+    const rep = o.rep ?? (grand ? .46 : .38), z = o.z ?? (grand ? .78 : 1), att = o.attente ?? (grand ? 0 : .06);
+    this.cible = {...g};
+    for (const k of CLES){
+      if (this.instant) this.R[k].poser(g[k]);
+      else { const haut = k === 'h' && grand; this.R[k].viser(g[k], haut ? rep * 1.06 : rep, z, att + (haut ? .02 : 0)); }
+    }
+    this.demarrer();
+  }
+  pouls(){                                   // l'îlot respire une fois (sans changer de cible)
+    if (this.instant || REDUIT) return;
+    for (const k of ['bw', 'bd']){ this.R[k].viser(this.cible[k], .5, .42, 0); this.R[k].v += 70; }
+    this.R.h.viser(this.cible.h, .5, .42, 0); this.R.h.v += 34;
+    this.demarrer();
+  }
+  montre(noms, d = .14){
+    const vus = new Set(noms);
+    for (const nom in this.c){
+      const n = this.c[nom], on = vus.has(nom);
+      if (on && !n.classList.contains('on')) n.style.setProperty('--d', d + 's');
+      n.classList.toggle('on', on);
+    }
+  }
+  aile(nom){ return HC + 10 + this.c[nom].offsetWidth + 12; }   // demi-largeur de l'îlot pour que l'aile droite tienne son contenu
+  demarrer(){
+    if (FIGE || this.instant){ this.rendu(); return; }
+    if (!this.enCours){ this.enCours = true; this.tPrec = performance.now(); requestAnimationFrame(() => this.boucle()); }
+  }
+  boucle(){
+    const t = performance.now(), dt = clamp((t - this.tPrec) / 1000, 0, .05) / K; this.tPrec = t;   // jamais de pas négatif : le ressort diverge
+    const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+    for (let i = 0; i < n; i++) for (const r of this.TOUS) r.pas(h);
+    let bouge = false;
+    for (const r of this.TOUS) if (!r.pose()) bouge = true;
+    this.rendu();
+    if (bouge) requestAnimationFrame(() => this.boucle()); else this.enCours = false;
+  }
+  rendu(){
+    const g = {}; for (const k of CLES) g[k] = this.R[k].x;
+    this.forme.setAttribute('d', chemin(g));
+    const a = clamp((g.h - B - 6) / 40, 0, 1);
+    this.ombre.style.filter = a > .01 ? `drop-shadow(0 ${(9 * a).toFixed(1)}px ${(18 * a).toFixed(1)}px rgba(10,20,40,${(.32 * a).toFixed(3)}))` : 'none';
+  }
+
+  /* ---------- l'écran : fenêtres, barre des menus, pointeur ---------- */
+  app(nom){ this.menus.innerHTML = POMME + `<b>${nom}</b>` + MENUS[nom].map(m => `<span>${m}</span>`).join(''); }
+  devant(nom){
+    this.ordre = this.ordre.filter(n => n !== nom).concat(nom);
+    this.ordre.forEach((n, i) => { this.f[n].style.zIndex = i + 1; this.f[n].classList.toggle('arriere', n !== nom); });
+    this.app(this.def.apps[nom]);
+  }
+  fenetre(nom, vu){ this.f[nom].classList.toggle('cache', !vu); }
+  ou(el){
+    const r = el.getBoundingClientRect(), e = this.ecran.getBoundingClientRect();
+    return [(r.left + r.width / 2 - e.left) / this.s, (r.top + r.height / 2 - e.top) / this.s];
+  }
+  cur(x, y, o = {}){
+    const p = this.pointeur, saute = this.instant || o.saute;
+    p.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
+    p.style.transform = `translate(${f2(x)}px,${f2(y)}px)`;
+    if (saute){ void p.offsetWidth; p.style.transition = ''; }
+    p.classList.toggle('vu', o.vu !== false);
+  }
+  async va(x, y, d = .75){ this.cur(x, y, {duree:d}); await this.attendre(d); }
+  async vers(el, d = .75, dx = 0, dy = 0){ const [x, y] = this.ou(el); await this.va(x + dx, y + dy, d); }
+  doigt(on){ if (this.pad) this.pad.classList.toggle('actif', !!on); }
+  async clic(){
+    if (this.instant) return this.micro();
+    this.doigt(true); this.pointeur.classList.add('appui');
+    await this.attendre(.13);
+    this.pointeur.classList.remove('appui'); this.doigt(false);
+  }
+  prend(html){ this.fantome.className = 'fantome'; this.fantome.innerHTML = html; void this.fantome.offsetWidth; this.fantome.classList.add('vu'); this.doigt(true); }
+  lache(aspire){ this.fantome.classList.remove('vu'); if (aspire) this.fantome.classList.add('aspire'); this.doigt(false); }
+  touche(k){
+    const n = this.cles[k]; if (!n) return;
+    n.classList.add('fait');
+    if (this.instant) return;
+    n.classList.add('appui'); setTimeout(() => n.classList.remove('appui'), 150 * K);
+  }
+  touches(liste){ for (const k in this.cles) this.cles[k].classList.toggle('fait', liste.includes(k)); }
+  async tape(el, texte, duree){
+    await this.tween(duree, u => { el.textContent = texte.slice(0, Math.round(texte.length * u)); });
+  }
+
+  /* ---------- étapes ---------- */
+  majRegie(n){
+    this.etape = n;
+    const m = Math.max(1, n), e = this.def.etapes[m - 1], q = this.q;
+    q('.r-num').textContent = `Idée ${this.num} · ${this.def.nom} · étape ${m} sur ${this.N}`;
+    q('.r-titre').textContent = e.t; q('.r-phrase').textContent = e.p; q('.r-geste').textContent = e.g || '';
+    this.cadre.querySelectorAll('.r-pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === m));
+  }
+  async poser(n){
+    this.annuler();
+    this.instant = true; this.cadre.classList.add('snap');
+    this.fantome.className = 'fantome'; this.pointeur.classList.remove('appui'); this.doigt(false);
+    try {
+      this.cibleN = n; this.enCoursN = 0;
+      this.def.init(this);
+      for (let i = 1; i <= n; i++){ this.enCoursN = i; if (i === n) this.touches([]); await this.def.etapes[i - 1].jeu(this); }
+    } finally { this.instant = false; }
+    this.majRegie(n); this.rendu();
+    void this.cadre.offsetWidth;                                         // l'état posé est calculé tant que les transitions sont coupées
+    requestAnimationFrame(() => requestAnimationFrame(() => this.cadre.classList.remove('snap')));
+  }
+  async jouer(n){
+    this.majRegie(n);
+    if (REDUIT) return this.poser(n);
+    this.cadre.classList.remove('snap'); void this.cadre.offsetWidth;   // les transitions repartent tout de suite
+    this.cibleN = 0; this.enCoursN = n;
+    this.touches([]);
+    await this.def.etapes[n - 1].jeu(this);
+  }
+  arreter(){ this.jeton++; this.auto = false; this.annuler(); }
+  async tourner(){
+    this.arreter(); const j = this.jeton; this.auto = true;
+    try {
+      await this.poser(0); await this.attendre(.9);
+      for (;;){
+        for (let n = 1; n <= this.N; n++){ await this.jouer(n); await this.attendre(this.def.pauses[n - 1]); }
+        if (!this.autoCase.checked || !this.vu) break;
+        this.ecran.style.opacity = 0; await this.attendre(.3);
+        await this.poser(0); this.ecran.style.opacity = 1; await this.attendre(1.0);
+      }
+    } catch (e){ if (e !== 'stop') console.error(e); }
+    this.ecran.style.opacity = 1;
+    if (j === this.jeton) this.auto = false;
+  }
+  lance(n){                                  // joue l'étape n depuis la fin de la précédente
+    this.arreter(); this.ecran.style.opacity = 1;
+    this.poser(n - 1).then(() => this.jouer(n)).catch(e => { if (e !== 'stop') console.error(e); });
+  }
+  suivante(){ this.autoCase.checked = false; this.lance(this.etape >= this.N ? 1 : this.etape + 1); }
+  visible(oui){
+    if (oui === this.vu) return;
+    this.vu = oui;
+    this.cadre.classList.toggle('dort', !oui);
+    if (FIGE) return;
+    if (oui){ if (this.autoCase.checked) this.tourner(); }
+    else this.arreter();
+  }
+  brancher(){
+    const q = this.q;
+    q('.rejouer').addEventListener('click', () => { if (this.autoCase.checked) this.tourner(); else this.lance(Math.max(1, this.etape)); });
+    q('.suivant').addEventListener('click', () => this.suivante());
+    q('.r-pas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; this.autoCase.checked = false; this.lance(+b.dataset.e); });
+    this.autoCase.addEventListener('change', () => { if (this.autoCase.checked) this.tourner(); else this.arreter(); });
+    this.lentCase.addEventListener('change', e => ralenti(e.target.checked));
+  }
+}
+function ralenti(oui){
+  K = oui ? 4 : 1; racine.style.setProperty('--k', K);
+  idees.forEach(s => { s.lentCase.checked = oui; });
+}
+
+/* =========================================================
+   Idée 1 — Claude au travail (Terminal, puis Chrome)
+   ========================================================= */
+const W1 = 236, H1 = 106;
+const TACHES = ['Lire les 48 factures', 'Trouver la date de chaque facture', 'Créer un dossier par mois', 'Ranger les factures', 'Écrire le résumé'];
+const IDEE1 = {
+  nom:'Claude au travail', pad:true,
+  touches:[['cmd', '⌘'], ['tab', '⇥'], ['o', 'O'], ['ret', '↩']],
+  apps:{term:'Terminal', chrome:'Chrome'},
+  fenetres:
+    `<div class="fen term" data-f="term" style="left:56px;top:48px;width:650px;height:414px">
+      <div class="t-barre"><div class="feux"><i></i><i></i><i></i></div>Documents — claude — 92×24</div>
+      <div class="t-corps"><div class="g">Dernière connexion : mer. 11 nov. 14:12</div><div><span class="g">~/Documents</span> % claude</div><div class="t-boite"><span class="co">✻</span> Bienvenue dans <b>Claude Code</b>
+  <span class="g">dossier : ~/Documents</span></div>
+<div>&gt; <span data-tape="1"></span><i class="caret" data-caret="1"></i></div>
+<div class="tl" data-l="lit" hidden> <span class="co">●</span> Je regarde le dossier Factures : 48 fichiers.</div><div class="taches" data-l="taches" hidden>${TACHES.map((t, i) => `<div class="tache" data-t="${i + 1}">   ${i ? ' ' : '⎿'} <span class="cb">☐</span> <span class="tx">${t}</span></div>`).join('')}</div><div class="tl" data-l="q1" hidden>
+ <span class="co">●</span> Deux factures n’ont pas de date.</div><div class="tl" data-l="q2" hidden>   Je les mets dans un dossier « À trier » ? (o/n) <span data-tape="2"></span><i class="caret" data-caret="2"></i></div><div class="tl" data-l="fin" hidden>
+ <span class="ve">●</span> C’est fait : 46 factures rangées dans 12 dossiers,
+   2 dans « À trier ». Le résumé est dans resume.md.</div><div class="tl statut" data-l="statut" hidden><span class="co tourne-t">✻</span> Je range… <span class="g">(échap pour arrêter)</span></div></div>
+    </div>` +
+    chrome({f:'chrome', style:'left:268px;top:42px;width:872px;height:426px',
+      favicon:'<svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6.5" fill="#2c7a4b"/><path d="M3.5 9.5 6 5l2 3 1.2-1.6L11 9.5z" fill="#fff"/></svg>',
+      titre:'Dix jours à vélo le long de la Loire – Carnet de route', url:'carnetderoute.exemple.fr<span>/recits/loire-a-velo</span>',
+      page:`<div class="ar-tete"><b>Carnet de route</b><span>Itinéraires</span><span>Matériel</span><span>Récits</span><span>S’abonner</span></div>
+        <div class="ar-corps"><div class="ar-img"><svg viewBox="0 0 330 220" preserveAspectRatio="xMidYMid slice"><rect width="330" height="220" fill="#f3d9a8"/><circle cx="250" cy="62" r="26" fill="#fff4d6"/><path d="M0 132C60 104 120 116 170 128S270 110 330 96V220H0Z" fill="#8fb27a"/><path d="M0 160C80 140 150 156 220 166S300 150 330 146V220H0Z" fill="#6f9a5e"/><path d="M0 190C90 176 200 186 330 176V220H0Z" fill="#7fb3d6"/><path d="M40 188h60M150 196h70" stroke="#fff" stroke-opacity=".5" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <div><div class="ar-sur">Récit · 8 min de lecture</div><h4>Dix jours à vélo le long de la Loire</h4><div class="lignes"><i style="width:96%"></i><i style="width:88%"></i><i style="width:92%"></i><i style="width:70%"></i><i style="width:0;height:6px"></i><i style="width:94%"></i><i style="width:85%"></i><i style="width:90%"></i><i style="width:62%"></i></div></div></div>`}),
+  contenus:[
+    ['etoile', -(HC + 30), mid(18), `<span class="tourne">${etoile(18, 'var(--corail)')}</span>`],
+    ['avance', HC + 10, mid(17), `<span class="rang">${anneau(6.8, 'var(--corail)', 2.6, .2)}<span class="t135" style="color:var(--corail)" data-txt>1 sur 5</span></span>`],
+    ['b-etoile', -W1 + 22, B + 23, etoile(24, 'var(--corail)')],
+    ['b-texte', -W1 + 60, B + 17, `<div class="t15">Claude attend ta réponse</div><div class="t125">Deux factures sans date : je les mets à part ?</div>`],
+    ['b-ouvrir', W1 - 20 - 74, B + 22, capsule('Ouvrir')],
+    ['coche', -(HC + 30), mid(18), coche(18, 'var(--vert)')],
+    ['termine', HC + 10, mid(17), `<span class="t135" style="color:var(--vert)">Terminé</span>`]
+  ],
+  init(s){
+    s.ordre = ['chrome', 'term']; s.devant('term');
+    s.ilot(REPOS); s.montre([]);
+    s.cadre.querySelectorAll('.term [data-l]').forEach(n => { n.hidden = true; });
+    s.q('[data-tape="1"]').textContent = ''; s.q('[data-tape="2"]').textContent = '';
+    s.caret(1, true); s.caret(2, false);
+    s.tache(0); s.avance(1); s.etoileTourne(true);
+    s.cur(520, 330, {vu:false, saute:true});
+    s.touches([]);
+  },
+  etapes:[
+    {t:'Lancer une tâche, puis partir', p:'Dans le Terminal, vous demandez à Claude de ranger vos factures. Puis ⌘⇥ vers Chrome. L’îlot prend le relais : l’étoile de Claude à gauche, l’avancement à droite.', g:'Retour, puis ⌘⇥',
+     async jeu(s){
+       await s.attendre(.2);
+       await s.tape(s.q('[data-tape="1"]'), 'Range mes factures par mois et fais-moi un résumé.', 1.25);
+       s.touche('ret'); s.caret(1, false); await s.attendre(.25);
+       s.ligne('lit', true); await s.attendre(.4);
+       s.ligne('taches', true); s.ligne('statut', true); s.tache(1); await s.attendre(1.0);
+       s.touche('cmd'); await s.attendre(.1); s.touche('tab'); s.devant('chrome'); await s.attendre(.3);
+       s.avance(1); s.ilot(compact(HC + 40, s.aile('avance'))); s.montre(['etoile', 'avance']);
+       await s.attendre(.7);
+     }},
+    {t:'La tâche avance', p:'Vous lisez tranquillement. À droite de la caméra, l’anneau se remplit : « 3 sur 5 ». Rien ne bouge d’autre, rien ne s’ouvre.', g:'Rien à faire',
+     async jeu(s){
+       await s.attendre(.7); s.avance(2); s.tache(2);
+       await s.attendre(1.1); s.avance(3); s.tache(3);
+       await s.attendre(.6);
+     }},
+    {t:'Claude attend votre réponse', p:'Claude bloque sur une question. L’îlot descend sous la barre avec la question en clair et un bouton : Ouvrir.', g:'Rien à faire',
+     async jeu(s){
+       await s.attendre(.6);
+       s.tache(4); s.etoileTourne(false); s.ligne('statut', false); s.ligne('q1', true); s.ligne('q2', true); s.caret(2, true);
+       s.montre([], 0); s.ilot(bandeau(W1, H1)); s.montre(['b-etoile', 'b-texte', 'b-ouvrir'], .2);
+       await s.attendre(.9);
+     }},
+    {t:'Vous répondez', p:'Ouvrir ramène au Terminal, sur la question. Vous tapez o, Retour. Retour sur Chrome : l’îlot reprend l’avancement, « 4 sur 5 ».', g:'Clic sur Ouvrir, o, Retour, ⌘⇥',
+     async jeu(s){
+       s.cur(820, 300, {saute:true}); await s.attendre(.05);
+       await s.vers(s.c['b-ouvrir'], .75, 4, 2); await s.clic();
+       s.montre([], 0); s.ilot(REPOS); s.devant('term'); s.cur(820, 300, {vu:false, saute:true});
+       await s.attendre(.55);
+       s.touche('o'); s.q('[data-tape="2"]').textContent = 'o'; await s.attendre(.35);
+       s.touche('ret'); s.caret(2, false); s.etoileTourne(true); s.ligne('statut', true); await s.attendre(.9);
+       s.touche('cmd'); await s.attendre(.1); s.touche('tab'); s.devant('chrome'); await s.attendre(.3);
+       s.avance(4); s.ilot(compact(HC + 40, s.aile('avance'))); s.montre(['etoile', 'avance']);
+       await s.attendre(.7);
+     }},
+    {t:'Terminé', p:'Coche verte, « Terminé ». Vous savez que c’est fini sans retourner voir. Un clic sur l’îlot ramène au Terminal, et l’îlot se range.', g:'Clic sur l’îlot',
+     async jeu(s){
+       await s.attendre(.6); s.avance(5); s.tache(5); await s.attendre(.7);
+       s.tache(6); s.ligne('statut', false); s.ligne('fin', true);
+       s.montre([], 0); await s.attendre(.12);
+       s.ilot(compact(HC + 40, s.aile('termine'))); s.montre(['coche', 'termine'], .16);
+       await s.attendre(1.0);
+       s.cur(820, 300, {saute:true}); await s.attendre(.05);
+       await s.vers(s.c['termine'], .8, -6, 12);
+       if (s.fin()) return;
+       await s.attendre(.45); await s.clic();
+       s.montre([], 0); s.ilot(REPOS); s.devant('term'); s.cur(820, 300, {vu:false, saute:true});
+       await s.attendre(.9);
+     }}
+  ],
+  pauses:[1.6, 1.6, 2.2, 1.6, 2.4]
+};
+
+/* =========================================================
+   Idée 2 — L'étagère (Finder, puis Mail)
+   ========================================================= */
+const W2 = 206, H2Z = 133, H2E = 145;
+const FICHIERS = [
+  ['devis', doc(42), 'Devis-cuisine.pdf'], ['', dossier(50), 'Factures'], ['', dossier(50), 'Photos'], ['', doc(42, '#1f9d55', 'XLS'), 'Budget-2026.xlsx'],
+  ['', doc(42, '#2f6fde', 'DOC'), 'Lettre-banque.docx'], ['', `<div style="padding-bottom:4px">${photo(42, 4)}</div>`, 'Plan-salon.jpg'], ['', dossier(50), 'Impôts']
+];
+const fantomeDoc = `${doc(36)}<span>Devis-cuisine.pdf</span>`;
+const IDEE2 = {
+  nom:'L’étagère', pad:true,
+  apps:{finder:'Finder', mail:'Mail'},
+  fenetres:
+    `<div class="fen" data-f="finder" style="left:66px;top:56px;width:640px;height:386px">
+      <div class="feux"><i></i><i></i><i></i></div>
+      <div class="fi-barre"><span class="chev"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 2 2 8l6 6"/></svg><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".5"><path d="M2 2l6 6-6 6"/></svg></span>Documents</div>
+      <div class="fi-corps"><div class="fi-cote"><div class="ti">Favoris</div>
+        <div class="r"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.6V8l2.4 1.6" stroke-linecap="round"/></svg>Récents</div>
+        <div class="r"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M2 6h12"/></svg>Applications</div>
+        <div class="r"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.8" y="3" width="12.4" height="9" rx="1.6"/><path d="M5.5 14h5"/></svg>Bureau</div>
+        <div class="r sel"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 1.8h5.4L12.5 5v9.2H4z"/></svg>Documents</div>
+        <div class="r"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.5v6.4M5.4 8.4 8 11l2.6-2.6" stroke-linecap="round"/></svg>Téléchargements</div>
+        <div class="ti">iCloud</div><div class="r"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4.5 12.5a3 3 0 0 1-.3-6 4 4 0 0 1 7.6-.6 3.3 3.3 0 0 1 .3 6.6z"/></svg>iCloud Drive</div></div>
+        <div class="fi-grille">${FICHIERS.map(([id, ic, nm]) => `<div class="fic" ${id ? `data-fic="${id}"` : ''}><div class="ic">${ic}</div><div class="nm">${nm}</div></div>`).join('')}</div></div>
+    </div>
+    <div class="fen cache" data-f="mail" style="left:392px;top:50px;width:716px;height:410px">
+      <div class="feux"><i></i><i></i><i></i></div>
+      <div class="ma-barre">Nouveau message<span class="env"><svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M2.4 9.2 17 2.8c.5-.2 1 .3.8.8L11.4 18c-.2.5-.9.5-1.1 0l-1.9-5.6a1 1 0 0 0-.6-.6L2.4 10.3c-.5-.2-.5-.9 0-1.1z"/></svg></span></div>
+      <div class="ma-champ"><span>À :</span><b class="puce">Paul</b></div>
+      <div class="ma-champ"><span>Objet :</span>Le devis de la cuisine</div>
+      <div class="ma-corps">Bonjour Paul,<div style="height:20px"></div><div data-mtxt style="min-height:20px"></div><div class="ma-pj">${doc(46)}<span>Devis-cuisine.pdf</span></div><div style="height:20px"></div>Bonne journée,<br>Hugues</div>
+    </div>`,
+  contenus:[
+    ['zone', -W2 + 18, B + 12, `<div class="zone"><span class="z-vide">${plateauG(20, 'currentColor')}Déposez ici</span><span class="z-plein">${doc(30)}Devis-cuisine.pdf<i>${coche(13, 'var(--vert)')}Rangé</i></span></div>`],
+    ['tray', -(HC + 30), mid(18), plateauG(18)],
+    ['compte', HC + 12, mid(19), `<span class="badge">1</span>`],
+    ['eta-tete', -W2 + 20, B + 13, `<div class="t135" style="color:rgba(255,255,255,.55)">Étagère</div>`],
+    ['eta-nb', W2 - 20 - 90, B + 13, `<div class="t135" style="width:90px;text-align:right;color:rgba(255,255,255,.4);font-weight:500">1 fichier</div>`],
+    ['eta-fichier', -W2 + 20, B + 38, `<div class="tuileF"><span class="ic">${doc(34)}</span><div><div class="t15" style="font-size:14px">Devis-cuisine.pdf</div><div class="t125" style="margin-top:2px">1,1 Mo · glissez-le où vous voulez</div></div></div>`]
+  ],
+  init(s){
+    s.ordre = ['mail', 'finder']; s.fenetre('mail', false); s.devant('finder');
+    s.ilot(REPOS); s.montre([]);
+    const z = s.q('.zone'); z.classList.remove('survol', 'plein');
+    s.q('.tuileF').classList.remove('pris');
+    s.q('[data-fic="devis"]').classList.remove('sel');
+    s.q('[data-mtxt]').textContent = ''; s.q('.ma-pj').classList.remove('vu');
+    s.cur(440, 352, {saute:true});
+  },
+  etapes:[
+    {t:'Glisser un fichier vers l’encoche', p:'Vous prenez un PDF dans le Finder et le glissez vers le haut de l’écran. Dès que le fichier approche, l’îlot s’ouvre en zone de dépôt.', g:'Cliquer-glisser vers l’encoche',
+     async jeu(s){
+       const fic = s.q('[data-fic="devis"]');
+       await s.vers(fic.querySelector('.ic'), .75, 2, 4);
+       fic.classList.add('sel'); s.pointeur.classList.add('appui'); s.prend(fantomeDoc); await s.attendre(.22);
+       await s.va(470, 190, .6);
+       s.ilot(bandeau(W2, H2Z)); s.montre(['zone'], .18);
+       await s.va(700, 90, .55);
+       s.q('.zone').classList.add('survol'); await s.attendre(.5);
+     }},
+    {t:'Lâcher : c’est rangé', p:'Vous lâchez. Le fichier entre dans l’îlot, qui se referme aussitôt. Il garde un petit compteur dans son aile : un fichier en attente.', g:'Lâcher',
+     async jeu(s){
+       s.pointeur.classList.remove('appui'); s.lache(true);
+       const z = s.q('.zone'); z.classList.remove('survol'); z.classList.add('plein');
+       await s.attendre(1.0);
+       s.montre([], 0); s.ilot(compact(HC + 40, HC + 40)); s.montre(['tray', 'compte'], .16);
+       s.q('[data-fic="devis"]').classList.remove('sel');
+       await s.va(440, 352, .8);
+     }},
+    {t:'Plus tard, dans Mail', p:'Vous écrivez à Paul. Le devis est toujours là, dans l’îlot. Pas besoin de rouvrir le Finder.', g:'Taper le message',
+     async jeu(s){
+       s.fenetre('mail', true); s.devant('mail'); await s.attendre(.35);
+       await s.va(620, 268, .6);
+       await s.tape(s.q('[data-mtxt]'), 'Voici le devis dont on a parlé ce matin.', 1.0);
+       await s.attendre(.3);
+     }},
+    {t:'Survoler l’îlot', p:'Le pointeur sur l’îlot : l’étagère s’ouvre et montre le fichier, avec sa taille.', g:'Pointeur sur l’îlot',
+     async jeu(s){
+       await s.va(704, 17, .8); await s.attendre(.22);
+       s.ilot(bandeau(W2, H2E)); s.montre(['eta-tete', 'eta-nb', 'eta-fichier'], .2);
+       await s.attendre(.8);
+     }},
+    {t:'Le glisser dans le message', p:'Vous tirez le fichier hors de l’îlot jusque dans le message. Il devient une pièce jointe, l’étagère se vide et l’îlot se range.', g:'Cliquer-glisser dans le message',
+     async jeu(s){
+       const tuile = s.q('.tuileF');
+       await s.vers(tuile.querySelector('.ic'), .5, 2, 4);
+       s.pointeur.classList.add('appui'); s.prend(fantomeDoc); tuile.classList.add('pris'); await s.attendre(.2);
+       s.cur(560, 318, {duree:1.0}); await s.attendre(.38);
+       s.montre([], 0); s.ilot(compact(HC + 40, HC + 40)); s.montre(['tray', 'compte'], .14);
+       await s.attendre(.7);
+       s.pointeur.classList.remove('appui'); s.lache(false); s.q('.ma-pj').classList.add('vu'); tuile.classList.remove('pris');
+       await s.attendre(.25);
+       s.montre([], 0); s.ilot(REPOS);
+       await s.attendre(.8);
+     }}
+  ],
+  pauses:[1.2, 1.6, 1.4, 1.8, 2.4]
+};
+
+/* =========================================================
+   Idée 3 — Téléchargé (Chrome, puis Aperçu)
+   ========================================================= */
+const W3 = 206, H3 = 104;
+const IDEE3 = {
+  nom:'Téléchargé', pad:true,
+  apps:{chrome:'Chrome', apercu:'Aperçu'},
+  fenetres:
+    chrome({f:'chrome', style:'left:52px;top:41px;width:1076px;height:421px',
+      favicon:'<svg width="14" height="14" viewBox="0 0 14 14"><rect width="14" height="14" rx="3.5" fill="#1d1d1f"/><path d="M4 10l5.5-5.5 1 1L5 11H4z" fill="#fff"/></svg>',
+      titre:'C’est signé – Signature en ligne', url:'signature.exemple.fr<span>/c/8F2K/termine</span>',
+      outils:`<span class="ib dl-ic"><svg width="20" height="20" viewBox="-10 -10 20 20"><circle r="8.4" fill="none" stroke="#d6dbe3" stroke-width="2"/><circle class="arc" r="8.4" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linecap="round" pathLength="100" style="stroke-dasharray:0 100" transform="rotate(-90)"/><path d="M0-4.2v7M-3 .4 0 3.4 3 .4" fill="none" stroke="#1a73e8" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`,
+      page:`<div class="sg-tete"><span class="lg"><svg width="13" height="13" viewBox="0 0 14 14"><path d="M3 11l6.4-6.4 1.4 1.4L4.4 12.4H3z" fill="#fff"/></svg></span>Signature en ligne</div>
+        <div class="sg-corps"><div class="sg-ok"><svg width="26" height="26" viewBox="0 0 20 20"><path d="M4.5 10.4l3.6 3.6 7.4-7.8" fill="none" stroke="#1f9d55" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h4>C’est signé.</h4><p>Le contrat est signé par les deux parties.<br>Gardez-en une copie.</p>
+        <div class="sg-bouton"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8M4.6 7.4 8 10.8l3.4-3.4M3 13.5h10"/></svg>Télécharger le PDF</div>
+        <small>Contrat-signé.pdf · 2,4 Mo</small></div>`}) +
+    `<div class="fen cache" data-f="apercu" style="left:206px;top:60px;width:560px;height:404px">
+      <div class="feux"><i></i><i></i><i></i></div>
+      <div class="pv-barre"><b>Contrat-signé.pdf</b><span>Page 1 sur 3</span></div>
+      <div class="pv-corps"><div class="pv-feuille"><h5>Contrat de prestation</h5><div class="s">Signé le 11 novembre 2026</div>
+        <i style="width:96%"></i><i style="width:90%"></i><i style="width:94%"></i><i style="width:58%"></i><i style="width:0;margin-bottom:12px"></i>
+        <i style="width:92%"></i><i style="width:96%"></i><i style="width:84%"></i><i style="width:90%"></i><i style="width:44%"></i><i style="width:0;margin-bottom:12px"></i>
+        <i style="width:94%"></i><i style="width:80%"></i>
+        <div class="pv-sign"><div><svg width="90" height="26" viewBox="0 0 90 26" style="margin:-30px 0 4px"><path d="M4 18c8-14 12-14 10-2s6-12 12-8-2 10 6 6 10-10 14-4 6 6 14 0 10-4 18-2" fill="none" stroke="#24408e" stroke-width="1.6" stroke-linecap="round"/></svg>Le client</div><div><svg width="90" height="26" viewBox="0 0 90 26" style="margin:-30px 0 4px"><path d="M6 16c6-10 14-12 14-4s4 6 10-2 8-6 10 0 8 4 14-2 12-2 20 0" fill="none" stroke="#24408e" stroke-width="1.6" stroke-linecap="round"/></svg>Le prestataire</div></div>
+      </div></div>
+    </div>`,
+  contenus:[
+    ['dl-fleche', -(HC + 30), mid(18), flecheBas(18)],
+    ['dl-anneau', HC + 12, mid(16.2), anneau(6.8, 'var(--bleu)', 2.6, 0)],
+    ['b-doc', -W3 + 20, B + 15, doc(40)],
+    ['b-texte', -W3 + 66, B + 18, `<div class="t15">Contrat-signé.pdf</div><div class="t125">Téléchargé · 2,4 Mo</div>`],
+    ['b-ouvrir', W3 - 20 - 72, B + 20, capsule('Ouvrir')],
+    ['a-photo', -W3 + 20, B + 16, photo(38)],
+    ['a-texte', -W3 + 66, B + 18, `<div class="t15">IMG_4127.HEIC</div><div class="t125">Reçu par AirDrop · de iPhone</div>`],
+    ['a-ouvrir', W3 - 20 - 72, B + 20, capsule('Ouvrir')]
+  ],
+  init(s){
+    s.ordre = ['apercu', 'chrome']; s.fenetre('apercu', false); s.devant('chrome');
+    s.ilot(REPOS); s.montre([]);
+    s.anneau(s.c['dl-anneau'], 0); s.dl(0, false);
+    s.cur(860, 330, {saute:true});
+  },
+  etapes:[
+    {t:'Cliquer sur Télécharger', p:'Le fichier part. L’îlot le montre tout de suite : une flèche à gauche, l’anneau qui se remplit à droite.', g:'Clic',
+     async jeu(s){
+       await s.vers(s.q('.sg-bouton'), .8, 10, 4); await s.clic();
+       s.dl(.02, true);
+       s.ilot(compact(HC + 40, HC + 40)); s.montre(['dl-fleche', 'dl-anneau']); await s.attendre(.3);
+       await s.tween(1.1, u => { s.anneau(s.c['dl-anneau'], .06 + .64 * u); s.dl(.06 + .64 * u, true); });
+     }},
+    {t:'Le fichier arrive', p:'L’anneau se ferme, l’îlot descend : le nom du fichier, sa taille, et un bouton pour l’ouvrir.', g:'Rien à faire',
+     async jeu(s){
+       await s.tween(.4, u => { s.anneau(s.c['dl-anneau'], .7 + .3 * u); s.dl(.7 + .3 * u, true); });
+       await s.attendre(.15);
+       s.montre([], 0); s.ilot(bandeau(W3, H3)); s.montre(['b-doc', 'b-texte', 'b-ouvrir'], .2);
+       await s.attendre(.8);
+     }},
+    {t:'Ouvrir', p:'Un clic sur Ouvrir : le contrat s’ouvre dans Aperçu et l’îlot se range. Pas besoin d’aller chercher dans Téléchargements.', g:'Clic sur Ouvrir',
+     async jeu(s){
+       await s.vers(s.c['b-ouvrir'], .75, 4, 2); await s.clic();
+       s.montre([], 0); s.ilot(REPOS); await s.attendre(.12);
+       s.fenetre('apercu', true); s.devant('apercu');
+       await s.va(980, 400, .8);
+     }},
+    {t:'Pareil avec AirDrop', p:'Une photo arrive de votre iPhone. Même bandeau, même bouton : « Reçu par AirDrop · de iPhone ».', g:'Rien à faire',
+     async jeu(s){
+       await s.attendre(.7);
+       s.ilot(bandeau(W3, H3)); s.montre(['a-photo', 'a-texte', 'a-ouvrir'], .2);
+       await s.attendre(.9);
+     }}
+  ],
+  pauses:[.6, 1.8, 1.6, 2.6]
+};
+
+/* =========================================================
+   Idée 4 — Volume et luminosité (la vidéo de 3-spotlight.html)
+   ========================================================= */
+const YT = `<div class="yt-h">
+    <div class="yt-g"><svg width="20" height="20" viewBox="0 0 20 20" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 5h15M2.5 10h15M2.5 15h15"/></svg>
+      <div class="yt-logo"><svg width="29" height="20" viewBox="0 0 29 20"><rect width="29" height="20" rx="6.2" fill="#ff0033"/><path d="M11.7 5.7v8.6l7.5-4.3z" fill="#fff"/></svg><span>YouTube</span><sup>FR</sup></div></div>
+    <div class="yt-rech"><div class="yt-champ"><span>Rechercher</span><i><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><circle cx="8.6" cy="8.6" r="5.9"/><path d="M13 13l4.4 4.4"/></svg></i></div>
+      <div class="yt-rond"><svg width="20" height="20" viewBox="0 0 24 24" fill="#0f0f0f"><rect x="8.8" y="2.6" width="6.4" height="11.6" rx="3.2"/><path d="M5.8 11.4a6.2 6.2 0 0 0 12.4 0M12 17.8v3.4" fill="none" stroke="#0f0f0f" stroke-width="1.8" stroke-linecap="round"/></svg></div></div>
+    <div class="yt-d"><div class="yt-creer"><svg width="20" height="20" viewBox="0 0 20 20" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><path d="M10 3.5v13M3.5 10h13"/></svg>Créer</div>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3.2c-3.2 0-5.6 2.5-5.6 5.8v3.6L4.6 16h14.8l-1.8-3.4V9c0-3.3-2.4-5.8-5.6-5.8zM9.6 19a2.5 2.5 0 0 0 4.8 0"/></svg><div class="yt-av"></div></div>
+  </div>
+  <div class="yt-c">
+    <div><div class="lecteur">${affiche('y4')}</div></div>
+    <div><div class="puces"><span class="on">Tous</span><span>Le Coin Tech</span><span>Baladeurs</span><span>Récemment ajoutées</span></div>
+      <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#cdbd9e"/><rect x="50" y="16" width="68" height="52" rx="6" fill="#5a5145"/><rect x="57" y="22" width="54" height="36" rx="3" fill="#1d2a22"/><rect x="62" y="28" width="30" height="3" fill="#79d37c"/><rect x="62" y="35" width="40" height="3" fill="#79d37c" opacity=".7"/><rect x="62" y="42" width="24" height="3" fill="#79d37c" opacity=".7"/><rect x="42" y="70" width="84" height="12" rx="3" fill="#70675a"/></svg><b>18:42</b></div><div><p>J’ai utilisé un Minitel pendant une semaine</p><span>Le Coin Tech</span><span>412 k vues · il y a 2 semaines</span></div></div>
+      <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#27364d"/><rect x="48" y="28" width="72" height="46" rx="7" fill="#e8593a"/><rect x="58" y="37" width="52" height="19" rx="4" fill="#27364d"/><circle cx="72" cy="46.5" r="5.5" fill="#f3efe6"/><circle cx="96" cy="46.5" r="5.5" fill="#f3efe6"/><rect x="64" y="62" width="40" height="5" rx="2.5" fill="#b9432b"/></svg><b>12:08</b></div><div><p>Pourquoi les baladeurs reviennent à la mode</p><span>Tech &amp; Rétro</span><span>96 k vues · il y a 5 jours</span></div></div>
+      <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#e7e2da"/><rect x="34" y="14" width="42" height="68" rx="6" fill="#fff" stroke="#c8ccd3"/><rect x="39" y="20" width="32" height="24" rx="2" fill="#5b93dc"/><circle cx="55" cy="62" r="12" fill="#eceef1" stroke="#d3d6dc"/><rect x="92" y="24" width="46" height="30" rx="3" fill="#2c8a5b"/><rect x="98" y="30" width="14" height="8" fill="#1c5a3b"/><rect x="92" y="62" width="50" height="5" rx="2.5" fill="#9aa3ad"/><rect x="92" y="72" width="34" height="5" rx="2.5" fill="#9aa3ad"/></svg><b>24:31</b></div><div><p>Restaurer un iPod Classic : batterie, mémoire, coque</p><span>L’Atelier du son</span><span>1,1 M de vues · il y a 3 mois</span></div></div>
+    </div>
+  </div>`;
+const IDEE4 = {
+  nom:'Volume et luminosité', pad:false,
+  touches:[['lum-', soleil(15, 'currentColor', false)], ['lum+', soleil(17, 'currentColor')], ['vol-', hpMoins(17)], ['vol+', hp(17, 'currentColor')]],
+  apps:{chrome:'Chrome'},
+  fenetres:chrome({f:'chrome', style:'left:52px;top:41px;width:1076px;height:425px',
+    favicon:'<svg width="16" height="12" viewBox="0 0 16 12"><rect width="16" height="12" rx="3.4" fill="#ff0033"/><path d="M6.4 3.4v5.2L10.9 6z" fill="#fff"/></svg>',
+    titre:'Je détestais la mode des iPods, donc j’en ai racheté un en 2026 - YouTube', url:'youtube.com<span>/watch?v=k7Rm2NnIpod</span>', page:YT}),
+  contenus:[
+    ['mini', -125, 8.5, `<div class="art">${affiche('m4')}</div>`],
+    ['onde', 103, 9.5, '<div class="eq"><i></i><i></i><i></i><i></i><i></i></div>'],
+    ['hp', -(HC + 30), mid(20), hp(20)],
+    ['soleil', -(HC + 30), mid(20), soleil(20)],
+    ['barreVol', HC + 12, mid(6), '<div class="niveau"><b style="width:50%"></b></div>'],
+    ['barreLum', HC + 12, mid(6), '<div class="niveau"><b style="width:62%"></b></div>']
+  ],
+  init(s){
+    s.ordre = ['chrome']; s.devant('chrome');
+    s.ilot(compact(N0, N0)); s.montre(['mini', 'onde']);
+    s.niveau('barreVol', 50); s.niveau('barreLum', 62); s.monde.style.filter = 'brightness(.95)';
+    s.cur(700, 380, {vu:false, saute:true});
+  },
+  etapes:[
+    {t:'La vidéo joue', p:'L’îlot montre la lecture : la miniature à gauche, l’onde du son à droite. C’est l’îlot d’aujourd’hui.', g:'Mains au repos',
+     async jeu(s){ await s.attendre(.5); }},
+    {t:'Monter le son', p:'Vous appuyez sur la touche du volume. L’îlot montre le haut-parleur à gauche et la barre qui monte à droite. Le grand carré gris de macOS n’apparaît plus.', g:'Touche volume +, trois fois',
+     async jeu(s){
+       for (let i = 0; i < 3; i++){
+         s.touche('vol+');
+         if (i === 0){ s.montre([], 0); s.ilot(compact(HC + 40, HC + 120)); s.montre(['hp', 'barreVol'], .1); }
+         s.niveau('barreVol', [56, 63, 69][i]);
+         await s.attendre(.42);
+       }
+     }},
+    {t:'Plus de lumière', p:'Même chose pour la luminosité : un soleil à la place du haut-parleur, la même barre. L’îlot ne change pas de taille.', g:'Touche luminosité +, deux fois',
+     async jeu(s){
+       for (let i = 0; i < 2; i++){
+         s.touche('lum+');
+         if (i === 0) s.montre(['soleil', 'barreLum'], .04);
+         s.niveau('barreLum', [69, 75][i]); s.monde.style.filter = ['brightness(.98)', 'none'][i];
+         await s.attendre(.45);
+       }
+     }},
+    {t:'La vidéo revient', p:'Une seconde et demie sans toucher au clavier, et l’îlot redevient la lecture. La vidéo n’a pas bougé.', g:'Mains au repos',
+     async jeu(s){
+       await s.attendre(1.5);
+       s.montre([], 0); s.ilot(compact(N0, N0)); s.montre(['mini', 'onde'], .16);
+       await s.attendre(.6);
+     }}
+  ],
+  pauses:[.8, 1.2, 1.2, 2.6]
+};
+
+/* =========================================================
+   Idée 5 — Micro coupé (une réunion dans Chrome)
+   ========================================================= */
+const W5 = 186, H5 = 104;
+const micOn = '<svg class="on" width="20" height="20" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="#fff"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg>';
+const micOff = '<svg class="off" width="20" height="20" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="#fff"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M3 2.5l14 15" stroke="#ea4335" stroke-width="3.6" stroke-linecap="round"/><path d="M3 2.5l14 15" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg>';
+const mini = t => t.replace(/width="20" height="20"/g, 'width="12" height="12"');
+const tuile = (id, nom, init, fond, av) => `<div class="tuile" data-tuile="${id}" style="background:${fond}"><div class="av" style="background:${av}">${init}</div>
+  <div class="nm"><span class="mc">${mini(micOn)}${mini(micOff)}</span>${nom}</div><div class="niv"><i></i><i></i><i></i></div></div>`;
+const IDEE5 = {
+  nom:'Micro coupé', pad:false,
+  touches:[['ctrl', '⌃'], ['opt', '⌥'], ['m', 'M']],
+  apps:{chrome:'Chrome'},
+  fenetres:chrome({f:'chrome', style:'left:52px;top:41px;width:1076px;height:425px',
+    favicon:'<svg width="14" height="14" viewBox="0 0 14 14"><rect width="14" height="14" rx="3.5" fill="#1f9d55"/><rect x="2.6" y="4.4" width="6" height="5.2" rx="1.2" fill="#fff"/><path d="M9 6.2l2.6-1.5v4.6L9 7.8z" fill="#fff"/></svg>',
+    titre:'Point du lundi – Réunion', url:'reunion.exemple.fr<span>/point-du-lundi</span>',
+    page:`<div class="vi"><div class="vi-tete">Point du lundi<span data-heure>12:04</span><span class="rec">4 participants</span></div>
+      <div class="vi-grille">${tuile('moi', 'Hugues (vous)', 'H', 'linear-gradient(150deg,#3b4a5e,#262d38)', '#5b7bb0')}${tuile('lea', 'Léa', 'L', 'linear-gradient(150deg,#4b3b56,#2c2533)', '#a0699f')}${tuile('marc', 'Marc', 'M', 'linear-gradient(150deg,#3c5246,#252f29)', '#5e9a72')}${tuile('sofia', 'Sofia', 'S', 'linear-gradient(150deg,#5a4637,#33291f)', '#c08a52')}</div>
+      <div class="vi-bas"><span class="bt" data-mic>${micOn}${micOff}</span><span class="bt"><svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="5.5" width="11" height="9" rx="2.2" fill="#fff"/><path d="M13.6 9l4.2-2.6v7.2L13.6 11z" fill="#fff"/></svg></span><span class="bt"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"><rect x="2.5" y="3.5" width="15" height="10.5" rx="1.8"/><path d="M10 11V6.6M7.8 8.6 10 6.4l2.2 2.2M7 17h6" stroke-linecap="round"/></svg></span><span class="bt quit"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M3 13.6c4.8-4.6 13.2-4.6 18 0l-2 2.4-3.4-1.4v-2.4c-2.4-.9-4.8-.9-7.2 0v2.4L5 16z" fill="#fff"/></svg></span></div></div>`}),
+  contenus:[
+    ['m-coupe', -(HC + 30), mid(20), micBarre(20, 'var(--rouge)')],
+    ['t-coupe', HC + 10, mid(17), `<span class="t135" style="color:var(--rouge)">Coupé</span>`],
+    ['p-mic', -W5 + 20, B + 16, `<div class="halo">${micBarre(22, 'var(--rouge)')}</div>`],
+    ['p-texte', -W5 + 72, B + 18, `<div class="t15">Tu parles, micro coupé</div><div class="t125">⌃⌥M pour l’ouvrir</div>`],
+    ['p-voix', W5 - 20 - 25, B + 28, '<div class="voix"><i></i><i></i><i></i><i></i><i></i></div>'],
+    ['m-ouvert', -(HC + 30), mid(20), micro(20, 'var(--vert)')],
+    ['t-ouvert', HC + 10, mid(17), `<span class="t135" style="color:var(--vert)">Micro ouvert</span>`]
+  ],
+  init(s){
+    s.ordre = ['chrome']; s.devant('chrome');
+    s.ilot(REPOS); s.montre([]);
+    s.micAppel(true); s.parle('lea', true); s.parle('moi', false); s.voix(false); s.q('[data-heure]').textContent = '12:04';
+    s.cur(700, 380, {vu:false, saute:true});
+  },
+  etapes:[
+    {t:'Couper le micro', p:'En pleine réunion, ⌃⌥M coupe le micro, quelle que soit l’app devant. L’îlot l’affiche et le garde : micro barré en rouge, « Coupé ».', g:'⌃⌥M',
+     async jeu(s){
+       await s.attendre(.5);
+       s.touche('ctrl'); await s.attendre(.07); s.touche('opt'); await s.attendre(.07); s.touche('m');
+       s.micAppel(false);
+       s.ilot(compact(HC + 40, s.aile('t-coupe'))); s.montre(['m-coupe', 't-coupe']);
+       await s.attendre(.7);
+     }},
+    {t:'Ça reste affiché', p:'Tant que le micro est coupé, l’îlot le dit. Léa parle, la réunion continue : vous ne pouvez pas l’oublier.', g:'Rien à faire',
+     async jeu(s){
+       s.touches([]); s.parle('lea', false); s.parle('marc', true); await s.attendre(1.2);
+       s.q('[data-heure]').textContent = '12:05'; s.parle('marc', false); s.parle('lea', true); await s.attendre(1.0);
+       s.parle('lea', false);
+     }},
+    {t:'Vous parlez, micro coupé', p:'Vous répondez sans penser au micro. L’îlot descend, respire doucement et vous prévient : « Tu parles, micro coupé ».', g:'Vous parlez',
+     async jeu(s){
+       s.voix(true); await s.attendre(.5);
+       s.montre([], 0); s.ilot(bandeau(W5, H5)); s.montre(['p-mic', 'p-texte', 'p-voix'], .2);
+       for (let i = 0; i < 3; i++){ await s.attendre(.95); s.pouls(); }
+       await s.attendre(.5);
+     }},
+    {t:'⌃⌥M : micro ouvert', p:'Le même raccourci rouvre le micro. « Micro ouvert » en vert, une seconde et demie, puis l’îlot se range.', g:'⌃⌥M',
+     async jeu(s){
+       s.touche('ctrl'); await s.attendre(.07); s.touche('opt'); await s.attendre(.07); s.touche('m');
+       s.micAppel(true); s.parle('moi', true);
+       s.montre([], 0); s.ilot(compact(HC + 40, s.aile('t-ouvert'))); s.montre(['m-ouvert', 't-ouvert'], .16);
+       await s.attendre(.3);
+       if (s.fin()) return;
+       await s.attendre(1.5);
+       s.montre([], 0); s.ilot(REPOS); s.voix(false); s.parle('moi', false);
+       await s.attendre(.8);
+     }}
+  ],
+  pauses:[1.4, .6, 1.6, 2.2]
+};
+
+/* =========================================================
+   Outils propres à chaque idée
+   ========================================================= */
+Object.assign(Idee.prototype, {
+  /* idée 1 */
+  ligne(nom, vu){ const n = this.q(`[data-l="${nom}"]`); if (n) n.hidden = !vu; },
+  caret(i, vu){ const n = this.q(`[data-caret="${i}"]`); if (n) n.hidden = !vu; },
+  tache(k){                                   // k = la tâche en cours (1 à 5), 6 = toutes faites
+    this.cadre.querySelectorAll('.tache').forEach(n => {
+      const i = +n.dataset.t;
+      n.classList.toggle('fait', i < k); n.classList.toggle('cours', i === k);
+      n.querySelector('.cb').textContent = i < k ? '☒' : '☐';
+    });
+  },
+  avance(k){
+    const n = this.c.avance; if (!n) return;
+    n.querySelector('[data-txt]').textContent = `${k} sur 5`;
+    this.anneau(n, k / 5);
+  },
+  etoileTourne(oui){ const n = this.c.etoile && this.c.etoile.querySelector('.tourne'); if (n) n.classList.toggle('arret', !oui); },
+  anneau(n, frac){ const a = n.querySelector('.arc'); a.style.strokeDasharray = `${f2(frac * 100)} 100`; a.style.opacity = frac > .001 ? 1 : 0; },
+  /* idée 3 */
+  dl(frac, vu){ const n = this.q('.dl-ic'); if (!n) return; n.classList.toggle('vu', vu); this.anneau(n, frac); },
+  /* idée 4 */
+  niveau(nom, pct){ this.c[nom].querySelector('b').style.width = pct + '%'; },
+  /* idée 5 */
+  micAppel(ouvert){ this.q('[data-mic]').classList.toggle('rouge', !ouvert); this.q('[data-tuile="moi"]').classList.toggle('muet', !ouvert); },
+  parle(qui, oui){ this.q(`[data-tuile="${qui}"]`).classList.toggle('parle', oui); },
+  voix(oui){ this.q('[data-tuile="moi"]').classList.toggle('sonore', oui); }
+});
+
+/* =========================================================
+   Montage, mise à l'échelle, lecture quand l'idée est à l'écran
+   ========================================================= */
+[IDEE1, IDEE2, IDEE3, IDEE4, IDEE5].forEach((d, i) => idees.push(new Idee(i + 1, d)));
+const NAV = 44;
+function ajuster(){
+  for (const s of idees){
+    const H = s.plateau.offsetHeight;
+    const place = s.sec.clientWidth;
+    const k = Math.min(1, place / LE, Math.max(.5, (innerHeight - NAV - 20) / H));
+    s.s = k;
+    s.cadre.style.width = f2(LE * k) + 'px'; s.cadre.style.height = f2(H * k) + 'px';
+    s.cadre.style.borderRadius = Math.round(20 * Math.max(k, .6)) + 'px';
+    s.plateau.style.transform = `scale(${k.toFixed(4)})`;
+  }
+}
+ajuster();
+let tAj = 0;
+addEventListener('resize', () => { cancelAnimationFrame(tAj); tAj = requestAnimationFrame(ajuster); });
+
+/* l'index amène le cadre entier à l'écran, avec le titre s'il y a la place */
+function amener(n, doux){
+  const s = idees[n - 1]; if (!s) return;
+  const haut = s.sec.getBoundingClientRect().top + scrollY - NAV;
+  const r = s.cadre.getBoundingClientRect();
+  const y = Math.min(Math.max(haut, r.bottom + scrollY + 14 - innerHeight), r.top + scrollY - NAV - 10);
+  scrollTo({top:Math.max(0, y), behavior:doux && !REDUIT ? 'smooth' : 'instant'});
+}
+document.querySelector('.index').addEventListener('click', e => {
+  const a = e.target.closest('a.i'); if (!a) return;
+  e.preventDefault(); amener(+a.getAttribute('href').slice(-1), true);
+  history.replaceState(null, '', a.getAttribute('href'));
+});
+const liens = [...document.querySelectorAll('.index a.i')];
+let courante = null;
+function marquer(){
+  const vus = idees.filter(s => s.vu);
+  courante = vus.length ? vus[0] : null;
+  liens.forEach((a, i) => a.classList.toggle('ici', courante === idees[i]));
+}
+
+/* départ : chaque idée posée avant sa première étape (ou à l'étape demandée) */
+const sec0 = clamp(+(Q.get('section') || 0), 0, 5);
+if (sec0 && Q.has('seul')){
+  document.querySelector('.hero').style.display = 'none'; document.querySelector('.pied').style.display = 'none';
+  idees.forEach(s => { if (s.num !== sec0) s.sec.style.display = 'none'; });
+  idees[sec0 - 1].sec.style.paddingTop = '16px';
+  ajuster();
+}
+const et0 = +(Q.get('etape') || 0);
+if (Q.has('lent')) ralenti(true);
+(async () => {
+  for (const s of idees){
+    if (FIGE || Q.has('joue')) s.autoCase.checked = false;
+    const n = s.num === sec0 && FIGE ? clamp(et0, 0, s.N) : 0;
+    await s.poser(n);
+  }
+  if (sec0 && !Q.has('seul')) amener(sec0, false);
+  if (sec0 && Q.has('joue') && et0 >= 1){ const s = idees[sec0 - 1]; setTimeout(() => s.lance(clamp(et0, 1, s.N)), 400); }
+  if ('IntersectionObserver' in window){
+    const guet = new IntersectionObserver(vus => {
+      for (const v of vus){
+        const s = idees.find(k => k.cadre === v.target);
+        if (v.intersectionRatio >= .5) s.visible(true);
+        else if (v.intersectionRatio < .2) s.visible(false);
+      }
+      marquer();
+    }, {threshold:[0, .2, .5, 1]});
+    idees.forEach(s => guet.observe(s.cadre));
+  } else idees.forEach(s => s.visible(true));
+})();
+
+/* flèche droite : étape suivante de l'idée à l'écran */
+addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey || e.key !== 'ArrowRight' || !courante) return;
+  e.preventDefault(); courante.suivante();
+});
+window.verbe = {idees, ralenti};
+</script>
+</body>
+</html>
