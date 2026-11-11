@@ -18,6 +18,91 @@ func controlesIlot() {
             }
         }
     }
+    groupe("Îlot : Téléchargé (fichiers arrivés dans Téléchargements)")
+    do {
+        typealias F = FiltreTelechargements
+        verifier(F.estFini("Contrat-signé.pdf") && F.estFini("Photo.HEIC") && F.estFini("archive.tar.gz") && F.estFini("Lisez-moi"), "fichiers finis : pdf, heic, tar.gz, sans extension")
+        for n in ["Contrat.pdf.crdownload", "Unconfirmed 41521.crdownload", "Film.mp4.download", "Film.mp4.part", "image.tmp", "x.opdownload", "y.PART"] {
+            verifier(!F.estFini(n), "« \(n) » : téléchargement en cours, ignoré")
+        }
+        verifier(!F.estFini(".DS_Store") && !F.estFini(".Contrat.pdf.icloud") && !F.estFini("~$Devis.docx") && !F.estFini(""), "cachés (.DS_Store, .icloud), verrou de Word, vide : ignorés")
+        verifier(F.cible(deEnCours: "Contrat.pdf.part") == "Contrat.pdf" && F.cible(deEnCours: "Contrat.pdf") == nil, "« Contrat.pdf.part » deviendra « Contrat.pdf »")
+
+        verifier(FormatTaille.texte(2_400_000) == "2,4\u{00A0}Mo", "2 400 000 octets : « 2,4 Mo » (virgule, espace insécable)")
+        verifier(FormatTaille.texte(2_000_000) == "2\u{00A0}Mo" && FormatTaille.texte(850_000) == "850\u{00A0}Ko", "« 2 Mo » (jamais « 2,0 »), « 850 Ko »")
+        verifier(FormatTaille.texte(0) == "0\u{00A0}octet" && FormatTaille.texte(1) == "1\u{00A0}octet" && FormatTaille.texte(512) == "512\u{00A0}octets", "0 octet, 1 octet, 512 octets")
+        verifier(FormatTaille.texte(999_600) == "1\u{00A0}Mo" && FormatTaille.texte(1_234_000_000) == "1,2\u{00A0}Go", "999 600 octets : « 1 Mo » (pas « 1000 Ko ») ; « 1,2 Go »")
+
+        // la veille : rien pour ce qui existe, un fichier fini annoncé une fois après 1 s de taille stable
+        var tailles: [String: Int64] = ["Ancien.pdf": 1000, "Vide.txt": 0]
+        func mesure(_ n: String) -> EntreeDossier? { tailles[n].map { EntreeDossier(nom: n, taille: $0) } }
+        var noms: [String] { Array(tailles.keys) }
+        var w = VeilleTelechargements(existants: noms.compactMap(mesure))
+        verifier(w.lire(noms: noms, a: t0, mesure: mesure).isEmpty && w.prochaineRelecture == nil, "au lancement : rien d'annoncé, aucune relecture programmée")
+        tailles["Rapport.pdf.crdownload"] = 500_000
+        verifier(w.lire(noms: noms, a: t0, mesure: mesure).isEmpty && w.prochaineRelecture == nil, "« .crdownload » qui grossit : rien, et aucune relecture (le renommage réveillera)")
+        tailles["Rapport.pdf.crdownload"] = nil; tailles["Rapport.pdf"] = 2_400_000
+        verifier(w.lire(noms: noms, a: t0.addingTimeInterval(5), mesure: mesure).isEmpty, "renommé en « Rapport.pdf » : pas tout de suite (taille à confirmer)")
+        verifier(w.prochaineRelecture == t0.addingTimeInterval(6), "une seule relecture, 1 s plus tard")
+        let r1 = w.lire(noms: noms, a: t0.addingTimeInterval(6), mesure: mesure)
+        verifier(r1.map(\.nom) == ["Rapport.pdf"] && r1.first?.taille == 2_400_000, "1 s plus tard, même taille : « Rapport.pdf » est annoncé")
+        verifier(w.lire(noms: noms, a: t0.addingTimeInterval(9), mesure: mesure).isEmpty && w.prochaineRelecture == nil, "relu ensuite : jamais deux fois ; plus rien n'attend")
+        // un fichier écrit sur place (AirDrop, curl) : on attend que sa taille ne bouge plus
+        tailles["Video.mov"] = 10
+        _ = w.lire(noms: noms, a: t0.addingTimeInterval(10), mesure: mesure)
+        tailles["Video.mov"] = 4_000
+        verifier(w.lire(noms: noms, a: t0.addingTimeInterval(11), mesure: mesure).isEmpty && w.prochaineRelecture == t0.addingTimeInterval(12), "taille qui change encore : on attend une seconde de plus")
+        verifier(w.lire(noms: noms, a: t0.addingTimeInterval(12), mesure: mesure).map(\.nom) == ["Video.mov"], "puis stable : annoncé")
+        // Firefox : le fichier final vide est posé d'avance, le « .part » le remplace à la fin
+        tailles["Doc.pdf"] = 0; tailles["Doc.pdf.part"] = 30_000
+        verifier(w.lire(noms: noms, a: t0.addingTimeInterval(20), mesure: mesure).isEmpty && w.prochaineRelecture == nil, "Firefox : « Doc.pdf » vide + « Doc.pdf.part » : rien, aucune relecture")
+        tailles["Doc.pdf.part"] = nil; tailles["Doc.pdf"] = 30_000
+        _ = w.lire(noms: noms, a: t0.addingTimeInterval(30), mesure: mesure)
+        verifier(w.lire(noms: noms, a: t0.addingTimeInterval(31), mesure: mesure).map(\.nom) == ["Doc.pdf"], "le « .part » remplace le fichier vide : « Doc.pdf » annoncé")
+        verifier(w.lire(noms: noms, a: t0.addingTimeInterval(32), mesure: mesure).isEmpty, "le fichier vide du lancement (Vide.txt) n'est jamais annoncé")
+        // supprimé puis retéléchargé sous le même nom : de nouveau annoncé
+        tailles["Rapport.pdf"] = nil; _ = w.lire(noms: noms, a: t0.addingTimeInterval(40), mesure: mesure)
+        tailles["Rapport.pdf"] = 2_400_000; _ = w.lire(noms: noms, a: t0.addingTimeInterval(41), mesure: mesure)
+        verifier(w.lire(noms: noms, a: t0.addingTimeInterval(42), mesure: mesure).map(\.nom) == ["Rapport.pdf"], "supprimé puis retéléchargé : annoncé de nouveau")
+        // un dossier (AirDrop d'un dossier) : suivi par sa date, annoncé sans taille
+        var w2 = VeilleTelechargements(existants: [])
+        let dd = EntreeDossier(nom: "Photos vacances", taille: 0, modification: t0, dossier: true)
+        _ = w2.lire(noms: [dd.nom], a: t0, mesure: { _ in dd })
+        verifier(w2.lire(noms: [dd.nom], a: t0.addingTimeInterval(1), mesure: { _ in dd }) == [dd], "un dossier arrivé : annoncé quand sa date ne bouge plus")
+        // un fichier qui grossit sans fin n'est plus suivi au bout d'une demi-heure
+        var w3 = VeilleTelechargements(existants: [])
+        var k: Int64 = 1
+        for i in 0...1900 where i % 100 == 0 { k += 1; _ = w3.lire(noms: ["flux.bin"], a: t0.addingTimeInterval(Double(i)), mesure: { EntreeDossier(nom: $0, taille: k) }) }
+        verifier(w3.prochaineRelecture == nil, "un fichier qui grossit plus d'une demi-heure n'est plus relu (aucune relecture sans fin)")
+
+        // AirDrop : l'agent de quarantaine est sharingd
+        verifier(FichierTelecharge.estAirDrop(quarantaine: "0081;6731f2a0;sharingd;8A1B-22") && !FichierTelecharge.estAirDrop(quarantaine: "0081;6731f2a0;Chrome;8A1B")
+                 && !FichierTelecharge.estAirDrop(quarantaine: nil) && !FichierTelecharge.estAirDrop(quarantaine: "abimé"), "AirDrop reconnu à l'agent « sharingd » (pas Chrome, ni sans attribut)")
+
+        // la rafale : un bandeau pour plusieurs fichiers
+        let u = URL(fileURLWithPath: "/tmp/Téléchargements")
+        let contrat = FichierTelecharge(url: u.appendingPathComponent("Contrat-signé.pdf"), taille: 2_400_000)
+        var r = RafaleTelechargements()
+        verifier(r.ajouter([contrat], a: t0) == false && r.titre == "Contrat-signé.pdf" && r.sousTitre == "Téléchargé \u{00B7} 2,4\u{00A0}Mo", "un fichier : son nom, « Téléchargé · 2,4 Mo »")
+        let photo = FichierTelecharge(url: u.appendingPathComponent("Photo.heic"), taille: 600_000)
+        let note = FichierTelecharge(url: u.appendingPathComponent("Note.txt"), taille: 100_000)
+        verifier(r.ajouter([photo], a: t0.addingTimeInterval(1.5)) && r.ajouter([note, photo], a: t0.addingTimeInterval(3)), "deux autres en rafale : ils rejoignent le bandeau (sans doublon)")
+        verifier(r.titre == "3 fichiers téléchargés" && r.sousTitre == "Dans Téléchargements \u{00B7} 3,1\u{00A0}Mo", "« 3 fichiers téléchargés », taille totale")
+        verifier(r.ajouter([contrat], a: t0.addingTimeInterval(7.5)) == false && r.titre == "Contrat-signé.pdf", "plus de 4 s après : nouvelle annonce")
+        var ra = RafaleTelechargements()
+        ra.ajouter([FichierTelecharge(url: u.appendingPathComponent("IMG_2041.HEIC"), taille: 3_100_000, airdrop: true)], a: t0)
+        verifier(ra.sousTitre == "Reçu par AirDrop \u{00B7} 3,1\u{00A0}Mo", "AirDrop : « Reçu par AirDrop · 3,1 Mo »")
+        ra.ajouter([FichierTelecharge(url: u.appendingPathComponent("IMG_2042.HEIC"), taille: 2_900_000, airdrop: true)], a: t0.addingTimeInterval(1))
+        verifier(ra.titre == "2 fichiers reçus" && ra.sousTitre == "Par AirDrop \u{00B7} 6\u{00A0}Mo", "deux par AirDrop : « 2 fichiers reçus », « Par AirDrop · 6 Mo »")
+        var rd = RafaleTelechargements()
+        rd.ajouter([FichierTelecharge(url: u.appendingPathComponent("Photos vacances"), taille: nil, airdrop: true)], a: t0)
+        verifier(rd.sousTitre == "Reçu par AirDrop", "un dossier : pas de taille")
+
+        verifier(VueIlot.telecharge.estBandeau && GeoIlot.ajusteAuContenu(.telecharge) && GeoIlot.profondeur(.telecharge) >= 72, "Téléchargé : un bandeau qui épouse son contenu, assez haut pour l'icône de 38 pt (16 + 38 + 16)")
+        verifier(ArbitrageIlot.resoudre({ var e = EtatIlot(); e.lecture = true; e.bandeau = .telecharge; return e }()).pastille == .lecture,
+                 "fichier arrivé pendant une vidéo : la vidéo passe en bulle le temps de l'annonce")
+    }
+
     groupe("Îlot : épaules (batterie, écouteurs) et énergie")
     for (barre, demi) in [(32.0, 100.0), (33.0, 89.5)] {
         for v in VueIlot.allCases {

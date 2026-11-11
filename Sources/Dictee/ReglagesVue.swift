@@ -106,6 +106,9 @@ struct ReglagesVue: View {
             LigneReglage(libelle: "Batterie et appareils", note: "La batterie du Mac et de tes AirPods quand l\u{2019}îlot s\u{2019}ouvre, le chargeur branché, la batterie faible, les écouteurs qui se connectent. macOS demande une fois l\u{2019}accès au Bluetooth.") {
                 Interrupteur(actif: $r.ilotEnergie, etiquette: "Batterie et appareils")
             }
+            LigneReglage(libelle: "Téléchargements", note: "Un fichier qui arrive dans Téléchargements, AirDrop compris : son nom, sa taille et « Ouvrir ». macOS demande une fois l\u{2019}accès au dossier.") {
+                Interrupteur(actif: $r.ilotTelechargements, etiquette: "Téléchargements")
+            }
             LigneReglage(libelle: "Calendrier", note: r.phraseCalendrier) {
                 Interrupteur(actif: $r.ilotCalendrier, etiquette: "Calendrier")
             }

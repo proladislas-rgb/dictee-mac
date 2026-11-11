@@ -14,12 +14,14 @@ public enum VueIlot: String, CaseIterable, Sendable {
     case accueil
     /// Des écouteurs (ou une souris, un clavier) se connectent ; le chargeur est branché ; la batterie est faible.
     case appareil, batterieCharge, batterieFaible
+    /// Un fichier (ou plusieurs, en rafale) vient d'arriver dans Téléchargements, AirDrop compris.
+    case telecharge
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
         switch self {
         case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
-             .appareil, .batterieCharge, .batterieFaible: return true
+             .appareil, .batterieCharge, .batterieFaible, .telecharge: return true
         default: return false
         }
     }
@@ -61,6 +63,8 @@ public enum GeoIlot {
         // les jauges des écouteurs (anneau + nom) demandent un peu plus de hauteur qu'un bandeau ; l'énergie tient dans les ailes
         .appareil: [14, 150, 80, 6, 30, 16, 10],
         .batterieCharge: compact(60), .batterieFaible: compact(60),
+        // le fichier arrivé : son icône (38 pt), son nom et « Téléchargé · 2,4 Mo », le bouton Ouvrir ; un bandeau ordinaire
+        .telecharge: bandeau,
     ]
     /// Indices des valeurs : largeurs (cou, corps) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur mène ; à la
     /// fermeture la hauteur se replie d'abord.

@@ -24,12 +24,14 @@ enum IlotEssai {
         var decalage = 0.0
         var compteurs = (minuteur: 0, rappel: 0, doux: 0, silence: 0)
         var liensOuverts: [URL] = []
+        var finder: [[URL]] = []
         var notes = 0
         func fabriquer() -> IlotControleur {
             let c = IlotControleur(stockage: RappelsStore(url: fichier))
             c.maintenant = { Date().addingTimeInterval(decalage) }
             c.sons = IlotControleur.SonsIlot(minuteurFini: { compteurs.minuteur += 1 }, rappel: { compteurs.rappel += 1 }, doux: { compteurs.doux += 1 }, silencieux: { compteurs.silence += 1 })
             c.ouvrir = { liensOuverts.append($0) }
+            c.montrer = { finder.append($0) }
             c.surNoter = { _ in notes += 1 }
             c.panneau.invisible = true
             c.lecture.essaiInvisible = true
@@ -223,6 +225,48 @@ enum IlotEssai {
         attendre(4.0) { m.bandeau != nil }
         verifier(m.bandeau == nil && m.courante == .lectureCompact, "3,5 s plus tard : il se retire")
         m.energie = nil; m.ecouteurs = nil; m.donneesChangees(); attendre(0.4)
+
+        // --- Téléchargé : un VRAI dossier surveillé, temporaire (jamais ~/Downloads, qui demanderait une autorisation)
+        let telechargements = dossier.appendingPathComponent("Téléchargements", isDirectory: true)
+        try? FileManager.default.createDirectory(at: telechargements, withIntermediateDirectories: true)
+        func deposer(_ nom: String, _ octets: Int) { try? Data(repeating: 0x2A, count: octets).write(to: telechargements.appendingPathComponent(nom)) }
+        deposer("Déjà là.pdf", 5_000)
+        c.telechargementsSource.dossier = telechargements
+        c.telechargementsSource.demarrer(); attendre(0.4)
+        verifier(c.telechargementsSource.actif && m.bandeau == nil, "dossier surveillé : ce qui était déjà là n'est pas annoncé")
+        deposer("Contrat-signé.pdf.crdownload", 1_200_000); attendre(1.6)
+        verifier(m.bandeau == nil, "« .crdownload » en cours : rien")
+        try? FileManager.default.moveItem(at: telechargements.appendingPathComponent("Contrat-signé.pdf.crdownload"), to: telechargements.appendingPathComponent("Contrat-signé.pdf"))
+        attendre(0.5)
+        verifier(m.bandeau == nil, "renommé à l'instant : pas encore (taille à confirmer pendant 1 s)")
+        attendre(2.0) { m.bandeau == nil }; attendre(0.5)
+        verifier(m.courante == .telecharge && m.bandeauVu?.ligne1 == "Contrat-signé.pdf" && m.bandeauVu?.ligne2 == "Téléchargé \u{00B7} 1,2\u{00A0}Mo",
+                 "fichier fini : « Contrat-signé.pdf », « Téléchargé · 1,2 Mo » (\(m.bandeauVu?.ligne2 ?? "rien"))")
+        verifier(m.pastille == .lecture, "la vidéo passe en bulle le temps de l'annonce")
+        verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && m.trace.hauteur > Double(g.hauteur) + 60, "bandeau : sous la barre, rien de plus de 66 pt dans la barre des menus")
+        let lc = m.contenus[.telecharge] ?? 0
+        verifier(lc > 200 && lc <= 2 * (m.demiCamera + CGFloat(GeoIlot.valeurs(.telecharge, hauteurBarre: Double(g.hauteur))[1])) - 2 * GrilleIlot.marge, "le bandeau épouse l'icône, le nom et « Ouvrir » (\(Int(lc)) pt)")
+        attendre(1.2) { m.boucleActive }
+        verifier(!m.boucleActive && m.bandeau != nil, "bandeau posé : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
+        // vrai clic sur « Ouvrir » (au bord droit du contenu)
+        let z = m.grille.zoneAnnonce(.telecharge)
+        let bouton = MesureIlot.bouton(ContenuAnnonce.Bouton(titre: "Ouvrir"))
+        let pb = CGPoint(x: z.maxX - bouton / 2, y: z.midY)
+        c.panneau.envoyerSouris(.leftMouseDown, en: pb); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pb); attendre(0.5)
+        verifier(liensOuverts.last?.lastPathComponent == "Contrat-signé.pdf" && m.bandeau == nil, "vrai clic sur « Ouvrir » : le fichier est ouvert (capturé), le bandeau se retire")
+        // une rafale : un seul bandeau
+        attendre(0.6)
+        deposer("Photo 1.heic", 900_000); attendre(0.3); deposer("Photo 2.heic", 800_000); attendre(0.3); deposer("Notes.txt", 400)
+        attendre(2.5) { m.bandeauVu?.ligne1 != "3 fichiers téléchargés" }; attendre(0.3)
+        verifier(m.courante == .telecharge && m.bandeauVu?.ligne1 == "3 fichiers téléchargés", "trois fichiers en rafale : un seul bandeau « 3 fichiers téléchargés » (\(m.bandeauVu?.ligne1 ?? "rien"))")
+        c.agir(.fichiersOuvrir(m.bandeauVu?.telechargement?.urls ?? [])); attendre(0.3)
+        verifier(finder.last?.count == 3 && m.bandeau == nil, "« Afficher » montre les trois dans le Finder (capturé)")
+        attendre(1.5)
+        verifier(!m.boucleActive, "plus rien n'arrive : aucune boucle, aucune relecture du dossier")
+        c.telechargementsSource.arreter(); attendre(0.2)
+        deposer("Après.pdf", 3_000); attendre(1.8)
+        verifier(m.bandeau == nil && !c.telechargementsSource.actif, "réglage éteint (surveillance arrêtée) : plus rien n'est annoncé")
+        liensOuverts = []
 
         // --- dictée : tout est effacé ; ce qui arrive attend la fin, sans son
         var occ = OccupationEncoche()

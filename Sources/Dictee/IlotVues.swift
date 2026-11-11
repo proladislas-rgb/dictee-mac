@@ -119,7 +119,7 @@ struct IlotCalques: View {
             }
         case .agendaEtendu: agendaEtendu
         case .accueil: accueil
-        case .appareil: if let c = m.contenuAnnonce(v) { annonce(v, c) }
+        case .appareil, .telecharge: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .batterieCharge, .batterieFaible: energieAiles(v)
         }
     }
@@ -147,13 +147,19 @@ struct IlotCalques: View {
     private func annonce(_ v: VueIlot, _ c: ContenuAnnonce) -> some View {
         let z = g.zoneAnnonce(v, haut: v.estAlerte ? 20 : 16, bas: v.estAlerte ? 20 : 16)
         return HStack(spacing: ContenuAnnonce.espace) {
-            Group { if let glyphe = c.glyphe { glyphe } else { Color.clear } }
-                .frame(width: ContenuAnnonce.cote, height: ContenuAnnonce.cote).aspectIlot(m.aspect(v, rang: 0), ancre: .center)
+            Group {
+                if !c.icones.isEmpty { IconesFichiers(icones: c.icones, cote: c.coteSymbole) }
+                else if let glyphe = c.glyphe { glyphe } else { Color.clear }
+            }
+            .frame(width: c.coteSymbole, height: c.coteSymbole)
+            .glisserFichier(c.glisser)
+            .aspectIlot(m.aspect(v, rang: 0), ancre: .center)
             VStack(alignment: .leading, spacing: 2) {
-                Text(c.l1).font(TexteIlot.l1).tracking(ContenuAnnonce.interlettreL1).foregroundStyle(.white).lineLimit(1).truncationMode(.tail)
+                Text(c.l1).font(TexteIlot.l1).tracking(ContenuAnnonce.interlettreL1).foregroundStyle(.white).lineLimit(1).truncationMode(c.coupureL1)
                 c.texteL2.font(TexteIlot.l2).foregroundStyle(c.couleurL2 ?? CouleursIlot.encre2).lineLimit(1).truncationMode(.tail)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .glisserFichier(c.glisser)
             .aspectIlot(m.aspect(v, rang: 1), ancre: .topLeading)
             switch c.droite {
             case .rien: EmptyView()
@@ -808,5 +814,39 @@ struct BoutonRondIlot: View {
         .buttonStyle(Style())
         .onHover { survol = $0 }
         .accessibilityLabel(etiquette)
+    }
+}
+
+// MARK: fichiers (bandeau Téléchargé)
+
+/// Les icônes du Finder d'un bandeau « Téléchargé » : celle du fichier ; pour une rafale, la deuxième dépasse derrière, un peu penchée
+/// (une pile, comme sur le Bureau).
+struct IconesFichiers: View {
+    var icones: [NSImage]
+    var cote: CGFloat
+    var body: some View {
+        ZStack {
+            if icones.count > 1 {
+                Image(nsImage: icones[1]).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+                    .frame(width: cote * 0.86, height: cote * 0.86)
+                    .rotationEffect(.degrees(-9)).offset(x: -cote * 0.12, y: -cote * 0.04).opacity(0.75)
+            }
+            if let i = icones.first {
+                Image(nsImage: i).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+                    .frame(width: icones.count > 1 ? cote * 0.9 : cote, height: icones.count > 1 ? cote * 0.9 : cote)
+                    .offset(x: icones.count > 1 ? cote * 0.06 : 0, y: icones.count > 1 ? cote * 0.04 : 0)
+            }
+        }
+        .frame(width: cote, height: cote)
+        .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// Le fichier se glisse hors de l'îlot (vers le Bureau, un mail, une conversation) : l'URL du fichier, comme depuis le Finder.
+    @ViewBuilder func glisserFichier(_ url: URL?) -> some View {
+        if let url {
+            onDrag { NSItemProvider(contentsOf: url) ?? NSItemProvider(object: url as NSURL) }
+        } else { self }
     }
 }

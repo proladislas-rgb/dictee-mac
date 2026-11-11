@@ -239,6 +239,12 @@ enum Settings {
         get { defaults.object(forKey: "ilotEnergie") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotEnergie") }
     }
+    /// Les fichiers qui arrivent dans Téléchargements (AirDrop compris) : un bandeau de 4 s avec « Ouvrir ».
+    /// ALLUMÉ par défaut ; macOS demande une fois l'accès au dossier Téléchargements.
+    static var ilotTelechargements: Bool {
+        get { defaults.object(forKey: "ilotTelechargements") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "ilotTelechargements") }
+    }
     /// Le son de la fin d'un minuteur : le nom d'un son du Mac (« Pop » par défaut, celui de la dictée), ou « Aucun ».
     static var sonFinMinuteur: String {
         get { defaults.string(forKey: "sonFinMinuteur").flatMap { $0.isEmpty ? nil : $0 } ?? "Pop" }

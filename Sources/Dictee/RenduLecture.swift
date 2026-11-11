@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import DicteeCore
 
 /// Vérification visuelle sans fenêtre : `Verbe --rendu-lecture dossier`
@@ -273,6 +274,17 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.energie = batterie; $0.bandeau = BandeauIlot(vue: .appareil, jusqua: t0, ligne1: airpods.titre, ligne2: "", appareil: airpods) }) }, "ilot-11c-airpods-connectes")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.energie = batterie; $0.bandeau = BandeauIlot(vue: .batterieCharge, jusqua: t0, ligne1: "En charge", ligne2: "", energie: batterie) }) }, "ilot-11d-en-charge")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { let e = EnergieIlot(pourcent: 20, secteur: false, enCharge: false); $0.energie = e; $0.lecturePresente = true; $0.bandeau = BandeauIlot(vue: .batterieFaible, jusqua: t0, ligne1: "Batterie faible", ligne2: "", energie: e) }) }, "ilot-11e-batterie-faible-pendant-video")
+        // téléchargé (maquette ilot-apple.html, cinq idées de plus) : le fichier arrivé, un nom trop long coupé au milieu, AirDrop, une rafale
+        func telecharge(_ l: [(String, Int64?, Bool, UTType)]) -> BandeauIlot {
+            var r = RafaleTelechargements()
+            for (i, f) in l.enumerated() { r.ajouter([FichierTelecharge(url: URL(fileURLWithPath: "/Users/exemple/Downloads/" + f.0), taille: f.1, airdrop: f.2)], a: t0.addingTimeInterval(Double(i))) }
+            let icones = l.suffix(2).reversed().map { NSWorkspace.shared.icon(for: $0.3) }
+            return BandeauIlot(vue: .telecharge, jusqua: t0, ligne1: r.titre, ligne2: r.sousTitre, telechargement: TelechargementIlot(rafale: r, icones: icones))
+        }
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = telecharge([("Contrat-signé.pdf", 2_400_000, false, .pdf)]) }) }, "ilot-14a-telecharge")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = telecharge([("Rapport-annuel-2026-direction-financière-version-définitive-signée-v3.pdf", 18_734_000, false, .pdf)]) }) }, "ilot-14b-telecharge-nom-long")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = telecharge([("IMG_2041.HEIC", 3_100_000, true, .heic)]) }) }, "ilot-14c-recu-par-airdrop")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.bandeau = telecharge([("Photo 1.heic", 900_000, false, .heic), ("Photo 2.heic", 800_000, false, .heic), ("Devis.pdf", 1_400_000, false, .pdf)]) }) }, "ilot-14d-trois-fichiers-pendant-video")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)

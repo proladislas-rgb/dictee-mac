@@ -30,6 +30,15 @@ struct BandeauIlot {
     var appareil: AppareilIlot?
     /// La batterie au moment de l'annonce (bandeaux `.batterieCharge` et `.batterieFaible`).
     var energie: EnergieIlot?
+    /// Les fichiers arrivés dans Téléchargements (bandeau `.telecharge`).
+    var telechargement: TelechargementIlot?
+}
+
+/// Ce que montre le bandeau « Téléchargé » : la rafale (noms, tailles, AirDrop) et les icônes du Finder, lues une fois à l'annonce.
+struct TelechargementIlot {
+    var rafale: RafaleTelechargements
+    var icones: [NSImage]
+    var urls: [URL] { rafale.fichiers.map(\.url) }
 }
 
 /// Ce que l'îlot demande aux contrôleurs (le moteur ne sait rien du minuteur, des rappels ni du calendrier : il montre et il relaie).
@@ -44,6 +53,8 @@ enum ActionIlot {
     case rappelFormulaire
     case rendezVousRejoindre(EvenementAgenda), rendezVousNoter(EvenementAgenda)
     case collerLaDerniereDictee
+    /// « Ouvrir » sur le bandeau Téléchargé : le fichier (un seul) ou le Finder sur les fichiers (plusieurs).
+    case fichiersOuvrir([URL])
 }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :

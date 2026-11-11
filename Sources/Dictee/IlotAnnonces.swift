@@ -34,8 +34,17 @@ struct ContenuAnnonce {
     var droite: Droite = .rien
     /// Le sous-titre en couleur (« Connectés » en vert).
     var couleurL2: Color? = nil
+    /// À la place du symbole : des icônes du Finder (le fichier arrivé ; deux en pile pour une rafale), sur `coteSymbole` pt.
+    var icones: [NSImage] = []
+    var coteSymbole: CGFloat = ContenuAnnonce.cote
+    /// Un nom de fichier se coupe au milieu (« Rapport-annuel…-v3.pdf » : on garde l'extension).
+    var coupureL1: Text.TruncationMode = .tail
+    /// Le fichier qu'on peut glisser hors du bandeau (icône et nom).
+    var glisser: URL? = nil
 
     static let cote: CGFloat = 26, espace: CGFloat = 12, espaceBoutons: CGFloat = 8, espaceJauges: CGFloat = 8
+    /// L'icône d'un fichier : 38 pt, presque la hauteur des deux lignes (maquette ilot-apple.html, « Téléchargé »).
+    static let coteIcone: CGFloat = 38
     static let interlettreL1: CGFloat = -0.2
     static let policeMeta = Font.system(size: 13, weight: .semibold).monospacedDigit()
     static let policeTemps = Font.system(size: 15, weight: .semibold).monospacedDigit()
@@ -140,6 +149,13 @@ extension IlotMoteur {
             switch a.genre { case .ecouteurs: accord = "Connectés"; case .souris: accord = "Connectée"; default: accord = "Connecté" }
             return ContenuAnnonce(glyphe: GlypheIlot(nom: a.symbole, couleur: .white, taille: 22), l1: a.titre, l2: accord,
                                   droite: .jauges(js), couleurL2: CouleursIlot.vert)
+        case .telecharge:
+            guard let d = b?.telechargement, let premier = d.rafale.fichiers.first else { return nil }
+            let seul = d.rafale.fichiers.count == 1
+            return ContenuAnnonce(glyphe: nil, l1: d.rafale.titre, l2: d.rafale.sousTitre,
+                                  droite: .boutons([.init(titre: seul ? "Ouvrir" : "Afficher", etiquette: seul ? "Ouvrir \(premier.nom)" : "Afficher dans le Finder",
+                                                          action: .fichiersOuvrir(d.urls))]),
+                                  icones: d.icones, coteSymbole: ContenuAnnonce.coteIcone, coupureL1: seul ? .middle : .tail, glisser: seul ? premier.url : nil)
         default:
             return nil
         }
@@ -168,7 +184,7 @@ extension IlotMoteur {
         }
         guard let c = contenuAnnonce(v) else { return nil }
         let textes = max(MesureIlot.texte(c.l1, 17, .semibold, interlettre: ContenuAnnonce.interlettreL1), MesureIlot.texte(c.l2, 12.5, .medium))
-        var l = ContenuAnnonce.cote + ContenuAnnonce.espace + textes
+        var l = c.coteSymbole + ContenuAnnonce.espace + textes
         switch c.droite {
         case .rien: break
         case .meta(let t): l += ContenuAnnonce.espace + MesureIlot.texte(t, 13, .semibold, chiffres: true)

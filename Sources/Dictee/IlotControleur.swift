@@ -40,6 +40,8 @@ final class IlotControleur {
     let energieSource = SourceEnergie()
     let appareilsSource = SourceAppareils()
     private var veilleEnergie = VeilleEnergie()
+    let telechargementsSource = SourceTelechargements()
+    private var rafale = RafaleTelechargements()
 
     /// Ce qui occupe l'encoche en dehors de la dictée de ce contrôleur (rempli par l'AppDelegate).
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
@@ -47,8 +49,10 @@ final class IlotControleur {
     var surColler: (String) -> Void = { _ in }
     /// Lance la prise de notes d'une réunion (rempli par l'AppDelegate).
     var surNoter: (EvenementAgenda?) -> Void = { _ in }
-    /// Ouvre un lien (injectable pour les essais : jamais d'ouverture réelle).
+    /// Ouvre un lien ou un fichier (injectable pour les essais : jamais d'ouverture réelle).
     var ouvrir: (URL) -> Void = { NSWorkspace.shared.open($0) }
+    /// Montre des fichiers dans le Finder (injectable, comme `ouvrir`).
+    var montrer: ([URL]) -> Void = { NSWorkspace.shared.activateFileViewerSelecting($0) }
     /// L'heure (injectable).
     var maintenant: () -> Date = { Date() } { didSet { moteur.maintenant = maintenant } }
     /// Les sons et vibrations (injectables : les essais n'en jouent jamais).
@@ -94,6 +98,12 @@ final class IlotControleur {
         energieSource.surChangement = { [weak self] e in self?.energieChangee(e) }
         appareilsSource.surChangement = { [weak self] in self?.appareilsChanges() }
         appareilsSource.surConnexion = { [weak self] a in self?.appareilConnecte(a) }
+        telechargementsSource.surArrivee = { [weak self] l in self?.fichiersArrives(l) }
+        telechargementsSource.surRefus = {
+            Settings.ilotTelechargements = false
+            Log.ecrire("téléchargements : accès au dossier refusé, réglage éteint")
+            NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
+        }
         lecture.modele.surClicIlot = { [weak self] in self?.moteur.clicForme() }
     }
 
@@ -114,6 +124,7 @@ final class IlotControleur {
         lecture.arreter()
         notificationsSource.arreter()
         energieSource.arreter(); appareilsSource.arreter()
+        telechargementsSource.arreter()
         agenda.arreter()
         panneau.fermer()
         [reveilMinuteur, reveilRappels, reveilAgenda].forEach { $0?.cancel() }
@@ -152,7 +163,23 @@ final class IlotControleur {
             energieSource.arreter(); appareilsSource.arreter(); veilleEnergie = VeilleEnergie()
             moteur.energie = nil; moteur.ecouteurs = nil
         }
+        // le dossier Téléchargements : macOS demande une fois l'accès, à la première ouverture (sur une file à part)
+        if Settings.ilotTelechargements { telechargementsSource.demarrer() }
+        else { telechargementsSource.arreter(); rafale = RafaleTelechargements() }
         moteur.donneesChangees()
+    }
+
+    // MARK: téléchargements
+
+    /// Des fichiers finis viennent d'arriver dans Téléchargements : un bandeau de 4 s. Pendant ces 4 s, ceux qui suivent le rejoignent
+    /// (« 3 fichiers téléchargés ») et le prolongent.
+    func fichiersArrives(_ l: [FichierTelecharge]) {
+        guard !l.isEmpty else { return }
+        let t = maintenant()
+        rafale.ajouter(l, a: t)
+        let d = TelechargementIlot(rafale: rafale, icones: Self.icones(rafale.fichiers))
+        moteur.annoncer(bandeau: BandeauIlot(vue: .telecharge, jusqua: t.addingTimeInterval(RafaleTelechargements.fenetre),
+                                             ligne1: rafale.titre, ligne2: rafale.sousTitre, telechargement: d))
     }
 
     // MARK: batterie et appareils
@@ -279,6 +306,10 @@ final class IlotControleur {
             oublier(e)
         case .rendezVousNoter(let e):
             surNoter(e); oublier(e)
+        case .fichiersOuvrir(let urls):
+            if urls.count == 1 { ouvrir(urls[0]) } else if !urls.isEmpty { montrer(urls) }
+            rafale = RafaleTelechargements()
+            moteur.quitterBandeau()
         case .collerLaDerniereDictee:
             if let d = HistoriqueStore.shared.historique.entrees.first?.texte, !d.isEmpty { moteur.fermer(); surColler(d) }
         }
