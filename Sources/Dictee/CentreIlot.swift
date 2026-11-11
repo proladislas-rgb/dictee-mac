@@ -520,6 +520,8 @@ struct CaseEtagere: View {
         let f = m.etagere
         let depot = m.depot && m.depotSurvole
         let vide = f.isEmpty || !m.etagereActive
+        // l'étagère vide mais la bibliothèque non : le titre ouvre quand même la carte (et sa ligne « Bibliothèque · Tout voir »)
+        let ouvrable = !vide || (m.etagereActive && m.bibliothequeNonVide)
         ZStack(alignment: .topLeading) {
             FondCase(plein: !vide && !depot, pointille: vide, eclaire: depot)
             VStack(alignment: .leading, spacing: vide ? 12 : 5) {
@@ -527,18 +529,20 @@ struct CaseEtagere: View {
                     GlypheIlot(nom: vide ? "tray" : "tray.full.fill", couleur: Color(hex: 0x5EB0FF), taille: 14).frame(width: 18, height: 17)
                     Text("Étagère").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
                     Spacer(minLength: 4)
-                    if !vide {
-                        Text("\(f.count)").font(.system(size: 12, weight: .bold).monospacedDigit()).foregroundStyle(.white)
-                            .padding(.horizontal, 6).frame(minWidth: 19, minHeight: 19).background(Capsule().fill(Color.white.opacity(0.2)))
+                    if ouvrable {
+                        if !vide {
+                            Text("\(f.count)").font(.system(size: 12, weight: .bold).monospacedDigit()).foregroundStyle(.white)
+                                .padding(.horizontal, 6).frame(minWidth: 19, minHeight: 19).background(Capsule().fill(Color.white.opacity(0.2)))
+                        }
                         Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(CouleursIlot.encre3)
                     }
                 }
                 .frame(height: 17)
                 .contentShape(Rectangle())
-                .onTapGesture { if !vide { m.epinglerLeCentre(); m.ouvrirEtagere() } }
+                .onTapGesture { if ouvrable { m.epinglerLeCentre(); m.ouvrirEtagere() } }
                 .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(vide ? [] : .isButton)
-                .accessibilityAction { if !vide { m.ouvrirEtagere() } }
+                .accessibilityAddTraits(ouvrable ? .isButton : [])
+                .accessibilityAction { if ouvrable { m.ouvrirEtagere() } }
                 if depot {
                     Text("Lâche ici").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white)
                 } else if !m.etagereActive {

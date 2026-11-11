@@ -87,6 +87,10 @@ enum ActionIlot {
     case dicteeCopier(UUID), dicteeColler(UUID)
     case ouvrirFenetre(Onglet)
     case dicteesClavier(Bool)
+    /// La carte Bibliothèque (BibliothequeCarte.swift) : ouvrir un fichier (un clic sur sa ligne), l'épingler ou le détacher, le retirer
+    /// de la bibliothèque (le fichier reste où il est), annuler ce retrait, donner ou rendre le clavier au champ « Rechercher un fichier ».
+    case bibliothequeOuvrir(String), bibliothequeEpingler(String), bibliothequeRetirer(String), bibliothequeAnnuler
+    case bibliothequeClavier(Bool)
 }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
@@ -263,6 +267,8 @@ final class IlotMoteur: ObservableObject {
     private var defilement = DefilementIlot()
     /// La carte Dictées : sa recherche, sa liste (lue dans l'historique), ce qu'on y survole, déplie, copie.
     let dictees = DicteesIlot()
+    /// La carte Bibliothèque : sa recherche, son filtre, son tri, ce qu'on y survole et choisit (le modèle est branché par le contrôleur).
+    let bibliotheque = BibliothequeCarte()
 
     // MARK: masques (dictée, réunion, autres annonces : l'îlot s'efface)
     var dictee = false
@@ -327,6 +333,9 @@ final class IlotMoteur: ObservableObject {
         dictees.agir = { [weak self] a in self?.surAction(a) }
         dictees.surChangement = { [weak self] in self?.donneesChangees() }
         dictees.maintenant = { [weak self] in self?.maintenant() ?? Date() }
+        bibliotheque.agir = { [weak self] a in self?.surAction(a) }
+        bibliotheque.surChangement = { [weak self] in self?.donneesChangees() }
+        bibliotheque.maintenant = { [weak self] in self?.maintenant() ?? Date() }
     }
 
     // MARK: arbitrage
@@ -360,6 +369,7 @@ final class IlotMoteur: ObservableObject {
             // une dictée (ou une réunion) commence pendant une recherche dans les Dictées : le clavier retourne à l'app AVANT que le
             // texte dicté n'y soit écrit (sinon il irait dans le champ de l'îlot)
             if dictees.rechercheActive { dictees.rechercheActive = false; surAction(.dicteesClavier(false)) }
+            if bibliotheque.rechercheActive { bibliotheque.rechercheActive = false; surAction(.bibliothequeClavier(false)) }
             majExtras()
             surFenetre(); demarrerBoucle()
             return
@@ -373,7 +383,7 @@ final class IlotMoteur: ObservableObject {
         if resolution.verrou { epingle = false; survole = false; sousVue = nil }
         if ancien.principal != resolution.principal, !(survole || epingle) { sousVue = nil }
         if sousVue == .lectureMinuteur, FamilleIlot.de(resolution.principal) != .lecture || resolution.verrou { sousVue = nil }
-        if sousVue == .etagere, !etagereActive { sousVue = nil }
+        if sousVue == .etagere || sousVue == .bibliotheque, !etagereActive { sousVue = nil }
         if depot, !etagereActive { depot = false; depotSurvole = false }
         // le Centre ouvert le reste quand une activité commence (un minuteur lancé, le micro coupé, une vidéo) : on ne saute pas ailleurs
         if courante == .centre, survole || epingle, sousVue == nil, !resolution.verrou, resolution.survol != .centre, ancien.survol != resolution.survol { sousVue = .centre }
@@ -390,6 +400,10 @@ final class IlotMoteur: ObservableObject {
         // la recherche repart de zéro à la prochaine ouverture
         if dictees.rechercheActive, cache || courante != .dictees || !fenetreOuverte { dictees.rechercheActive = false; surAction(.dicteesClavier(false)) }
         if !fenetreOuverte, courante != .dictees, !dictees.requete.isEmpty || dictees.deplie != nil || dictees.decalage != 0 { dictees.reinitialiser() }
+        // de même pour la Bibliothèque : quittée, le clavier est rendu ; l'îlot rangé, elle repart de zéro (pendant un glisser des fichiers
+        // choisis, rien ne change : ils sont en route)
+        if bibliotheque.rechercheActive, cache || courante != .bibliotheque || !fenetreOuverte { bibliotheque.rechercheActive = false; surAction(.bibliothequeClavier(false)) }
+        if !fenetreOuverte, courante != .bibliotheque, !glisserSortant, bibliotheque.aRemettre { bibliotheque.reinitialiser() }
         // la ligne d'avis reste jusqu'à ce qu'on l'ait vue : posée Centre fermé (macOS a répondu après coup), elle attend la prochaine
         // ouverture ; vue, elle part quand le Centre se range
         if avisCentre != nil { if courante == .centre { avisVu = true } else if avisVu, !fenetreOuverte { avisCentre = nil } }
@@ -437,6 +451,9 @@ final class IlotMoteur: ObservableObject {
         dictees.largeurTexte = PlanDictees.largeurTexte(demiCamera: demiCamera)
         let pd = CarteDictees.profondeur(liste: dictees.miseEnPage().hauteur)
         if pd != GeoIlot.profondeurDictees { d[.dictees] = CGFloat(pd - GeoIlot.profondeurDictees) }
+        // la Bibliothèque épouse sa liste de même (« Aucun fichier », trois lignes…), jusqu'à 164 pt ; elle défile au-delà
+        let pb = CarteBibliotheque.profondeur(liste: bibliotheque.miseEnPage().hauteur)
+        if pb != CarteBibliotheque.profondeurMax { d[.bibliotheque] = CGFloat(pb - CarteBibliotheque.profondeurMax) }
         return d
     }
 
@@ -474,7 +491,7 @@ final class IlotMoteur: ObservableObject {
         // un écran fait de plusieurs couches (la lecture + sa rangée) : seules les couches qui changent partent ou arrivent
         if avant != v { for c in Self.couches(avant) where !Self.couches(v).contains(c) { sortir(&apparitions[c], glisse: glisse) } }
         for c in Self.couches(v) { entrer(&apparitions[c], delai: delaiContenu, glisse: glisse) }
-        if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere || v == .centre || v == .dictees { surDepliage() }
+        if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere || v == .centre || v == .dictees || v == .bibliotheque { surDepliage() }
     }
 
     /// Les couches de contenu d'un écran : la rangée Minuteur se pose sous la lecture dépliée, qui ne s'efface pas pour autant.
@@ -609,7 +626,7 @@ final class IlotMoteur: ObservableObject {
         afficherMaintenant(alerte: a, bandeau: b)
     }
     /// Le Centre est épinglé (ou sa carte Étagère, ouverte depuis lui) : les bandeaux attendent qu'il se range.
-    var centreRetientLesBandeaux: Bool { !cache && epingle && (courante == .centre || courante == .etagere || courante == .dictees) }
+    var centreRetientLesBandeaux: Bool { !cache && epingle && (courante == .centre || courante == .etagere || courante == .dictees || courante == .bibliotheque) }
     /// Des bandeaux attendent que le Centre se range (et non la fin d'une dictée, que le contrôleur guette lui-même).
     private var attenteDuCentre = false
     private func afficherMaintenant(alerte a: AlerteIlot?, bandeau b: BandeauIlot?) {
@@ -888,6 +905,16 @@ final class IlotMoteur: ObservableObject {
         sousVue = .etagere; epingle = true; survole = true
         donneesChangees(); surDepliageMoniteur()
     }
+    /// La bibliothèque garde (ou montre) au moins un fichier : la case Étagère du Centre s'ouvre même l'étagère vide.
+    var bibliothequeNonVide: Bool { !(bibliotheque.modele?.tout.isEmpty ?? true) }
+    /// « Tout voir » (la ligne « Bibliothèque » de la carte Étagère) : la carte Bibliothèque. Elle reste ouverte (on y cherche, on y
+    /// choisit) ; « ‹ Étagère » ramène à l'étagère.
+    func ouvrirBibliotheque() {
+        guard etagereActive, !cache else { return }
+        intention?.cancel(); fermeture?.cancel()
+        sousVue = .bibliotheque; epingle = true; survole = true
+        donneesChangees(); surDepliageMoniteur()
+    }
 
     func ouvrirFormulaireRappel() {
         sousVue = .rappelListe; epingle = true; survole = true
@@ -929,6 +956,8 @@ final class IlotMoteur: ObservableObject {
         // « Modifier » : on range les boutons, la molette ne change pas de carte
         guard fenetreOuverte, !cache, !resolution.verrou, !editionCentre else { return }
         if courante == .etagere { allerA(.centre); return }
+        // la Bibliothèque : la molette fait défiler sa liste, jamais changer de carte (« ‹ Étagère » pour revenir)
+        if courante == .bibliotheque { return }
         guard let c = carteCourante, let v = CartesIlot.voisine(cartes, de: c, pas: pas) else { return }
         allerA(v)
     }
@@ -938,6 +967,10 @@ final class IlotMoteur: ObservableObject {
         guard fenetreOuverte, !cache else { return }
         if courante == .dictees, let p, PlanDictees.cadreListe(grille).contains(p), dictees.defile {
             if abs(dy) >= abs(dx) { dictees.defiler(dy) }
+            return
+        }
+        if courante == .bibliotheque {
+            if let p, PlanBibliotheque.cadreListe(grille).contains(p), bibliotheque.defile, abs(dy) >= abs(dx) { bibliotheque.defiler(dy) }
             return
         }
         if let pas = defilement.recevoir(dy: dy, dx: dx, phase: phase, inertie: inertie, t: t) { defiler(pas) }

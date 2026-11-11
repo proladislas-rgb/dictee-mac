@@ -33,6 +33,10 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// Les Dictées (maquette ilot-centre.html, 3e carte) : l'ancien panneau de la barre des menus dans l'îlot. « ‹ Centre », la recherche,
     /// les dernières dictées groupées par jour (un clic copie, « Coller » au survol, le chevron déplie), et les liens vers la fenêtre.
     case dictees
+    /// La Bibliothèque (maquette ilot-bibliotheque.html, étapes 2 à 5) : depuis la carte Étagère (« Bibliothèque · Tout voir »), tout ce
+    /// qui est passé par l'étagère, plus les sources qu'on allume (Téléchargés, AirDrop, captures). « ‹ Étagère », la recherche, le tri,
+    /// les pastilles, les épinglés en haut, puis par date ; épingler, retirer, choisir plusieurs fichiers et les glisser ensemble.
+    case bibliotheque
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
@@ -64,6 +68,8 @@ public enum GeoIlot {
     public static let ligneAccueil: Double = 42
     /// Une rangée de plus de fichiers dans la carte Étagère (tuile de 72 pt + 8 pt d'écart).
     public static let rangeeEtagere: Double = 80
+    /// La ligne « Bibliothèque · Tout voir » en bas de la carte Étagère (maquette : 8 pt d'écart, 48 pt de haut).
+    public static let ligneBibliotheque: Double = 8 + 48
     /// La lecture dépliée jusqu'à ses commandes (pochette, titre, barre, boutons) : la rangée Minuteur (appui long) se pose dessous.
     public static let profondeurLecture: Double = 175
     /// Le pied de la lecture dépliée : le bouton « Centre » (30 pt) et sa marge (maquette : 12 pt dessus, 14 dessous ; ici 6 + 30 + 4,
@@ -117,10 +123,12 @@ public enum GeoIlot {
         // l'étagère, de la largeur de l'accueil : « Déposez ici » sous les derniers fichiers rangés (16 + 70 + 16 pt, maquette) ; la carte :
         // l'en-tête (42 pt) et une rangée de tuiles (72 pt) ; une deuxième rangée s'ajoute (`enPlus`) au-delà de cinq fichiers
         .etagereDepot: [14, 144, 102, 6, 30, 16, 10],
-        .etagere: [14, 144, 10 + 42 + 8 + 72 + 12, 6, 34, 18, 10],
+        .etagere: [14, 144, 10 + 42 + 8 + 72 + ligneBibliotheque + 12, 6, 34, 18, 10],
         .centre: [14, 144, profondeurCentre, 6, 34, 18, 10],
         // les Dictées : la largeur du Centre (on passe de l'un à l'autre sans que la forme s'élargisse), la hauteur de la liste
         .dictees: [14, 144, profondeurDictees, 6, 34, 18, 10],
+        // la Bibliothèque : la largeur du Centre (et de l'étagère), la hauteur de sa liste (`enPlus`, `CarteBibliotheque.profondeur`)
+        .bibliotheque: [14, 144, CarteBibliotheque.profondeurMax, 6, 34, 18, 10],
     ]
     /// Indices des valeurs : largeurs (cou, corps) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur mène ; à la
     /// fermeture la hauteur se replie d'abord.
@@ -140,7 +148,7 @@ public enum GeoIlot {
     /// la batterie du Mac (à gauche) et celle des écouteurs (à droite). 56 + le congé du cou déplié (10 pt) = la limite des ailes (66 pt).
     public static let epaules: Double = 56
     public static func aEpaules(_ v: VueIlot) -> Bool {
-        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .dictees].contains(v)
+        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .dictees, .bibliotheque].contains(v)
     }
 
     /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.

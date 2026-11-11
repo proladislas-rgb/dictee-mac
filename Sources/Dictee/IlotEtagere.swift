@@ -95,6 +95,8 @@ extension IlotControleur {
         for e in r.sortis { iconesEtagere[e.id] = nil }
         // les fichiers viennent d'être lâchés (donc accessibles) : leur icône est lue tout de suite
         for e in r.ajoutes { iconesEtagere[e.id] = NSWorkspace.shared.icon(forFile: e.chemin) }
+        // la bibliothèque garde tout ce qui passe par l'étagère (l'étagère, elle, n'en garde que 10)
+        bibliotheque.noterEtagere(r.ajoutes)
         sauverEtagere()
         montrerEtagere()
         // jamais de nom de fichier au journal
@@ -148,6 +150,7 @@ extension IlotControleur {
     /// Ce que l'îlot montre : le nom, le chemin, l'icône du Finder (lue une fois par fichier, hors du fil principal ; en attendant,
     /// celle du type de fichier, qui ne touche pas au disque).
     func montrerEtagere() {
+        bibliotheque.surEtagere = etagere.elements.count
         moteur.etagere = etagere.elements.map { e in
             FichierEtagere(id: e.id, nom: e.nom, url: URL(fileURLWithPath: e.chemin), icone: iconesEtagere[e.id] ?? SignetsEtagere.iconeDuType(e.chemin))
         }
@@ -281,7 +284,8 @@ struct DepotEtagere: View {
     }
 }
 
-/// La carte Étagère (depuis la case Étagère du Centre) : « ‹ Centre », l'en-tête et « Tout vider », puis les fichiers, cinq par rangée.
+/// La carte Étagère (depuis la case Étagère du Centre) : « ‹ Centre », l'en-tête et « Tout vider », puis les fichiers, cinq par rangée ;
+/// en bas, la ligne « Bibliothèque · Tout voir ».
 struct CarteEtagere: View {
     @ObservedObject var m: IlotMoteur
     var g: GrilleIlot
@@ -327,6 +331,9 @@ struct CarteEtagere: View {
                 .padding(.top, 8)
             }
             Spacer(minLength: 0)
+            // la Bibliothèque (maquette ilot-bibliotheque.html, étape 1) : tout ce qui est passé par l'étagère, et plus
+            LigneBibliothequeEtagere(m: m)
+                .aspectIlot(m.aspect(v, rang: 1 + max(1, rangees.count)), ancre: .top)
         }
         .frame(width: z.width, height: z.height, alignment: .top)
         .offset(x: IlotMoteur.largeur / 2 + z.minX, y: z.minY)

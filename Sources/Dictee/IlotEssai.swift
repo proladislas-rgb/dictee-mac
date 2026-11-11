@@ -29,8 +29,16 @@ enum IlotEssai {
         var pressePapiers: [String] = []
         var fenetres: [Onglet] = []
         func fabriquer() -> IlotControleur {
-            // l'étagère aussi dans le dossier temporaire : jamais le vrai etagere.json
-            let c = IlotControleur(stockage: RappelsStore(url: fichier), etagere: EtagereStore(url: dossier.appendingPathComponent("etagere.json")))
+            // l'étagère et la bibliothèque aussi dans le dossier temporaire : jamais le vrai etagere.json ni le vrai bibliotheque.json ; les
+            // sources de la bibliothèque lisent des dossiers temporaires (jamais Téléchargements ni le Bureau), sans toucher aux réglages
+            let bib = BibliothequeModele(store: BibliothequeStore(url: dossier.appendingPathComponent("bibliotheque.json")), sources: [])
+            bib.dossiers = DossiersBibliotheque(telechargements: dossier.appendingPathComponent("bibliotheque/Téléchargements", isDirectory: true),
+                                                captures: dossier.appendingPathComponent("bibliotheque/Captures", isDirectory: true))
+            bib.reglerSources = { _ in }
+            // les fichiers des dossiers d'essai sont datés par leur date de création (posée par l'essai), pas par leur arrivée dans le dossier
+            bib.lireDossiers = { s, d in SourcesBibliotheque.lire(s, dossiers: d).map { e in
+                var x = e; if let c = try? FileManager.default.attributesOfItem(atPath: e.chemin)[.creationDate] as? Date { x.date = c }; return x } }
+            let c = IlotControleur(stockage: RappelsStore(url: fichier), etagere: EtagereStore(url: dossier.appendingPathComponent("etagere.json")), bibliotheque: bib)
             c.maintenant = { Date().addingTimeInterval(decalage) }
             c.sons = IlotControleur.SonsIlot(minuteurFini: { compteurs.minuteur += 1 }, rappel: { compteurs.rappel += 1 }, doux: { compteurs.doux += 1 }, silencieux: { compteurs.silence += 1 })
             c.ouvrir = { liensOuverts.append($0) }
@@ -53,6 +61,15 @@ enum IlotEssai {
         let g = m.geometrie
         print("caméra : \(Int(g.largeur)) × \(Int(g.hauteur)) pt")
 
+        // `DICTEE_ESSAI_SEUL=bibliotheque` : la section de la Bibliothèque seule (pour la mettre au point sans attendre tout l'essai)
+        if ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"] == "bibliotheque" {
+            attendre(0.4)
+            IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
+                                   fenetres: { fenetres }, relancer: { fabriquer() })
+            c.arreter()
+            print(echecs == 0 ? "essai terminé : tout est vert" : "essai terminé : \(echecs) échec(s)")
+            return echecs == 0 ? 0 : 1
+        }
         // --- repos : l'îlot vide épouse l'encoche
         attendre(0.4)
         verifier(m.courante == .repos && m.resolution.principal == .repos, "rien d'actif : l'îlot est vide")
@@ -966,6 +983,8 @@ enum IlotEssai {
         IlotEssai.modifierCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.cheminsDuCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
+        IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
+                               fenetres: { fenetres }, relancer: { fabriquer() })
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)

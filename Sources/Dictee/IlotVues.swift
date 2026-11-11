@@ -144,6 +144,7 @@ struct IlotCalques: View {
         case .etagere: CarteEtagere(m: m, g: g)
         case .centre: CentreVue(m: m, g: g)
         case .dictees: DicteesCarte(m: m, d: m.dictees, g: g)
+        case .bibliotheque: BibliothequeCarteVue(m: m, b: m.bibliotheque, g: g)
         }
     }
 

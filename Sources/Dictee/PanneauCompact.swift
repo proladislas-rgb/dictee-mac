@@ -3,7 +3,7 @@ import SwiftUI
 import DicteeCore
 
 enum Onglet: String, CaseIterable, Identifiable {
-    case dictees = "Dictées", journee = "Journée", reunions = "Réunions", mots = "Mots", reglages = "Réglages"
+    case dictees = "Dictées", journee = "Journée", reunions = "Réunions", mots = "Mots", bibliotheque = "Bibliothèque", reglages = "Réglages"
     var id: String { rawValue }
 }
 

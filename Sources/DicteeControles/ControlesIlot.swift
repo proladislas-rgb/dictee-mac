@@ -130,6 +130,7 @@ func controlesIlot() {
     }
     controlesClaude(t0)
     controlesEtagere(t0)
+    controlesBibliotheque(t0)
     groupe("Îlot : Téléchargé (fichiers arrivés dans Téléchargements)")
     do {
         typealias F = FiltreTelechargements

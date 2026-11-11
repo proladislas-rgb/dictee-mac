@@ -213,3 +213,13 @@ Ancienne lecture (gardée si Hugues la confirme) : l'îlot ouvert devient une pi
 
 ## Ensuite : grande passe de qualité (Hugues 11/11 : « une optimisation de tout pour que tout soit vraiment parfait, qu'il n'y ait jamais de bug, clean, que ça respecte la confidentialité des gens »)
 - [ ] Audit complet (équipe) : bugs, performances/batterie, mémoire, plantages, confidentialité (ce qui est lu, gardé, envoyé : Groq, journaux, historique, crochets Claude, signets étagère, quarantaine Téléchargements), sécurité, simplicité de l'interface ; corrections ; puis publication d'une version
+
+## La Bibliothèque (branche bibliotheque, 11/11 soir) — maquette design/maquettes/ilot-bibliotheque.html, étapes 1 à 6 (validée : « c'est lourd à mort… tout est bien »)
+Rien n'est retiré du Centre ni de l'étagère : on AJOUTE.
+- [x] 1. DicteeCore/BibliothequeIlot.swift : entrées (signet, nom, sorte, source, date, taille, épinglée), fusion avec les sources, filtres, recherche sans accents, tri, groupes par date, retrait (bibliothèque seulement) + annulation, plafond 500 (les plus anciens non épinglés sortent) ; géométrie de la carte ; contrôles
+- [x] 2. App : BibliothequeModele (fichier 0600 dans Application Support, signets relus hors du fil principal), sources isolées Téléchargés / AirDrop / Captures (éteintes par défaut, Settings), l'étagère y verse tout ce qu'elle range
+- [x] 3. Îlot : ligne « Bibliothèque · Tout voir » sous la carte Étagère ; carte Bibliothèque (‹ Étagère, recherche au clavier pris seulement pendant la saisie, Récents/Anciens, pastilles, épinglés, groupes, épingler / retirer + Annuler, plusieurs choisis + « Glisser les N », pied + « En grand »)
+- [x] 4. Fenêtre : onglet « Bibliothèque » (avant Réglages) : vignettes QuickLook hors du fil principal, filtres, recherche, tri, épinglés, colonne « Ce que la bibliothèque montre » (interrupteurs des sources)
+- [x] 5. Essai à vrais clics (IlotEssaiBibliotheque), rendus 25*, comparaison à la maquette, commits
+  → 2 138 contrôles, `--ilot-essai` tout vert (515 vérifications dont la section Bibliothèque à vrais clics, touches et défilements), rendus 25a-25j (+ 22e/22f/22g/23m, la ligne « Bibliothèque » ajoutée à la carte Étagère).
+- [ ] Hugues : essayer en vrai (glisser plusieurs fichiers vers Mail avec « Glisser les 3 » ; allumer Téléchargés/Captures dans l'onglet : macOS demande l'accès une fois). Non vérifié d'ici : le vrai glisser vers une autre app (l'essai ne fait que préparer les 3 éléments), les vignettes QuickLook de vrais fichiers, la question d'accès de macOS.

@@ -264,6 +264,13 @@ enum Settings {
         get { defaults.object(forKey: "ilotEtagere") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotEtagere") }
     }
+    /// La Bibliothèque montre, en plus de l'étagère, les sources qu'on allume (fenêtre › Bibliothèque › « Ce que la bibliothèque
+    /// montre ») : Téléchargés, Reçus par AirDrop, Captures d'écran. ÉTEINTES par défaut : macOS demande l'accès au dossier
+    /// (Téléchargements, Bureau) au premier clic sur l'interrupteur, jamais au lancement.
+    static var bibliothequeSources: Set<SourceBibliotheque> {
+        get { Set((defaults.stringArray(forKey: "bibliothequeSources") ?? []).compactMap(SourceBibliotheque.init(rawValue:))) }
+        set { defaults.set(SourceBibliotheque.optionnelles.filter(newValue.contains).map(\.rawValue), forKey: "bibliothequeSources") }
+    }
     /// « Claude au travail » : l'îlot montre où en est Claude Code (crochets branchés depuis les Réglages). ALLUMÉ par défaut : tant que
     /// les crochets ne sont pas branchés, le dossier des sessions reste vide et rien ne s'affiche.
     static var ilotClaude: Bool {

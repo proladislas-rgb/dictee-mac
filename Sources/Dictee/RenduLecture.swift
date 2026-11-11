@@ -356,7 +356,7 @@ enum RenduLecture {
         // l'étagère est passée de l'accueil au Centre (sa case : les fichiers rangés, glissables)
         ecrire(bureau(hauteur: geometrie.hauteur + 300) { ilot(scene { m in m.etagereActive = true; m.etagere = deux; m.survole = true }) }, "ilot-22d-centre-case-etagere")
         ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.etagereActive = true; m.etagere = Array(huit.prefix(3)); m.energie = batterie; m.ouvrirEtagere() }) }, "ilot-22e-carte-etagere")
-        ecrire(bureau(hauteur: grandBureau + 40, clair: false) { ilot(scene { m in m.etagereActive = true; m.etagere = huit; m.ouvrirEtagere() }) }, "ilot-22f-carte-etagere-deux-rangees")
+        ecrire(bureau(hauteur: grandBureau + 60, clair: false) { ilot(scene { m in m.etagereActive = true; m.etagere = huit; m.ouvrirEtagere() }) }, "ilot-22f-carte-etagere-deux-rangees")
         ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.etagereActive = true; m.etagere = []; m.ouvrirEtagere() }) }, "ilot-22g-carte-etagere-vide")
         ecrire(bureau(hauteur: petitBureau + 80) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.minuteur = minut(10, restant: 372); depot(deux, survol: false)(m) }) }, "ilot-22h-etagere-pendant-video")
         ecrire(bureau(hauteur: petitBureau + 80) { ilot(miCourse(scene { m in m.etagereActive = true; m.etagere = deux }, 0.16) { $0.montrerDepot(true) }) }, "ilot-22i-etagere-ouverture-mi-course")
@@ -408,6 +408,26 @@ enum RenduLecture {
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees { m in m.dictees.survol = d2; m.dictees.decalage = 70 })) }, "ilot-24f-dictees-liste-defilee-survol")
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees { m in m.dictees.requete = "facture plombier" })) }, "ilot-24g-dictees-aucun-resultat")
         ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene { m in m.etagereActive = true; m.survole = true; m.donneesChangees(); m.allerA(.dictees) }) }, "ilot-24h-dictees-ilot-vide-sombre")
+        // la Bibliothèque (maquette ilot-bibliotheque.html, étapes 1 à 6) : la ligne « Bibliothèque · Tout voir » de la carte Étagère, la
+        // carte (épinglé en haut, groupes par date), « Documents » + « devis » (champ actif, mots surlignés), le survol (punaise, Retirer),
+        // « Retiré d'ici » + Annuler, trois fichiers choisis (« Glisser les 3 »), vide, sombre ; et l'onglet de la fenêtre
+        let biblio = RenduBibliotheque.modele(t0)
+        let etagereBib = etagere([("Devis-cuisine.pdf", .pdf), ("Plan-salon.jpg", .jpeg), ("Contrat.pdf", .pdf), ("Lettre-banque.docx", UTType(filenameExtension: "docx") ?? .data)])
+        func carteBib(_ config: @escaping (IlotMoteur) -> Void = { _ in }) -> (IlotMoteur) -> Void {
+            centre { m in m.bibliotheque.modele = biblio; m.etagere = etagereBib; m.ouvrirEtagere(); m.ouvrirBibliotheque(); config(m); m.donneesChangees() }
+        }
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.bibliotheque.modele = biblio; m.etagere = etagereBib; m.ouvrirEtagere() })) }, "ilot-25a-bibliotheque-1-etagere-tout-voir")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteBib())) }, "ilot-25b-bibliotheque-2-la-carte")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteBib { m in m.bibliotheque.filtre = .documents; m.bibliotheque.requete = "devis"; m.bibliotheque.rechercheActive = true })) }, "ilot-25c-bibliotheque-3-documents-devis")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteBib { m in m.bibliotheque.survol = "cap" })) }, "ilot-25d-bibliotheque-4-survol-punaise-retirer")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteBib { m in
+            m.bibliotheque.retrait = RetraitBibliotheque(entree: EntreeBibliotheque(chemin: "/Users/exemple/Desktop/Captures d\u{2019}écran/Capture 14.32.png", source: .captures, date: t0), place: nil) })) }, "ilot-25e-bibliotheque-4-retire-annuler")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteBib { m in m.bibliotheque.choisis = ["devis", "plan", "contrat"]; m.bibliotheque.survol = "plan" })) }, "ilot-25f-bibliotheque-5-trois-choisis")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteBib { m in m.bibliotheque.requete = "facture plombier" })) }, "ilot-25g-bibliotheque-aucun-fichier")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(carteBib { m in m.bibliotheque.recents = false })) }, "ilot-25h-bibliotheque-anciens-sombre")
+        ecrire(RenduBibliotheque.fenetre(biblio, t0), "ilot-25i-bibliotheque-6-onglet-de-la-fenetre")
+        let choix = BibliothequeFenetreEtat(); choix.choisis = ["devis", "plan", "contrat"]; choix.filtre = .tout
+        ecrire(RenduBibliotheque.fenetre(biblio, t0, choix), "ilot-25j-bibliotheque-onglet-trois-choisis")
         // « Modifier » (maquette, étape 9) : le Centre avec Rappel ajouté (cinq ronds) ; « Modifier » lui-même (inclinaison figée : dans
         // l'app, ils tremblent), « Ajouter : + Rappel + Dernière dictée », puis Rappel ajouté ; « Modifier » quand les ajouts ne tiennent
         // pas tous (« +3 › ») ; enfin les autorisations (« Un instant… », accès refusé et sa ligne d'avis)

@@ -90,7 +90,7 @@ final class IlotControleur {
     /// Montre des fichiers dans le Finder (injectable, comme `ouvrir`).
     var montrer: ([URL]) -> Void = { NSWorkspace.shared.activateFileViewerSelecting($0) }
     /// L'heure (injectable).
-    var maintenant: () -> Date = { Date() } { didSet { moteur.maintenant = maintenant } }
+    var maintenant: () -> Date = { Date() } { didSet { moteur.maintenant = maintenant; bibliotheque.maintenant = maintenant } }
     /// Les sons et vibrations (injectables : les essais n'en jouent jamais).
     var sons = SonsIlot()
 
@@ -111,6 +111,9 @@ final class IlotControleur {
     /// La relecture des signets (sur une file à part) : en cours, à refaire aussitôt, et quand elle a commencé la dernière fois.
     var relectureEtagere: (enCours: Bool, encore: Bool, derniere: Date) = (false, false, .distantPast)
     var apresRelecture: [() -> Void] = []
+    /// La Bibliothèque (Bibliotheque.swift) : tout ce qui est passé par l'étagère, plus les sources allumées. Partagée avec l'onglet
+    /// « Bibliothèque » de la fenêtre.
+    let bibliotheque: BibliothequeModele
     private var reveilMinuteur: DispatchWorkItem?
     private var reveilRappels: DispatchWorkItem?
     private var reveilAgenda: DispatchWorkItem?
@@ -124,13 +127,20 @@ final class IlotControleur {
     private var armeJusqua: Date = .distantPast
     private var armeFormulaire = false
 
-    init(stockage: RappelsStore = RappelsStore(url: RappelsStore.urlParDefaut), etagere etagereStore: EtagereStore = EtagereStore(url: EtagereStore.urlParDefaut)) {
+    init(stockage: RappelsStore = RappelsStore(url: RappelsStore.urlParDefaut), etagere etagereStore: EtagereStore = EtagereStore(url: EtagereStore.urlParDefaut),
+         bibliotheque: BibliothequeModele? = nil) {
         self.stockage = stockage
         rappels = stockage.lire()
         self.etagereStore = etagereStore
         etagere = etagereStore.lire()
+        // rien n'est lu sur le disque ici (ni signet résolu, ni dossier) : seulement le fichier de la bibliothèque
+        self.bibliotheque = bibliotheque ?? BibliothequeModele()
         moteur = IlotMoteur(lecture: lecture.modele)
         panneau = IlotPanneau(moteur: moteur)
+        moteur.bibliotheque.modele = self.bibliotheque
+        // la toute première fois, la bibliothèque reprend ce qui est déjà sur l'étagère
+        self.bibliotheque.reprendreEtagere(etagere.elements)
+        self.bibliotheque.surEtagere = etagere.elements.count
         lecture.surIlot = { [weak self] visible in self?.lectureVisible(visible) }
         lecture.surRecalcul = { [weak self] in self?.appliquerLesMasques() }
         lecture.surNouveauMorceau = { [weak self] in self?.moteur.donneesChangees() }
@@ -428,6 +438,8 @@ final class IlotControleur {
         if Settings.ilotEnergie, appareilsSource.actif { appareilsSource.relireSiAncien() }
         // l'accueil s'ouvre au survol : pas plus d'une relecture toutes les 5 s ; la carte de l'étagère, elle, relit toujours
         if moteur.etagereActive { relireEtagere(force: moteur.courante == .etagere) }
+        // la Bibliothèque : ses signets relus et les dossiers des sources allumées (hors du fil principal), à l'ouverture de sa carte
+        if moteur.courante == .bibliotheque { bibliotheque.rafraichir(force: true) }
         // le Centre : l'état de ses boutons (settings.json de Claude Code n'est lu qu'ici, à l'ouverture du Centre)
         if moteur.courante == .centre {
             moteur.telechargementsActifs = reglagesCentre.telechargements()
@@ -496,6 +508,8 @@ final class IlotControleur {
             ramenerApp(app)
         case .etagereOuvrir, .etagereRetirer, .etagereVider:
             agirEtagere(action)
+        case .bibliothequeOuvrir, .bibliothequeEpingler, .bibliothequeRetirer, .bibliothequeAnnuler, .bibliothequeClavier:
+            agirBibliotheque(action)
         case .microChoisir(let airpods):
             let bt = lireMicros().first { $0.transport == .bluetooth }
             reglagesCentre.choisirMicro(airpods ? bt?.uid : nil)
