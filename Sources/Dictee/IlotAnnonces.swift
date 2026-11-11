@@ -156,6 +156,10 @@ extension IlotMoteur {
                                   droite: .boutons([.init(titre: seul ? "Ouvrir" : "Afficher", etiquette: seul ? "Ouvrir \(premier.nom)" : "Afficher dans le Finder",
                                                           action: .fichiersOuvrir(d.urls))]),
                                   icones: d.icones, coteSymbole: ContenuAnnonce.coteIcone, coupureL1: seul ? .middle : .tail, glisser: seul ? premier.url : nil)
+        case .microEtendu:
+            // le micro barré voyage depuis l'aile gauche (sa place est gardée) ; le nom du micro peut être long : coupé au bout
+            return ContenuAnnonce(glyphe: nil, l1: "Micro coupé", l2: nomMicro ?? "Micro du Mac",
+                                  droite: .boutons([.init(titre: "Rouvrir", icone: "mic.fill", etiquette: "Rouvrir le micro", action: .microRouvrir)]))
         default:
             return nil
         }

@@ -281,6 +281,100 @@ enum IlotEssai {
         verifier(m.alerte?.vue == .minuteurFini && compteurs.minuteur == avantDictee.minuteur + 1 && !m.cache, "dictée finie : l'alerte attendue s'affiche, avec son")
         c.agir(.alerteOK); attendre(0.4)
 
+        // --- micro coupé : un micro FACTICE (jamais CoreAudio, jamais le vrai micro) ; le raccourci est essayé sur des touches fabriquées,
+        // jamais envoyées au système
+        do {
+            let faux = MicroFactice()
+            c.micro = faux
+            c.lecture.modele.morceau = MorceauEnCours(titre: "Album · Titre 3", app: "essai.lecture", joue: true, duree: 214, position: 97)
+            c.lecture.surIlot(true)
+            c.activerLeMicro(true); attendre(0.9)
+            verifier(faux.actif && !m.microCoupe && m.resolution.principal == .lectureCompact, "micro ouvert au départ : rien ne change, la lecture garde l'îlot")
+            c.basculerLeMicro(); attendre(0.9)
+            verifier(faux.commandes == ["couper"] && faux.coupe && m.microCoupe, "raccourci : le micro est coupé (une seule commande)")
+            verifier(m.courante == .microCompact && m.pastille == .lecture, "micro coupé : il prend l'îlot, la lecture devient la bulle")
+            verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && abs(m.trace.hauteur - Double(g.hauteur)) < 0.01,
+                     "micro coupé : dans les ailes, \(Int(m.trace.bande - Double(m.demiCamera))) pt de chaque côté de la caméra (≤ 66), rien sous la barre")
+            let aile = m.grille.bordAile(.microCompact) - m.demiCamera - 4
+            verifier(MesureIlot.texte("Coupé", 13, .semibold) <= aile && MesureIlot.texte("Ouvert", 13, .semibold) <= aile,
+                     "« Coupé » (\(Int(MesureIlot.texte("Coupé", 13, .semibold))) pt) et « Ouvert » (\(Int(MesureIlot.texte("Ouvert", 13, .semibold))) pt) tiennent dans l'aile (\(Int(aile)) pt)")
+            if let b = m.rectPastille() { verifier(b.minX >= CGFloat(m.trace.cou) + 5, "la bulle de la lecture est à côté de l'îlot, pas dessus") }
+            attendre(1.2) { m.boucleActive }
+            verifier(!m.boucleActive, "micro coupé, posé : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
+            // survol : le petit déplié
+            c.panneau.simulerPointeur(forme: true); attendre(0.9)
+            verifier(m.courante == .microEtendu && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01, "survol : « Micro coupé », son nom et « Rouvrir » ; cou étroit dans la barre")
+            let lm = m.contenus[.microEtendu] ?? 0
+            verifier(lm > 150 && lm <= 2 * m.grille.corps(.microEtendu) - 2 * GrilleIlot.marge + 0.5, "le déplié épouse son contenu (\(Int(lm)) pt)")
+            verifier(m.contenuAnnonce(.microEtendu)?.l2 == "Micro MacBook Air", "le nom du micro vient de la source")
+            // vrai clic sur « Rouvrir »
+            let z = m.grille.zoneAnnonce(.microEtendu)
+            let bouton = MesureIlot.bouton(ContenuAnnonce.Bouton(titre: "Rouvrir", icone: "mic.fill"))
+            let pb = CGPoint(x: z.maxX - bouton / 2, y: z.midY)
+            c.panneau.envoyerSouris(.leftMouseDown, en: pb); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pb)
+            c.panneau.simulerPointeur(forme: false); attendre(0.4)
+            verifier(faux.commandes.last == "rouvrir" && !faux.coupe && !m.microCoupe, "vrai clic sur « Rouvrir » : le micro est rouvert")
+            verifier(m.courante == .microOuvert && m.bandeauVu?.ligne1 == "Micro ouvert", "bandeau vert « Micro ouvert »")
+            attendre(1.6)
+            verifier(m.bandeau == nil && m.resolution.principal == .lectureCompact && m.resolution.pastille == nil,
+                     "1,5 s plus tard : il se retire, la lecture reprend l'îlot (\(m.bandeau.map { "\($0.vue)" } ?? "sans bandeau"), \(m.resolution.principal), bulle \(m.resolution.pastille.map { "\($0)" } ?? "aucune"))")
+            // Réglages Système : l'îlot suit (CoreAudio prévient ; ici le faux micro prévient de même)
+            let n0 = faux.commandes.count
+            faux.depuisLeSysteme(coupe: true); attendre(0.6)
+            verifier(m.microCoupe && m.resolution.principal == .microCompact && m.bandeau == nil && faux.commandes.count == n0, "coupé dans Réglages Système : l'îlot le montre, sans bandeau ni commande")
+            faux.depuisLeSysteme(coupe: false); attendre(0.3)
+            verifier(!m.microCoupe && m.courante == .microOuvert, "rouvert dans Réglages Système : « Micro ouvert »")
+            attendre(1.6)
+            // la dictée rouvre le micro le temps de dicter, puis le recoupe ; aucun bandeau pour ça
+            c.basculerLeMicro(); attendre(0.6)
+            let n1 = faux.commandes.count
+            occ.dictee = true; c.dicteeChange(enCours: true)
+            verifier(Array(faux.commandes.dropFirst(n1)) == ["rouvrir"] && !faux.coupe, "fn tenue pendant que c'est coupé : le micro est rouvert tout de suite, avant la capture")
+            c.occupationChangee(); attendre(0.6)
+            verifier(m.cache && m.bandeau == nil, "pendant la dictée : l'îlot est effacé, aucun « Micro ouvert » (l'écho est ignoré)")
+            occ.dictee = false; c.dicteeChange(enCours: false)
+            verifier(Array(faux.commandes.dropFirst(n1)) == ["rouvrir", "couper"] && faux.coupe, "fn relâchée : le micro est recoupé")
+            c.occupationChangee(); attendre(0.9)
+            verifier(m.microCoupe && m.resolution.principal == .microCompact && m.bandeau == nil, "après la dictée : « Coupé » de nouveau, aucun bandeau")
+            // dictée éclair : les deux notifications arrivent après coup, relues telles qu'est le micro (coupé) : rien ne bouge
+            c.dicteeChange(enCours: true); c.dicteeChange(enCours: false); attendre(0.4)
+            verifier(faux.coupe && m.microCoupe && m.bandeau == nil, "dictée éclair (notifications en retard) : toujours coupé, pas de faux « Micro ouvert »")
+            // la dictée écoute un autre micro : on ne rouvre pas celui que l'appel entend
+            faux.memeMicroQueLaDictee = false
+            let n2 = faux.commandes.count
+            c.dicteeChange(enCours: true); c.dicteeChange(enCours: false); attendre(0.3)
+            verifier(faux.commandes.count == n2 && faux.coupe, "dictée sur un autre micro : celui-ci reste coupé")
+            faux.memeMicroQueLaDictee = true
+            // le raccourci, sur des touches fabriquées (jamais envoyées) : « m » selon la disposition du clavier de ce Mac
+            let src = CGEventSource(stateID: .privateState)
+            func touche(_ code: CGKeyCode, _ f: CGEventFlags) -> CGEvent? { let e = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: true); e?.flags = f; return e }
+            if let codeM = (0..<128).map({ CGKeyCode($0) }).first(where: { touche($0, []).flatMap { NSEvent(cgEvent: $0)?.charactersIgnoringModifiers } == "m" }),
+               let codeA = (0..<128).map({ CGKeyCode($0) }).first(where: { touche($0, []).flatMap { NSEvent(cgEvent: $0)?.charactersIgnoringModifiers } == "a" }) {
+                let r = RaccourciIlot.microParDefaut
+                verifier(touche(codeM, [.maskControl, .maskAlternate]).map { KeyMonitor.correspond($0, a: r) } == true, "⌃⌥M (touche \(codeM) sur ce clavier) : reconnu")
+                verifier(touche(codeM, [.maskControl]).map { KeyMonitor.correspond($0, a: r) } == false
+                         && touche(codeM, [.maskControl, .maskAlternate, .maskCommand]).map { KeyMonitor.correspond($0, a: r) } == false
+                         && touche(codeA, [.maskControl, .maskAlternate]).map { KeyMonitor.correspond($0, a: r) } == false
+                         && touche(codeM, []).map { KeyMonitor.correspond($0, a: r) } == false, "⌃M, ⌃⌥⌘M, ⌃⌥A, m seul : pas le raccourci")
+            } else { verifier(false, "touche « m » introuvable sur ce clavier") }
+            // un micro qui ne se coupe pas : l'îlot reste sur ce qui est vrai
+            c.basculerLeMicro(); attendre(1.8)
+            verifier(!m.microCoupe && m.bandeau == nil, "rouvert (raccourci), bandeau parti")
+            faux.reglable = false
+            c.basculerLeMicro(); attendre(0.6)
+            verifier(!m.microCoupe && m.resolution.principal == .lectureCompact && m.bandeau == nil, "micro qui refuse d'être coupé : l'îlot ne ment pas")
+            faux.reglable = true
+            // réglage éteint : plus d'écoute ; le micro reste comme il est
+            c.basculerLeMicro(); attendre(0.6)
+            c.activerLeMicro(false); attendre(0.6)
+            verifier(!faux.actif && !m.microCoupe && m.resolution.principal == .lectureCompact, "réglage éteint : l'îlot ne montre plus le micro")
+            let n3 = faux.commandes.count
+            c.basculerLeMicro(); faux.depuisLeSysteme(coupe: false); attendre(0.4)
+            verifier(faux.commandes.count == n3 && m.bandeau == nil, "réglage éteint : le raccourci et CoreAudio ne font plus rien")
+            attendre(1.2) { m.boucleActive }
+            verifier(!m.boucleActive, "micro : tout est posé, aucune boucle d'animation")
+        }
+
         // --- réunion : rien à l'écran, vibration seule
         occ.reunion = true; c.occupationChangee(); attendre(0.5)
         let s0 = compteurs

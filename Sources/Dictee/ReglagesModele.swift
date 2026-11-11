@@ -30,6 +30,8 @@ final class ReglagesModele: ObservableObject {
     @Published var ilotNotifications: Bool { didSet { if !installe { return }; Settings.ilotNotifications = ilotNotifications; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotEnergie: Bool { didSet { if !installe { return }; Settings.ilotEnergie = ilotEnergie; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotTelechargements: Bool { didSet { if !installe { return }; Settings.ilotTelechargements = ilotTelechargements; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
+    @Published var ilotMicro: Bool { didSet { if !installe { return }; Settings.ilotMicro = ilotMicro; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
+    @Published var raccourciMicro: RaccourciIlot { didSet { if !installe { return }; Settings.raccourciMicro = raccourciMicro; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var sonFinMinuteur: String { didSet { if !installe { return }; Settings.sonFinMinuteur = sonFinMinuteur } }
     var phraseCalendrier: String {
         if reel, !ilotCalendrier, EKAutorisation.refusee { return "L\u{2019}accès est refusé : à autoriser dans Réglages Système › Confidentialité et sécurité › Calendriers." }
@@ -89,6 +91,8 @@ final class ReglagesModele: ObservableObject {
         sonFinMinuteur = reel ? Settings.sonFinMinuteur : "Pop"
         ilotEnergie = reel ? Settings.ilotEnergie : true
         ilotTelechargements = reel ? Settings.ilotTelechargements : true
+        ilotMicro = reel ? Settings.ilotMicro : true
+        raccourciMicro = reel ? Settings.raccourciMicro : .microParDefaut
         modeleWhisper = reel ? Settings.modeleWhisper : ModeleWhisper.parDefaut
         testPrecision = reel ? Settings.testPrecisionRestant > 0 : false
         langue = reel ? Settings.langueReglage : ChoixLangue.defaut

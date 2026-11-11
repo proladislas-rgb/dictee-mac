@@ -55,18 +55,21 @@ enum ActionIlot {
     case collerLaDerniereDictee
     /// « Ouvrir » sur le bandeau Téléchargé : le fichier (un seul) ou le Finder sur les fichiers (plusieurs).
     case fichiersOuvrir([URL])
+    /// « Rouvrir » sur le micro coupé déplié.
+    case microRouvrir
 }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
 /// une seule pièce qui grandit et glisse à sa place, jamais deux qui se croisent.
 enum FamilleIlot: CaseIterable {
-    case lecture, minuteur, rappel, agenda, autre
+    case lecture, minuteur, rappel, agenda, micro, autre
     static func de(_ v: VueIlot) -> FamilleIlot {
         switch v {
         case .lectureCompact, .lectureEtendu, .lectureMinuteur: return .lecture
         case .minuteurMinimal, .minuteurCompact, .minuteurEtendu: return .minuteur
         case .rappelCompact, .rappelEtendu: return .rappel
         case .agendaCompact, .agendaEtendu: return .agenda
+        case .microCompact, .microEtendu: return .micro
         default: return .autre
         }
     }
@@ -76,6 +79,7 @@ enum FamilleIlot: CaseIterable {
         case .minuteur: return (.minuteurCompact, .minuteurEtendu)
         case .rappel: return (.rappelCompact, .rappelEtendu)
         case .agenda: return (.agendaCompact, .agendaEtendu)
+        case .micro: return (.microCompact, .microEtendu)
         case .autre: return nil
         }
     }
@@ -159,6 +163,9 @@ final class IlotMoteur: ObservableObject {
     var derniereDictee: (texte: String, age: String)?
     /// Dit à l'accueil si le calendrier est branché (sinon la tuile propose de l'activer).
     var calendrierActif = false
+    /// Le micro du Mac est coupé (raccourci ⌃⌥M, ou Réglages Système), et son nom pour le déplié (« Micro MacBook Air »).
+    var microCoupe = false
+    var nomMicro: String?
     /// La batterie du Mac (nil : Mac sans batterie, ou réglage éteint) et les écouteurs connectés : les épaules de l'îlot déplié.
     var energie: EnergieIlot?
     var ecouteurs: AppareilIlot?
@@ -234,6 +241,7 @@ final class IlotMoteur: ObservableObject {
         e.rappelEnAttente = !rappelsSonnes.isEmpty && !(alerte?.rappel.map { r in rappelsSonnes.count == 1 && rappelsSonnes[0].id == r.id } ?? false)
         e.rendezVousProche = rendezVousProche && rendezVous != nil
         e.lecture = lecturePresente
+        e.microCoupe = microCoupe
         e.alerte = alerte?.vue
         e.bandeau = bandeau?.vue
         return e
@@ -693,6 +701,8 @@ final class IlotMoteur: ObservableObject {
         case .minuteur: return 74
         case .rendezVous: return 84
         case .rappel: return 76
+        // le micro barré et « Coupé », mesurés : 10 + glyphe + 6 + texte + 10
+        case .micro: return 26 + MesureIlot.symbole("mic.slash.fill", 12) + MesureIlot.texte("Coupé", 12.5, .semibold)
         case .alerte: return 30
         }
     }

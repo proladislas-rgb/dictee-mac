@@ -94,6 +94,7 @@ struct IlotCalques: View {
             if m.visible(FamilleIlot.minuteur) { voyageursMinuteur }
             if m.visible(FamilleIlot.rappel) { voyageurGlyphe(.rappel) }
             if m.visible(FamilleIlot.agenda) { voyageurGlyphe(.agenda) }
+            if m.visible(FamilleIlot.micro) { voyageurGlyphe(.micro) }
             if m.epaules, m.ouvertureEpaules > 0.001 { EpaulesIlot(m: m, g: g) }
             ForEach(VueIlot.allCases, id: \.self) { v in
                 if m.visible(v) { ecran(v) }
@@ -121,7 +122,22 @@ struct IlotCalques: View {
         case .accueil: accueil
         case .appareil, .telecharge: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .batterieCharge, .batterieFaible: energieAiles(v)
+        case .microCompact: heureAile(v, "Coupé", CouleursIlot.rouge).accessibilityLabel("Micro coupé")
+        case .microEtendu: if let c = m.contenuAnnonce(v) { annonce(v, c) }
+        case .microOuvert: microOuvert(v)
         }
+    }
+
+    /// Le micro rouvert : le micro (sans barre) dans l'aile gauche, « Ouvert » dans l'aile droite, en vert, le temps d'un coup d'œil.
+    private func microOuvert(_ v: VueIlot) -> some View {
+        let c = g.centreAile(v, droite: false)
+        return ZStack(alignment: .topLeading) {
+            Image(systemName: "mic.fill").font(.system(size: 15, weight: .semibold)).foregroundStyle(CouleursIlot.vert)
+                .posee(CGRect(x: c - 18, y: 0, width: 36, height: g.barre), m.aspect(v, rang: 0), ancre: .center, .center)
+            heureAile(v, "Ouvert", CouleursIlot.vert)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Micro ouvert")
     }
 
     /// Chargeur branché, batterie faible : la pile dans l'aile gauche, le pourcentage dans l'aile droite, en vert ou en rouge.
@@ -265,15 +281,16 @@ struct IlotCalques: View {
 
     // MARK: rappels
 
-    /// La cloche (rappel) ou le calendrier (rendez-vous) : dans l'aile gauche au repos, à sa place dans l'annonce une fois déplié.
+    /// La cloche (rappel), le calendrier (rendez-vous) ou le micro barré : dans l'aile gauche au repos, à sa place dans l'annonce une
+    /// fois déplié.
     private func voyageurGlyphe(_ f: FamilleIlot) -> some View {
         let p = m.ouverture(f)
         let a = m.aspect(f)
         let (vc, vx) = f.vues!
         let c = g.centreAile(vc, droite: false)
         let compact = CGRect(x: c - 13, y: g.barre / 2 - 13, width: 26, height: 26)
-        let z = f == .rappel ? g.zoneAnnonce(vx, haut: 20, bas: 20) : g.zone(vx)
-        let etendu = CGRect(x: z.minX, y: f == .rappel ? z.midY - 13 : z.minY - 2, width: 26, height: 26)
+        let z = f == .rappel ? g.zoneAnnonce(vx, haut: 20, bas: 20) : (f == .micro ? g.zoneAnnonce(vx) : g.zone(vx))
+        let etendu = CGRect(x: z.minX, y: f == .agenda ? z.minY - 2 : z.midY - 13, width: 26, height: 26)
         let (r, ts) = voyageIlot(compact, etendu, p)
         let echelle = lerp(15.0 / 22.0, 1, ts)
         // la cloche se secoue à chaque rappel qui SONNE (alerte), même si elle était déjà dans l'aile ; jamais au simple survol
@@ -281,6 +298,8 @@ struct IlotCalques: View {
         return Group {
             if f == .rappel {
                 ClocheSecouee(taille: 22, sonnerie: m.reduire || m.statique ? nil : sonne)
+            } else if f == .micro {
+                GlypheIlot(nom: "mic.slash.fill", couleur: CouleursIlot.rouge, taille: 22)
             } else {
                 GlypheIlot(nom: GlypheIlot.calendrier, couleur: CouleursIlot.rouge, taille: 22)
             }
@@ -656,6 +675,14 @@ struct PastilleVue: View {
                     .opacity(Double(lisseIlot((ouverture - 0.35) / 0.5)))
             }
             .padding(.leading, 10)
+        case .micro:
+            HStack(spacing: 6) {
+                GlypheIlot(nom: "mic.slash.fill", couleur: CouleursIlot.rouge, taille: 12)
+                Text("Coupé").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(CouleursIlot.rouge).lineLimit(1).fixedSize()
+            }
+            .padding(.leading, 10)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Micro coupé")
         case .alerte:
             EmptyView()
         }

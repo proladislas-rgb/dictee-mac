@@ -16,12 +16,14 @@ public enum VueIlot: String, CaseIterable, Sendable {
     case appareil, batterieCharge, batterieFaible
     /// Un fichier (ou plusieurs, en rafale) vient d'arriver dans Téléchargements, AirDrop compris.
     case telecharge
+    /// Le micro est coupé (micro barré rouge, « Coupé ») ; au survol, son nom et « Rouvrir » ; rouvert : un bandeau vert court.
+    case microCompact, microEtendu, microOuvert
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
         switch self {
         case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
-             .appareil, .batterieCharge, .batterieFaible, .telecharge: return true
+             .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert: return true
         default: return false
         }
     }
@@ -65,6 +67,9 @@ public enum GeoIlot {
         .batterieCharge: compact(60), .batterieFaible: compact(60),
         // le fichier arrivé : son icône (38 pt), son nom et « Téléchargé · 2,4 Mo », le bouton Ouvrir ; un bandeau ordinaire
         .telecharge: bandeau,
+        // micro coupé : le micro barré (aile gauche) et « Coupé » (41 pt mesurés, aile droite : 60 − 8 − 4 = 48 pt) ; 60 + 6 = 66 ;
+        // au survol, un petit déplié qui épouse « Micro coupé », le nom du micro et « Rouvrir » ; rouvert, « Ouvert » (44 pt) en vert
+        .microCompact: compact(60), .microEtendu: bandeau, .microOuvert: compact(60),
     ]
     /// Indices des valeurs : largeurs (cou, corps) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur mène ; à la
     /// fermeture la hauteur se replie d'abord.
@@ -78,7 +83,7 @@ public enum GeoIlot {
     public static let evasementMin: Double = 38
 
     /// Écrans dont le corps épouse le contenu (bandeaux, alertes, rendez-vous déplié) : ni texte collé à gauche ni grand vide à droite.
-    public static func ajusteAuContenu(_ v: VueIlot) -> Bool { ((v.estBandeau || v.estAlerte) && profondeur(v) > 0) || v == .agendaEtendu }
+    public static func ajusteAuContenu(_ v: VueIlot) -> Bool { ((v.estBandeau || v.estAlerte) && profondeur(v) > 0) || v == .agendaEtendu || v == .microEtendu }
 
     /// Les épaules (maquette ilot-apple.html) : dans un écran déplié, le cou s'élargit à 56 pt de chaque côté de la caméra pour montrer
     /// la batterie du Mac (à gauche) et celle des écouteurs (à droite). 56 + le congé du cou déplié (10 pt) = la limite des ailes (66 pt).
@@ -142,6 +147,8 @@ public enum PassageIlot: Equatable, Sendable {
 /// Une « activité » : ce qui peut occuper l'îlot ou la pastille.
 public enum ActiviteIlot: String, Sendable, Equatable {
     case minuteur, rappel, rendezVous, lecture, alerte
+    /// Le micro est coupé : l'îlot le rappelle tant qu'il l'est.
+    case micro
 }
 
 /// Ce qui est vrai à l'instant, pour décider qui a l'îlot et qui a la pastille.
@@ -150,6 +157,7 @@ public struct EtatIlot: Equatable, Sendable {
     public var rappelEnAttente = false     // un rappel a sonné sans réponse : la cloche reste dans l'aile
     public var rendezVousProche = false    // un rendez-vous dans 10 minutes
     public var lecture = false             // quelque chose joue
+    public var microCoupe = false          // le micro du Mac est coupé (raccourci, ou Réglages Système)
     public var alerte: VueIlot?            // minuteurFini, rappelEtendu ou agendaDebut, en cours
     public var bandeau: VueIlot?           // un bandeau passager
     public init() {}
@@ -170,9 +178,11 @@ public struct ResolutionIlot: Equatable, Sendable {
 }
 
 public enum ArbitrageIlot {
-    /// L'ordre de priorité des activités qui se partagent l'îlot : rendez-vous, rappel, lecture, minuteur.
+    /// L'ordre de priorité des activités qui se partagent l'îlot : micro coupé, rendez-vous, rappel, lecture, minuteur. Le micro coupé
+    /// passe avant tout : c'est ce qui gêne le plus si on l'oublie (on parle dans un appel où personne n'entend) ; la vidéo devient la bulle.
     public static func ordre(_ e: EtatIlot, echange: ActiviteIlot? = nil) -> [ActiviteIlot] {
         var p: [ActiviteIlot] = []
+        if e.microCoupe { p.append(.micro) }
         if e.rendezVousProche { p.append(.rendezVous) }
         if e.rappelEnAttente { p.append(.rappel) }
         if e.lecture { p.append(.lecture) }
@@ -187,6 +197,7 @@ public enum ArbitrageIlot {
         case .rappel: return (.rappelCompact, .rappelEtendu)
         case .rendezVous: return (.agendaCompact, .agendaEtendu)
         case .lecture: return (.lectureCompact, .lectureEtendu)
+        case .micro: return (.microCompact, .microEtendu)
         case .alerte: return (.repos, .repos)
         }
     }
@@ -202,12 +213,14 @@ public enum ArbitrageIlot {
         return ResolutionIlot(principal: .repos, survol: .accueil, verrou: false, pastille: nil)
     }
 
-    /// L'étage de la priorité (1 = le plus haut) : 1 dictée, 2 réunion, 3 alerte (minuteur fini, rappel, rendez-vous), 4 lecture, 5 le reste.
+    /// L'étage de la priorité (1 = le plus haut) : 1 dictée, 2 réunion, 3 alerte (minuteur fini, rappel, rendez-vous) et micro coupé,
+    /// 4 lecture, 5 le reste.
     public static func etage(dictee: Bool, reunion: Bool, ecran: VueIlot) -> Int {
         if dictee { return 1 }
         if reunion { return 2 }
         switch ecran {
-        case .minuteurFini, .rappelEtendu, .agendaDebut, .agendaAvant, .agendaCompact, .rappelCompact, .rappelAjoute: return 3
+        case .minuteurFini, .rappelEtendu, .agendaDebut, .agendaAvant, .agendaCompact, .rappelCompact, .rappelAjoute,
+             .microCompact, .microEtendu, .microOuvert: return 3
         case .lectureCompact, .lectureEtendu, .lectureMinuteur: return 4
         default: return 5
         }

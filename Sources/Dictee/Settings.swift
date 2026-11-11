@@ -245,6 +245,22 @@ enum Settings {
         get { defaults.object(forKey: "ilotTelechargements") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotTelechargements") }
     }
+    /// « Micro coupé » : le raccourci coupe le micro du Mac et le rouvre, l'îlot le rappelle tant qu'il est coupé. ALLUMÉ par défaut :
+    /// rien n'est demandé à macOS (couper un micro n'écoute rien).
+    static var ilotMicro: Bool {
+        get { defaults.object(forKey: "ilotMicro") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "ilotMicro") }
+    }
+    /// Le raccourci de « Micro coupé » (⌃⌥M par défaut ; un raccourci rangé mais devenu invalide revient à ⌃⌥M).
+    static var raccourciMicro: RaccourciIlot {
+        get { defaults.string(forKey: "raccourciMicro").flatMap(RaccourciIlot.init(texte:)).flatMap { $0.estValide ? $0 : nil } ?? .microParDefaut }
+        set { defaults.set(newValue.texte, forKey: "raccourciMicro") }
+    }
+    /// Pour un micro sans muet, coupé en mettant son volume d'entrée à 0 : son ancien volume, par micro (UID CoreAudio), pour le rendre.
+    static var microVolumesGardes: [String: Double] {
+        get { defaults.dictionary(forKey: "microVolumesGardes") as? [String: Double] ?? [:] }
+        set { defaults.set(newValue, forKey: "microVolumesGardes") }
+    }
     /// Le son de la fin d'un minuteur : le nom d'un son du Mac (« Pop » par défaut, celui de la dictée), ou « Aucun ».
     static var sonFinMinuteur: String {
         get { defaults.string(forKey: "sonFinMinuteur").flatMap { $0.isEmpty ? nil : $0 } ?? "Pop" }

@@ -103,6 +103,92 @@ func controlesIlot() {
                  "fichier arrivé pendant une vidéo : la vidéo passe en bulle le temps de l'annonce")
     }
 
+    groupe("Îlot : micro coupé")
+    do {
+        let d = RaccourciIlot.microParDefaut
+        verifier(d.libelle == "\u{2303}\u{2325}M" && d.texte == "ctrl+opt+m" && d.estValide, "par défaut : ⌃⌥M, rangé « ctrl+opt+m », valide")
+        verifier(RaccourciIlot(texte: "ctrl+opt+m") == d && RaccourciIlot(texte: d.texte) == d, "« ctrl+opt+m » relu à l'identique")
+        verifier(RaccourciIlot(texte: "ctrl+opt++")?.touche == "+" && RaccourciIlot(texte: "ctrl+opt++")?.controle == true, "la touche « + » elle-même")
+        verifier(RaccourciIlot(texte: "") == nil && RaccourciIlot(texte: "ctrl+opt+mm") == nil && RaccourciIlot(texte: "hyper+m") == nil, "textes abîmés refusés")
+        verifier(RaccourciIlot(touche: "M", controle: true, option: true) == d, "la touche est rangée en minuscule")
+        verifier(d.correspond(touche: "m", controle: true, option: true, maj: false, commande: false) && d.correspond(touche: "M", controle: true, option: true, maj: false, commande: false),
+                 "⌃⌥M reconnu (minuscule ou capitale)")
+        verifier(!d.correspond(touche: "m", controle: true, option: true, maj: false, commande: true) && !d.correspond(touche: "m", controle: true, option: false, maj: false, commande: false)
+                 && !d.correspond(touche: ",", controle: true, option: true, maj: false, commande: false), "⌃⌥⌘M, ⌃M, ⌃⌥, : pas le raccourci")
+        verifier(!RaccourciIlot(touche: "m", option: true).estValide, "⌥M seul : refusé (il tape « µ »)")
+        verifier(!RaccourciIlot(touche: "m", commande: true).estValide, "⌘M seul : refusé (réduire la fenêtre)")
+        verifier(!RaccourciIlot(touche: "m", option: true, maj: true).estValide, "⌥⇧M : refusé (ni ⌃ ni ⌘)")
+        verifier(!RaccourciIlot(touche: "n", option: true, commande: true).estValide && !RaccourciIlot(touche: "q", controle: true, commande: true).estValide,
+                 "⌥⌘N (noter la réunion) et ⌃⌘Q (verrouiller) : déjà pris")
+        verifier(RaccourciIlot(touche: "m", maj: true, commande: true).estValide && RaccourciIlot(touche: "u", controle: true, commande: true).estValide, "⇧⌘M, ⌃⌘U : acceptés")
+        verifier(RaccourciIlot(touche: " ", controle: true, option: true).libelle == "\u{2303}\u{2325}Espace", "la barre d'espace s'écrit « Espace »")
+
+        var w = VeilleMicro()
+        typealias R = VeilleMicro.Reponse
+        verifier(w.systeme(coupe: false) == .rien && !w.coupe, "lancement, micro ouvert : rien")
+        verifier(w.basculer() == R(commande: .couper) && w.coupe, "raccourci : on coupe ; l'îlot montre « Coupé » tout de suite")
+        verifier(w.systeme(coupe: true) == .rien && w.coupe, "l'écho de notre commande ne change rien")
+        verifier(w.basculer() == R(commande: .rouvrir, annonce: .ouvert) && !w.coupe, "raccourci : on rouvre, bandeau « Micro ouvert »")
+        verifier(w.systeme(coupe: false) == .rien, "l'écho de la réouverture ne change rien")
+        verifier(w.systeme(coupe: true) == .rien && w.coupe, "coupé dans Réglages Système : l'îlot suit, sans bandeau")
+        verifier(w.systeme(coupe: false) == R(annonce: .ouvert) && !w.coupe, "rouvert dans Réglages Système : l'îlot suit, « Micro ouvert »")
+        verifier(w.rouvrir() == .rien, "« Rouvrir » sur un micro déjà ouvert : rien")
+
+        var x = VeilleMicro()
+        _ = x.basculer()
+        verifier(x.dictee(enCours: true) == R(commande: .rouvrir) && x.coupe && x.rouvertPourDictee, "fn pendant que c'est coupé : la dictée rouvre le micro (l'îlot garde « coupé »)")
+        verifier(x.systeme(coupe: false) == .rien && x.coupe, "l'écho de cette réouverture : rien, pas de « Micro ouvert »")
+        verifier(x.dictee(enCours: true) == .rien, "la dictée déjà en cours : pas deux fois")
+        verifier(x.dictee(enCours: false) == R(commande: .couper) && x.coupe && !x.rouvertPourDictee, "fin de la dictée : recoupé")
+        verifier(x.systeme(coupe: true) == .rien, "l'écho du recoupage : rien")
+        // une notification en retard (ouvert) lue APRÈS la fin : le contrôleur relit l'état réel (coupé) au moment de la traiter
+        verifier(x.systeme(coupe: true) == .rien && x.coupe, "une notification en retard relue telle qu'est le micro maintenant : rien ne bouge")
+        verifier(x.dictee(enCours: true, memeMicro: false) == .rien && x.dictee(enCours: false) == .rien,
+                 "la dictée écoute un autre micro (AirPods par défaut, dictée sur le micro du Mac) : on ne rouvre pas celui que l'appel entend")
+        _ = x.dictee(enCours: true)
+        verifier(x.basculer() == R(annonce: .ouvert) && !x.coupe && !x.rouvertPourDictee, "raccourci pendant une dictée qui l'a rouvert : il reste ouvert (pas de commande), « Micro ouvert »")
+        verifier(x.dictee(enCours: false) == .rien && !x.coupe, "fin de cette dictée : on ne recoupe pas")
+        _ = x.dictee(enCours: true)
+        verifier(x.basculer() == .rien && x.coupe && x.rouvertPourDictee, "raccourci pendant une dictée : couper attend la fin (sinon la dictée n'entend plus rien)")
+        verifier(x.dictee(enCours: false) == R(commande: .couper), "fin de la dictée : coupé")
+        _ = x.basculer()
+        _ = x.dictee(enCours: true, memeMicro: false)
+        verifier(x.basculer() == R(commande: .couper), "pendant une dictée sur un autre micro : couper tout de suite")
+        _ = x.dictee(enCours: false)
+        _ = x.dictee(enCours: true)
+        verifier(x.systeme(coupe: true) == .rien && !x.rouvertPourDictee && x.dictee(enCours: false) == .rien, "recoupé ailleurs pendant la dictée : rien à recouper à la fin")
+
+        var y = VeilleMicro()
+        _ = y.basculer(); y.commandeEchouee(.couper)
+        verifier(!y.coupe, "un micro qui ne se coupe pas : l'îlot reste sur « ouvert »")
+        _ = y.systeme(coupe: true); _ = y.dictee(enCours: true); y.commandeEchouee(.rouvrir)
+        verifier(y.coupe && !y.rouvertPourDictee && y.dictee(enCours: false) == .rien, "réouverture refusée pour la dictée : il reste coupé, rien à recouper")
+        _ = y.dictee(enCours: true)
+        verifier(y.oublier() == R(commande: .couper) && !y.coupe && !y.dicteeEnCours, "réglage éteint pendant une dictée qui l'a rouvert : recoupé, puis tout est oublié")
+        verifier(y.oublier() == .rien, "réglage éteint, micro simplement coupé : on le laisse comme il est (c'est l'état du Mac)")
+
+        verifier(MicroIlot.volumeARendre(garde: 0.62) == 0.62 && MicroIlot.volumeARendre(garde: nil) == 0.75 && MicroIlot.volumeARendre(garde: 0) == 0.75 && MicroIlot.volumeARendre(garde: 3) == 1,
+                 "micro sans muet : on rend l'ancien volume (75 % s'il était nul ou inconnu)")
+        verifier(MicroIlot.estCoupe(volume: 0) && !MicroIlot.estCoupe(volume: 0.3), "volume nul = coupé")
+
+        verifier(!VueIlot.microCompact.estBandeau && GeoIlot.profondeur(.microCompact) == 0, "micro coupé : une activité dans les ailes, rien sous la barre")
+        verifier(GeoIlot.valeurs(.microCompact, hauteurBarre: 32)[0] + GeoIlot.valeurs(.microCompact, hauteurBarre: 32)[3] <= GeoIlot.aileMax,
+                 "aile du micro coupé : cou + épaule ≤ 66 pt")
+        verifier(GeoIlot.ajusteAuContenu(.microEtendu) && GeoIlot.profondeur(.microEtendu) >= 72 && !GeoIlot.aEpaules(.microEtendu), "survol : un petit déplié qui épouse « Micro coupé », le nom et « Rouvrir »")
+        verifier(VueIlot.microOuvert.estBandeau && GeoIlot.profondeur(.microOuvert) == 0 && !GeoIlot.ajusteAuContenu(.microOuvert), "« Micro ouvert » : un bandeau court dans les ailes")
+        var em = EtatIlot(); em.microCoupe = true; em.lecture = true
+        var rm = ArbitrageIlot.resoudre(em)
+        verifier(rm.principal == .microCompact && rm.survol == .microEtendu && rm.pastille == .lecture, "micro coupé + vidéo : le micro garde l'îlot, la vidéo devient la bulle")
+        rm = ArbitrageIlot.resoudre(em, echange: .lecture)
+        verifier(rm.principal == .lectureCompact && rm.pastille == .micro, "clic sur la bulle : la vidéo prend l'îlot, le micro coupé la bulle")
+        em.rendezVousProche = true; em.rappelEnAttente = true
+        verifier(ArbitrageIlot.resoudre(em).principal == .microCompact && ArbitrageIlot.resoudre(em).pastille == .rendezVous, "micro coupé > rendez-vous > rappel > lecture")
+        em.bandeau = .microOuvert
+        verifier(ArbitrageIlot.resoudre(em).principal == .microOuvert && ArbitrageIlot.resoudre(em).verrou, "« Micro ouvert » prend l'îlot un instant")
+        verifier(ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .microCompact) == 3 && ArbitrageIlot.etage(dictee: true, reunion: false, ecran: .microCompact) == 1,
+                 "étage : le micro coupé avant la lecture, la dictée avant tout")
+    }
+
     groupe("Îlot : épaules (batterie, écouteurs) et énergie")
     for (barre, demi) in [(32.0, 100.0), (33.0, 89.5)] {
         for v in VueIlot.allCases {

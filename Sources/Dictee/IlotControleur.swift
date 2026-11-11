@@ -42,6 +42,11 @@ final class IlotControleur {
     private var veilleEnergie = VeilleEnergie()
     let telechargementsSource = SourceTelechargements()
     private var rafale = RafaleTelechargements()
+    /// Le micro du Mac (CoreAudio ; un micro factice dans les essais, jamais le vrai).
+    var micro: PiloteMicro = MicroSysteme() { didSet { micro.surChangement = { [weak self] in self?.microChange() } } }
+    private(set) var veilleMicro = VeilleMicro()
+    /// Le raccourci de « Micro coupé » à donner à l'écoute du clavier (nil : réglage éteint, la touche n'est plus avalée).
+    var surRaccourciMicro: (RaccourciIlot?) -> Void = { _ in }
 
     /// Ce qui occupe l'encoche en dehors de la dictée de ce contrôleur (rempli par l'AppDelegate).
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
@@ -105,6 +110,7 @@ final class IlotControleur {
             NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
         }
         lecture.modele.surClicIlot = { [weak self] in self?.moteur.clicForme() }
+        micro.surChangement = { [weak self] in self?.microChange() }
     }
 
     // MARK: vie
@@ -125,6 +131,7 @@ final class IlotControleur {
         notificationsSource.arreter()
         energieSource.arreter(); appareilsSource.arreter()
         telechargementsSource.arreter()
+        activerLeMicro(false)
         agenda.arreter()
         panneau.fermer()
         [reveilMinuteur, reveilRappels, reveilAgenda].forEach { $0?.cancel() }
@@ -166,7 +173,56 @@ final class IlotControleur {
         // le dossier Téléchargements : macOS demande une fois l'accès, à la première ouverture (sur une file à part)
         if Settings.ilotTelechargements { telechargementsSource.demarrer() }
         else { telechargementsSource.arreter(); rafale = RafaleTelechargements() }
+        activerLeMicro(Settings.ilotMicro)
+        surRaccourciMicro(Settings.ilotMicro ? Settings.raccourciMicro : nil)
         moteur.donneesChangees()
+    }
+
+    // MARK: micro coupé
+
+    /// Le réglage « Micro coupé » : on écoute le micro par défaut (CoreAudio prévient, aucun sondage) et on lit où il en est. Éteint :
+    /// on n'écoute plus ; un micro rouvert pour une dictée est recoupé, un micro coupé le reste (c'est l'état du Mac, pas de Verbe).
+    func activerLeMicro(_ oui: Bool) {
+        if oui {
+            guard !micro.actif else { return }
+            micro.demarrer()
+            microChange()
+        } else {
+            guard micro.actif else { return }
+            executer(veilleMicro.oublier())
+            micro.arreter()
+            moteur.microCoupe = false; moteur.nomMicro = nil
+            moteur.donneesChangees()
+        }
+    }
+
+    /// Le raccourci (⌃⌥M) : coupe le micro, ou le rouvre.
+    func basculerLeMicro() {
+        guard micro.actif else { return }
+        executer(veilleMicro.basculer())
+    }
+
+    /// CoreAudio prévient : le micro par défaut, son muet ou son volume a changé. On relit l'état tel qu'il est MAINTENANT (une
+    /// notification en retard sur nos propres commandes ne compte donc pas) ; l'îlot suit, rouvert ailleurs = « Micro ouvert ».
+    func microChange() {
+        guard micro.actif else { return }
+        moteur.nomMicro = micro.nom
+        executer(veilleMicro.systeme(coupe: micro.estCoupe() ?? false))
+    }
+
+    /// Envoie la commande à CoreAudio, puis montre ce qui est vrai (l'activité, et le bandeau vert « Micro ouvert », 1,5 s).
+    private func executer(_ r: VeilleMicro.Reponse) {
+        var annonce = r.annonce
+        if let c = r.commande {
+            let ok = c == .couper ? micro.couper() : micro.rouvrir()
+            Log.ecrire("micro coupé : \(c == .couper ? "coupé" : "rouvert")\(veilleMicro.dicteeEnCours ? " (dictée)" : "")\(ok ? "" : " : REFUSÉ, l'îlot reste sur l'état réel")")
+            if !ok { veilleMicro.commandeEchouee(c); annonce = nil }
+        }
+        let change = moteur.microCoupe != veilleMicro.coupe
+        moteur.microCoupe = veilleMicro.coupe
+        if annonce == .ouvert {
+            moteur.annoncer(bandeau: BandeauIlot(vue: .microOuvert, jusqua: maintenant().addingTimeInterval(1.5), ligne1: "Micro ouvert", ligne2: ""))
+        } else if change { moteur.donneesChangees() }
     }
 
     // MARK: téléchargements
@@ -221,6 +277,10 @@ final class IlotControleur {
             }
         } else if armeJusqua > maintenant() {
             armeJusqua = maintenant().addingTimeInterval(12)   // le temps de la transcription
+        }
+        // le micro coupé est rouvert AVANT que la dictée n'ouvre le micro (cet appel précède le démarrage de la capture), puis recoupé
+        if micro.actif {
+            executer(veilleMicro.dictee(enCours: enCours, memeMicro: enCours ? micro.dicteeUtiliseCeMicro() : true))
         }
         lecture.dicteeChange(enCours: enCours)
         appliquerLesMasques()
@@ -310,6 +370,9 @@ final class IlotControleur {
             if urls.count == 1 { ouvrir(urls[0]) } else if !urls.isEmpty { montrer(urls) }
             rafale = RafaleTelechargements()
             moteur.quitterBandeau()
+        case .microRouvrir:
+            moteur.fermer()
+            executer(veilleMicro.rouvrir())
         case .collerLaDerniereDictee:
             if let d = HistoriqueStore.shared.historique.entrees.first?.texte, !d.isEmpty { moteur.fermer(); surColler(d) }
         }

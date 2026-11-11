@@ -109,6 +109,12 @@ struct ReglagesVue: View {
             LigneReglage(libelle: "Téléchargements", note: "Un fichier qui arrive dans Téléchargements, AirDrop compris : son nom, sa taille et « Ouvrir ». macOS demande une fois l\u{2019}accès au dossier.") {
                 Interrupteur(actif: $r.ilotTelechargements, etiquette: "Téléchargements")
             }
+            LigneReglage(libelle: "Micro coupé", note: "Le raccourci coupe le micro du Mac et le rouvre, pendant un appel par exemple. La dictée le rouvre le temps de dicter.") {
+                EnregistreurRaccourci(raccourci: $r.raccourciMicro, etiquette: "Raccourci du micro coupé")
+                    .opacity(r.ilotMicro ? 1 : 0.45)
+                    .disabled(!r.ilotMicro)
+                Interrupteur(actif: $r.ilotMicro, etiquette: "Micro coupé")
+            }
             LigneReglage(libelle: "Calendrier", note: r.phraseCalendrier) {
                 Interrupteur(actif: $r.ilotCalendrier, etiquette: "Calendrier")
             }

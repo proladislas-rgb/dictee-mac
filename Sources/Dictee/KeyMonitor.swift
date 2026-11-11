@@ -30,6 +30,12 @@ final class KeyMonitor {
     var onReunion: (() -> Void)?
     private var reunionAvalee = false
     private let codeN: Int64 = 45
+    /// « Micro coupé » : le raccourci (⌃⌥M par défaut ; nil = réglage éteint) coupe ou rouvre le micro. La touche est avalée.
+    var raccourciMicro: RaccourciIlot?
+    var onMicro: (() -> Void)?
+    private var microAvale: Int64?
+    /// Les Réglages enregistrent un nouveau raccourci : on laisse passer la touche jusqu'à eux.
+    static var enregistrementEnCours = false
     private(set) var detector = FnGestureDetector()
 
     private var tap: CFMachPort?
@@ -118,6 +124,11 @@ final class KeyMonitor {
                 if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { reunionAvalee = true; onReunion?() }
                 return true
             }
+            if let r = raccourciMicro, onMicro != nil, !Self.enregistrementEnCours, Self.correspond(event, a: r) {
+                if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { onMicro?() }
+                microAvale = code
+                return true
+            }
             frappes += 1
             // Les répétitions de touche ne comptent pas comme de nouvelles frappes.
             if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return echapAvale && code == keyCodeEchap }
@@ -133,6 +144,7 @@ final class KeyMonitor {
 
         case .keyUp:
             if event.getIntegerValueField(.keyboardEventKeycode) == codeN, reunionAvalee { reunionAvalee = false; return true }
+            if let c = microAvale, event.getIntegerValueField(.keyboardEventKeycode) == c { microAvale = nil; return true }
             if event.getIntegerValueField(.keyboardEventKeycode) == keyCodeEchap, echapAvale {
                 echapAvale = false
                 return true
@@ -142,6 +154,16 @@ final class KeyMonitor {
         default:
             return false
         }
+    }
+
+    /// La touche est-elle ce raccourci ? Les touches de modification d'abord (le cas courant : aucune, on s'arrête là), puis le caractère
+    /// que la disposition du clavier donne à la touche (« m » sur un AZERTY comme sur un QWERTY), sans ⌃ ni ⌥.
+    static func correspond(_ event: CGEvent, a r: RaccourciIlot) -> Bool {
+        let f = event.flags
+        let c = f.contains(.maskControl), o = f.contains(.maskAlternate), s = f.contains(.maskShift), k = f.contains(.maskCommand)
+        guard c == r.controle, o == r.option, s == r.maj, k == r.commande else { return false }
+        guard let t = NSEvent(cgEvent: event)?.charactersIgnoringModifiers, !t.isEmpty else { return false }
+        return r.correspond(touche: t, controle: c, option: o, maj: s, commande: k)
     }
 
     @discardableResult

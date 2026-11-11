@@ -328,6 +328,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.reunionControleur.lancer()
         }
         dictee.surInterception = { [weak self] texte in self?.ilot.intercepter(texte) ?? false }
+        // « Micro coupé » : le raccourci passe par la même écoute du clavier que fn et ⌥⌘N
+        clavier.onMicro = { [weak self] in self?.ilot.basculerLeMicro() }
+        ilot.surRaccourciMicro = { [weak self] r in self?.clavier.raccourciMicro = r }
         ilot.demarrer()
     }
 

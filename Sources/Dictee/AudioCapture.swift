@@ -253,7 +253,8 @@ final class AudioCapture: @unchecked Sendable {
         }
     }
 
-    private static func decider() -> DecisionMicro {
+    /// Le micro que la dictée écoutera (lu aussi par « Micro coupé » : rouvrir le micro coupé seulement si c'est celui de la dictée).
+    static func decider() -> DecisionMicro {
         ChoixMicro.decider(reglage: Settings.micro, peripheriques: peripheriquesEntree(), defautUID: peripheriqueParDefaut()?.uid)
     }
 

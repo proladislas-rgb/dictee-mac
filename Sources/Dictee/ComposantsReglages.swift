@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import DicteeCore
 
 /// Interrupteur monochrome (surface claire quand activé), 44 × 26.
 struct Interrupteur: View {
@@ -129,6 +130,57 @@ struct BoutonCadre: View {
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Palette.texte3, lineWidth: 1.5).padding(-3).opacity(focus ? 1 : 0))
         .onHover { survol = $0 }
         .accessibilityLabel(titre)
+    }
+}
+
+/// Un raccourci clavier qu'on change en le tapant : clic, puis la combinaison (Échap annule). Pendant l'écoute, l'écoute globale du
+/// clavier laisse passer la touche (sinon l'ancien raccourci serait avalé avant d'arriver ici).
+struct EnregistreurRaccourci: View {
+    @Binding var raccourci: RaccourciIlot
+    var etiquette: String
+    @State private var ecoute = false
+    @State private var refus: String?
+    @State private var moniteur: Any?
+    @State private var survol = false
+
+    var body: some View {
+        Button { ecoute ? arreter() : commencer() } label: {
+            Text(ecoute ? (refus ?? "Tape le raccourci\u{2026}") : raccourci.libelle)
+                .font(ecoute ? Polices.commande(13) : .system(size: 14, weight: .medium).monospacedDigit())
+                .foregroundStyle(ecoute ? Palette.texte2 : Palette.texte)
+                .lineLimit(1)
+                .frame(minWidth: 74)
+                .padding(.horizontal, 12)
+                .frame(height: 32)
+                .background(RoundedRectangle(cornerRadius: 8).fill(survol || ecoute ? Palette.relief : Palette.selection))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(ecoute ? Palette.accent : Palette.contour, lineWidth: 1))
+                .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .onHover { survol = $0 }
+        .onDisappear { arreter() }
+        .accessibilityLabel(etiquette)
+        .accessibilityValue(raccourci.libelle)
+        .accessibilityHint("Clique, puis tape le nouveau raccourci")
+    }
+
+    private func commencer() {
+        refus = nil; ecoute = true
+        KeyMonitor.enregistrementEnCours = true
+        moniteur = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+            if e.keyCode == 53 { arreter(); return nil }   // Échap
+            let f = e.modifierFlags
+            let r = RaccourciIlot(touche: e.charactersIgnoringModifiers ?? "", controle: f.contains(.control), option: f.contains(.option),
+                                  maj: f.contains(.shift), commande: f.contains(.command))
+            if r.estValide { raccourci = r; arreter() }
+            else { refus = r.controle || r.commande ? "Déjà pris par macOS" : "Avec \u{2303} ou \u{2318}, et une autre" }
+            return nil
+        }
+    }
+    private func arreter() {
+        if let m = moniteur { NSEvent.removeMonitor(m) }
+        moniteur = nil; ecoute = false; refus = nil
+        KeyMonitor.enregistrementEnCours = false
     }
 }
 
