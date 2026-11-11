@@ -4,10 +4,11 @@ Verbe — « Le Centre » : un seul endroit pour tout régler, dans l'îlot, com
 Pourquoi : les nouveautés étaient cachées (raccourci clavier, interrupteur enfoui dans les Réglages, étagère qu'on ne
 découvre qu'en glissant un fichier, accueil qui ne s'ouvre que sur l'îlot vide). Ici, tout se fait depuis l'îlot, à la
 souris. La seule touche gardée est fn (la dictée) ; aucun autre raccourci.
-Le principe : on survole l'îlot (même pendant une vidéo), il s'ouvre. Deux cartes empilées : la vidéo, puis le Centre.
-On passe de l'une à l'autre en un clic (bouton « Centre », points à droite), ou en faisant défiler (en bonus).
-Après un clic dans le Centre, l'îlot reste ouvert (punaise) : on enchaîne plusieurs réglages. « Modifier » ajoute,
-retire ou range les boutons.
+Le principe : on survole l'îlot (même pendant une vidéo), il s'ouvre. Trois cartes empilées : la vidéo, le Centre,
+puis les Dictées (l'ancien panneau de la barre des menus : recherche, historique, copier, coller ; l'icône ❞ de la
+barre des menus disparaît). On passe de l'une à l'autre en un clic (boutons « Centre » et « Dictées », points à
+droite), ou en faisant défiler (en bonus). Après un clic dans le Centre ou les Dictées, l'îlot reste ouvert (punaise) :
+on enchaîne. « Modifier » ajoute, retire ou range les boutons. « Noter la réunion » est un grand bouton du Centre.
 Format repris de apple-acces/3-spotlight.html et ilot-cinq.html (forme de l'îlot, ressorts, régie).
 Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt.
 Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
@@ -23,6 +24,7 @@ Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 =
   --k:1;
   --ressort:cubic-bezier(.2,.9,.25,1);
   --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --serif:"Newsreader","New York",ui-serif,Charter,Georgia,serif;
   --ambre:#ff9f0a; --vert:#30d158; --rouge:#ff453a; --corail:#e8835c; --bleu:#0a84ff; --jaune:#ffd60a;
   --regie:#0f0f11;
   --clair:#f5f5f7;
@@ -220,9 +222,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .pil:hover{background:rgba(255,255,255,.2)}
 .pil.retour{padding-left:7px}
 .pil.ok{background:#fff;color:#000}
-.cc-titre{font-size:13.5px;font-weight:600;color:rgba(255,255,255,.55);display:none}
-.cc.edit .cc-titre{display:block}
-.cc.edit .pil.retour,.cc.edit .punaise{display:none}
+.cc.edit .pil.retour,.cc.edit .punaise,.cc.edit .pil.vers-dd{display:none}
 .punaise{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.5);opacity:0;transition:opacity .25s ease}
 .punaise.vu{opacity:1}
 .cc.edit .bout-modif{margin-left:auto}
@@ -273,12 +273,25 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .tl .moins{left:-6px;top:-6px}
 .cc.edit .moins{display:grid}
 .cc.edit .tg:not(.ajout) .rd,.cc.edit .tl{animation:tremble calc(.26s*var(--k)) ease-in-out infinite alternate}
+.cc.edit .tr{animation:tremblePlat calc(.26s*var(--k)) ease-in-out infinite alternate}
 .cc.edit .tg:nth-child(2n) .rd,.cc.edit .tl+.tl{animation-delay:-.13s}
 @keyframes tremble{0%{transform:rotate(-1.4deg)}100%{transform:rotate(1.4deg)}}
-.cc-ajout{display:none;align-items:center;gap:7px;margin-top:10px;height:40px;padding:0 6px 0 12px;border-radius:14px;background:rgba(255,255,255,.07);
-  font-size:12px;font-weight:500;color:rgba(255,255,255,.5)}
+@keyframes tremblePlat{0%{transform:rotate(-.45deg)}100%{transform:rotate(.45deg)}}
+/* en mode Modifier, la ligne du haut propose les boutons à ajouter (la hauteur de l'îlot ne change pas) */
+.cc-ajout{display:none;align-items:center;gap:6px;height:26px;font-size:12px;font-weight:500;color:rgba(255,255,255,.5)}
 .cc.edit .cc-ajout{display:flex}
-.puce{height:28px;border-radius:14px;padding:0 11px 0 8px;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.14);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;
+/* le grand bouton « Noter la réunion » */
+.tr{position:relative;display:flex;align-items:center;gap:10px;width:100%;height:40px;margin-top:10px;border-radius:20px;padding:0 16px 0 14px;
+  background:rgba(255,255,255,.1);font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;transition:background-color .2s ease}
+.tr:hover{background:rgba(255,255,255,.15)}
+.tr .moins{left:-6px;top:-6px}
+.tr-pt{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1.8px var(--rouge);background:radial-gradient(circle,var(--rouge) 0 3.6px,transparent 4.2px)}
+.tr-s{margin-left:auto;font-size:12px;font-weight:500;color:rgba(255,255,255,.5)}
+.tr.on{background:rgba(255,69,58,.24)}
+.tr.on .tr-pt{background:radial-gradient(circle,var(--rouge) 0 5px,transparent 5.6px);animation:pouls 1.2s ease-in-out infinite}
+.tr.on .tr-s{color:#ff8a82}
+@keyframes pouls{50%{opacity:.45}}
+.puce{height:26px;border-radius:13px;padding:0 11px 0 8px;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.14);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;
   transition:opacity .2s ease,transform calc(.3s*var(--k)) var(--ressort)}
 .puce.cache{display:none}
 .pts{display:flex;flex-direction:column;gap:2px;transition:transform calc(.42s*var(--k)) var(--ressort)}
@@ -286,6 +299,55 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .pts i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3);transition:background-color .2s ease,transform .2s ease}
 .pts button:hover i{background:rgba(255,255,255,.6)}
 .pts button.on i{background:#fff;transform:scale(1.1)}
+
+/* carte 3 : les Dictées (l'ancien panneau de la barre des menus) */
+.dc{width:420px}
+.dc-tete{display:flex;align-items:center;gap:8px;height:30px}
+.dc-champ{flex:1;min-width:0;height:30px;border-radius:15px;background:rgba(255,255,255,.1);display:flex;align-items:center;gap:7px;padding:0 12px 0 10px;
+  color:rgba(255,255,255,.5);transition:background-color .15s ease,box-shadow .15s ease}
+.dc-champ.actif,.dc-champ:focus-within{background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.3)}
+.dc-champ input{flex:1;min-width:0;background:none;border:0;outline:0;color:#fff;font:500 13px/16px var(--sans);caret-color:var(--ambre);-webkit-user-select:text;user-select:text}
+.dc-champ input::placeholder{color:rgba(255,255,255,.45)}
+.dd-liste{margin-top:6px;max-height:200px;overflow-y:auto;scrollbar-width:none}
+.dd-liste::-webkit-scrollbar{display:none}
+.dd-liste.defile{-webkit-mask-image:linear-gradient(#000 calc(100% - 18px),transparent);mask-image:linear-gradient(#000 calc(100% - 18px),transparent)}
+.dd-g{height:20px;padding:5px 0 0 52px;font-size:11.5px;line-height:14px;font-weight:600;color:rgba(255,255,255,.42)}
+.dd-l{display:flex;align-items:center;gap:8px;min-height:32px;padding:0 4px 0 8px;border-radius:10px;cursor:pointer;transition:background-color .12s ease}
+.dd-l:hover,.dd-l.survol{background:rgba(255,255,255,.1)}
+.dd-h{width:36px;flex:none;font-size:12px;line-height:16px;font-weight:500;color:rgba(255,255,255,.42);font-variant-numeric:tabular-nums}
+.dd-x{flex:1;min-width:0;font-family:var(--serif);font-size:15px;line-height:20px;color:rgba(255,255,255,.78);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-l:hover .dd-x,.dd-l.survol .dd-x,.dd-l.dep .dd-x{color:#fff}
+.dd-x mark{background:none;color:var(--ambre)}
+.dd-l.dep{align-items:flex-start;padding-top:6px;padding-bottom:7px;background:rgba(255,255,255,.07)}
+.dd-l.dep .dd-x{white-space:normal;line-height:21px}
+.dd-l.dep .dd-h{padding-top:3px}
+.dd-d{flex:none;display:flex;align-items:center;gap:4px;min-height:20px}
+.dd-app{min-width:44px;text-align:right;font-size:12px;font-weight:500;color:rgba(255,255,255,.42);padding-right:4px}
+.dd-act{display:none;align-items:center;gap:2px}
+.dd-l:hover .dd-act,.dd-l.survol .dd-act,.dd-l.dep .dd-act{display:flex}
+.dd-l:hover .dd-app,.dd-l.survol .dd-app,.dd-l.dep .dd-app,.dd-l.copie .dd-app{display:none}
+.dd-ok{display:none;align-items:center;gap:4px;height:24px;padding:0 9px 0 7px;border-radius:12px;background:rgba(48,209,88,.18);color:#5fe08a;font-size:12px;font-weight:600}
+.dd-l.copie .dd-ok{display:flex}
+.dd-coller{height:24px;border-radius:12px;padding:0 10px;background:rgba(255,255,255,.14);font-size:12px;font-weight:600;cursor:pointer}
+.dd-coller:hover{background:rgba(255,255,255,.24)}
+.dd-chev{width:24px;height:24px;border-radius:12px;display:grid;place-items:center;cursor:pointer}
+.dd-chev:hover{background:rgba(255,255,255,.12)}
+.dd-rien{padding:14px 0 8px 52px;font-family:var(--serif);font-size:15px;color:rgba(255,255,255,.45)}
+.dd-pied{display:flex;align-items:center;gap:7px;height:30px;margin-top:4px;padding:1px 8px 0;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:rgba(255,255,255,.25)}
+.dd-lien{font-size:12.5px;font-weight:500;color:rgba(255,255,255,.55);cursor:pointer;transition:color .15s ease}
+.dd-lien:hover{color:#fff}
+.dd-pied .note{margin-left:auto;font-size:11.5px;color:rgba(255,255,255,.32);font-weight:500}
+
+/* la fenêtre principale de Verbe (ouverte par les liens du bas des Dictées) */
+.fen.vb{background:#1d1d1f;color:#f5f5f7;pointer-events:auto;box-shadow:0 0 0 .5px rgba(0,0,0,.5),0 36px 80px -20px rgba(24,36,60,.5),0 12px 26px -10px rgba(24,36,60,.3)}
+.fen.vb .feux i:first-child{cursor:pointer}
+.vb-barre{height:50px;flex:none;display:flex;align-items:center;gap:4px;padding:0 14px 0 84px;border-bottom:1px solid rgba(255,255,255,.08)}
+.vb-barre span{height:28px;border-radius:14px;padding:0 12px;display:grid;place-items:center;font-size:13px;font-weight:500;color:rgba(255,255,255,.55)}
+.vb-barre span.on{background:rgba(255,255,255,.12);color:#fff}
+.vb-barre span:last-child{margin-left:auto}
+.vb-corps{padding:26px 30px}
+.vb-corps h2{font:400 26px/32px var(--serif);color:#fff}
+.vb-corps p{font-size:13.5px;line-height:20px;color:rgba(255,255,255,.55);margin-top:8px;max-width:440px}
 
 /* faux pointeur (et le fichier qu'il porte) */
 .pointeur{position:absolute;left:0;top:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .22s}
@@ -442,6 +504,13 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
       <div class="fi-grille" id="grille"></div></div>
   </div>
 
+  <!-- ===== la fenêtre principale de Verbe (liens du bas des Dictées) ===== -->
+  <div class="fen cache vb" data-f="verbe" style="left:calc(50% - 300px);top:150px;width:600px;height:300px" aria-label="Fenêtre de Verbe">
+    <div class="feux" id="vbFermer" title="Fermer"><i></i><i></i><i></i></div>
+    <div class="vb-barre" id="vbBarre"></div>
+    <div class="vb-corps"><h2 id="vbTitre"></h2><p>La fenêtre principale de Verbe, ouverte depuis l’îlot. Un clic sur le rond rouge la ferme.</p></div>
+  </div>
+
   <!-- ===== barre des menus ===== -->
   <div class="mb" aria-hidden="true"><div class="menus" id="menus"></div><div class="etats" id="etats"></div></div>
 
@@ -485,8 +554,8 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
   </div>
   <ol class="r-pas" id="pas"></ol>
   <div class="notes">
-    <div><b>À essayer ici.</b> Décochez Lecture automatique, puis passez la souris sur l’îlot noir. Cliquez sur « Centre », sur les points à droite, ou faites défiler. Tous les boutons marchent.</div>
-    <div><b>Un seul endroit.</b> Micro, micro de la dictée, minuteur, étagère, téléchargements, Claude : tout est dans le Centre, à la souris. Aucun raccourci à retenir ; seule la touche fn reste, pour dicter.</div>
+    <div><b>À essayer ici.</b> Décochez Lecture automatique, puis passez la souris sur l’îlot noir. Cliquez sur « Centre », « Dictées », sur les points à droite, ou faites défiler. Tous les boutons marchent, la recherche aussi.</div>
+    <div><b>Un seul endroit.</b> Micro, micro de la dictée, minuteur, étagère, téléchargements, Claude, réunion, historique des dictées : tout est dans l’îlot, à la souris. Plus d’icône ❞ dans la barre des menus. Aucun raccourci à retenir ; seule la touche fn reste, pour dicter.</div>
     <div><b>Ce qui ne bouge pas.</b> L’îlot reste noir et opaque. Les batteries du Mac et des AirPods restent dans ses épaules, de part et d’autre de la caméra.</div>
   </div>
 </section>
@@ -503,8 +572,10 @@ const NO = 154;               // îlot ouvert : épaules de 64 pt dans la barre 
 const BW = 232;               // îlot ouvert : demi-largeur du corps (464 pt, limite 470)
 const GX = -BW + 16;          // bord gauche des cartes
 const HL = B + 14 + 182 + 14;            // hauteur : carte vidéo (243)
-const HCC = B + 14 + 26 + 12 + 96 + 10 + 76 + 14;   // hauteur : le Centre (281)
-const HCE = HCC + 10 + 40;               // hauteur : le Centre en mode Modifier (331)
+const HCC = B + 14 + 26 + 12 + 96 + 10 + 76 + 10 + 40 + 14;   // hauteur : le Centre, avec « Noter la réunion » (331)
+const HCE = HCC;                         // en mode Modifier, les ajouts prennent la ligne du haut : même hauteur
+const HDMAX = B + 14 + 270 + 14;         // hauteur maximale de la carte Dictées (331), la liste défile au-delà
+const ORDRE = ['video', 'centre', 'dictees'];
 const CW = 150, HCO = B + 40;            // la bulle « Nouveau »
 const Q = new URLSearchParams(location.search);
 const racine = document.documentElement;
@@ -615,7 +686,10 @@ const batterie = n => `<svg width="28" height="13" viewBox="0 0 28 13"><rect wid
 const doc = (t, coul = '#ff453a', lbl = 'PDF') => `<svg width="${f2(t * 0.8)}" height="${t}" viewBox="0 0 32 40"><path d="M4 1h17l10 10v26a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="#f2f2f7" stroke="rgba(0,0,0,.12)" stroke-width=".8"/><path d="M21 1v8a2 2 0 0 0 2 2h8" fill="#d1d1d6"/><rect x="5" y="24" width="22" height="9" rx="2" fill="${coul}"/><text x="16" y="31" text-anchor="middle" font-size="7" font-weight="800" fill="#fff" font-family="-apple-system,sans-serif">${lbl}</text></svg>`;
 const dossier = t => `<svg width="${t}" height="${f2(t * 0.8)}" viewBox="0 0 50 40"><path d="M3 6a3 3 0 0 1 3-3h11.5l4 4H44a3 3 0 0 1 3 3v3H3z" fill="#3d9df3"/><rect x="3" y="10.5" width="44" height="27.5" rx="3.2" fill="#62b6fb"/></svg>`;
 const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
-const MENUS = {Chrome:['Fichier', 'Modifier', 'Afficher', 'Historique', 'Favoris', 'Profils', 'Onglet', 'Fenêtre', 'Aide'], Finder:['Fichier', 'Édition', 'Présentation', 'Aller', 'Fenêtre', 'Aide']};
+const MENUS = {Chrome:['Fichier', 'Modifier', 'Afficher', 'Historique', 'Favoris', 'Profils', 'Onglet', 'Fenêtre', 'Aide'], Finder:['Fichier', 'Édition', 'Présentation', 'Aller', 'Fenêtre', 'Aide'],
+  Verbe:['Fichier', 'Édition', 'Présentation', 'Fenêtre', 'Aide']};
+const loupe = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><circle cx="6.9" cy="6.9" r="4.9"/><path d="M10.6 10.6 14.2 14.2"/></svg>`;
+const coche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.6 12.8 4.6"/></svg>`;
 
 /* Icônes de la barre des menus, de la droite vers la gauche (reprises de 3-spotlight.html) */
 (function(){
@@ -624,8 +698,8 @@ const MENUS = {Chrome:['Fichier', 'Modifier', 'Afficher', 'Historique', 'Favoris
     s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
     s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
     s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
-    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>' +
-    `<span style="color:#1d1d1f">${guillemets(16, '#1d1d1f')}</span>`;
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>';
+  // plus d'icône ❞ ici : le panneau des dictées vit désormais dans l'îlot (3e carte)
 })();
 $('#alIc').innerHTML = guillemets(25);
 
@@ -667,14 +741,16 @@ const CARTE_VIDEO = `<div class="lc">
   <div class="lc-prog"><span id="lcPos">3:22</span><div class="lc-barre"><b id="lcBarre" style="width:26%"></b></div><span id="lcReste">−9:32</span></div>
   <div class="lc-btn">${saut(26, false)}${pauseG(30)}${saut(26, true)}</div>
   <div class="lc-pied"><button class="vers-centre" data-act="centre">${grilleG(15)}Centre<span class="mini-ic">${micro(13, 'currentColor')}${plateauG(13, 'currentColor')}${flecheBas(13, 'currentColor')}</span></button>
-    <span class="indice" id="indice">${chevG(12, 'rgba(255,255,255,.45)', 'g')}Fais défiler ou clique ici</span></div>
+    <button class="vers-centre" data-act="dictees">${guillemets(15)}Dictées</button>
+    <span class="indice" id="indice">${chevG(12, 'rgba(255,255,255,.45)', 'b')}ou fais défiler</span></div>
 </div>`;
 const tuile = (t, b) => `<button class="tg" data-t="${t}"><span class="rd"><span class="moins">${moinsG}</span><span class="gl"></span></span><b>${b}</b><i></i></button>`;
 const CARTE_CENTRE = `<div class="cc" id="cc">
   <div class="cc-tete">
     <button class="pil retour" data-act="video">${chevG(13, '#fff', 'g')}Vidéo</button>
-    <span class="cc-titre">Modifier le Centre</span>
+    <div class="cc-ajout">Ajouter :<button class="puce" data-act="ajouter" id="puceRappel">${plusG(11)}Rappel</button><button class="puce" data-act="rien">${plusG(11)}Dernière dictée</button></div>
     <span class="punaise" id="punaise">${punaiseG(12, 'rgba(255,255,255,.5)')}Reste ouvert</span>
+    <button class="pil vers-dd" data-act="dictees" id="versDictees">${guillemets(12)}Dictées</button>
     <button class="pil bout-modif" data-act="modifier" id="boutModif">Modifier</button>
   </div>
   <div class="cc-ronds" id="ronds">${tuile('micro', 'Micro')}${tuile('dictee', 'Dictée')}${tuile('dl', 'Téléchargements')}${tuile('claude', 'Claude Code')}${tuile('rappel', 'Rappel')}
@@ -686,7 +762,24 @@ const CARTE_CENTRE = `<div class="cc" id="cc">
       <div class="eta-vide" id="etaVide">Glisse un fichier ici</div>
       <div class="eta-plein">${doc(28)}<div><div class="nm">Devis-cuisine.pdf</div><div class="sub">glisse-le vers une app</div></div></div></div>
   </div>
-  <div class="cc-ajout">Ajouter :<button class="puce" data-act="ajouter" id="puceRappel">${plusG(11)}Rappel</button><button class="puce" data-act="rien">${plusG(11)}Dernière dictée</button><button class="puce" data-act="rien">${plusG(11)}Réunion</button></div>
+  <button class="tr" data-act="reunion" id="reunion"><span class="moins">${moinsG}</span><span class="tr-pt"></span><span class="tr-t" id="reunionT">Noter la réunion</span><span class="tr-s" id="reunionS">Verbe écrit tout ce qui se dit</span></button>
+</div>`;
+/* la 3e carte : les Dictées (contenu du panneau de la barre des menus, PanneauCompact + ListeDictees) */
+const DICTEES = [
+  {id:'d1', j:'Aujourd’hui', h:'14:43', app:'Mail', x:'OK pour le devis de la cuisine : 4 200 € posé, plan de travail en chêne compris. Je te l’envoie ce soir avec les plans et les photos du chantier.'},
+  {id:'d2', j:'Aujourd’hui', h:'14:12', app:'Messages', x:'Je serai en retard de dix minutes, commencez sans moi.'},
+  {id:'d3', j:'Aujourd’hui', h:'13:50', app:'Terminal', x:'Ajoute une section installation dans le README avec les trois commandes.'},
+  {id:'d4', j:'Aujourd’hui', h:'11:27', app:'Mail', x:'Bonjour Madame Martin, je vous confirme le rendez-vous de mardi à 10 h.'},
+  {id:'d5', j:'Hier', h:'18:32', app:'Messages', x:'Tu peux me renvoyer le devis signé pour la salle de bain ?'},
+  {id:'d6', j:'Hier', h:'17:05', app:'Notes', x:'Liste de courses : pain, œufs, café, lessive.'}
+];
+const CARTE_DICTEES = `<div class="dc" id="dc">
+  <div class="dc-tete">
+    <button class="pil retour" data-act="centre">${chevG(13, '#fff', 'g')}Centre</button>
+    <label class="dc-champ" id="ddChamp">${loupe(14, 'currentColor')}<input id="ddRech" type="text" placeholder="Rechercher" autocomplete="off" spellcheck="false" aria-label="Rechercher dans les dictées"></label>
+  </div>
+  <div class="dd-liste" id="ddListe"></div>
+  <div class="dd-pied"><button class="dd-lien" data-act="fenetre" data-o="Journée">Journée</button>·<button class="dd-lien" data-act="fenetre" data-o="Réunions">Réunions</button>·<button class="dd-lien" data-act="fenetre" data-o="Mots">Mots</button>·<button class="dd-lien" data-act="fenetre" data-o="Réglages">Réglages</button><span class="note">ouvrent la fenêtre</span></div>
 </div>`;
 const CONTENUS = [
   ['mini', -125, 8.5, `<div class="art">${affiche('m')}</div>`],
@@ -698,7 +791,8 @@ const CONTENUS = [
   ['airp', HC + 8, mid(17), `<span class="epaule">${airpods(15)}78 %</span>`],
   ['video', GX, B + 14, CARTE_VIDEO],
   ['centre', GX, B + 14, CARTE_CENTRE],
-  ['points', BW - 23, 0, '<div class="pts" id="pts"><button data-act="video" aria-label="Carte vidéo"><i></i></button><button data-act="centre" aria-label="Le Centre"><i></i></button></div>']
+  ['dictees', GX, B + 14, CARTE_DICTEES],
+  ['points', BW - 23, 0, '<div class="pts" id="pts"><button data-act="video" aria-label="Carte vidéo"><i></i></button><button data-act="centre" aria-label="Le Centre"><i></i></button><button data-act="dictees" aria-label="Les dictées"><i></i></button></div>']
 ];
 const contenu = $('#contenu');
 contenu.innerHTML = CONTENUS.map(([nom, x, y, html]) => `<div class="c e" data-c="${nom}" style="left:${f2(500 + x)}px;top:${f2(y)}px">${html}</div>`).join('');
@@ -711,12 +805,14 @@ const tg = t => contenu.querySelector(`.tg[data-t="${t}"]`);
 const st = {};
 function remettre(){
   Object.assign(st, {carte:null, coachVu:false, indice:true, punaise:false, edit:false, micCoupe:false, dictee:'airpods',
-    dl:'off', permis:false, claude:'non', rappel:false, eta:0, survol:false, question:false, minu:0});
+    dl:'off', permis:false, claude:'non', rappel:false, eta:0, survol:false, question:false, minu:0, reunion:false,
+    requete:'', dDep:null, dSurvol:null, dCopie:null, dMot:'Copié', champActif:false});
 }
 const LECT = () => compact(N0, N0);
 const COACH = () => bandeau(CW, HCO, N0);
 const COUPE = () => compact(HC + 40, Math.min(HC + 66, HC + 10 + c.tcoupe.offsetWidth + 12));
-const HAUTEUR = {video:() => HL, centre:() => st.edit ? HCE : HCC};
+const HAUTEUR = {video:() => HL, centre:() => st.edit ? HCE : HCC,
+  dictees:() => Math.min(HDMAX, B + 14 + $('#dc').offsetHeight + 14)};   // l'îlot épouse la liste (recherche, ligne dépliée)
 const FORME = carte => bandeau(BW, HAUTEUR[carte](), NO);
 
 function majCentre(pop){
@@ -739,6 +835,51 @@ function majCentre(pop){
   $('#boutModif').classList.toggle('ok', st.edit);
   $('#punaise').classList.toggle('vu', st.punaise);
   $('#indice').classList.toggle('parti', !st.indice);
+  $('#reunion').classList.toggle('on', st.reunion);
+  $('#reunionT').textContent = st.reunion ? 'Arrêter la réunion' : 'Noter la réunion';
+  $('#reunionS').textContent = st.reunion ? 'En cours' : 'Verbe écrit tout ce qui se dit';
+}
+
+/* la liste des Dictées : recherche sans accents ni majuscules, groupée par jour, comme ListeDictees.swift */
+const sansAccent = ch => ch.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const echap = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+function surligne(texte, q){
+  if (!q) return echap(texte);
+  const car = [...texte], norm = car.map(ch => sansAccent(ch)[0] || ch).join(''), i = norm.indexOf(q);
+  if (i < 0) return echap(texte);
+  return echap(car.slice(0, i).join('')) + '<mark>' + echap(car.slice(i, i + q.length).join('')) + '</mark>' + echap(car.slice(i + q.length).join(''));
+}
+function majDictees(){
+  const q = [...st.requete.trim()].map(sansAccent).join('');
+  const liste = DICTEES.filter(d => !q || [...d.x].map(ch => sansAccent(ch)[0] || ch).join('').includes(q));
+  let html = '', jour = '';
+  for (const d of liste){
+    if (d.j !== jour){ jour = d.j; html += `<div class="dd-g">${jour}</div>`; }
+    const dep = st.dDep === d.id;
+    html += `<div class="dd-l${dep ? ' dep' : ''}" data-d="${d.id}" title="Un clic : copier">
+      <span class="dd-h">${d.h}</span><span class="dd-x">${surligne(d.x, q)}</span>
+      <span class="dd-d"><span class="dd-app">${d.app}</span><span class="dd-ok">${coche(12, '#5fe08a')}<span class="dd-mot"></span></span>
+        <span class="dd-act"><button class="dd-coller" data-dact="coller" title="Coller dans ${d.app}">Coller</button><button class="dd-chev" data-dact="voir" aria-label="${dep ? 'Réduire' : 'Lire en entier'}">${chevG(13, '#fff', dep ? 'h' : 'b')}</button></span></span></div>`;
+  }
+  const l = $('#ddListe');
+  l.innerHTML = html || '<div class="dd-rien">Aucun résultat</div>';
+  $('#ddChamp').classList.toggle('actif', st.champActif);
+  if ($('#ddRech').value !== st.requete) $('#ddRech').value = st.requete;
+  majLignes();
+  l.classList.toggle('defile', l.scrollHeight > l.clientHeight + 1);
+}
+function majLignes(){
+  contenu.querySelectorAll('.dd-l').forEach(n => {
+    n.classList.toggle('survol', st.dSurvol === n.dataset.d);
+    n.classList.toggle('copie', st.dCopie === n.dataset.d);
+    n.querySelector('.dd-mot').textContent = st.dMot;
+  });
+}
+let tCopie = 0;
+function copier(id, mot = 'Copié'){
+  st.dCopie = id; st.dMot = mot; majLignes();
+  const n = contenu.querySelector(`.dd-l[data-d="${id}"]`);
+  if (n && !instant && !REDUIT) n.animate([{transform:'scale(1)'}, {transform:'scale(.985)'}, {transform:'scale(1)'}], {duration:260 * K, easing:'ease-out'});
 }
 
 /* =========================================================
@@ -816,12 +957,14 @@ function rendu(){
 }
 function points(carte){
   const h = HAUTEUR[carte](), pts = $('#pts');
-  pts.style.transform = `translateY(${f2(B + (h - B) / 2 - 14)}px)`;
+  pts.style.transform = `translateY(${f2(B + (h - B) / 2 - 22)}px)`;
   pts.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.act === carte));
 }
 const OUVERT = carte => ['batt', 'airp', carte, 'points'];
 function ouvrir(carte){                       // depuis l'îlot replié
   st.carte = carte; st.coachVu = true;
+  // comme le panneau d'avant : à chaque ouverture, la recherche est vide et rien n'est déplié
+  Object.assign(st, {requete:'', dDep:null, dSurvol:null, dCopie:null, champActif:false}); clearTimeout(tCopie); majDictees();
   montre([], 0);
   ilot(FORME(carte));
   montre(OUVERT(carte), .14);
@@ -830,16 +973,17 @@ function ouvrir(carte){                       // depuis l'îlot replié
 function changer(carte){                      // d'une carte à l'autre, îlot ouvert
   if (!st.carte){ ouvrir(carte); return; }
   if (st.carte === carte) return;
-  const bas = carte === 'centre', vient = c[carte], part = c[st.carte];
+  const bas = ORDRE.indexOf(carte) > ORDRE.indexOf(st.carte), vient = c[carte], part = c[st.carte];
   vient.style.transition = 'none'; vient.style.setProperty('--sy', (bas ? 26 : -26) + 'px'); void vient.offsetWidth; vient.style.transition = '';
   part.style.setProperty('--sy', (bas ? -26 : 26) + 'px');
-  st.carte = carte; if (carte === 'centre') st.indice = false;
+  st.carte = carte; if (carte !== 'video') st.indice = false;
   ilot(FORME(carte));
   montre(OUVERT(carte), .1);
   points(carte); majCentre();
 }
 function replier(){
   st.carte = null; st.punaise = false; st.edit = false; majCentre();
+  if (document.activeElement === $('#ddRech')) $('#ddRech').blur();
   montre([], 0);
   if (st.micCoupe){ ilot(COUPE()); montre(['mcoupe', 'tcoupe'], .16); }
   else { ilot(LECT()); montre(['mini', 'onde'], .16); }
@@ -850,15 +994,22 @@ function reformer(){ if (st.carte){ ilot(FORME(st.carte)); points(st.carte); } }
    L'écran : fenêtres, barre des menus, pointeur, mains
    ========================================================= */
 const ecran = $('#ecran'), pointeur = $('#pointeur'), fantome = $('#fantome'), pad = $('#pad'), alerte = $('#alerte');
-const F = {chrome:$('.fen.chrome'), finder:$('[data-f="finder"]')};
-let ordre = ['finder', 'chrome'];
+const F = {chrome:$('.fen.chrome'), finder:$('[data-f="finder"]'), verbe:$('[data-f="verbe"]')};
+let ordre = ['verbe', 'finder', 'chrome'];
 function devant(nom){
   ordre = ordre.filter(n => n !== nom).concat(nom);
   ordre.forEach((n, i) => { F[n].style.zIndex = i + 1; F[n].classList.toggle('arriere', n !== nom); });
-  const app = nom === 'chrome' ? 'Chrome' : 'Finder';
+  const app = {chrome:'Chrome', finder:'Finder', verbe:'Verbe'}[nom];
   $('#menus').innerHTML = POMME + `<b>${app}</b>` + MENUS[app].map(m => `<span>${m}</span>`).join('');
 }
 function fenetre(nom, vu){ F[nom].classList.toggle('cache', !vu); }
+function fenetreVerbe(onglet){                // les liens du bas des Dictées ouvrent la fenêtre principale
+  replier();
+  $('#vbBarre').innerHTML = ['Dictées', 'Journée', 'Réunions', 'Mots', 'Réglages'].map(o => `<span${o === onglet ? ' class="on"' : ''}>${o}</span>`).join('');
+  $('#vbTitre').textContent = onglet;
+  fenetre('verbe', true); devant('verbe');
+}
+$('#vbFermer').addEventListener('click', e => { if (FIGE || e.target !== e.currentTarget.firstElementChild) return; fenetre('verbe', false); devant('chrome'); });
 function question(vu){ st.question = vu; alerte.classList.toggle('cache', !vu); }
 const XR = dx => ecran.clientWidth / 2 + dx;
 function ou(el){ const r = el.getBoundingClientRect(), e = ecran.getBoundingClientRect(); return [r.left + r.width / 2 - e.left, r.top + r.height / 2 - e.top]; }
@@ -887,9 +1038,9 @@ const rd = t => tg(t).querySelector('.rd');
    ========================================================= */
 function init(){
   remettre();
-  fenetre('finder', false); devant('chrome'); question(false);
+  fenetre('finder', false); fenetre('verbe', false); devant('chrome'); question(false);
   document.querySelector('[data-fic="devis"]').classList.remove('sel');
-  majCentre();
+  majCentre(); majDictees();
   ilot(LECT()); montre(['mini', 'onde']); points('video');
   cur(XR(250), 380, {vu:false, saute:true});
   fantome.className = 'fantome'; pointeur.classList.remove('appui');
@@ -900,14 +1051,14 @@ const ETAPES = [
    p:'L’îlot montre la vidéo, comme aujourd’hui. La toute première fois, il ajoute une seule bulle : « Nouveau : survole l’îlot ». Rien d’autre à apprendre.',
    async jeu(){ await attendre(.6); ilot(COACH()); montre(['mini', 'onde', 'coach'], .2); await attendre(.5); }},
   {t:'Survoler l’îlot : la vidéo', g:'Pointeur sur l’îlot',
-   p:'Le pointeur sur l’îlot, même pendant une vidéo : il s’ouvre sur la vidéo. En bas, un bouton « Centre » ; à droite, deux points. La bulle « Nouveau » ne reviendra plus.',
+   p:'Le pointeur sur l’îlot, même pendant une vidéo : il s’ouvre sur la vidéo. En bas, deux boutons, « Centre » et « Dictées » ; à droite, trois points. La bulle « Nouveau » ne reviendra plus.',
    async jeu(){
      cur(XR(250), 330, {saute:true}); await attendre(.05);
      await va(XR(34), 20, .8); await attendre(.1);
      ouvrir('video'); await attendre(.7);
    }},
   {t:'Un clic sur « Centre »', g:'Un clic (ou faire défiler)',
-   p:'Un clic suffit. On peut aussi cliquer sur le 2e point, ou faire défiler avec deux doigts, en bonus. Quand rien ne joue, l’îlot s’ouvre directement sur le Centre.',
+   p:'Un clic suffit (ou le 2e point, ou faire défiler, en bonus). Tout en bas, un grand bouton « Noter la réunion ». Quand rien ne joue, l’îlot s’ouvre directement sur le Centre.',
    async jeu(){
      await vers(c.video.querySelector('.vers-centre'), .6, -4, 4); await clic();
      changer('centre'); await attendre(.8);
@@ -954,7 +1105,7 @@ const ETAPES = [
      st.claude = 'oui'; majCentre('claude'); await attendre(.8);
    }},
   {t:'Modifier : ajouter un bouton', g:'Clic sur Modifier, sur + Rappel, sur OK',
-   p:'Comme sur l’iPhone : « Modifier ». Les boutons tremblent ; le « – » en retire un, on les range en les glissant. En bas, on en ajoute : ici « Rappel ». OK, c’est enregistré.',
+   p:'Comme sur l’iPhone : « Modifier ». Les boutons tremblent ; le « – » en retire un, on les range en les glissant. En haut, on en ajoute : ici « Rappel ». OK, c’est enregistré.',
    async jeu(){
      await vers($('#boutModif'), .6, 0, 3); await clic();
      st.edit = true; majCentre(); reformer(); await attendre(.7);
@@ -964,6 +1115,31 @@ const ETAPES = [
      if (fin()) return;
      await vers($('#boutModif'), .6, 0, 3); await clic();
      st.edit = false; majCentre(); reformer(); await attendre(.6);
+   }},
+  {t:'Un clic sur « Dictées »', g:'Un clic (ou faire défiler)',
+   p:'La 3e carte : les dernières dictées, avec l’heure, le texte et l’app où elles sont allées. C’était le panneau sous l’icône ❞ : l’icône quitte la barre des menus, tout vit dans l’îlot.',
+   async jeu(){
+     if (st.edit){ st.edit = false; majCentre(); reformer(); }
+     await vers($('#versDictees'), .6, -6, 4); await clic();
+     st.punaise = true; changer('dictees'); await attendre(.8);
+   }},
+  {t:'Chercher « devis »', g:'Un clic, puis taper',
+   p:'Un clic dans « Rechercher », on tape « devis ». Seules les dictées qui en parlent restent, aujourd’hui et hier ; l’îlot se resserre autour.',
+   async jeu(){
+     await vers($('#ddChamp'), .6, -90, 2); await clic();
+     st.champActif = true; majDictees(); await attendre(.25);
+     for (const ch of 'devis'){ st.requete += ch; majDictees(); reformer(); await attendre(.13); }
+     await attendre(.5);
+   }},
+  {t:'Un clic : copié', g:'Un clic sur la dictée',
+   p:'Un clic sur une dictée la copie, l’îlot répond « Copié ». Au survol, « Coller » la remet dans l’app d’où l’on vient ; la flèche l’ouvre en entier.',
+   async jeu(){
+     st.champActif = false; majDictees();
+     await vers(contenu.querySelector('.dd-l[data-d="d1"] .dd-x'), .6, -30, 2);
+     st.dSurvol = 'd1'; majLignes(); await attendre(.35); await clic();
+     copier('d1'); await attendre(1.3);
+     if (fin()) return;
+     st.dCopie = null; majLignes();
    }},
   {t:'Clic ailleurs : l’îlot se range', g:'Un clic sur la page',
    p:'Un clic hors de l’îlot le referme. Le micro reste coupé : l’îlot replié le dit en rouge, « Coupé », jusqu’à ce qu’on le rouvre d’un clic dans le Centre.',
@@ -975,7 +1151,7 @@ const ETAPES = [
    }}
 ];
 const N = ETAPES.length;
-const PAUSES = [1.6, 1.6, 1.6, 1.4, 1.4, 1.4, 1.4, 1.4, 1.8, 2.6];
+const PAUSES = [1.6, 1.6, 1.6, 1.4, 1.4, 1.4, 1.4, 1.4, 1.8, 1.6, 1.6, 1.8, 2.6];
 
 /* =========================================================
    Régie (reprise de ilot-cinq.html)
@@ -1064,23 +1240,43 @@ ecran.addEventListener('pointerdown', e => {
 ecran.addEventListener('wheel', e => {
   if (FIGE || !st.carte || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
   const [x, y] = local(e); if (!dansIlot(x, y)) return;
+  // la liste des dictées défile d'abord, s'il y a de quoi
+  const l = e.target.closest('.dd-liste');
+  if (l && (e.deltaY > 0 ? l.scrollTop + l.clientHeight < l.scrollHeight - 1 : l.scrollTop > 0)) return;
   e.preventDefault();
   if (performance.now() < verrou || Math.abs(e.deltaY) < 4) return;
   verrou = performance.now() + 500; aLaMain();
-  changer(e.deltaY > 0 ? 'centre' : 'video');
+  const i = clamp(ORDRE.indexOf(st.carte) + (e.deltaY > 0 ? 1 : -1), 0, ORDRE.length - 1);
+  changer(ORDRE[i]);
 }, {passive:false});
+const champ = $('#ddRech');
+champ.addEventListener('focus', () => { if (FIGE) return; aLaMain(); st.punaise = true; st.champActif = true; $('#ddChamp').classList.add('actif'); });
+champ.addEventListener('blur', () => { st.champActif = false; $('#ddChamp').classList.remove('actif'); });
+champ.addEventListener('input', () => { if (FIGE) return; st.requete = champ.value; st.dDep = null; majDictees(); reformer(); });
 contenu.addEventListener('click', e => {
   if (FIGE) return;
+  const ligne = e.target.closest('.dd-l');
+  if (ligne){                                  // un clic sur une dictée : copiée ; « Coller » ; la flèche déplie
+    aLaMain(); st.punaise = true;
+    const id = ligne.dataset.d, quoi = e.target.closest('[data-dact]')?.dataset.dact;
+    clearTimeout(tCopie);
+    if (quoi === 'voir'){ st.dDep = st.dDep === id ? null : id; st.dCopie = null; majDictees(); reformer(); return; }
+    if (quoi === 'coller'){ copier(id, 'Collé'); tCopie = setTimeout(replier, 550 * K); return; }
+    copier(id); tCopie = setTimeout(() => { st.dCopie = null; majLignes(); }, 1300 * K);
+    return;
+  }
   const a = e.target.closest('[data-act]'), t = e.target.closest('.tg[data-t]'), cap = e.target.closest('.cap');
   if (!a && !t && !cap) return;
   aLaMain();
-  if (st.carte === 'centre') st.punaise = true;
+  if (st.carte === 'centre' || st.carte === 'dictees') st.punaise = true;
   if (cap){ st.minu = st.minu === +cap.dataset.min ? 0 : +cap.dataset.min; majCentre(); return; }
   if (a){
     const act = a.dataset.act;
-    if (act === 'centre' || act === 'video') changer(act);
+    if (ORDRE.includes(act)) changer(act);
     else if (act === 'modifier'){ st.edit = !st.edit; majCentre(); reformer(); }
     else if (act === 'ajouter'){ st.rappel = true; majCentre('rappel'); }
+    else if (act === 'reunion' && !st.edit){ st.reunion = !st.reunion; majCentre(); }
+    else if (act === 'fenetre') fenetreVerbe(a.dataset.o);
     return;
   }
   if (st.edit) return;
