@@ -323,23 +323,53 @@ enum RenduLecture {
         // Claude au travail (maquette ilot-apple.html, cinq idées de plus, 1) : l'étoile dans son anneau et « 3 sur 7 » (66 pt de chaque
         // côté au plus), l'étoile seule sans liste, « 12/14 » quand « 12 sur 14 » ne tient pas, le déplié au survol, « Claude attend ta
         // réponse » et « Terminé », Claude en bulle pendant une vidéo, Claude qui attend prend l'îlot (la vidéo en bulle), mi-course
-        func claude(_ etat: EtatClaude = .travaille, faites: Int = 3, total: Int = 7, projet: String = "dictee-mac") -> SessionClaude {
-            let t = (0..<total).map { i in TacheClaude(id: "\(i + 1)", sujet: "Tâche \(i + 1)", enCours: i == 3 ? "Écrit les contrôles de la fusion" : nil,
-                                                       statut: i < faites ? .faite : (i == faites ? .enCours : .aFaire)) }
-            return SessionClaude(id: "rendu", dossier: "/Users/hugues/" + projet, app: "com.apple.Terminal", etat: etat, taches: t, derniere: t0)
+        // Claude Code en carte (maquette ilot-claude-plus.html, étapes 1 à 7) : replié (l'anneau, « 3/7 », le nom de la tâche, le « 2 »),
+        // ambre quand une session attend, le Centre (« 2 au travail »), la carte (deux sessions, celle qui attend en haut, défilée), les
+        // bandeaux (« second-cerveau attend ta réponse », « Carte Dictées terminée »)
+        let tachesDM = ["Lire le moteur de l\u{2019}îlot", "Écrire le modèle des dictées", "Dessiner la liste", "Construire la carte Dictées",
+                        "Brancher la recherche", "Copier et coller au clic", "Essai complet"]
+        func claude(_ etat: EtatClaude = .travaille, faites: Int = 3, total: Int = 7, projet: String = "dictee-mac", noms: [String]? = nil, titre: String? = "Carte Dictées",
+                    question: String? = nil, depuis: Double = 42 * 60, id: String = "rendu") -> SessionClaude {
+            let n = noms ?? (total == 7 ? tachesDM : (0..<total).map { "Étape \($0 + 1)" })
+            let t = (0..<total).map { i in TacheClaude(id: "\(i + 1)", sujet: n[i % max(1, n.count)], statut: i < faites ? .faite : (i == faites && etat != .termine ? .enCours : (etat == .termine ? .faite : .aFaire))) }
+            return SessionClaude(id: id, dossier: "/Users/hugues/" + projet, app: "com.apple.Terminal", etat: etat, taches: t, derniere: t0, titre: titre,
+                                 question: question, debut: t0.addingTimeInterval(-depuis), fin: etat == .termine ? t0 : nil)
         }
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.claude = claude() }) }, "ilot-21a-claude-3-sur-7")
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.claude = claude(total: 0) }) }, "ilot-21b-claude-sans-liste")
-        ecrire(bureau(hauteur: petitBureau, clair: false) { ilot(scene { $0.claude = claude(faites: 12, total: 14) }) }, "ilot-21c-claude-12-sur-14-sombre")
-        ecrire(bureau(hauteur: piedBureau) { ilot(scene { $0.claude = claude(); $0.survole = true }) }, "ilot-21d-claude-survol")
-        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in let s = claude(.attend); m.claude = s
-            m.bandeau = BandeauIlot(vue: .claudeAttend, jusqua: t0, ligne1: "Claude attend ta réponse", ligne2: s.projet, claude: s) }) }, "ilot-21e-claude-attend-ta-reponse")
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.claude = claude(.attend) }) }, "ilot-21f-claude-attend-video-en-bulle")
-        ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene { m in let s = claude(.termine, faites: 7)
-            m.bandeau = BandeauIlot(vue: .claudeTermine, jusqua: t0, ligne1: "Terminé", ligne2: s.projet, claude: s) }) }, "ilot-21g-claude-termine")
-        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.claude = claude() }) }, "ilot-21h-video-et-claude-en-bulle")
-        ecrire(bureau(hauteur: grandBureau) { ilot(miCourse(scene { $0.claude = claude() }, 0.16) { $0.survole = true }) }, "ilot-21i-claude-survol-mi-course")
-        ecrire(bureau(hauteur: piedBureau) { ilot(scene { $0.claude = claude(total: 0); $0.survole = true }) }, "ilot-21j-claude-survol-sans-liste")
+        let sc = claude(faites: 1, total: 3, projet: "second-cerveau", noms: ["Lire LIS-MOI.md", "Ranger les fiches projets", "Mettre à jour OU-J-EN-SUIS"],
+                        titre: "Second cerveau", depuis: 12 * 60, id: "sc")
+        let scAttend = claude(.attend, faites: 1, total: 3, projet: "second-cerveau", noms: ["Lire LIS-MOI.md", "Ranger les fiches projets", "Mettre à jour OU-J-EN-SUIS"],
+                              titre: "Second cerveau", question: "Je range la fiche Verbe dans projets/ ou dans docs/ ?", depuis: 12 * 60, id: "sc")
+        func sessions(_ l: [SessionClaude]) -> (IlotMoteur) -> Void {
+            { m in m.sessionsClaude = l; m.claude = l.first { $0.etat != .termine }; m.claudeAuTravail = l.filter { $0.etat != .termine }.count; m.claudeBranche = true }
+        }
+        let batterie64 = EnergieIlot(pourcent: 64, secteur: false, enCharge: false)
+        let airpods78 = AppareilIlot(nom: "AirPods Pro de Hugues", genre: .ecouteurs, gauche: 80, droit: 78, etui: 45)
+        let hCarte = geometrie.hauteur + 350
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(sessions([claude()]))) }, "ilot-21a-claude-3-sur-7-nom")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(sessions([claude(total: 0, titre: nil)]))) }, "ilot-21b-claude-sans-liste")
+        ecrire(bureau(hauteur: petitBureau, clair: false) { ilot(scene(sessions([claude(faites: 12, total: 14)]))) }, "ilot-21c-claude-12-sur-14-sombre")
+        ecrire(bureau(hauteur: hCarte) { ilot(scene { m in sessions([claude(), sc])(m); m.energie = batterie64; m.ecouteurs = airpods78; m.survole = true }) }, "ilot-21d-claude-survol-le-centre")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in sessions([scAttend, claude()])(m)
+            m.bandeau = BandeauIlot(vue: .claudeAttend, jusqua: t0, ligne1: "second-cerveau attend ta réponse",
+                                    ligne2: TexteClaude.premiersMots(scAttend.question) ?? "", claude: scAttend) }) }, "ilot-21e-claude-attend-ta-reponse")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; sessions([scAttend])(m) }) }, "ilot-21f-claude-attend-video-en-bulle")
+        let fini = claude(.termine, faites: 7)
+        ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene { m in
+            m.bandeau = BandeauIlot(vue: .claudeTermine, jusqua: t0, ligne1: TexteClaude.fin(fini), ligne2: TexteClaude.ligneFin(fini, a: t0), claude: fini) }) }, "ilot-21g-claude-termine")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; sessions([claude()])(m) }) }, "ilot-21h-video-et-claude-en-bulle")
+        ecrire(bureau(hauteur: hCarte) { ilot(miCourse(scene(sessions([claude()])), 0.16) { $0.survole = true }) }, "ilot-21i-claude-survol-mi-course")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(sessions([claude(), sc]))) }, "ilot-24a-claude-deux-sessions-badge")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(sessions([scAttend, claude()]))) }, "ilot-24b-claude-attend-ambre")
+        ecrire(bureau(hauteur: hCarte) { ilot(scene { m in sessions([claude(), sc])(m); m.energie = batterie64; m.ecouteurs = airpods78; m.donneesChangees(); m.ouvrirCarteClaude() }) },
+               "ilot-24c-carte-claude-deux-sessions")
+        ecrire(bureau(hauteur: hCarte) { ilot(scene { m in sessions([scAttend, claude()])(m); m.energie = batterie64; m.ecouteurs = airpods78; m.survole = true }) },
+               "ilot-24d-carte-claude-attend-en-haut")
+        ecrire(bureau(hauteur: hCarte, clair: false) { ilot(scene { m in sessions([scAttend, claude()])(m); m.energie = batterie64; m.ecouteurs = airpods78; m.survole = true; m.donneesChangees()
+            m.defilerCarteClaude(-150) }) }, "ilot-24e-carte-claude-defilee")
+        ecrire(bureau(hauteur: hCarte) { ilot(scene { m in sessions([claude(), claude(.termine, faites: 7, projet: "verbe-site", titre: "Page d\u{2019}accueil", depuis: 18 * 60, id: "vs")])(m); m.energie = batterie64; m.donneesChangees(); m.ouvrirCarteClaude() }) }, "ilot-24f-carte-claude-une-finie")
+        ecrire(bureau(hauteur: hCarte) { ilot(scene { m in m.claudeBranche = true; m.energie = batterie64; m.donneesChangees(); m.ouvrirCarteClaude() }) }, "ilot-24g-carte-claude-vide")
+        ecrire(bureau(hauteur: hCarte) { ilot(miCourse(scene { m in sessions([scAttend, claude()])(m); m.energie = batterie64; m.ecouteurs = airpods78 }, 0.16) { $0.survole = true }) },
+               "ilot-24h-carte-claude-ouverture-mi-course")
         // l'étagère (maquette ilot-apple.html, cinq idées de plus, 2) : « Déposez ici » pendant qu'on glisse des fichiers près de l'encoche
         // (vide, puis sous les derniers fichiers rangés, éclairé quand le pointeur est dessus), la ligne de l'accueil, la carte (une et deux
         // rangées, noms longs coupés au milieu, vide), pendant une vidéo, et l'ouverture à mi-course
@@ -469,6 +499,48 @@ enum RenduLecture {
             ecrire(bureau(hauteur: hCentre) { ilot(miCourse(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpodsPro
                 m.donneesChangees(); m.survole = true; m.donneesChangees() }, t) { $0.allerA(.centre) }) }, "ilot-23n\(nom)-centre-passage-\(Int(t * 1000))ms")
         }
+        // les Outils, 2e page du Centre (maquette ilot-claude-plus.html, étapes 8 à 14) : la page (« Outils › » dans l'en-tête du Centre,
+        // 2e point), Garder éveillé 1 h, le presse-papiers (« Copié », « Coller » au survol), Reformuler (« Verbe réécrit… », le résultat),
+        // Note rapide (la note qui vient d'arriver, « Dans Notes »), « Modifier » sur la page Outils, les cartes vides, un passage à mi-course
+        func outils(_ config: @escaping (IlotMoteur) -> Void = { _ in }) -> (IlotMoteur) -> Void {
+            { m in centre()(m); m.allerA(.outils); config(m); m.donneesChangees() }
+        }
+        func copie(_ g: GenreCopie, _ titre: String, _ detail: String? = nil, _ style: CopieVue.Style, _ icone: NSImage? = nil, il minutes: Double) -> CopieVue {
+            CopieVue(element: ElementCopie(genre: g, date: t0.addingTimeInterval(-minutes * 60), empreinte: titre), titre: titre, detail: detail, style: style, icone: icone)
+        }
+        let cinqCopies = [
+            copie(.texte("4 200 € posé"), "4\u{202F}200\u{202F}€ posé, plan de travail en chêne compris", nil, .texte, il: 1),
+            copie(.image(largeur: 1280, hauteur: 800), "Image", LecturePressePapiers.dimensions(1280, 800), .nom, image(ArtVideo(), cote: 120, hauteur: 75), il: 6),
+            copie(.fichiers(["Devis-cuisine.pdf"]), "Devis-cuisine.pdf", "212 Ko", .nom, NSWorkspace.shared.icon(for: .pdf), il: 14),
+            copie(.texte("git push origin main"), "git push origin main", nil, .commande, il: 31),
+            copie(.texte("Bonjour"), "Bonjour Madame Martin, je vous confirme le rendez-vous de mardi à 10 h.", nil, .texte, il: 62),
+        ]
+        let dicteeMail = "OK pour le devis de la cuisine : 4\u{202F}200\u{202F}€ posé, plan de travail en chêne compris. Je te l\u{2019}envoie ce soir avec les plans et les photos du chantier."
+        func reformulation(_ phase: EtatReformulation.Phase, style: StyleReformulation? = .pro) -> EtatReformulation {
+            var r = EtatReformulation(); r.texte = dicteeMail; r.etiquette = "Dernière dictée \u{00B7} Mail \u{00B7} 14:31"; r.style = style; r.phase = phase; return r
+        }
+        let notesExemple = [NoteRapide(texte: "Rappeler le plombier jeudi pour le devis de la salle de bain", date: t0),
+                            NoteRapide(texte: "Acheter des ampoules pour le salon", date: t0.addingTimeInterval(-3.5 * 3600)),
+                            NoteRapide(texte: "Idée : un mode nuit pour l\u{2019}îlot, plus sombre après 22 h", date: t0.addingTimeInterval(-26 * 3600), versNotes: true),
+                            NoteRapide(texte: "Rappeler la banque pour le prêt", date: t0.addingTimeInterval(-30 * 3600))]
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils())) }, "ilot-25a-outils-8-la-page")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.epinglerLeCentre(); m.eveil = EveilIlot(duree: .uneHeure, depuis: t0.addingTimeInterval(-8 * 60)); m.panneauEveil = true })) },
+               "ilot-25b-outils-9-garder-eveille-1h")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.copies = cinqCopies; m.ouvrirOutil(.outilPressePapiers); m.copieFaite = (cinqCopies[1].id, "Copié"); m.survolCopie = cinqCopies[2].id })) },
+               "ilot-25c-outils-10-presse-papiers")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.reformulation = reformulation(.fait("Bonjour, je vous confirme le devis de la cuisine : 4\u{202F}200\u{202F}€, pose et plan de travail en chêne compris. Je vous envoie ce soir les plans et les photos du chantier. Cordialement."))
+            m.ouvrirOutil(.outilReformuler) })) }, "ilot-25d-outils-11-reformuler-plus-pro")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(lecture: videoLongue, outils { m in m.reformulation = reformulation(.calcul); m.ouvrirOutil(.outilReformuler) })) },
+               "ilot-25e-outils-reformuler-calcul-sombre")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.notes = notesExemple; m.noteNeuve = notesExemple[0].id; m.envoisNotes = [notesExemple[0].id: .fait]
+            m.ouvrirOutil(.outilNote) })) }, "ilot-25f-outils-14-note-rapide")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.dispositionOutils.retirer(.reformuler); m.commencerEditionCentre() })) },
+               "ilot-25g-outils-modifier")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(lecture: videoLongue, outils { m in m.ouvrirOutil(.outilNote) })) }, "ilot-25h-outils-note-rapide-vide-sombre")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.ouvrirOutil(.outilPressePapiers) })) }, "ilot-25i-outils-presse-papiers-vide")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.reformulation.source = .selection; m.reformulation.etiquette = "Texte choisi"; m.ouvrirOutil(.outilReformuler) })) },
+               "ilot-25j-outils-reformuler-rien-de-choisi")
+        ecrire(bureau(hauteur: hCentre) { ilot(miCourse(scene(lecture: videoLongue, centre()), 0.2) { $0.allerA(.outils) }) }, "ilot-25k-outils-passage-200ms")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)

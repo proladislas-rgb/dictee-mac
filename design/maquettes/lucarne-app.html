@@ -1,0 +1,1381 @@
+<!doctype html>
+<!--
+Lucarne (ex-Verbe) — la fenêtre principale refaite, et une app qui s'explique elle-même.
+Une lucarne, c'est la petite fenêtre en haut d'un toit : ici, l'encoche du Mac. L'icône : l'îlot vu à travers une petite fenêtre arrondie.
+Trois parties, en 12 étapes :
+  1-5   le premier lancement : l'icône sort de l'encoche, la Lucarne se déplie pour montrer ce qu'elle sait faire,
+        quatre réglages un à la fois (chacun avec sa raison), puis « Essaie : tiens fn et dis bonjour », avec une petite fête sobre ;
+  6-8   la nouvelle fenêtre : barre latérale (Aujourd'hui, Dictées, Réunions, Bibliothèque, Mots, Découvrir, Réglages) ;
+  9-12  « Découvrir » (chaque fonction en une petite scène, et « Montrer » la fait faire à la vraie encoche),
+        Réglages en quatre parties, et une page Confidentialité qui dit simplement ce qui reste sur le Mac et ce qui part.
+Aucun raccourci clavier nulle part : seule la touche fn (tenir pour dicter). L'icône de l'app partout = la nouvelle icône Lucarne.
+Toutes les personnes, fichiers et échanges sont inventés.
+Format repris de ilot-centre.html (forme de l'îlot `chemin`/`cote`, ressorts, faux écran, régie).
+Fichier autonome : aucune ressource externe, polices système, icônes intégrées. 1 px CSS = 1 pt.
+Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
+                   ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lucarne · la fenêtre</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --serif:ui-serif,"New York","Newsreader",Charter,Georgia,serif;
+  --ambre:#ff9f0a; --vert:#30d158; --rouge:#ff453a; --corail:#e8835c; --bleu:#0a84ff;
+  --regie:#0f0f11; --clair:#f5f5f7;
+  /* la fenêtre de Lucarne : les gris chauds de l'app d'aujourd'hui */
+  --pan:#1b1b1a; --side:#252524; --box:#232322; --raised:#2c2c2a; --raised2:#353533;
+  --ink:#ece9e3; --ink2:#a8a59e; --ink3:#85827b; --hair:rgba(236,233,227,.09); --hair2:rgba(236,233,227,.15);
+  --accent:#e6a04a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--regie)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--clair);min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default;text-align:inherit}
+svg{display:block;overflow:visible}
+img{display:block}
+html.fige *,html.fige *::before,html.fige *::after{animation-play-state:paused!important}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+
+/* ===================== le faux écran (macOS 26, apparence claire) ===================== */
+#ecran{position:relative;height:clamp(500px,calc(100vh - 236px),740px);overflow:hidden;isolation:isolate;
+  user-select:none;-webkit-user-select:none;background:#dbe4ee;transition:opacity calc(.26s*var(--k)) ease}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(70% 90% at 90% 4%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 60%),
+  radial-gradient(60% 80% at 4% 100%,rgba(248,228,210,.95) 0,rgba(248,228,210,0) 62%),
+  linear-gradient(168deg,#c6d6ea 0%,#d9e4f0 40%,#ebe8e6 74%,#f0e2d6 100%)}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;z-index:4;font-size:13.5px;color:#1d1d1f;white-space:nowrap;pointer-events:none}
+.menus,.etats{display:flex;flex-wrap:wrap;align-content:flex-start;height:33px;overflow:hidden;max-width:calc(50% - 172px)}
+.menus{column-gap:19px;padding-left:18px}
+.menus>*{height:33px;line-height:33px;font-weight:500}
+.menus>svg{height:17px;margin-top:7px;flex:none}
+.menus>b{font-weight:700}
+.etats{flex-direction:row-reverse;column-gap:15px;padding-right:15px}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats svg{width:17px;height:17px;color:#1d1d1f}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+.fen{position:absolute;border-radius:14px;overflow:hidden;z-index:1;display:flex;pointer-events:auto;
+  transition:opacity calc(.3s*var(--k)) ease,transform calc(.45s*var(--k)) var(--ressort),filter calc(.3s*var(--k)) ease}
+.fen.cache{opacity:0;transform:scale(.965);pointer-events:none}
+.feux{position:absolute;left:15px;top:15px;display:flex;gap:8px;z-index:3}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.2)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.fen.arriere .feux i{background:#4a4a48}
+.sombre{background:var(--pan);color:var(--ink);
+  box-shadow:0 0 0 .5px rgba(0,0,0,.65),inset 0 0 0 .5px rgba(255,255,255,.08),0 36px 80px -20px rgba(24,36,60,.55),0 12px 26px -10px rgba(24,36,60,.32)}
+.fen.arriere{filter:saturate(.9) brightness(.97)}
+
+/* la question de macOS */
+.alerte{position:absolute;left:50%;top:214px;width:300px;margin-left:-150px;z-index:9;border-radius:22px;padding:18px 18px 16px;text-align:center;color:#1d1d1f;
+  background:rgba(246,246,248,.97);box-shadow:0 0 0 .5px rgba(0,0,0,.22),0 28px 64px -12px rgba(20,30,50,.48),0 8px 20px -8px rgba(20,30,50,.25);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.alerte.cache{opacity:0;transform:scale(.92);pointer-events:none}
+.alerte img{width:52px;height:52px;margin:0 auto}
+.alerte b{display:block;font-size:13px;line-height:17px;font-weight:700;margin-top:9px;letter-spacing:-.1px}
+.alerte p{font-size:11.5px;line-height:15px;color:#6e6e73;margin-top:6px}
+.alerte .al-bt{display:flex;gap:8px;margin-top:14px}
+.alerte .al-bt button{flex:1;height:28px;border-radius:14px;font-size:13px;font-weight:500;background:rgba(0,0,0,.07);color:#1d1d1f;text-align:center}
+.alerte .al-bt button.bleu{background:#0a84ff;color:#fff}
+
+/* Réglages Système (petit, apparence claire) */
+.sys{left:calc(50% + 34px);top:236px;width:400px;height:214px;background:#f4f4f6;color:#1d1d1f;flex-direction:column;z-index:6;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.22),0 30px 70px -18px rgba(20,30,50,.45),0 10px 24px -10px rgba(20,30,50,.25)}
+.sys-h{height:52px;flex:none;display:flex;align-items:center;gap:12px;padding-left:88px;font-size:14px;font-weight:700}
+.sys-h span{display:flex;gap:12px;color:#a0a0a6}
+.sys-c{padding:2px 20px 16px}
+.sys-c p{font-size:12px;line-height:16px;color:#6e6e73;margin:0 2px 10px}
+.sys-g{background:#fff;border-radius:10px;box-shadow:0 0 0 .5px rgba(0,0,0,.1)}
+.sys-r{height:46px;display:flex;align-items:center;gap:10px;padding:0 12px;font-size:13px}
+.sys-r+.sys-r{border-top:1px solid #ececef}
+.sys-r img{width:26px;height:26px}
+.sys-r .sp{flex:1}
+.sys-r .grise{color:#8e8e93}
+.sys .sw{background:#d6d6db}
+.sys .sw.on{background:var(--bleu)}
+.sys-pop{height:24px;border-radius:6px;background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.18),0 1px 2px rgba(0,0,0,.08);padding:0 8px 0 10px;font-size:12.5px;display:flex;align-items:center;gap:8px;transition:background-color .2s}
+.sys-pop.vu{background:#e8f1ff}
+
+/* ===================== l'îlot (noir, opaque) ===================== */
+.calque{position:absolute;left:calc(50% - 500px);top:0;width:1000px;height:360px;pointer-events:none}
+#forme-svg{z-index:10}
+#contenu{z-index:11}
+#encoche-svg{z-index:12}
+.c{position:absolute;color:#fff;white-space:nowrap;text-align:left;font-family:var(--sans)}
+.e{opacity:0;filter:blur(7px);transform:translateY(var(--sy,0px)) scale(.965);
+  transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
+.e.on{opacity:1;filter:blur(0);transform:none;
+  transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+.t15{font-size:15px;line-height:19px;font-weight:600;letter-spacing:-.2px}
+.t125{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(255,255,255,.55)}
+.aile{display:flex;align-items:center;gap:5px;height:17px;font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.1px}
+.eq{display:flex;align-items:center;justify-content:space-between;width:18.4px;height:14px}
+.eq i{display:block;width:2.6px;height:14px;border-radius:1.3px;background:#ffab3d;transform:scaleY(.3);animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(1){animation-duration:.82s;animation-delay:-.3s}
+.eq i:nth-child(2){animation-duration:1.06s;animation-delay:-.7s}
+.eq i:nth-child(3){animation-duration:.74s;animation-delay:-.1s}
+.eq i:nth-child(4){animation-duration:.95s;animation-delay:-.5s}
+.eq i:nth-child(5){animation-duration:1.18s;animation-delay:-.2s}
+@keyframes eq{0%{transform:scaleY(.28)}22%{transform:scaleY(.95)}41%{transform:scaleY(.5)}63%{transform:scaleY(1)}82%{transform:scaleY(.36)}100%{transform:scaleY(.28)}}
+.point-r{width:10px;height:10px;border-radius:50%;background:var(--rouge);animation:pouls 1.2s ease-in-out infinite}
+@keyframes pouls{50%{opacity:.4}}
+.tourne{animation:tourne 6s linear infinite}
+@keyframes tourne{to{transform:rotate(360deg)}}
+.naitre img{width:64px;height:64px;filter:drop-shadow(0 6px 14px rgba(0,0,0,.5))}
+/* la démonstration de l'étagère */
+.dm-tete{display:flex;align-items:center;gap:8px;height:20px;width:432px}
+.dm-pil{height:20px;border-radius:10px;padding:0 8px;background:rgba(255,255,255,.14);font-size:11.5px;font-weight:600;display:flex;align-items:center;color:rgba(255,255,255,.75)}
+.dm-zones{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:432px}
+.zone{height:92px;border-radius:18px;border:1.5px dashed rgba(255,255,255,.32);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  transition:border-color .2s ease,background-color .2s ease}
+.zone b{font-size:13.5px;font-weight:600}
+.zone span{font-size:12px;font-weight:500;color:rgba(255,255,255,.5)}
+.zone.survol{border-color:#fff;background:rgba(10,132,255,.22)}
+.zone.plein{border-style:solid;border-color:transparent;background:rgba(255,255,255,.1)}
+.zone .rangé{display:none;align-items:center;gap:8px}
+.zone.plein .rangé{display:flex}
+.zone.plein .vide{display:none}
+.info{width:390px;display:flex;gap:14px;align-items:flex-start}
+.info .ig{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center;flex:none}
+.info p{font-size:13px;line-height:18px;color:rgba(255,255,255,.62);white-space:normal;margin-top:3px}
+/* l'icône qui sort de l'encoche */
+#envol{position:absolute;left:0;top:0;width:96px;height:96px;z-index:13;pointer-events:none;opacity:0;filter:drop-shadow(0 18px 30px rgba(10,20,40,.35))}
+#envol.vu{opacity:1}
+/* le fichier glissé par la démonstration */
+#vol{position:absolute;left:0;top:0;z-index:14;pointer-events:none;opacity:0;display:flex;flex-direction:column;align-items:center;gap:3px;transition:opacity .2s}
+#vol.vu{opacity:.95}
+#vol span{font-size:11px;font-weight:600;color:#fff;background:#2e7cf6;border-radius:4px;padding:0 5px;line-height:15px;white-space:nowrap}
+
+/* ===================== la fenêtre de bienvenue ===================== */
+.acc{left:calc(50% - 320px);top:110px;width:640px;height:452px;z-index:5}
+.fen.acc.cache{transform:none}
+.av{position:absolute;inset:0;opacity:0;transform:translateY(8px) scale(.985);pointer-events:none;
+  transition:opacity calc(.4s*var(--k)) ease,transform calc(.55s*var(--k)) var(--ressort)}
+.av.on{opacity:1;transform:none;pointer-events:auto}
+.av-bien{display:flex;flex-direction:column;align-items:center;text-align:center;padding:42px 56px 0}
+#accIc{width:96px;height:96px;transition:opacity .2s}
+#accIc.attend{opacity:0}
+.av-bien h2{font:400 31px/38px var(--serif);letter-spacing:-.3px;margin-top:14px;color:#fff}
+.av-bien p{font-size:14px;line-height:21px;color:var(--ink2);margin-top:10px;max-width:470px}
+.savoir{display:flex;gap:8px;margin-top:22px;flex-wrap:wrap;justify-content:center}
+.savoir span{height:30px;border-radius:15px;padding:0 13px 0 10px;display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink2);
+  background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 .5px var(--hair2);transition:background-color .3s ease,color .3s ease,transform calc(.4s*var(--k)) var(--ressort)}
+.savoir span.ici{background:rgba(255,255,255,.13);color:#fff;transform:translateY(-2px)}
+.gros{height:36px;border-radius:18px;padding:0 26px;background:#f2efe9;color:#1b1b1a;font-size:14px;font-weight:600;margin-top:26px;cursor:pointer;transition:transform calc(.3s*var(--k)) var(--ressort)}
+.gros:active{transform:scale(.96)}
+.sous{font-size:12px;color:var(--ink3);margin-top:10px}
+/* les réglages, un à la fois */
+.av-pas{display:grid;grid-template-columns:206px 1fr}
+.pas-g{background:var(--side);margin:8px 0 8px 8px;border-radius:11px;padding:48px 14px 14px;display:flex;flex-direction:column;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.06)}
+.pas-g h4{font-size:12px;font-weight:600;color:var(--ink3);padding:0 6px 8px}
+.pas-l{list-style:none;display:flex;flex-direction:column;gap:2px}
+.pas-l li{height:34px;border-radius:8px;display:flex;align-items:center;gap:10px;padding:0 8px;font-size:13px;font-weight:500;color:var(--ink3);transition:background-color .3s,color .3s}
+.pas-l li.ici{background:rgba(255,255,255,.08);color:#fff;font-weight:600}
+.pas-l li.fait{color:var(--ink2)}
+.rond{width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11px;font-weight:700;box-shadow:inset 0 0 0 1.3px rgba(255,255,255,.25);position:relative;transition:background-color .3s,box-shadow .3s}
+.pas-l li.ici .rond{box-shadow:inset 0 0 0 1.5px #fff}
+.pas-l li.fait .rond{background:#30a14e;box-shadow:none}
+.rond .n{transition:opacity .2s}
+.pas-l li.fait .rond .n{opacity:0}
+.rond svg{position:absolute;inset:4px}
+.rond path{stroke-dasharray:16;stroke-dashoffset:16;transition:stroke-dashoffset calc(.4s*var(--k)) ease .1s}
+.pas-l li.fait .rond path{stroke-dashoffset:0}
+.pas-pied{margin-top:auto;font-size:11.5px;line-height:16px;color:var(--ink3);padding:0 6px}
+.carte{position:relative;padding:58px 40px 0 36px;transition:opacity calc(.22s*var(--k)) ease,transform calc(.45s*var(--k)) var(--ressort),filter calc(.22s*var(--k)) ease}
+.carte.sort{opacity:0;transform:translateX(-26px);filter:blur(4px)}
+.carte.entre{opacity:0;transform:translateX(26px);filter:blur(4px);transition:none}
+.ca-ic{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;background:var(--raised2);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.1)}
+.ca-n{font-size:12px;font-weight:600;color:var(--ink3);margin-top:20px}
+.carte h3{font:400 27px/33px var(--serif);color:#fff;margin-top:3px;letter-spacing:-.2px}
+.ca-pq{font-size:12px;font-weight:700;color:var(--ink2);margin-top:14px;text-transform:none}
+.carte p{font-size:13.5px;line-height:20px;color:var(--ink2);margin-top:3px;max-width:350px}
+.ca-act{display:flex;align-items:center;gap:12px;margin-top:22px;height:34px}
+.bt{height:32px;border-radius:16px;padding:0 16px;background:#f2efe9;color:#1b1b1a;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px;transition:transform calc(.3s*var(--k)) var(--ressort)}
+.bt:active{transform:scale(.96)}
+.bt.creux{background:rgba(255,255,255,.1);color:var(--ink)}
+.ok{display:none;align-items:center;gap:8px;height:32px;border-radius:16px;padding:0 14px 0 8px;background:rgba(48,161,78,.18);color:#7fdc98;font-size:13px;font-weight:600}
+.carte.fait .ok{display:flex}
+.carte.fait .bt.action{display:none}
+.ok i{width:20px;height:20px;border-radius:50%;background:#30a14e;display:grid;place-items:center}
+.cle{display:none;margin-top:16px;height:34px;width:330px;border-radius:9px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 .5px var(--hair2);align-items:center;padding:0 12px;font:500 13px/1 ui-monospace,Menlo,monospace;color:var(--ink3);gap:8px}
+.carte.groq .cle{display:flex}
+.cle.plein{color:var(--ink)}
+.cle .lien{margin-left:auto;font:500 12px var(--sans);color:var(--accent)}
+.ca-lien{font-size:12.5px;color:var(--ink3)}
+/* l'essai */
+.av-essai{padding:46px 56px 0;display:flex;flex-direction:column;align-items:center;text-align:center}
+.es-t{font:400 27px/34px var(--serif);color:#fff;transition:opacity .3s}
+.es-s{font-size:13.5px;line-height:20px;color:var(--ink2);margin-top:6px;height:20px}
+.es-champ{margin-top:22px;width:470px;height:76px;border-radius:12px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 .5px var(--hair2);text-align:left;padding:14px 16px;
+  font:400 19px/26px var(--serif);color:#fff;display:flex;align-items:flex-start;transition:box-shadow .3s}
+.es-champ.ecoute{box-shadow:inset 0 0 0 1.5px rgba(255,171,61,.6)}
+.es-champ .caret{display:inline-block;width:1.5px;height:22px;background:var(--accent);margin:2px 0 0 2px;animation:clign 1s steps(1) infinite}
+@keyframes clign{50%{opacity:0}}
+.es-bas{display:flex;align-items:center;gap:22px;margin-top:22px;height:64px}
+.touche{width:58px;height:54px;border-radius:9px;background:linear-gradient(#3a3a38,#2b2b29);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.14),0 3px 0 #121211,0 4px 8px rgba(0,0,0,.4);
+  display:flex;flex-direction:column;justify-content:space-between;padding:6px 8px;font-size:12px;font-weight:600;color:var(--ink2);text-align:left;
+  transition:transform calc(.18s*var(--k)) ease,box-shadow calc(.18s*var(--k)) ease,background calc(.18s*var(--k)) ease}
+.touche.bas{transform:translateY(3px);box-shadow:inset 0 0 0 1px rgba(255,171,61,.7),0 0 0 #121211,0 1px 2px rgba(0,0,0,.4);color:#ffcf8a}
+.touche b{align-self:flex-start;font-weight:500;font-size:13px}
+.niveau{display:flex;align-items:center;gap:3px;height:40px;width:200px}
+.niveau i{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.16);transition:height .12s ease,background-color .2s}
+.niveau.vif i{background:#ffab3d}
+.es-etat{font-size:12.5px;font-weight:600;color:var(--ink3);width:120px;text-align:left}
+.bravo{position:absolute;left:0;right:0;bottom:30px;display:flex;flex-direction:column;align-items:center;opacity:0;transform:translateY(10px);
+  transition:opacity calc(.35s*var(--k)) ease,transform calc(.5s*var(--k)) var(--ressort);pointer-events:none}
+.av-essai.reussi .bravo{opacity:1;transform:none;pointer-events:auto}
+.av-essai.reussi .es-bas{opacity:0;transition:opacity .25s}
+.bravo-l{display:flex;align-items:center;gap:12px}
+.coche-r{position:relative;width:34px;height:34px}
+.coche-r svg{position:absolute;inset:0}
+.coche-r .c1{stroke-dasharray:101;stroke-dashoffset:101;transition:stroke-dashoffset calc(.55s*var(--k)) ease .1s}
+.coche-r .c2{stroke-dasharray:20;stroke-dashoffset:20;transition:stroke-dashoffset calc(.3s*var(--k)) ease .55s}
+.av-essai.reussi .coche-r .c1,.av-essai.reussi .coche-r .c2{stroke-dashoffset:0}
+.coche-r .anneau{position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 1.5px #30d158;opacity:0}
+.av-essai.reussi .coche-r .anneau{opacity:0;transform:scale(2.3);transition:transform calc(.9s*var(--k)) ease-out .5s,opacity calc(.9s*var(--k)) ease-out .5s}
+.coche-r .anneau.part{opacity:.6}
+.bravo b{font-size:15px;font-weight:600;color:#fff;text-align:left}
+.bravo span{display:block;font-size:12.5px;color:var(--ink2);font-weight:500;margin-top:1px}
+.bravo .bt{margin-top:18px}
+
+/* ===================== la fenêtre Lucarne ===================== */
+.app{left:calc(50% - 470px);top:44px;width:940px;bottom:14px}
+.cote{width:206px;flex:none;margin:8px 0 8px 8px;border-radius:12px;background:var(--side);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.07);display:flex;flex-direction:column;padding:46px 10px 12px;position:relative}
+.cote .feux{left:10px;top:10px}
+.marque{display:flex;align-items:center;gap:10px;padding:0 6px 14px}
+.marque img{width:34px;height:34px;flex:none}
+.marque b{display:block;font-size:15px;font-weight:700;letter-spacing:-.2px;color:#fff}
+.marque span{display:block;font-size:11.5px;color:var(--ink3);font-weight:500;margin-top:1px}
+.nav{display:flex;flex-direction:column;gap:1px}
+.nav button{height:30px;border-radius:8px;display:flex;align-items:center;gap:10px;padding:0 9px;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer;transition:background-color .15s}
+.nav button:hover{background:rgba(255,255,255,.05)}
+.nav button svg{color:var(--ink2);flex:none}
+.nav button.on{background:rgba(255,255,255,.1)}
+.nav button.on svg{color:var(--accent)}
+.nav .nb{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--ink3);font-variant-numeric:tabular-nums}
+.nav .nb.pastille{min-width:18px;height:18px;border-radius:9px;background:rgba(230,160,74,.2);color:var(--accent);display:grid;place-items:center;padding:0 5px}
+.nav-sep{height:1px;background:var(--hair);margin:9px 9px}
+.cote-pied{margin-top:auto;padding:10px 8px 0;border-top:1px solid var(--hair);font-size:12px;color:var(--ink3);line-height:17px}
+.pret{display:flex;align-items:center;gap:7px;color:var(--ink);font-weight:600;font-size:12.5px;margin-bottom:2px}
+.pret i{width:7px;height:7px;border-radius:50%;background:#5fd07a}
+.fn{display:inline-grid;place-items:center;min-width:21px;height:17px;border-radius:5px;padding:0 5px;background:var(--raised2);
+  box-shadow:inset 0 -1px 0 rgba(0,0,0,.45),0 0 0 .5px rgba(255,255,255,.14);font:600 10.5px/1 var(--sans);color:var(--ink);vertical-align:1px;letter-spacing:0}
+.corps{flex:1;min-width:0;position:relative}
+.pg{position:absolute;inset:0;padding:20px 28px 0;display:none;overflow:hidden}
+.pg.on{display:block}
+.pg-h h1{font-size:22px;line-height:28px;font-weight:700;letter-spacing:-.4px;color:#fff}
+.pg-h p{font-size:13px;line-height:18px;color:var(--ink2);margin-top:2px}
+.lien{color:var(--accent);font-weight:500;cursor:pointer}
+.h5{font-size:12px;font-weight:600;color:var(--ink3);letter-spacing:.1px}
+.boite{background:var(--box);border-radius:12px;box-shadow:inset 0 0 0 .5px var(--hair2)}
+.champ{height:30px;border-radius:8px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 .5px var(--hair2);display:flex;align-items:center;gap:7px;padding:0 10px;font-size:13px;color:var(--ink3)}
+.puces{display:flex;gap:6px}
+.puces span{height:26px;border-radius:13px;padding:0 11px;display:flex;align-items:center;font-size:12.5px;font-weight:500;color:var(--ink2);background:rgba(255,255,255,.05);cursor:pointer;transition:background-color .2s,color .2s}
+.puces span.on{background:#ece9e3;color:#1b1b1a;font-weight:600}
+.sw{width:32px;height:19px;border-radius:10px;background:rgba(255,255,255,.2);position:relative;flex:none;cursor:pointer;transition:background-color calc(.2s*var(--k))}
+.sw::after{content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform calc(.3s*var(--k)) var(--ressort)}
+.sw.on{background:var(--bleu)}
+.sw.on::after{transform:translateX(13px)}
+.pop{height:24px;border-radius:6px;background:rgba(255,255,255,.1);padding:0 7px 0 10px;font-size:12.5px;font-weight:500;display:flex;align-items:center;gap:6px;color:var(--ink);flex:none}
+
+/* Aujourd'hui */
+.au-date{font-size:13px;font-weight:600;color:var(--ink3)}
+.au-phrase{font:400 23px/31px var(--serif);color:#fff;margin-top:5px;max-width:620px;letter-spacing:-.15px}
+.tuiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
+.tu{height:122px;padding:12px 14px;position:relative;overflow:hidden;transition:box-shadow .2s,background-color .2s}
+.tu.survol{background:#2a2a28}
+.tu-h{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink3);height:16px}
+.tu-h .lien{margin-left:auto;font-size:12px}
+.tu-v{display:flex;align-items:baseline;gap:7px;margin-top:6px}
+.tu-v b{font-size:28px;line-height:32px;font-weight:600;letter-spacing:-.6px;color:#fff;font-variant-numeric:tabular-nums}
+.tu-v span{font-size:12.5px;color:var(--ink2)}
+.barres{position:absolute;left:14px;right:14px;bottom:12px;height:34px;display:flex;align-items:flex-end;gap:4px}
+.barres i{flex:1;border-radius:2px;background:rgba(236,233,227,.22)}
+.barres i.max{background:var(--accent)}
+.tu-ser{font:400 16px/21px var(--serif);color:#fff;margin-top:7px}
+.tu-s{font-size:12.5px;line-height:17px;color:var(--ink2);margin-top:2px}
+.tu-n{position:absolute;left:14px;right:14px;bottom:11px;font-size:11.5px;line-height:15px;color:var(--ink3)}
+.cl-r{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:13px;font-weight:600;color:var(--ink)}
+.cl-r em{font-style:normal;margin-left:auto;font-size:12px;font-weight:500;color:var(--ink2);font-variant-numeric:tabular-nums}
+.cl-r em.att{color:var(--accent)}
+.cl-b{height:3px;border-radius:2px;background:rgba(255,255,255,.1);margin:6px 0 0 22px;position:relative;overflow:hidden}
+.cl-b b{position:absolute;left:0;top:0;bottom:0;width:43%;background:var(--corail);border-radius:2px}
+.fichiers{display:flex;gap:8px;margin-top:10px}
+.fichiers div{width:54px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10.5px;color:var(--ink2);text-align:center}
+.fichiers div span{max-width:54px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vignette{border-radius:4px;box-shadow:0 0 0 .5px rgba(255,255,255,.15)}
+.bat{margin-top:10px}
+.bat+.bat{margin-top:9px}
+.bat div{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:var(--ink)}
+.bat div em{margin-left:auto;font-style:normal;color:var(--ink2);font-variant-numeric:tabular-nums}
+.bat i{display:block;height:4px;border-radius:2px;background:rgba(255,255,255,.1);margin-top:5px;position:relative;overflow:hidden}
+.bat i b{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#5fd07a}
+.fait-h{display:flex;align-items:baseline;gap:8px;margin-top:20px;padding-bottom:6px;border-bottom:1px solid var(--hair)}
+.fait-h b{font-size:13.5px;font-weight:600;color:#fff}
+.fl{display:flex;align-items:center;gap:12px;height:34px;border-bottom:1px solid var(--hair);font-size:13px;color:var(--ink)}
+.fl .h{width:38px;flex:none;font-size:12px;color:var(--ink3);font-variant-numeric:tabular-nums}
+.fl .g{width:22px;height:22px;border-radius:6px;background:var(--raised);display:grid;place-items:center;flex:none;color:var(--ink2)}
+.fl .x{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fl .x i{font-style:normal;color:var(--ink2)}
+.fl .lien{font-size:12.5px}
+
+/* Dictées */
+.di-barre{display:flex;align-items:center;gap:10px;margin-top:14px}
+.di-barre .champ{flex:1}
+.di-g{font-size:12px;font-weight:600;color:var(--ink3);margin:16px 0 4px}
+.di-l{display:flex;align-items:flex-start;gap:14px;padding:9px 10px;border-radius:9px;margin:0 -10px}
+.di-l:hover,.di-l.survol{background:rgba(255,255,255,.05)}
+.di-l .h{width:38px;flex:none;font-size:12px;line-height:22px;color:var(--ink3);font-variant-numeric:tabular-nums}
+.di-l .x{flex:1;font:400 16px/22px var(--serif);color:var(--ink)}
+.di-l .a{flex:none;font-size:12px;line-height:22px;color:var(--ink3);width:70px;text-align:right}
+
+/* Réunions */
+.pg-reu{padding:0;display:none}
+.pg-reu.on{display:grid;grid-template-columns:236px 1fr}
+.reu-l{border-right:1px solid var(--hair);padding:20px 14px 0 20px}
+.reu-l .pg-h p{font-size:12.5px;line-height:17px}
+.reu-l .champ{margin-top:14px}
+.demander{margin-top:8px;height:30px;border-radius:8px;display:flex;align-items:center;gap:8px;padding:0 10px;font-size:13px;font-weight:500;color:var(--ink);background:rgba(230,160,74,.1)}
+.reu-g{font-size:12px;font-weight:600;color:var(--ink3);margin:14px 4px 4px}
+.reu-r{padding:8px 10px;border-radius:9px;margin:0 -4px}
+.reu-r.sel{background:rgba(255,255,255,.09)}
+.reu-r b{display:block;font-size:13px;line-height:17px;font-weight:600;color:var(--ink)}
+.reu-r span{display:block;font-size:12px;line-height:16px;color:var(--ink3);margin-top:2px}
+.reu-n{padding:20px 26px 0 26px;position:relative;overflow:hidden}
+.n-act{position:absolute;right:22px;top:18px;display:flex;gap:4px}
+.n-act span{height:26px;border-radius:13px;padding:0 11px;display:flex;align-items:center;font-size:12.5px;font-weight:500;color:var(--ink2);background:rgba(255,255,255,.06)}
+.n-titre{font:400 23px/29px var(--serif);color:#fff;letter-spacing:-.2px;max-width:330px}
+.n-meta{font-size:12px;color:var(--ink3);margin-top:5px}
+.gens{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+.gens span{height:22px;border-radius:11px;padding:0 9px 0 4px;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--ink2);background:rgba(255,255,255,.05)}
+.gens i{width:14px;height:14px;border-radius:50%;background:var(--c)}
+.n-bref{font:400 16px/23px var(--serif);color:var(--ink);margin-top:14px;padding-left:12px;border-left:2px solid var(--accent)}
+.n-cols{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:16px}
+.n-cols h3{font-size:13.5px;font-weight:600;color:#fff;margin:10px 0 3px}
+.n-ul{list-style:none;font-size:12.5px;line-height:17px;color:var(--ink2)}
+.n-ul li{position:relative;padding-left:11px;margin-bottom:3px}
+.n-ul li::before{content:"";position:absolute;left:1px;top:7px;width:4px;height:4px;border-radius:50%;background:var(--ink3)}
+.n-dec{display:flex;gap:7px;font-size:12.5px;line-height:17px;color:var(--ink);margin-top:6px}
+.n-dec svg{flex:none;margin-top:1px}
+.n-pe{display:flex;gap:8px;align-items:flex-start;margin-top:8px;font-size:12.5px;line-height:17px;color:var(--ink)}
+.n-pe .case{width:13px;height:13px;border-radius:4px;box-shadow:inset 0 0 0 1.3px var(--ink3);flex:none;margin-top:2px}
+.n-pe em{display:block;font-style:normal;font-size:11.5px;color:var(--ink3)}
+.n-bas{position:absolute;left:26px;right:26px;bottom:16px;display:flex;align-items:center;gap:10px}
+.n-bas .champ{flex:1;height:34px;border-radius:17px;padding:0 14px;transition:box-shadow .2s,background-color .2s}
+.n-bas .champ.survol{box-shadow:inset 0 0 0 1.5px rgba(230,160,74,.55);background:rgba(255,255,255,.08)}
+.n-bas .tr{font-size:12.5px;color:var(--ink2);white-space:nowrap}
+
+/* Bibliothèque */
+.bi-barre{display:flex;align-items:center;gap:12px;margin-top:14px}
+.bi-barre .champ{width:200px}
+.bi-g{display:flex;align-items:baseline;gap:8px;margin:16px 0 8px}
+.bi-g b{font-size:13px;font-weight:600;color:#fff}
+.grille{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.fi{position:relative;padding:10px 8px 9px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;transition:opacity calc(.3s*var(--k)) ease,background-color .15s}
+.fi:hover,.fi.survol{background:rgba(255,255,255,.06)}
+.fi.terne{opacity:.22}
+.fi .ic{height:58px;display:grid;place-items:end center}
+.fi b{font-size:12px;font-weight:500;color:var(--ink);max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:15px}
+.fi span{font-size:11px;color:var(--ink3);line-height:13px;margin-top:-4px}
+.fi .epingle{position:absolute;right:8px;top:8px;color:var(--accent)}
+.fi .actions{position:absolute;left:6px;right:6px;top:40px;display:none;justify-content:center;gap:4px}
+.fi.survol .actions{display:flex}
+.fi .actions i{font-style:normal;height:22px;border-radius:11px;padding:0 8px;background:rgba(20,20,19,.88);box-shadow:0 0 0 .5px rgba(255,255,255,.15);font-size:11px;font-weight:600;color:#fff;display:grid;place-items:center}
+
+/* Mots */
+.mo-g{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.mo-b{padding:14px 16px}
+.mo-b h3{font-size:13.5px;font-weight:600;color:#fff;display:flex;align-items:baseline;gap:8px}
+.mo-b h3 span{font-size:12px;font-weight:500;color:var(--ink3)}
+.noms{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.noms span{height:26px;border-radius:13px;padding:0 11px;display:flex;align-items:center;font:400 14px var(--serif);color:var(--ink);background:rgba(255,255,255,.06)}
+.valider{margin-top:12px;padding:12px 14px;border-radius:10px;background:rgba(230,160,74,.09);font-size:13px;line-height:19px;color:var(--ink)}
+.valider .bts{display:flex;gap:6px;margin-top:9px}
+.valider .bt{height:26px;font-size:12.5px;padding:0 12px}
+.expr{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--hair);font-size:13px}
+.expr q{font:400 15px var(--serif);color:var(--ink);quotes:"« " " »"}
+.expr span{color:var(--ink3)}
+.expr b{font-weight:500;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;text-align:right}
+
+/* Découvrir */
+.de-grille{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+.de{padding:10px 10px 12px;border-radius:13px;transition:background-color .2s,box-shadow .2s}
+.de.ici{box-shadow:inset 0 0 0 1.5px rgba(230,160,74,.55)}
+.de h3{font-size:13.5px;font-weight:600;color:#fff;margin:10px 2px 0}
+.de p{font-size:12.5px;line-height:17px;color:var(--ink2);margin:2px 2px 0;height:34px}
+.de-act{display:flex;align-items:center;gap:10px;margin:10px 2px 0}
+.montrer{height:26px;border-radius:13px;padding:0 12px 0 9px;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.1);font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;transition:background-color .15s,transform calc(.3s*var(--k)) var(--ressort)}
+.montrer:hover{background:rgba(255,255,255,.16)}
+.montrer:active{transform:scale(.95)}
+.de-act .lien{font-size:12.5px}
+/* les petites scènes */
+.mini{position:relative;height:66px;border-radius:9px;overflow:hidden;background:linear-gradient(168deg,#c9d7e8 0%,#dfe6ee 50%,#ece4dc 100%)}
+.mn{position:absolute;left:50%;top:0;width:46px;height:11px;margin-left:-23px;background:#000;border-radius:0 0 6px 6px;overflow:hidden}
+.m-ai{position:absolute;top:2px;height:7px;display:flex;align-items:center;gap:1.5px}
+.m-ai i{display:block;width:1.6px;height:7px;border-radius:1px;background:#ffab3d;animation:eq 1s ease-in-out infinite}
+.m-ai i:nth-child(2){animation-delay:-.4s}.m-ai i:nth-child(3){animation-delay:-.7s}.m-ai i:nth-child(4){animation-delay:-.2s}
+.m-txt{position:absolute;font-size:7.5px;font-weight:700;color:#fff;line-height:7px;top:2px;font-variant-numeric:tabular-nums}
+.m-fen{position:absolute;background:#fff;border-radius:5px;box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 4px 10px -4px rgba(20,30,50,.3)}
+.m-li{position:absolute;height:3px;border-radius:2px;background:#d4d6dc}
+/* 1 dicter */
+.k-fn .mn{animation:mFn 3.4s ease-in-out infinite}
+@keyframes mFn{0%,8%{width:46px;margin-left:-23px}14%,58%{width:88px;margin-left:-44px}66%,100%{width:46px;margin-left:-23px}}
+.k-fn .m-ai{right:6px;animation:mVu 3.4s infinite}
+@keyframes mVu{0%,12%{opacity:0}16%,56%{opacity:1}60%,100%{opacity:0}}
+.k-fn .m-cle{position:absolute;left:14px;bottom:10px;width:26px;height:22px;border-radius:5px;background:#fff;box-shadow:0 2px 0 #b9bcc4,0 0 0 .5px rgba(0,0,0,.15);
+  font-size:8px;font-weight:700;color:#55585f;padding:3px 4px;animation:mCle 3.4s ease-in-out infinite}
+@keyframes mCle{0%,8%{transform:none;box-shadow:0 2px 0 #b9bcc4,0 0 0 .5px rgba(0,0,0,.15)}12%,58%{transform:translateY(2px);box-shadow:0 0 0 #b9bcc4,0 0 0 1.2px #ffab3d}62%,100%{transform:none}}
+.k-fn .m-fen{left:56px;right:14px;top:22px;height:30px;padding:8px 9px;font:400 11px/14px var(--serif);color:#1d1d1f;white-space:nowrap;overflow:hidden}
+.k-fn .m-fen span{display:inline-block;overflow:hidden;vertical-align:bottom;animation:mTape 3.4s steps(14) infinite}
+@keyframes mTape{0%,60%{width:0}80%,96%{width:96px}100%{width:0}}
+/* 2 la Lucarne et le Centre */
+.k-centre .mn{animation:mCentre 3.6s var(--ressort) infinite}
+@keyframes mCentre{0%,14%{width:46px;height:11px;margin-left:-23px;border-radius:0 0 6px 6px}28%,78%{width:128px;height:50px;margin-left:-64px;border-radius:0 0 14px 14px}90%,100%{width:46px;height:11px;margin-left:-23px;border-radius:0 0 6px 6px}}
+.k-centre .ronds{position:absolute;left:50%;top:16px;margin-left:-48px;display:flex;gap:8px;animation:mVu2 3.6s infinite}
+.k-centre .ronds i{width:17px;height:17px;border-radius:50%;background:rgba(255,255,255,.2)}
+.k-centre .ronds i:nth-child(2){background:#ff9f0a}.k-centre .ronds i:nth-child(4){background:#e8835c}
+@keyframes mVu2{0%,28%{opacity:0;transform:translateY(-4px)}36%,74%{opacity:1;transform:none}80%,100%{opacity:0}}
+.k-centre .mfl{position:absolute;left:62%;top:30px;width:9px;height:13px;border:0;animation:mPt 3.6s ease-in-out infinite}
+@keyframes mPt{0%{transform:translate(30px,20px)}14%,80%{transform:translate(0,-18px)}100%{transform:translate(30px,20px)}}
+/* 3 dictées */
+.k-dict .mn{width:132px;height:54px;margin-left:-66px;border-radius:0 0 14px 14px}
+.k-dict .m-li{background:rgba(255,255,255,.3);height:3px}
+.k-dict .sel{position:absolute;left:6px;right:6px;height:12px;border-radius:5px;background:rgba(255,255,255,.14);animation:mSel 3s steps(1) infinite}
+@keyframes mSel{0%{top:7px}33%{top:20px}66%{top:33px}}
+.k-dict .copie{position:absolute;right:8px;height:10px;border-radius:5px;padding:0 4px;background:rgba(48,209,88,.3);color:#7fe39a;font-size:6.5px;font-weight:700;line-height:10px;animation:mSel 3s steps(1) infinite;margin-top:1px}
+/* 4 Claude */
+.k-claude .mn{width:96px;margin-left:-48px}
+.k-claude .etoile{position:absolute;left:5px;top:1.5px;width:8px;height:8px;animation:tourne 4s linear infinite}
+.k-claude .m-fen{left:20px;right:20px;top:22px;height:34px;padding:7px 9px}
+.k-claude .barre{position:absolute;left:9px;right:9px;bottom:8px;height:3px;border-radius:2px;background:#e9e9ee;overflow:hidden}
+.k-claude .barre b{position:absolute;left:0;top:0;bottom:0;background:#e8835c;animation:mBarre 4s ease-in-out infinite}
+@keyframes mBarre{0%{width:15%}100%{width:95%}}
+.k-claude .t{font-size:8.5px;font-weight:600;color:#1d1d1f}
+/* 5 étagère et AirDrop */
+.k-eta .mn{animation:mEtaN 3.4s var(--ressort) infinite}
+@keyframes mEtaN{0%,30%{width:46px;height:11px;margin-left:-23px}40%,62%{width:110px;height:34px;margin-left:-55px;border-radius:0 0 11px 11px}72%,100%{width:72px;height:11px;margin-left:-36px;border-radius:0 0 6px 6px}}
+.k-eta .zz{position:absolute;left:50%;top:9px;margin-left:-49px;display:flex;gap:4px;animation:mVu3 3.4s infinite}
+.k-eta .zz i{width:47px;height:19px;border-radius:6px;border:1px dashed rgba(255,255,255,.45)}
+@keyframes mVu3{0%,38%{opacity:0}44%,60%{opacity:1}66%,100%{opacity:0}}
+.k-eta .pile{position:absolute;left:50%;top:2px;margin-left:-32px;width:7px;height:6px;border-radius:1.5px;border:1px solid #fff;animation:mVu4 3.4s infinite}
+@keyframes mVu4{0%,70%{opacity:0}76%,100%{opacity:1}}
+.k-eta .doc{position:absolute;left:50%;top:38px;margin-left:-25px;animation:mDoc 3.4s ease-in-out infinite}
+@keyframes mDoc{0%,6%{transform:translate(-20px,8px);opacity:0}12%{opacity:1;transform:translate(-20px,8px)}48%{transform:translate(0,-22px) scale(.8);opacity:1}56%,100%{transform:translate(0,-30px) scale(.3);opacity:0}}
+/* 6 bibliothèque */
+.k-bib .m-fen{left:14px;right:14px;top:15px;bottom:-6px;padding:7px 8px;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;align-content:start}
+.k-bib .m-fen i{height:16px;border-radius:3px;animation:mApp 3.6s ease-out infinite;opacity:0}
+@keyframes mApp{0%{opacity:0;transform:scale(.6)}10%,85%{opacity:1;transform:none}100%{opacity:0}}
+/* 7 outils */
+.k-out .mn{width:128px;height:46px;margin-left:-64px;border-radius:0 0 14px 14px}
+.k-out .ronds{position:absolute;left:50%;top:14px;margin-left:-50px;display:flex;gap:9px}
+.k-out .ronds i{width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.2);animation:mAllume 4s steps(1) infinite}
+.k-out .ronds i:nth-child(2){animation-delay:-3s}.k-out .ronds i:nth-child(3){animation-delay:-2s}.k-out .ronds i:nth-child(4){animation-delay:-1s}
+@keyframes mAllume{0%{background:#ff9f0a}25%,100%{background:rgba(255,255,255,.2)}}
+/* 8 réveil et visio */
+.k-vis .mn{animation:mVis 3.8s var(--ressort) infinite}
+@keyframes mVis{0%,40%{width:90px;height:11px;margin-left:-45px;border-radius:0 0 6px 6px}52%,92%{width:120px;height:40px;margin-left:-60px;border-radius:0 0 13px 13px}100%{width:90px;height:11px;margin-left:-45px}}
+.k-vis .heure{position:absolute;left:50%;margin-left:24px;top:2px;color:#ffab3d;animation:mVu5 3.8s infinite}
+@keyframes mVu5{0%,42%{opacity:1}46%,96%{opacity:0}100%{opacity:1}}
+.k-vis .rej{position:absolute;left:50%;top:18px;margin-left:-46px;display:flex;gap:4px;animation:mVu6 3.8s infinite}
+.k-vis .rej i{height:14px;border-radius:7px;padding:0 6px;font-style:normal;font-size:7px;font-weight:700;line-height:14px;color:#fff;background:rgba(255,255,255,.2)}
+.k-vis .rej i:first-child{background:#30a14e}
+@keyframes mVu6{0%,52%{opacity:0}58%,90%{opacity:1}94%,100%{opacity:0}}
+/* 9 réunion */
+.k-reu .mn{width:92px;margin-left:-46px}
+.k-reu .pr{position:absolute;left:6px;top:3px;width:5px;height:5px;border-radius:50%;background:#ff453a;animation:pouls 1.2s infinite}
+.k-reu .m-fen{left:22px;right:22px;top:18px;height:40px;padding:6px 8px;overflow:hidden}
+.k-reu .ph{display:flex;gap:5px;align-items:center;height:9px;margin-bottom:3px;opacity:0;animation:mPh 4s infinite}
+.k-reu .ph:nth-child(2){animation-delay:.8s}.k-reu .ph:nth-child(3){animation-delay:1.6s}
+.k-reu .ph b{width:12px;height:3px;border-radius:2px;background:var(--q)}
+.k-reu .ph i{height:3px;border-radius:2px;background:#d4d6dc}
+@keyframes mPh{0%{opacity:0;transform:translateY(3px)}12%,80%{opacity:1;transform:none}92%,100%{opacity:0}}
+
+/* Réglages */
+.re-tete{display:flex;align-items:flex-end;justify-content:space-between}
+.segm{display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(255,255,255,.07);margin-top:16px;width:max-content}
+.segm button{height:28px;border-radius:7px;padding:0 14px;font-size:13px;font-weight:500;color:var(--ink2);cursor:pointer;transition:background-color .2s,color .2s}
+.segm button.on{background:rgba(255,255,255,.16);color:#fff;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.re-p{display:none}
+.re-p.on{display:block}
+.re-ex{font-size:13px;line-height:18px;color:var(--ink2);margin:14px 2px 10px}
+.re-ex b{color:#fff;font-weight:600}
+.rg{display:flex;align-items:center;gap:14px;padding:10px 14px;min-height:52px}
+.rg+.rg{border-top:1px solid var(--hair)}
+.rg .t{flex:1;min-width:0}
+.rg .t b{display:block;font-size:13px;line-height:17px;font-weight:600;color:var(--ink)}
+.rg .t span{display:block;font-size:12px;line-height:16px;color:var(--ink3);margin-top:1px}
+.rg .fnt{font-size:12.5px;color:var(--ink2);display:flex;align-items:center;gap:6px;flex:none}
+.re-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.re-2 .rg{min-height:58px}
+.co-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.co-b{padding:16px 18px}
+.co-b h3{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600;color:#fff}
+.co-b h3 i{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:none}
+.co-b ul{list-style:none;margin-top:10px}
+.co-b li{display:flex;gap:9px;font-size:13px;line-height:18px;color:var(--ink);padding:6px 0;border-top:1px solid var(--hair)}
+.co-b li svg{flex:none;margin-top:2px}
+.co-b li span{color:var(--ink3)}
+.co-rien{margin-top:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;font-size:13.5px;font-weight:600;color:#fff}
+.co-rien span{font-weight:400;color:var(--ink2);font-size:12.5px}
+.co-pied{font-size:11.5px;line-height:16px;color:var(--ink3);margin-top:10px;max-width:640px}
+
+/* faux pointeur */
+.pointeur{position:absolute;left:0;top:0;z-index:30;pointer-events:none;opacity:0;transition:opacity .22s}
+.pointeur.vu{opacity:1}
+.pointeur .fleche{position:relative;width:18px;height:26px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));transform-origin:2px 2px;transition:transform .12s ease}
+.pointeur.appui .fleche{transform:scale(.86)}
+
+/* ===================== la régie ===================== */
+.regie{max-width:1340px;margin:0 auto;padding:14px 28px 18px}
+.r-haut{display:grid;grid-template-columns:minmax(0,1fr) 250px auto;gap:36px;align-items:center;min-height:96px}
+.r-num{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(245,245,247,.46);font-variant-numeric:tabular-nums}
+.r-titre{font-size:21px;line-height:27px;font-weight:600;letter-spacing:-.3px;margin-top:2px}
+.r-phrase{font-size:14px;line-height:20px;color:rgba(245,245,247,.64);margin-top:4px;max-width:680px;min-height:40px}
+.r-mains{display:flex;align-items:center;gap:14px}
+.pad{position:relative;width:96px;height:62px;border-radius:12px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);flex:none}
+.pad i{position:absolute;top:30px;left:32px;width:14px;height:14px;border-radius:50%;background:var(--clair);opacity:0;transition:opacity .15s}
+.pad.un i:first-child{opacity:1}
+.pad.fn::after{content:"fn";position:absolute;left:8px;bottom:8px;width:26px;height:20px;border-radius:5px;display:grid;place-items:center;font-size:11px;font-weight:700;color:#1b1b1a;background:#ffcf8a}
+.r-geste{font-size:12.5px;line-height:16px;color:rgba(245,245,247,.55);min-height:32px;max-width:140px}
+.r-cmd{display:grid;grid-template-columns:auto auto;gap:10px 8px;align-items:center}
+.bouton{height:34px;padding:0 17px;border-radius:17px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;text-align:center;transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s ease}
+.bouton:active{transform:scale(.95)}
+.bouton.creux{background:rgba(255,255,255,.1)}
+.bouton.creux:hover{background:rgba(255,255,255,.16)}
+.bouton.plein{background:var(--clair);color:var(--regie)}
+.r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:var(--clair)}
+.r-pas{display:flex;flex-wrap:wrap;gap:2px 4px;list-style:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.r-pas button{height:30px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:8px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+.r-pas button span{font-variant-numeric:tabular-nums;opacity:.7}
+.r-pas button:hover{color:rgba(245,245,247,.8)}
+.r-pas button.ici{color:var(--clair);background:rgba(255,255,255,.09)}
+.notes{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 32px;font-size:12.5px;line-height:18px;color:rgba(245,245,247,.42)}
+.notes b{color:rgba(245,245,247,.7);font-weight:600}
+@media (max-width:900px){.r-haut{grid-template-columns:1fr;gap:16px}}
+</style>
+</head>
+<body>
+<section id="ecran" aria-label="Faux écran de MacBook, taille réelle">
+  <div class="papier" aria-hidden="true">
+    <svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMid slice">
+      <path d="M0 0H1440V190C1190 290 930 180 660 240S210 350 0 280Z" fill="#b7cbe4" opacity=".28"/>
+      <path d="M0 560C260 470 540 520 780 600S1250 720 1440 620V760H0Z" fill="#fff" opacity=".2"/>
+    </svg>
+  </div>
+
+  <!-- ===== la fenêtre Lucarne ===== -->
+  <div class="fen cache sombre app" data-f="app" aria-label="Fenêtre de Lucarne">
+    <aside class="cote">
+      <div class="feux"><i></i><i></i><i></i></div>
+      <div class="marque"><img class="ic-app" alt=""><div><b>Lucarne</b><span>Ta voix, ton encoche</span></div></div>
+      <nav class="nav" id="nav"></nav>
+      <div class="cote-pied"><div class="pret"><i></i>Prête</div>Tiens <span class="fn">fn</span> pour dicter, dans n’importe quelle app.</div>
+    </aside>
+    <div class="corps" id="corps"></div>
+  </div>
+
+  <!-- ===== la fenêtre de bienvenue (premier lancement) ===== -->
+  <div class="fen cache sombre acc" data-f="accueil" aria-label="Bienvenue dans Lucarne">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="av av-bien" id="avBien">
+      <img id="accIc" class="ic-app" alt="">
+      <h2>Bienvenue dans Lucarne</h2>
+      <p>Lucarne vit dans l’encoche de ton Mac. Tiens <span class="fn">fn</span> et parle : le texte s’écrit là où tu es. Et l’encoche te montre ce qui compte, sans te déranger.</p>
+      <div class="savoir" id="savoir"></div>
+      <button class="gros" id="btCommencer" data-etape="2">Commencer</button>
+      <div class="sous">Quatre réglages, deux minutes. Tout se change ensuite dans Réglages.</div>
+    </div>
+    <div class="av av-pas" id="avPas">
+      <div class="pas-g"><h4>Mise en route</h4><ol class="pas-l" id="pasL"></ol>
+        <div class="pas-pied">Chaque accès sert à une seule chose, écrite à droite.</div></div>
+      <div class="carte" id="carte"></div>
+    </div>
+    <div class="av av-essai" id="avEssai">
+      <div class="es-t" id="esT">Essaie : tiens <span class="fn" style="font-size:15px;height:24px;min-width:30px;vertical-align:4px">fn</span> et dis « bonjour »</div>
+      <div class="es-s" id="esS">Lâche la touche quand tu as fini. Le texte s’écrit ici.</div>
+      <div class="es-champ" id="esChamp"><span id="esTexte"></span><i class="caret"></i></div>
+      <div class="es-bas"><div class="touche" id="touche"><b>fn</b><span>🌐</span></div><div class="niveau" id="niveau"></div><div class="es-etat" id="esEtat">En attente de ta voix</div></div>
+      <div class="bravo">
+        <div class="bravo-l"><div class="coche-r"><i class="anneau" id="anneau"></i>
+          <svg viewBox="0 0 34 34"><circle class="c1" cx="17" cy="17" r="16" fill="none" stroke="#30d158" stroke-width="2" transform="rotate(-90 17 17)"/><path class="c2" d="M10.5 17.5l4.3 4.2 8.7-9.2" fill="none" stroke="#30d158" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div><b>Parfait. Lucarne est prête.</b><span>Ta première dictée, écrite en 0,7 seconde.</span></div></div>
+        <button class="bt" id="btOuvrir" data-etape="6">Ouvrir Lucarne</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Réglages Système (accès macOS) ===== -->
+  <div class="fen cache sys" data-f="sys" aria-label="Réglages Système">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="sys-h"><span>${chevG(13,'#a0a0a6')}</span><b id="sysT">Accessibilité</b></div>
+    <div class="sys-c" id="sysC"></div>
+  </div>
+
+  <div class="mb" aria-hidden="true"><div class="menus" id="menus"></div><div class="etats" id="etats"></div></div>
+
+  <div class="alerte cache" id="alerte" role="dialog" aria-label="Autorisation macOS">
+    <img class="ic-app" alt="">
+    <b>« Lucarne » souhaite accéder au micro.</b>
+    <p>Lucarne n’écoute que pendant que tu tiens fn.</p>
+    <div class="al-bt"><button id="refuser">Ne pas autoriser</button><button class="bleu" id="autoriser">Autoriser</button></div>
+  </div>
+
+  <!-- ===== l'îlot ===== -->
+  <svg id="forme-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true"><g id="ombre"><path id="forme" fill="#000" d=""/></g></svg>
+  <div id="contenu" class="calque"></div>
+  <svg id="encoche-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/><circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+  <img id="envol" class="ic-app" alt="">
+  <div id="vol"></div>
+  <div class="pointeur" id="pointeur" aria-hidden="true"><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+</section>
+
+<section class="regie">
+  <div class="r-haut">
+    <div aria-live="polite"><div class="r-num" id="num"></div><h1 class="r-titre" id="titre"></h1><p class="r-phrase" id="phrase"></p></div>
+    <div class="r-mains" aria-hidden="true"><div class="pad" id="pad"><i></i></div><div class="r-geste" id="geste"></div></div>
+    <div class="r-cmd">
+      <button class="bouton creux" id="rejouer">Rejouer</button>
+      <button class="bouton plein" id="suivant">Étape suivante</button>
+      <div class="r-opts"><label><input type="checkbox" id="autoCase" checked> Lecture automatique</label><label><input type="checkbox" id="lentCase"> Ralenti ×4</label></div>
+    </div>
+  </div>
+  <ol class="r-pas" id="pas"></ol>
+  <div class="notes">
+    <div><b>À essayer ici.</b> Décochez Lecture automatique : la barre latérale, les onglets des Réglages, les puces de la Bibliothèque et chaque « Montrer » de Découvrir répondent à la vraie souris.</div>
+    <div><b>Une seule touche.</b> Tenir fn pour dicter (deux appuis : mains libres). Aucun autre raccourci, nulle part dans l’app.</div>
+    <div><b>L’icône partout.</b> La nouvelle icône Lucarne à l’accueil, dans la barre latérale, dans la question du micro et dans Réglages Système. Le guillemet ❞ disparaît.</div>
+  </div>
+</section>
+
+<script>
+'use strict';
+const ICONE = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiPgo8ZGVmcz4KICA8bGluZWFyR3JhZGllbnQgaWQ9ImJnIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMzRTNGNDQiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMxQjFDMUYiLz48L2xpbmVhckdyYWRpZW50PgogIDxsaW5lYXJHcmFkaWVudCBpZD0iaW5rIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMxQTFBMUMiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMwMDAwMDAiLz48L2xpbmVhckdyYWRpZW50PgogIDxsaW5lYXJHcmFkaWVudCBpZD0icmltIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMC4zNSIvPgogICAgPHN0b3Agb2Zmc2V0PSIwLjM1IiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAiLz4KICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwLjA2Ii8+PC9saW5lYXJHcmFkaWVudD4KICA8bGluZWFyR3JhZGllbnQgaWQ9ImdsYXNzcmltIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMC4yMiIvPgogICAgPHN0b3Agb2Zmc2V0PSIwLjUiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMC4wMiIvPgogICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAuMjYiLz48L2xpbmVhckdyYWRpZW50PgogIDxyYWRpYWxHcmFkaWVudCBpZD0ic2hlZW4iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiBjeD0iNTEyIiBjeT0iMTAwIiByPSI0NDAiPgogICAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAuMTgiLz4KICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwIi8+PC9yYWRpYWxHcmFkaWVudD4KICA8bGluZWFyR3JhZGllbnQgaWQ9Im9yIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZCMzQwIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjRkY4QTAwIi8+PC9saW5lYXJHcmFkaWVudD4KICA8ZmlsdGVyIGlkPSJib2R5IiB4PSItMjAlIiB5PSItMjAlIiB3aWR0aD0iMTQwJSIgaGVpZ2h0PSIxNDAlIj4KICAgIDxmZURyb3BTaGFkb3cgZHg9IjAiIGR5PSIxNCIgc3RkRGV2aWF0aW9uPSIxNiIgZmxvb2QtY29sb3I9IiMwMDAiIGZsb29kLW9wYWNpdHk9IjAuMjYiLz4KICAgIDxmZURyb3BTaGFkb3cgZHg9IjAiIGR5PSIyIiBzdGREZXZpYXRpb249IjIiIGZsb29kLWNvbG9yPSIjMDAwIiBmbG9vZC1vcGFjaXR5PSIwLjE4Ii8+PC9maWx0ZXI+CiAgPGZpbHRlciBpZD0iZ3NoIiB4PSItMzAlIiB5PSItMzAlIiB3aWR0aD0iMTYwJSIgaGVpZ2h0PSIxNzAlIj4KICAgIDxmZUdhdXNzaWFuQmx1ciBpbj0iU291cmNlQWxwaGEiIHN0ZERldmlhdGlvbj0iMTQiLz48ZmVPZmZzZXQgZHk9IjEwIi8+CiAgICA8ZmVDb21wb25lbnRUcmFuc2Zlcj48ZmVGdW5jQSB0eXBlPSJsaW5lYXIiIHNsb3BlPSIwLjUiLz48L2ZlQ29tcG9uZW50VHJhbnNmZXI+CiAgICA8ZmVDb2xvck1hdHJpeCB2YWx1ZXM9IjAgMCAwIDAgMCAgMCAwIDAgMCAwICAwIDAgMCAwIDAgIDAgMCAwIDEgMCIvPjwvZmlsdGVyPgogIDxmaWx0ZXIgaWQ9ImdzaDIiIHg9Ii0zMCUiIHk9Ii0zMCUiIHdpZHRoPSIxNjAlIiBoZWlnaHQ9IjE3MCUiPgogICAgPGZlR2F1c3NpYW5CbHVyIGluPSJTb3VyY2VBbHBoYSIgc3RkRGV2aWF0aW9uPSI2Ii8+PGZlT2Zmc2V0IGR5PSI0Ii8+CiAgICA8ZmVDb21wb25lbnRUcmFuc2Zlcj48ZmVGdW5jQSB0eXBlPSJsaW5lYXIiIHNsb3BlPSIwLjM1Ii8+PC9mZUNvbXBvbmVudFRyYW5zZmVyPgogICAgPGZlQ29sb3JNYXRyaXggdmFsdWVzPSIwIDAgMCAwIDAgIDAgMCAwIDAgMCAgMCAwIDAgMCAwICAwIDAgMCAxIDAiLz48L2ZpbHRlcj4KICA8ZmlsdGVyIGlkPSJuVyIgeD0iMCIgeT0iMCIgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSI+CiAgICA8ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC45IiBudW1PY3RhdmVzPSIxIiBzZWVkPSIzIi8+CiAgICA8ZmVDb2xvck1hdHJpeCB2YWx1ZXM9IjAgMCAwIDAgMSAgMCAwIDAgMCAxICAwIDAgMCAwIDEgIDEuNiAwIDAgMCAtMC44Ii8+PC9maWx0ZXI+CiAgPGZpbHRlciBpZD0ibkIiIHg9IjAiIHk9IjAiIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPgogICAgPGZlVHVyYnVsZW5jZSB0eXBlPSJmcmFjdGFsTm9pc2UiIGJhc2VGcmVxdWVuY3k9IjAuOSIgbnVtT2N0YXZlcz0iMSIgc2VlZD0iNyIvPgogICAgPGZlQ29sb3JNYXRyaXggdmFsdWVzPSIwIDAgMCAwIDAgIDAgMCAwIDAgMCAgMCAwIDAgMCAwICAxLjYgMCAwIDAgLTAuOCIvPjwvZmlsdGVyPgogIDxjbGlwUGF0aCBpZD0ic3EiPjxwYXRoIGQ9Ik05MjQuMDAsNTEyLjAwIEw5MjMuOTksNTczLjgzIEw5MjMuOTcsNTkzLjU5IEw5MjMuOTQsNjA3Ljk1IEw5MjMuOTAsNjE5LjY1IEw5MjMuODQsNjI5LjcwIEw5MjMuNzcsNjM4LjYwIEw5MjMuNjksNjQ2LjY0IEw5MjMuNjAsNjU0LjAxIEw5MjMuNDksNjYwLjg1IEw5MjMuMzcsNjY3LjI0IEw5MjMuMjQsNjczLjI2IEw5MjMuMTAsNjc4Ljk1IEw5MjIuOTQsNjg0LjM2IEw5MjIuNzcsNjg5LjUyIEw5MjIuNTksNjk0LjQ2IEw5MjIuMzksNjk5LjIxIEw5MjIuMTgsNzAzLjc3IEw5MjEuOTYsNzA4LjE3IEw5MjEuNzMsNzEyLjQyIEw5MjEuNDgsNzE2LjUzIEw5MjEuMjMsNzIwLjUyIEw5MjAuOTYsNzI0LjM5IEw5MjAuNjcsNzI4LjE1IEw5MjAuMzcsNzMxLjgxIEw5MjAuMDcsNzM1LjM3IEw5MTkuNzQsNzM4Ljg1IEw5MTkuNDEsNzQyLjIzIEw5MTkuMDYsNzQ1LjU0IEw5MTguNzAsNzQ4Ljc4IEw5MTguMzMsNzUxLjk0IEw5MTcuOTQsNzU1LjAzIEw5MTcuNTQsNzU4LjA2IEw5MTcuMTMsNzYxLjAyIEw5MTYuNzAsNzYzLjkzIEw5MTYuMjYsNzY2Ljc3IEw5MTUuODEsNzY5LjU3IEw5MTUuMzUsNzcyLjMxIEw5MTQuODcsNzc1LjAwIEw5MTQuMzgsNzc3LjY0IEw5MTMuODgsNzgwLjI0IEw5MTMuMzYsNzgyLjc5IEw5MTIuODMsNzg1LjI5IEw5MTIuMjgsNzg3Ljc2IEw5MTEuNzMsNzkwLjE4IEw5MTEuMTYsNzkyLjU2IEw5MTAuNTcsNzk0LjkxIEw5MDkuOTgsNzk3LjIyIEw5MDkuMzYsNzk5LjQ5IEw5MDguNzQsODAxLjczIEw5MDguMTAsODAzLjkzIEw5MDcuNDUsODA2LjEwIEw5MDYuNzksODA4LjIzIEw5MDYuMTEsODEwLjM0IEw5MDUuNDEsODEyLjQxIEw5MDQuNzEsODE0LjQ1IEw5MDMuOTksODE2LjQ3IEw5MDMuMjUsODE4LjQ1IEw5MDIuNTAsODIwLjQxIEw5MDEuNzQsODIyLjM0IEw5MDAuOTYsODI0LjI0IEw5MDAuMTcsODI2LjExIEw4OTkuMzcsODI3Ljk2IEw4OTguNTUsODI5Ljc4IEw4OTcuNzEsODMxLjU4IEw4OTYuODcsODMzLjM1IEw4OTYuMDAsODM1LjEwIEw4OTUuMTIsODM2LjgzIEw4OTQuMjMsODM4LjUzIEw4OTMuMzIsODQwLjIxIEw4OTIuNDAsODQxLjg2IEw4OTEuNDYsODQzLjUwIEw4OTAuNTEsODQ1LjExIEw4ODkuNTQsODQ2LjcwIEw4ODguNTYsODQ4LjI3IEw4ODcuNTYsODQ5LjgxIEw4ODYuNTUsODUxLjM0IEw4ODUuNTIsODUyLjg1IEw4ODQuNDgsODU0LjMzIEw4ODMuNDIsODU1LjgwIEw4ODIuMzQsODU3LjI0IEw4ODEuMjUsODU4LjY3IEw4ODAuMTQsODYwLjA4IEw4NzkuMDEsODYxLjQ2IEw4NzcuODcsODYyLjgzIEw4NzYuNzEsODY0LjE4IEw4NzUuNTQsODY1LjUyIEw4NzQuMzQsODY2LjgzIEw4NzMuMTQsODY4LjEzIEw4NzEuOTEsODY5LjQxIEw4NzAuNjcsODcwLjY3IEw4NjkuNDEsODcxLjkxIEw4NjguMTMsODczLjE0IEw4NjYuODMsODc0LjM0IEw4NjUuNTIsODc1LjU0IEw4NjQuMTgsODc2LjcxIEw4NjIuODMsODc3Ljg3IEw4NjEuNDYsODc5LjAxIEw4NjAuMDgsODgwLjE0IEw4NTguNjcsODgxLjI1IEw4NTcuMjQsODgyLjM0IEw4NTUuODAsODgzLjQyIEw4NTQuMzMsODg0LjQ4IEw4NTIuODUsODg1LjUyIEw4NTEuMzQsODg2LjU1IEw4NDkuODEsODg3LjU2IEw4NDguMjcsODg4LjU2IEw4NDYuNzAsODg5LjU0IEw4NDUuMTEsODkwLjUxIEw4NDMuNTAsODkxLjQ2IEw4NDEuODYsODkyLjQwIEw4NDAuMjEsODkzLjMyIEw4MzguNTMsODk0LjIzIEw4MzYuODMsODk1LjEyIEw4MzUuMTAsODk2LjAwIEw4MzMuMzUsODk2Ljg3IEw4MzEuNTgsODk3LjcxIEw4MjkuNzgsODk4LjU1IEw4MjcuOTYsODk5LjM3IEw4MjYuMTEsOTAwLjE3IEw4MjQuMjQsOTAwLjk2IEw4MjIuMzQsOTAxLjc0IEw4MjAuNDEsOTAyLjUwIEw4MTguNDUsOTAzLjI1IEw4MTYuNDcsOTAzLjk5IEw4MTQuNDUsOTA0LjcxIEw4MTIuNDEsOTA1LjQxIEw4MTAuMzQsOTA2LjExIEw4MDguMjMsOTA2Ljc5IEw4MDYuMTAsOTA3LjQ1IEw4MDMuOTMsOTA4LjEwIEw4MDEuNzMsOTA4Ljc0IEw3OTkuNDksOTA5LjM2IEw3OTcuMjIsOTA5Ljk4IEw3OTQuOTEsOTEwLjU3IEw3OTIuNTYsOTExLjE2IEw3OTAuMTgsOTExLjczIEw3ODcuNzYsOTEyLjI4IEw3ODUuMjksOTEyLjgzIEw3ODIuNzksOTEzLjM2IEw3ODAuMjQsOTEzLjg4IEw3NzcuNjQsOTE0LjM4IEw3NzUuMDAsOTE0Ljg3IEw3NzIuMzEsOTE1LjM1IEw3NjkuNTcsOTE1LjgxIEw3NjYuNzcsOTE2LjI2IEw3NjMuOTMsOTE2LjcwIEw3NjEuMDIsOTE3LjEzIEw3NTguMDYsOTE3LjU0IEw3NTUuMDMsOTE3Ljk0IEw3NTEuOTQsOTE4LjMzIEw3NDguNzgsOTE4LjcwIEw3NDUuNTQsOTE5LjA2IEw3NDIuMjMsOTE5LjQxIEw3MzguODUsOTE5Ljc0IEw3MzUuMzcsOTIwLjA3IEw3MzEuODEsOTIwLjM3IEw3MjguMTUsOTIwLjY3IEw3MjQuMzksOTIwLjk2IEw3MjAuNTIsOTIxLjIzIEw3MTYuNTMsOTIxLjQ4IEw3MTIuNDIsOTIxLjczIEw3MDguMTcsOTIxLjk2IEw3MDMuNzcsOTIyLjE4IEw2OTkuMjEsOTIyLjM5IEw2OTQuNDYsOTIyLjU5IEw2ODkuNTIsOTIyLjc3IEw2ODQuMzYsOTIyLjk0IEw2NzguOTUsOTIzLjEwIEw2NzMuMjYsOTIzLjI0IEw2NjcuMjQsOTIzLjM3IEw2NjAuODUsOTIzLjQ5IEw2NTQuMDEsOTIzLjYwIEw2NDYuNjQsOTIzLjY5IEw2MzguNjAsOTIzLjc3IEw2MjkuNzAsOTIzLjg0IEw2MTkuNjUsOTIzLjkwIEw2MDcuOTUsOTIzLjk0IEw1OTMuNTksOTIzLjk3IEw1NzMuODMsOTIzLjk5IEw1MTIuMDAsOTI0LjAwIEw0NTAuMTcsOTIzLjk5IEw0MzAuNDEsOTIzLjk3IEw0MTYuMDUsOTIzLjk0IEw0MDQuMzUsOTIzLjkwIEwzOTQuMzAsOTIzLjg0IEwzODUuNDAsOTIzLjc3IEwzNzcuMzYsOTIzLjY5IEwzNjkuOTksOTIzLjYwIEwzNjMuMTUsOTIzLjQ5IEwzNTYuNzYsOTIzLjM3IEwzNTAuNzQsOTIzLjI0IEwzNDUuMDUsOTIzLjEwIEwzMzkuNjQsOTIyLjk0IEwzMzQuNDgsOTIyLjc3IEwzMjkuNTQsOTIyLjU5IEwzMjQuNzksOTIyLjM5IEwzMjAuMjMsOTIyLjE4IEwzMTUuODMsOTIxLjk2IEwzMTEuNTgsOTIxLjczIEwzMDcuNDcsOTIxLjQ4IEwzMDMuNDgsOTIxLjIzIEwyOTkuNjEsOTIwLjk2IEwyOTUuODUsOTIwLjY3IEwyOTIuMTksOTIwLjM3IEwyODguNjMsOTIwLjA3IEwyODUuMTUsOTE5Ljc0IEwyODEuNzcsOTE5LjQxIEwyNzguNDYsOTE5LjA2IEwyNzUuMjIsOTE4LjcwIEwyNzIuMDYsOTE4LjMzIEwyNjguOTcsOTE3Ljk0IEwyNjUuOTQsOTE3LjU0IEwyNjIuOTgsOTE3LjEzIEwyNjAuMDcsOTE2LjcwIEwyNTcuMjMsOTE2LjI2IEwyNTQuNDMsOTE1LjgxIEwyNTEuNjksOTE1LjM1IEwyNDkuMDAsOTE0Ljg3IEwyNDYuMzYsOTE0LjM4IEwyNDMuNzYsOTEzLjg4IEwyNDEuMjEsOTEzLjM2IEwyMzguNzEsOTEyLjgzIEwyMzYuMjQsOTEyLjI4IEwyMzMuODIsOTExLjczIEwyMzEuNDQsOTExLjE2IEwyMjkuMDksOTEwLjU3IEwyMjYuNzgsOTA5Ljk4IEwyMjQuNTEsOTA5LjM2IEwyMjIuMjcsOTA4Ljc0IEwyMjAuMDcsOTA4LjEwIEwyMTcuOTAsOTA3LjQ1IEwyMTUuNzcsOTA2Ljc5IEwyMTMuNjYsOTA2LjExIEwyMTEuNTksOTA1LjQxIEwyMDkuNTUsOTA0LjcxIEwyMDcuNTMsOTAzLjk5IEwyMDUuNTUsOTAzLjI1IEwyMDMuNTksOTAyLjUwIEwyMDEuNjYsOTAxLjc0IEwxOTkuNzYsOTAwLjk2IEwxOTcuODksOTAwLjE3IEwxOTYuMDQsODk5LjM3IEwxOTQuMjIsODk4LjU1IEwxOTIuNDIsODk3LjcxIEwxOTAuNjUsODk2Ljg3IEwxODguOTAsODk2LjAwIEwxODcuMTcsODk1LjEyIEwxODUuNDcsODk0LjIzIEwxODMuNzksODkzLjMyIEwxODIuMTQsODkyLjQwIEwxODAuNTAsODkxLjQ2IEwxNzguODksODkwLjUxIEwxNzcuMzAsODg5LjU0IEwxNzUuNzMsODg4LjU2IEwxNzQuMTksODg3LjU2IEwxNzIuNjYsODg2LjU1IEwxNzEuMTUsODg1LjUyIEwxNjkuNjcsODg0LjQ4IEwxNjguMjAsODgzLjQyIEwxNjYuNzYsODgyLjM0IEwxNjUuMzMsODgxLjI1IEwxNjMuOTIsODgwLjE0IEwxNjIuNTQsODc5LjAxIEwxNjEuMTcsODc3Ljg3IEwxNTkuODIsODc2LjcxIEwxNTguNDgsODc1LjU0IEwxNTcuMTcsODc0LjM0IEwxNTUuODcsODczLjE0IEwxNTQuNTksODcxLjkxIEwxNTMuMzMsODcwLjY3IEwxNTIuMDksODY5LjQxIEwxNTAuODYsODY4LjEzIEwxNDkuNjYsODY2LjgzIEwxNDguNDYsODY1LjUyIEwxNDcuMjksODY0LjE4IEwxNDYuMTMsODYyLjgzIEwxNDQuOTksODYxLjQ2IEwxNDMuODYsODYwLjA4IEwxNDIuNzUsODU4LjY3IEwxNDEuNjYsODU3LjI0IEwxNDAuNTgsODU1LjgwIEwxMzkuNTIsODU0LjMzIEwxMzguNDgsODUyLjg1IEwxMzcuNDUsODUxLjM0IEwxMzYuNDQsODQ5LjgxIEwxMzUuNDQsODQ4LjI3IEwxMzQuNDYsODQ2LjcwIEwxMzMuNDksODQ1LjExIEwxMzIuNTQsODQzLjUwIEwxMzEuNjAsODQxLjg2IEwxMzAuNjgsODQwLjIxIEwxMjkuNzcsODM4LjUzIEwxMjguODgsODM2LjgzIEwxMjguMDAsODM1LjEwIEwxMjcuMTMsODMzLjM1IEwxMjYuMjksODMxLjU4IEwxMjUuNDUsODI5Ljc4IEwxMjQuNjMsODI3Ljk2IEwxMjMuODMsODI2LjExIEwxMjMuMDQsODI0LjI0IEwxMjIuMjYsODIyLjM0IEwxMjEuNTAsODIwLjQxIEwxMjAuNzUsODE4LjQ1IEwxMjAuMDEsODE2LjQ3IEwxMTkuMjksODE0LjQ1IEwxMTguNTksODEyLjQxIEwxMTcuODksODEwLjM0IEwxMTcuMjEsODA4LjIzIEwxMTYuNTUsODA2LjEwIEwxMTUuOTAsODAzLjkzIEwxMTUuMjYsODAxLjczIEwxMTQuNjQsNzk5LjQ5IEwxMTQuMDIsNzk3LjIyIEwxMTMuNDMsNzk0LjkxIEwxMTIuODQsNzkyLjU2IEwxMTIuMjcsNzkwLjE4IEwxMTEuNzIsNzg3Ljc2IEwxMTEuMTcsNzg1LjI5IEwxMTAuNjQsNzgyLjc5IEwxMTAuMTIsNzgwLjI0IEwxMDkuNjIsNzc3LjY0IEwxMDkuMTMsNzc1LjAwIEwxMDguNjUsNzcyLjMxIEwxMDguMTksNzY5LjU3IEwxMDcuNzQsNzY2Ljc3IEwxMDcuMzAsNzYzLjkzIEwxMDYuODcsNzYxLjAyIEwxMDYuNDYsNzU4LjA2IEwxMDYuMDYsNzU1LjAzIEwxMDUuNjcsNzUxLjk0IEwxMDUuMzAsNzQ4Ljc4IEwxMDQuOTQsNzQ1LjU0IEwxMDQuNTksNzQyLjIzIEwxMDQuMjYsNzM4Ljg1IEwxMDMuOTMsNzM1LjM3IEwxMDMuNjMsNzMxLjgxIEwxMDMuMzMsNzI4LjE1IEwxMDMuMDQsNzI0LjM5IEwxMDIuNzcsNzIwLjUyIEwxMDIuNTIsNzE2LjUzIEwxMDIuMjcsNzEyLjQyIEwxMDIuMDQsNzA4LjE3IEwxMDEuODIsNzAzLjc3IEwxMDEuNjEsNjk5LjIxIEwxMDEuNDEsNjk0LjQ2IEwxMDEuMjMsNjg5LjUyIEwxMDEuMDYsNjg0LjM2IEwxMDAuOTAsNjc4Ljk1IEwxMDAuNzYsNjczLjI2IEwxMDAuNjMsNjY3LjI0IEwxMDAuNTEsNjYwLjg1IEwxMDAuNDAsNjU0LjAxIEwxMDAuMzEsNjQ2LjY0IEwxMDAuMjMsNjM4LjYwIEwxMDAuMTYsNjI5LjcwIEwxMDAuMTAsNjE5LjY1IEwxMDAuMDYsNjA3Ljk1IEwxMDAuMDMsNTkzLjU5IEwxMDAuMDEsNTczLjgzIEwxMDAuMDAsNTEyLjAwIEwxMDAuMDEsNDUwLjE3IEwxMDAuMDMsNDMwLjQxIEwxMDAuMDYsNDE2LjA1IEwxMDAuMTAsNDA0LjM1IEwxMDAuMTYsMzk0LjMwIEwxMDAuMjMsMzg1LjQwIEwxMDAuMzEsMzc3LjM2IEwxMDAuNDAsMzY5Ljk5IEwxMDAuNTEsMzYzLjE1IEwxMDAuNjMsMzU2Ljc2IEwxMDAuNzYsMzUwLjc0IEwxMDAuOTAsMzQ1LjA1IEwxMDEuMDYsMzM5LjY0IEwxMDEuMjMsMzM0LjQ4IEwxMDEuNDEsMzI5LjU0IEwxMDEuNjEsMzI0Ljc5IEwxMDEuODIsMzIwLjIzIEwxMDIuMDQsMzE1LjgzIEwxMDIuMjcsMzExLjU4IEwxMDIuNTIsMzA3LjQ3IEwxMDIuNzcsMzAzLjQ4IEwxMDMuMDQsMjk5LjYxIEwxMDMuMzMsMjk1Ljg1IEwxMDMuNjMsMjkyLjE5IEwxMDMuOTMsMjg4LjYzIEwxMDQuMjYsMjg1LjE1IEwxMDQuNTksMjgxLjc3IEwxMDQuOTQsMjc4LjQ2IEwxMDUuMzAsMjc1LjIyIEwxMDUuNjcsMjcyLjA2IEwxMDYuMDYsMjY4Ljk3IEwxMDYuNDYsMjY1Ljk0IEwxMDYuODcsMjYyLjk4IEwxMDcuMzAsMjYwLjA3IEwxMDcuNzQsMjU3LjIzIEwxMDguMTksMjU0LjQzIEwxMDguNjUsMjUxLjY5IEwxMDkuMTMsMjQ5LjAwIEwxMDkuNjIsMjQ2LjM2IEwxMTAuMTIsMjQzLjc2IEwxMTAuNjQsMjQxLjIxIEwxMTEuMTcsMjM4LjcxIEwxMTEuNzIsMjM2LjI0IEwxMTIuMjcsMjMzLjgyIEwxMTIuODQsMjMxLjQ0IEwxMTMuNDMsMjI5LjA5IEwxMTQuMDIsMjI2Ljc4IEwxMTQuNjQsMjI0LjUxIEwxMTUuMjYsMjIyLjI3IEwxMTUuOTAsMjIwLjA3IEwxMTYuNTUsMjE3LjkwIEwxMTcuMjEsMjE1Ljc3IEwxMTcuODksMjEzLjY2IEwxMTguNTksMjExLjU5IEwxMTkuMjksMjA5LjU1IEwxMjAuMDEsMjA3LjUzIEwxMjAuNzUsMjA1LjU1IEwxMjEuNTAsMjAzLjU5IEwxMjIuMjYsMjAxLjY2IEwxMjMuMDQsMTk5Ljc2IEwxMjMuODMsMTk3Ljg5IEwxMjQuNjMsMTk2LjA0IEwxMjUuNDUsMTk0LjIyIEwxMjYuMjksMTkyLjQyIEwxMjcuMTMsMTkwLjY1IEwxMjguMDAsMTg4LjkwIEwxMjguODgsMTg3LjE3IEwxMjkuNzcsMTg1LjQ3IEwxMzAuNjgsMTgzLjc5IEwxMzEuNjAsMTgyLjE0IEwxMzIuNTQsMTgwLjUwIEwxMzMuNDksMTc4Ljg5IEwxMzQuNDYsMTc3LjMwIEwxMzUuNDQsMTc1LjczIEwxMzYuNDQsMTc0LjE5IEwxMzcuNDUsMTcyLjY2IEwxMzguNDgsMTcxLjE1IEwxMzkuNTIsMTY5LjY3IEwxNDAuNTgsMTY4LjIwIEwxNDEuNjYsMTY2Ljc2IEwxNDIuNzUsMTY1LjMzIEwxNDMuODYsMTYzLjkyIEwxNDQuOTksMTYyLjU0IEwxNDYuMTMsMTYxLjE3IEwxNDcuMjksMTU5LjgyIEwxNDguNDYsMTU4LjQ4IEwxNDkuNjYsMTU3LjE3IEwxNTAuODYsMTU1Ljg3IEwxNTIuMDksMTU0LjU5IEwxNTMuMzMsMTUzLjMzIEwxNTQuNTksMTUyLjA5IEwxNTUuODcsMTUwLjg2IEwxNTcuMTcsMTQ5LjY2IEwxNTguNDgsMTQ4LjQ2IEwxNTkuODIsMTQ3LjI5IEwxNjEuMTcsMTQ2LjEzIEwxNjIuNTQsMTQ0Ljk5IEwxNjMuOTIsMTQzLjg2IEwxNjUuMzMsMTQyLjc1IEwxNjYuNzYsMTQxLjY2IEwxNjguMjAsMTQwLjU4IEwxNjkuNjcsMTM5LjUyIEwxNzEuMTUsMTM4LjQ4IEwxNzIuNjYsMTM3LjQ1IEwxNzQuMTksMTM2LjQ0IEwxNzUuNzMsMTM1LjQ0IEwxNzcuMzAsMTM0LjQ2IEwxNzguODksMTMzLjQ5IEwxODAuNTAsMTMyLjU0IEwxODIuMTQsMTMxLjYwIEwxODMuNzksMTMwLjY4IEwxODUuNDcsMTI5Ljc3IEwxODcuMTcsMTI4Ljg4IEwxODguOTAsMTI4LjAwIEwxOTAuNjUsMTI3LjEzIEwxOTIuNDIsMTI2LjI5IEwxOTQuMjIsMTI1LjQ1IEwxOTYuMDQsMTI0LjYzIEwxOTcuODksMTIzLjgzIEwxOTkuNzYsMTIzLjA0IEwyMDEuNjYsMTIyLjI2IEwyMDMuNTksMTIxLjUwIEwyMDUuNTUsMTIwLjc1IEwyMDcuNTMsMTIwLjAxIEwyMDkuNTUsMTE5LjI5IEwyMTEuNTksMTE4LjU5IEwyMTMuNjYsMTE3Ljg5IEwyMTUuNzcsMTE3LjIxIEwyMTcuOTAsMTE2LjU1IEwyMjAuMDcsMTE1LjkwIEwyMjIuMjcsMTE1LjI2IEwyMjQuNTEsMTE0LjY0IEwyMjYuNzgsMTE0LjAyIEwyMjkuMDksMTEzLjQzIEwyMzEuNDQsMTEyLjg0IEwyMzMuODIsMTEyLjI3IEwyMzYuMjQsMTExLjcyIEwyMzguNzEsMTExLjE3IEwyNDEuMjEsMTEwLjY0IEwyNDMuNzYsMTEwLjEyIEwyNDYuMzYsMTA5LjYyIEwyNDkuMDAsMTA5LjEzIEwyNTEuNjksMTA4LjY1IEwyNTQuNDMsMTA4LjE5IEwyNTcuMjMsMTA3Ljc0IEwyNjAuMDcsMTA3LjMwIEwyNjIuOTgsMTA2Ljg3IEwyNjUuOTQsMTA2LjQ2IEwyNjguOTcsMTA2LjA2IEwyNzIuMDYsMTA1LjY3IEwyNzUuMjIsMTA1LjMwIEwyNzguNDYsMTA0Ljk0IEwyODEuNzcsMTA0LjU5IEwyODUuMTUsMTA0LjI2IEwyODguNjMsMTAzLjkzIEwyOTIuMTksMTAzLjYzIEwyOTUuODUsMTAzLjMzIEwyOTkuNjEsMTAzLjA0IEwzMDMuNDgsMTAyLjc3IEwzMDcuNDcsMTAyLjUyIEwzMTEuNTgsMTAyLjI3IEwzMTUuODMsMTAyLjA0IEwzMjAuMjMsMTAxLjgyIEwzMjQuNzksMTAxLjYxIEwzMjkuNTQsMTAxLjQxIEwzMzQuNDgsMTAxLjIzIEwzMzkuNjQsMTAxLjA2IEwzNDUuMDUsMTAwLjkwIEwzNTAuNzQsMTAwLjc2IEwzNTYuNzYsMTAwLjYzIEwzNjMuMTUsMTAwLjUxIEwzNjkuOTksMTAwLjQwIEwzNzcuMzYsMTAwLjMxIEwzODUuNDAsMTAwLjIzIEwzOTQuMzAsMTAwLjE2IEw0MDQuMzUsMTAwLjEwIEw0MTYuMDUsMTAwLjA2IEw0MzAuNDEsMTAwLjAzIEw0NTAuMTcsMTAwLjAxIEw1MTIuMDAsMTAwLjAwIEw1NzMuODMsMTAwLjAxIEw1OTMuNTksMTAwLjAzIEw2MDcuOTUsMTAwLjA2IEw2MTkuNjUsMTAwLjEwIEw2MjkuNzAsMTAwLjE2IEw2MzguNjAsMTAwLjIzIEw2NDYuNjQsMTAwLjMxIEw2NTQuMDEsMTAwLjQwIEw2NjAuODUsMTAwLjUxIEw2NjcuMjQsMTAwLjYzIEw2NzMuMjYsMTAwLjc2IEw2NzguOTUsMTAwLjkwIEw2ODQuMzYsMTAxLjA2IEw2ODkuNTIsMTAxLjIzIEw2OTQuNDYsMTAxLjQxIEw2OTkuMjEsMTAxLjYxIEw3MDMuNzcsMTAxLjgyIEw3MDguMTcsMTAyLjA0IEw3MTIuNDIsMTAyLjI3IEw3MTYuNTMsMTAyLjUyIEw3MjAuNTIsMTAyLjc3IEw3MjQuMzksMTAzLjA0IEw3MjguMTUsMTAzLjMzIEw3MzEuODEsMTAzLjYzIEw3MzUuMzcsMTAzLjkzIEw3MzguODUsMTA0LjI2IEw3NDIuMjMsMTA0LjU5IEw3NDUuNTQsMTA0Ljk0IEw3NDguNzgsMTA1LjMwIEw3NTEuOTQsMTA1LjY3IEw3NTUuMDMsMTA2LjA2IEw3NTguMDYsMTA2LjQ2IEw3NjEuMDIsMTA2Ljg3IEw3NjMuOTMsMTA3LjMwIEw3NjYuNzcsMTA3Ljc0IEw3NjkuNTcsMTA4LjE5IEw3NzIuMzEsMTA4LjY1IEw3NzUuMDAsMTA5LjEzIEw3NzcuNjQsMTA5LjYyIEw3ODAuMjQsMTEwLjEyIEw3ODIuNzksMTEwLjY0IEw3ODUuMjksMTExLjE3IEw3ODcuNzYsMTExLjcyIEw3OTAuMTgsMTEyLjI3IEw3OTIuNTYsMTEyLjg0IEw3OTQuOTEsMTEzLjQzIEw3OTcuMjIsMTE0LjAyIEw3OTkuNDksMTE0LjY0IEw4MDEuNzMsMTE1LjI2IEw4MDMuOTMsMTE1LjkwIEw4MDYuMTAsMTE2LjU1IEw4MDguMjMsMTE3LjIxIEw4MTAuMzQsMTE3Ljg5IEw4MTIuNDEsMTE4LjU5IEw4MTQuNDUsMTE5LjI5IEw4MTYuNDcsMTIwLjAxIEw4MTguNDUsMTIwLjc1IEw4MjAuNDEsMTIxLjUwIEw4MjIuMzQsMTIyLjI2IEw4MjQuMjQsMTIzLjA0IEw4MjYuMTEsMTIzLjgzIEw4MjcuOTYsMTI0LjYzIEw4MjkuNzgsMTI1LjQ1IEw4MzEuNTgsMTI2LjI5IEw4MzMuMzUsMTI3LjEzIEw4MzUuMTAsMTI4LjAwIEw4MzYuODMsMTI4Ljg4IEw4MzguNTMsMTI5Ljc3IEw4NDAuMjEsMTMwLjY4IEw4NDEuODYsMTMxLjYwIEw4NDMuNTAsMTMyLjU0IEw4NDUuMTEsMTMzLjQ5IEw4NDYuNzAsMTM0LjQ2IEw4NDguMjcsMTM1LjQ0IEw4NDkuODEsMTM2LjQ0IEw4NTEuMzQsMTM3LjQ1IEw4NTIuODUsMTM4LjQ4IEw4NTQuMzMsMTM5LjUyIEw4NTUuODAsMTQwLjU4IEw4NTcuMjQsMTQxLjY2IEw4NTguNjcsMTQyLjc1IEw4NjAuMDgsMTQzLjg2IEw4NjEuNDYsMTQ0Ljk5IEw4NjIuODMsMTQ2LjEzIEw4NjQuMTgsMTQ3LjI5IEw4NjUuNTIsMTQ4LjQ2IEw4NjYuODMsMTQ5LjY2IEw4NjguMTMsMTUwLjg2IEw4NjkuNDEsMTUyLjA5IEw4NzAuNjcsMTUzLjMzIEw4NzEuOTEsMTU0LjU5IEw4NzMuMTQsMTU1Ljg3IEw4NzQuMzQsMTU3LjE3IEw4NzUuNTQsMTU4LjQ4IEw4NzYuNzEsMTU5LjgyIEw4NzcuODcsMTYxLjE3IEw4NzkuMDEsMTYyLjU0IEw4ODAuMTQsMTYzLjkyIEw4ODEuMjUsMTY1LjMzIEw4ODIuMzQsMTY2Ljc2IEw4ODMuNDIsMTY4LjIwIEw4ODQuNDgsMTY5LjY3IEw4ODUuNTIsMTcxLjE1IEw4ODYuNTUsMTcyLjY2IEw4ODcuNTYsMTc0LjE5IEw4ODguNTYsMTc1LjczIEw4ODkuNTQsMTc3LjMwIEw4OTAuNTEsMTc4Ljg5IEw4OTEuNDYsMTgwLjUwIEw4OTIuNDAsMTgyLjE0IEw4OTMuMzIsMTgzLjc5IEw4OTQuMjMsMTg1LjQ3IEw4OTUuMTIsMTg3LjE3IEw4OTYuMDAsMTg4LjkwIEw4OTYuODcsMTkwLjY1IEw4OTcuNzEsMTkyLjQyIEw4OTguNTUsMTk0LjIyIEw4OTkuMzcsMTk2LjA0IEw5MDAuMTcsMTk3Ljg5IEw5MDAuOTYsMTk5Ljc2IEw5MDEuNzQsMjAxLjY2IEw5MDIuNTAsMjAzLjU5IEw5MDMuMjUsMjA1LjU1IEw5MDMuOTksMjA3LjUzIEw5MDQuNzEsMjA5LjU1IEw5MDUuNDEsMjExLjU5IEw5MDYuMTEsMjEzLjY2IEw5MDYuNzksMjE1Ljc3IEw5MDcuNDUsMjE3LjkwIEw5MDguMTAsMjIwLjA3IEw5MDguNzQsMjIyLjI3IEw5MDkuMzYsMjI0LjUxIEw5MDkuOTgsMjI2Ljc4IEw5MTAuNTcsMjI5LjA5IEw5MTEuMTYsMjMxLjQ0IEw5MTEuNzMsMjMzLjgyIEw5MTIuMjgsMjM2LjI0IEw5MTIuODMsMjM4LjcxIEw5MTMuMzYsMjQxLjIxIEw5MTMuODgsMjQzLjc2IEw5MTQuMzgsMjQ2LjM2IEw5MTQuODcsMjQ5LjAwIEw5MTUuMzUsMjUxLjY5IEw5MTUuODEsMjU0LjQzIEw5MTYuMjYsMjU3LjIzIEw5MTYuNzAsMjYwLjA3IEw5MTcuMTMsMjYyLjk4IEw5MTcuNTQsMjY1Ljk0IEw5MTcuOTQsMjY4Ljk3IEw5MTguMzMsMjcyLjA2IEw5MTguNzAsMjc1LjIyIEw5MTkuMDYsMjc4LjQ2IEw5MTkuNDEsMjgxLjc3IEw5MTkuNzQsMjg1LjE1IEw5MjAuMDcsMjg4LjYzIEw5MjAuMzcsMjkyLjE5IEw5MjAuNjcsMjk1Ljg1IEw5MjAuOTYsMjk5LjYxIEw5MjEuMjMsMzAzLjQ4IEw5MjEuNDgsMzA3LjQ3IEw5MjEuNzMsMzExLjU4IEw5MjEuOTYsMzE1LjgzIEw5MjIuMTgsMzIwLjIzIEw5MjIuMzksMzI0Ljc5IEw5MjIuNTksMzI5LjU0IEw5MjIuNzcsMzM0LjQ4IEw5MjIuOTQsMzM5LjY0IEw5MjMuMTAsMzQ1LjA1IEw5MjMuMjQsMzUwLjc0IEw5MjMuMzcsMzU2Ljc2IEw5MjMuNDksMzYzLjE1IEw5MjMuNjAsMzY5Ljk5IEw5MjMuNjksMzc3LjM2IEw5MjMuNzcsMzg1LjQwIEw5MjMuODQsMzk0LjMwIEw5MjMuOTAsNDA0LjM1IEw5MjMuOTQsNDE2LjA1IEw5MjMuOTcsNDMwLjQxIEw5MjMuOTksNDUwLjE3IFoiLz48L2NsaXBQYXRoPgo8L2RlZnM+CjxwYXRoIGQ9Ik05MjQuMDAsNTEyLjAwIEw5MjMuOTksNTczLjgzIEw5MjMuOTcsNTkzLjU5IEw5MjMuOTQsNjA3Ljk1IEw5MjMuOTAsNjE5LjY1IEw5MjMuODQsNjI5LjcwIEw5MjMuNzcsNjM4LjYwIEw5MjMuNjksNjQ2LjY0IEw5MjMuNjAsNjU0LjAxIEw5MjMuNDksNjYwLjg1IEw5MjMuMzcsNjY3LjI0IEw5MjMuMjQsNjczLjI2IEw5MjMuMTAsNjc4Ljk1IEw5MjIuOTQsNjg0LjM2IEw5MjIuNzcsNjg5LjUyIEw5MjIuNTksNjk0LjQ2IEw5MjIuMzksNjk5LjIxIEw5MjIuMTgsNzAzLjc3IEw5MjEuOTYsNzA4LjE3IEw5MjEuNzMsNzEyLjQyIEw5MjEuNDgsNzE2LjUzIEw5MjEuMjMsNzIwLjUyIEw5MjAuOTYsNzI0LjM5IEw5MjAuNjcsNzI4LjE1IEw5MjAuMzcsNzMxLjgxIEw5MjAuMDcsNzM1LjM3IEw5MTkuNzQsNzM4Ljg1IEw5MTkuNDEsNzQyLjIzIEw5MTkuMDYsNzQ1LjU0IEw5MTguNzAsNzQ4Ljc4IEw5MTguMzMsNzUxLjk0IEw5MTcuOTQsNzU1LjAzIEw5MTcuNTQsNzU4LjA2IEw5MTcuMTMsNzYxLjAyIEw5MTYuNzAsNzYzLjkzIEw5MTYuMjYsNzY2Ljc3IEw5MTUuODEsNzY5LjU3IEw5MTUuMzUsNzcyLjMxIEw5MTQuODcsNzc1LjAwIEw5MTQuMzgsNzc3LjY0IEw5MTMuODgsNzgwLjI0IEw5MTMuMzYsNzgyLjc5IEw5MTIuODMsNzg1LjI5IEw5MTIuMjgsNzg3Ljc2IEw5MTEuNzMsNzkwLjE4IEw5MTEuMTYsNzkyLjU2IEw5MTAuNTcsNzk0LjkxIEw5MDkuOTgsNzk3LjIyIEw5MDkuMzYsNzk5LjQ5IEw5MDguNzQsODAxLjczIEw5MDguMTAsODAzLjkzIEw5MDcuNDUsODA2LjEwIEw5MDYuNzksODA4LjIzIEw5MDYuMTEsODEwLjM0IEw5MDUuNDEsODEyLjQxIEw5MDQuNzEsODE0LjQ1IEw5MDMuOTksODE2LjQ3IEw5MDMuMjUsODE4LjQ1IEw5MDIuNTAsODIwLjQxIEw5MDEuNzQsODIyLjM0IEw5MDAuOTYsODI0LjI0IEw5MDAuMTcsODI2LjExIEw4OTkuMzcsODI3Ljk2IEw4OTguNTUsODI5Ljc4IEw4OTcuNzEsODMxLjU4IEw4OTYuODcsODMzLjM1IEw4OTYuMDAsODM1LjEwIEw4OTUuMTIsODM2LjgzIEw4OTQuMjMsODM4LjUzIEw4OTMuMzIsODQwLjIxIEw4OTIuNDAsODQxLjg2IEw4OTEuNDYsODQzLjUwIEw4OTAuNTEsODQ1LjExIEw4ODkuNTQsODQ2LjcwIEw4ODguNTYsODQ4LjI3IEw4ODcuNTYsODQ5LjgxIEw4ODYuNTUsODUxLjM0IEw4ODUuNTIsODUyLjg1IEw4ODQuNDgsODU0LjMzIEw4ODMuNDIsODU1LjgwIEw4ODIuMzQsODU3LjI0IEw4ODEuMjUsODU4LjY3IEw4ODAuMTQsODYwLjA4IEw4NzkuMDEsODYxLjQ2IEw4NzcuODcsODYyLjgzIEw4NzYuNzEsODY0LjE4IEw4NzUuNTQsODY1LjUyIEw4NzQuMzQsODY2LjgzIEw4NzMuMTQsODY4LjEzIEw4NzEuOTEsODY5LjQxIEw4NzAuNjcsODcwLjY3IEw4NjkuNDEsODcxLjkxIEw4NjguMTMsODczLjE0IEw4NjYuODMsODc0LjM0IEw4NjUuNTIsODc1LjU0IEw4NjQuMTgsODc2LjcxIEw4NjIuODMsODc3Ljg3IEw4NjEuNDYsODc5LjAxIEw4NjAuMDgsODgwLjE0IEw4NTguNjcsODgxLjI1IEw4NTcuMjQsODgyLjM0IEw4NTUuODAsODgzLjQyIEw4NTQuMzMsODg0LjQ4IEw4NTIuODUsODg1LjUyIEw4NTEuMzQsODg2LjU1IEw4NDkuODEsODg3LjU2IEw4NDguMjcsODg4LjU2IEw4NDYuNzAsODg5LjU0IEw4NDUuMTEsODkwLjUxIEw4NDMuNTAsODkxLjQ2IEw4NDEuODYsODkyLjQwIEw4NDAuMjEsODkzLjMyIEw4MzguNTMsODk0LjIzIEw4MzYuODMsODk1LjEyIEw4MzUuMTAsODk2LjAwIEw4MzMuMzUsODk2Ljg3IEw4MzEuNTgsODk3LjcxIEw4MjkuNzgsODk4LjU1IEw4MjcuOTYsODk5LjM3IEw4MjYuMTEsOTAwLjE3IEw4MjQuMjQsOTAwLjk2IEw4MjIuMzQsOTAxLjc0IEw4MjAuNDEsOTAyLjUwIEw4MTguNDUsOTAzLjI1IEw4MTYuNDcsOTAzLjk5IEw4MTQuNDUsOTA0LjcxIEw4MTIuNDEsOTA1LjQxIEw4MTAuMzQsOTA2LjExIEw4MDguMjMsOTA2Ljc5IEw4MDYuMTAsOTA3LjQ1IEw4MDMuOTMsOTA4LjEwIEw4MDEuNzMsOTA4Ljc0IEw3OTkuNDksOTA5LjM2IEw3OTcuMjIsOTA5Ljk4IEw3OTQuOTEsOTEwLjU3IEw3OTIuNTYsOTExLjE2IEw3OTAuMTgsOTExLjczIEw3ODcuNzYsOTEyLjI4IEw3ODUuMjksOTEyLjgzIEw3ODIuNzksOTEzLjM2IEw3ODAuMjQsOTEzLjg4IEw3NzcuNjQsOTE0LjM4IEw3NzUuMDAsOTE0Ljg3IEw3NzIuMzEsOTE1LjM1IEw3NjkuNTcsOTE1LjgxIEw3NjYuNzcsOTE2LjI2IEw3NjMuOTMsOTE2LjcwIEw3NjEuMDIsOTE3LjEzIEw3NTguMDYsOTE3LjU0IEw3NTUuMDMsOTE3Ljk0IEw3NTEuOTQsOTE4LjMzIEw3NDguNzgsOTE4LjcwIEw3NDUuNTQsOTE5LjA2IEw3NDIuMjMsOTE5LjQxIEw3MzguODUsOTE5Ljc0IEw3MzUuMzcsOTIwLjA3IEw3MzEuODEsOTIwLjM3IEw3MjguMTUsOTIwLjY3IEw3MjQuMzksOTIwLjk2IEw3MjAuNTIsOTIxLjIzIEw3MTYuNTMsOTIxLjQ4IEw3MTIuNDIsOTIxLjczIEw3MDguMTcsOTIxLjk2IEw3MDMuNzcsOTIyLjE4IEw2OTkuMjEsOTIyLjM5IEw2OTQuNDYsOTIyLjU5IEw2ODkuNTIsOTIyLjc3IEw2ODQuMzYsOTIyLjk0IEw2NzguOTUsOTIzLjEwIEw2NzMuMjYsOTIzLjI0IEw2NjcuMjQsOTIzLjM3IEw2NjAuODUsOTIzLjQ5IEw2NTQuMDEsOTIzLjYwIEw2NDYuNjQsOTIzLjY5IEw2MzguNjAsOTIzLjc3IEw2MjkuNzAsOTIzLjg0IEw2MTkuNjUsOTIzLjkwIEw2MDcuOTUsOTIzLjk0IEw1OTMuNTksOTIzLjk3IEw1NzMuODMsOTIzLjk5IEw1MTIuMDAsOTI0LjAwIEw0NTAuMTcsOTIzLjk5IEw0MzAuNDEsOTIzLjk3IEw0MTYuMDUsOTIzLjk0IEw0MDQuMzUsOTIzLjkwIEwzOTQuMzAsOTIzLjg0IEwzODUuNDAsOTIzLjc3IEwzNzcuMzYsOTIzLjY5IEwzNjkuOTksOTIzLjYwIEwzNjMuMTUsOTIzLjQ5IEwzNTYuNzYsOTIzLjM3IEwzNTAuNzQsOTIzLjI0IEwzNDUuMDUsOTIzLjEwIEwzMzkuNjQsOTIyLjk0IEwzMzQuNDgsOTIyLjc3IEwzMjkuNTQsOTIyLjU5IEwzMjQuNzksOTIyLjM5IEwzMjAuMjMsOTIyLjE4IEwzMTUuODMsOTIxLjk2IEwzMTEuNTgsOTIxLjczIEwzMDcuNDcsOTIxLjQ4IEwzMDMuNDgsOTIxLjIzIEwyOTkuNjEsOTIwLjk2IEwyOTUuODUsOTIwLjY3IEwyOTIuMTksOTIwLjM3IEwyODguNjMsOTIwLjA3IEwyODUuMTUsOTE5Ljc0IEwyODEuNzcsOTE5LjQxIEwyNzguNDYsOTE5LjA2IEwyNzUuMjIsOTE4LjcwIEwyNzIuMDYsOTE4LjMzIEwyNjguOTcsOTE3Ljk0IEwyNjUuOTQsOTE3LjU0IEwyNjIuOTgsOTE3LjEzIEwyNjAuMDcsOTE2LjcwIEwyNTcuMjMsOTE2LjI2IEwyNTQuNDMsOTE1LjgxIEwyNTEuNjksOTE1LjM1IEwyNDkuMDAsOTE0Ljg3IEwyNDYuMzYsOTE0LjM4IEwyNDMuNzYsOTEzLjg4IEwyNDEuMjEsOTEzLjM2IEwyMzguNzEsOTEyLjgzIEwyMzYuMjQsOTEyLjI4IEwyMzMuODIsOTExLjczIEwyMzEuNDQsOTExLjE2IEwyMjkuMDksOTEwLjU3IEwyMjYuNzgsOTA5Ljk4IEwyMjQuNTEsOTA5LjM2IEwyMjIuMjcsOTA4Ljc0IEwyMjAuMDcsOTA4LjEwIEwyMTcuOTAsOTA3LjQ1IEwyMTUuNzcsOTA2Ljc5IEwyMTMuNjYsOTA2LjExIEwyMTEuNTksOTA1LjQxIEwyMDkuNTUsOTA0LjcxIEwyMDcuNTMsOTAzLjk5IEwyMDUuNTUsOTAzLjI1IEwyMDMuNTksOTAyLjUwIEwyMDEuNjYsOTAxLjc0IEwxOTkuNzYsOTAwLjk2IEwxOTcuODksOTAwLjE3IEwxOTYuMDQsODk5LjM3IEwxOTQuMjIsODk4LjU1IEwxOTIuNDIsODk3LjcxIEwxOTAuNjUsODk2Ljg3IEwxODguOTAsODk2LjAwIEwxODcuMTcsODk1LjEyIEwxODUuNDcsODk0LjIzIEwxODMuNzksODkzLjMyIEwxODIuMTQsODkyLjQwIEwxODAuNTAsODkxLjQ2IEwxNzguODksODkwLjUxIEwxNzcuMzAsODg5LjU0IEwxNzUuNzMsODg4LjU2IEwxNzQuMTksODg3LjU2IEwxNzIuNjYsODg2LjU1IEwxNzEuMTUsODg1LjUyIEwxNjkuNjcsODg0LjQ4IEwxNjguMjAsODgzLjQyIEwxNjYuNzYsODgyLjM0IEwxNjUuMzMsODgxLjI1IEwxNjMuOTIsODgwLjE0IEwxNjIuNTQsODc5LjAxIEwxNjEuMTcsODc3Ljg3IEwxNTkuODIsODc2LjcxIEwxNTguNDgsODc1LjU0IEwxNTcuMTcsODc0LjM0IEwxNTUuODcsODczLjE0IEwxNTQuNTksODcxLjkxIEwxNTMuMzMsODcwLjY3IEwxNTIuMDksODY5LjQxIEwxNTAuODYsODY4LjEzIEwxNDkuNjYsODY2LjgzIEwxNDguNDYsODY1LjUyIEwxNDcuMjksODY0LjE4IEwxNDYuMTMsODYyLjgzIEwxNDQuOTksODYxLjQ2IEwxNDMuODYsODYwLjA4IEwxNDIuNzUsODU4LjY3IEwxNDEuNjYsODU3LjI0IEwxNDAuNTgsODU1LjgwIEwxMzkuNTIsODU0LjMzIEwxMzguNDgsODUyLjg1IEwxMzcuNDUsODUxLjM0IEwxMzYuNDQsODQ5LjgxIEwxMzUuNDQsODQ4LjI3IEwxMzQuNDYsODQ2LjcwIEwxMzMuNDksODQ1LjExIEwxMzIuNTQsODQzLjUwIEwxMzEuNjAsODQxLjg2IEwxMzAuNjgsODQwLjIxIEwxMjkuNzcsODM4LjUzIEwxMjguODgsODM2LjgzIEwxMjguMDAsODM1LjEwIEwxMjcuMTMsODMzLjM1IEwxMjYuMjksODMxLjU4IEwxMjUuNDUsODI5Ljc4IEwxMjQuNjMsODI3Ljk2IEwxMjMuODMsODI2LjExIEwxMjMuMDQsODI0LjI0IEwxMjIuMjYsODIyLjM0IEwxMjEuNTAsODIwLjQxIEwxMjAuNzUsODE4LjQ1IEwxMjAuMDEsODE2LjQ3IEwxMTkuMjksODE0LjQ1IEwxMTguNTksODEyLjQxIEwxMTcuODksODEwLjM0IEwxMTcuMjEsODA4LjIzIEwxMTYuNTUsODA2LjEwIEwxMTUuOTAsODAzLjkzIEwxMTUuMjYsODAxLjczIEwxMTQuNjQsNzk5LjQ5IEwxMTQuMDIsNzk3LjIyIEwxMTMuNDMsNzk0LjkxIEwxMTIuODQsNzkyLjU2IEwxMTIuMjcsNzkwLjE4IEwxMTEuNzIsNzg3Ljc2IEwxMTEuMTcsNzg1LjI5IEwxMTAuNjQsNzgyLjc5IEwxMTAuMTIsNzgwLjI0IEwxMDkuNjIsNzc3LjY0IEwxMDkuMTMsNzc1LjAwIEwxMDguNjUsNzcyLjMxIEwxMDguMTksNzY5LjU3IEwxMDcuNzQsNzY2Ljc3IEwxMDcuMzAsNzYzLjkzIEwxMDYuODcsNzYxLjAyIEwxMDYuNDYsNzU4LjA2IEwxMDYuMDYsNzU1LjAzIEwxMDUuNjcsNzUxLjk0IEwxMDUuMzAsNzQ4Ljc4IEwxMDQuOTQsNzQ1LjU0IEwxMDQuNTksNzQyLjIzIEwxMDQuMjYsNzM4Ljg1IEwxMDMuOTMsNzM1LjM3IEwxMDMuNjMsNzMxLjgxIEwxMDMuMzMsNzI4LjE1IEwxMDMuMDQsNzI0LjM5IEwxMDIuNzcsNzIwLjUyIEwxMDIuNTIsNzE2LjUzIEwxMDIuMjcsNzEyLjQyIEwxMDIuMDQsNzA4LjE3IEwxMDEuODIsNzAzLjc3IEwxMDEuNjEsNjk5LjIxIEwxMDEuNDEsNjk0LjQ2IEwxMDEuMjMsNjg5LjUyIEwxMDEuMDYsNjg0LjM2IEwxMDAuOTAsNjc4Ljk1IEwxMDAuNzYsNjczLjI2IEwxMDAuNjMsNjY3LjI0IEwxMDAuNTEsNjYwLjg1IEwxMDAuNDAsNjU0LjAxIEwxMDAuMzEsNjQ2LjY0IEwxMDAuMjMsNjM4LjYwIEwxMDAuMTYsNjI5LjcwIEwxMDAuMTAsNjE5LjY1IEwxMDAuMDYsNjA3Ljk1IEwxMDAuMDMsNTkzLjU5IEwxMDAuMDEsNTczLjgzIEwxMDAuMDAsNTEyLjAwIEwxMDAuMDEsNDUwLjE3IEwxMDAuMDMsNDMwLjQxIEwxMDAuMDYsNDE2LjA1IEwxMDAuMTAsNDA0LjM1IEwxMDAuMTYsMzk0LjMwIEwxMDAuMjMsMzg1LjQwIEwxMDAuMzEsMzc3LjM2IEwxMDAuNDAsMzY5Ljk5IEwxMDAuNTEsMzYzLjE1IEwxMDAuNjMsMzU2Ljc2IEwxMDAuNzYsMzUwLjc0IEwxMDAuOTAsMzQ1LjA1IEwxMDEuMDYsMzM5LjY0IEwxMDEuMjMsMzM0LjQ4IEwxMDEuNDEsMzI5LjU0IEwxMDEuNjEsMzI0Ljc5IEwxMDEuODIsMzIwLjIzIEwxMDIuMDQsMzE1LjgzIEwxMDIuMjcsMzExLjU4IEwxMDIuNTIsMzA3LjQ3IEwxMDIuNzcsMzAzLjQ4IEwxMDMuMDQsMjk5LjYxIEwxMDMuMzMsMjk1Ljg1IEwxMDMuNjMsMjkyLjE5IEwxMDMuOTMsMjg4LjYzIEwxMDQuMjYsMjg1LjE1IEwxMDQuNTksMjgxLjc3IEwxMDQuOTQsMjc4LjQ2IEwxMDUuMzAsMjc1LjIyIEwxMDUuNjcsMjcyLjA2IEwxMDYuMDYsMjY4Ljk3IEwxMDYuNDYsMjY1Ljk0IEwxMDYuODcsMjYyLjk4IEwxMDcuMzAsMjYwLjA3IEwxMDcuNzQsMjU3LjIzIEwxMDguMTksMjU0LjQzIEwxMDguNjUsMjUxLjY5IEwxMDkuMTMsMjQ5LjAwIEwxMDkuNjIsMjQ2LjM2IEwxMTAuMTIsMjQzLjc2IEwxMTAuNjQsMjQxLjIxIEwxMTEuMTcsMjM4LjcxIEwxMTEuNzIsMjM2LjI0IEwxMTIuMjcsMjMzLjgyIEwxMTIuODQsMjMxLjQ0IEwxMTMuNDMsMjI5LjA5IEwxMTQuMDIsMjI2Ljc4IEwxMTQuNjQsMjI0LjUxIEwxMTUuMjYsMjIyLjI3IEwxMTUuOTAsMjIwLjA3IEwxMTYuNTUsMjE3LjkwIEwxMTcuMjEsMjE1Ljc3IEwxMTcuODksMjEzLjY2IEwxMTguNTksMjExLjU5IEwxMTkuMjksMjA5LjU1IEwxMjAuMDEsMjA3LjUzIEwxMjAuNzUsMjA1LjU1IEwxMjEuNTAsMjAzLjU5IEwxMjIuMjYsMjAxLjY2IEwxMjMuMDQsMTk5Ljc2IEwxMjMuODMsMTk3Ljg5IEwxMjQuNjMsMTk2LjA0IEwxMjUuNDUsMTk0LjIyIEwxMjYuMjksMTkyLjQyIEwxMjcuMTMsMTkwLjY1IEwxMjguMDAsMTg4LjkwIEwxMjguODgsMTg3LjE3IEwxMjkuNzcsMTg1LjQ3IEwxMzAuNjgsMTgzLjc5IEwxMzEuNjAsMTgyLjE0IEwxMzIuNTQsMTgwLjUwIEwxMzMuNDksMTc4Ljg5IEwxMzQuNDYsMTc3LjMwIEwxMzUuNDQsMTc1LjczIEwxMzYuNDQsMTc0LjE5IEwxMzcuNDUsMTcyLjY2IEwxMzguNDgsMTcxLjE1IEwxMzkuNTIsMTY5LjY3IEwxNDAuNTgsMTY4LjIwIEwxNDEuNjYsMTY2Ljc2IEwxNDIuNzUsMTY1LjMzIEwxNDMuODYsMTYzLjkyIEwxNDQuOTksMTYyLjU0IEwxNDYuMTMsMTYxLjE3IEwxNDcuMjksMTU5LjgyIEwxNDguNDYsMTU4LjQ4IEwxNDkuNjYsMTU3LjE3IEwxNTAuODYsMTU1Ljg3IEwxNTIuMDksMTU0LjU5IEwxNTMuMzMsMTUzLjMzIEwxNTQuNTksMTUyLjA5IEwxNTUuODcsMTUwLjg2IEwxNTcuMTcsMTQ5LjY2IEwxNTguNDgsMTQ4LjQ2IEwxNTkuODIsMTQ3LjI5IEwxNjEuMTcsMTQ2LjEzIEwxNjIuNTQsMTQ0Ljk5IEwxNjMuOTIsMTQzLjg2IEwxNjUuMzMsMTQyLjc1IEwxNjYuNzYsMTQxLjY2IEwxNjguMjAsMTQwLjU4IEwxNjkuNjcsMTM5LjUyIEwxNzEuMTUsMTM4LjQ4IEwxNzIuNjYsMTM3LjQ1IEwxNzQuMTksMTM2LjQ0IEwxNzUuNzMsMTM1LjQ0IEwxNzcuMzAsMTM0LjQ2IEwxNzguODksMTMzLjQ5IEwxODAuNTAsMTMyLjU0IEwxODIuMTQsMTMxLjYwIEwxODMuNzksMTMwLjY4IEwxODUuNDcsMTI5Ljc3IEwxODcuMTcsMTI4Ljg4IEwxODguOTAsMTI4LjAwIEwxOTAuNjUsMTI3LjEzIEwxOTIuNDIsMTI2LjI5IEwxOTQuMjIsMTI1LjQ1IEwxOTYuMDQsMTI0LjYzIEwxOTcuODksMTIzLjgzIEwxOTkuNzYsMTIzLjA0IEwyMDEuNjYsMTIyLjI2IEwyMDMuNTksMTIxLjUwIEwyMDUuNTUsMTIwLjc1IEwyMDcuNTMsMTIwLjAxIEwyMDkuNTUsMTE5LjI5IEwyMTEuNTksMTE4LjU5IEwyMTMuNjYsMTE3Ljg5IEwyMTUuNzcsMTE3LjIxIEwyMTcuOTAsMTE2LjU1IEwyMjAuMDcsMTE1LjkwIEwyMjIuMjcsMTE1LjI2IEwyMjQuNTEsMTE0LjY0IEwyMjYuNzgsMTE0LjAyIEwyMjkuMDksMTEzLjQzIEwyMzEuNDQsMTEyLjg0IEwyMzMuODIsMTEyLjI3IEwyMzYuMjQsMTExLjcyIEwyMzguNzEsMTExLjE3IEwyNDEuMjEsMTEwLjY0IEwyNDMuNzYsMTEwLjEyIEwyNDYuMzYsMTA5LjYyIEwyNDkuMDAsMTA5LjEzIEwyNTEuNjksMTA4LjY1IEwyNTQuNDMsMTA4LjE5IEwyNTcuMjMsMTA3Ljc0IEwyNjAuMDcsMTA3LjMwIEwyNjIuOTgsMTA2Ljg3IEwyNjUuOTQsMTA2LjQ2IEwyNjguOTcsMTA2LjA2IEwyNzIuMDYsMTA1LjY3IEwyNzUuMjIsMTA1LjMwIEwyNzguNDYsMTA0Ljk0IEwyODEuNzcsMTA0LjU5IEwyODUuMTUsMTA0LjI2IEwyODguNjMsMTAzLjkzIEwyOTIuMTksMTAzLjYzIEwyOTUuODUsMTAzLjMzIEwyOTkuNjEsMTAzLjA0IEwzMDMuNDgsMTAyLjc3IEwzMDcuNDcsMTAyLjUyIEwzMTEuNTgsMTAyLjI3IEwzMTUuODMsMTAyLjA0IEwzMjAuMjMsMTAxLjgyIEwzMjQuNzksMTAxLjYxIEwzMjkuNTQsMTAxLjQxIEwzMzQuNDgsMTAxLjIzIEwzMzkuNjQsMTAxLjA2IEwzNDUuMDUsMTAwLjkwIEwzNTAuNzQsMTAwLjc2IEwzNTYuNzYsMTAwLjYzIEwzNjMuMTUsMTAwLjUxIEwzNjkuOTksMTAwLjQwIEwzNzcuMzYsMTAwLjMxIEwzODUuNDAsMTAwLjIzIEwzOTQuMzAsMTAwLjE2IEw0MDQuMzUsMTAwLjEwIEw0MTYuMDUsMTAwLjA2IEw0MzAuNDEsMTAwLjAzIEw0NTAuMTcsMTAwLjAxIEw1MTIuMDAsMTAwLjAwIEw1NzMuODMsMTAwLjAxIEw1OTMuNTksMTAwLjAzIEw2MDcuOTUsMTAwLjA2IEw2MTkuNjUsMTAwLjEwIEw2MjkuNzAsMTAwLjE2IEw2MzguNjAsMTAwLjIzIEw2NDYuNjQsMTAwLjMxIEw2NTQuMDEsMTAwLjQwIEw2NjAuODUsMTAwLjUxIEw2NjcuMjQsMTAwLjYzIEw2NzMuMjYsMTAwLjc2IEw2NzguOTUsMTAwLjkwIEw2ODQuMzYsMTAxLjA2IEw2ODkuNTIsMTAxLjIzIEw2OTQuNDYsMTAxLjQxIEw2OTkuMjEsMTAxLjYxIEw3MDMuNzcsMTAxLjgyIEw3MDguMTcsMTAyLjA0IEw3MTIuNDIsMTAyLjI3IEw3MTYuNTMsMTAyLjUyIEw3MjAuNTIsMTAyLjc3IEw3MjQuMzksMTAzLjA0IEw3MjguMTUsMTAzLjMzIEw3MzEuODEsMTAzLjYzIEw3MzUuMzcsMTAzLjkzIEw3MzguODUsMTA0LjI2IEw3NDIuMjMsMTA0LjU5IEw3NDUuNTQsMTA0Ljk0IEw3NDguNzgsMTA1LjMwIEw3NTEuOTQsMTA1LjY3IEw3NTUuMDMsMTA2LjA2IEw3NTguMDYsMTA2LjQ2IEw3NjEuMDIsMTA2Ljg3IEw3NjMuOTMsMTA3LjMwIEw3NjYuNzcsMTA3Ljc0IEw3NjkuNTcsMTA4LjE5IEw3NzIuMzEsMTA4LjY1IEw3NzUuMDAsMTA5LjEzIEw3NzcuNjQsMTA5LjYyIEw3ODAuMjQsMTEwLjEyIEw3ODIuNzksMTEwLjY0IEw3ODUuMjksMTExLjE3IEw3ODcuNzYsMTExLjcyIEw3OTAuMTgsMTEyLjI3IEw3OTIuNTYsMTEyLjg0IEw3OTQuOTEsMTEzLjQzIEw3OTcuMjIsMTE0LjAyIEw3OTkuNDksMTE0LjY0IEw4MDEuNzMsMTE1LjI2IEw4MDMuOTMsMTE1LjkwIEw4MDYuMTAsMTE2LjU1IEw4MDguMjMsMTE3LjIxIEw4MTAuMzQsMTE3Ljg5IEw4MTIuNDEsMTE4LjU5IEw4MTQuNDUsMTE5LjI5IEw4MTYuNDcsMTIwLjAxIEw4MTguNDUsMTIwLjc1IEw4MjAuNDEsMTIxLjUwIEw4MjIuMzQsMTIyLjI2IEw4MjQuMjQsMTIzLjA0IEw4MjYuMTEsMTIzLjgzIEw4MjcuOTYsMTI0LjYzIEw4MjkuNzgsMTI1LjQ1IEw4MzEuNTgsMTI2LjI5IEw4MzMuMzUsMTI3LjEzIEw4MzUuMTAsMTI4LjAwIEw4MzYuODMsMTI4Ljg4IEw4MzguNTMsMTI5Ljc3IEw4NDAuMjEsMTMwLjY4IEw4NDEuODYsMTMxLjYwIEw4NDMuNTAsMTMyLjU0IEw4NDUuMTEsMTMzLjQ5IEw4NDYuNzAsMTM0LjQ2IEw4NDguMjcsMTM1LjQ0IEw4NDkuODEsMTM2LjQ0IEw4NTEuMzQsMTM3LjQ1IEw4NTIuODUsMTM4LjQ4IEw4NTQuMzMsMTM5LjUyIEw4NTUuODAsMTQwLjU4IEw4NTcuMjQsMTQxLjY2IEw4NTguNjcsMTQyLjc1IEw4NjAuMDgsMTQzLjg2IEw4NjEuNDYsMTQ0Ljk5IEw4NjIuODMsMTQ2LjEzIEw4NjQuMTgsMTQ3LjI5IEw4NjUuNTIsMTQ4LjQ2IEw4NjYuODMsMTQ5LjY2IEw4NjguMTMsMTUwLjg2IEw4NjkuNDEsMTUyLjA5IEw4NzAuNjcsMTUzLjMzIEw4NzEuOTEsMTU0LjU5IEw4NzMuMTQsMTU1Ljg3IEw4NzQuMzQsMTU3LjE3IEw4NzUuNTQsMTU4LjQ4IEw4NzYuNzEsMTU5LjgyIEw4NzcuODcsMTYxLjE3IEw4NzkuMDEsMTYyLjU0IEw4ODAuMTQsMTYzLjkyIEw4ODEuMjUsMTY1LjMzIEw4ODIuMzQsMTY2Ljc2IEw4ODMuNDIsMTY4LjIwIEw4ODQuNDgsMTY5LjY3IEw4ODUuNTIsMTcxLjE1IEw4ODYuNTUsMTcyLjY2IEw4ODcuNTYsMTc0LjE5IEw4ODguNTYsMTc1LjczIEw4ODkuNTQsMTc3LjMwIEw4OTAuNTEsMTc4Ljg5IEw4OTEuNDYsMTgwLjUwIEw4OTIuNDAsMTgyLjE0IEw4OTMuMzIsMTgzLjc5IEw4OTQuMjMsMTg1LjQ3IEw4OTUuMTIsMTg3LjE3IEw4OTYuMDAsMTg4LjkwIEw4OTYuODcsMTkwLjY1IEw4OTcuNzEsMTkyLjQyIEw4OTguNTUsMTk0LjIyIEw4OTkuMzcsMTk2LjA0IEw5MDAuMTcsMTk3Ljg5IEw5MDAuOTYsMTk5Ljc2IEw5MDEuNzQsMjAxLjY2IEw5MDIuNTAsMjAzLjU5IEw5MDMuMjUsMjA1LjU1IEw5MDMuOTksMjA3LjUzIEw5MDQuNzEsMjA5LjU1IEw5MDUuNDEsMjExLjU5IEw5MDYuMTEsMjEzLjY2IEw5MDYuNzksMjE1Ljc3IEw5MDcuNDUsMjE3LjkwIEw5MDguMTAsMjIwLjA3IEw5MDguNzQsMjIyLjI3IEw5MDkuMzYsMjI0LjUxIEw5MDkuOTgsMjI2Ljc4IEw5MTAuNTcsMjI5LjA5IEw5MTEuMTYsMjMxLjQ0IEw5MTEuNzMsMjMzLjgyIEw5MTIuMjgsMjM2LjI0IEw5MTIuODMsMjM4LjcxIEw5MTMuMzYsMjQxLjIxIEw5MTMuODgsMjQzLjc2IEw5MTQuMzgsMjQ2LjM2IEw5MTQuODcsMjQ5LjAwIEw5MTUuMzUsMjUxLjY5IEw5MTUuODEsMjU0LjQzIEw5MTYuMjYsMjU3LjIzIEw5MTYuNzAsMjYwLjA3IEw5MTcuMTMsMjYyLjk4IEw5MTcuNTQsMjY1Ljk0IEw5MTcuOTQsMjY4Ljk3IEw5MTguMzMsMjcyLjA2IEw5MTguNzAsMjc1LjIyIEw5MTkuMDYsMjc4LjQ2IEw5MTkuNDEsMjgxLjc3IEw5MTkuNzQsMjg1LjE1IEw5MjAuMDcsMjg4LjYzIEw5MjAuMzcsMjkyLjE5IEw5MjAuNjcsMjk1Ljg1IEw5MjAuOTYsMjk5LjYxIEw5MjEuMjMsMzAzLjQ4IEw5MjEuNDgsMzA3LjQ3IEw5MjEuNzMsMzExLjU4IEw5MjEuOTYsMzE1LjgzIEw5MjIuMTgsMzIwLjIzIEw5MjIuMzksMzI0Ljc5IEw5MjIuNTksMzI5LjU0IEw5MjIuNzcsMzM0LjQ4IEw5MjIuOTQsMzM5LjY0IEw5MjMuMTAsMzQ1LjA1IEw5MjMuMjQsMzUwLjc0IEw5MjMuMzcsMzU2Ljc2IEw5MjMuNDksMzYzLjE1IEw5MjMuNjAsMzY5Ljk5IEw5MjMuNjksMzc3LjM2IEw5MjMuNzcsMzg1LjQwIEw5MjMuODQsMzk0LjMwIEw5MjMuOTAsNDA0LjM1IEw5MjMuOTQsNDE2LjA1IEw5MjMuOTcsNDMwLjQxIEw5MjMuOTksNDUwLjE3IFoiIGZpbGw9InVybCgjYmcpIiBmaWx0ZXI9InVybCgjYm9keSkiLz4KPGcgY2xpcC1wYXRoPSJ1cmwoI3NxKSI+CiAgPHJlY3QgeD0iMTAwIiB5PSIxMDAiIHdpZHRoPSI4MjQiIGhlaWdodD0iODI0IiBmaWxsPSJ1cmwoI3NoZWVuKSIvPgo8ZGVmcz4KPGZpbHRlciBpZD0iYjQiIHg9Ii01MCUiIHk9Ii01MCUiIHdpZHRoPSIyMDAlIiBoZWlnaHQ9IjIwMCUiPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjQiLz48L2ZpbHRlcj4KPGZpbHRlciBpZD0iYjEwIiB4PSItNTAlIiB5PSItNTAlIiB3aWR0aD0iMjAwJSIgaGVpZ2h0PSIyMDAlIj48ZmVHYXVzc2lhbkJsdXIgc3RkRGV2aWF0aW9uPSIxMCIvPjwvZmlsdGVyPgo8ZmlsdGVyIGlkPSJiMjQiIHg9Ii01MCUiIHk9Ii01MCUiIHdpZHRoPSIyMDAlIiBoZWlnaHQ9IjIwMCUiPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjI0Ii8+PC9maWx0ZXI+CjxmaWx0ZXIgaWQ9ImI0MCIgeD0iLTUwJSIgeT0iLTUwJSIgd2lkdGg9IjIwMCUiIGhlaWdodD0iMjAwJSI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iNDAiLz48L2ZpbHRlcj4KPGxpbmVhckdyYWRpZW50IGlkPSJiYXJXIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZGRkZGIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjRDlEQURFIi8+PC9saW5lYXJHcmFkaWVudD4KPGxpbmVhckdyYWRpZW50IGlkPSJiYXJLIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjMkMyQzJGIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMEEwQTBCIi8+PC9saW5lYXJHcmFkaWVudD4KPGxpbmVhckdyYWRpZW50IGlkPSJsZW5zIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAuMjAiLz48c3RvcCBvZmZzZXQ9IjAuNDUiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMCIvPjwvbGluZWFyR3JhZGllbnQ+CjxsaW5lYXJHcmFkaWVudCBpZD0iZWRnZSIgeDE9IjAiIHkxPSIwIiB4Mj0iMCIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwLjQ1Ii8+PHN0b3Agb2Zmc2V0PSIwLjUiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMC4wNCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwLjE2Ii8+PC9saW5lYXJHcmFkaWVudD4KPGxpbmVhckdyYWRpZW50IGlkPSJwaWxsSyIgeDE9IjAiIHkxPSIwIiB4Mj0iMCIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzI2MjYyQSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzAzMDMwNCIvPjwvbGluZWFyR3JhZGllbnQ+CjwvZGVmcz48ZGVmcz4KPGxpbmVhckdyYWRpZW50IGlkPSJmcm0iIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxIj48c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiM2QTZCNzAiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMyQTJCMkYiLz48L2xpbmVhckdyYWRpZW50Pgo8bGluZWFyR3JhZGllbnQgaWQ9ImZybUluIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjMkEyQjJGIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjNkE2QjcwIi8+PC9saW5lYXJHcmFkaWVudD4KPGxpbmVhckdyYWRpZW50IGlkPSJnbGFyZSIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwLjE2Ii8+PHN0b3Agb2Zmc2V0PSIwLjM4IiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAuMDQiLz48c3RvcCBvZmZzZXQ9IjAuMzkiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMCIvPjwvbGluZWFyR3JhZGllbnQ+CjxjbGlwUGF0aCBpZD0iZ2xhc3MiPjxyZWN0IHg9IjIxMi4wIiB5PSIzODIuMCIgd2lkdGg9IjYwMC4wIiBoZWlnaHQ9IjI0MC4wIiByeD0iMTIwLjAiIC8+PC9jbGlwUGF0aD48L2RlZnM+CjxyZWN0IHg9IjE5OC4wIiB5PSIzOTQuMCIgd2lkdGg9IjYyOC4wIiBoZWlnaHQ9IjI4OC4wIiByeD0iMTU0LjAiIGZpbGw9IiMwMDAiIG9wYWNpdHk9IjAuNiIgZmlsdGVyPSJ1cmwoI2I0MCkiLz4KPHJlY3QgeD0iMTc4LjAiIHk9IjM1Ni4wIiB3aWR0aD0iNjY4LjAiIGhlaWdodD0iMzA4LjAiIHJ4PSIxNTQuMCIgZmlsbD0iIzAwMCIgb3BhY2l0eT0iMC41IiBmaWx0ZXI9InVybCgjYjEwKSIvPgo8cmVjdCB4PSIxNzguMCIgeT0iMzQ4LjAiIHdpZHRoPSI2NjguMCIgaGVpZ2h0PSIzMDguMCIgcng9IjE1NC4wIiBmaWxsPSJ1cmwoI2ZybSkiLz4KPHJlY3QgeD0iMTc5LjUiIHk9IjM0OS41IiB3aWR0aD0iNjY1LjAiIGhlaWdodD0iMzA1LjAiIHJ4PSIxNTIuNSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utb3BhY2l0eT0iMC4zNSIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxyZWN0IHg9IjIwNi4wIiB5PSIzNzYuMCIgd2lkdGg9IjYxMi4wIiBoZWlnaHQ9IjI1Mi4wIiByeD0iMTI2LjAiIGZpbGw9InVybCgjZnJtSW4pIi8+CjxyZWN0IHg9IjIxMi4wIiB5PSIzODIuMCIgd2lkdGg9IjYwMC4wIiBoZWlnaHQ9IjI0MC4wIiByeD0iMTIwLjAiIGZpbGw9InVybCgjcGlsbEspIi8+CjxnIGNsaXAtcGF0aD0idXJsKCNnbGFzcykiPjxyZWN0IHg9IjE3Mi4wIiB5PSIzNDIuMCIgd2lkdGg9IjY4MC4wIiBoZWlnaHQ9IjcwLjAiIHJ4PSIzNS4wIiBmaWxsPSIjMDAwIiBvcGFjaXR5PSIwLjkiIGZpbHRlcj0idXJsKCNiMjQpIi8+CjxyZWN0IHg9IjIxMi4wIiB5PSIzODIuMCIgd2lkdGg9IjYwMC4wIiBoZWlnaHQ9IjI0MC4wIiByeD0iMC4wIiBmaWxsPSJ1cmwoI2dsYXJlKSIvPjwvZz4KPHJlY3QgeD0iMzQ4LjAiIHk9IjQ3Ny4wIiB3aWR0aD0iMjguMCIgaGVpZ2h0PSI1MC4wIiByeD0iMTQuMCIgZmlsbD0idXJsKCNiYXJXKSIvPgo8cmVjdCB4PSIzOTguMCIgeT0iNDUwLjAiIHdpZHRoPSIyOC4wIiBoZWlnaHQ9IjEwNC4wIiByeD0iMTQuMCIgZmlsbD0idXJsKCNiYXJXKSIvPgo8cmVjdCB4PSI0NDguMCIgeT0iNDI4LjAiIHdpZHRoPSIyOC4wIiBoZWlnaHQ9IjE0OC4wIiByeD0iMTQuMCIgZmlsbD0idXJsKCNiYXJXKSIvPgo8cmVjdCB4PSI0OTguMCIgeT0iNDU3LjAiIHdpZHRoPSIyOC4wIiBoZWlnaHQ9IjkwLjAiIHJ4PSIxNC4wIiBmaWxsPSJ1cmwoI2JhclcpIi8+CjxyZWN0IHg9IjU0OC4wIiB5PSI0MzkuMCIgd2lkdGg9IjI4LjAiIGhlaWdodD0iMTI2LjAiIHJ4PSIxNC4wIiBmaWxsPSJ1cmwoI2JhclcpIi8+CjxyZWN0IHg9IjU5OC4wIiB5PSI0NzAuMCIgd2lkdGg9IjI4LjAiIGhlaWdodD0iNjQuMCIgcng9IjE0LjAiIGZpbGw9InVybCgjYmFyVykiLz4KPHJlY3QgeD0iNjQ4LjAiIHk9IjQ4NC4wIiB3aWR0aD0iMjguMCIgaGVpZ2h0PSIzNi4wIiByeD0iMTQuMCIgZmlsbD0idXJsKCNiYXJXKSIvPgogIDxyZWN0IHg9IjEwMCIgeT0iMTAwIiB3aWR0aD0iODI0IiBoZWlnaHQ9IjgyNCIgZmlsdGVyPSJ1cmwoI25XKSIgb3BhY2l0eT0iMC4wNiIvPgogIDxyZWN0IHg9IjEwMCIgeT0iMTAwIiB3aWR0aD0iODI0IiBoZWlnaHQ9IjgyNCIgZmlsdGVyPSJ1cmwoI25CKSIgb3BhY2l0eT0iMC4wNiIvPgogIDxwYXRoIGQ9Ik05MjQuMDAsNTEyLjAwIEw5MjMuOTksNTczLjgzIEw5MjMuOTcsNTkzLjU5IEw5MjMuOTQsNjA3Ljk1IEw5MjMuOTAsNjE5LjY1IEw5MjMuODQsNjI5LjcwIEw5MjMuNzcsNjM4LjYwIEw5MjMuNjksNjQ2LjY0IEw5MjMuNjAsNjU0LjAxIEw5MjMuNDksNjYwLjg1IEw5MjMuMzcsNjY3LjI0IEw5MjMuMjQsNjczLjI2IEw5MjMuMTAsNjc4Ljk1IEw5MjIuOTQsNjg0LjM2IEw5MjIuNzcsNjg5LjUyIEw5MjIuNTksNjk0LjQ2IEw5MjIuMzksNjk5LjIxIEw5MjIuMTgsNzAzLjc3IEw5MjEuOTYsNzA4LjE3IEw5MjEuNzMsNzEyLjQyIEw5MjEuNDgsNzE2LjUzIEw5MjEuMjMsNzIwLjUyIEw5MjAuOTYsNzI0LjM5IEw5MjAuNjcsNzI4LjE1IEw5MjAuMzcsNzMxLjgxIEw5MjAuMDcsNzM1LjM3IEw5MTkuNzQsNzM4Ljg1IEw5MTkuNDEsNzQyLjIzIEw5MTkuMDYsNzQ1LjU0IEw5MTguNzAsNzQ4Ljc4IEw5MTguMzMsNzUxLjk0IEw5MTcuOTQsNzU1LjAzIEw5MTcuNTQsNzU4LjA2IEw5MTcuMTMsNzYxLjAyIEw5MTYuNzAsNzYzLjkzIEw5MTYuMjYsNzY2Ljc3IEw5MTUuODEsNzY5LjU3IEw5MTUuMzUsNzcyLjMxIEw5MTQuODcsNzc1LjAwIEw5MTQuMzgsNzc3LjY0IEw5MTMuODgsNzgwLjI0IEw5MTMuMzYsNzgyLjc5IEw5MTIuODMsNzg1LjI5IEw5MTIuMjgsNzg3Ljc2IEw5MTEuNzMsNzkwLjE4IEw5MTEuMTYsNzkyLjU2IEw5MTAuNTcsNzk0LjkxIEw5MDkuOTgsNzk3LjIyIEw5MDkuMzYsNzk5LjQ5IEw5MDguNzQsODAxLjczIEw5MDguMTAsODAzLjkzIEw5MDcuNDUsODA2LjEwIEw5MDYuNzksODA4LjIzIEw5MDYuMTEsODEwLjM0IEw5MDUuNDEsODEyLjQxIEw5MDQuNzEsODE0LjQ1IEw5MDMuOTksODE2LjQ3IEw5MDMuMjUsODE4LjQ1IEw5MDIuNTAsODIwLjQxIEw5MDEuNzQsODIyLjM0IEw5MDAuOTYsODI0LjI0IEw5MDAuMTcsODI2LjExIEw4OTkuMzcsODI3Ljk2IEw4OTguNTUsODI5Ljc4IEw4OTcuNzEsODMxLjU4IEw4OTYuODcsODMzLjM1IEw4OTYuMDAsODM1LjEwIEw4OTUuMTIsODM2LjgzIEw4OTQuMjMsODM4LjUzIEw4OTMuMzIsODQwLjIxIEw4OTIuNDAsODQxLjg2IEw4OTEuNDYsODQzLjUwIEw4OTAuNTEsODQ1LjExIEw4ODkuNTQsODQ2LjcwIEw4ODguNTYsODQ4LjI3IEw4ODcuNTYsODQ5LjgxIEw4ODYuNTUsODUxLjM0IEw4ODUuNTIsODUyLjg1IEw4ODQuNDgsODU0LjMzIEw4ODMuNDIsODU1LjgwIEw4ODIuMzQsODU3LjI0IEw4ODEuMjUsODU4LjY3IEw4ODAuMTQsODYwLjA4IEw4NzkuMDEsODYxLjQ2IEw4NzcuODcsODYyLjgzIEw4NzYuNzEsODY0LjE4IEw4NzUuNTQsODY1LjUyIEw4NzQuMzQsODY2LjgzIEw4NzMuMTQsODY4LjEzIEw4NzEuOTEsODY5LjQxIEw4NzAuNjcsODcwLjY3IEw4NjkuNDEsODcxLjkxIEw4NjguMTMsODczLjE0IEw4NjYuODMsODc0LjM0IEw4NjUuNTIsODc1LjU0IEw4NjQuMTgsODc2LjcxIEw4NjIuODMsODc3Ljg3IEw4NjEuNDYsODc5LjAxIEw4NjAuMDgsODgwLjE0IEw4NTguNjcsODgxLjI1IEw4NTcuMjQsODgyLjM0IEw4NTUuODAsODgzLjQyIEw4NTQuMzMsODg0LjQ4IEw4NTIuODUsODg1LjUyIEw4NTEuMzQsODg2LjU1IEw4NDkuODEsODg3LjU2IEw4NDguMjcsODg4LjU2IEw4NDYuNzAsODg5LjU0IEw4NDUuMTEsODkwLjUxIEw4NDMuNTAsODkxLjQ2IEw4NDEuODYsODkyLjQwIEw4NDAuMjEsODkzLjMyIEw4MzguNTMsODk0LjIzIEw4MzYuODMsODk1LjEyIEw4MzUuMTAsODk2LjAwIEw4MzMuMzUsODk2Ljg3IEw4MzEuNTgsODk3LjcxIEw4MjkuNzgsODk4LjU1IEw4MjcuOTYsODk5LjM3IEw4MjYuMTEsOTAwLjE3IEw4MjQuMjQsOTAwLjk2IEw4MjIuMzQsOTAxLjc0IEw4MjAuNDEsOTAyLjUwIEw4MTguNDUsOTAzLjI1IEw4MTYuNDcsOTAzLjk5IEw4MTQuNDUsOTA0LjcxIEw4MTIuNDEsOTA1LjQxIEw4MTAuMzQsOTA2LjExIEw4MDguMjMsOTA2Ljc5IEw4MDYuMTAsOTA3LjQ1IEw4MDMuOTMsOTA4LjEwIEw4MDEuNzMsOTA4Ljc0IEw3OTkuNDksOTA5LjM2IEw3OTcuMjIsOTA5Ljk4IEw3OTQuOTEsOTEwLjU3IEw3OTIuNTYsOTExLjE2IEw3OTAuMTgsOTExLjczIEw3ODcuNzYsOTEyLjI4IEw3ODUuMjksOTEyLjgzIEw3ODIuNzksOTEzLjM2IEw3ODAuMjQsOTEzLjg4IEw3NzcuNjQsOTE0LjM4IEw3NzUuMDAsOTE0Ljg3IEw3NzIuMzEsOTE1LjM1IEw3NjkuNTcsOTE1LjgxIEw3NjYuNzcsOTE2LjI2IEw3NjMuOTMsOTE2LjcwIEw3NjEuMDIsOTE3LjEzIEw3NTguMDYsOTE3LjU0IEw3NTUuMDMsOTE3Ljk0IEw3NTEuOTQsOTE4LjMzIEw3NDguNzgsOTE4LjcwIEw3NDUuNTQsOTE5LjA2IEw3NDIuMjMsOTE5LjQxIEw3MzguODUsOTE5Ljc0IEw3MzUuMzcsOTIwLjA3IEw3MzEuODEsOTIwLjM3IEw3MjguMTUsOTIwLjY3IEw3MjQuMzksOTIwLjk2IEw3MjAuNTIsOTIxLjIzIEw3MTYuNTMsOTIxLjQ4IEw3MTIuNDIsOTIxLjczIEw3MDguMTcsOTIxLjk2IEw3MDMuNzcsOTIyLjE4IEw2OTkuMjEsOTIyLjM5IEw2OTQuNDYsOTIyLjU5IEw2ODkuNTIsOTIyLjc3IEw2ODQuMzYsOTIyLjk0IEw2NzguOTUsOTIzLjEwIEw2NzMuMjYsOTIzLjI0IEw2NjcuMjQsOTIzLjM3IEw2NjAuODUsOTIzLjQ5IEw2NTQuMDEsOTIzLjYwIEw2NDYuNjQsOTIzLjY5IEw2MzguNjAsOTIzLjc3IEw2MjkuNzAsOTIzLjg0IEw2MTkuNjUsOTIzLjkwIEw2MDcuOTUsOTIzLjk0IEw1OTMuNTksOTIzLjk3IEw1NzMuODMsOTIzLjk5IEw1MTIuMDAsOTI0LjAwIEw0NTAuMTcsOTIzLjk5IEw0MzAuNDEsOTIzLjk3IEw0MTYuMDUsOTIzLjk0IEw0MDQuMzUsOTIzLjkwIEwzOTQuMzAsOTIzLjg0IEwzODUuNDAsOTIzLjc3IEwzNzcuMzYsOTIzLjY5IEwzNjkuOTksOTIzLjYwIEwzNjMuMTUsOTIzLjQ5IEwzNTYuNzYsOTIzLjM3IEwzNTAuNzQsOTIzLjI0IEwzNDUuMDUsOTIzLjEwIEwzMzkuNjQsOTIyLjk0IEwzMzQuNDgsOTIyLjc3IEwzMjkuNTQsOTIyLjU5IEwzMjQuNzksOTIyLjM5IEwzMjAuMjMsOTIyLjE4IEwzMTUuODMsOTIxLjk2IEwzMTEuNTgsOTIxLjczIEwzMDcuNDcsOTIxLjQ4IEwzMDMuNDgsOTIxLjIzIEwyOTkuNjEsOTIwLjk2IEwyOTUuODUsOTIwLjY3IEwyOTIuMTksOTIwLjM3IEwyODguNjMsOTIwLjA3IEwyODUuMTUsOTE5Ljc0IEwyODEuNzcsOTE5LjQxIEwyNzguNDYsOTE5LjA2IEwyNzUuMjIsOTE4LjcwIEwyNzIuMDYsOTE4LjMzIEwyNjguOTcsOTE3Ljk0IEwyNjUuOTQsOTE3LjU0IEwyNjIuOTgsOTE3LjEzIEwyNjAuMDcsOTE2LjcwIEwyNTcuMjMsOTE2LjI2IEwyNTQuNDMsOTE1LjgxIEwyNTEuNjksOTE1LjM1IEwyNDkuMDAsOTE0Ljg3IEwyNDYuMzYsOTE0LjM4IEwyNDMuNzYsOTEzLjg4IEwyNDEuMjEsOTEzLjM2IEwyMzguNzEsOTEyLjgzIEwyMzYuMjQsOTEyLjI4IEwyMzMuODIsOTExLjczIEwyMzEuNDQsOTExLjE2IEwyMjkuMDksOTEwLjU3IEwyMjYuNzgsOTA5Ljk4IEwyMjQuNTEsOTA5LjM2IEwyMjIuMjcsOTA4Ljc0IEwyMjAuMDcsOTA4LjEwIEwyMTcuOTAsOTA3LjQ1IEwyMTUuNzcsOTA2Ljc5IEwyMTMuNjYsOTA2LjExIEwyMTEuNTksOTA1LjQxIEwyMDkuNTUsOTA0LjcxIEwyMDcuNTMsOTAzLjk5IEwyMDUuNTUsOTAzLjI1IEwyMDMuNTksOTAyLjUwIEwyMDEuNjYsOTAxLjc0IEwxOTkuNzYsOTAwLjk2IEwxOTcuODksOTAwLjE3IEwxOTYuMDQsODk5LjM3IEwxOTQuMjIsODk4LjU1IEwxOTIuNDIsODk3LjcxIEwxOTAuNjUsODk2Ljg3IEwxODguOTAsODk2LjAwIEwxODcuMTcsODk1LjEyIEwxODUuNDcsODk0LjIzIEwxODMuNzksODkzLjMyIEwxODIuMTQsODkyLjQwIEwxODAuNTAsODkxLjQ2IEwxNzguODksODkwLjUxIEwxNzcuMzAsODg5LjU0IEwxNzUuNzMsODg4LjU2IEwxNzQuMTksODg3LjU2IEwxNzIuNjYsODg2LjU1IEwxNzEuMTUsODg1LjUyIEwxNjkuNjcsODg0LjQ4IEwxNjguMjAsODgzLjQyIEwxNjYuNzYsODgyLjM0IEwxNjUuMzMsODgxLjI1IEwxNjMuOTIsODgwLjE0IEwxNjIuNTQsODc5LjAxIEwxNjEuMTcsODc3Ljg3IEwxNTkuODIsODc2LjcxIEwxNTguNDgsODc1LjU0IEwxNTcuMTcsODc0LjM0IEwxNTUuODcsODczLjE0IEwxNTQuNTksODcxLjkxIEwxNTMuMzMsODcwLjY3IEwxNTIuMDksODY5LjQxIEwxNTAuODYsODY4LjEzIEwxNDkuNjYsODY2LjgzIEwxNDguNDYsODY1LjUyIEwxNDcuMjksODY0LjE4IEwxNDYuMTMsODYyLjgzIEwxNDQuOTksODYxLjQ2IEwxNDMuODYsODYwLjA4IEwxNDIuNzUsODU4LjY3IEwxNDEuNjYsODU3LjI0IEwxNDAuNTgsODU1LjgwIEwxMzkuNTIsODU0LjMzIEwxMzguNDgsODUyLjg1IEwxMzcuNDUsODUxLjM0IEwxMzYuNDQsODQ5LjgxIEwxMzUuNDQsODQ4LjI3IEwxMzQuNDYsODQ2LjcwIEwxMzMuNDksODQ1LjExIEwxMzIuNTQsODQzLjUwIEwxMzEuNjAsODQxLjg2IEwxMzAuNjgsODQwLjIxIEwxMjkuNzcsODM4LjUzIEwxMjguODgsODM2LjgzIEwxMjguMDAsODM1LjEwIEwxMjcuMTMsODMzLjM1IEwxMjYuMjksODMxLjU4IEwxMjUuNDUsODI5Ljc4IEwxMjQuNjMsODI3Ljk2IEwxMjMuODMsODI2LjExIEwxMjMuMDQsODI0LjI0IEwxMjIuMjYsODIyLjM0IEwxMjEuNTAsODIwLjQxIEwxMjAuNzUsODE4LjQ1IEwxMjAuMDEsODE2LjQ3IEwxMTkuMjksODE0LjQ1IEwxMTguNTksODEyLjQxIEwxMTcuODksODEwLjM0IEwxMTcuMjEsODA4LjIzIEwxMTYuNTUsODA2LjEwIEwxMTUuOTAsODAzLjkzIEwxMTUuMjYsODAxLjczIEwxMTQuNjQsNzk5LjQ5IEwxMTQuMDIsNzk3LjIyIEwxMTMuNDMsNzk0LjkxIEwxMTIuODQsNzkyLjU2IEwxMTIuMjcsNzkwLjE4IEwxMTEuNzIsNzg3Ljc2IEwxMTEuMTcsNzg1LjI5IEwxMTAuNjQsNzgyLjc5IEwxMTAuMTIsNzgwLjI0IEwxMDkuNjIsNzc3LjY0IEwxMDkuMTMsNzc1LjAwIEwxMDguNjUsNzcyLjMxIEwxMDguMTksNzY5LjU3IEwxMDcuNzQsNzY2Ljc3IEwxMDcuMzAsNzYzLjkzIEwxMDYuODcsNzYxLjAyIEwxMDYuNDYsNzU4LjA2IEwxMDYuMDYsNzU1LjAzIEwxMDUuNjcsNzUxLjk0IEwxMDUuMzAsNzQ4Ljc4IEwxMDQuOTQsNzQ1LjU0IEwxMDQuNTksNzQyLjIzIEwxMDQuMjYsNzM4Ljg1IEwxMDMuOTMsNzM1LjM3IEwxMDMuNjMsNzMxLjgxIEwxMDMuMzMsNzI4LjE1IEwxMDMuMDQsNzI0LjM5IEwxMDIuNzcsNzIwLjUyIEwxMDIuNTIsNzE2LjUzIEwxMDIuMjcsNzEyLjQyIEwxMDIuMDQsNzA4LjE3IEwxMDEuODIsNzAzLjc3IEwxMDEuNjEsNjk5LjIxIEwxMDEuNDEsNjk0LjQ2IEwxMDEuMjMsNjg5LjUyIEwxMDEuMDYsNjg0LjM2IEwxMDAuOTAsNjc4Ljk1IEwxMDAuNzYsNjczLjI2IEwxMDAuNjMsNjY3LjI0IEwxMDAuNTEsNjYwLjg1IEwxMDAuNDAsNjU0LjAxIEwxMDAuMzEsNjQ2LjY0IEwxMDAuMjMsNjM4LjYwIEwxMDAuMTYsNjI5LjcwIEwxMDAuMTAsNjE5LjY1IEwxMDAuMDYsNjA3Ljk1IEwxMDAuMDMsNTkzLjU5IEwxMDAuMDEsNTczLjgzIEwxMDAuMDAsNTEyLjAwIEwxMDAuMDEsNDUwLjE3IEwxMDAuMDMsNDMwLjQxIEwxMDAuMDYsNDE2LjA1IEwxMDAuMTAsNDA0LjM1IEwxMDAuMTYsMzk0LjMwIEwxMDAuMjMsMzg1LjQwIEwxMDAuMzEsMzc3LjM2IEwxMDAuNDAsMzY5Ljk5IEwxMDAuNTEsMzYzLjE1IEwxMDAuNjMsMzU2Ljc2IEwxMDAuNzYsMzUwLjc0IEwxMDAuOTAsMzQ1LjA1IEwxMDEuMDYsMzM5LjY0IEwxMDEuMjMsMzM0LjQ4IEwxMDEuNDEsMzI5LjU0IEwxMDEuNjEsMzI0Ljc5IEwxMDEuODIsMzIwLjIzIEwxMDIuMDQsMzE1LjgzIEwxMDIuMjcsMzExLjU4IEwxMDIuNTIsMzA3LjQ3IEwxMDIuNzcsMzAzLjQ4IEwxMDMuMDQsMjk5LjYxIEwxMDMuMzMsMjk1Ljg1IEwxMDMuNjMsMjkyLjE5IEwxMDMuOTMsMjg4LjYzIEwxMDQuMjYsMjg1LjE1IEwxMDQuNTksMjgxLjc3IEwxMDQuOTQsMjc4LjQ2IEwxMDUuMzAsMjc1LjIyIEwxMDUuNjcsMjcyLjA2IEwxMDYuMDYsMjY4Ljk3IEwxMDYuNDYsMjY1Ljk0IEwxMDYuODcsMjYyLjk4IEwxMDcuMzAsMjYwLjA3IEwxMDcuNzQsMjU3LjIzIEwxMDguMTksMjU0LjQzIEwxMDguNjUsMjUxLjY5IEwxMDkuMTMsMjQ5LjAwIEwxMDkuNjIsMjQ2LjM2IEwxMTAuMTIsMjQzLjc2IEwxMTAuNjQsMjQxLjIxIEwxMTEuMTcsMjM4LjcxIEwxMTEuNzIsMjM2LjI0IEwxMTIuMjcsMjMzLjgyIEwxMTIuODQsMjMxLjQ0IEwxMTMuNDMsMjI5LjA5IEwxMTQuMDIsMjI2Ljc4IEwxMTQuNjQsMjI0LjUxIEwxMTUuMjYsMjIyLjI3IEwxMTUuOTAsMjIwLjA3IEwxMTYuNTUsMjE3LjkwIEwxMTcuMjEsMjE1Ljc3IEwxMTcuODksMjEzLjY2IEwxMTguNTksMjExLjU5IEwxMTkuMjksMjA5LjU1IEwxMjAuMDEsMjA3LjUzIEwxMjAuNzUsMjA1LjU1IEwxMjEuNTAsMjAzLjU5IEwxMjIuMjYsMjAxLjY2IEwxMjMuMDQsMTk5Ljc2IEwxMjMuODMsMTk3Ljg5IEwxMjQuNjMsMTk2LjA0IEwxMjUuNDUsMTk0LjIyIEwxMjYuMjksMTkyLjQyIEwxMjcuMTMsMTkwLjY1IEwxMjguMDAsMTg4LjkwIEwxMjguODgsMTg3LjE3IEwxMjkuNzcsMTg1LjQ3IEwxMzAuNjgsMTgzLjc5IEwxMzEuNjAsMTgyLjE0IEwxMzIuNTQsMTgwLjUwIEwxMzMuNDksMTc4Ljg5IEwxMzQuNDYsMTc3LjMwIEwxMzUuNDQsMTc1LjczIEwxMzYuNDQsMTc0LjE5IEwxMzcuNDUsMTcyLjY2IEwxMzguNDgsMTcxLjE1IEwxMzkuNTIsMTY5LjY3IEwxNDAuNTgsMTY4LjIwIEwxNDEuNjYsMTY2Ljc2IEwxNDIuNzUsMTY1LjMzIEwxNDMuODYsMTYzLjkyIEwxNDQuOTksMTYyLjU0IEwxNDYuMTMsMTYxLjE3IEwxNDcuMjksMTU5LjgyIEwxNDguNDYsMTU4LjQ4IEwxNDkuNjYsMTU3LjE3IEwxNTAuODYsMTU1Ljg3IEwxNTIuMDksMTU0LjU5IEwxNTMuMzMsMTUzLjMzIEwxNTQuNTksMTUyLjA5IEwxNTUuODcsMTUwLjg2IEwxNTcuMTcsMTQ5LjY2IEwxNTguNDgsMTQ4LjQ2IEwxNTkuODIsMTQ3LjI5IEwxNjEuMTcsMTQ2LjEzIEwxNjIuNTQsMTQ0Ljk5IEwxNjMuOTIsMTQzLjg2IEwxNjUuMzMsMTQyLjc1IEwxNjYuNzYsMTQxLjY2IEwxNjguMjAsMTQwLjU4IEwxNjkuNjcsMTM5LjUyIEwxNzEuMTUsMTM4LjQ4IEwxNzIuNjYsMTM3LjQ1IEwxNzQuMTksMTM2LjQ0IEwxNzUuNzMsMTM1LjQ0IEwxNzcuMzAsMTM0LjQ2IEwxNzguODksMTMzLjQ5IEwxODAuNTAsMTMyLjU0IEwxODIuMTQsMTMxLjYwIEwxODMuNzksMTMwLjY4IEwxODUuNDcsMTI5Ljc3IEwxODcuMTcsMTI4Ljg4IEwxODguOTAsMTI4LjAwIEwxOTAuNjUsMTI3LjEzIEwxOTIuNDIsMTI2LjI5IEwxOTQuMjIsMTI1LjQ1IEwxOTYuMDQsMTI0LjYzIEwxOTcuODksMTIzLjgzIEwxOTkuNzYsMTIzLjA0IEwyMDEuNjYsMTIyLjI2IEwyMDMuNTksMTIxLjUwIEwyMDUuNTUsMTIwLjc1IEwyMDcuNTMsMTIwLjAxIEwyMDkuNTUsMTE5LjI5IEwyMTEuNTksMTE4LjU5IEwyMTMuNjYsMTE3Ljg5IEwyMTUuNzcsMTE3LjIxIEwyMTcuOTAsMTE2LjU1IEwyMjAuMDcsMTE1LjkwIEwyMjIuMjcsMTE1LjI2IEwyMjQuNTEsMTE0LjY0IEwyMjYuNzgsMTE0LjAyIEwyMjkuMDksMTEzLjQzIEwyMzEuNDQsMTEyLjg0IEwyMzMuODIsMTEyLjI3IEwyMzYuMjQsMTExLjcyIEwyMzguNzEsMTExLjE3IEwyNDEuMjEsMTEwLjY0IEwyNDMuNzYsMTEwLjEyIEwyNDYuMzYsMTA5LjYyIEwyNDkuMDAsMTA5LjEzIEwyNTEuNjksMTA4LjY1IEwyNTQuNDMsMTA4LjE5IEwyNTcuMjMsMTA3Ljc0IEwyNjAuMDcsMTA3LjMwIEwyNjIuOTgsMTA2Ljg3IEwyNjUuOTQsMTA2LjQ2IEwyNjguOTcsMTA2LjA2IEwyNzIuMDYsMTA1LjY3IEwyNzUuMjIsMTA1LjMwIEwyNzguNDYsMTA0Ljk0IEwyODEuNzcsMTA0LjU5IEwyODUuMTUsMTA0LjI2IEwyODguNjMsMTAzLjkzIEwyOTIuMTksMTAzLjYzIEwyOTUuODUsMTAzLjMzIEwyOTkuNjEsMTAzLjA0IEwzMDMuNDgsMTAyLjc3IEwzMDcuNDcsMTAyLjUyIEwzMTEuNTgsMTAyLjI3IEwzMTUuODMsMTAyLjA0IEwzMjAuMjMsMTAxLjgyIEwzMjQuNzksMTAxLjYxIEwzMjkuNTQsMTAxLjQxIEwzMzQuNDgsMTAxLjIzIEwzMzkuNjQsMTAxLjA2IEwzNDUuMDUsMTAwLjkwIEwzNTAuNzQsMTAwLjc2IEwzNTYuNzYsMTAwLjYzIEwzNjMuMTUsMTAwLjUxIEwzNjkuOTksMTAwLjQwIEwzNzcuMzYsMTAwLjMxIEwzODUuNDAsMTAwLjIzIEwzOTQuMzAsMTAwLjE2IEw0MDQuMzUsMTAwLjEwIEw0MTYuMDUsMTAwLjA2IEw0MzAuNDEsMTAwLjAzIEw0NTAuMTcsMTAwLjAxIEw1MTIuMDAsMTAwLjAwIEw1NzMuODMsMTAwLjAxIEw1OTMuNTksMTAwLjAzIEw2MDcuOTUsMTAwLjA2IEw2MTkuNjUsMTAwLjEwIEw2MjkuNzAsMTAwLjE2IEw2MzguNjAsMTAwLjIzIEw2NDYuNjQsMTAwLjMxIEw2NTQuMDEsMTAwLjQwIEw2NjAuODUsMTAwLjUxIEw2NjcuMjQsMTAwLjYzIEw2NzMuMjYsMTAwLjc2IEw2NzguOTUsMTAwLjkwIEw2ODQuMzYsMTAxLjA2IEw2ODkuNTIsMTAxLjIzIEw2OTQuNDYsMTAxLjQxIEw2OTkuMjEsMTAxLjYxIEw3MDMuNzcsMTAxLjgyIEw3MDguMTcsMTAyLjA0IEw3MTIuNDIsMTAyLjI3IEw3MTYuNTMsMTAyLjUyIEw3MjAuNTIsMTAyLjc3IEw3MjQuMzksMTAzLjA0IEw3MjguMTUsMTAzLjMzIEw3MzEuODEsMTAzLjYzIEw3MzUuMzcsMTAzLjkzIEw3MzguODUsMTA0LjI2IEw3NDIuMjMsMTA0LjU5IEw3NDUuNTQsMTA0Ljk0IEw3NDguNzgsMTA1LjMwIEw3NTEuOTQsMTA1LjY3IEw3NTUuMDMsMTA2LjA2IEw3NTguMDYsMTA2LjQ2IEw3NjEuMDIsMTA2Ljg3IEw3NjMuOTMsMTA3LjMwIEw3NjYuNzcsMTA3Ljc0IEw3NjkuNTcsMTA4LjE5IEw3NzIuMzEsMTA4LjY1IEw3NzUuMDAsMTA5LjEzIEw3NzcuNjQsMTA5LjYyIEw3ODAuMjQsMTEwLjEyIEw3ODIuNzksMTEwLjY0IEw3ODUuMjksMTExLjE3IEw3ODcuNzYsMTExLjcyIEw3OTAuMTgsMTEyLjI3IEw3OTIuNTYsMTEyLjg0IEw3OTQuOTEsMTEzLjQzIEw3OTcuMjIsMTE0LjAyIEw3OTkuNDksMTE0LjY0IEw4MDEuNzMsMTE1LjI2IEw4MDMuOTMsMTE1LjkwIEw4MDYuMTAsMTE2LjU1IEw4MDguMjMsMTE3LjIxIEw4MTAuMzQsMTE3Ljg5IEw4MTIuNDEsMTE4LjU5IEw4MTQuNDUsMTE5LjI5IEw4MTYuNDcsMTIwLjAxIEw4MTguNDUsMTIwLjc1IEw4MjAuNDEsMTIxLjUwIEw4MjIuMzQsMTIyLjI2IEw4MjQuMjQsMTIzLjA0IEw4MjYuMTEsMTIzLjgzIEw4MjcuOTYsMTI0LjYzIEw4MjkuNzgsMTI1LjQ1IEw4MzEuNTgsMTI2LjI5IEw4MzMuMzUsMTI3LjEzIEw4MzUuMTAsMTI4LjAwIEw4MzYuODMsMTI4Ljg4IEw4MzguNTMsMTI5Ljc3IEw4NDAuMjEsMTMwLjY4IEw4NDEuODYsMTMxLjYwIEw4NDMuNTAsMTMyLjU0IEw4NDUuMTEsMTMzLjQ5IEw4NDYuNzAsMTM0LjQ2IEw4NDguMjcsMTM1LjQ0IEw4NDkuODEsMTM2LjQ0IEw4NTEuMzQsMTM3LjQ1IEw4NTIuODUsMTM4LjQ4IEw4NTQuMzMsMTM5LjUyIEw4NTUuODAsMTQwLjU4IEw4NTcuMjQsMTQxLjY2IEw4NTguNjcsMTQyLjc1IEw4NjAuMDgsMTQzLjg2IEw4NjEuNDYsMTQ0Ljk5IEw4NjIuODMsMTQ2LjEzIEw4NjQuMTgsMTQ3LjI5IEw4NjUuNTIsMTQ4LjQ2IEw4NjYuODMsMTQ5LjY2IEw4NjguMTMsMTUwLjg2IEw4NjkuNDEsMTUyLjA5IEw4NzAuNjcsMTUzLjMzIEw4NzEuOTEsMTU0LjU5IEw4NzMuMTQsMTU1Ljg3IEw4NzQuMzQsMTU3LjE3IEw4NzUuNTQsMTU4LjQ4IEw4NzYuNzEsMTU5LjgyIEw4NzcuODcsMTYxLjE3IEw4NzkuMDEsMTYyLjU0IEw4ODAuMTQsMTYzLjkyIEw4ODEuMjUsMTY1LjMzIEw4ODIuMzQsMTY2Ljc2IEw4ODMuNDIsMTY4LjIwIEw4ODQuNDgsMTY5LjY3IEw4ODUuNTIsMTcxLjE1IEw4ODYuNTUsMTcyLjY2IEw4ODcuNTYsMTc0LjE5IEw4ODguNTYsMTc1LjczIEw4ODkuNTQsMTc3LjMwIEw4OTAuNTEsMTc4Ljg5IEw4OTEuNDYsMTgwLjUwIEw4OTIuNDAsMTgyLjE0IEw4OTMuMzIsMTgzLjc5IEw4OTQuMjMsMTg1LjQ3IEw4OTUuMTIsMTg3LjE3IEw4OTYuMDAsMTg4LjkwIEw4OTYuODcsMTkwLjY1IEw4OTcuNzEsMTkyLjQyIEw4OTguNTUsMTk0LjIyIEw4OTkuMzcsMTk2LjA0IEw5MDAuMTcsMTk3Ljg5IEw5MDAuOTYsMTk5Ljc2IEw5MDEuNzQsMjAxLjY2IEw5MDIuNTAsMjAzLjU5IEw5MDMuMjUsMjA1LjU1IEw5MDMuOTksMjA3LjUzIEw5MDQuNzEsMjA5LjU1IEw5MDUuNDEsMjExLjU5IEw5MDYuMTEsMjEzLjY2IEw5MDYuNzksMjE1Ljc3IEw5MDcuNDUsMjE3LjkwIEw5MDguMTAsMjIwLjA3IEw5MDguNzQsMjIyLjI3IEw5MDkuMzYsMjI0LjUxIEw5MDkuOTgsMjI2Ljc4IEw5MTAuNTcsMjI5LjA5IEw5MTEuMTYsMjMxLjQ0IEw5MTEuNzMsMjMzLjgyIEw5MTIuMjgsMjM2LjI0IEw5MTIuODMsMjM4LjcxIEw5MTMuMzYsMjQxLjIxIEw5MTMuODgsMjQzLjc2IEw5MTQuMzgsMjQ2LjM2IEw5MTQuODcsMjQ5LjAwIEw5MTUuMzUsMjUxLjY5IEw5MTUuODEsMjU0LjQzIEw5MTYuMjYsMjU3LjIzIEw5MTYuNzAsMjYwLjA3IEw5MTcuMTMsMjYyLjk4IEw5MTcuNTQsMjY1Ljk0IEw5MTcuOTQsMjY4Ljk3IEw5MTguMzMsMjcyLjA2IEw5MTguNzAsMjc1LjIyIEw5MTkuMDYsMjc4LjQ2IEw5MTkuNDEsMjgxLjc3IEw5MTkuNzQsMjg1LjE1IEw5MjAuMDcsMjg4LjYzIEw5MjAuMzcsMjkyLjE5IEw5MjAuNjcsMjk1Ljg1IEw5MjAuOTYsMjk5LjYxIEw5MjEuMjMsMzAzLjQ4IEw5MjEuNDgsMzA3LjQ3IEw5MjEuNzMsMzExLjU4IEw5MjEuOTYsMzE1LjgzIEw5MjIuMTgsMzIwLjIzIEw5MjIuMzksMzI0Ljc5IEw5MjIuNTksMzI5LjU0IEw5MjIuNzcsMzM0LjQ4IEw5MjIuOTQsMzM5LjY0IEw5MjMuMTAsMzQ1LjA1IEw5MjMuMjQsMzUwLjc0IEw5MjMuMzcsMzU2Ljc2IEw5MjMuNDksMzYzLjE1IEw5MjMuNjAsMzY5Ljk5IEw5MjMuNjksMzc3LjM2IEw5MjMuNzcsMzg1LjQwIEw5MjMuODQsMzk0LjMwIEw5MjMuOTAsNDA0LjM1IEw5MjMuOTQsNDE2LjA1IEw5MjMuOTcsNDMwLjQxIEw5MjMuOTksNDUwLjE3IFoiIGZpbGw9Im5vbmUiIHN0cm9rZT0idXJsKCNyaW0pIiBzdHJva2Utd2lkdGg9IjciLz4KPC9nPgo8L3N2Zz4=';
+const B = 33, HC = 90, NO = 154, BW = 232;
+const Q = new URLSearchParams(location.search);
+const racine = document.documentElement;
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const f2 = v => Math.round(v * 100) / 100;
+const mid = t => (B - t) / 2;
+let K = 1;
+const FIGE = Q.has('fige');
+const REDUIT = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (FIGE) racine.classList.add('fige');
+
+/* ===================== forme de l'îlot (reprise de ilot-centre.html) ===================== */
+const PORTEE = 1.6, POIGNEE = 0.18;
+function cote(g, n, bw){
+  const corps = Math.max(0, g.h - B), u = Math.min(corps, 40) / 40, e = 1 - Math.pow(1 - u, 2.5);
+  const d = Math.max(0, bw - n) * e, W = n + d, serre = 1 - clamp((n - HC) / 24, 0, 1);
+  const rs = g.rs + (4 - g.rs) * serre, rbv = lerp(g.rb + (8 - g.rb) * serre, g.rb, clamp(corps / 12, 0, 1));
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6), dispo = (1 - lam) * (g.h - rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(rbv, dispo / PORTEE, W / PORTEE));
+  return {n, W, d, fe, rte, rbe, rs};
+}
+function chemin(g){
+  const h = g.h, L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd), X = f2, Y = f2;
+  const a1 = PORTEE * L.rte, c1 = POIGNEE * a1, a2 = PORTEE * L.rbe, c2 = POIGNEE * a2;
+  const b1 = PORTEE * D.rte, d1 = POIGNEE * b1, b2 = PORTEE * D.rbe, d2 = POIGNEE * b2;
+  let p = `M${X(-L.n - L.rs)} ${Y(-1)}L${X(-L.n - L.rs)} 0Q${X(-L.n)} 0 ${X(-L.n)} ${Y(L.rs)}`;
+  if (L.d > 0.5) p += `L${X(-L.n)} ${Y(B - L.fe)}Q${X(-L.n)} ${B} ${X(-L.n - L.fe)} ${B}L${X(-L.W + a1)} ${B}C${X(-L.W + c1)} ${B} ${X(-L.W)} ${Y(B + c1)} ${X(-L.W)} ${Y(B + a1)}`;
+  p += `L${X(-L.W)} ${Y(h - a2)}C${X(-L.W)} ${Y(h - c2)} ${X(-L.W + c2)} ${Y(h)} ${X(-L.W + a2)} ${Y(h)}`;
+  p += `L${X(D.W - b2)} ${Y(h)}C${X(D.W - d2)} ${Y(h)} ${X(D.W)} ${Y(h - d2)} ${X(D.W)} ${Y(h - b2)}`;
+  if (D.d > 0.5) p += `L${X(D.W)} ${Y(B + b1)}C${X(D.W)} ${Y(B + d1)} ${X(D.W - d1)} ${B} ${X(D.W - b1)} ${B}L${X(D.n + D.fe)} ${B}Q${X(D.n)} ${B} ${X(D.n)} ${Y(B - D.fe)}`;
+  p += `L${X(D.n)} ${Y(D.rs)}Q${X(D.n)} 0 ${X(D.n + D.rs)} 0L${X(D.n + D.rs)} ${Y(-1)}Z`;
+  return p;
+}
+const CLES = ['ng', 'nd', 'bw', 'bd', 'h', 'rs', 'rb', 'rt', 'f'];
+const REPOS = {ng:HC, nd:HC, bw:HC, bd:HC, h:B, rs:4, rb:8, rt:0, f:0};
+const compact = (g, d) => ({ng:g, nd:d, bw:g, bd:d, h:B, rs:6, rb:10, rt:0, f:0});
+const bandeau = (w, h, n) => ({ng:n, nd:n, bw:w, bd:w, h, rs:6, rb:30, rt:16, f:10});
+$('#encoche').setAttribute('d', chemin(REPOS));
+const HDEMO = B + 12 + 20 + 10 + 92 + 10 + 16 + 14;
+const HINFO = B + 16 + 58 + 18;
+
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = .8; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){ this.attente -= dt; if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; } }
+    const w = 2 * Math.PI / this.rep, a = w * w * (this.cible - this.x) - 2 * this.z * w * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+(function(){
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){ pts.push(x); for (let s = 0, n = Math.round((T / N) / dt); s < n; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; } }
+  pts[pts.length - 1] = 1;
+  racine.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+/* ===================== glyphes ===================== */
+const micro = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const etoile = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20">${[0, 30, 60, 90, 120, 150].map(a => `<rect x="9" y="1.5" width="2" height="17" rx="1" fill="${c}" transform="rotate(${a} 10 10)"/>`).join('')}</svg>`;
+const plateauG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M2.6 11.2 4.9 4.6A2 2 0 0 1 6.8 3.3h6.4a2 2 0 0 1 1.9 1.3l2.3 6.6v4a2 2 0 0 1-2 2H4.6a2 2 0 0 1-2-2z"/><path d="M2.8 11.2h4.1l1 2.2h4.2l1-2.2h4.1"/></svg>`;
+const guillemets = (t, c = '#fff') => `<svg width="${t}" height="${f2(t * .7)}" viewBox="-.45 -.3 3 2.1"><g fill="${c}"><path d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><path transform="translate(1.1 0)" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/></g></svg>`;
+const chevG = (t, c, d = 'g') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d === 'g' ? 'M12.5 4.5 7 10l5.5 5.5' : d === 'h' ? 'M4.5 12.5 10 7l5.5 5.5' : d === 'd' ? 'M7.5 4.5 13 10l-5.5 5.5' : 'M4.5 7.5 10 13l5.5-5.5'}"/></svg>`;
+const hautBas = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 12 12" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.6 6 2.2l2.5 2.4M3.5 7.4 6 9.8l2.5-2.4"/></svg>`;
+const doc = (t, coul = '#ff453a', lbl = 'PDF') => `<svg width="${f2(t * 0.8)}" height="${t}" viewBox="0 0 32 40"><path d="M4 1h17l10 10v26a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="#f2f2f7" stroke="rgba(0,0,0,.12)" stroke-width=".8"/><path d="M21 1v8a2 2 0 0 0 2 2h8" fill="#d1d1d6"/><rect x="5" y="24" width="22" height="9" rx="2" fill="${coul}"/><text x="16" y="31" text-anchor="middle" font-size="7" font-weight="800" fill="#fff" font-family="-apple-system,sans-serif">${lbl}</text></svg>`;
+const image = (w, h, a, b) => `<svg class="vignette" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="g${a.slice(1)}${b.slice(1)}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="${w}" height="${h}" rx="4" fill="url(#g${a.slice(1)}${b.slice(1)})"/><circle cx="${w * .72}" cy="${h * .3}" r="${h * .12}" fill="#fff" opacity=".55"/><path d="M0 ${h * .78}L${w * .35} ${h * .5}L${w * .6} ${h * .72}L${w} ${h * .55}V${h}H0z" fill="#000" opacity=".18"/></svg>`;
+const loupe = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><circle cx="6.9" cy="6.9" r="4.9"/><path d="M10.6 10.6 14.2 14.2"/></svg>`;
+const coche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.6 12.8 4.6"/></svg>`;
+const trait = (d, t = 16, c = 'currentColor', w = 1.6) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const G = {
+  aujourdhui: '<path d="M3.2 9.2 10 3.6l6.8 5.6V16a1 1 0 0 1-1 1h-3.4v-4.4H7.6V17H4.2a1 1 0 0 1-1-1z"/>',
+  reunions: '<circle cx="7" cy="7" r="2.6"/><circle cx="13.6" cy="7.6" r="2.1"/><path d="M2.4 16.2c.6-2.6 2.3-4 4.6-4s4 1.4 4.6 4M12.2 11.7c2.4-.4 4.5 1 5.2 3.8"/>',
+  bibliotheque: '<rect x="2.8" y="6.2" width="11" height="11" rx="2.2"/><path d="M6.4 3h8.4A2.2 2.2 0 0 1 17 5.2v8.4"/>',
+  mots: '<path d="M2.6 15.6 6.4 4.4h.8l3.8 11.2M4 11.6h5.6"/><path d="M17.4 15.6v-5.2a2.4 2.4 0 0 0-4.6-1M17.4 12.4c-3.4-.4-5.2.6-5.2 1.8 0 1.6 2.6 2 5.2-.2"/>',
+  decouvrir: '<path d="M7.4 14.2h5.2M8 16.8h4M6.3 11.6a5.2 5.2 0 1 1 7.4 0c-.8.8-1.1 1.4-1.1 2.6H7.4c0-1.2-.3-1.8-1.1-2.6z"/>',
+  reglages: '<circle cx="10" cy="10" r="2.6"/><path d="M10 2.6v2.2M10 15.2v2.2M2.6 10h2.2M15.2 10h2.2M4.8 4.8l1.5 1.5M13.7 13.7l1.5 1.5M4.8 15.2l1.5-1.5M13.7 6.3l1.5-1.5"/><circle cx="10" cy="10" r="5.4"/>',
+  cadenas: '<rect x="4" y="9" width="12" height="8.4" rx="2"/><path d="M6.8 9V6.6a3.2 3.2 0 0 1 6.4 0V9"/>',
+  envoi: '<path d="M10 16.4V4.2M5.4 8.6 10 4l4.6 4.6"/>',
+  main: '<path d="M7 9.6V4.4a1.3 1.3 0 0 1 2.6 0v4.8M9.6 8.6V3.4a1.3 1.3 0 0 1 2.6 0v5.4M12.2 8.8V5a1.3 1.3 0 0 1 2.6 0v6.6c0 3.2-2 5.6-5 5.6-2.4 0-3.6-1.2-5-3.4L3 11.6a1.3 1.3 0 0 1 2.1-1.5L7 12"/>',
+  clavier: '<rect x="2" y="5" width="16" height="10.4" rx="2"/><path d="M5 8.4h.1M8 8.4h.1M11 8.4h.1M14 8.4h.1M6.4 12h7.2"/>',
+  cle: '<circle cx="6.6" cy="10" r="3.4"/><path d="M10 10h7.4M14.6 10v2.6M16.8 10v1.8"/>',
+  rappel: '<circle cx="10" cy="11" r="6.2"/><path d="M10 7.6V11l2.2 1.4M3.6 4.4 6 2.4M16.4 4.4 14 2.4"/>',
+  visio: '<rect x="2.4" y="5.4" width="11" height="9.2" rx="2"/><path d="m13.4 9 4.2-2.6v7.2L13.4 11"/>',
+};
+const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
+const MENUS = {Finder:['Fichier', 'Édition', 'Présentation', 'Aller', 'Fenêtre', 'Aide'], Lucarne:['Fichier', 'Édition', 'Présentation', 'Fenêtre', 'Aide'], 'Réglages Système':['Édition', 'Présentation', 'Fenêtre', 'Aide']};
+(function(){
+  const s = d => `<span><svg viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg></span>`;
+  $('#etats').innerHTML = '<span class="heure">Mer. 11 nov.&nbsp; 14:30</span>' +
+    s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
+    s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
+    s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>';
+})();
+$$('.ic-app').forEach(i => i.src = ICONE);
+$('.sys-h span').innerHTML = chevG(13, '#b0b0b6') + chevG(13, '#d0d0d4', 'd');
+
+/* ===================== la fenêtre Lucarne : contenu ===================== */
+const PAGES = [
+  ['aujourdhui', 'Aujourd’hui', ''], ['dictees', 'Dictées', '46'], ['reunions', 'Réunions', '2'], ['bibliotheque', 'Bibliothèque', ''], ['mots', 'Mots', '1'],
+  null, ['decouvrir', 'Découvrir', ''], ['reglages', 'Réglages', '']];
+$('#nav').innerHTML = PAGES.map(p => p ? `<button data-page="${p[0]}">${p[0] === 'dictees' ? guillemets(16, 'currentColor') : trait(G[p[0]])}${p[1]}${p[2] ? `<span class="nb${p[0] === 'mots' ? ' pastille' : ''}">${p[2]}</span>` : ''}</button>` : '<div class="nav-sep"></div>').join('');
+
+const ent = (t, p) => `<header class="pg-h"><h1>${t}</h1><p>${p}</p></header>`;
+const barresH = [2, 5, 9, 14, 11, 6, 4, 8, 12, 7, 3, 1];
+const PERS = {moi:['Moi', '#8a8f98'], claire:['Claire Morel', '#c98b5a'], marc:['Marc Lefèvre', '#6f93c4'], ines:['Inès Garnier', '#7fae86']};
+
+const AUJOURDHUI = `<section class="pg" data-pg="aujourdhui">
+  <div class="au-date">Aujourd’hui · mercredi 11 novembre</div>
+  <p class="au-phrase">46 dictées, environ 50 minutes gagnées sur le clavier. Une réunion à 15 h, et Claude travaille sur deux projets.</p>
+  <div class="tuiles">
+    <div class="tu boite"><div class="tu-h">${guillemets(13, 'currentColor')}Dictées<span class="lien" data-page="dictees">Voir</span></div>
+      <div class="tu-v"><b>46</b><span>2 840 mots</span></div>
+      <div class="barres">${barresH.map(h => `<i class="${h === 14 ? 'max' : ''}" style="height:${h / 14 * 100}%"></i>`).join('')}</div></div>
+    <div class="tu boite" id="tuReu"><div class="tu-h">${trait(G.visio, 13)}Prochaine réunion</div>
+      <div class="tu-ser">Point fournisseur emballages</div><div class="tu-s">15:00 · Google Meet · dans 30 min</div>
+      <div class="tu-n">Lucarne te prévient 10 min avant, puis te propose « Rejoindre » et « Noter ».</div></div>
+    <div class="tu boite"><div class="tu-h">${etoile(12, '#e8835c')}Claude Code</div>
+      <div class="cl-r">${etoile(14, '#e8835c')}dictee-mac<em>3 sur 7</em></div><div class="cl-b"><b></b></div>
+      <div class="cl-r"><span style="width:14px;display:grid;place-items:center"><i style="width:8px;height:8px;border-radius:50%;background:var(--accent);display:block"></i></span>second-cerveau<em class="att">attend ta réponse</em></div></div>
+    <div class="tu boite"><div class="tu-h">${plateauG(13, 'currentColor')}Étagère<span class="lien" data-page="bibliotheque">Tout voir</span></div>
+      <div class="fichiers"><div>${doc(40)}<span>Devis-Brume</span></div><div>${image(40, 40, '#e7b07a', '#a8623a')}<span>Atelier.jpg</span></div><div>${doc(40, '#0a84ff', 'DOC')}<span>Contrat</span></div></div></div>
+    <div class="tu boite"><div class="tu-h">${trait('<rect x="2" y="6" width="14" height="8" rx="2"/><path d="M18 9v2"/>', 13)}Batterie</div>
+      <div class="bat"><div>MacBook Air<em>82 %</em></div><i><b style="width:82%"></b></i></div>
+      <div class="bat"><div>AirPods Pro<em>64 %</em></div><i><b style="width:64%"></b></i></div></div>
+    <div class="tu boite"><div class="tu-h">${trait(G.rappel, 13)}Minuteur et réveil</div>
+      <div class="tu-ser">Réveil demain à 7:30</div><div class="tu-s">Le Mac reste éveillé jusqu’à 16:00.</div>
+      <div class="tu-n">Dis « minuteur 10 minutes » ou « réveille-moi à 9 h ».</div></div>
+  </div>
+  <div class="fait-h"><b>Ce que Lucarne a fait aujourd’hui</b></div>
+  <div class="fl"><span class="h">14:31</span><span class="g">${trait(G.reunions, 13)}</span><span class="x">Noté la réunion <i>« Lancement de la boutique en ligne »</i>, 29 min</span><span class="lien" data-page="reunions">Ouvrir</span></div>
+  <div class="fl"><span class="h">11:40</span><span class="g">${plateauG(13, 'currentColor')}</span><span class="x">Gardé 2 fichiers sur l’étagère, dont un reçu par AirDrop</span><span class="lien" data-page="bibliotheque">Voir</span></div>
+  <div class="fl"><span class="h">10:05</span><span class="g">${trait(G.mots, 13)}</span><span class="x">Appris un nouveau nom : <i>Brume</i></span><span class="lien" data-page="mots">Vérifier</span></div>
+</section>`;
+
+const DICTEES = [['Aujourd’hui', [['14:26', 'Bonjour Claire, je te confirme la mise en ligne le 2 décembre, si les textes arrivent avant le 25.', 'Mail'],
+  ['13:58', 'Ajoute un test pour la bibliothèque quand le fichier a été supprimé du disque.', 'Claude'],
+  ['12:40', 'J’arrive dans dix minutes, garde-moi une place.', 'WhatsApp'],
+  ['11:15', 'Idées pour la page d’accueil : photos plus claires, avis sous les produits.', 'Notes'],
+  ['10:02', 'Merci pour le devis, on part sur l’option complète.', 'Mail']]],
+  ['Hier', [['18:44', 'Bien arrivé, je t’appelle ce soir.', 'Messages'], ['16:20', 'Peux-tu m’envoyer les photos de l’atelier en grand format ?', 'Mail']]]];
+const PG_DICTEES = `<section class="pg" data-pg="dictees">${ent('Dictées', 'Tout ce que tu as dicté, gardé sur ce Mac. Un clic recopie ; « Coller » l’écrit là où tu étais.')}
+  <div class="di-barre"><div class="champ">${loupe(13, 'currentColor')}Rechercher dans tes dictées</div><div class="puces"><span class="on">Tout</span><span>Mail</span><span>Claude</span><span>Messages</span></div></div>
+  ${DICTEES.map(([g, l]) => `<div class="di-g">${g}</div>${l.map(([h, x, a]) => `<div class="di-l"><span class="h">${h}</span><span class="x">${x}</span><span class="a">${a}</span></div>`).join('')}`).join('')}
+</section>`;
+
+const qui = k => `<span style="--c:${PERS[k][1]}"><i></i>${PERS[k][0]}</span>`;
+const PG_REUNIONS = `<section class="pg pg-reu" data-pg="reunions">
+  <div class="reu-l">${ent('Réunions', 'Un clic sur « Noter » dans l’encoche : Lucarne écrit la note pour toi.')}
+    <div class="champ">${loupe(13, 'currentColor')}Rechercher</div>
+    <div class="demander">${trait('<path d="M3.4 9.6a6.6 6.6 0 1 1 3 5.5L3 16.4l1-3.2a6.5 6.5 0 0 1-.6-3.6z"/>', 14, 'var(--accent)')}Demander à mes réunions</div>
+    <div class="reu-g">Aujourd’hui</div>
+    <div class="reu-r sel"><b>Lancement de la boutique en ligne</b><span>14:02 · 29 min · 4 personnes</span></div>
+    <div class="reu-g">Lundi 9 novembre</div>
+    <div class="reu-r"><b>Point fournisseur emballages</b><span>10:30 · 18 min · 2 personnes</span></div>
+    <div class="reu-g">Jeudi 5 novembre</div>
+    <div class="reu-r"><b>Appel avec la comptable</b><span>16:00 · 42 min · 2 personnes</span></div>
+    <div class="reu-r"><b>Visite de l’atelier</b><span>9:15 · 25 min · 3 personnes</span></div>
+  </div>
+  <div class="reu-n">
+    <div class="n-act"><span>Copier</span><span>Exporter</span></div>
+    <h2 class="n-titre">Lancement de la boutique en ligne</h2>
+    <div class="n-meta">Mercredi 11 novembre · 14:02 – 14:31 · 29 min</div>
+    <div class="gens">${['claire', 'marc', 'ines', 'moi'].map(qui).join('')}</div>
+    <p class="n-bref">La page d’accueil est validée et le site sortira le 2 décembre, si les textes arrivent avant le 25 novembre.</p>
+    <div class="n-cols">
+      <div><div class="h5">Résumé par sujet</div>
+        <h3>Page d’accueil</h3><ul class="n-ul"><li>Claire valide la maquette, le bouton « Commander » passe en vert</li><li>Les avis clients passent sous les photos</li></ul>
+        <h3>Date de mise en ligne</h3><ul class="n-ul"><li>Marc met le site en ligne le 2 décembre</li><li>Paiement en trois fois en janvier</li></ul></div>
+      <div><div class="h5">Décisions</div>
+        <div class="n-dec">${coche(14, '#8fcf9a')}Mise en ligne le 2 décembre</div>
+        <div class="n-dec">${coche(14, '#8fcf9a')}Bouton « Commander » en vert</div>
+        <div class="h5" style="margin-top:14px">Qui fait quoi</div>
+        <div class="n-pe"><i class="case"></i><div>Écrire les 40 fiches produits<em>Moi · lun. 16 nov.</em></div></div>
+        <div class="n-pe"><i class="case"></i><div>Réserver la séance photo<em>Inès · avant le 20 nov.</em></div></div></div>
+    </div>
+    <div class="n-bas"><div class="champ" id="nDem">${trait('<path d="M3.4 9.6a6.6 6.6 0 1 1 3 5.5L3 16.4l1-3.2a6.5 6.5 0 0 1-.6-3.6z"/>', 14)}Demander à cette réunion… « Qui s’occupe des photos ? »</div><span class="tr">Transcription · 29 min ${chevG(10, 'currentColor', 'd').replace('<svg', '<svg style="display:inline;vertical-align:-1px"')}</span></div>
+  </div>
+</section>`;
+
+const FICHIERS = [
+  ['Devis-Brume.pdf', doc(50), 'Étagère', 'aujourd’hui', 'etagere', true],
+  ['Atelier-lumiere.jpg', image(70, 50, '#e7b07a', '#a8623a'), 'AirDrop', 'aujourd’hui', 'airdrop', true],
+  ['Contrat-signé.docx', doc(50, '#0a84ff', 'DOC'), 'Téléchargé', 'aujourd’hui', 'telecharge'],
+  ['Capture 14.12.png', image(70, 46, '#c7d3e6', '#7d8fb0'), 'Capture', 'aujourd’hui', 'capture'],
+  ['Photos-produits.zip', doc(50, '#8e8e93', 'ZIP'), 'Étagère', 'hier', 'etagere'],
+  ['Facture-octobre.pdf', doc(50), 'Téléchargé', 'hier', 'telecharge'],
+  ['Vitrine.heic', image(70, 50, '#9fc3a4', '#4f7a5a'), 'AirDrop', 'hier', 'airdrop'],
+  ['Planning-hiver.xlsx', doc(50, '#30a14e', 'XLS'), 'Étagère', 'lun.', 'etagere'],
+  ['Capture 09.40.png', image(70, 46, '#d9cbe0', '#8f7f9e'), 'Capture', 'lun.', 'capture'],
+  ['Logo-carré.png', image(50, 50, '#f2d27a', '#d09a3a'), 'Étagère', 'lun.', 'etagere'],
+];
+const PG_BIBLIO = `<section class="pg" data-pg="bibliotheque">${ent('Bibliothèque', 'Tout ce qui est passé par l’étagère, et ce que tu reçois. Glisse un fichier vers l’encoche pour l’ajouter.')}
+  <div class="bi-barre"><div class="champ">${loupe(13, 'currentColor')}Rechercher</div>
+    <div class="puces" id="biPuces"><span class="on" data-f="tout">Tout</span><span data-f="etagere">Étagère</span><span data-f="telecharge">Téléchargés</span><span data-f="airdrop">AirDrop</span><span data-f="capture">Captures</span></div></div>
+  <div class="bi-g"><b>Cette semaine</b><span class="h5">10 fichiers · des liens vers tes fichiers, pas des copies</span></div>
+  <div class="grille" id="biGrille">${FICHIERS.map((f, i) => `<div class="fi" data-src="${f[4]}" data-i="${i}">${f[5] ? `<span class="epingle">${trait('<path d="M7 3h6l-1 5 3 3H5l3-3zM10 11v6"/>', 12)}</span>` : ''}<div class="ic">${f[1]}</div><b>${f[0]}</b><span>${f[2]} · ${f[3]}</span><div class="actions"><i>Ouvrir</i><i>Glisser</i></div></div>`).join('')}</div>
+</section>`;
+
+const PG_MOTS = `<section class="pg" data-pg="mots">${ent('Mots', 'Ce que Lucarne a appris de tes corrections : les noms bien écrits, et tes expressions.')}
+  <div class="mo-g">
+    <div class="boite mo-b"><h3>Noms à retenir<span>6</span></h3>
+      <div class="noms"><span>Brume</span><span>Inès Garnier</span><span>Claire Morel</span><span>Marc Lefèvre</span><span>Atelier Lilas</span><span>Zorbal</span></div>
+      <div class="valider">Tu as corrigé « brume » en <b>« Brume »</b> trois fois. Lucarne l’écrit toujours comme ça ?
+        <div class="bts"><button class="bt">Oui, retenir</button><button class="bt creux">Non</button></div></div></div>
+    <div class="boite mo-b"><h3>Tes expressions<span>dis-les, Lucarne écrit la suite</span></h3>
+      <div class="expr"><q>mon adresse</q><span>→</span><b>12 rue des Lilas, 69003 Lyon</b></div>
+      <div class="expr"><q>ma signature</q><span>→</span><b>Belle journée, Léo</b></div>
+      <div class="expr"><q>le lien visio</q><span>→</span><b>meet.google.com/abc-defg-hij</b></div>
+      <div class="expr" style="border:0"><span class="lien">Ajouter une expression</span></div></div>
+  </div>
+</section>`;
+
+const DECOUVRIR = [
+  {k:'fn', c:'k-fn', t:'Dicter avec fn', p:'Tiens fn, parle, relâche. Le texte s’écrit là où est ton curseur, dans n’importe quelle app.', o:'dictees',
+   m:'<div class="mn"><div class="m-ai" style="right:7px"><i></i><i></i><i></i><i></i></div></div><div class="m-cle">fn</div><div class="m-fen"><span>Bonjour Claire,</span></div>', d:-1.2},
+  {k:'centre', c:'k-centre', t:'La Lucarne et le Centre', p:'Survole l’encoche : elle s’ouvre. Le Centre réunit micro, minuteur, étagère et Claude.', o:null,
+   m:'<div class="mn"></div><div class="ronds"><i></i><i></i><i></i><i></i></div><svg class="mfl" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.6"/></svg>', d:-1.8},
+  {k:'dictees', c:'k-dict', t:'Tes dictées, partout', p:'Tout ce que tu as dicté, à recopier en un clic : dans l’encoche ou dans cette fenêtre.', o:'dictees',
+   m:'<div class="mn"><i class="sel"></i><i class="m-li" style="left:12px;width:84px;top:11px"></i><i class="m-li" style="left:12px;width:66px;top:24px"></i><i class="m-li" style="left:12px;width:78px;top:37px"></i><i class="copie">Copié</i></div>', d:-1.1},
+  {k:'claude', c:'k-claude', t:'Claude Code', p:'L’encoche suit tes sessions : la tâche en cours, et qui attend ta réponse.', o:'aujourdhui',
+   m:`<div class="mn"><span class="etoile">${etoile(8, '#e8835c')}</span><span class="m-txt" style="right:7px">3/7</span></div><div class="m-fen"><div class="t">dictee-mac · écrit les tests</div><div class="barre"><b></b></div></div>`, d:-1.6},
+  {k:'etagere', c:'k-eta', t:'L’étagère et AirDrop', p:'Glisse un fichier vers l’encoche : il t’attend là. Ou lâche-le sur AirDrop, vers ton iPhone.', o:'bibliotheque',
+   m:`<div class="mn"><div class="zz"><i></i><i></i></div><i class="pile"></i></div><div class="doc">${doc(22)}</div>`, d:-1.5},
+  {k:'biblio', c:'k-bib', t:'La bibliothèque', p:'Tout ce qui est passé par l’étagère, tes téléchargements et AirDrop, rangé ici.', o:'bibliotheque',
+   m:`<div class="mn"></div><div class="m-fen">${['#e7b07a', '#d9dde5', '#9fc3a4', '#c7d3e6', '#f2d27a', '#ff8a7a', '#d9cbe0', '#e7b07a', '#a9c1e8', '#d9dde5'].map((c, i) => `<i style="background:${c};animation-delay:${i * .12}s"></i>`).join('')}</div>`, d:-2},
+  {k:'outils', c:'k-out', t:'Les outils', p:'Garder le Mac éveillé, retrouver un copié, reformuler un texte, prendre une note.', o:null,
+   m:'<div class="mn"><div class="ronds"><i></i><i></i><i></i><i></i></div></div>', d:-.5},
+  {k:'visio', c:'k-vis', t:'Réveil et visio', p:'« Réveille-moi à 9 h », à la voix. Avant une réunion, un bandeau, puis « Rejoindre ».', o:null,
+   m:'<div class="mn"><span class="m-txt heure">9:00</span><div class="rej"><i>Rejoindre</i><i>Noter</i></div></div>', d:-2.8},
+  {k:'reunion', c:'k-reu', t:'Noter une réunion', p:'Un clic, et Lucarne écoute. À la fin : l’essentiel, les décisions, qui fait quoi.', o:'reunions',
+   m:'<div class="mn"><i class="pr"></i><span class="m-txt" style="right:7px;color:#ff8a82">12:04</span></div><div class="m-fen"><div class="ph" style="--q:#c98b5a"><b></b><i style="width:70px"></i></div><div class="ph" style="--q:#8a8f98"><b></b><i style="width:52px"></i></div><div class="ph" style="--q:#6f93c4"><b></b><i style="width:80px"></i></div></div>', d:-2.2},
+];
+const PG_DECOUVRIR = `<section class="pg" data-pg="decouvrir">${ent('Découvrir', 'Tout ce que fait Lucarne, en neuf petites scènes. « Montrer » le fait faire à la vraie encoche, juste au-dessus.')}
+  <div class="de-grille">${DECOUVRIR.map(d => `<div class="de boite" data-de="${d.k}"><div class="mini ${d.c}" style="--dl:${d.d}s">${d.m}</div><h3>${d.t}</h3><p>${d.p}</p>
+    <div class="de-act"><button class="montrer" data-montrer="${d.k}">${trait('<path d="M6.4 4.6v10.8L15.4 10z" fill="currentColor"/>', 11)}Montrer</button>${d.o ? `<span class="lien" data-page="${d.o}">Ouvrir</span>` : ''}</div></div>`).join('')}</div>
+</section>`;
+
+const sw = (on, id = '') => `<span class="sw${on ? ' on' : ''}"${id ? ` id="${id}"` : ''}></span>`;
+const pop = v => `<span class="pop">${v}${hautBas(11, 'currentColor')}</span>`;
+const rg = (t, s, droite) => `<div class="rg"><div class="t"><b>${t}</b><span>${s}</span></div>${droite}</div>`;
+const fnD = (mot) => `<span class="fnt">${mot}<span class="fn">fn</span></span>`;
+const PUCE = (c) => `<svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="2.6" fill="${c}"/></svg>`;
+const PG_REGLAGES = `<section class="pg" data-pg="reglages">
+  ${ent('Réglages', 'Peu de réglages, et chacun dit ce qu’il fait.')}
+  <div class="segm" id="segm"><button data-onglet="dictee" class="on">Dictée</button><button data-onglet="lucarne">Lucarne</button><button data-onglet="confidentialite">Confidentialité</button><button data-onglet="compte">Compte</button></div>
+  <div class="re-p on" data-re="dictee"><p class="re-ex"><b>Dictée.</b> Comment tu parles à ton Mac, et ce que Lucarne fait du texte avant de l’écrire.</p>
+    <div class="boite">
+      ${rg('Dicter', 'Tiens fn, parle, relâche : le texte s’écrit là où est ton curseur.', fnD('Tenir'))}
+      ${rg('Mains libres', 'Deux appuis sur fn : tu parles sans tenir la touche. Un appui pour finir.', sw(true))}
+      ${rg('Micro', 'Automatique : celui du Mac quand un casque Bluetooth est branché.', pop('Automatique'))}
+      ${rg('Langue', 'La langue que tu parles.', pop('Français'))}
+      ${rg('Remettre au propre', 'Ajoute la ponctuation, retire les « euh » et les répétitions.', sw(true))}
+      ${rg('Adapter le ton à l’app', 'Plus soigné dans Mail, plus court dans WhatsApp.', sw(true))}
+      ${rg('Sons', 'Un petit son quand tu commences, et quand le texte est écrit.', sw(true))}
+    </div></div>
+  <div class="re-p" data-re="lucarne"><p class="re-ex"><b>Lucarne.</b> Ce que l’encoche te montre. Éteins ce qui ne te sert pas ; « Découvrir » montre chaque chose en vrai.</p>
+    <div class="re-2">
+      <div class="boite">${rg('Lecture en cours', 'Musique et vidéos : image, titre, pause.', sw(true))}${rg('Étagère et AirDrop', 'Glisse un fichier vers l’encoche, il t’attend là.', sw(true))}${rg('Téléchargements', 'Un fichier arrive : son nom, et « Ouvrir ».', sw(true))}${rg('Claude Code', 'Où en sont tes sessions, qui attend ta réponse.', sw(true))}${rg('Batterie et appareils', 'Le Mac et tes AirPods, quand l’encoche s’ouvre.', sw(true))}</div>
+      <div class="boite">${rg('Calendrier et visio', '10 min avant, un bandeau ; à l’heure, « Rejoindre ».', sw(true))}${rg('Proposer de noter les appels', 'Quand une visio prend le micro. Rien sans ton clic.', sw(true))}${rg('Minuteur et réveil', 'Depuis le Centre, ou à la voix.', sw(true))}${rg('Outils', 'Garder éveillé, presse-papiers, reformuler, note.', sw(true))}${rg('Volume et luminosité', 'Affichés dans l’encoche, plus au milieu de l’écran.', sw(false))}</div>
+    </div></div>
+  <div class="re-p" data-re="confidentialite"><p class="re-ex"><b>Confidentialité.</b> En clair : presque tout reste sur ton Mac. Une seule chose part, et seulement quand tu parles à Lucarne.</p>
+    <div class="co-2">
+      <div class="boite co-b"><h3><i style="background:rgba(95,208,122,.16);color:#5fd07a">${trait(G.cadenas, 15)}</i>Reste sur ce Mac</h3><ul>
+        <li>${coche(14, '#5fd07a')}<div>Tes dictées et leur historique</div></li>
+        <li>${coche(14, '#5fd07a')}<div>Tes réunions : les notes, et le son <span>si tu choisis de le garder</span></div></li>
+        <li>${coche(14, '#5fd07a')}<div>Les mots appris et tes expressions</div></li>
+        <li>${coche(14, '#5fd07a')}<div>L’étagère et la Bibliothèque <span>(des liens, pas des copies)</span></div></li>
+        <li>${coche(14, '#5fd07a')}<div>Claude Code, ton calendrier, tes rappels, ta clé Groq</div></li></ul></div>
+      <div class="boite co-b"><h3><i style="background:rgba(230,160,74,.16);color:var(--accent)">${trait(G.envoi, 15)}</i>Part chez Groq, et rien d’autre</h3><ul>
+        <li>${PUCE('#e6a04a')}<div>Le son de ta dictée, pour l’écrire <span>(seulement pendant que tu tiens fn)</span></div></li>
+        <li>${PUCE('#e6a04a')}<div>Le texte, pour le remettre au propre <span>et le nom de l’app, pour le ton</span></div></li>
+        <li>${PUCE('#e6a04a')}<div>Après une réunion notée : le son, pour la transcription et la note</div></li>
+        <li>${PUCE('#e6a04a')}<div>Le texte que tu demandes de reformuler</div></li></ul></div>
+    </div>
+    <div class="boite co-rien">${trait(G.main, 18, '#ece9e3')}<div>Pas de compte Lucarne, pas de publicité, aucun suivi.<span> Tu peux tout effacer dans Compte.</span></div></div>
+    <p class="co-pied">Pour être complet : Lucarne demande à GitHub s’il existe une nouvelle version, et charge chez YouTube l’image de la vidéo qui joue. Rien sur toi n’est envoyé dans ces deux cas.</p></div>
+  <div class="re-p" data-re="compte"><p class="re-ex"><b>Compte.</b> Ta clé, les accès de macOS, et ce Mac.</p>
+    <div class="boite">
+      ${rg('Clé Groq', 'Sert à écrire ta voix. Enregistrée sur ce Mac.', '<span class="pop">Modifier</span>')}
+      ${rg('Accès macOS', 'Micro, écrire dans tes apps, touche fn : 3 sur 3.', `<span class="fnt" style="color:#5fd07a">${coche(13, '#5fd07a')}Tout est bon</span>`)}
+      ${rg('Ouvrir au démarrage', 'Lucarne prête dès que le Mac s’allume.', sw(false))}
+      ${rg('Historique', '46 dictées aujourd’hui, 1 204 en tout, gardées sur ce Mac.', '<span class="pop">Effacer…</span>')}
+      ${rg('Revoir la mise en route', 'Les quatre réglages du premier lancement, et l’essai.', '<span class="pop">Revoir</span>')}
+      ${rg('Lucarne 0.4', 'À jour. Désinstaller enlève tout, réglages compris.', '<span class="pop">Désinstaller…</span>')}
+    </div></div>
+</section>`;
+$('#corps').innerHTML = AUJOURDHUI + PG_DICTEES + PG_REUNIONS + PG_BIBLIO + PG_MOTS + PG_DECOUVRIR + PG_REGLAGES;
+$$('.mini').forEach(m => m.querySelectorAll('*').forEach(e => { if (getComputedStyle(e).animationName !== 'none') e.style.animationDelay = `calc(${getComputedStyle(e).animationDelay.split(',')[0]} + ${m.style.getPropertyValue('--dl')})`; }));
+
+/* ===================== l'accueil : contenu ===================== */
+const SAVOIR = [['Dicter avec fn', micro(13, 'currentColor')], ['Noter tes réunions', '<i class="point-r" style="width:8px;height:8px;animation:none"></i>'], ['Garder tes fichiers', plateauG(14, 'currentColor')], ['Suivre Claude', etoile(12, '#e8835c')]];
+$('#savoir').innerHTML = SAVOIR.map(s => `<span>${s[1]}${s[0]}</span>`).join('');
+const PAS = [['micro', 'Le micro'], ['acces', 'Écrire dans tes apps'], ['fn', 'La touche fn'], ['groq', 'La clé Groq'], ['essai', 'Essayer']];
+$('#pasL').innerHTML = PAS.map((p, i) => `<li data-p="${p[0]}"><span class="rond"><span class="n">${i + 1}</span><svg viewBox="0 0 12 12"><path d="M2.6 6.3 5 8.6l4.4-5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>${p[1]}</li>`).join('');
+const CARTES = {
+  micro:{n:1, g:micro(24, '#ece9e3'), t:'Le micro', p:'Pour t’entendre quand tu dictes. Il n’écoute que pendant que tu tiens fn, jamais le reste du temps.', b:'Autoriser le micro', ok:'Le micro est prêt'},
+  acces:{n:2, g:trait(G.main, 26, '#ece9e3'), t:'Écrire dans tes apps', p:'macOS appelle ça « Accessibilité ». Lucarne s’en sert pour poser le texte là où est ton curseur : Mail, Notes, WhatsApp…', b:'Ouvrir Réglages Système', ok:'Lucarne peut écrire'},
+  fn:{n:3, g:trait(G.clavier, 26, '#ece9e3'), t:'La touche fn', p:'Sur ton Mac, fn ouvre aussi les émojis. On la laisse à Lucarne : pour la touche 🌐, choisis « Ne rien faire ».', b:'Ouvrir le volet Clavier', ok:'fn est à toi'},
+  groq:{n:4, g:trait(G.cle, 26, '#ece9e3'), t:'La clé Groq', p:'Groq change ta voix en texte, en moins d’une seconde. La clé est gratuite pour commencer, et reste sur ce Mac.', b:'Coller ma clé', ok:'Clé vérifiée'},
+};
+
+/* ===================== l'îlot : contenus ===================== */
+const contenu = $('#contenu'), c = {};
+function place(nom, x, y, html, cls = ''){ const n = document.createElement('div'); n.className = 'c e ' + cls; n.style.left = (500 + x) + 'px'; n.style.top = y + 'px'; n.innerHTML = html; contenu.appendChild(n); c[nom] = n; }
+const ICO_ILOT = `<img src="${ICONE}" alt="">`;
+place('naitre', -32, B + (150 - B - 64) / 2, ICO_ILOT, 'naitre');
+place('micG', -126, mid(16), micro(16, '#fff'));
+place('onde', 104, mid(14), '<div class="eq"><i></i><i></i><i></i><i></i><i></i></div>');
+place('okD', 104, mid(16), coche(16, '#5fe08a'));
+place('recG', -124, mid(10), '<i class="point-r" style="display:block"></i>');
+place('recD', 95, mid(17), '<div class="aile" style="color:#ff8a82">12:04</div>');
+place('etaG', -128, mid(17), `<div class="aile">${plateauG(15)}<span id="etaN">2</span></div>`);
+place('clG', -126, mid(16), `<div class="tourne" style="width:16px;height:16px">${etoile(16, '#e8835c')}</div>`);
+place('clD', 101, mid(17), '<div class="aile">3/7</div>');
+place('dmTete', -216, B + 12, `<div class="dm-tete"><span class="dm-pil">Démonstration</span><span class="t15">L’étagère</span><span class="t125" style="margin-left:auto">Lucarne le fait pour toi</span></div>`);
+place('dmZones', -216, B + 12 + 20 + 10, `<div class="dm-zones"><div class="zone" id="zEta"><div class="vide" style="display:contents">${plateauG(24)}<b>Étagère</b><span>Garde-le ici</span></div>
+  <div class="rangé">${doc(30)}<div><b style="display:block;font-size:13px">Devis-Brume.pdf</b><span>rangé · 84 Ko</span></div></div></div>
+  <div class="zone" id="zAir">${trait('<circle cx="10" cy="11" r="1.6" fill="#fff"/><path d="M6.6 14.4a4.8 4.8 0 1 1 6.8 0M4.2 16.8a8.2 8.2 0 1 1 11.6 0"/>', 26, '#5eb0ff', 1.7)}<b>AirDrop</b><span>Vers ton iPhone</span></div></div>`);
+place('dmPied', -216, B + 12 + 20 + 10 + 92 + 10, '<div class="t125">Pour de vrai : glisse un fichier vers l’encoche.</div>');
+place('info', -195, B + 16, '<div class="info"><div class="ig" id="infoG"></div><div><div class="t15" id="infoT"></div><p id="infoP"></p></div></div>');
+
+/* ===================== moteur (repris de ilot-centre.html) ===================== */
+let jeton = 0, instant = false, enCoursN = 0, cibleN = 0, auto = false;
+const minuteries = new Set();
+function apres(t, fn){ const id = setTimeout(() => { minuteries.delete(id); fn(); }, t * 1000 * K); minuteries.add(id); return id; }
+function annuler(){ minuteries.forEach(clearTimeout); minuteries.clear(); }
+function suite(){ const j = jeton; return Promise.resolve().then(() => { if (j !== jeton) throw 'stop'; }); }
+function attendre(t){ if (instant) return suite(); const j = jeton; return new Promise((ok, ko) => apres(t, () => (j === jeton ? ok() : ko('stop')))); }
+function tween(duree, fn){
+  if (instant){ fn(1); return suite(); }
+  const j = jeton, t0 = performance.now();
+  return new Promise((ok, ko) => { const pas = () => { if (j !== jeton) return ko('stop'); const u = clamp((performance.now() - t0) / (duree * 1000 * K), 0, 1); fn(u); if (u < 1) requestAnimationFrame(pas); else ok(); }; pas(); });
+}
+const fin = () => instant && enCoursN === cibleN;
+const forme = $('#forme'), ombre = $('#ombre');
+const R = {}; CLES.forEach(k => R[k] = new Ressort(REPOS[k]));
+const TOUS = CLES.map(k => R[k]);
+let cible = {...REPOS}, enCours = false, tPrec = 0;
+function ilot(g, o = {}){
+  const grand = (g.bw + g.bd) * g.h >= (cible.bw + cible.bd) * cible.h - .5;
+  const rep = o.rep ?? (grand ? .46 : .38), z = o.z ?? (grand ? .78 : 1), att = o.attente ?? (grand ? 0 : .06);
+  cible = {...g};
+  for (const k of CLES){ if (instant) R[k].poser(g[k]); else { const haut = k === 'h' && grand; R[k].viser(g[k], haut ? rep * 1.06 : rep, z, att + (haut ? .02 : 0)); } }
+  demarrer();
+}
+function montre(noms, d = .14){
+  const vus = new Set(noms);
+  for (const nom in c){ const n = c[nom], on = vus.has(nom); if (on && !n.classList.contains('on')) n.style.setProperty('--d', d + 's'); n.classList.toggle('on', on); }
+}
+function demarrer(){ if (FIGE || instant){ rendu(); return; } if (!enCours){ enCours = true; tPrec = performance.now(); requestAnimationFrame(boucle); } }
+function boucle(){
+  const t = performance.now(), dt = clamp((t - tPrec) / 1000, 0, .05) / K; tPrec = t;
+  const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+  for (let i = 0; i < n; i++) for (const r of TOUS) r.pas(h);
+  let bouge = false; for (const r of TOUS) if (!r.pose()) bouge = true;
+  rendu();
+  if (bouge) requestAnimationFrame(boucle); else enCours = false;
+}
+function rendu(){
+  const g = {}; for (const k of CLES) g[k] = R[k].x;
+  forme.setAttribute('d', chemin(g));
+  const a = clamp((g.h - B - 6) / 40, 0, 1);
+  ombre.style.filter = a > .01 ? `drop-shadow(0 ${(9 * a).toFixed(1)}px ${(18 * a).toFixed(1)}px rgba(10,20,40,${(.32 * a).toFixed(3)}))` : 'none';
+}
+
+/* ===================== l'écran ===================== */
+const ecran = $('#ecran'), pointeur = $('#pointeur'), pad = $('#pad'), alerte = $('#alerte'), envolEl = $('#envol'), vol = $('#vol');
+const F = {app:$('[data-f="app"]'), accueil:$('[data-f="accueil"]'), sys:$('[data-f="sys"]')};
+let ordre = ['app', 'accueil', 'sys'];
+function devant(nom){
+  ordre = ordre.filter(n => n !== nom).concat(nom);
+  ordre.forEach((n, i) => { F[n].style.zIndex = i + 1; F[n].classList.toggle('arriere', n !== nom); });
+  const app = nom === 'sys' ? 'Réglages Système' : nom ? 'Lucarne' : 'Finder';
+  $('#menus').innerHTML = POMME + `<b>${app}</b>` + MENUS[app].map(m => `<span>${m}</span>`).join('');
+}
+function fenetre(nom, vu){ F[nom].classList.toggle('cache', !vu); }
+function question(vu){ alerte.classList.toggle('cache', !vu); }
+const XR = dx => ecran.clientWidth / 2 + dx;
+function ou(el){ const r = el.getBoundingClientRect(), e = ecran.getBoundingClientRect(); return [r.left + r.width / 2 - e.left, r.top + r.height / 2 - e.top]; }
+function cur(x, y, o = {}){
+  const saute = instant || o.saute;
+  pointeur.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
+  pointeur.style.transform = `translate(${f2(x)}px,${f2(y)}px)`;
+  if (saute){ void pointeur.offsetWidth; pointeur.style.transition = ''; }
+  pointeur.classList.toggle('vu', o.vu !== false);
+}
+async function va(x, y, d = .75){ cur(x, y, {duree:d}); await attendre(d); }
+async function vers(el, d = .75, dx = 0, dy = 0){ const [x, y] = ou(el); await va(x + dx - 3, y + dy - 3, d); }
+function geste(mode){ pad.className = 'pad' + (mode ? ' ' + mode : ''); }
+async function clic(){ if (instant) return suite(); geste('un'); pointeur.classList.add('appui'); await attendre(.13); pointeur.classList.remove('appui'); geste(''); }
+
+/* ----- état ----- */
+let st;
+function remettre(){
+  st = {vue:'bien', carte:'micro', ok:{}, sys:null, sysOn:false, sysFn:false, cle:'', savoir:-1, fn:false, tape:'', reussi:false,
+        page:'aujourdhui', onglet:'dictee', filtre:'tout', survolFi:-1, survolTu:false, dem:false, montre:null};
+}
+function majAccueil(){
+  ['bien', 'pas', 'essai'].forEach(v => $('#av' + v[0].toUpperCase() + v.slice(1)).classList.toggle('on', st.vue === v));
+  $$('#savoir span').forEach((s, i) => s.classList.toggle('ici', i === st.savoir));
+  $$('#pasL li').forEach(li => { const p = li.dataset.p; li.classList.toggle('fait', !!st.ok[p] || (p === 'essai' && st.reussi)); li.classList.toggle('ici', p === (st.vue === 'essai' ? 'essai' : st.carte) && st.vue !== 'bien'); });
+  const k = CARTES[st.carte], ca = $('#carte');
+  if (k){
+    ca.className = 'carte ' + st.carte + (st.ok[st.carte] ? ' fait' : '');
+    ca.innerHTML = `<div class="ca-ic">${k.g}</div><div class="ca-n">Étape ${k.n} sur 4</div><h3>${k.t}</h3><div class="ca-pq">Pourquoi</div><p>${k.p}</p>
+      ${st.carte === 'groq' ? `<div class="cle${st.cle ? ' plein' : ''}">${st.cle || 'gsk_…'}${st.cle ? '' : '<span class="lien">Créer une clé gratuite</span>'}</div>` : ''}
+      <div class="ca-act"><button class="bt action" id="btAction">${k.b}</button><span class="ok"><i>${coche(12, '#fff')}</i>${k.ok}</span>${st.ok[st.carte] ? '' : '<span class="ca-lien">Plus tard</span>'}</div>`;
+    nbsp(ca);
+  }
+  const es = $('#avEssai');
+  es.classList.toggle('reussi', st.reussi);
+  $('#touche').classList.toggle('bas', st.fn);
+  $('#esChamp').classList.toggle('ecoute', st.fn);
+  $('#esTexte').textContent = st.tape;
+  $('#esEtat').textContent = st.fn ? 'Je t’entends…' : st.tape ? 'Écrit' : 'En attente de ta voix';
+  $('#niveau').classList.toggle('vif', st.fn);
+}
+let carteAvant = 'micro';
+async function carte(k){                       // une carte s'en va à gauche, la suivante arrive de la droite
+  if (instant || st.vue !== 'pas'){ st.carte = k; carteAvant = k; majAccueil(); return; }
+  const ca = $('#carte'); ca.classList.add('sort'); await attendre(.22);
+  st.carte = k; majAccueil(); ca.classList.add('entre'); void ca.offsetWidth; ca.classList.remove('entre');
+  await attendre(.35);
+}
+$('#niveau').innerHTML = Array.from({length:26}, () => '<i></i>').join('');
+let tNiv = 0;
+function niveau(){
+  const vif = st && st.fn && !FIGE;
+  $$('#niveau i').forEach((b, i) => { const h = st && st.fn ? 6 + Math.abs(Math.sin(i * 1.7 + tNiv * 9)) * 26 * (0.5 + Math.random() * .5) : 4; b.style.height = h.toFixed(1) + 'px'; });
+  tNiv += .05;
+}
+setInterval(() => { if (!FIGE && st && st.fn) niveau(); }, 90);
+function majSysteme(){
+  F.sys.classList.toggle('cache', !st.sys);
+  if (!st.sys) return;
+  $('#sysT').textContent = st.sys === 'acces' ? 'Accessibilité' : 'Clavier';
+  $('#sysC').innerHTML = st.sys === 'acces'
+    ? `<p>Autoriser les apps ci-dessous à contrôler votre ordinateur.</p><div class="sys-g"><div class="sys-r"><span class="grise" style="width:26px;display:grid;place-items:center">${trait('<rect x="3" y="3" width="14" height="14" rx="3"/>', 18, '#c7c7cc')}</span><span class="sp grise">Outil de capture</span>${sw(false)}</div><div class="sys-r"><img src="${ICONE}" alt=""><span class="sp">Lucarne</span>${sw(st.sysOn, 'sysInter')}</div></div>`
+    : `<p>Touche fn / 🌐 : ce que fait la touche quand tu appuies dessus seule.</p><div class="sys-g"><div class="sys-r"><span class="sp">Appuyer sur la touche 🌐 pour</span><span class="sys-pop${st.sysFn ? ' vu' : ''}" id="sysChoix">${st.sysFn ? 'Ne rien faire' : 'Afficher les emoji et symboles'}${hautBas(11, '#6e6e73')}</span></div></div>`;
+}
+function page(p){
+  st.page = p;
+  $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.page === p));
+  $$('.pg').forEach(s => s.classList.toggle('on', s.dataset.pg === p));
+  majApp();
+}
+function majApp(){
+  $$('#segm button').forEach(b => b.classList.toggle('on', b.dataset.onglet === st.onglet));
+  $$('.re-p').forEach(s => s.classList.toggle('on', s.dataset.re === st.onglet));
+  $$('#biPuces span').forEach(s => s.classList.toggle('on', s.dataset.f === st.filtre));
+  $$('#biGrille .fi').forEach(f => { f.classList.toggle('terne', st.filtre !== 'tout' && f.dataset.src !== st.filtre); f.classList.toggle('survol', +f.dataset.i === st.survolFi); });
+  $('#tuReu').classList.toggle('survol', st.survolTu);
+  $('#nDem').classList.toggle('survol', st.dem);
+  $$('.de').forEach(d => d.classList.toggle('ici', d.dataset.de === st.montre));
+}
+
+/* l'icône sort de l'encoche */
+function envol(){
+  if (instant) return;
+  const [tx, ty] = ou($('#accIc'));
+  envolEl.style.transition = 'none'; envolEl.style.transform = `translate(${XR(-48)}px,${f2(B + (150 - B) / 2 - 48)}px) scale(.667)`;
+  envolEl.classList.add('vu'); void envolEl.offsetWidth;
+  envolEl.style.transition = `transform ${.95 * K}s var(--ressort)`;
+  envolEl.style.transform = `translate(${f2(tx - 48)}px,${f2(ty - 48)}px) scale(1)`;
+  apres(.95, () => { $('#accIc').classList.remove('attend'); envolEl.classList.remove('vu'); });
+}
+
+/* « Montrer » : la vraie encoche fait la démonstration */
+const INFOS = {
+  centre:[trait('<circle cx="6" cy="6" r="2.6"/><circle cx="14" cy="6" r="2.6"/><circle cx="6" cy="14" r="2.6"/><circle cx="14" cy="14" r="2.6"/>', 20, '#fff'), 'Le Centre', 'Survole l’encoche quand rien ne joue : micro, minuteur, étagère, Claude et « Noter la réunion », à un clic.'],
+  dictees:[guillemets(20), 'Tes dictées', 'Dans le Centre, « Dictées » : cherche, un clic recopie, « Coller » l’écrit où tu étais.'],
+  biblio:[trait(G.bibliotheque, 20, '#fff'), 'La bibliothèque', 'Sur l’étagère, « Tout voir » : la bibliothèque s’ouvre dans l’encoche, et en grand ici.'],
+  outils:[trait('<circle cx="10" cy="10" r="6.4"/><path d="M10 6.4V10l2.4 1.6"/>', 20, '#fff'), 'Les outils', 'Page 2 du Centre : Garder éveillé, Presse-papiers, Reformuler, Note rapide.'],
+  visio:[trait(G.visio, 20, '#5fd07a'), 'Réveil et visio', '10 min avant une réunion, un bandeau. À l’heure : « Rejoindre », en vert, et « Noter ».'],
+};
+async function demo(k){
+  st.montre = k; majApp();
+  if (k === 'etagere'){
+    const [sx, sy] = ou($('[data-de="etagere"] .mini'));
+    vol.innerHTML = doc(34) + '<span>Devis-Brume.pdf</span>';
+    if (!instant){ vol.style.transition = 'none'; vol.style.transform = `translate(${f2(sx - 40)}px,${f2(sy - 20)}px) scale(.6)`; void vol.offsetWidth; vol.classList.add('vu'); vol.style.transition = ''; }
+    ilot(bandeau(BW, HDEMO, NO)); montre(['dmTete', 'dmZones', 'dmPied'], .16); await attendre(.5);
+    if (!instant){ vol.style.transition = `transform ${1 * K}s cubic-bezier(.3,.7,.2,1),opacity .2s`; vol.style.transform = `translate(${XR(-216 + 105 - 40)}px,${B + 12 + 30 + 46 - 24}px) scale(1)`; }
+    await attendre(.75); $('#zEta').classList.add('survol'); await attendre(.35);
+    $('#zEta').classList.remove('survol'); $('#zEta').classList.add('plein'); vol.classList.remove('vu'); $('#etaN').textContent = '1';
+    await attendre(1.3);
+    montre([], 0); ilot(compact(132, HC)); montre(['etaG'], .16); await attendre(.5);
+  } else if (k === 'fn'){
+    ilot(compact(132, 132)); montre(['micG', 'onde'], .1); geste('fn'); await attendre(1.6); geste('');
+    ilot(compact(HC, 132)); montre(['okD'], .05); await attendre(1); if (!fin()){ montre([], 0); ilot(REPOS); }
+  } else if (k === 'claude'){
+    ilot(compact(132, 132)); montre(['clG', 'clD'], .1); await attendre(2.2); if (!fin()){ montre([], 0); ilot(REPOS); }
+  } else if (k === 'reunion'){
+    ilot(compact(132, 132)); montre(['recG', 'recD'], .1); await attendre(2.2); if (!fin()){ montre([], 0); ilot(REPOS); }
+  } else {
+    const [g, t, p] = INFOS[k]; $('#infoG').innerHTML = g; $('#infoT').textContent = t; $('#infoP').textContent = p; nbsp(c.info);
+    ilot(bandeau(212, HINFO, 140)); montre(['info'], .16); await attendre(2.8); if (!fin()){ montre([], 0); ilot(REPOS); }
+  }
+}
+
+/* ===================== les étapes ===================== */
+function init(){
+  remettre();
+  $('#zEta').classList.remove('plein', 'survol'); $('#etaN').textContent = '2'; vol.classList.remove('vu');
+  fenetre('app', false); fenetre('accueil', false); question(false); devant(null);
+  $('#accIc').classList.remove('attend'); envolEl.classList.remove('vu');
+  majAccueil(); majSysteme(); page('aujourdhui');
+  ilot(REPOS); montre([]);
+  cur(XR(330), 520, {vu:false, saute:true}); pointeur.classList.remove('appui'); geste('');
+}
+const ETAPES = [
+  {t:'Premier lancement : Lucarne sort de l’encoche', g:'Rien à faire, on regarde',
+   p:'L’encoche s’ouvre et l’icône en sort, jusqu’à la fenêtre d’accueil. Puis la Lucarne se déplie quatre fois pour montrer ce qu’elle sait faire : dicter, noter une réunion, garder des fichiers, suivre Claude.',
+   async jeu(){
+     await attendre(.5);
+     ilot(bandeau(118, 150, 108)); montre(['naitre'], .2); await attendre(1.1);
+     $('#accIc').classList.add('attend'); fenetre('accueil', true); devant('accueil');
+     montre([], 0); envol(); ilot(REPOS); await attendre(1.3);
+     const vues = [[compact(132, 132), ['micG', 'onde']], [compact(132, 132), ['recG', 'recD']], [compact(132, HC), ['etaG']], [compact(132, 132), ['clG', 'clD']]];
+     for (let i = 0; i < 4; i++){ st.savoir = i; majAccueil(); ilot(vues[i][0]); montre(vues[i][1], .12); await attendre(1.15); montre([], 0); }
+     st.savoir = -1; majAccueil(); ilot(REPOS); await attendre(.4);
+   }},
+  {t:'Le micro : la raison, puis un clic', g:'Deux clics',
+   p:'Quatre réglages, un à la fois, chacun avec sa raison en une phrase. D’abord le micro : il n’écoute que pendant que tu tiens fn. macOS pose sa question une seule fois, avec l’icône Lucarne.',
+   async jeu(){
+     await vers($('#btCommencer'), .8); await clic();
+     st.vue = 'pas'; st.carte = 'micro'; majAccueil(); await attendre(.7);
+     await vers($('#btAction'), .6); await clic();
+     question(true); await attendre(.7);
+     await vers($('#autoriser'), .6); await clic();
+     question(false); st.ok.micro = true; majAccueil(); await attendre(.9);
+   }},
+  {t:'Écrire dans tes apps, et la touche fn', g:'Quelques clics',
+   p:'La carte suivante glisse depuis la droite. L’Accessibilité sert à poser le texte au curseur : Lucarne ouvre le bon volet, un interrupteur. Puis la touche fn : « Ne rien faire » pour 🌐, et fn est à toi.',
+   async jeu(){
+     await carte('acces');
+     await vers($('#btAction'), .6); await clic();
+     st.sys = 'acces'; majSysteme(); devant('sys'); await attendre(.6);
+     await vers($('#sysInter'), .6); await clic(); st.sysOn = true; majSysteme(); await attendre(.6);
+     st.sys = null; majSysteme(); devant('accueil'); st.ok.acces = true; majAccueil(); await attendre(.9);
+     await carte('fn');
+     await vers($('#btAction'), .6); await clic();
+     st.sys = 'clavier'; majSysteme(); devant('sys'); await attendre(.6);
+     await vers($('#sysChoix'), .6); await clic(); st.sysFn = true; majSysteme(); await attendre(.7);
+     st.sys = null; majSysteme(); devant('accueil'); st.ok.fn = true; majAccueil(); await attendre(.7);
+   }},
+  {t:'La clé Groq : coller, c’est vérifié', g:'Un clic',
+   p:'Groq écrit ta voix en moins d’une seconde. La carte dit à quoi sert la clé et où en créer une gratuite. On colle, Lucarne vérifie tout de suite.',
+   async jeu(){
+     await carte('groq');
+     await vers($('#btAction'), .6); await clic();
+     await tween(.5, u => { st.cle = 'gsk_' + '•'.repeat(Math.round(u * 22)) + (u === 1 ? '7Hq2' : ''); majAccueil(); });
+     await attendre(.4); st.ok.groq = true; majAccueil(); await attendre(.9);
+   }},
+  {t:'Essaie : tiens fn et dis « bonjour »', g:'Tenir fn, parler, lâcher',
+   p:'L’essai, en vrai. La touche s’enfonce, l’encoche écoute, le niveau bouge. On lâche : « Bonjour ! » s’écrit. Petite fête sobre : un rond vert se dessine, une onde part, une phrase. Rien de plus.',
+   async jeu(){
+     st.vue = 'essai'; majAccueil(); await attendre(1);
+     st.fn = true; majAccueil(); niveau(); geste('fn'); ilot(compact(132, 132)); montre(['micG', 'onde'], .1); await attendre(1.6);
+     st.fn = false; geste(''); niveau(); majAccueil(); ilot(compact(HC, 132)); montre(['okD'], .05);
+     await tween(.55, u => { st.tape = 'Bonjour !'.slice(0, Math.round(u * 9)); majAccueil(); });
+     await attendre(.35);
+     const an = $('#anneau'); an.classList.add('part'); st.reussi = true; majAccueil(); apres(.1, () => an.classList.remove('part'));
+     await attendre(1.4);
+     if (!fin()){ montre([], 0); ilot(REPOS); }
+   }},
+  {t:'La fenêtre Lucarne : « Aujourd’hui »', g:'Un clic sur « Ouvrir Lucarne »',
+   p:'La nouvelle fenêtre. À gauche, l’icône et sept rubriques. « Aujourd’hui » dit ce que Lucarne a fait : dictées, prochaine réunion, Claude, étagère, batterie, réveil, et le fil de la journée.',
+   async jeu(){
+     await vers($('#btOuvrir'), .7); await clic();
+     fenetre('accueil', false); page('aujourdhui'); fenetre('app', true); devant('app'); await attendre(.5);
+     ilot(compact(132, 132)); montre(['clG', 'clD'], .14); await attendre(.5);
+     await vers($('#tuReu'), .8, 30, 10); st.survolTu = true; majApp(); await attendre(.6);
+   }},
+  {t:'Réunions : la note toute faite', g:'Un clic dans la barre latérale',
+   p:'La note, comme dans Wispr Flow : l’essentiel en une phrase, les sujets, les décisions, qui fait quoi. En bas, « Demander à cette réunion ». La liste à gauche, avec « Demander à mes réunions ».',
+   async jeu(){
+     st.survolTu = false;
+     await vers($('[data-page="reunions"]'), .7); await clic(); page('reunions'); await attendre(.6);
+     await vers($('#nDem'), .8, -40); st.dem = true; majApp(); await attendre(.6);
+   }},
+  {t:'Bibliothèque : tout ce qui est passé', g:'Deux clics',
+   p:'Étagère, téléchargements, AirDrop, captures : un seul endroit, des liens et pas des copies. Une puce filtre ; au survol, « Ouvrir » ou « Glisser » vers une autre app.',
+   async jeu(){
+     st.dem = false;
+     await vers($('#nav [data-page="bibliotheque"]'), .7); await clic(); page('bibliotheque'); await attendre(.6);
+     await vers($('#biPuces [data-f="airdrop"]'), .6); await clic(); st.filtre = 'airdrop'; majApp(); await attendre(.5);
+     await vers($('#biGrille [data-i="1"] .ic'), .6); st.survolFi = 1; majApp(); await attendre(.6);
+   }},
+  {t:'Découvrir : chaque fonction en une scène', g:'Un clic',
+   p:'Une page qui explique tout : neuf petites scènes qui bougent toutes seules, une phrase chacune, « Montrer » et « Ouvrir ». Plus besoin de lire un mode d’emploi.',
+   async jeu(){
+     st.survolFi = -1; st.filtre = 'tout';
+     await vers($('#nav [data-page="decouvrir"]'), .7); await clic(); page('decouvrir'); await attendre(.6);
+     await va(XR(120), 400, .9); await attendre(.4);
+   }},
+  {t:'« Montrer » : l’encoche fait la démonstration', g:'Un clic sur « Montrer »',
+   p:'Un clic sur « Montrer » sous « L’étagère et AirDrop » : l’encoche s’ouvre en vrai, un fichier y glisse et s’y range. Elle se replie avec le fichier dans son aile. On a vu, sans rien risquer.',
+   async jeu(){
+     await vers($('[data-montrer="etagere"]'), .7); await clic();
+     await demo('etagere');
+   }},
+  {t:'Réglages : quatre parties, une phrase chacune', g:'Deux clics',
+   p:'Dictée, Lucarne, Confidentialité, Compte. Chaque réglage dit ce qu’il fait. Dans « Lucarne », un interrupteur par chose que l’encoche peut montrer.',
+   async jeu(){
+     st.montre = null; majApp();
+     await vers($('#nav [data-page="reglages"]'), .7); await clic(); page('reglages'); await attendre(1);
+     await vers($('[data-onglet="lucarne"]'), .6); await clic(); st.onglet = 'lucarne'; majApp(); await attendre(.6);
+   }},
+  {t:'Confidentialité : ce qui reste, ce qui part', g:'Un clic',
+   p:'Dit simplement : presque tout reste sur le Mac. Seule Groq reçoit quelque chose, et seulement quand tu parles à Lucarne. En petit, pour être complet : GitHub (mise à jour) et YouTube (l’image d’une vidéo).',
+   async jeu(){
+     await vers($('[data-onglet="confidentialite"]'), .6); await clic(); st.onglet = 'confidentialite'; majApp(); await attendre(.5);
+     await va(XR(240), 560, .9);
+   }},
+];
+const N = ETAPES.length;
+const PAUSES = [1.8, 1.6, 1.6, 1.6, 2.2, 2.2, 2.2, 2, 2.4, 2.2, 2.2, 3.4];
+
+/* ===================== régie ===================== */
+let etape = 0;
+$('#pas').innerHTML = ETAPES.map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${e.t}</button></li>`).join('');
+const fr = t => t.replace(/ ([:»?!;])/g, ' $1').replace(/« /g, '« ');
+function nbsp(racineEl){
+  const w = document.createTreeWalker(racineEl, NodeFilter.SHOW_TEXT);
+  for (let n; (n = w.nextNode());) if (/ [:»?!;]|« /.test(n.nodeValue)) n.nodeValue = fr(n.nodeValue);
+}
+function majRegie(n){
+  etape = n;
+  const m = Math.max(1, n), e = ETAPES[m - 1];
+  $('#num').textContent = `Lucarne · la fenêtre qui explique tout · étape ${m} sur ${N}`;
+  $('#titre').textContent = fr(e.t); $('#phrase').textContent = fr(e.p); $('#geste').textContent = e.g;
+  $$('#pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === m));
+}
+async function poser(n){
+  annuler();
+  instant = true; racine.classList.add('snap');
+  try { cibleN = n; enCoursN = 0; init(); for (let i = 1; i <= n; i++){ enCoursN = i; await ETAPES[i - 1].jeu(); } }
+  finally { instant = false; }
+  majRegie(n); rendu();
+  void ecran.offsetWidth;
+  requestAnimationFrame(() => requestAnimationFrame(() => racine.classList.remove('snap')));
+}
+async function jouer(n){
+  majRegie(n);
+  if (REDUIT) return poser(n);
+  racine.classList.remove('snap'); void ecran.offsetWidth;
+  cibleN = 0; enCoursN = n;
+  await ETAPES[n - 1].jeu();
+}
+function arreter(){ jeton++; auto = false; annuler(); geste(''); }
+const autoCase = $('#autoCase');
+async function tourner(){
+  arreter(); const j = jeton; auto = true;
+  try {
+    await poser(0); await attendre(.9);
+    for (;;){
+      for (let n = 1; n <= N; n++){ await jouer(n); await attendre(PAUSES[n - 1]); }
+      if (!autoCase.checked) break;
+      ecran.style.opacity = 0; await attendre(.3);
+      await poser(0); ecran.style.opacity = 1; await attendre(1.0);
+    }
+  } catch (e){ if (e !== 'stop') console.error(e); }
+  ecran.style.opacity = 1;
+  if (j === jeton) auto = false;
+}
+function lance(n){ arreter(); ecran.style.opacity = 1; poser(n - 1).then(() => jouer(n)).catch(e => { if (e !== 'stop') console.error(e); }); }
+$('#rejouer').addEventListener('click', () => { if (autoCase.checked) tourner(); else lance(Math.max(1, etape)); });
+$('#suivant').addEventListener('click', () => { autoCase.checked = false; lance(etape >= N ? 1 : etape + 1); });
+$('#pas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; autoCase.checked = false; lance(+b.dataset.e); });
+autoCase.addEventListener('change', () => { if (autoCase.checked) tourner(); else arreter(); });
+function ralenti(oui){ K = oui ? 4 : 1; racine.style.setProperty('--k', K); $('#lentCase').checked = oui; }
+$('#lentCase').addEventListener('change', e => ralenti(e.target.checked));
+
+/* ===================== à la main : la vraie souris ===================== */
+function aLaMain(){ if (auto || autoCase.checked){ autoCase.checked = false; arreter(); } pointeur.classList.remove('vu'); }
+ecran.addEventListener('click', e => {
+  if (FIGE) return;
+  const et = e.target.closest('[data-etape]');
+  if (et){ autoCase.checked = false; lance(+et.dataset.etape); return; }
+  const pg = e.target.closest('[data-page]'), og = e.target.closest('[data-onglet]'), pu = e.target.closest('#biPuces span'), mo = e.target.closest('[data-montrer]'), s = e.target.closest('.pg .sw');
+  if (!pg && !og && !pu && !mo && !s) return;
+  aLaMain();
+  if (pg) page(pg.dataset.page);
+  else if (og){ st.onglet = og.dataset.onglet; majApp(); }
+  else if (pu){ st.filtre = pu.dataset.f; majApp(); }
+  else if (s) s.classList.toggle('on');
+  else if (mo){ $('#zEta').classList.remove('plein'); montre([], 0); demo(mo.dataset.montrer).catch(() => {}); }
+});
+$('#biGrille').addEventListener('mouseover', e => { if (FIGE || auto) return; const f = e.target.closest('.fi'); st.survolFi = f ? +f.dataset.i : -1; majApp(); });
+
+/* ===================== démarrage ===================== */
+nbsp(ecran);
+if (Q.has('lent')) ralenti(true);
+const e0 = clamp(+(Q.get('etape') || 0), 0, N);
+if (FIGE){ autoCase.checked = false; poser(e0).catch(() => {}); }
+else if (Q.has('joue') && e0 >= 1){ autoCase.checked = false; poser(e0 - 1).then(() => setTimeout(() => jouer(e0).catch(() => {}), 400)); }
+else setTimeout(() => tourner(), 300);
+window.lucarne = {poser, jouer, st:() => st};
+</script>
+</body>
+</html>

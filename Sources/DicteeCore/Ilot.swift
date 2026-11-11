@@ -20,9 +20,11 @@ public enum VueIlot: String, CaseIterable, Sendable {
     case microCompact, microEtendu, microOuvert
     /// Une touche de volume ou de luminosité : le haut-parleur (ou le soleil) dans l'aile gauche, une barre fine dans l'aile droite.
     case volume, luminosite
-    /// Claude Code au travail : l'étoile seule (pas de liste de tâches), ou l'étoile dans son anneau et « 3 sur 7 » (ou « Attend ») ;
-    /// au survol, le projet, où il en est et « Ouvrir ». Bandeaux : Claude attend ta réponse, Claude a terminé.
-    case claudeMinimal, claudeCompact, claudeEtendu, claudeAttend, claudeTermine
+    /// Claude Code au travail (maquette design/maquettes/ilot-claude-plus.html) : l'étoile seule (rien à dire), ou l'étoile dans son
+    /// anneau, « 3/7 », le nom de la tâche en cours qui défile (et un petit « 2 » si deux sessions travaillent). La carte « Claude Code » :
+    /// un bloc par session (projet, état, depuis quand, la liste des tâches, « Ouvrir ») ; la session qui attend en haut. Bandeaux :
+    /// « second-cerveau attend ta réponse », « Carte Dictées terminée ».
+    case claudeMinimal, claudeCompact, claudeCarte, claudeAttend, claudeTermine
     /// L'étagère : pendant qu'on glisse des fichiers près de l'encoche, deux zones côte à côte, « Étagère » (la garder) et « AirDrop »
     /// (l'envoyer) ; depuis le Centre, la carte des fichiers gardés (icône, nom, glissables vers une app).
     case etagereDepot, etagere
@@ -37,6 +39,11 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// Les Dictées (maquette ilot-centre.html, 3e carte) : l'ancien panneau de la barre des menus dans l'îlot. « ‹ Centre », la recherche,
     /// les dernières dictées groupées par jour (un clic copie, « Coller » au survol, le chevron déplie), et les liens vers la fenêtre.
     case dictees
+    /// La 2e page du Centre, « Outils » (maquette ilot-claude-plus.html, étapes 8 à 14) : quatre gros boutons ronds (Garder éveillé,
+    /// Presse-papiers, Reformuler, Notes), le panneau « Garder éveillé » (1 h, 2 h, jusqu'à l'arrêt) et la bande « Dicter une note ».
+    /// Ses cartes, ouvertes d'un clic sur un rond : le presse-papiers (les cinq dernières copies), Reformuler (la dernière dictée ou le
+    /// texte choisi, réécrit), Note rapide (dicter une note, les notes gardées).
+    case outils, outilPressePapiers, outilReformuler, outilNote
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
@@ -120,10 +127,12 @@ public enum GeoIlot {
         // volume et luminosité : le haut-parleur (aile gauche) et une barre fine de 44 pt (aile droite : 8 pt de la caméra, 8 pt du
         // cou) ; 60 + 6 = 66. La maquette dessinait 96 pt : ça déborderait sur les icônes de la barre des menus
         .volume: compact(60), .luminosite: compact(60),
-        // Claude au travail : sans liste, l'étoile seule (cou de 36 pt, comme le minuteur minimal) ; avec une liste, l'étoile dans son
-        // anneau (aile gauche) et « 3 sur 7 » (43 pt mesurés, aile droite : 48 pt) ; 60 + 6 = 66. La maquette posait l'anneau à côté du
-        // texte : ensemble ils font 61 pt, ça déborderait. Au survol et pour les annonces, un bandeau qui épouse son contenu
-        .claudeMinimal: compact(36), .claudeCompact: compact(60), .claudeEtendu: bandeau, .claudeAttend: bandeau, .claudeTermine: bandeau,
+        // Claude au travail : rien à dire, l'étoile seule (cou de 36 pt, comme le minuteur minimal) ; sinon l'étoile dans son anneau et
+        // « 3/7 » (aile gauche, 48 pt utiles), le nom de la tâche qui défile (aile droite, 48 pt) ; 60 + 6 = 66. La carte « Claude Code » a
+        // la largeur du Centre (on passe de l'un à l'autre) ; sa hauteur suit ses sessions (`enPlus`), jusqu'à celle du Centre : au-delà, elle
+        // défile. Les annonces : des bandeaux qui épousent leur contenu
+        .claudeMinimal: compact(36), .claudeCompact: compact(60), .claudeCarte: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        .claudeAttend: bandeau, .claudeTermine: bandeau,
         // l'étagère, de la largeur de l'accueil : les deux zones « Étagère » et « AirDrop » (14 + 112 + 14 pt, maquette) ; la carte :
         // l'en-tête (42 pt), une rangée de tuiles (72 pt), la ligne « Captures d'écran ici » (40 pt) ; une deuxième rangée de tuiles
         // s'ajoute (`enPlus`) au-delà de cinq fichiers
@@ -140,6 +149,12 @@ public enum GeoIlot {
         .centre: [14, 144, profondeurCentre, 6, 34, 18, 10],
         // les Dictées : la largeur du Centre (on passe de l'un à l'autre sans que la forme s'élargisse), la hauteur de la liste
         .dictees: [14, 144, profondeurDictees, 6, 34, 18, 10],
+        // la page Outils et ses cartes : la largeur du Centre (on passe de l'une à l'autre) ; leur hauteur suit leur contenu (`enPlus`,
+        // jamais plus haut que le Centre : au-delà, la liste des notes défile)
+        .outils: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        .outilPressePapiers: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        .outilReformuler: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        .outilNote: [14, 144, profondeurCentre, 6, 34, 18, 10],
     ]
     /// Indices des valeurs : largeurs (cou, corps, cou droit) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur
     /// mène ; à la fermeture la hauteur se replie d'abord.
@@ -153,13 +168,14 @@ public enum GeoIlot {
     public static let evasementMin: Double = 38
 
     /// Écrans dont le corps épouse le contenu (bandeaux, alertes, rendez-vous déplié) : ni texte collé à gauche ni grand vide à droite.
-    public static func ajusteAuContenu(_ v: VueIlot) -> Bool { ((v.estBandeau || v.estAlerte) && profondeur(v) > 0) || v == .agendaEtendu || v == .microEtendu || v == .claudeEtendu }
+    public static func ajusteAuContenu(_ v: VueIlot) -> Bool { ((v.estBandeau || v.estAlerte) && profondeur(v) > 0) || v == .agendaEtendu || v == .microEtendu }
 
     /// Les épaules (maquette ilot-apple.html) : dans un écran déplié, le cou s'élargit à 56 pt de chaque côté de la caméra pour montrer
     /// la batterie du Mac (à gauche) et celle des écouteurs (à droite). 56 + le congé du cou déplié (10 pt) = la limite des ailes (66 pt).
     public static let epaules: Double = 56
     public static func aEpaules(_ v: VueIlot) -> Bool {
-        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .dictees].contains(v)
+        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .dictees, .claudeCarte,
+         .outils, .outilPressePapiers, .outilReformuler, .outilNote].contains(v)
     }
 
     /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.
@@ -235,7 +251,7 @@ public struct EtatIlot: Equatable, Sendable {
     public var microCoupe = false          // le micro du Mac est coupé (raccourci, ou Réglages Système)
     public var claude = false              // Claude Code travaille ou attend une réponse
     public var claudeAttend = false        // … il attend une réponse (il passe alors avant la lecture)
-    public var claudeListe = false         // … il a une liste de tâches (l'anneau et « 3 sur 7 »)
+    public var claudeListe = false         // … il a quelque chose à dire : une liste de tâches (« 3/7 ») ou le nom de sa tâche
     public var etagere = false             // l'étagère (allumée) garde des fichiers : replié, la pile dans l'aile gauche
     public var alerte: VueIlot?            // minuteurFini, rappelEtendu ou agendaDebut, en cours
     public var bandeau: VueIlot?           // un bandeau passager
@@ -280,9 +296,16 @@ public enum ArbitrageIlot {
         case .rendezVous: return (.agendaCompact, .agendaEtendu)
         case .lecture: return (.lectureCompact, .lectureEtendu)
         case .micro: return (.microCompact, .microEtendu)
-        case .claude: return (.claudeCompact, .claudeEtendu)
+        case .claude: return (.claudeCompact, .claudeCarte)
         case .alerte: return (.repos, .repos)
         }
+    }
+
+    /// Ce que l'îlot prend au survol quand l'activité `a` l'occupe (ou occupe la bulle). Claude qui attend une réponse : sa carte, la
+    /// session qui attend en haut ; Claude au travail : le Centre (maquette ilot-claude-plus.html, étapes 2 et 5 : la carte est à un
+    /// clic, sur le bouton Claude Code).
+    public static func survol(_ a: ActiviteIlot, _ e: EtatIlot) -> VueIlot {
+        a == .claude && !e.claudeAttend ? .centre : vues(a).etendu
     }
 
     public static func resoudre(_ e: EtatIlot, echange: ActiviteIlot? = nil) -> ResolutionIlot {
@@ -294,9 +317,9 @@ public enum ArbitrageIlot {
         if let b = e.bandeau { return ResolutionIlot(principal: b, survol: nil, verrou: true, pastille: p.first) }
         if let premiere = p.first {
             let v = vues(premiere)
-            // Claude sans liste de tâches ni question : l'étoile seule, dans un îlot plus étroit
+            // Claude sans rien à dire (ni liste, ni nom de tâche, ni question) : l'étoile seule, dans un îlot plus étroit
             let compact = premiere == .claude && !e.claudeListe && !e.claudeAttend ? VueIlot.claudeMinimal : v.compact
-            return ResolutionIlot(principal: compact, survol: v.etendu, verrou: false, pastille: p.count > 1 ? p[1] : nil)
+            return ResolutionIlot(principal: compact, survol: survol(premiere, e), verrou: false, pastille: p.count > 1 ? p[1] : nil)
         }
         // rien ne joue : l'îlot s'ouvre directement sur le Centre (au survol comme au clic) ; s'il garde des fichiers, la pile de
         // l'étagère et leur nombre dans l'aile gauche (une activité passe avant : l'étagère se voit alors au survol, dans le Centre)
@@ -407,11 +430,17 @@ public enum TraceIlot {
     /// `g` : les valeurs de `GeoIlot.valeurs` (sept, ou huit avec le cou droit) ; `demiCamera` : la moitié de la vraie caméra ; `barre` :
     /// la hauteur de la barre. Chaque côté est calculé avec son propre cou (une forme symétrique donne les deux mêmes côtés).
     public static func calculer(_ g: [Double], demiCamera: Double, barre: Double) -> Points {
-        let ng = demiCamera + max(0, g[0]), nd = demiCamera + max(0, g.count > 7 ? g[7] : g[0])
         let bw = demiCamera + max(0, g[1]), h = max(1, g[2])
         let rs = max(0, g[3]), rb = max(0, g[4]), rt = max(0, g[5]), f = max(0, g[6])
         let B = barre
         let sousBarre = max(0, h - B)
+        // dans la barre des menus, jamais plus de 66 pt de chaque côté de la caméra (cou + max(épaule, congé)), même pendant un passage :
+        // de l'îlot replié (cou 60, sans congé) à un écran déplié (cou 56, congé 10), ou quand le ressort du cou dépasse sa cible, le cou
+        // cède la place au congé qui grandit. Au repos, les tables tiennent déjà dans les 66 pt : rien ne change
+        let congeMax = max(0, min(f, B - rs - 2, sousBarre * 0.6))
+        // chaque côté avec son propre cou (le cou droit, 8e valeur, pour la forme à une aile de l'étagère), bornés tous les deux
+        let borne = demiCamera + GeoIlot.aileMax - max(rs, congeMax)
+        let ng = min(demiCamera + max(0, g[0]), borne), nd = min(demiCamera + max(0, g.count > 7 ? g[7] : g[0]), borne)
         // le corps s'élargit dès qu'il existe sous la barre (pas de languette qui tombe avant de s'ouvrir)
         let u = min(sousBarre, 40) / 40
         let e = 1 - pow(1 - u, 2.5)

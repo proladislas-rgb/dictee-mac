@@ -4,20 +4,39 @@ import Foundation
 // on en ajoute (« Ajouter : » en haut), on les range en les glissant ; « OK » enregistre. Logique pure, sans interface : ce que le Centre
 // montre, dans quel ordre, et la place que ça prend.
 
+/// Les deux pages du Centre : le Centre lui-même, et sa 2e page « Outils » (maquette ilot-claude-plus.html, étapes 8 à 14). Chacune a
+/// sa disposition (« Modifier » marche de la même façon sur l'une et l'autre), rangée sous sa propre clé dans les réglages.
+public enum PageCentre: String, CaseIterable, Sendable {
+    case centre, outils
+}
+
 /// Ce que le Centre peut montrer. Trois genres : les gros boutons ronds (une rangée, cinq au plus), les deux grandes cases (Minuteur,
-/// Étagère) et la grande bande « Noter la réunion ». L'identifiant (`rawValue`) est ce qui est rangé dans les réglages : ne jamais le changer.
+/// Étagère) et la grande bande (« Noter la réunion », ou « Dicter une note » sur la page Outils). L'identifiant (`rawValue`) est ce qui
+/// est rangé dans les réglages : ne jamais le changer.
 public enum ElementCentre: String, CaseIterable, Sendable {
     case micro, dictee, telechargements, claude, rappel
     case derniereDictee = "derniere-dictee"
     case reunion, minuteur, etagere
+    /// La page Outils : Garder éveillé, Presse-papiers, Reformuler, Notes, et la bande « Dicter une note ».
+    case eveil
+    case pressePapiers = "presse-papiers"
+    case reformuler, notes
+    case noteRapide = "note-rapide"
 
     public enum Genre: Sendable { case rond, grandeCase, bande }
 
     public var genre: Genre {
         switch self {
         case .minuteur, .etagere: return .grandeCase
-        case .reunion: return .bande
+        case .reunion, .noteRapide: return .bande
         default: return .rond
+        }
+    }
+    /// La page où il vit.
+    public var page: PageCentre {
+        switch self {
+        case .eveil, .pressePapiers, .reformuler, .notes, .noteRapide: return .outils
+        default: return .centre
         }
     }
 }
@@ -30,22 +49,28 @@ public struct DispositionCentre: Equatable, Sendable {
     /// AirPods), Téléchargements, Claude Code, le minuteur et l'étagère, la bande « Noter la réunion ». « Modifier » propose d'ajouter
     /// Rappel et Dernière dictée (maquette, étape 9).
     public static let parDefaut: [ElementCentre] = [.micro, .dictee, .telechargements, .claude, .minuteur, .etagere, .reunion]
+    /// La page Outils telle qu'elle est la première fois (maquette, étape 8) : les quatre outils et la bande « Dicter une note ».
+    public static let parDefautOutils: [ElementCentre] = [.eveil, .pressePapiers, .reformuler, .notes, .noteRapide]
+    public static func parDefaut(_ page: PageCentre) -> [ElementCentre] { page == .centre ? parDefaut : parDefautOutils }
 
+    /// La page que cette disposition décrit : seuls ses éléments y entrent, « Ajouter : » ne propose qu'eux.
+    public let page: PageCentre
     public private(set) var elements: [ElementCentre]
 
-    public init(_ elements: [ElementCentre] = DispositionCentre.parDefaut) {
+    public init(_ elements: [ElementCentre] = DispositionCentre.parDefaut, page: PageCentre = .centre) {
+        self.page = page
         var vus = Set<ElementCentre>()
-        self.elements = elements.filter { vus.insert($0).inserted }
+        self.elements = elements.filter { $0.page == page && vus.insert($0).inserted }
     }
 
     /// Relit ce qui est rangé dans les réglages. Rien de rangé : la disposition par défaut. Les identifiants inconnus (une version plus
     /// récente, un réglage abîmé) et les doublons sont ignorés ; si plus rien de connu ne reste d'une liste qui n'était pas vide, c'est la
     /// disposition par défaut (une liste vide, elle, est un choix : tout a été retiré).
-    public init(identifiants: [String]?) {
-        guard let ids = identifiants else { self.init(); return }
-        let connus = ids.compactMap(ElementCentre.init(rawValue:))
-        if connus.isEmpty, !ids.isEmpty { self.init(); return }
-        self.init(connus)
+    public init(identifiants: [String]?, page: PageCentre = .centre) {
+        guard let ids = identifiants else { self.init(Self.parDefaut(page), page: page); return }
+        let connus = ids.compactMap(ElementCentre.init(rawValue:)).filter { $0.page == page }
+        if connus.isEmpty, !ids.isEmpty { self.init(Self.parDefaut(page), page: page); return }
+        self.init(connus, page: page)
     }
 
     /// Ce qui est rangé dans les réglages.
@@ -57,16 +82,16 @@ public struct DispositionCentre: Equatable, Sendable {
     }
     /// Les grandes cases montrées (0, 1 ou 2 ; une seule prend toute la largeur).
     public var cases: [ElementCentre] { elements.filter { $0.genre == .grandeCase } }
-    /// La bande « Noter la réunion » est montrée.
-    public var bande: Bool { elements.contains(.reunion) }
+    /// La bande (« Noter la réunion », ou « Dicter une note » sur la page Outils) est montrée.
+    public var bande: Bool { elements.contains { $0.genre == .bande } }
 
-    /// Ce qu'on peut ajouter, dans l'ordre du catalogue : ce qui n'est pas montré et qui est disponible.
+    /// Ce qu'on peut ajouter, dans l'ordre du catalogue : ce qui n'est pas montré, de cette page, et qui est disponible.
     public func aAjouter(disponible: (ElementCentre) -> Bool = { _ in true }) -> [ElementCentre] {
-        ElementCentre.allCases.filter { !elements.contains($0) && disponible($0) }
+        ElementCentre.allCases.filter { $0.page == page && !elements.contains($0) && disponible($0) }
     }
-    /// On peut l'ajouter : il n'est pas déjà là, il est disponible, et pour un rond, la rangée n'est pas pleine.
+    /// On peut l'ajouter : il est de cette page, pas déjà là, disponible, et pour un rond, la rangée n'est pas pleine.
     public func peutAjouter(_ e: ElementCentre, disponible: (ElementCentre) -> Bool = { _ in true }) -> Bool {
-        guard !elements.contains(e), disponible(e) else { return false }
+        guard e.page == page, !elements.contains(e), disponible(e) else { return false }
         return e.genre != .rond || ronds(disponible: disponible).count < Self.maxRonds
     }
 

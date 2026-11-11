@@ -32,6 +32,9 @@ final class KeyMonitor {
     private let codeN: Int64 = 45
     /// « Volume et luminosité » : les touches spéciales (volume, muet, luminosité) ; vrai = avalée (l'îlot l'applique et la montre).
     var onNiveau: ((EvenementNiveau, CGEventFlags) -> Bool)?
+    /// ⌘C ou ⌘X vient d'être tapé (le presse-papiers va changer, peut-être sans changement d'app) ; reconnu au caractère que donne la
+    /// disposition du clavier, pas au code de la touche. Rien n'est avalé, rien n'est lu ici.
+    var onCopie: (() -> Void)?
     /// macOS a coupé puis rallumé l'écoute : des relâchements ont pu se perdre, ce qui retenait des touches (volume, luminosité)
     /// repart de zéro.
     var onReinitialisation: (() -> Void)?
@@ -141,6 +144,8 @@ final class KeyMonitor {
                 echapAvale = avale
                 return avale
             }
+            if let onCopie, event.flags.contains(.maskCommand), !event.flags.contains(.maskControl), !event.flags.contains(.maskAlternate),
+               ["c", "x"].contains(Self.caractere(event)) { onCopie() }
             let delai = ProcessInfo.processInfo.systemUptime - dernierRelachementFn
             if delai < 0.5 { Log.ecrire("touche \(code) reçue \(Int(delai * 1000)) ms après le relâchement de fn (casse un éventuel double appui)") }
             appliquer(.otherKey)
@@ -157,6 +162,14 @@ final class KeyMonitor {
         default:
             return false
         }
+    }
+
+    /// Le caractère de la touche selon la disposition du clavier (« c » pour ⌘C, en AZERTY comme en QWERTY), en minuscule.
+    static func caractere(_ event: CGEvent) -> String {
+        var n = 0
+        var u = [UniChar](repeating: 0, count: 4)
+        event.keyboardGetUnicodeString(maxStringLength: 4, actualStringLength: &n, unicodeString: &u)
+        return String(utf16CodeUnits: u, count: min(n, 4)).lowercased()
     }
 
     /// Une touche de volume ou de luminosité (nil : un autre événement « systemDefined », boutons de souris, touches de lecture…).

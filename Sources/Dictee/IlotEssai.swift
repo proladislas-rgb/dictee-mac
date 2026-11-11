@@ -10,6 +10,8 @@ enum IlotEssai {
     static func executer() -> Int32 {
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.accessory)
+        // ligne par ligne : un arrêt brutal ne perd pas les dernières lignes du compte rendu
+        setvbuf(stdout, nil, _IOLBF, 0)
         var echecs = 0
         func verifier(_ ok: Bool, _ nom: String) { print(ok ? "  ok   \(nom)" : "  ÉCHEC \(nom)"); if !ok { echecs += 1 } }
         func attendre(_ s: Double, tant: () -> Bool = { true }) {
@@ -29,8 +31,20 @@ enum IlotEssai {
         var pressePapiers: [String] = []
         var fenetres: [Onglet] = []
         func fabriquer() -> IlotControleur {
-            // l'étagère aussi dans le dossier temporaire : jamais le vrai etagere.json
-            let c = IlotControleur(stockage: RappelsStore(url: fichier), etagere: EtagereStore(url: dossier.appendingPathComponent("etagere.json")))
+            // l'étagère et les notes rapides aussi dans le dossier temporaire : jamais le vrai etagere.json ni le vrai notes.json
+            let c = IlotControleur(stockage: RappelsStore(url: fichier), etagere: EtagereStore(url: dossier.appendingPathComponent("etagere.json")),
+                                   notes: NotesStore(url: dossier.appendingPathComponent("notes.json")))
+            // les Outils : jamais la vraie veille, le vrai presse-papiers, Groq, l'Accessibilité ni l'app Notes
+            c.eveilPilote = EveilFactice()
+            c.pressePapiers = PressePapiersFactice()
+            c.surCommandeV = { false }
+            c.reformulerTexte = { _, _ in throw GroqErreur.pasDeCle }
+            c.lireSelection = { nil }
+            c.selectionnerDansLApp = { _ in false }
+            c.lireAppDerniereDictee = { nil }
+            c.envoyerNoteVersNotes = { _, fini in fini(false) }
+            c.reglagesCentre.dispositionOutils = { nil }
+            c.reglagesCentre.enregistrerDispositionOutils = { _ in }
             c.maintenant = { Date().addingTimeInterval(decalage) }
             c.sons = IlotControleur.SonsIlot(minuteurFini: { compteurs.minuteur += 1 }, rappel: { compteurs.rappel += 1 }, doux: { compteurs.doux += 1 }, silencieux: { compteurs.silence += 1 })
             c.ouvrir = { liensOuverts.append($0) }
@@ -355,7 +369,7 @@ enum IlotEssai {
             verifier(!m.boucleActive, "micro coupé, posé : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
             // survol : le micro coupé n'a plus de déplié à lui (son bouton est dans le Centre) : la vidéo en bulle se déplie
             c.panneau.simulerPointeur(forme: true); attendre(0.9)
-            verifier(m.courante == .lectureEtendu && m.cartes == [.lectureEtendu, .centre, .accueil, .dictees] && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01,
+            verifier(m.courante == .lectureEtendu && m.cartes == [.lectureEtendu, .centre, .outils, .accueil, .dictees] && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01,
                      "survol, micro coupé pendant une vidéo : la vidéo se déplie, le Centre est la carte suivante (\(m.courante))")
             // vrai clic sur « Centre » au pied de la lecture, puis sur le bouton Micro, rouge
             let pc = PiedCarte.pointBouton(m.grille)
@@ -608,6 +622,16 @@ enum IlotEssai {
             verifier((try? inst.brancher()) != nil && lireReglages() == branche, "« Brancher » deux fois : rien en double, le fichier ne change pas")
             let commande = CrochetsClaude.commande(script: inst.script.path)
             verifier(branche.contains(JSONOrdonne.citer(commande)), "la commande écrite est le chemin du script, cité")
+            // le script d'une version d'avant (sans message ni titre) : remplacé tout seul au lancement, l'ancien gardé à côté ; settings.json
+            // n'est pas touché
+            let ancien = "#!/bin/sh\n# ancienne version\nexit 0\n"
+            try? Data(ancien.utf8).write(to: inst.script)
+            let avantMaj = lireReglages()
+            verifier(inst.mettreAJourLeScript() && (try? String(contentsOf: inst.script, encoding: .utf8)) == ScriptCrochet.texte(dossier: inst.etats.path)
+                     && (try? String(contentsOf: inst.script.appendingPathExtension("verbe-sauvegarde"), encoding: .utf8)) == ancien
+                     && droits(inst.script) == 0o755 && lireReglages() == avantMaj,
+                     "script d'avant : remplacé au lancement (exécutable), l'ancien gardé (.verbe-sauvegarde), settings.json intact")
+            verifier(!inst.mettreAJourLeScript(), "déjà à jour : rien n'est réécrit")
             // un settings.json présent mais illisible (octets qui ne sont pas de l'UTF-8, lien cassé) : jamais remplacé par nos seuls crochets
             func echec(_ i: InstallationClaude, _ faire: (InstallationClaude) throws -> Void) -> Bool {
                 do { try faire(i); return false } catch InstallationClaude.Echec.inaccessible { return true } catch { return false }
@@ -663,7 +687,7 @@ enum IlotEssai {
             var premierPlan: String? = "com.google.Chrome"
             var ramenes: [String?] = []
             c.appAuPremierPlan = { premierPlan }
-            c.ramenerApp = { ramenes.append($0) }
+            c.ramenerSession = { ramenes.append($0?.app) }
             c.claudeSource.dossier = inst.etats
             c.activerClaude(true)
             attendre(2.0) { m.claude == nil }; attendre(0.9)
@@ -679,10 +703,11 @@ enum IlotEssai {
             verifier(r1.code == 0 && m.claude?.etat == .travaille && m.courante == .claudeMinimal && m.bandeau == nil, "demande envoyée : l'étoile dans l'îlot, sans annonce")
             _ = crochet(ev("s1", "PostToolUse", todos))
             attendre(2.0) { m.claude?.progres == nil }; attendre(0.9)
-            verifier(m.claude?.progres == ProgresClaude(faites: 3, total: 7) && m.courante == .claudeCompact, "la liste de tâches : l'anneau et « 3 sur 7 »")
-            let aile = m.grille.bordAile(.claudeCompact) - m.demiCamera - 4
-            verifier(m.texteClaude(m.claude) == "3 sur 7" && MesureIlot.texte("3 sur 7", 13, .semibold, chiffres: true) <= aile && MesureIlot.texte("Attend", 13, .semibold, chiffres: true) <= aile,
-                     "« 3 sur 7 » (\(Int(MesureIlot.texte("3 sur 7", 13, .semibold, chiffres: true))) pt) et « Attend » tiennent dans l'aile (\(Int(aile)) pt)")
+            verifier(m.claude?.progres == ProgresClaude(faites: 3, total: 7) && m.courante == .claudeCompact, "la liste de tâches : l'anneau, « 3/7 »")
+            let r3 = m.cadreAnneauClaude(m.grille), l37 = MesureIlot.texte("3/7", 12.5, .bold, chiffres: true)
+            verifier(m.avancementClaude(m.claude) == "3/7" && m.nomClaude(m.claude) == "Tâche 4" && r3.minX >= -(m.grille.bordAile(.claudeCompact)) - 0.5
+                     && r3.maxX + 6 + l37 <= -(m.demiCamera + 4) + 0.5,
+                     "aile gauche : l'anneau et « 3/7 » (\(Int(r3.width + 6 + l37)) pt dans 48) ; aile droite : le nom de la tâche « in_progress » (« Tâche 4 »)")
             verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && abs(m.trace.hauteur - Double(g.hauteur)) < 0.01,
                      "« 3 sur 7 » : \(Int(m.trace.bande - Double(m.demiCamera))) pt de chaque côté de la caméra (≤ 66), rien sous la barre")
             attendre(1.2) { m.boucleActive }
@@ -692,25 +717,36 @@ enum IlotEssai {
             let l1 = (try? String(contentsOf: fichier("s1"), encoding: .utf8)) ?? ""
             verifier(!l1.contains("contenu-du-fichier") && l1.contains("\"tool_name\":\"Write\"") && !FileManager.default.fileExists(atPath: fichier("piege").path),
                      "un outil qui écrit un fichier : une ligne courte, sans le contenu ; le « session_id » cité dans le contenu ne trompe pas le script")
-            // survol : le projet, où il en est, « Ouvrir » ; vrai clic
+            // survol, Claude au travail : le Centre (maquette, étape 2) ; vrai clic sur le bouton Claude Code : la carte ; vrai clic sur « Ouvrir »
+            m.claudeBranche = true
             c.panneau.simulerPointeur(forme: true); attendre(0.9)
-            verifier(m.courante == .claudeEtendu && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01, "survol : le déplié ; cou étroit dans la barre")
-            let ce = m.contenuAnnonce(.claudeEtendu)
-            verifier(ce?.l1 == "dictee-mac" && ce?.l2 == "3 sur 7 \u{00B7} Écrit la tâche 4", "le projet, « 3 sur 7 · Écrit la tâche 4 » (\(ce?.l2 ?? "rien"))")
-            let lc = m.contenus[.claudeEtendu] ?? 0
-            verifier(lc > 150 && lc <= 2 * m.grille.corps(.claudeEtendu) - 2 * GrilleIlot.marge + 0.5, "le déplié épouse son contenu (\(Int(lc)) pt)")
-            let z = m.grille.zoneAnnonce(.claudeEtendu)
-            let pb = CGPoint(x: z.maxX - MesureIlot.bouton(ContenuAnnonce.Bouton(titre: "Ouvrir")) / 2, y: z.midY)
-            c.panneau.envoyerSouris(.leftMouseDown, en: pb); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pb)
+            verifier(m.courante == .centre && m.etatCentre(.claude) == "1 au travail", "survol : le Centre ; le bouton Claude Code dit « 1 au travail » (\(m.etatCentre(.claude)))")
+            c.panneau.envoyerSouris(.leftMouseDown, en: PlanCentre.centreRond(m, .claude)); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: PlanCentre.centreRond(m, .claude))
+            attendre(0.9)
+            verifier(m.courante == .claudeCarte && m.sessionsClaude.map(\.id) == ["s1"] && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01,
+                     "vrai clic sur Claude Code : la carte, un bloc (s1) ; ≤ 66 pt dans la barre (\(m.courante))")
+            let hCarte = Double(g.hauteur) + Double(PlanCarteClaude.profondeur(m))
+            verifier(abs(m.traceCible.hauteur - hCarte) < 0.5 && m.traceCible.hauteur <= Double(g.hauteur) + GeoIlot.profondeurCentre + 0.5,
+                     "la carte épouse sa session (\(Int(m.traceCible.hauteur)) pt), jamais plus haute que le Centre")
+            let po = PlanCarteClaude.pointOuvrir(0, m)
+            c.panneau.envoyerSouris(.leftMouseDown, en: po); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: po)
             c.panneau.simulerPointeur(forme: false); attendre(0.6)
-            verifier(ramenes == ["com.apple.Terminal"] && m.courante == .claudeCompact, "vrai clic sur « Ouvrir » : le Terminal de la session est ramené (capturé), l'îlot se replie")
+            verifier(ramenes == ["com.apple.Terminal"] && m.courante == .claudeCompact, "vrai clic sur « Ouvrir » : la fenêtre du Terminal de la session est ramenée (capturé), l'îlot se replie")
             // une autorisation à donner : « Claude attend ta réponse »
             _ = crochet(ev("s1", "Notification", ",\"message\":\"Claude needs your permission to use Bash\",\"notification_type\":\"permission_prompt\""))
             attendre(2.0) { m.bandeau == nil }; attendre(0.3)
-            verifier(m.courante == .claudeAttend && m.bandeauVu?.ligne1 == "Claude attend ta réponse" && m.bandeauVu?.ligne2 == "dictee-mac", "notification : « Claude attend ta réponse », le projet")
+            verifier(m.courante == .claudeAttend && m.bandeauVu?.ligne1 == "dictee-mac attend ta réponse" && m.bandeauVu?.ligne2 == "«\u{202F}Autoriser Bash\u{202F}?\u{202F}»",
+                     "notification : « dictee-mac attend ta réponse », « « Autoriser Bash ? » » (\(m.bandeauVu?.ligne2 ?? "rien"))")
+            let lf = (try? String(contentsOf: fichier("s1"), encoding: .utf8)) ?? ""
+            verifier(lf.contains("\"message\":\"Claude needs your permission to use Bash\""), "le script a transmis le message de la notification")
             verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && m.trace.hauteur > Double(g.hauteur) + 60, "bandeau : sous la barre, cou étroit")
             attendre(5.0) { m.bandeau != nil }; attendre(0.9)
-            verifier(m.bandeau == nil && m.courante == .claudeCompact && m.texteClaude(m.claude) == "Attend", "4,5 s plus tard : « Attend » dans l'aile")
+            verifier(m.bandeau == nil && m.courante == .claudeCompact && m.nomClaude(m.claude) == "dictee-mac attend ta réponse" && m.etatCentre(.claude) == "Attend",
+                     "4,5 s plus tard : « dictee-mac attend ta réponse » dans l'aile (en ambre), « Attend » sous le bouton du Centre")
+            c.panneau.simulerPointeur(forme: true); attendre(0.9)
+            verifier(m.courante == .claudeCarte && m.sessionsClaude.first?.etat == .attend, "une session attend : le survol ouvre directement sa carte, elle en haut (\(m.courante))")
+            c.panneau.simulerPointeur(forme: false); attendre(0.8)
+            verifier(m.courante == .claudeCompact, "souris partie : la carte se range")
             _ = crochet(ev("s1", "PostToolUse", ",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls\"},\"tool_response\":{}"))
             attendre(2.0) { m.claude?.etat == .attend }; attendre(0.3)
             verifier(m.claude?.etat == .travaille && m.texteClaude(m.claude) == "3 sur 7", "autorisé, l'outil a tourné : de nouveau « 3 sur 7 »")
@@ -721,17 +757,20 @@ enum IlotEssai {
             verifier(m.claude == nil && m.bandeau == nil && m.courante == .repos, "fini pendant que le Terminal est au premier plan : rien d'annoncé, l'îlot se vide")
             // fini, Hugues ailleurs : « Terminé », 3 s
             premierPlan = "com.google.Chrome"
-            _ = crochet(ev("s1", "UserPromptSubmit", ",\"prompt\":\"encore\""))
+            _ = crochet(ev("s1", "UserPromptSubmit", ",\"prompt\":\"encore-secret\",\"session_title\":\"Carte Dictées\""))
+            let lt = (try? String(contentsOf: fichier("s1"), encoding: .utf8)) ?? ""
+            verifier(lt.contains("\"session_title\":\"Carte Dictées\"") && !lt.contains("encore-secret"), "le titre de la session est transmis, jamais la demande tapée")
             attendre(2.0) { m.claude == nil }
             _ = crochet(ev("s1", "Stop", ",\"stop_hook_active\":false"))
             attendre(2.0) { m.bandeau == nil }; attendre(0.3)
-            verifier(m.courante == .claudeTermine && m.bandeauVu?.ligne1 == "Terminé" && m.bandeauVu?.ligne2 == "dictee-mac" && m.claude == nil, "fini pendant que Hugues est ailleurs : « Terminé », coche verte, le projet")
-            c.agir(.claudeOuvrir(m.bandeauVu?.claude?.app)); attendre(0.3)
-            verifier(ramenes.last == "com.apple.Terminal" && m.bandeau == nil, "« Ouvrir » sur « Terminé » : le Terminal est ramené, le bandeau se retire")
+            verifier(m.courante == .claudeTermine && m.bandeauVu?.ligne1 == "Carte Dictées terminée" && m.bandeauVu?.ligne2.hasPrefix("dictee-mac \u{00B7} 1 min") == true && m.claude == nil,
+                     "fini pendant que Hugues est ailleurs : « Carte Dictées terminée », « \(m.bandeauVu?.ligne2 ?? "") », coche verte")
+            c.agir(.claudeOuvrir(m.bandeauVu?.claude)); attendre(0.3)
+            verifier(ramenes.last == "com.apple.Terminal" && m.bandeau == nil, "« Voir » sur la fin : la fenêtre du Terminal est ramenée, le bandeau se retire")
             _ = crochet(ev("s1", "UserPromptSubmit")); attendre(2.0) { m.claude == nil }
             _ = crochet(ev("s1", "Stop")); attendre(2.0) { m.bandeau == nil }
-            attendre(3.6) { m.bandeau != nil }; attendre(0.5)
-            verifier(m.bandeau == nil && m.courante == .repos, "sans geste : « Terminé » se retire après 3 s")
+            attendre(4.2) { m.bandeau != nil }; attendre(0.5)
+            verifier(m.bandeau == nil && m.courante == .repos, "sans geste : la fin se retire après 3,5 s")
             _ = crochet(ev("s1", "Notification", ",\"message\":\"Claude is waiting for your input\",\"notification_type\":\"idle_prompt\""))
             attendre(1.2)
             verifier(m.bandeau == nil && m.claude == nil, "le rappel d'inactivité de Claude Code après la fin : rien")
@@ -746,6 +785,59 @@ enum IlotEssai {
             _ = crochet(ev("s1", "PostToolUse", ",\"tool_name\":\"Read\""))
             attendre(2.0) { m.claude?.etat == .attend }; attendre(0.9)
             verifier(m.resolution.principal == .lectureCompact && m.pastille == .claude, "répondu : la vidéo reprend l'îlot")
+            c.lecture.modele.morceau = nil; c.lecture.surIlot(false); attendre(0.8)
+            // deux sessions au travail (et une longue liste) : le petit « 2 », la carte qui défile avec de vraies molettes, la session qui attend en haut
+            func evIci(_ session: String, _ nom: String, cwd: String, _ reste: String = "") -> String {
+                ev(session, nom, reste).replacingOccurrences(of: "/Users/essai/dev/dictee-mac", with: cwd)
+            }
+            let quatorze = ",\"tool_name\":\"TodoWrite\",\"tool_input\":{\"todos\":[" + (1...14).map { i in
+                "{\"content\":\"Étape \(i)\",\"status\":\"\(i <= 5 ? "completed" : (i == 6 ? "in_progress" : "pending"))\"}" }.joined(separator: ",") + "]}"
+            _ = crochet(evIci("s3", "UserPromptSubmit", cwd: "/Users/essai/second-cerveau")); _ = crochet(evIci("s3", "PostToolUse", cwd: "/Users/essai/second-cerveau", quatorze))
+            attendre(2.0) { m.claudeAuTravail < 2 }; attendre(0.9)
+            verifier(m.claudeAuTravail == 2 && m.etatCentre(.claude) == "2 au travail", "deux sessions au travail : le petit « 2 », « 2 au travail » sous le bouton")
+            m.claudeBranche = true
+            c.panneau.simulerPointeur(forme: true); attendre(0.9)
+            c.panneau.envoyerSouris(.leftMouseDown, en: PlanCentre.centreRond(m, .claude)); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: PlanCentre.centreRond(m, .claude))
+            attendre(0.9)
+            let trop = PlanCarteClaude.depassement(m)
+            verifier(m.courante == .claudeCarte && m.sessionsClaude.count == 2 && trop > 50 && abs(m.traceCible.hauteur - (Double(g.hauteur) + GeoIlot.profondeurCentre)) < 0.5,
+                     "la carte : deux blocs, 14 tâches ; elle prend la hauteur du Centre et dépasse de \(Int(trop)) pt")
+            let milieu = CGPoint(x: 0, y: PlanCarteClaude.cadreListe(m.grille).midY)
+            c.panneau.envoyerDefilement(dy: -40, en: milieu, phase: 1); c.panneau.envoyerDefilement(dy: -40, en: milieu, phase: 2); c.panneau.envoyerDefilement(dy: 0, en: milieu, phase: 4)
+            attendre(0.3)
+            verifier(m.courante == .claudeCarte && m.defilementClaude > 40, "vrais défilements (deux doigts) : la liste défile (\(Int(m.defilementClaude)) pt), la carte reste")
+            for _ in 0..<30 { c.panneau.envoyerDefilement(dy: -40, en: milieu, phase: 2) }
+            attendre(0.2)
+            verifier(abs(m.defilementClaude - trop) < 0.5, "au bout : la liste s'arrête à sa fin (\(Int(m.defilementClaude)) / \(Int(trop)) pt)")
+            // au bout, les blocs remontés hors de la liste ne prennent plus les clics de l'en-tête (ni `.clipped` ni `.mask` ne bornent
+            // les clics) : « Reste ouvert », le titre et le corps d'un bloc ne rangent rien, « ‹ Centre » mène au Centre
+            func clicReel(_ p: CGPoint) { c.panneau.envoyerSouris(.leftMouseDown, en: p); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: p); attendre(0.5) }
+            let ent = PlanCarteClaude.cadreEntete(m.grille), liste = PlanCarteClaude.cadreListe(m.grille)
+            clicReel(CGPoint(x: ent.maxX - 30, y: ent.midY))
+            clicReel(CGPoint(x: ent.minX + PlanCarteClaude.pilule + 10 + 14 + 6 + 30, y: ent.midY))
+            clicReel(CGPoint(x: liste.midX, y: liste.maxY - 20))
+            verifier(m.courante == .claudeCarte && m.epingle && abs(m.defilementClaude - trop) < 0.5,
+                     "défilée au bout : de vrais clics sur « Reste ouvert », sur le titre et sur les tâches d'un bloc ne rangent pas l'îlot (\(m.courante))")
+            clicReel(PlanCarteClaude.pointCentre(m)); attendre(0.4)
+            verifier(m.courante == .centre, "défilée au bout : un vrai clic sur « ‹ Centre » mène au Centre (\(m.courante))")
+            clicReel(PlanCentre.centreRond(m, .claude)); attendre(0.4)
+            verifier(m.courante == .claudeCarte, "le rond Claude : de retour sur la carte (\(m.courante))")
+            for _ in 0..<30 { c.panneau.envoyerDefilement(dy: 40, en: milieu, phase: 2) }
+            attendre(0.2)
+            verifier(m.defilementClaude == 0 && m.courante == .claudeCarte, "vers le haut : retour en haut, toujours la carte")
+            // la deuxième session attend : elle passe en haut, cadre ambre ; sa fenêtre ramenée d'un vrai clic
+            _ = crochet(evIci("s3", "Notification", cwd: "/Users/essai/second-cerveau", ",\"message\":\"Claude needs your permission to use Edit\",\"notification_type\":\"permission_prompt\""))
+            attendre(2.0) { m.sessionsClaude.first?.id != "s3" }; attendre(0.5)
+            verifier(m.sessionsClaude.first?.id == "s3" && m.sessionsClaude.first?.etat == .attend && m.courante == .claudeCarte && m.bandeau == nil,
+                     "second-cerveau attend : en haut de la carte ; la carte ouverte, le bandeau attend qu'elle se range")
+            let avantClic = ramenes.count
+            let p0 = PlanCarteClaude.pointOuvrir(0, m)
+            c.panneau.envoyerSouris(.leftMouseDown, en: p0); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: p0)
+            c.panneau.simulerPointeur(forme: false); attendre(0.9)
+            verifier(ramenes.count == avantClic + 1 && m.courante != .claudeCarte, "vrai clic sur « Ouvrir » de second-cerveau : sa fenêtre est ramenée, la carte se range")
+            verifier(m.bandeau == nil, "le bandeau « second-cerveau attend » qui attendait n'a plus lieu d'être : retiré")
+            _ = crochet(evIci("s3", "SessionEnd", cwd: "/Users/essai/second-cerveau")); attendre(2.0) { m.claudeAuTravail > 1 }; attendre(0.5)
+            verifier(m.claudeAuTravail == 1, "second-cerveau fermé : plus qu'une session")
             // réglage éteint : plus rien n'est lu
             c.activerClaude(false); attendre(0.6)
             verifier(!c.claudeSource.actif && m.claude == nil && m.resolution.pastille == nil, "réglage éteint : l'îlot oublie Claude")
@@ -756,6 +848,14 @@ enum IlotEssai {
             c.lecture.modele.morceau = morceauAvant; c.lecture.surIlot(morceauAvant != nil)
             attendre(1.5) { m.boucleActive }
             verifier(!m.boucleActive, "Claude : tout est posé, aucune boucle d'animation")
+            // le nom qui défile dans l'aile : deux passages puis il s'arrête sur son début (Claude travaille des heures : une animation
+            // sans fin tenait l'écran à sa pleine fréquence tout ce temps)
+            let defilant = DefilantClaude.Vue(frame: CGRect(x: 0, y: 0, width: 60, height: 17))
+            defilant.appliquer("Construire la carte Dictées et brancher la recherche", ambre: false, largeur: 60)
+            let anim = defilant.bande.animation(forKey: "defil")
+            verifier(anim?.repeatCount == 2 && anim?.isRemovedOnCompletion == true, "le nom trop long défile deux fois puis s'arrête (\(anim?.repeatCount ?? -1) passages)")
+            defilant.appliquer("Lire", ambre: false, largeur: 60)
+            verifier(defilant.bande.animation(forKey: "defil") == nil, "un nom qui tient : aucune animation")
         }
 
         // --- réunion : rien à l'écran, vibration seule
@@ -986,6 +1086,7 @@ enum IlotEssai {
         IlotEssai.centre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.modifierCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.cheminsDuCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.outils(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
 
         // --- fin : plus rien ne tourne

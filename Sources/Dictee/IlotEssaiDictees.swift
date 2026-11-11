@@ -61,7 +61,7 @@ extension IlotEssai {
         c.panneau.simulerPointeur(forme: true); pause(1.0)
         verifier(m.courante == .lectureEtendu && m.visible(ExtraIlot.pied) && PiedCarte.dicteesTient(m.grille, .lectureEtendu),
                  "lecture dépliée : « Centre » et « Dictées » au pied (\(Int(PiedCarte.largeurBouton + 10 + PiedCarte.largeurDictees)) pt sur \(Int(PiedCarte.cadre(m.grille, .lectureEtendu).width)))")
-        verifier(m.cartes == [.lectureEtendu, .centre, .accueil, .dictees] && m.cartes.count == 4, "quatre cartes : la vidéo, le Centre, l'accueil, les Dictées en dernier (quatre points)")
+        verifier(m.cartes == [.lectureEtendu, .centre, .outils, .accueil, .dictees], "cinq cartes : la vidéo, le Centre, les Outils, l'accueil, les Dictées en dernier (cinq points)")
         clic(PiedCarte.pointDictees(m.grille), 0.9)
         verifier(m.courante == .dictees && m.epingle, "vrai clic sur « Dictées » sous la vidéo : la carte Dictées, qui reste ouverte (\(m.courante))")
         poseeSurLaCible()

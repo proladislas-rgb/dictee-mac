@@ -307,7 +307,9 @@ public enum CrochetsClaude {
 /// Le script que Claude Code lance à chaque événement : il ajoute une ligne horodatée au fichier de la session (`<session>.jsonl` dans
 /// `dossier`). Rapide (aucune dépendance, outils du système par leur chemin), muet (Claude Code lirait sa sortie), jamais bloquant
 /// (toujours 0). Il n'écrit en entier que ce dont l'îlot a besoin : la liste des tâches ; pour le reste, l'événement, l'outil, le
-/// dossier et le genre de notification (jamais la demande tapée ni le contenu des fichiers).
+/// dossier, le genre de notification, le message de la notification (« Claude needs your permission to use Bash ») et le titre que
+/// Claude Code donne à la session (`session_title`, le résumé qu'il affiche aussi dans la barre du Terminal) ; jamais la demande tapée
+/// (`prompt`) ni le contenu des fichiers. Quand ce texte change, Verbe remplace le script au lancement (`InstallationClaude`).
 public enum ScriptCrochet {
     /// Les outils de liste de tâches, gardés en entier (leur liste fait l'avancement).
     public static let outilsDeTaches = ["TodoWrite", "TaskCreate", "TaskUpdate"]
@@ -321,7 +323,7 @@ public enum ScriptCrochet {
         D=\(d)
         {
           J=$(/bin/cat | /usr/bin/tr -d '\\n\\r')
-          champ() { printf '%s' "$J" | /usr/bin/grep -o "\\"$1\\"[[:space:]]*:[[:space:]]*\\"[^\\"]*\\"" | /usr/bin/head -n 1 | /usr/bin/sed -e 's/^[^:]*:[[:space:]]*"//' -e 's/"$//' | /usr/bin/tr -d '\\\\'; }
+          champ() { printf '%s' "$J" | /usr/bin/grep -o "\\"$1\\"[[:space:]]*:[[:space:]]*\\"[^\\"]*\\"" | /usr/bin/head -n 1 | /usr/bin/sed -e 's/^[^:]*:[[:space:]]*"//' -e 's/"$//' -e 's/\\\\[nrt]/ /g' | /usr/bin/tr -d '\\\\'; }
           S=$(champ session_id | /usr/bin/tr -cd 'A-Za-z0-9_-' | /usr/bin/cut -c1-100)
           A=$(printf '%s' "${__CFBundleIdentifier:-}" | /usr/bin/tr -cd 'A-Za-z0-9._-')
           # sans app d'origine (claude -p lancé par launchd, cron, un SDK) : personne ne regarde, rien n'est écrit
@@ -331,7 +333,14 @@ public enum ScriptCrochet {
             T=$(/bin/date +%s)
             case "$O" in
               \(outilsDeTaches.joined(separator: "|"))) L="{\\"t\\":$T,\\"app\\":\\"$A\\",\\"e\\":$J}" ;;
-              *) L="{\\"t\\":$T,\\"app\\":\\"$A\\",\\"e\\":{\\"hook_event_name\\":\\"$E\\",\\"tool_name\\":\\"$O\\",\\"cwd\\":\\"$(champ cwd)\\",\\"notification_type\\":\\"$(champ notification_type | /usr/bin/tr -cd 'A-Za-z_')\\"}}" ;;
+              *)
+                # le message d'une notification et le titre de la session, seulement pour ces deux événements (jamais « prompt »)
+                M=""; N=""
+                case "$E" in
+                  Notification) M=$(champ message | /usr/bin/cut -c1-300) ;;
+                  UserPromptSubmit) N=$(champ session_title | /usr/bin/cut -c1-200) ;;
+                esac
+                L="{\\"t\\":$T,\\"app\\":\\"$A\\",\\"e\\":{\\"hook_event_name\\":\\"$E\\",\\"tool_name\\":\\"$O\\",\\"cwd\\":\\"$(champ cwd)\\",\\"notification_type\\":\\"$(champ notification_type | /usr/bin/tr -cd 'A-Za-z_')\\",\\"message\\":\\"$M\\",\\"session_title\\":\\"$N\\"}}" ;;
             esac
             /bin/mkdir -p "$D" && printf '%s\\n' "$L" >> "$D/$S.jsonl"
           fi
@@ -395,9 +404,15 @@ public struct EvenementClaude: Equatable, Sendable {
     public var outil: String?
     public var taches: OperationTaches?
     public var notification: String?
+    /// Le message d'une notification (« Claude needs your permission to use Bash »), tel que Claude Code l'envoie.
+    public var message: String?
+    /// Le titre que Claude Code donne à la session (une demande envoyée) : le résumé qu'il affiche aussi dans la barre du Terminal.
+    public var titre: String?
 
-    public init(date: Date, genre: Genre, dossier: String? = nil, app: String? = nil, outil: String? = nil, taches: OperationTaches? = nil, notification: String? = nil) {
+    public init(date: Date, genre: Genre, dossier: String? = nil, app: String? = nil, outil: String? = nil, taches: OperationTaches? = nil, notification: String? = nil,
+                message: String? = nil, titre: String? = nil) {
         self.date = date; self.genre = genre; self.dossier = dossier; self.app = app; self.outil = outil; self.taches = taches; self.notification = notification
+        self.message = message; self.titre = titre
     }
 
     /// Lit une ligne `{"t": 1731312345, "app": "com.apple.Terminal", "e": { …le JSON reçu par le crochet… }}`. nil : ligne abîmée.
@@ -405,6 +420,10 @@ public struct EvenementClaude: Equatable, Sendable {
         guard let d = ligne.data(using: .utf8), let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
               let e = o["e"] as? [String: Any], let t = (o["t"] as? NSNumber)?.doubleValue else { return nil }
         func texte(_ v: Any?) -> String? { (v as? String).flatMap { $0.isEmpty ? nil : $0 } }
+        // un texte coupé par le script au milieu d'une lettre finit par « � » : on l'enlève, avec les espaces du bout
+        func propre(_ v: Any?) -> String? {
+            texte(v).map { $0.replacingOccurrences(of: "\u{FFFD}", with: "").trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap { $0.isEmpty ? nil : $0 }
+        }
         let genre: Genre
         switch e["hook_event_name"] as? String {
         case "UserPromptSubmit": genre = .invite
@@ -416,7 +435,8 @@ public struct EvenementClaude: Equatable, Sendable {
         }
         let outil = texte(e["tool_name"])
         var ev = EvenementClaude(date: Date(timeIntervalSince1970: t), genre: genre, dossier: texte(e["cwd"]), app: texte(o["app"]), outil: outil,
-                                 notification: texte(e["notification_type"]))
+                                 notification: texte(e["notification_type"]),
+                                 message: genre == .notification ? propre(e["message"]) : nil, titre: genre == .invite ? propre(e["session_title"]) : nil)
         if genre == .outil, let outil { ev.taches = operation(outil: outil, entree: e["tool_input"] as? [String: Any], reponse: e["tool_response"]) }
         return ev
     }
@@ -472,8 +492,17 @@ public struct SessionClaude: Equatable, Sendable {
     public var taches: [TacheClaude] = []
     /// Le dernier événement reçu.
     public var derniere: Date
-    public init(id: String, dossier: String? = nil, app: String? = nil, etat: EtatClaude = .travaille, taches: [TacheClaude] = [], derniere: Date) {
+    /// Le titre que Claude Code donne à la session (le résumé de la demande, jamais la demande elle-même).
+    public var titre: String?
+    /// Ce qu'il demande quand il attend une réponse : le message de sa notification (« Claude needs your permission to use Bash »).
+    public var question: String?
+    /// Le début de la demande en cours (« depuis 42 min ») et la fin du tour (« en 42 min »).
+    public var debut: Date?
+    public var fin: Date?
+    public init(id: String, dossier: String? = nil, app: String? = nil, etat: EtatClaude = .travaille, taches: [TacheClaude] = [], derniere: Date,
+                titre: String? = nil, question: String? = nil, debut: Date? = nil, fin: Date? = nil) {
         self.id = id; self.dossier = dossier; self.app = app; self.etat = etat; self.taches = taches; self.derniere = derniere
+        self.titre = titre; self.question = question; self.debut = debut; self.fin = fin
     }
     /// Le nom du projet : le dernier dossier du dossier de travail.
     public var projet: String {
@@ -486,6 +515,73 @@ public struct SessionClaude: Equatable, Sendable {
     }
     /// La tâche en cours (sa forme « en cours » si Claude la donne).
     public var tacheEnCours: String? { taches.first { $0.statut == .enCours }.map { $0.enCours ?? $0.sujet } }
+    /// Le nom de ce que fait la session, pour l'îlot replié : la tâche « in_progress » de sa liste (son nom, pas sa forme « en cours »),
+    /// sinon le titre de la session (le résumé de la demande que Claude Code affiche aussi dans le Terminal). Jamais la demande tapée.
+    public var nom: String? { taches.first { $0.statut == .enCours }?.sujet ?? titre }
+    /// Depuis combien de temps la demande en cours tourne (ou combien de temps elle a pris, une fois finie).
+    public func duree(a t: Date) -> TimeInterval? {
+        guard let d = debut else { return nil }
+        return max(0, (etat == .termine ? (fin ?? t) : t).timeIntervalSince(d))
+    }
+}
+
+/// Les textes de Claude dans l'îlot : durée, question, ce qui se dit dans la carte et les bandeaux.
+public enum TexteClaude {
+    /// « 42 min », « 1 h 05 » ; « 1 min » au moins (« 0 min » ne veut rien dire).
+    public static func duree(_ s: TimeInterval) -> String { FormatIlot.minutes(max(60, s)) }
+
+    /// Le message d'une notification de Claude Code, dit en français quand on le reconnaît (ses messages sont en anglais et presque toujours
+    /// les mêmes), sinon tel quel. nil : pas de message.
+    public static func question(_ message: String?) -> String? {
+        guard let m = message?.trimmingCharacters(in: .whitespacesAndNewlines), !m.isEmpty else { return nil }
+        let prefixe = "Claude needs your permission to use "
+        if m.hasPrefix(prefixe) {
+            let outil = String(m.dropFirst(prefixe.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            return outil.isEmpty ? "Une autorisation à donner" : "Autoriser \(outil)\u{202F}?"
+        }
+        switch m {
+        case "Claude needs your permission": return "Une autorisation à donner"
+        case "Claude needs your approval for the plan", "Claude Code needs your approval for the plan": return "Valider le plan\u{202F}?"
+        case "Claude needs your input", "Claude Code needs your input", "Claude is waiting for your input": return nil
+        default: return m
+        }
+    }
+
+    /// Les premiers mots de la question, entre guillemets, coupés à un mot entier (« … » si coupé) ; nil : rien à citer.
+    public static func premiersMots(_ message: String?, max: Int = 44) -> String? {
+        guard let q = question(message) else { return nil }
+        guard q.count > max else { return "«\u{202F}" + q + "\u{202F}»" }
+        var coupe = String(q.prefix(max))
+        if let espace = coupe.lastIndex(of: " "), coupe.distance(from: coupe.startIndex, to: espace) > max / 2 { coupe = String(coupe[..<espace]) }
+        return "«\u{202F}" + coupe.trimmingCharacters(in: .punctuationCharacters.union(.whitespaces)) + "\u{2026}\u{202F}»"
+    }
+
+    /// Le titre du bandeau de fin : « Carte Dictées terminée » (le titre de la session), « Tâche terminée » sans titre.
+    public static func fin(_ s: SessionClaude) -> String { (s.titre ?? "Tâche") + " terminée" }
+    /// La 2e ligne du bandeau de fin : « dictee-mac · 42 min · 7 tâches sur 7 ».
+    public static func ligneFin(_ s: SessionClaude, a t: Date) -> String {
+        var l = s.projet
+        if let d = s.duree(a: t) { l += " \u{00B7} " + duree(d) }
+        if let p = s.progres { l += " \u{00B7} \(p.faites) tâche\(p.faites > 1 ? "s" : "") sur \(p.total)" }
+        return l
+    }
+    /// Ce que dit le bouton Claude du Centre : « Attend » (une session attend une réponse), « 2 au travail », « Prêt ».
+    public static func bouton(sessions: [SessionClaude]) -> String {
+        if sessions.contains(where: { $0.etat == .attend }) { return "Attend" }
+        let n = sessions.filter { $0.etat == .travaille }.count
+        return n > 0 ? "\(n) au travail" : "Prêt"
+    }
+    /// L'état d'une session dans la carte : « Au travail », « Attend ta réponse », « Terminée ».
+    public static func etat(_ e: EtatClaude) -> String {
+        switch e { case .travaille: return "Au travail"; case .attend: return "Attend ta réponse"; case .termine: return "Terminée" }
+    }
+    /// La suite de la 2e ligne d'une session dans la carte : « depuis 42 min · 3 sur 7 » (« en 42 min » une fois finie).
+    public static func suite(_ s: SessionClaude, a t: Date) -> String {
+        var l: [String] = []
+        if let d = s.duree(a: t) { l.append((s.etat == .termine ? "en " : "depuis ") + duree(d)) }
+        if let p = s.progres { l.append(p.texte) }
+        return l.joined(separator: " \u{00B7} ")
+    }
 }
 
 /// Une annonce à faire : Claude attend une réponse, ou il a fini.
@@ -516,21 +612,28 @@ public struct VeilleClaude: Equatable, Sendable {
         var annonce: AnnonceClaude?
         switch e.genre {
         case .invite:
-            // une nouvelle demande : au travail ; une liste toute faite appartient à la demande d'avant
+            // une nouvelle demande : au travail ; une liste toute faite appartient à la demande d'avant. Le début compte depuis la
+            // première demande après un arrêt (une demande envoyée pendant qu'il travaille ne remet pas l'horloge à zéro)
+            if s.etat == .termine || s.debut == nil { s.debut = e.date; s.fin = nil }
             s.etat = .travaille
+            s.question = nil
+            if let t = e.titre { s.titre = t }
             if s.progres?.complet == true { s.taches = [] }
         case .outil:
+            if s.etat == .termine, s.debut == nil { s.debut = e.date }
             s.etat = .travaille
+            s.question = nil
             if let op = e.taches { appliquer(op, a: &s) }
         case .notification:
             // « Claude attend ta réponse » : une autorisation à donner, une question posée (ou une version sans genre de notification) ;
             // jamais le rappel d'inactivité qui suit la fin d'un tour (« waiting for your input ») ni l'avis de connexion réussie
             if Self.attenteReelle(e.notification), s.etat != .termine, s.etat != .attend {
                 s.etat = .attend
+                s.question = e.message
                 annonce = .attend(s)
             }
         case .arret:
-            if s.etat != .termine { s.etat = .termine; annonce = .termine(s) }
+            if s.etat != .termine { s.etat = .termine; s.fin = e.date; s.question = nil; annonce = .termine(s) }
         case .fin, .autre:
             break
         }
@@ -581,10 +684,25 @@ public struct VeilleClaude: Equatable, Sendable {
             }
     }
 
+    /// Les sessions qui travaillent ou attendent une réponse (le petit « 2 » de l'îlot replié).
+    public func auTravail(a t: Date) -> Int { sessions.values.filter { Self.vivante($0, a: t) }.count }
+
+    /// Les sessions de la carte « Claude Code » : celles qui attendent une réponse en haut, puis celles qui travaillent, puis celles qui
+    /// ont fini depuis moins de 30 min ; les plus récentes d'abord dans chaque groupe.
+    public func pourLaCarte(a t: Date) -> [SessionClaude] {
+        func rang(_ s: SessionClaude) -> Int { s.etat == .attend ? 0 : (s.etat == .travaille ? 1 : 2) }
+        return sessions.values
+            .filter { Self.vivante($0, a: t) || ($0.etat == .termine && t.timeIntervalSince($0.fin ?? $0.derniere) < Self.oubliTravail) }
+            .sorted { a, b in rang(a) != rang(b) ? rang(a) < rang(b) : (a.derniere, a.id) > (b.derniere, b.id) }
+    }
+
     /// Quand une session montrée sera oubliée faute de nouvelles (un seul réveil, pas de minuterie qui tourne).
+    /// Une session finie quitte la carte 30 min après sa fin : ce moment compte aussi.
     public func prochainOubli(a t: Date) -> Date? {
-        sessions.values.filter { Self.vivante($0, a: t) }
-            .map { $0.derniere.addingTimeInterval($0.etat == .attend ? Self.oubliAttente : Self.oubliTravail) }.min()
+        let vivantes = sessions.values.filter { Self.vivante($0, a: t) }
+            .map { $0.derniere.addingTimeInterval($0.etat == .attend ? Self.oubliAttente : Self.oubliTravail) }
+        let finies = sessions.values.filter { $0.etat == .termine }.map { ($0.fin ?? $0.derniere).addingTimeInterval(Self.oubliTravail) }.filter { $0 > t }
+        return (vivantes + finies).min()
     }
 
     /// L'app de terminal que Hugues regarde déjà : rien à annoncer. `app` : l'app de la session (nil si le script ne l'a pas eue : on
@@ -599,5 +717,41 @@ public struct VeilleClaude: Equatable, Sendable {
         guard let p = premierPlan else { return false }
         if let app { return app == p }
         return terminaux.contains(p)
+    }
+}
+
+// MARK: - La bonne fenêtre du Terminal
+
+/// « Ouvrir » ramène la fenêtre du Terminal où tourne la session (pas seulement l'app). Verbe lit les fenêtres du Terminal par
+/// l'Accessibilité, qu'il a déjà (aucune autorisation de plus : pas d'AppleScript, qui demanderait à « contrôler le Terminal ») : le
+/// titre de chaque fenêtre (« dictee-mac — ✳ Carte Dictées — claude — 82×19 » : le dossier, le titre que Claude Code donne à la session,
+/// le programme, la taille) et son document (le dossier de travail que le shell annonce au Terminal). Logique pure : laquelle prendre.
+public enum FenetresClaude {
+    public struct Fenetre: Equatable, Sendable {
+        public var titre: String
+        /// Le document de la fenêtre (une URL `file://` du dossier de travail), s'il y en a un.
+        public var document: String?
+        public init(titre: String, document: String? = nil) { self.titre = titre; self.document = document }
+    }
+
+    /// Un chemin comparable : sans « / » final, « ~ » et « . » résolus.
+    static func chemin(_ s: String?) -> String? {
+        guard let s, !s.isEmpty else { return nil }
+        let p = s.hasPrefix("file:") ? (URL(string: s)?.path ?? s) : s
+        let n = (p as NSString).standardizingPath
+        return n.count > 1 && n.hasSuffix("/") ? String(n.dropLast()) : n
+    }
+
+    /// La fenêtre de la session `s` parmi `fenetres` (dans l'ordre du Terminal, la plus en avant d'abord), nil si aucune ne lui ressemble :
+    /// 1. le titre de la session est dans le titre de la fenêtre (Claude Code l'y écrit lui-même : le signe le plus sûr) ;
+    /// 2. le dossier de travail de la fenêtre est celui de la session ;
+    /// 3. le titre de la fenêtre commence par le nom du projet (le dossier, premier morceau du titre du Terminal).
+    public static func choisir(_ fenetres: [Fenetre], session s: SessionClaude) -> Int? {
+        if let t = s.titre?.trimmingCharacters(in: .whitespaces), t.count >= 3,
+           let i = fenetres.firstIndex(where: { $0.titre.range(of: t, options: [.caseInsensitive, .diacriticInsensitive]) != nil }) { return i }
+        if let d = chemin(s.dossier), let i = fenetres.firstIndex(where: { chemin($0.document) == d }) { return i }
+        let projet = s.projet
+        if s.dossier != nil, let i = fenetres.firstIndex(where: { $0.titre.components(separatedBy: " \u{2014} ").first?.trimmingCharacters(in: .whitespaces) == projet }) { return i }
+        return nil
     }
 }

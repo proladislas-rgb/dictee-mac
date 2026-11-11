@@ -139,7 +139,8 @@ struct IlotCalques: View {
         case .volume, .luminosite: niveauAiles(v)
         case .claudeMinimal: EmptyView()
         case .claudeCompact: ClaudeAiles(m: m, g: g)
-        case .claudeEtendu, .claudeAttend, .claudeTermine: if let c = m.contenuAnnonce(v) { annonce(v, c) }
+        case .claudeCarte: CarteClaudeVue(m: m, g: g)
+        case .claudeAttend, .claudeTermine: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .etagereDepot: DepotEtagere(m: m, g: g)
         case .etagere: CarteEtagere(m: m, g: g)
         case .etagerePile: PileEtagere(m: m, g: g)
@@ -147,6 +148,10 @@ struct IlotCalques: View {
         case .etagereEnvoi, .etagerePartis: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .centre: CentreVue(m: m, g: g)
         case .dictees: DicteesCarte(m: m, d: m.dictees, g: g)
+        case .outils: CentreVue(m: m, g: g, page: .outils)
+        case .outilPressePapiers: CartePressePapiers(m: m, g: g)
+        case .outilReformuler: CarteReformuler(m: m, g: g)
+        case .outilNote: CarteNote(m: m, g: g)
         }
     }
 

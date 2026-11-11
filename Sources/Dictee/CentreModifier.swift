@@ -29,42 +29,44 @@ enum AvisCentre: Equatable {
 }
 
 extension IlotMoteur {
-    /// « Modifier » : seulement sur le Centre ; l'îlot reste ouvert (épinglé) le temps de ranger.
+    /// « Modifier » : sur le Centre ou sur sa page Outils ; l'îlot reste ouvert (épinglé) le temps de ranger.
     func commencerEditionCentre() {
-        guard courante == .centre, !editionCentre else { return }
+        guard courante == .centre || courante == .outils, !editionCentre else { return }
         epinglerLeCentre()
         avisCentre = nil
         debutAjouts = 0
         editionCentre = true
     }
-    /// « OK » (ou le Centre qui se range) : la disposition est enregistrée.
+    /// « OK » (ou le Centre qui se range) : les dispositions sont enregistrées (celle du Centre et celle des Outils).
     func finirEditionCentre() {
         guard editionCentre else { return }
         editionCentre = false
         surDispositionCentre(disposition)
+        surDispositionOutils(dispositionOutils)
     }
-    func retirerDuCentre(_ e: ElementCentre) {
-        guard editionCentre, disposition.retirer(e) else { return }
-        donneesChangees()
+    /// La disposition de la page où vit `e` (le Centre ou les Outils).
+    private func modifier(_ e: ElementCentre, _ changer: (inout DispositionCentre) -> Bool) {
+        guard editionCentre else { return }
+        let fait = e.page == .outils ? changer(&dispositionOutils) : changer(&disposition)
+        if fait { donneesChangees() }
     }
-    func ajouterAuCentre(_ e: ElementCentre) {
-        guard editionCentre, disposition.ajouter(e, disponible: disponibleDansLeCentre) else { return }
-        donneesChangees()
-    }
+    func retirerDuCentre(_ e: ElementCentre) { modifier(e) { $0.retirer(e) } }
+    func ajouterAuCentre(_ e: ElementCentre) { modifier(e) { $0.ajouter(e, disponible: disponibleDansLeCentre) } }
     /// Range un rond (ou une case) au rang voulu parmi ceux de son genre qui sont montrés.
-    func rangerDansLeCentre(_ e: ElementCentre, versRang r: Int, parmi visibles: [ElementCentre]) {
-        guard editionCentre, disposition.deplacer(e, versRang: r, parmi: visibles) else { return }
-        donneesChangees()
-    }
+    func rangerDansLeCentre(_ e: ElementCentre, versRang r: Int, parmi visibles: [ElementCentre]) { modifier(e) { $0.deplacer(e, versRang: r, parmi: visibles) } }
 }
 
-/// L'en-tête du Centre : « ‹ Vidéo » (ou « Centre »), ou la ligne d'avis ; « Reste ouvert » quand l'îlot est épinglé ; « Modifier ».
+/// L'en-tête du Centre : « ‹ Vidéo » (ou l'étagère, ou « Centre »), ou la ligne d'avis ; « Reste ouvert » quand l'îlot est épinglé ;
+/// « Outils › » (la 2e page) ; « Dictées » ; « Modifier ». Sur la page Outils : « ‹ Centre », « Reste ouvert », « Modifier ».
 /// Dans « Modifier » : « Ajouter : » et les pastilles de ce qu'on peut ajouter (celles qui tiennent, puis « +N »), et « OK ».
 struct EnteteCentre: View {
     @ObservedObject var m: IlotMoteur
     var largeur: CGFloat
+    var page: PageCentre = .centre
 
-    static let titreOK = "OK", titreModifier = "Modifier"
+    static let titreOK = "OK", titreModifier = "Modifier", titreOutils = "Outils"
+    /// « Outils › » : 11, le mot, 4, le chevron (10,5 pt), 9.
+    static var piluleOutils: CGFloat { 11 + MesureIlot.texte(titreOutils, 12.5, .semibold) + 4 + MesureIlot.symbole("chevron.right", 10.5, .bold) + 9 }
     /// La largeur d'une pilule de l'en-tête (11 pt de chaque côté du texte).
     static func pilule(_ t: String) -> CGFloat { MesureIlot.texte(t, 12.5, .semibold) + 22 }
     static let libelleAjouter = "Ajouter :"
@@ -75,8 +77,8 @@ struct EnteteCentre: View {
     /// « ‹ » : revenir aux premières pastilles.
     static let retour: CGFloat = 26
     /// Ce qu'on peut ajouter, la première pastille montrée, et combien tiennent dans la ligne (après « Ajouter : », avant « OK »).
-    static func ajouts(_ m: IlotMoteur, largeur: CGFloat) -> (tous: [ElementCentre], debut: Int, montres: Int) {
-        let tous = m.disposition.aAjouter(disponible: m.disponibleDansLeCentre)
+    static func ajouts(_ m: IlotMoteur, largeur: CGFloat, page: PageCentre = .centre) -> (tous: [ElementCentre], debut: Int, montres: Int) {
+        let tous = m.dispositionDe(page).aAjouter(disponible: m.disponibleDansLeCentre)
         let debut = m.debutAjouts < tous.count ? m.debutAjouts : 0
         let place = largeur - pilule(titreOK) - 8 - MesureIlot.texte(libelleAjouter, 12, .medium) - 6 - (debut > 0 ? retour + 6 : 0)
         let suite = tous.dropFirst(debut)
@@ -87,14 +89,21 @@ struct EnteteCentre: View {
     /// La pilule « Dictées » (les guillemets de 10 pt et 4 pt avant le mot).
     static var piluleDictees: CGFloat { pilule("Dictées") + MesureIlot.symbole("quote.opening", 10, .bold) + 4 }
     /// La place de la ligne d'avis : tout l'en-tête sauf « Modifier » (« Reste ouvert » et « Dictées » s'effacent devant elle, le temps
-    /// qu'on la lise : les Dictées restent à un point de page ou un défilement).
+    /// qu'on la lise : les Dictées restent à un point de page ou un défilement ; « Outils › » aussi s'il ne tient plus à côté).
     static func placeAvis(largeur: CGFloat) -> CGFloat { largeur - pilule(titreModifier) - 8 }
+    /// « Outils › » tient-il dans l'en-tête du Centre ? Toujours, sauf à côté d'une ligne d'avis trop longue (trois écarts de 8 pt).
+    static func outilsTient(_ m: IlotMoteur, largeur: CGFloat) -> Bool {
+        guard let a = m.avisCentre else { return true }
+        return a.largeur + piluleOutils + pilule(titreModifier) + 24 <= largeur
+    }
 
     var body: some View {
         let ed = m.editionCentre
         HStack(spacing: 8) {
             if ed {
                 ajouts
+            } else if page == .outils {
+                PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.allerA(.centre) }
             } else if let a = m.avisCentre {
                 avis(a)
             } else if let nom = m.nomPremiereCarte, let premiere = m.cartes.first {
@@ -106,7 +115,7 @@ struct EnteteCentre: View {
                 Text("Centre").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(CouleursIlot.encre2).padding(.leading, 2)
             }
             Spacer(minLength: 0)
-            if !ed, m.avisCentre == nil {
+            if !ed, m.avisCentre == nil || page == .outils {
                 HStack(spacing: 4) {
                     Image(systemName: "pin.fill").font(.system(size: 10, weight: .semibold))
                     Text("Reste ouvert").font(.system(size: 11.5, weight: .semibold))
@@ -116,10 +125,15 @@ struct EnteteCentre: View {
                 .animation(m.reduire || m.statique ? nil : .easeOut(duration: 0.25), value: m.epingle)
                 .accessibilityHidden(!m.epingle)
             }
+            // « Outils › » : toujours, sauf si la ligne d'avis (passagère) ne lui laisse pas la place, mesurée (les points de page et le
+            // défilement mènent aussi aux Outils)
+            if !ed, page == .centre, Self.outilsTient(m, largeur: largeur) {
+                PiluleCentre(titre: Self.titreOutils, suite: true, etiquette: "Les outils : garder éveillé, presse-papiers, reformuler, notes") { m.allerA(.outils) }
+            }
             if ed {
                 PiluleCentre(titre: Self.titreOK, plein: true, etiquette: "Terminer : enregistrer le Centre") { m.finirEditionCentre() }
             } else {
-                // les Dictées (l'ancien panneau de la barre des menus), la carte qui suit le Centre (maquette)
+                // les Dictées (l'ancien panneau de la barre des menus), la dernière carte de la pile
                 if m.avisCentre == nil {
                     PiluleCentre(titre: "Dictées", symbole: "quote.opening", etiquette: "Les dictées : chercher, copier, coller") { m.allerA(.dictees) }
                 }
@@ -131,7 +145,7 @@ struct EnteteCentre: View {
 
     /// « Ajouter : » et les pastilles. Un rond de plus quand la rangée est pleine (cinq) : la pastille est là, éteinte.
     private var ajouts: some View {
-        let (tous, debut, n) = Self.ajouts(m, largeur: largeur)
+        let (tous, debut, n) = Self.ajouts(m, largeur: largeur, page: page)
         let reste = tous.count - debut - n
         return HStack(spacing: 6) {
             Text(Self.libelleAjouter).font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5)).fixedSize()
@@ -144,7 +158,7 @@ struct EnteteCentre: View {
                 .accessibilityLabel("Revenir aux premiers à ajouter")
             }
             ForEach(Array(tous.dropFirst(debut).prefix(n)), id: \.self) { e in
-                PastilleAjout(element: e, possible: m.disposition.peutAjouter(e, disponible: m.disponibleDansLeCentre)) { m.ajouterAuCentre(e) }
+                PastilleAjout(element: e, possible: m.dispositionDe(page).peutAjouter(e, disponible: m.disponibleDansLeCentre)) { m.ajouterAuCentre(e) }
             }
             if reste > 0 {
                 Button { m.debutAjouts = debut + n } label: {

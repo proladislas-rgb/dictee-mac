@@ -94,8 +94,8 @@ enum ActionIlot {
     case fichiersOuvrir([URL])
     /// « Rouvrir » sur le micro coupé déplié.
     case microRouvrir
-    /// « Ouvrir » sur Claude au travail : ramène l'app d'où vient la session (le Terminal), par son identifiant.
-    case claudeOuvrir(String?)
+    /// « Ouvrir » (ou « Voir ») sur une session de Claude Code : ramène la fenêtre du Terminal où elle tourne (sinon l'app).
+    case claudeOuvrir(SessionClaude?)
     /// L'étagère : ouvrir un fichier (clic sur sa tuile), le retirer (« × »), tout vider.
     case etagereOuvrir(UUID), etagereRetirer(UUID), etagereVider
     /// Les boutons du Centre (CentreIlot.swift) : couper ou rouvrir le micro, allumer ou éteindre Téléchargements, brancher Claude Code
@@ -116,6 +116,14 @@ enum ActionIlot {
     case etagereRemettre
     /// L'interrupteur « Captures d'écran ici » de la carte Étagère ; la ligne « Accès refusé » (elle ouvre Réglages Système).
     case etagereCaptures, etagereCapturesReglages
+    /// Les Outils (IlotOutils.swift) : garder le Mac éveillé (nil : l'arrêter) ;
+    case eveil(DureeEveil?)
+    /// le presse-papiers : recopier un élément (clic), le coller dans l'app d'où l'on vient (« Coller »), tout effacer ;
+    case copieRecopier(UUID), copieColler(UUID), copiesEffacer
+    /// Reformuler : la source (dernière dictée, texte choisi), une réécriture, « Remplacer », « Copier » ;
+    case reformulationSource(SourceReformulation), reformuler(StyleReformulation), reformulationRemplacer, reformulationCopier
+    /// Note rapide : l'envoyer dans l'app Notes, la supprimer.
+    case noteVersNotes(UUID), noteSupprimer(UUID)
 }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
@@ -129,7 +137,7 @@ enum FamilleIlot: CaseIterable {
         case .rappelCompact, .rappelEtendu: return .rappel
         case .agendaCompact, .agendaEtendu: return .agenda
         case .microCompact, .microEtendu: return .micro
-        case .claudeMinimal, .claudeCompact, .claudeEtendu: return .claude
+        case .claudeMinimal, .claudeCompact, .claudeCarte: return .claude
         default: return .autre
         }
     }
@@ -140,7 +148,7 @@ enum FamilleIlot: CaseIterable {
         case .rappel: return (.rappelCompact, .rappelEtendu)
         case .agenda: return (.agendaCompact, .agendaEtendu)
         case .micro: return (.microCompact, .microEtendu)
-        case .claude: return (.claudeCompact, .claudeEtendu)
+        case .claude: return (.claudeCompact, .claudeCarte)
         case .autre: return nil
         }
     }
@@ -241,6 +249,12 @@ final class IlotMoteur: ObservableObject {
     /// La session de Claude Code que l'îlot montre (au travail, ou qui attend une réponse) ; la dernière vue, pour un écran qui s'efface.
     var claude: SessionClaude? { didSet { if let claude { dernierClaude = claude } } }
     private(set) var dernierClaude: SessionClaude?
+    /// Toutes les sessions de la carte « Claude Code », dans l'ordre (celle qui attend en haut), et combien travaillent ou attendent
+    /// (le petit « 2 » de l'îlot replié). Poussées par le contrôleur.
+    var sessionsClaude: [SessionClaude] = []
+    var claudeAuTravail = 0
+    /// Le défilement de la carte « Claude Code » (0 = en haut) : la molette et deux doigts la font défiler au lieu de changer de carte.
+    private(set) var defilementClaude: CGFloat = 0
     /// L'étagère (réglage allumé) et ses fichiers, dans l'ordre où ils ont été rangés.
     var etagereActive = false
     /// Des écouteurs Bluetooth avec un micro sont là : l'accueil propose « Micro : Mac / AirPods » (nom des écouteurs, leur micro choisi ?).
@@ -307,6 +321,29 @@ final class IlotMoteur: ObservableObject {
     /// La carte Dictées : sa recherche, sa liste (lue dans l'historique), ce qu'on y survole, déplie, copie.
     let dictees = DicteesIlot()
 
+    // MARK: les Outils, 2e page du Centre (IlotOutils.swift pour leurs vues, OutilsControleur.swift pour ce qui touche au système)
+    /// Ce que la page Outils montre, dans l'ordre (« Modifier », comme le Centre) ; le contrôleur la relit des réglages au lancement.
+    var dispositionOutils = DispositionCentre(DispositionCentre.parDefautOutils, page: .outils) { didSet { if dispositionOutils != oldValue { rev += 1 } } }
+    var surDispositionOutils: (DispositionCentre) -> Void = { _ in }
+    /// « Garder éveillé » en cours (nil : la veille est normale), et son panneau ouvert (« combien de temps ? »).
+    var eveil: EveilIlot? { didSet { if eveil != oldValue { rev += 1 } } }
+    var panneauEveil = false { didSet { if panneauEveil != oldValue { rev += 1 } } }
+    /// Le panneau se montre tant qu'on choisit, ou tant que le Mac est gardé éveillé (pour voir jusqu'à quand, et l'éteindre).
+    var panneauEveilVisible: Bool { panneauEveil || eveil != nil }
+    /// Le presse-papiers : les cinq dernières copies (en mémoire), celle qui vient d'être recopiée ou collée, celle sous le pointeur.
+    var copies: [CopieVue] = [] { didSet { rev += 1 } }
+    var copieFaite: (id: UUID, mot: String)? { didSet { rev += 1 } }
+    var survolCopie: UUID? { didSet { if survolCopie != oldValue { rev += 1 } } }
+    /// Reformuler : d'où vient le texte, lequel, et où en est la réécriture.
+    var reformulation = EtatReformulation() { didSet { rev += 1 } }
+    /// Les notes rapides (la plus récente d'abord), celle qui vient d'arriver (mise en avant), celles qui partent vers Notes.
+    var notes: [NoteRapide] = [] { didSet { rev += 1 } }
+    var noteNeuve: UUID? { didSet { if noteNeuve != oldValue { rev += 1 } } }
+    var envoisNotes: [UUID: EnvoiNote] = [:] { didSet { rev += 1 } }
+    var survolNote: UUID? { didSet { if survolNote != oldValue { rev += 1 } } }
+    /// Le défilement de la liste des notes (0 = en haut), quand elle dépasse.
+    private(set) var defilementNotes: CGFloat = 0
+
     // MARK: masques (dictée, réunion, autres annonces : l'îlot s'efface)
     var dictee = false
     var reunion = false
@@ -353,7 +390,7 @@ final class IlotMoteur: ObservableObject {
     var survole = false          // la souris est sur l'îlot assez longtemps
     var epingle = false
     private(set) var sousVue: VueIlot?
-    private var pointeurSurForme = false
+    private(set) var pointeurSurForme = false
     private var intention: DispatchWorkItem?
     private var fermeture: DispatchWorkItem?
     private var reveil: DispatchWorkItem?
@@ -383,7 +420,7 @@ final class IlotMoteur: ObservableObject {
         e.microCoupe = microCoupe
         e.claude = claude != nil
         e.claudeAttend = claude?.etat == .attend
-        e.claudeListe = claude?.progres != nil
+        e.claudeListe = claude?.progres != nil || claude?.nom != nil
         // sans encoche (écran externe, MacBook fermé), l'îlot vide n'existe pas : pas de pile dans la barre des menus toute la journée ;
         // l'étagère reste au Centre et au glisser
         e.etagere = etagereActive && !etagere.isEmpty && geometrie.reelle
@@ -414,13 +451,19 @@ final class IlotMoteur: ObservableObject {
         let ancien = resolution
         resolution = ArbitrageIlot.resoudre(etat, echange: echange)
         // le micro coupé s'ouvre sur la vidéo en bulle, ou sur le Centre (où est son bouton) : plus de déplié à lui
-        if let sv = resolution.survol { resolution.survol = CartesIlot.survol(sv, deuxieme: resolution.pastille.map { ArbitrageIlot.vues($0).etendu }) }
+        let e = etat
+        if let sv = resolution.survol { resolution.survol = CartesIlot.survol(sv, deuxieme: resolution.pastille.map { ArbitrageIlot.survol($0, e) }) }
         if let e = echange, resolution.pastille != e, ArbitrageIlot.ordre(etat).contains(e) == false { echange = nil }
         if resolution.verrou { epingle = false; survole = false; sousVue = nil }
         if ancien.principal != resolution.principal, !(survole || epingle) { sousVue = nil }
         if sousVue == .lectureMinuteur, FamilleIlot.de(resolution.principal) != .lecture || resolution.verrou { sousVue = nil }
         if sousVue == .etagere, !etagereActive { sousVue = nil }
         if depot || appel, !etagereActive { depot = false; appel = false; depotSurvole = false; depotZone = nil }
+        // l'îlot se range : le panneau « Garder éveillé » se replie s'il n'y a rien à montrer, les survols s'oublient
+        if !fenetreOuverte {
+            if eveil == nil, panneauEveil { panneauEveil = false }
+            survolCopie = nil; survolNote = nil
+        }
         // le Centre ouvert le reste quand une activité commence (un minuteur lancé, le micro coupé, une vidéo) : on ne saute pas ailleurs
         if courante == .centre, survole || epingle, sousVue == nil, !resolution.verrou, resolution.survol != .centre, ancien.survol != resolution.survol { sousVue = .centre }
         // la bulle « Nouveau » a servi : l'îlot vient d'être ouvert
@@ -434,7 +477,7 @@ final class IlotMoteur: ObservableObject {
         else if appel, !fenetreOuverte, !resolution.verrou { voulu = .etagereAppel }
         afficher(voulu)
         // le Centre s'est rangé (clic ailleurs, alerte, autre carte) : « Modifier » se termine et enregistre ; la ligne d'avis s'en va
-        if editionCentre, courante != .centre { finirEditionCentre() }
+        if editionCentre, courante != .centre, courante != .outils { finirEditionCentre() }
         // la carte Dictées quittée (autre carte, îlot rangé, dictée qui commence) : le champ rend le clavier tout de suite ; l'îlot rangé,
         // la recherche repart de zéro à la prochaine ouverture
         if dictees.rechercheActive, cache || courante != .dictees || !fenetreOuverte { dictees.rechercheActive = false; surAction(.dicteesClavier(false)) }
@@ -479,10 +522,17 @@ final class IlotMoteur: ObservableObject {
         var d: [VueIlot: CGFloat] = [:]
         if etagereActive, !etagere.isEmpty { d[.lectureMinuteur] = CGFloat(GeoIlot.ligneAccueil) }
         if EtagereIlot.rangees(etagere.count) > 1 { d[.etagere] = CGFloat(GeoIlot.rangeeEtagere) }
-        // le Centre suit ce qu'il montre (« Modifier ») : les fichiers de l'étagère en haut, ronds, cases et bande de la réunion
-        let mp = miseEnPageCentre
-        let p = DispositionCentre.plan(etagere: mp.etagereEnHaut, ronds: !rondsCentre.isEmpty, cases: !mp.cases.isEmpty, bande: mp.bande).profondeur
+        // le Centre suit ce qu'il montre (« Modifier ») : les fichiers de l'étagère en haut, ronds, cases et bande de la réunion ; la page
+        // Outils aussi (le panneau « Garder éveillé » prend la place des cases), et les cartes des outils suivent leur contenu
+        let p = planDe(.centre).profondeur
         if p != GeoIlot.profondeurCentre { d[.centre] = CGFloat(p - GeoIlot.profondeurCentre) }
+        d[.outils] = CGFloat(planDe(.outils).profondeur - GeoIlot.profondeurCentre)
+        d[.outilPressePapiers] = PlanPressePapiers.profondeur(self) - CGFloat(GeoIlot.profondeurCentre)
+        d[.outilReformuler] = PlanReformuler.profondeur(self) - CGFloat(GeoIlot.profondeurCentre)
+        d[.outilNote] = PlanNote.profondeur(self) - CGFloat(GeoIlot.profondeurCentre)
+        // la carte « Claude Code » suit ses sessions, jusqu'à la hauteur du Centre (au-delà, elle défile)
+        let pc = PlanCarteClaude.profondeur(self)
+        if pc != CGFloat(GeoIlot.profondeurCentre) { d[.claudeCarte] = pc - CGFloat(GeoIlot.profondeurCentre) }
         // les Dictées épousent leur liste (« Aucun résultat », trois lignes, une ligne dépliée…), jusqu'à 200 pt ; elle défile au-delà
         dictees.largeurTexte = PlanDictees.largeurTexte(demiCamera: demiCamera)
         let pd = CarteDictees.profondeur(liste: dictees.miseEnPage().hauteur)
@@ -524,15 +574,18 @@ final class IlotMoteur: ObservableObject {
         // un écran fait de plusieurs couches (la lecture + sa rangée) : seules les couches qui changent partent ou arrivent
         if avant != v { for c in Self.couches(avant) where !Self.couches(v).contains(c) { sortir(&apparitions[c], glisse: glisse) } }
         for c in Self.couches(v) { entrer(&apparitions[c], delai: delaiContenu, glisse: glisse) }
-        if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere || v == .centre || v == .dictees { surDepliage() }
+        if avant != v, v == .claudeCarte { defilementClaude = 0 }
+        if avant != v, v == .outilNote { defilementNotes = 0 }
+        if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere || v == .centre || v == .dictees
+            || v == .claudeCarte || v == .outils || CartesIlot.parent(v) != nil { surDepliage() }
         // la carte Étagère vue puis quittée : les captures arrivées ne sont plus « Nouveau »
         if avant == .etagere, v != .etagere { surEtagereVue() }
     }
 
     /// Les couches de contenu d'un écran : la rangée Minuteur se pose sous la lecture dépliée, qui ne s'efface pas pour autant.
     static func couches(_ v: VueIlot) -> [VueIlot] { v == .lectureMinuteur ? [.lectureEtendu, .lectureMinuteur] : [v] }
-    /// La place d'un écran dans la pile des cartes (la rangée Minuteur compte comme la lecture).
-    static func rang(_ v: VueIlot, _ pile: [VueIlot]) -> Int? { pile.firstIndex(of: v == .lectureMinuteur ? .lectureEtendu : v) }
+    /// La place d'un écran dans la pile des cartes (la rangée Minuteur compte comme la lecture, la carte d'un outil comme la page Outils).
+    static func rang(_ v: VueIlot, _ pile: [VueIlot]) -> Int? { pile.firstIndex(of: v == .lectureMinuteur ? .lectureEtendu : (CartesIlot.parent(v) ?? v)) }
     /// La forme passe de la lecture dépliée à la lecture + rangée (ou l'inverse) : la pochette ne bouge pas.
     private var glisseLecture = false
     /// La lecture + rangée se replie d'un coup en compact : la pochette se règle sur la hauteur de la rangée (sinon, partie de 262 pt
@@ -661,7 +714,10 @@ final class IlotMoteur: ObservableObject {
         afficherMaintenant(alerte: a, bandeau: b)
     }
     /// Le Centre est épinglé (ou sa carte Étagère, ouverte depuis lui) : les bandeaux attendent qu'il se range.
-    var centreRetientLesBandeaux: Bool { !cache && epingle && (courante == .centre || courante == .etagere || courante == .dictees) }
+    var centreRetientLesBandeaux: Bool {
+        !cache && epingle && (courante == .centre || courante == .etagere || courante == .dictees || courante == .claudeCarte || courante == .outils
+                              || CartesIlot.parent(courante) != nil)
+    }
     /// Des bandeaux attendent que le Centre se range (et non la fin d'une dictée, que le contrôleur guette lui-même).
     private var attenteDuCentre = false
     private func afficherMaintenant(alerte a: AlerteIlot?, bandeau b: BandeauIlot?) {
@@ -683,6 +739,11 @@ final class IlotMoteur: ObservableObject {
         }
     }
     func quitterAlerte() { alerte = nil; donneesChangees() }
+    /// Retire les bandeaux qui attendent (la fin d'une dictée, un Centre épinglé) et qui n'ont plus lieu d'être : la session de Claude
+    /// dont on vient d'ouvrir la fenêtre n'a plus à s'annoncer quand la carte se range.
+    func retirerEnAttente(_ inutile: (BandeauIlot) -> Bool) {
+        enAttente.removeAll { $0.alerte == nil && $0.bandeau.map(inutile) == true }
+    }
 
     // MARK: volume et luminosité
 
@@ -954,6 +1015,69 @@ final class IlotMoteur: ObservableObject {
         donneesChangees(); surDepliageMoniteur()
     }
 
+    /// Le bouton Claude Code du Centre : la carte « Claude Code » (un bloc par session). Elle reste ouverte comme le Centre ; « ‹ Centre »
+    /// y ramène.
+    func ouvrirCarteClaude() {
+        guard !cache, !resolution.verrou else { return }
+        intention?.cancel(); fermeture?.cancel()
+        defilementClaude = 0
+        sousVue = .claudeCarte; epingle = true; survole = true
+        donneesChangees(); surDepliageMoniteur()
+    }
+    /// Fait défiler la carte « Claude Code » de `dy` pt (sens d'AppKit : négatif = vers le bas de la liste), bornée à ce qui dépasse.
+    func defilerCarteClaude(_ dy: CGFloat) {
+        let max = PlanCarteClaude.depassement(self)
+        let v = Swift.min(max, Swift.max(0, defilementClaude - dy))
+        guard v != defilementClaude else { return }
+        defilementClaude = v
+        rev += 1
+    }
+
+    /// Un outil de la page Outils : sa carte (presse-papiers, Reformuler, Note rapide). Elle reste ouverte comme le Centre ; « ‹ Outils »
+    /// y ramène.
+    func ouvrirOutil(_ v: VueIlot) {
+        guard !cache, !resolution.verrou, CartesIlot.parent(v) != nil else { return }
+        intention?.cancel(); fermeture?.cancel()
+        if v == .outilNote { defilementNotes = 0 }
+        sousVue = v; epingle = true; survole = true
+        donneesChangees(); surDepliageMoniteur()
+    }
+    /// Combien de temps la carte Note rapide reste montrée après une note dictée, si la souris n'y vient pas.
+    static let dureeNoteMontree: TimeInterval = 4
+    /// Une note vient d'être dictée : l'îlot se rouvre sur sa carte pour la montrer, SANS l'épingler. Il se range seul après
+    /// `dureeNoteMontree` (un seul réveil) si la souris n'y est pas venue ; un clic l'épingle, comme tout survol. Tant qu'il n'est ni
+    /// épinglé ni sous la souris, la dictée suivante redevient une dictée normale (voir `noteDictable`) et les bandeaux passent.
+    func montrerNote() {
+        guard !cache, !resolution.verrou else { return }
+        intention?.cancel(); fermeture?.cancel()
+        defilementNotes = 0
+        sousVue = .outilNote; epingle = false; survole = true
+        donneesChangees(); surDepliageMoniteur()
+        let item = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, !self.epingle, !self.pointeurSurForme, self.sousVue == .outilNote else { return }
+                self.survole = false; self.sousVue = nil; self.donneesChangees(); self.fermerMoniteur()
+            }
+        }
+        fermeture = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.dureeNoteMontree, execute: item)
+    }
+    /// Une dictée qui commence maintenant deviendra-t-elle une note ? Oui si la carte Note rapide (ou la page Outils, dont la bande dit
+    /// « Dicter une note · maintiens fn ») est ouverte ET choisie : épinglée d'un clic, ou sous la souris. La carte rouverte toute seule
+    /// après une note ne compte pas : Hugues est peut-être déjà reparti dans son mail.
+    var noteDictable: Bool {
+        guard fenetreOuverte, !cache, !editionCentre, epingle || pointeurSurForme else { return false }
+        return courante == .outilNote || (courante == .outils && dispositionOutils.bande)
+    }
+    /// Fait défiler la liste des notes de `dy` pt (sens d'AppKit), bornée à ce qui dépasse.
+    func defilerNotes(_ dy: CGFloat) {
+        let max = PlanNote.depassement(self)
+        let v = Swift.min(max, Swift.max(0, defilementNotes - dy))
+        guard v != defilementNotes else { return }
+        defilementNotes = v
+        rev += 1
+    }
+
     func ouvrirFormulaireRappel() {
         sousVue = .rappelListe; epingle = true; survole = true
         donneesChangees(); surDepliageMoniteur()
@@ -996,6 +1120,8 @@ final class IlotMoteur: ObservableObject {
         // « Modifier » : on range les boutons, la molette ne change pas de carte
         guard fenetreOuverte, !cache, !resolution.verrou, !editionCentre else { return }
         if courante == .etagere { allerA(.centre); return }
+        // la carte d'un outil : on revient à la page Outils
+        if let p = CartesIlot.parent(courante) { allerA(p); return }
         guard let c = carteCourante, let v = CartesIlot.voisine(cartes, de: c, pas: pas) else { return }
         allerA(v)
     }
@@ -1004,6 +1130,16 @@ final class IlotMoteur: ObservableObject {
     /// d'une autre carte (l'accueil, qui passe aux Dictées en chemin) reste un changement de carte jusqu'au bout (`pourLaListe`).
     func recevoirDefilement(dy: Double, dx: Double, phase: DefilementIlot.Phase, inertie: Bool, en p: CGPoint? = nil, t: Double = ProcessInfo.processInfo.systemUptime) {
         guard fenetreOuverte, !cache else { return }
+        // la carte « Claude Code » défile elle-même (sa liste peut dépasser) : la molette ne change pas de carte
+        if courante == .claudeCarte {
+            if abs(dy) >= abs(dx) { defilerCarteClaude(CGFloat(phase == .aucune && abs(dy) < 20 ? dy * 2 : dy)) }
+            return
+        }
+        // la liste des notes, quand elle dépasse, défile elle-même
+        if courante == .outilNote, PlanNote.depassement(self) > 0 {
+            if abs(dy) >= abs(dx) { defilerNotes(CGFloat(phase == .aucune && abs(dy) < 20 ? dy * 2 : dy)) }
+            return
+        }
         let surListe = courante == .dictees && p.map { PlanDictees.cadreListe(grille).contains($0) } == true && dictees.defile
         if defilement.pourLaListe(phase: phase, inertie: inertie, surListe: surListe) {
             if courante == .dictees, abs(dy) >= abs(dx) { dictees.defiler(dy) }
@@ -1030,7 +1166,7 @@ final class IlotMoteur: ObservableObject {
         // le bouton « Centre » au pied de tout déplié d'activité (la vidéo, le minuteur, Claude, un rendez-vous) : le chemin se voit
         let pied = CartesIlot.aUnPied(courante, pile: pile)
         if pied { carteDuPied = courante }
-        let points = [.lectureEtendu, .centre, .accueil, .dictees].contains(courante) && pile.count > 1 && fenetreOuverte
+        let points = ([.lectureEtendu, .centre, .outils, .accueil, .dictees].contains(courante) || CartesIlot.parent(courante) != nil) && pile.count > 1 && fenetreOuverte
         let bulle = bulleSous(courante)
         for (e, voulu) in [(ExtraIlot.pied, pied), (.points, points), (.bulle, bulle)] {
             if voulu { entrer(&apparitionsExtra[e], delai: e == .bulle ? 0.2 : 0.14) } else { sortir(&apparitionsExtra[e]) }
