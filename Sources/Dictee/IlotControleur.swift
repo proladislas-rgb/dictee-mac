@@ -96,6 +96,8 @@ final class IlotControleur {
     var envoyerNoteVersNotes: (String, @escaping @Sendable (Bool) -> Void) -> Void = { IlotControleur.versNotesSysteme($0, fini: $1) }
     var noteArmeeJusqua: Date = .distantPast
     var noteAOuvrir = false
+    /// ⌘C vient d'être tapé : un seul réveil, le temps que l'app écrive dans le presse-papiers.
+    var reveilCopie: DispatchWorkItem?
 
     /// Ce qui occupe l'encoche en dehors de la dictée de ce contrôleur (rempli par l'AppDelegate).
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
@@ -365,6 +367,7 @@ final class IlotControleur {
     /// L'alimentation a changé : la batterie des épaules, et l'annonce du chargeur branché ou de la batterie faible.
     func energieChangee(_ e: EnergieIlot?) {
         moteur.energie = e
+        eveilSelonEnergie(e)
         switch veilleEnergie.lire(e) {
         case .charge?:
             moteur.annoncer(bandeau: BandeauIlot(vue: .batterieCharge, jusqua: maintenant().addingTimeInterval(3), ligne1: "En charge", ligne2: "", energie: e))
@@ -396,12 +399,14 @@ final class IlotControleur {
             let courante = moteur.courante
             if moteur.fenetreOuverte, [.accueil, .centre, .rappelListe, .lectureEtendu, .lectureMinuteur].contains(courante) {
                 armeFormulaire = courante == .rappelListe
-                armeJusqua = maintenant().addingTimeInterval(60)
+                armeJusqua = .distantFuture
             }
-            // la carte Note rapide est ouverte : cette dictée devient une note (pas collée dans l'app)
-            if moteur.fenetreOuverte, courante == .outilNote { noteArmeeJusqua = maintenant().addingTimeInterval(60) }
+            // la carte Note rapide (ou la page Outils et sa bande) est ouverte et choisie : cette dictée devient une note (pas collée)
+            if moteur.noteDictable { noteArmeeJusqua = .distantFuture }
         } else {
-            if armeJusqua > maintenant() { armeJusqua = maintenant().addingTimeInterval(12) }   // le temps de la transcription
+            // armée sans échéance pendant toute la dictée (une dictée de plus d'une minute aurait sinon collé la note dans l'app au
+            // premier plan) ; au relâchement de fn, le temps de la transcription
+            if armeJusqua > maintenant() { armeJusqua = maintenant().addingTimeInterval(12) }
             if noteArmeeJusqua > maintenant() { noteArmeeJusqua = maintenant().addingTimeInterval(12) }
         }
         // le micro qu'écoutera la dictée, s'il est coupé, est rouvert AVANT qu'elle ne l'ouvre (cet appel précède le démarrage de la
@@ -425,7 +430,7 @@ final class IlotControleur {
         moteur.donneesChangees()
         if !moteur.cache { moteur.vidangerAttente() }
         // une note vient d'être dictée : l'îlot se rouvre sur elle, une fois l'encoche de la dictée rangée
-        if !moteur.cache, noteAOuvrir { noteAOuvrir = false; moteur.ouvrirOutil(.outilNote) }
+        if !moteur.cache, noteAOuvrir { noteAOuvrir = false; moteur.montrerNote() }
     }
 
     private func lectureVisible(_ visible: Bool) {

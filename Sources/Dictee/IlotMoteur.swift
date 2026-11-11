@@ -340,7 +340,7 @@ final class IlotMoteur: ObservableObject {
     var survole = false          // la souris est sur l'îlot assez longtemps
     var epingle = false
     private(set) var sousVue: VueIlot?
-    private var pointeurSurForme = false
+    private(set) var pointeurSurForme = false
     private var intention: DispatchWorkItem?
     private var fermeture: DispatchWorkItem?
     private var reveil: DispatchWorkItem?
@@ -955,6 +955,33 @@ final class IlotMoteur: ObservableObject {
         if v == .outilNote { defilementNotes = 0 }
         sousVue = v; epingle = true; survole = true
         donneesChangees(); surDepliageMoniteur()
+    }
+    /// Combien de temps la carte Note rapide reste montrée après une note dictée, si la souris n'y vient pas.
+    static let dureeNoteMontree: TimeInterval = 4
+    /// Une note vient d'être dictée : l'îlot se rouvre sur sa carte pour la montrer, SANS l'épingler. Il se range seul après
+    /// `dureeNoteMontree` (un seul réveil) si la souris n'y est pas venue ; un clic l'épingle, comme tout survol. Tant qu'il n'est ni
+    /// épinglé ni sous la souris, la dictée suivante redevient une dictée normale (voir `noteDictable`) et les bandeaux passent.
+    func montrerNote() {
+        guard !cache, !resolution.verrou else { return }
+        intention?.cancel(); fermeture?.cancel()
+        defilementNotes = 0
+        sousVue = .outilNote; epingle = false; survole = true
+        donneesChangees(); surDepliageMoniteur()
+        let item = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, !self.epingle, !self.pointeurSurForme, self.sousVue == .outilNote else { return }
+                self.survole = false; self.sousVue = nil; self.donneesChangees(); self.fermerMoniteur()
+            }
+        }
+        fermeture = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.dureeNoteMontree, execute: item)
+    }
+    /// Une dictée qui commence maintenant deviendra-t-elle une note ? Oui si la carte Note rapide (ou la page Outils, dont la bande dit
+    /// « Dicter une note · maintiens fn ») est ouverte ET choisie : épinglée d'un clic, ou sous la souris. La carte rouverte toute seule
+    /// après une note ne compte pas : Hugues est peut-être déjà reparti dans son mail.
+    var noteDictable: Bool {
+        guard fenetreOuverte, !cache, !editionCentre, epingle || pointeurSurForme else { return false }
+        return courante == .outilNote || (courante == .outils && dispositionOutils.bande)
     }
     /// Fait défiler la liste des notes de `dy` pt (sens d'AppKit), bornée à ce qui dépasse.
     func defilerNotes(_ dy: CGFloat) {

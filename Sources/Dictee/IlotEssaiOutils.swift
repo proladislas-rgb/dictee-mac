@@ -137,6 +137,19 @@ extension IlotEssai {
         verifier(m.eveil != nil && eveil.actif && m.courante == .repos, "l'îlot rangé : le Mac reste gardé éveillé, l'îlot replié n'en montre rien")
         m.clicForme(); pause(0.8); m.allerA(.outils); pause(0.8)
         verifier(m.panneauEveil || m.panneauEveilVisible, "rouverte, la page montre le panneau (jusqu'à quand, « Éteindre »)")
+        // l'îlot replié n'en montre rien (maquette) : le menu de Verbe le dit et l'éteint ; sur batterie, à 10 %, la veille redevient normale
+        verifier(c.titreMenuEveil?.hasPrefix("Rendre la veille au Mac (gardé éveillé : encore ") == true, "le menu de Verbe : « \(c.titreMenuEveil ?? "-") »")
+        c.eveilSelonEnergie(EnergieIlot(pourcent: 35, secteur: false, enCharge: false))
+        c.eveilSelonEnergie(EnergieIlot(pourcent: 6, secteur: true, enCharge: true))
+        verifier(eveil.actif && m.eveil != nil, "batterie à 35 %, ou branché à 6 % : toujours gardé éveillé")
+        c.eveilSelonEnergie(EnergieIlot(pourcent: 10, secteur: false, enCharge: false))
+        verifier(!eveil.actif && m.eveil == nil && c.titreMenuEveil == nil, "sur batterie à 10 % : rendu (un « Jusqu'à l'arrêt » oublié ne vide pas la batterie), plus de ligne au menu")
+        clic(PanneauEveil.pointPilule(2, m), 0.6)
+        verifier(c.titreMenuEveil == "Rendre la veille au Mac (gardé éveillé : sans limite)" && eveil.actif, "« Jusqu'à l'arrêt » : « \(c.titreMenuEveil ?? "-") »")
+        c.arreterEveil(journal: "menu (essai)")
+        verifier(!eveil.actif && m.eveil == nil, "« Rendre la veille au Mac » (menu) : rendu")
+        clic(PanneauEveil.pointPilule(0, m), 0.6)
+        verifier(eveil.actif && m.eveil?.duree == .uneHeure, "« 1 h » de nouveau (pour la suite de l'essai)")
 
         // --- Presse-papiers
         clic(PlanCentre.centreRond(m, .pressePapiers), 0.9)
@@ -199,6 +212,20 @@ extension IlotEssai {
         let fichiers = (try? FileManager.default.contentsOfDirectory(atPath: dossier.path)) ?? []
         verifier(!fichiers.contains { $0.lowercased().contains("presse") || $0.lowercased().contains("copie") }, "rien du presse-papiers n'est écrit sur le disque (\(fichiers.sorted()))")
         pose("carte Presse-papiers vide")
+        // ⌘C reconnu au caractère (fabriqué, jamais envoyé) ; trois copies dans la même app, sans changer d'app : toutes vues
+        let sourceTouches = CGEventSource(stateID: .privateState)
+        func touche(_ code: CGKeyCode, _ f: CGEventFlags) -> CGEvent? { let e = CGEvent(keyboardEventSource: sourceTouches, virtualKey: code, keyDown: true); e?.flags = f; return e }
+        if let codeC = (0..<128).map({ CGKeyCode($0) }).first(where: { touche($0, []).map { KeyMonitor.caractere($0) } == "c" }) {
+            let clavier = KeyMonitor()
+            var vues = 0
+            clavier.onCopie = { vues += 1 }
+            let avale = [touche(codeC, .maskCommand), touche(codeC, []), touche(codeC, [.maskCommand, .maskAlternate])].compactMap { $0 }
+                .map { clavier.recevoir(type: .keyDown, event: $0) }
+            verifier(vues == 1 && !avale.contains(true), "⌘C (touche « c » de ce clavier) vu une fois, jamais avalé ; « c » seul et ⌥⌘C ignorés (\(vues))")
+        } else { verifier(false, "touche « c » introuvable sur ce clavier") }
+        for t in ["un", "deux", "trois"] { pp.copier(ContenuCopie(texte: "extrait \(t)")); c.copieTapee(); pause(IlotControleur.delaiCopie + 0.2) }
+        verifier(m.copies.map(\.titre) == ["extrait trois", "extrait deux", "extrait un"], "trois ⌘C dans la même app : les trois copies (\(m.copies.map(\.titre)))")
+        clic(PlanPressePapiers.pointToutEffacer(m), 0.8)
         // ‹ Outils
         clic(CGPoint(x: PlanPressePapiers.zone(m.grille).minX + 30, y: PlanPressePapiers.zone(m.grille).minY + 13), 0.8)
         verifier(m.courante == .outils, "vrai clic sur « ‹ Outils » : la page Outils")
@@ -271,6 +298,29 @@ extension IlotEssai {
         verifier((attrs?[.posixPermissions] as? NSNumber)?.intValue == 0o600 && (try? String(contentsOf: fn, encoding: .utf8))?.contains("plombier") == true,
                  "gardée dans notes.json (0600, dossier de l'essai)")
         pose("carte Note rapide, une note")
+        // rouverte toute seule, la carte n'est pas épinglée : Hugues reprend son mail sans cliquer, fn maintenue, ce n'est PAS une note
+        verifier(!m.epingle, "la carte rouverte après la note n'est pas épinglée (pas de « Reste ouvert »)")
+        c.panneau.simulerPointeur(forme: false)
+        c.dicteeChange(enCours: true); c.dicteeChange(enCours: false)
+        verifier(!c.intercepter("Bonjour Paul, voici le devis."), "carte rouverte seule, souris ailleurs : la dictée suivante va dans l'app, pas dans les notes")
+        attendre(IlotMoteur.dureeNoteMontree + 1.5) { m.courante == .outilNote }
+        verifier(m.courante != .outilNote && !m.fenetreOuverte, "la souris n'y est pas venue : la carte se range seule (\(m.courante))")
+        // une dictée de plus d'une minute, la carte ouverte d'un clic : une note quand même (armée jusqu'au relâchement de fn)
+        m.clicForme(); pause(0.8); m.ouvrirOutil(.outilNote); pause(0.9)
+        c.dicteeChange(enCours: true); decaler(75); c.dicteeChange(enCours: false)
+        let longue = c.intercepter("Une idée dictée pendant plus d\u{2019}une minute.")
+        decaler(-75); pause(0.6)
+        verifier(longue && m.notes.first?.texte == "Une idée dictée pendant plus d\u{2019}une minute." && colles.count == colles0,
+                 "dictée de 75 s, carte ouverte : une note, rien de collé dans l'app")
+        if let id = m.notes.first?.id, longue { m.surAction(.noteSupprimer(id)); pause(0.3) }
+        // la page Outils : sa bande dit « maintiens fn », la dictée y devient une note aussi
+        m.ouvrirOutil(.outilNote); pause(0.5); m.allerA(.outils); pause(0.8)
+        c.dicteeChange(enCours: true); c.dicteeChange(enCours: false)
+        let parBande = c.intercepter("Acheter du pain.")
+        pause(0.6)
+        verifier(parBande && m.notes.first?.texte == "Acheter du pain." && m.courante == .outilNote && colles.count == colles0,
+                 "page Outils ouverte (bande « Dicter une note · maintiens fn ») : la dictée devient une note (\(m.courante))")
+        if let id = m.notes.first?.id, parBande { m.surAction(.noteSupprimer(id)); pause(0.3) }
         // une dictée faite carte fermée : collée normalement
         m.fermer(); pause(0.6)
         c.dicteeChange(enCours: true); c.dicteeChange(enCours: false)
@@ -292,20 +342,28 @@ extension IlotEssai {
         verifier(m.notes.isEmpty && c.listeNotes.notes.isEmpty && (try? String(contentsOf: fn, encoding: .utf8))?.contains("plombier") == false, "vrai clic sur « × » : supprimée (du fichier aussi)")
         // Notes refuse ; une liste qui dépasse défile
         notesAccepte = false
-        for (i, t) in ["Acheter des ampoules pour le salon", "Idée : un mode nuit pour l\u{2019}îlot", "Rappeler la banque pour le prêt", "Relire le devis", "Écrire à Paul", "Commander le chêne"].enumerated() {
-            decaler(Double(i)); _ = c.ajouterNote(t)
-        }
-        decaler(-15); pause(0.9)
+        let douze = ["Acheter des ampoules pour le salon", "Idée : un mode nuit pour l\u{2019}îlot", "Rappeler la banque pour le prêt", "Relire le devis",
+                     "Écrire à Paul", "Commander le chêne", "Prendre rendez-vous chez le dentiste", "Payer la cantine", "Réserver le train de vendredi",
+                     "Rendre les livres", "Arroser les tomates", "Envoyer les photos du chantier"]
+        for (i, t) in douze.enumerated() { decaler(Double(i)); _ = c.ajouterNote(t) }
+        decaler(-Double(douze.count * (douze.count - 1) / 2))
+        m.ouvrirOutil(.outilNote); pause(0.9)
         let idr = m.notes[0].id
         clic(PlanNote.pointVersNotes(0, m), 0.6)
         verifier(m.envoisNotes[idr] == .refuse && c.listeNotes.note(idr)?.versNotes == false, "l'app Notes refuse (autorisation non donnée) : « Notes refuse », rien de retenu")
-        pose("carte Note rapide, six notes")
-        verifier(PlanNote.depassement(m) > 0 && Double(m.geo[2].x) - Double(g.hauteur) <= GeoIlot.profondeurCentre, "six notes : la liste dépasse, la carte reste à la hauteur du Centre")
+        pose("carte Note rapide, douze notes")
+        verifier(PlanNote.depassement(m) > 0 && Double(m.geo[2].x) - Double(g.hauteur) <= GeoIlot.profondeurCentre, "douze notes : la liste dépasse, la carte reste à la hauteur du Centre")
         let pl = CGPoint(x: PlanNote.cadreListe(m, m.grille).midX, y: PlanNote.cadreListe(m, m.grille).midY)
         geste([-10, -20, -30], en: pl); pause(0.4)
         verifier(m.defilementNotes > 0 && m.courante == .outilNote, "vrai défilement sur la liste : elle défile (\(Int(m.defilementNotes)) pt), la carte reste")
+        for _ in 0..<12 where m.defilementNotes < PlanNote.depassement(m) - 0.5 { geste([-30, -30, -30], en: pl) }
+        pause(0.4)
+        verifier(abs(m.defilementNotes - PlanNote.depassement(m)) < 0.5, "défilée au bout (\(Int(m.defilementNotes)) / \(Int(PlanNote.depassement(m))) pt)")
+        // les lignes remontées hors de la liste ne couvrent plus l'en-tête : un vrai clic sur le titre ne fait rien, « ‹ Outils » répond
+        clic(CGPoint(x: PlanNote.zone(m.grille).minX + EnteteOutil<ResteOuvert>.pilule + 60, y: PlanNote.zone(m.grille).minY + 13), 0.4)
+        verifier(m.courante == .outilNote, "défilée au bout, un vrai clic sur le titre : rien ne se passe (\(m.courante))")
         clic(CGPoint(x: PlanNote.zone(m.grille).minX + 30, y: PlanNote.zone(m.grille).minY + 13), 0.8)
-        verifier(m.courante == .outils, "« ‹ Outils »")
+        verifier(m.courante == .outils, "défilée au bout, un vrai clic sur « ‹ Outils » : la page Outils (\(m.courante))")
 
         // --- « Modifier » sur la page Outils : « – » sur Reformuler, « + Reformuler », « OK »
         let entO = PlanCentre.cadreEntete(m.grille, .outils)

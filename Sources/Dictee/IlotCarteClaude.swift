@@ -127,7 +127,12 @@ struct CarteClaudeVue: View {
                 .offset(y: -decale)
             }
             .frame(width: liste.width, height: liste.height, alignment: .topLeading)
+            // le vide entre deux blocs ne range pas l'îlot (un fond qui prend le clic, derrière les blocs, jamais autour d'eux)
+            .background { Color.clear.contentShape(Rectangle()).onTapGesture {} }
             .clipped()
+            // ni `.clipped()` ni `.mask` ne bornent les clics : sans cette forme, les blocs remontés hors de la liste prenaient les clics
+            // de l'en-tête (« ‹ Centre » mort, un clic dans le vide qui rangeait l'îlot)
+            .contentShape(Rectangle())
             // ce qui dépasse s'efface en bas (et en haut une fois qu'on a fait défiler) : on voit qu'il y a une suite
             .mask(FonduListe(haut: decale > 0.5, bas: total - decale > liste.height + 0.5))
             .posee(liste, m.aspect(v, rang: 1), ancre: .top)
@@ -150,12 +155,14 @@ struct CarteClaudeVue: View {
                 }
             }
             .lineLimit(1).fixedSize()
+            .allowsHitTesting(false)
             Spacer(minLength: 0)
             HStack(spacing: 4) {
                 Image(systemName: "pin.fill").font(.system(size: 10, weight: .semibold))
                 Text("Reste ouvert").font(.system(size: 11.5, weight: .semibold))
             }
             .foregroundStyle(Color.white.opacity(0.5))
+            .allowsHitTesting(false)
             .opacity(m.epingle ? 1 : 0)
             .accessibilityHidden(!m.epingle)
         }
@@ -205,6 +212,7 @@ struct BlocSessionClaude: View {
                     }
                 }
                 .frame(width: 22, height: 22)
+                .allowsHitTesting(false)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(s.projet).font(.system(size: 14, weight: .bold)).foregroundStyle(.white).lineLimit(1).truncationMode(.middle)
                     let suite = TexteClaude.suite(s, a: a)
@@ -213,6 +221,7 @@ struct BlocSessionClaude: View {
                         .font(.system(size: 12, weight: .medium)).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .allowsHitTesting(false)
                 BoutonSessionClaude(titre: fini ? "Voir" : "Ouvrir", plein: attend, etiquette: "Ouvrir la fenêtre du Terminal de \(s.projet)", action: ouvrir)
             }
             .frame(height: p.ligneTete)
@@ -223,17 +232,21 @@ struct BlocSessionClaude: View {
                     .lineSpacing(max(0, p.ligneQuestion - (p.policeSerif.ascender - p.policeSerif.descender + p.policeSerif.leading)))
                     .frame(width: p.largeurQuestion(largeur), height: CGFloat(n) * p.ligneQuestion, alignment: .topLeading)
                     .padding(.leading, p.retraitQuestion).padding(.top, 5).padding(.bottom, 3)
+                    .allowsHitTesting(false)
             }
             if !fini, !s.taches.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(s.taches.enumerated()), id: \.offset) { _, t in ligne(t) }
                 }
                 .padding(.top, 3)
+                .allowsHitTesting(false)
             }
         }
         .padding(.top, p.margeHaut).padding(.bottom, p.margeBas).padding(.leading, p.margeGauche).padding(.trailing, p.margeDroite)
         .frame(width: largeur, height: p.hauteur(s, largeur: largeur), alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(attend ? CouleursIlot.ambre.opacity(0.12) : Color.white.opacity(0.08)))
+        // le fond du bloc prend le clic (un clic sur le projet ou une tâche ne range pas l'îlot) ; « Ouvrir » est posé par-dessus, en frère
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(attend ? CouleursIlot.ambre.opacity(0.12) : Color.white.opacity(0.08))
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous)).onTapGesture {})
         .overlay { if attend { RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(CouleursIlot.ambre.opacity(0.5), lineWidth: 1.5) } }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(s.projet), \(TexteClaude.etat(s.etat))")
@@ -374,18 +387,22 @@ struct TexteFixeClaude: View {
     }
 }
 
-/// Le nom qui défile : UNE animation Core Animation (le texte deux fois, 22 pt d'écart, glisse d'une longueur en boucle après un temps
-/// d'arrêt), jouée par le serveur d'affichage : l'app ne dessine rien pendant qu'il défile. Un nom qui tient ne bouge pas (aucune
-/// animation). Fondus aux deux bords (maquette : 3 pt à gauche, 10 pt à droite).
+/// Le nom qui défile : UNE animation Core Animation (le texte deux fois, 22 pt d'écart, glisse d'une longueur après un temps d'arrêt),
+/// jouée par le serveur d'affichage : l'app ne dessine rien pendant qu'il défile. Deux passages à chaque nouveau nom, puis il s'arrête
+/// sur son début, comme dans la Dynamic Island : Claude travaille des heures, et une animation sans fin aurait tenu l'écran à sa pleine
+/// fréquence tout ce temps (la maquette boucle sans fin). Un nom qui tient ne bouge pas. Fondus aux deux bords (3 pt à gauche, 10 à droite).
 struct DefilantClaude: NSViewRepresentable {
     var texte: String
     var ambre: Bool
     var largeur: CGFloat
     /// ~22 pt/s, l'arrêt compris (maquette : 11 s pour un nom de ~240 pt).
     static let vitesse: CGFloat = 22, ecart: CGFloat = 22, arret = 0.14
+    /// Combien de passages pour un même nom.
+    static let passages: Float = 2
 
     final class Vue: NSView {
-        private let bande = CALayer()
+        /// La bande qui glisse (lue par l'essai : deux passages, pas une boucle sans fin).
+        let bande = CALayer()
         private let t1 = CATextLayer(), t2 = CATextLayer()
         private let fondu = CAGradientLayer()
         private var dernier: (String, Bool, CGFloat)?
@@ -434,8 +451,8 @@ struct DefilantClaude: NSViewRepresentable {
             a.values = [0, 0, -pas]
             a.keyTimes = [0, NSNumber(value: DefilantClaude.arret), 1]
             a.duration = Double(pas / DefilantClaude.vitesse) / (1 - DefilantClaude.arret)
-            a.repeatCount = .infinity
-            a.isRemovedOnCompletion = false
+            // fini, l'animation est retirée : la bande revient à 0, le premier nom à sa place (même image que la fin du passage)
+            a.repeatCount = DefilantClaude.passages
             bande.add(a, forKey: "defil")
         }
     }

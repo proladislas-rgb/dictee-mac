@@ -794,6 +794,19 @@ enum IlotEssai {
             for _ in 0..<30 { c.panneau.envoyerDefilement(dy: -40, en: milieu, phase: 2) }
             attendre(0.2)
             verifier(abs(m.defilementClaude - trop) < 0.5, "au bout : la liste s'arrête à sa fin (\(Int(m.defilementClaude)) / \(Int(trop)) pt)")
+            // au bout, les blocs remontés hors de la liste ne prennent plus les clics de l'en-tête (ni `.clipped` ni `.mask` ne bornent
+            // les clics) : « Reste ouvert », le titre et le corps d'un bloc ne rangent rien, « ‹ Centre » mène au Centre
+            func clicReel(_ p: CGPoint) { c.panneau.envoyerSouris(.leftMouseDown, en: p); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: p); attendre(0.5) }
+            let ent = PlanCarteClaude.cadreEntete(m.grille), liste = PlanCarteClaude.cadreListe(m.grille)
+            clicReel(CGPoint(x: ent.maxX - 30, y: ent.midY))
+            clicReel(CGPoint(x: ent.minX + PlanCarteClaude.pilule + 10 + 14 + 6 + 30, y: ent.midY))
+            clicReel(CGPoint(x: liste.midX, y: liste.maxY - 20))
+            verifier(m.courante == .claudeCarte && m.epingle && abs(m.defilementClaude - trop) < 0.5,
+                     "défilée au bout : de vrais clics sur « Reste ouvert », sur le titre et sur les tâches d'un bloc ne rangent pas l'îlot (\(m.courante))")
+            clicReel(PlanCarteClaude.pointCentre(m)); attendre(0.4)
+            verifier(m.courante == .centre, "défilée au bout : un vrai clic sur « ‹ Centre » mène au Centre (\(m.courante))")
+            clicReel(PlanCentre.centreRond(m, .claude)); attendre(0.4)
+            verifier(m.courante == .claudeCarte, "le rond Claude : de retour sur la carte (\(m.courante))")
             for _ in 0..<30 { c.panneau.envoyerDefilement(dy: 40, en: milieu, phase: 2) }
             attendre(0.2)
             verifier(m.defilementClaude == 0 && m.courante == .claudeCarte, "vers le haut : retour en haut, toujours la carte")
@@ -820,6 +833,14 @@ enum IlotEssai {
             c.lecture.modele.morceau = morceauAvant; c.lecture.surIlot(morceauAvant != nil)
             attendre(1.5) { m.boucleActive }
             verifier(!m.boucleActive, "Claude : tout est posé, aucune boucle d'animation")
+            // le nom qui défile dans l'aile : deux passages puis il s'arrête sur son début (Claude travaille des heures : une animation
+            // sans fin tenait l'écran à sa pleine fréquence tout ce temps)
+            let defilant = DefilantClaude.Vue(frame: CGRect(x: 0, y: 0, width: 60, height: 17))
+            defilant.appliquer("Construire la carte Dictées et brancher la recherche", ambre: false, largeur: 60)
+            let anim = defilant.bande.animation(forKey: "defil")
+            verifier(anim?.repeatCount == 2 && anim?.isRemovedOnCompletion == true, "le nom trop long défile deux fois puis s'arrête (\(anim?.repeatCount ?? -1) passages)")
+            defilant.appliquer("Lire", ambre: false, largeur: 60)
+            verifier(defilant.bande.animation(forKey: "defil") == nil, "un nom qui tient : aucune animation")
         }
 
         // --- réunion : rien à l'écran, vibration seule

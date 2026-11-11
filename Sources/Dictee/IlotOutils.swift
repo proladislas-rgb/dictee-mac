@@ -731,7 +731,12 @@ struct CarteNote: View {
                 .offset(y: -decale)
             }
             .frame(width: liste.width, height: liste.height, alignment: .topLeading)
+            // « Aucune note » (qui ne prend aucun clic) ne range pas l'îlot
+            .background { Color.clear.contentShape(Rectangle()).onTapGesture {} }
             .clipped()
+            // ni `.clipped()` ni `.mask` ne bornent les clics : sans cette forme, les lignes remontées hors de la liste couvraient
+            // l'en-tête (« ‹ Outils » ne répondait plus au-delà de huit notes défilées)
+            .contentShape(Rectangle())
             .mask(FonduNotes(haut: decale > 0.5, bas: total - decale > liste.height + 0.5))
             .posee(liste, m.aspect(v, rang: 3), ancre: .top)
         }

@@ -344,6 +344,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         dictee.surInterception = { [weak self] texte in self?.ilot.intercepter(texte) ?? false }
         clavier.onReinitialisation = { [weak self] in self?.ilot.aiguillageNiveau = AiguillageNiveau() }
+        clavier.onCopie = { [weak self] in self?.ilot.copieTapee() }
         // « Volume et luminosité » : les touches spéciales passent par la même écoute ; avalées seulement si l'îlot les montre
         clavier.onNiveau = { [weak self] e, f in
             self?.ilot.toucheNiveau(e, option: f.contains(.maskAlternate), maj: f.contains(.maskShift),
@@ -364,6 +365,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func noterLaReunion() { reunionControleur.basculer() }
     @objc private func couperOuRouvrirLeMicro() { ilot.couperOuRouvrirLeMicro(depuis: "le menu") }
+    @objc private func rendreLaVeille() { ilot.arreterEveil(journal: "éteint depuis le menu") }
 
     /// Menu de l'app (invisible tant qu'elle n'a pas de Dock, mais ses raccourcis servent la fenêtre) :
     /// ⌘, ouvre la fenêtre, ⌘1-3 changent d'onglet, ⌘W ferme, Édition rend ⌘C ⌘V aux champs de texte.
@@ -421,6 +423,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         noter.keyEquivalentModifierMask = [.command, .option]; noter.target = self
         // le micro, comme le bouton Micro du Centre : sans encoche (écran externe, MacBook fermé), l'îlot vide n'existe pas, c'est le chemin
         menu.addItem(withTitle: ilot.titreMenuMicro, action: #selector(couperOuRouvrirLeMicro), keyEquivalent: "").target = self
+        if let eveil = ilot.titreMenuEveil {
+            menu.addItem(withTitle: eveil, action: #selector(rendreLaVeille), keyEquivalent: "").target = self
+        }
         let ouvrir = menu.addItem(withTitle: "Ouvrir Verbe", action: #selector(ouvrirVerbe), keyEquivalent: ",")
         ouvrir.target = self
         if !HistoriqueStore.shared.historique.estVide {

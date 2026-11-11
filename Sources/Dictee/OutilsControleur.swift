@@ -9,8 +9,9 @@ import DicteeCore
 // - Garder éveillé : deux assertions d'IOKit (veille de l'écran et du système), rendues à l'échéance (un seul réveil), à l'arrêt, et
 //   toujours à la fermeture de Verbe (le système les rend aussi si le processus meurt) ;
 // - Presse-papiers : les cinq dernières copies EN MÉMOIRE seulement (jamais écrites sur le disque). macOS ne prévient pas quand le
-//   presse-papiers change : on regarde son compteur (`changeCount`, un entier, rien n'est lu) quand l'îlot s'ouvre et quand une app passe
-//   au premier plan, et on ne lit son contenu que s'il a changé. Aucune minuterie. Les copies marquées confidentielles ou passagères
+//   presse-papiers change : on regarde son compteur (`changeCount`, un entier, rien n'est lu) quand l'îlot s'ouvre, quand une app passe
+//   au premier plan et 0,3 s après un ⌘C/⌘X (un seul réveil), et on ne lit son contenu que s'il a changé. Aucune minuterie au repos.
+//   Une copie faite au menu Édition, sans changer d'app, n'est vue qu'à l'ouverture suivante de l'îlot. Les copies marquées confidentielles ou passagères
 //   (mots de passe, collages d'outils comme celui de Verbe) sont ignorées. Retirer « Presse-papiers » de la page Outils arrête tout ;
 // - Reformuler : le même service de texte que la remise au propre des dictées (Groq, la même clé, le même client `GroqClient`) ;
 // - Note rapide : ~/Library/Application Support/Dictee/notes.json (0600) ; « Vers Notes » passe par AppleScript (macOS demande une fois
@@ -41,8 +42,13 @@ final class EveilSysteme: PiloteEveil {
         let r2 = IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleSystemSleep as CFString, niveau, raison as CFString, &systeme)
         if r1 != kIOReturnSuccess { ecran = 0 }
         if r2 != kIOReturnSuccess { systeme = 0 }
-        if r1 != kIOReturnSuccess || r2 != kIOReturnSuccess { Log.ecrire("garder éveillé : IOKit a refusé (\(r1), \(r2))") }
-        return r1 == kIOReturnSuccess
+        guard r1 == kIOReturnSuccess, r2 == kIOReturnSuccess else {
+            // tout ou rien : une assertion accordée seule bloquerait la veille alors que l'îlot dit « Éteint »
+            Log.ecrire("garder éveillé : IOKit a refusé (\(r1), \(r2)), rien n'est gardé")
+            rendre()
+            return false
+        }
+        return true
     }
     func rendre() {
         if ecran != 0 { IOPMAssertionRelease(ecran); ecran = 0 }
@@ -203,6 +209,18 @@ extension IlotControleur {
             DispatchQueue.main.asyncAfter(wallDeadline: .now() + max(1, fin.timeIntervalSince(maintenant())), execute: item)
         }
     }
+    /// Le menu de Verbe (barre des menus) : « Garder éveillé » allumé s'y voit et s'y éteint (l'îlot replié n'en montre rien, maquette).
+    var titreMenuEveil: String? {
+        guard let e = moteur.eveil else { return nil }
+        return "Rendre la veille au Mac (gardé éveillé : \(e.echeance == nil ? "sans limite" : e.etat(a: maintenant()).lowercased()))"
+    }
+    /// L'alimentation a changé : sur batterie, à 10 % ou moins, « Garder éveillé » s'arrête (un « Jusqu'à l'arrêt » oublié ne vide pas
+    /// la batterie, écran allumé, toute une nuit).
+    func eveilSelonEnergie(_ e: EnergieIlot?) {
+        guard moteur.eveil != nil, let e, !e.secteur, e.pourcent <= Self.batterieEveilMin else { return }
+        arreterEveil(journal: "batterie à \(e.pourcent) %")
+    }
+    static let batterieEveilMin = 10
     func arreterEveil(journal: String) {
         reveilEveil?.cancel(); reveilEveil = nil
         let etait = moteur.eveil != nil || eveilPilote.actif
@@ -214,7 +232,7 @@ extension IlotControleur {
     // MARK: Presse-papiers
 
     /// Le presse-papiers a-t-il changé ? On lit son compteur ; s'il a bougé, son contenu (une fois). Seulement si l'outil est sur la page
-    /// Outils. Appelé quand l'îlot s'ouvre et quand une app passe au premier plan.
+    /// Outils. Appelé quand l'îlot s'ouvre, quand une app passe au premier plan et après un ⌘C (`copieTapee`).
     func verifierPressePapiers() {
         guard moteur.dispositionOutils.elements.contains(.pressePapiers) else {
             if !historiqueCopies.elements.isEmpty { historiqueCopies.vider(); contenusCopies = [:]; moteur.copies = []; moteur.donneesChangees() }
@@ -248,6 +266,17 @@ extension IlotControleur {
             moteur.donneesChangees()
         }
     }
+
+    /// ⌘C (ou ⌘X) vient d'être tapé dans une app : on regarde le compteur 0,3 s plus tard (l'app a écrit), un seul réveil par frappe.
+    /// Sans cela, trois copies faites dans la même app n'en laissaient qu'une (rien ne changeait d'app entre elles).
+    func copieTapee() {
+        guard moteur.dispositionOutils.elements.contains(.pressePapiers) else { return }
+        reveilCopie?.cancel()
+        let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.reveilCopie = nil; self?.verifierPressePapiers() } }
+        reveilCopie = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.delaiCopie, execute: item)
+    }
+    static let delaiCopie: TimeInterval = 0.3
 
     /// Ce que l'îlot montre d'une copie (la miniature et l'icône sont lues ici, une fois).
     private func vueCopie(_ e: ElementCopie) -> CopieVue {
@@ -386,7 +415,8 @@ extension IlotControleur {
         moteur.notes = listeNotes.notes
         moteur.noteNeuve = n.id
         Log.ecrire("note rapide : ajoutée (\(n.texte.count) caractères)")
-        if moteur.cache { noteAOuvrir = true } else { moteur.ouvrirOutil(.outilNote) }
+        // montrée sans être épinglée : la dictée suivante redevient normale si Hugues est passé à autre chose
+        if moteur.cache { noteAOuvrir = true } else { moteur.montrerNote() }
         return true
     }
     private func envoyerVersNotes(_ id: UUID) {
@@ -435,12 +465,14 @@ extension IlotControleur {
         return AXUIElementCopyAttributeValue(champ, kAXSelectedTextAttribute as CFString, &relu) == .success && (relu as? String) == texte
     }
 
-    /// Crée la note dans l'app Notes (AppleScript, sur une file à part : Notes peut mettre quelques secondes à s'ouvrir). Le texte est déjà
-    /// du HTML échappé ; seules les barres obliques inverses restent à protéger pour la chaîne AppleScript.
+    /// NSAppleScript n'est pas sûr entre fils : UNE file série, un seul script à la fois (deux « Vers Notes » rapides attendent leur tour).
+    nonisolated private static let fileAppleScript = DispatchQueue(label: "verbe.notes.applescript", qos: .userInitiated)
+    /// Crée la note dans l'app Notes (AppleScript, sur une file série à part : Notes peut mettre quelques secondes à s'ouvrir). Le texte
+    /// est déjà du HTML échappé ; seules les barres obliques inverses restent à protéger pour la chaîne AppleScript.
     nonisolated static func versNotesSysteme(_ html: String, fini: @escaping @Sendable (Bool) -> Void) {
         let corps = html.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
         let source = "tell application \"Notes\" to make new note with properties {body:\"\(corps)\"}"
-        DispatchQueue.global(qos: .userInitiated).async {
+        fileAppleScript.async {
             var erreur: NSDictionary?
             let ok = NSAppleScript(source: source)?.executeAndReturnError(&erreur) != nil
             if let n = erreur?[NSAppleScript.errorNumber] as? Int { Log.ecrire("note rapide : AppleScript a répondu \(n)\(n == -1743 ? " (non autorisé : Réglages Système › Confidentialité › Automatisation)" : "")") }
