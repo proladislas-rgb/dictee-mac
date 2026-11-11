@@ -1,0 +1,1361 @@
+<!doctype html>
+<!--
+Verbe — « Bibliothèque, Réveil, Rejoindre la visio ».
+Partie A (étapes 1 à 6) : l'étagère garde 10 fichiers au plus (des signets). La carte « Étagère » gagne une ligne
+« Bibliothèque · Tout voir » : tout ce qui est passé par l'étagère, plus (au choix) Téléchargés, Reçus par AirDrop et
+Captures d'écran. Dans l'îlot, une carte compacte : recherche, pastilles de tri, tri par date, épingler, retirer,
+choisir plusieurs fichiers et les glisser ensemble. La vue complète vit dans la fenêtre de Verbe (onglet « Bibliothèque »).
+Partie B (étapes 7 à 9) : un onglet « Réveil » dans la case Minuteur ; à la voix, « réveille-moi à 9 h » règle le réveil
+sans rien coller ; l'aile gauche montre le réveil et « 9:00 » ; à 9:00, l'alerte sonne même si l'écran dormait.
+Partie C (étapes 10 à 13) : le rond « Calendrier » du Centre s'allume en un clic (macOS demande une seule fois) ;
+10 min avant, un bandeau ; à l'heure, « Rejoindre » (vert) et « Noter la réunion ».
+Aucun raccourci clavier : seule la touche fn reste (dicter) ; tout le reste se clique dans l'îlot.
+Format repris tel quel de ilot-centre.html et ilot-claude-plus.html (forme `chemin`/`cote`, ressorts, faux écran, régie).
+Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt.
+Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
+                   ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbe · Bibliothèque et réveil</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --serif:"Newsreader","New York",ui-serif,Charter,Georgia,serif;
+  --mono:"SF Mono",ui-monospace,Menlo,Monaco,monospace;
+  --ambre:#ff9f0a; --vert:#30d158; --rouge:#ff453a; --corail:#e8835c; --bleu:#0a84ff; --jaune:#ffd60a; --ciel:#5eb0ff;
+  --regie:#0f0f11;
+  --clair:#f5f5f7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--regie)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--clair);min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block;overflow:visible}
+html.fige *,html.fige *::before,html.fige *::after{animation-play-state:paused!important}
+
+/* ---- le chapeau : les trois parties ---- */
+.hero{max-width:1340px;margin:0 auto;padding:12px 28px 10px;display:flex;align-items:center;gap:20px;min-height:58px}
+.hero h1{font-size:16.5px;line-height:21px;font-weight:700;letter-spacing:-.2px;white-space:nowrap}
+.hero h1 span{display:block;font-size:12px;line-height:15px;font-weight:500;color:rgba(245,245,247,.45);letter-spacing:0}
+.parties{display:flex;gap:8px;flex-wrap:wrap;min-width:0}
+.partie{height:34px;border-radius:17px;padding:0 14px 0 6px;background:rgba(255,255,255,.07);font-size:12.5px;color:rgba(245,245,247,.68);display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap;transition:background-color .15s ease}
+.partie:hover{background:rgba(255,255,255,.12)}
+.partie.ici{background:rgba(255,255,255,.15);color:var(--clair)}
+.partie em{font-style:normal;width:24px;height:24px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.12);font-weight:700;color:#fff;font-size:12px}
+.partie b{color:#fff;font-weight:600}
+
+/* =====================================================================
+   Le faux écran : haut d'un MacBook, macOS 26, apparence claire (repris de ilot-centre.html)
+   ===================================================================== */
+#ecran{position:relative;height:clamp(500px,calc(100vh - 294px),740px);overflow:hidden;isolation:isolate;
+  user-select:none;-webkit-user-select:none;background:#dbe4ee;transition:opacity calc(.26s*var(--k)) ease}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(70% 90% at 90% 4%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 60%),
+  radial-gradient(60% 80% at 4% 100%,rgba(248,228,210,.95) 0,rgba(248,228,210,0) 62%),
+  linear-gradient(168deg,#c6d6ea 0%,#d9e4f0 40%,#ebe8e6 74%,#f0e2d6 100%)}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ---- barre des menus ---- */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;z-index:4;
+  font-size:13.5px;color:#1d1d1f;white-space:nowrap;pointer-events:none}
+.menus,.etats{display:flex;flex-wrap:wrap;align-content:flex-start;height:33px;overflow:hidden;max-width:calc(50% - 172px)}
+.menus{column-gap:19px;padding-left:18px}
+.menus>*{height:33px;line-height:33px;font-weight:500}
+.menus>svg{height:17px;margin-top:7px;flex:none}
+.menus>b{font-weight:700}
+.etats{flex-direction:row-reverse;column-gap:15px;padding-right:15px}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats svg{width:17px;height:17px;color:#1d1d1f}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* ---- fenêtres ---- */
+.fen{position:absolute;color:#1d1d1f;border-radius:13px;overflow:hidden;z-index:1;background:#fff;display:flex;flex-direction:column;pointer-events:none;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.26),0 36px 80px -20px rgba(24,36,60,.42),0 12px 26px -10px rgba(24,36,60,.22);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.fen.chrome{left:max(18px,5.2%);right:max(18px,5.2%);top:41px;bottom:20px}
+.fen.cache{opacity:0;transform:scale(.965)}
+.fen.arriere{box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 18px 40px -16px rgba(24,36,60,.3)}
+.feux{position:absolute;left:15px;top:15px;display:flex;gap:8px;z-index:1}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.fen.arriere .feux i{background:#d3d3d7}
+.tabs{height:42px;flex:none;background:#dde3ec;display:flex;align-items:flex-end;padding-left:84px;position:relative}
+.fen.arriere .tabs{background:#e6e9ee}
+.tab{position:relative;height:34px;width:222px;flex:none;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:8px;padding:0 9px 0 12px;font-size:12px;color:#454a52}
+.tab.act{background:#fff;color:#1f1f1f}
+.tab.act::before,.tab.act::after{content:"";position:absolute;bottom:0;width:10px;height:10px}
+.tab.act::before{left:-10px;background:radial-gradient(circle at 0 0,transparent 9.5px,#fff 10px)}
+.tab.act::after{right:-10px;background:radial-gradient(circle at 100% 0,transparent 9.5px,#fff 10px)}
+.tab .tt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent)}
+.tab svg{flex:none}
+.tab-plus{width:28px;height:28px;margin:0 0 4px 6px;display:grid;place-items:center;color:#454a52;flex:none}
+.outils{height:46px;flex:none;display:flex;align-items:center;gap:4px;padding:0 10px;border-bottom:1px solid #e7e9ee;color:#5b6069}
+.outils .ib{width:30px;height:30px;display:grid;place-items:center;flex:none}
+.omni{flex:1;min-width:0;height:34px;border-radius:17px;background:#edf1f8;display:flex;align-items:center;gap:9px;padding:0 12px 0 4px;margin:0 6px;font-size:13.5px;color:#1f1f1f;white-space:nowrap;overflow:hidden}
+.omni .rg{width:26px;height:26px;border-radius:13px;background:#fff;display:grid;place-items:center;flex:none}
+.omni .u{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.omni .u span{color:#6b7078}
+.profil{width:24px;height:24px;border-radius:50%;background:linear-gradient(160deg,#c7ccd6,#8d95a3);flex:none;margin:0 4px}
+.page{flex:1;min-height:0;overflow:hidden;background:#fff;display:flex;justify-content:center;padding-top:30px}
+.art-col{width:min(660px,78%)}
+.art-col small{font-size:12px;font-weight:600;color:#8a8f98;letter-spacing:.2px}
+.art-col h2{font:600 30px/36px var(--serif);color:#111;margin:6px 0 14px}
+.art-col p{font:400 16px/26px var(--serif);color:#3a3d42;margin-bottom:14px}
+/* la page de la visio (une salle d'attente simple) */
+.page.visio{background:#202124;padding-top:34px;gap:34px;align-items:flex-start}
+.vi-cam{width:min(460px,46%);aspect-ratio:16/9;border-radius:12px;background:linear-gradient(160deg,#3c4043,#2a2c2f);display:grid;place-items:center;position:relative}
+.vi-cam .av{width:76px;height:76px;border-radius:50%;background:#7b5ea7;display:grid;place-items:center;font:600 30px var(--sans);color:#fff}
+.vi-cam .bt{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:12px}
+.vi-cam .bt i{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.5)}
+.vi-tx{padding-top:40px;color:#e8eaed;text-align:center;width:240px}
+.vi-tx h3{font:400 24px/30px var(--sans)}
+.vi-tx p{font-size:13px;color:#9aa0a6;margin-top:8px}
+.vi-tx span{display:inline-block;margin-top:22px;height:40px;line-height:40px;padding:0 24px;border-radius:20px;background:#8ab4f8;color:#202124;font-weight:600;font-size:14px}
+
+/* ---- Mail : un nouveau message ---- */
+.mail-barre{height:52px;flex:none;display:flex;align-items:center;gap:18px;padding:0 16px 0 90px;border-bottom:1px solid #e6e6ea;font-size:13.5px;font-weight:700;color:#1d1d1f}
+.mail-barre .ic{display:flex;gap:16px;margin-left:auto;color:#6e6e73}
+.mail-ch{height:34px;flex:none;border-bottom:1px solid #ececf0;display:flex;align-items:center;gap:6px;padding:0 18px;font-size:13px;color:#86868b}
+.mail-ch span{color:#1d1d1f}
+.mail-ch .dest{background:#e3edfd;color:#1660d6;border-radius:5px;padding:1px 6px}
+.mail-corps{padding:14px 18px;font-size:14px;line-height:21px;color:#1d1d1f;border-radius:6px;margin:4px}
+.curseur{display:inline-block;width:1.5px;height:17px;background:#1d1d1f;vertical-align:-3px;margin-left:1px;animation:clign 1.05s steps(1) infinite}
+@keyframes clign{50%{opacity:0}}
+.ma-pjs{display:flex;gap:10px;margin:10px 0 12px;min-height:0}
+.ma-pj{width:104px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11.5px;color:#3a3a3f;animation:pjArrive calc(.36s*var(--k)) var(--ressort) both}
+.ma-pj span{max-width:102px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ma-pj:nth-child(2){animation-delay:calc(.05s*var(--k))}.ma-pj:nth-child(3){animation-delay:calc(.1s*var(--k))}
+html.fige .ma-pj,.snap .ma-pj{animation:none}
+@keyframes pjArrive{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
+
+/* ---- la fenêtre de Verbe (sombre, comme fenetre-v2 / Journée) ---- */
+.fen.verbe{left:max(18px,5.2%);right:max(18px,5.2%);top:41px;bottom:20px;background:#1a1a19;color:#ece9e3;
+  box-shadow:0 0 0 1px rgba(255,255,255,.1),0 36px 80px -20px rgba(10,16,30,.6),0 12px 26px -10px rgba(10,16,30,.35)}
+.fen.verbe .feux{top:20px;left:18px}
+.fen.verbe .feux i{background:#4a4a47;box-shadow:none}
+.vb-barre{height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 18px 0 86px;border-bottom:1px solid rgba(236,233,227,.1)}
+.vb-tab{display:flex;align-items:center;gap:7px;height:32px;padding:0 12px;border-radius:8px;font-size:14px;color:#a8a59e;font-weight:500;white-space:nowrap}
+.vb-tab.on{background:#2f2f2d;color:#ece9e3}
+.vb-tab .n{min-width:18px;height:18px;border-radius:9px;background:#3a3a37;font-size:11.5px;font-weight:600;display:grid;place-items:center;padding:0 5px}
+.vb-tab .nouv{font-size:10px;font-weight:700;color:#000;background:var(--ciel);border-radius:5px;padding:0 4px;line-height:14px}
+.vb-barre .sp{flex:1}
+.vb-corps{flex:1;min-height:0;display:flex}
+.vb-main{flex:1;min-width:0;padding:18px 24px 0;display:flex;flex-direction:column}
+.vb-h{display:flex;align-items:center;gap:12px;height:34px}
+.vb-h h3{font:500 22px/28px var(--serif);color:#ece9e3;white-space:nowrap}
+.vb-h .cpt{font-size:12.5px;color:#88857e;white-space:nowrap}
+.vb-ch{margin-left:auto;width:230px;height:30px;border-radius:8px;background:#262624;display:flex;align-items:center;gap:7px;padding:0 10px;font-size:13px;color:#88857e;flex:none}
+.vb-tri{height:30px;border-radius:8px;background:#262624;display:flex;align-items:center;gap:6px;padding:0 10px;font-size:12.5px;color:#cfccc5;white-space:nowrap;flex:none}
+.vb-chips{display:flex;gap:6px;margin-top:12px;flex:none}
+.vb-chips button{height:28px;border-radius:14px;padding:0 12px;font-size:12.5px;font-weight:500;color:#a8a59e;background:#232321;box-shadow:inset 0 0 0 1px rgba(236,233,227,.1);cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.vb-chips button.on{background:#ece9e3;color:#1a1a19;box-shadow:none}
+.vb-chips button i{font-style:normal;font-size:11.5px;opacity:.6}
+.vb-grille{flex:1;min-height:0;overflow:hidden;margin-top:6px;-webkit-mask-image:linear-gradient(#000 calc(100% - 40px),transparent);mask-image:linear-gradient(#000 calc(100% - 40px),transparent)}
+.vb-g{font-size:12.5px;font-weight:600;color:#a8a59e;height:30px;display:flex;align-items:flex-end;padding-bottom:7px;gap:6px}
+.vb-tuiles{display:flex;flex-wrap:wrap;gap:12px 14px}
+.vt{position:relative;width:128px}
+.vt .th{height:88px;border-radius:10px;background:#262624;display:grid;place-items:center;overflow:hidden}
+.vt b{display:block;font-size:12.5px;line-height:16px;font-weight:600;color:#ece9e3;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vt i{display:block;font-style:normal;font-size:11px;line-height:14px;color:#88857e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vt .pin{position:absolute;right:6px;top:6px;width:22px;height:22px;border-radius:11px;background:rgba(0,0,0,.55);display:grid;place-items:center}
+.vt.sel .th{box-shadow:inset 0 0 0 2px var(--ciel)}
+.vt .ck{position:absolute;left:6px;top:6px;width:20px;height:20px;border-radius:50%;background:var(--bleu);display:grid;place-items:center;box-shadow:0 0 0 1.5px #1a1a19}
+.vb-cote{width:262px;flex:none;border-left:1px solid rgba(236,233,227,.1);padding:20px 18px;background:#161615}
+.vb-cote h4{font-size:13px;font-weight:600;color:#ece9e3}
+.vb-cote .s{font-size:12px;line-height:16px;color:#88857e;margin-top:3px}
+.so{display:flex;align-items:center;gap:10px;min-height:48px;border-bottom:1px solid rgba(236,233,227,.08)}
+.so .tx{flex:1;min-width:0}
+.so b{display:block;font-size:13px;line-height:16px;font-weight:600;color:#ece9e3}
+.so i{display:block;font-style:normal;font-size:11.5px;line-height:15px;color:#88857e}
+.so .tj{font-size:11.5px;color:#88857e}
+.vb-note{margin-top:16px;border-radius:12px;background:#222220;padding:11px 12px;font-size:12px;line-height:17px;color:#a8a59e}
+.vb-note b{color:#ece9e3;font-weight:600}
+.vb-note p+p{margin-top:7px}
+
+/* ---- la question de macOS (une seule fois) — reprise de ilot-centre.html ---- */
+.alerte{position:absolute;left:50%;top:352px;width:300px;margin-left:-150px;z-index:3;border-radius:22px;padding:18px 18px 16px;text-align:center;color:#1d1d1f;
+  background:rgba(246,246,248,.97);box-shadow:0 0 0 .5px rgba(0,0,0,.22),0 28px 64px -12px rgba(20,30,50,.48),0 8px 20px -8px rgba(20,30,50,.25);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.alerte.cache{opacity:0;transform:scale(.92);pointer-events:none}
+.alerte .al-ic{width:44px;height:44px;margin:0 auto;border-radius:12px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(160deg,#3a3a3e,#111114);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18),0 2px 6px rgba(0,0,0,.2)}
+.alerte b{display:block;font-size:13px;line-height:17px;font-weight:700;margin-top:11px;letter-spacing:-.1px}
+.alerte p{font-size:11.5px;line-height:15px;color:#6e6e73;margin-top:6px}
+.alerte .al-bt{display:flex;gap:8px;margin-top:14px}
+.alerte .al-bt button{flex:1;height:28px;border-radius:14px;font-size:13px;font-weight:500;background:rgba(0,0,0,.07);color:#1d1d1f;cursor:pointer}
+.alerte .al-bt button.bleu{background:#0a84ff;color:#fff}
+
+/* l'écran en veille */
+.veille{position:absolute;inset:0;background:#000;z-index:9;opacity:0;pointer-events:none;transition:opacity calc(.6s*var(--k)) ease}
+.veille.vu{opacity:1}
+
+/* =====================================================================
+   L'îlot (noir, opaque) et ce qu'il affiche
+   ===================================================================== */
+.calque{position:absolute;left:calc(50% - 500px);top:0;width:1000px;height:360px;pointer-events:none}
+#forme-svg{z-index:5}
+#contenu{z-index:6}
+#encoche-svg{z-index:7}
+.c{position:absolute;color:#fff;white-space:nowrap;text-align:left;font-family:var(--sans)}
+.e{opacity:0;filter:blur(7px);transform:translateY(var(--sy,0px)) scale(.965);
+  transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
+.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+  transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+.t15{font-size:15px;line-height:19px;font-weight:600;letter-spacing:-.2px}
+.t125{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(255,255,255,.55);margin-top:3px}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.epaule{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;height:17px}
+.aile{display:flex;align-items:center;gap:4px;height:17px;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;color:#fff}
+.aile.ambre{color:#ffb340}
+
+/* bandeaux */
+.ban{display:flex;align-items:center;gap:13px;padding:0 2px}
+.ban .tx b{display:block;font-size:15px;line-height:19px;font-weight:700;letter-spacing:-.2px}
+.ban .tx span{display:block;font-size:12.5px;line-height:16px;color:rgba(255,255,255,.5);font-weight:600;max-width:270px;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.ban .act{height:30px;border-radius:15px;padding:0 14px;background:rgba(255,255,255,.14);font-size:13.5px;font-weight:700;cursor:pointer;margin-left:8px;transition:background-color .15s ease;display:flex;align-items:center;gap:6px}
+.ban .act:hover{background:rgba(255,255,255,.22)}
+.ban .act+.act{margin-left:0}
+.ban .act.ambre{background:var(--ambre);color:#000;min-width:56px;justify-content:center}
+.ban .hr{margin-left:auto;padding-left:22px;font-size:13.5px;font-weight:700;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums}
+.sonne{animation:sonne calc(.5s*var(--k)) ease-in-out infinite;transform-origin:50% 40%}
+@keyframes sonne{0%,100%{transform:rotate(0)}20%{transform:rotate(-13deg)}40%{transform:rotate(11deg)}60%{transform:rotate(-8deg)}80%{transform:rotate(5deg)}}
+/* la dictée qui parle à Verbe */
+.dic{width:316px;display:flex;align-items:center;gap:12px;height:34px}
+.dic .mic{width:30px;height:30px;border-radius:50%;background:var(--rouge);display:grid;place-items:center;flex:none}
+.dic p{flex:1;min-width:0;font-family:var(--serif);font-size:16px;line-height:21px;color:#fff;overflow:hidden;text-overflow:ellipsis}
+.dic p.vide{color:rgba(255,255,255,.4)}
+/* l'alerte de la visio : deux lignes */
+.go{width:340px}
+.go .l1{display:flex;align-items:center;gap:13px}
+.go .l2{display:flex;gap:8px;margin-top:11px}
+.go .l2 button{flex:1;height:34px;border-radius:17px;font-size:13.5px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;transition:filter .15s ease,background-color .15s ease}
+.go .vert{background:var(--vert);color:#000}
+.go .vert:hover{filter:brightness(1.08)}
+.go .gris{background:rgba(255,255,255,.14)}
+.go .gris:hover{background:rgba(255,255,255,.22)}
+.tr-pt{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1.8px var(--rouge);background:radial-gradient(circle,var(--rouge) 0 3.6px,transparent 4.2px)}
+
+/* carte : le Centre (reprise de ilot-centre.html ; six ronds, Calendrier en plus) */
+.cc{width:432px}
+.cc-tete{display:flex;align-items:center;gap:8px;height:26px}
+.pil{height:26px;border-radius:13px;padding:0 11px;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.12);font-size:12.5px;font-weight:600;cursor:pointer;flex:none;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.pil:hover{background:rgba(255,255,255,.2)}
+.pil.retour{padding-left:7px}
+.pil.droite{margin-left:auto}
+.punaise{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.5);opacity:0;transition:opacity .25s ease}
+.punaise.vu{opacity:1}
+.cc-ronds{display:flex;justify-content:space-around;margin-top:12px;height:96px}
+.tg{width:70px;display:flex;flex-direction:column;align-items:center;cursor:pointer;color:#fff;flex:none}
+.tg .rd{position:relative;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center;
+  transition:background-color .2s ease,box-shadow .2s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.tg:hover .rd{filter:brightness(1.18)}
+.tg b{font-size:11.5px;line-height:15px;font-weight:600;margin-top:7px;letter-spacing:-.25px}
+.tg i{font-style:normal;font-size:11.5px;line-height:14px;color:rgba(255,255,255,.55);font-weight:500;margin-top:1px}
+.tg.bleu .rd{background:var(--bleu)}
+.tg.bleu i{color:#5eb0ff}
+.tg.corail .rd{background:var(--corail)}
+.tg.rouge .rd{background:var(--rouge)}
+.tg.rouge i{color:#ff6961}
+.cc-larges{display:grid;grid-template-columns:1.16fr .84fr;gap:10px;margin-top:10px;height:76px}
+.tl{position:relative;border-radius:20px;background:rgba(255,255,255,.1);padding:11px 12px;text-align:left;min-width:0}
+.tl-t{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;height:20px}
+.tl-t .nb{margin-left:auto;font-style:normal;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:rgba(255,255,255,.2);font-size:12px;font-weight:700;display:grid;place-items:center}
+.tl-caps{display:flex;gap:5px;margin-top:8px;align-items:center}
+.cap{height:28px;min-width:44px;padding:0 9px;border-radius:14px;background:rgba(255,255,255,.14);font-size:13px;font-weight:600;display:grid;place-items:center;cursor:pointer;font-variant-numeric:tabular-nums;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.cap:hover,.cap.survol{background:rgba(255,255,255,.24)}
+.cap.choisi{background:var(--ambre);color:#000}
+.tl-u{font-size:12px;font-weight:500;color:rgba(255,255,255,.5);margin-left:3px}
+.mseg{display:flex;height:22px;border-radius:11px;background:rgba(255,255,255,.1);padding:2px}
+.mseg button{height:18px;border-radius:9px;padding:0 9px;font-size:12px;font-weight:600;color:rgba(255,255,255,.6);cursor:pointer}
+.mseg button.on{background:rgba(255,255,255,.22);color:#fff}
+.tl-t .quand{margin-left:auto;font-size:11.5px;font-weight:600;color:#ffb340}
+.tl.eta{cursor:pointer;transition:background-color .15s ease}
+.tl.eta:hover{background:rgba(255,255,255,.15)}
+.eta-plein{display:flex;align-items:center;gap:9px;margin-top:5px}
+.eta-plein .nm{font-size:12.5px;line-height:15px;font-weight:600}
+.eta-plein .sub{font-size:11px;line-height:14px;color:rgba(255,255,255,.5);font-weight:500}
+.tr{position:relative;display:flex;align-items:center;gap:10px;width:100%;height:40px;margin-top:10px;border-radius:20px;padding:0 16px 0 14px;
+  background:rgba(255,255,255,.1);font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;transition:background-color .2s ease}
+.tr:hover{background:rgba(255,255,255,.15)}
+.tr-s{margin-left:auto;font-size:12px;font-weight:500;color:rgba(255,255,255,.5)}
+
+/* carte : l'Étagère (reprise de ilot-etagere-rapide.html) + la ligne Bibliothèque */
+.ce{width:432px}
+.ce-tete{display:flex;align-items:center;gap:10px;height:40px}
+.ce-tete .tx{min-width:0}
+.ce-tete .t125{margin-top:1px}
+.ce-g{display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1)}
+.gi{position:relative;width:103px;height:74px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;border-radius:12px;cursor:grab;transition:background-color .15s ease}
+.gi:hover{background:rgba(255,255,255,.07)}
+.gi .ic{height:38px;display:grid;place-items:end center}
+.gi span{max-width:98px;font-size:11px;line-height:14px;font-weight:600;color:rgba(255,255,255,.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-bottom:4px}
+.ce-bib{display:flex;align-items:center;gap:10px;height:48px;margin-top:8px;border-radius:16px;background:rgba(255,255,255,.08);padding:0 9px 0 12px;cursor:pointer;transition:background-color .15s ease}
+.ce-bib:hover{background:rgba(255,255,255,.12)}
+.ce-bib .tx{flex:1;min-width:0}
+.ce-bib b{display:block;font-size:13.5px;line-height:17px;font-weight:600}
+.ce-bib i{display:block;font-style:normal;font-size:11.5px;line-height:14px;color:rgba(255,255,255,.5);font-weight:500}
+.pil.blanc{background:#fff;color:#000}
+.pil.blanc:hover{background:#e8e8ea}
+
+/* carte : la Bibliothèque (compacte ; la vue complète est dans la fenêtre) */
+.bc{width:432px}
+.bc-tete{display:flex;align-items:center;gap:8px;height:30px}
+.champ{flex:1;min-width:0;height:30px;border-radius:15px;background:rgba(255,255,255,.1);display:flex;align-items:center;gap:7px;padding:0 8px 0 10px;color:rgba(255,255,255,.5)}
+.champ:focus-within,.champ.actif{background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.3)}
+.champ input{flex:1;min-width:0;background:none;border:0;outline:0;color:#fff;font:500 13px/16px var(--sans);caret-color:var(--ambre);-webkit-user-select:text;user-select:text}
+.champ input::placeholder{color:rgba(255,255,255,.45)}
+.champ .efface{width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.25);display:none;place-items:center;cursor:pointer;flex:none}
+.champ.plein .efface{display:grid}
+.tri{height:26px;border-radius:13px;padding:0 8px 0 10px;display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.12);font-size:12.5px;font-weight:600;cursor:pointer;flex:none}
+.tri:hover{background:rgba(255,255,255,.2)}
+.chips{display:flex;gap:4px;margin-top:8px;height:26px}
+.chip{height:26px;border-radius:13px;padding:0 8px;font-size:12.5px;font-weight:600;color:rgba(255,255,255,.7);background:rgba(255,255,255,.08);cursor:pointer;flex:none;transition:background-color .15s ease}
+.chip:hover{background:rgba(255,255,255,.16)}
+.chip.on{background:#fff;color:#000}
+.bl-liste{margin-top:6px;max-height:164px;overflow-y:auto;scrollbar-width:none}
+.bl-liste::-webkit-scrollbar{display:none}
+.bl-liste.defile{-webkit-mask-image:linear-gradient(#000 calc(100% - 24px),transparent);mask-image:linear-gradient(#000 calc(100% - 24px),transparent)}
+.bl-g{height:20px;padding:5px 0 0 34px;font-size:11.5px;line-height:14px;font-weight:600;color:rgba(255,255,255,.42);display:flex;align-items:center;gap:4px}
+.bl{display:flex;align-items:center;gap:8px;height:36px;padding:0 6px 0 4px;border-radius:11px;cursor:grab;transition:background-color .12s ease}
+.bl:hover,.bl.survol{background:rgba(255,255,255,.1)}
+.bl.choisi{background:rgba(10,132,255,.2)}
+.sel{width:20px;height:20px;flex:none;border-radius:50%;display:grid;place-items:center;cursor:pointer;opacity:0;transition:opacity .12s ease}
+.sel i{width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.45);display:grid;place-items:center}
+.bl:hover .sel,.bl.survol .sel,.bc.choix .sel{opacity:1}
+.bl.choisi .sel i{background:var(--bleu);box-shadow:none}
+.bl-ic{width:30px;height:30px;flex:none;display:grid;place-items:center}
+.bl-tx{flex:1;min-width:0}
+.bl-tx b{display:block;font-size:13px;line-height:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bl-tx b mark{background:none;color:var(--ambre)}
+.bl-tx i{display:flex;align-items:center;gap:4px;font-style:normal;font-size:11.5px;line-height:15px;color:rgba(255,255,255,.48);font-weight:500;white-space:nowrap;overflow:hidden}
+.bl-d{flex:none;display:flex;align-items:center;gap:4px}
+.bl-d .pin-vu{opacity:.55}
+.bl-act{display:none;align-items:center;gap:4px}
+.bl:hover .bl-act,.bl.survol .bl-act{display:flex}
+.bl:hover .pin-vu,.bl.survol .pin-vu{display:none}
+.bc.choix .bl-act{display:none!important}
+.ib-r{width:26px;height:24px;border-radius:12px;background:rgba(255,255,255,.14);display:grid;place-items:center;cursor:pointer}
+.ib-r:hover,.ib-r.survol{background:rgba(255,255,255,.26)}
+.ib-r.on{background:rgba(255,159,10,.25)}
+.mini-pil{height:24px;border-radius:12px;padding:0 10px;background:rgba(255,255,255,.14);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px}
+.mini-pil:hover,.mini-pil.survol{background:rgba(255,255,255,.26)}
+.bl-rien{padding:16px 0 10px 34px;font-family:var(--serif);font-size:15px;color:rgba(255,255,255,.45)}
+.pied{display:flex;align-items:center;gap:6px;height:30px;margin-top:4px;padding:1px 4px 0 6px;border-top:1px solid rgba(255,255,255,.1);font-size:11.5px;color:rgba(255,255,255,.45);font-weight:500}
+.pied .lien{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:rgba(255,255,255,.62);cursor:pointer;flex:none}
+.pied .lien:hover,.pied .lien.survol{color:#fff}
+.pied .txt{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.pied.retire .txt{color:rgba(255,255,255,.62)}
+.poignee{height:26px;border-radius:13px;padding:0 11px 0 7px;background:rgba(10,132,255,.26);box-shadow:inset 0 0 0 1.5px rgba(94,176,255,.6);display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:#fff;cursor:grab;flex:none;
+  transition:opacity .2s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.poignee.pris{opacity:.35;transform:scale(.94)}
+.pied .nbc{font-weight:600;color:rgba(255,255,255,.7)}
+
+/* faux pointeur (et les fichiers qu'il porte) */
+.pointeur{position:absolute;left:0;top:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .22s}
+.pointeur.vu{opacity:1}
+.pointeur .fleche{position:relative;width:18px;height:26px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));transform-origin:2px 2px;transition:transform .12s ease}
+.pointeur.appui .fleche{transform:scale(.86)}
+.fantome{position:absolute;left:-30px;top:-14px;opacity:0;transform:scale(.6);transition:opacity .16s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.fantome.vu{opacity:.92;transform:none}
+.paquet{position:relative;width:64px;height:50px}
+.paquet>div{position:absolute;left:16px;top:2px}
+.paquet>div:nth-child(1){transform:rotate(-9deg) translate(-10px,3px)}
+.paquet>div:nth-child(2){transform:rotate(8deg) translate(10px,2px)}
+.paquet b{position:absolute;right:-4px;top:-6px;min-width:20px;height:20px;border-radius:10px;background:#ff3b30;color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center;padding:0 5px;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+
+/* =====================================================================
+   La régie, sous la scène (reprise de ilot-centre.html, plus la touche fn)
+   ===================================================================== */
+.regie{max-width:1340px;margin:0 auto;padding:14px 28px 18px}
+.r-haut{display:grid;grid-template-columns:minmax(0,1fr) 300px auto;gap:30px;align-items:center;min-height:96px}
+.r-num{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(245,245,247,.46);font-variant-numeric:tabular-nums}
+.r-titre{font-size:21px;line-height:27px;font-weight:600;letter-spacing:-.3px;margin-top:2px}
+.r-phrase{font-size:14px;line-height:20px;color:rgba(245,245,247,.64);margin-top:4px;max-width:680px;min-height:40px}
+.r-mains{display:flex;align-items:center;gap:12px}
+.pad{position:relative;width:96px;height:62px;border-radius:12px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);flex:none}
+.pad i{position:absolute;top:30px;left:32px;width:14px;height:14px;border-radius:50%;background:var(--clair);opacity:0;transition:opacity .15s}
+.pad.un i:first-child{opacity:1}
+.touche{width:44px;height:40px;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2);background:rgba(255,255,255,.045);flex:none;display:flex;align-items:flex-end;padding:0 0 5px 7px;
+  font-size:12px;font-weight:600;color:rgba(245,245,247,.6);cursor:pointer;transition:background-color .12s ease,color .12s ease,transform .12s ease}
+.touche.on{background:var(--clair);color:var(--regie);transform:translateY(1px)}
+.r-geste{font-size:12.5px;line-height:16px;color:rgba(245,245,247,.55);min-height:32px;max-width:130px}
+.r-cmd{display:grid;grid-template-columns:auto auto;gap:10px 8px;align-items:center}
+.bouton{height:34px;padding:0 17px;border-radius:17px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s ease}
+.bouton:active{transform:scale(.95)}
+.bouton.creux{background:rgba(255,255,255,.1)}
+.bouton.creux:hover{background:rgba(255,255,255,.16)}
+.bouton.plein{background:var(--clair);color:var(--regie)}
+.bouton.plein:hover{background:#fff}
+.r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:var(--clair)}
+.r-pas{display:flex;flex-wrap:wrap;gap:2px 4px;list-style:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.r-pas li.sep{width:100%;height:0}
+.r-pas button{height:30px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:8px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+.r-pas button span{font-variant-numeric:tabular-nums;opacity:.7}
+.r-pas button:hover{color:rgba(245,245,247,.8)}
+.r-pas button.ici{color:var(--clair);background:rgba(255,255,255,.09)}
+.notes{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 32px;font-size:12.5px;line-height:18px;color:rgba(245,245,247,.42)}
+.notes b{color:rgba(245,245,247,.7);font-weight:600}
+@media (max-width:900px){.r-haut{grid-template-columns:1fr;gap:16px}.hero{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Bibliothèque, réveil, visio<span>Verbe · maquette à cliquer</span></h1>
+  <div class="parties">
+    <button class="partie" data-aller="1" id="partieA"><em>A</em><b>Bibliothèque</b> : tout ce qui est passé par l’étagère · étapes 1 à 6</button>
+    <button class="partie" data-aller="7" id="partieB"><em>B</em><b>Réveil</b> : « réveille-moi à 9 h » · 7 à 9</button>
+    <button class="partie" data-aller="10" id="partieC"><em>C</em><b>Rejoindre la visio</b> · 10 à 13</button>
+  </div>
+</header>
+
+<section id="ecran" aria-label="Faux écran de MacBook, taille réelle">
+  <div class="papier" aria-hidden="true">
+    <svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMid slice">
+      <path d="M0 0H1440V190C1190 290 930 180 660 240S210 350 0 280Z" fill="#b7cbe4" opacity=".28"/>
+      <path d="M0 560C260 470 540 520 780 600S1250 720 1440 620V760H0Z" fill="#fff" opacity=".2"/>
+    </svg>
+  </div>
+
+  <!-- ===== fenêtre Chrome ===== -->
+  <div class="fen chrome" data-f="chrome" aria-hidden="true">
+    <div class="tabs">
+      <div class="feux"><i></i><i></i><i></i></div>
+      <div class="tab act">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.2 2 2.2 10 0 12M8 2c-2.2 2-2.2 10 0 12"/></svg>
+        <span class="tt" id="ongletTitre">Bien ranger ses notes de projet</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" stroke="#5b6069" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l6 6M10 4l-6 6"/></svg>
+      </div>
+      <div class="tab">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.2 2 2.2 10 0 12M8 2c-2.2 2-2.2 10 0 12"/></svg>
+        <span class="tt">Nouvel onglet</span>
+      </div>
+      <div class="tab-plus"><svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg></div>
+    </div>
+    <div class="outils">
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 9h-11M8 4.2 3.2 9 8 13.8"/></svg></span>
+      <span class="ib" style="opacity:.42"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9h11M10 4.2 14.8 9 10 13.8"/></svg></span>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 9a5.6 5.6 0 1 1-1.7-4"/><path d="M14.8 2.6v3.2h-3.2"/></svg></span>
+      <div class="omni"><span class="rg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.5" stroke-linecap="round"><path d="M2 5h6M12 5h2M2 11h2M8 11h6"/><circle cx="10" cy="5" r="1.9"/><circle cx="6" cy="11" r="1.9"/></svg></span>
+        <span class="u" id="url">carnet-de-bord.fr<span>/methode/ranger-ses-notes</span></span></div>
+      <span class="profil"></span>
+    </div>
+    <div class="page" id="page"></div>
+  </div>
+
+  <!-- ===== Mail : un nouveau message ===== -->
+  <div class="fen" data-f="mail" style="left:34px;top:104px;width:500px;height:350px" aria-hidden="true">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="mail-barre"><span id="mailTitre">Devis cuisine</span><span class="ic">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 8.6 16 2.4l-4.4 13.2-3-5.6z"/><path d="M8.6 10 16 2.4"/></svg>
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12.4 6.8 7 12.2a2.4 2.4 0 0 1-3.4-3.4l6-6a1.6 1.6 0 0 1 2.3 2.3l-6 6"/></svg>
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 5h12M3 9h12M3 13h8"/></svg></span></div>
+    <div class="mail-ch">À :<span class="dest" id="mailA">Paul Martin</span></div>
+    <div class="mail-ch">Objet :<span id="mailObjet">Devis cuisine</span></div>
+    <div class="mail-corps" id="mailCorps"></div>
+  </div>
+
+  <!-- ===== la fenêtre de Verbe : onglet Bibliothèque ===== -->
+  <div class="fen verbe cache" data-f="verbe" aria-hidden="true">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="vb-barre"><span class="vb-tab">Dictées</span><span class="vb-tab">Journée</span><span class="vb-tab">Réunions</span><span class="vb-tab">Mots<span class="n">1</span></span>
+      <span class="vb-tab on" id="vbOnglet"></span><span class="sp"></span><span class="vb-tab">Réglages</span></div>
+    <div class="vb-corps">
+      <div class="vb-main">
+        <div class="vb-h"><h3>Bibliothèque</h3><span class="cpt" id="vbCpt"></span>
+          <span class="vb-ch" id="vbCh"></span><span class="vb-tri" id="vbTri"></span></div>
+        <div class="vb-chips" id="vbChips"></div>
+        <div class="vb-grille" id="vbGrille"></div>
+      </div>
+      <aside class="vb-cote" id="vbCote"></aside>
+    </div>
+  </div>
+
+  <!-- ===== barre des menus ===== -->
+  <div class="mb" aria-hidden="true"><div class="menus" id="menus"></div><div class="etats" id="etats"></div></div>
+
+  <!-- ===== la question de macOS, une seule fois ===== -->
+  <div class="alerte cache" id="alerte" role="dialog" aria-label="Autorisation macOS">
+    <div class="al-ic" id="alIc"></div>
+    <b>« Verbe » souhaite accéder à votre calendrier.</b>
+    <p>Verbe te prévient avant chaque réunion et ouvre le lien de la visio.</p>
+    <div class="al-bt"><button id="refuser">Ne pas autoriser</button><button class="bleu" id="autoriser">Autoriser</button></div>
+  </div>
+
+  <!-- ===== l'îlot ===== -->
+  <svg id="forme-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true"><g id="ombre"><path id="forme" fill="#000" d=""/></g></svg>
+  <div id="contenu" class="calque"></div>
+  <svg id="encoche-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/>
+    <circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+
+  <div class="veille" id="veille" aria-hidden="true"></div>
+  <div class="pointeur" id="pointeur" aria-hidden="true"><div class="fantome" id="fantome"></div><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+</section>
+
+<!-- ===== régie ===== -->
+<section class="regie">
+  <div class="r-haut">
+    <div aria-live="polite">
+      <div class="r-num" id="num"></div>
+      <h2 class="r-titre" id="titre"></h2>
+      <p class="r-phrase" id="phrase"></p>
+    </div>
+    <div class="r-mains"><div class="pad" id="pad" aria-hidden="true"><i></i><i></i></div><button class="touche" id="fn" title="Maintenir pour dicter « réveille-moi à 9 h »">fn</button><div class="r-geste" id="geste"></div></div>
+    <div class="r-cmd">
+      <button class="bouton creux" id="rejouer">Rejouer</button>
+      <button class="bouton plein" id="suivant">Étape suivante</button>
+      <div class="r-opts">
+        <label><input type="checkbox" id="autoCase" checked> Lecture automatique</label>
+        <label><input type="checkbox" id="lentCase"> Ralenti ×4</label>
+      </div>
+    </div>
+  </div>
+  <ol class="r-pas" id="pas"></ol>
+  <div class="notes">
+    <div><b>À essayer ici.</b> Décochez Lecture automatique, puis passez la souris sur l’îlot noir. Tout se clique : la case Étagère, « Tout voir », les pastilles, la recherche, la punaise, « Retirer », les ronds pour choisir plusieurs fichiers, l’onglet Réveil, le rond Calendrier. Maintenez la touche fn dessinée dans la régie pour dire « réveille-moi à 9 h ».</div>
+    <div><b>Rien n’est copié.</b> La bibliothèque ne garde que le chemin de chaque fichier. « Retirer » l’enlève de la bibliothèque, pas du Mac : le fichier reste là où il est. L’étagère, elle, garde toujours 10 fichiers au plus.</div>
+    <div><b>Ce qui ne bouge pas.</b> Îlot noir et opaque, 470 pt de large au plus, 330 de haut (on fait défiler dans la carte au-delà), rien dans la barre des menus à plus de 66 pt de la caméra. Seule la touche fn reste.</div>
+  </div>
+</section>
+
+<script>
+'use strict';
+/* =========================================================
+   Constantes — 1 px CSS = 1 pt
+   ========================================================= */
+const B = 33;                 // hauteur de la barre des menus
+const HC = 90;                // demi-caméra (encoche de 180 pt)
+const AILE = 58;              // îlot replié : aile de 58 pt + épaule de 6 = 64 pt dans la barre (limite 66)
+const NO = 154;               // îlot ouvert : épaules de 64 pt dans la barre (limite 66)
+const BW = 232;               // îlot ouvert : demi-largeur du corps (464 pt, limite 470)
+const GX = -BW + 16;          // bord gauche des cartes (432 pt de large)
+const HMAX = 331;             // hauteur maximale de l'îlot ouvert (limite 330 + 1 de ressort)
+const RANG = {centre:1, etagere:2, biblio:3};
+const Q = new URLSearchParams(location.search);
+const racine = document.documentElement;
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const f2 = v => Math.round(v * 100) / 100;
+const mid = t => (B - t) / 2;
+let K = 1;
+const FIGE = Q.has('fige');
+const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+let REDUIT = mq.matches;
+mq.addEventListener && mq.addEventListener('change', e => { REDUIT = e.matches; });
+if (FIGE) racine.classList.add('fige');
+
+/* =========================================================
+   Forme de l'îlot (reprise de ilot-centre.html)
+   ========================================================= */
+const PORTEE = 1.6, POIGNEE = 0.18;
+function cote(g, n, bw){
+  const corps = Math.max(0, g.h - B), u = Math.min(corps, 40) / 40, e = 1 - Math.pow(1 - u, 2.5);
+  const d = Math.max(0, bw - n) * e, W = n + d, serre = 1 - clamp((n - HC) / 24, 0, 1);
+  const rs = g.rs + (4 - g.rs) * serre, rbv = lerp(g.rb + (8 - g.rb) * serre, g.rb, clamp(corps / 12, 0, 1));
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6), dispo = (1 - lam) * (g.h - rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(rbv, dispo / PORTEE, W / PORTEE));
+  return {n, W, d, fe, rte, rbe, rs};
+}
+function chemin(g){
+  const h = g.h, L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd), X = f2, Y = f2;
+  const a1 = PORTEE * L.rte, c1 = POIGNEE * a1, a2 = PORTEE * L.rbe, c2 = POIGNEE * a2;
+  const b1 = PORTEE * D.rte, d1 = POIGNEE * b1, b2 = PORTEE * D.rbe, d2 = POIGNEE * b2;
+  let p = `M${X(-L.n - L.rs)} ${Y(-1)}L${X(-L.n - L.rs)} 0Q${X(-L.n)} 0 ${X(-L.n)} ${Y(L.rs)}`;
+  if (L.d > 0.5) p += `L${X(-L.n)} ${Y(B - L.fe)}Q${X(-L.n)} ${B} ${X(-L.n - L.fe)} ${B}L${X(-L.W + a1)} ${B}C${X(-L.W + c1)} ${B} ${X(-L.W)} ${Y(B + c1)} ${X(-L.W)} ${Y(B + a1)}`;
+  p += `L${X(-L.W)} ${Y(h - a2)}C${X(-L.W)} ${Y(h - c2)} ${X(-L.W + c2)} ${Y(h)} ${X(-L.W + a2)} ${Y(h)}`;
+  p += `L${X(D.W - b2)} ${Y(h)}C${X(D.W - d2)} ${Y(h)} ${X(D.W)} ${Y(h - d2)} ${X(D.W)} ${Y(h - b2)}`;
+  if (D.d > 0.5) p += `L${X(D.W)} ${Y(B + b1)}C${X(D.W)} ${Y(B + d1)} ${X(D.W - d1)} ${B} ${X(D.W - b1)} ${B}L${X(D.n + D.fe)} ${B}Q${X(D.n)} ${B} ${X(D.n)} ${Y(B - D.fe)}`;
+  p += `L${X(D.n)} ${Y(D.rs)}Q${X(D.n)} 0 ${X(D.n + D.rs)} 0L${X(D.n + D.rs)} ${Y(-1)}Z`;
+  return p;
+}
+const CLES = ['ng', 'nd', 'bw', 'bd', 'h', 'rs', 'rb', 'rt', 'f'];
+const REPOS = {ng:HC, nd:HC, bw:HC, bd:HC, h:B, rs:4, rb:8, rt:0, f:0};                  // l'encoche seule
+const compact = (g, d) => ({ng:g, nd:d, bw:g, bd:d, h:B, rs:6, rb:10, rt:0, f:0});       // des ailes dans la barre
+const bandeau = (w, h, n) => ({ng:n, nd:n, bw:w, bd:w, h, rs:6, rb:30, rt:16, f:10});    // il descend sous la barre
+$('#encoche').setAttribute('d', chemin(REPOS));
+
+/* =========================================================
+   Ressorts (réponse en s, amortissement) — interruptibles
+   ========================================================= */
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = .8; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){
+      this.attente -= dt;
+      if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; }
+    }
+    const w = 2 * Math.PI / this.rep, a = w * w * (this.cible - this.x) - 2 * this.z * w * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+(function(){   // courbe CSS « ressort » (même formule), pour les zooms d'entrée
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){
+    pts.push(x);
+    for (let s = 0, n = Math.round((T / N) / dt); s < n; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; }
+  }
+  pts[pts.length - 1] = 1;
+  racine.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+/* =========================================================
+   Glyphes (dessinés à la main, façon symboles SF)
+   ========================================================= */
+const micro = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const airpods = (t, c = '#fff') => { const b = 'M5.6 3a3.1 3.1 0 0 0-3.1 3.1v.9a3.1 3.1 0 0 0 3.1 3.1h.3v6.4a1.2 1.2 0 0 0 2.4 0V5.9A3 3 0 0 0 5.6 3z';
+  return `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><path d="${b}"/><path d="${b}" transform="matrix(-1 0 0 1 20 0)"/></svg>`; };
+const flecheBas = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.4" fill="none" stroke="${c}" stroke-width="1.7"/><path d="M10 5.4v8.2M6.6 10.4 10 13.8l3.4-3.4" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const rayons = c => [0, 30, 60, 90, 120, 150].map(a => `<rect x="9" y="1.5" width="2" height="17" rx="1" fill="${c}" transform="rotate(${a} 10 10)"/>`).join('');
+const etoile = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20">${rayons(c)}</svg>`;
+const minuteurG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><circle cx="12" cy="13.4" r="7.6" fill="none" stroke="${c}" stroke-width="2.1"/><path d="M12 13.4V9.2M9.5 2.8h5" stroke="${c}" stroke-width="2.1" stroke-linecap="round"/></svg>`;
+/* nouveau : le réveil (cadran, deux cloches, deux pieds) */
+const reveilG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13.2" r="7.3"/><path d="M12 9.4v4l2.6 1.6"/><path d="M3.6 6.6a3.4 3.4 0 0 1 4.6-3.9M20.4 6.6a3.4 3.4 0 0 0-4.6-3.9"/><path d="M7.2 19.4 5.6 21.2M16.8 19.4l1.6 1.8"/></svg>`;
+/* nouveau : le calendrier (comme le bandeau de rendez-vous) */
+const calG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="4.8" width="17.2" height="15.6" rx="3.4"/><path d="M3.6 9.6h16.8M8 2.8v3.6M16 2.8v3.6"/></svg>`;
+const cameraG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="${c}"><rect x="2.4" y="6.2" width="13.6" height="11.6" rx="2.6"/><path d="M17.4 10.4 21.6 7.6v8.8l-4.2-2.8z"/></svg>`;
+const plateauG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M2.6 11.2 4.9 4.6A2 2 0 0 1 6.8 3.3h6.4a2 2 0 0 1 1.9 1.3l2.3 6.6v4a2 2 0 0 1-2 2H4.6a2 2 0 0 1-2-2z"/><path d="M2.8 11.2h4.1l1 2.2h4.2l1-2.2h4.1"/></svg>`;
+/* nouveau : la bibliothèque (des livres debout, un penché) */
+const livresG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.6" stroke-linejoin="round"><rect x="2.4" y="3" width="3.6" height="14" rx="1"/><rect x="7.2" y="4.6" width="3.6" height="12.4" rx="1"/><rect x="12.6" y="3.6" width="3.6" height="13.4" rx="1" transform="rotate(-14 14.4 17)"/><path d="M2.4 6.2h3.6M7.2 7.6h3.6" stroke-linecap="round"/></svg>`;
+const pileG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="2.8" y="7.6" width="14.4" height="10.2" rx="2.6" fill="${c}"/><path d="M4.9 5.1h10.2M7.1 2.6h5.8" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const airdropG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round"><path d="M9.74 14.26a3.2 3.2 0 1 1 4.52 0"/><path d="M7.47 16.53a6.4 6.4 0 1 1 9.06 0"/><path d="M5.21 18.79a9.6 9.6 0 1 1 13.58 0"/><circle cx="12" cy="12" r="1.5" fill="${c}" stroke="none"/></svg>`;
+const viseurG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><path d="M2.5 6.4V4.6a2.1 2.1 0 0 1 2.1-2.1h1.8M13.6 2.5h1.8a2.1 2.1 0 0 1 2.1 2.1v1.8M17.5 13.6v1.8a2.1 2.1 0 0 1-2.1 2.1h-1.8M6.4 17.5H4.6a2.1 2.1 0 0 1-2.1-2.1v-1.8"/><circle cx="10" cy="10" r="2.7"/></svg>`;
+const cloche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><path fill="${c}" d="M12 2.6c-3.3 0-5.8 2.6-5.8 5.9v3.6l-1.6 2.9c-.5.9.1 1.9 1.1 1.9h12.6c1 0 1.6-1 1.1-1.9l-1.6-2.9V8.5c0-3.3-2.5-5.9-5.8-5.9zM9.4 18.7a2.7 2.7 0 0 0 5.2 0z"/></svg>`;
+const guillemets = (t, c = '#fff') => `<svg width="${t}" height="${f2(t * .7)}" viewBox="-.45 -.3 3 2.1"><g fill="${c}"><path d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><path transform="translate(1.1 0)" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/></g></svg>`;
+const punaiseG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><path d="M6.6 2.4h6.8l-1.2 5.2 3 3.2H4.8l3-3.2z" fill="${c}"/><path d="M10 10.6v7" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const chevG = (t, c, d = 'g') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d === 'g' ? 'M12.5 4.5 7 10l5.5 5.5' : d === 'd' ? 'M7.5 4.5 13 10l-5.5 5.5' : d === 'h' ? 'M4.5 12.5 10 7l5.5 5.5' : 'M4.5 7.5 10 13l5.5-5.5'}"/></svg>`;
+const croixG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 10 10" stroke="${c}" stroke-width="1.6" stroke-linecap="round"><path d="M2.6 2.6l4.8 4.8M7.4 2.6 2.6 7.4"/></svg>`;
+const coche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.6 12.8 4.6"/></svg>`;
+const loupe = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><circle cx="6.9" cy="6.9" r="4.9"/><path d="M10.6 10.6 14.2 14.2"/></svg>`;
+const lienG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><path d="M8.6 11.4a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-1 1"/><path d="M11.4 8.6a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l1-1"/></svg>`;
+const sortieG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3.6h5.4V9M16.2 3.8 9.4 10.6"/><path d="M14.4 12.4v2.4a1.8 1.8 0 0 1-1.8 1.8H5.2a1.8 1.8 0 0 1-1.8-1.8V7.4a1.8 1.8 0 0 1 1.8-1.8h2.4"/></svg>`;
+const triG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.4 3.6v12.8M3.4 13.4l3 3 3-3M13.6 16.4V3.6M10.6 6.6l3-3 3 3"/></svg>`;
+const batterie = n => `<svg width="28" height="13" viewBox="0 0 28 13"><rect width="24" height="13" rx="4" fill="#fff"/><text x="12" y="10" font-size="9.6" font-weight="700" text-anchor="middle" fill="#000" font-family="-apple-system,Helvetica,sans-serif">${n}</text><path d="M26 4.6v3.8" stroke="rgba(255,255,255,.5)" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const doc = (t, coul = '#ff453a', lbl = 'PDF') => `<svg width="${f2(t * 0.8)}" height="${t}" viewBox="0 0 32 40"><path d="M4 1h17l10 10v26a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="#f2f2f7" stroke="rgba(0,0,0,.12)" stroke-width=".8"/><path d="M21 1v8a2 2 0 0 0 2 2h8" fill="#d1d1d6"/><rect x="5" y="24" width="22" height="9" rx="2" fill="${coul}"/><text x="16" y="31" text-anchor="middle" font-size="7" font-weight="800" fill="#fff" font-family="-apple-system,sans-serif">${lbl}</text></svg>`;
+const photo = (t, r = 7, a = '#7fb4e0', b = '#e8b07a', d = '#9a5c3c', l = t) => `<div style="width:${l}px;height:${t}px;border-radius:${r}px;background:linear-gradient(160deg,${a},${b} 70%,${d});box-shadow:inset 0 0 0 .5px rgba(255,255,255,.25),0 0 0 .5px rgba(0,0,0,.15);position:relative;overflow:hidden"><div style="position:absolute;left:12%;right:12%;bottom:-18%;height:52%;border-radius:50% 50% 0 0;background:#5d7a4a;opacity:.85"></div></div>`;
+const vignette = t => `<div style="width:${f2(t * 1.4)}px;height:${t}px;border-radius:4px;background:linear-gradient(168deg,#c6d6ea,#ebe8e6);box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 0 0 2px #fff;position:relative;overflow:hidden"><div style="position:absolute;left:12%;top:24%;width:58%;height:60%;border-radius:2px;background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.15)"></div><div style="position:absolute;left:0;right:0;top:0;height:10%;background:rgba(255,255,255,.7)"></div></div>`;
+const interrupteur = on => `<span style="position:relative;width:34px;height:20px;border-radius:10px;background:${on ? 'var(--vert)' : 'rgba(255,255,255,.22)'};flex:none;display:block"><i style="position:absolute;left:${on ? 16 : 2}px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)"></i></span>`;
+const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
+const MENUS = {Chrome:['Fichier', 'Modifier', 'Afficher', 'Historique', 'Favoris', 'Profils', 'Onglet', 'Fenêtre', 'Aide'],
+  Mail:['Fichier', 'Édition', 'Présentation', 'Boîte aux lettres', 'Message', 'Format', 'Fenêtre', 'Aide'],
+  Verbe:['Fichier', 'Édition', 'Présentation', 'Fenêtre', 'Aide']};
+$('#alIc').innerHTML = guillemets(25);
+
+/* Icônes de la barre des menus, de la droite vers la gauche (l'heure change d'une partie à l'autre) */
+(function(){
+  const s = d => `<span><svg viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg></span>`;
+  $('#etats').innerHTML = '<span class="heure" id="heure"></span>' +
+    s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
+    s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
+    s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>';
+})();
+function heure(t){ $('#heure').innerHTML = t.replace(' ', '&nbsp; '); }
+
+/* =========================================================
+   La bibliothèque : des chemins vers des fichiers, rien n'est copié
+   src : etagere (posé un jour sur l'étagère), dl (Téléchargements), air (reçu par AirDrop), cap (capture d'écran)
+   j : 0 aujourd'hui, 1 hier, 2 cette semaine, 3 la semaine dernière ; o : ordre, du plus récent au plus ancien
+   ========================================================= */
+const FI = [
+  {id:'cap', nm:'Capture 14.32.png', k:'cap', src:'cap', j:0, o:1, h:'14:32', t:'1,2 Mo', ic:t => vignette(Math.round(t * .66))},
+  {id:'devis', nm:'Devis-cuisine.pdf', k:'doc', src:'etagere', j:0, o:2, h:'14:02', t:'212 Ko', ic:t => doc(t)},
+  {id:'chantier', nm:'Photo-chantier.heic', k:'img', src:'air', j:0, o:3, h:'11:15', t:'3,4 Mo', ic:t => photo(Math.round(t * .86), 5)},
+  {id:'edf', nm:'Facture-EDF.pdf', k:'doc', src:'dl', j:0, o:4, h:'09:40', t:'88 Ko', ic:t => doc(t)},
+  {id:'plan', nm:'Plan-salon.jpg', k:'img', src:'etagere', j:1, o:5, h:'hier 18:40', t:'2,1 Mo', ic:t => photo(Math.round(t * .86), 5, '#c9a27a', '#efe0c8', '#8a6a4a')},
+  {id:'budget', nm:'Budget-2026.xlsx', k:'doc', src:'dl', j:1, o:6, h:'hier 09:12', t:'48 Ko', ic:t => doc(t, '#1f9d55', 'XLS')},
+  {id:'contrat', nm:'Contrat.pdf', k:'doc', src:'etagere', j:2, o:7, h:'lun. 9 nov.', t:'184 Ko', ic:t => doc(t)},
+  {id:'sdb', nm:'Devis-salle-de-bain.pdf', k:'doc', src:'air', j:2, o:8, h:'lun. 9 nov.', t:'236 Ko', ic:t => doc(t)},
+  {id:'lettre', nm:'Lettre-banque.docx', k:'doc', src:'etagere', j:2, o:9, h:'lun. 9 nov.', t:'31 Ko', ic:t => doc(t, '#2f6fde', 'DOC')},
+  {id:'cap2', nm:'Capture 10.05.png', k:'cap', src:'cap', j:3, o:10, h:'dim. 8 nov.', t:'980 Ko', ic:t => vignette(Math.round(t * .66))},
+  {id:'billet', nm:'Billet-train-Lyon.pdf', k:'doc', src:'dl', j:3, o:11, h:'sam. 7 nov.', t:'96 Ko', ic:t => doc(t)}
+];
+const FID = Object.fromEntries(FI.map(f => [f.id, f]));
+const ETAGERE = ['devis', 'plan', 'contrat', 'lettre'];       // l'étagère d'aujourd'hui : 4 fichiers sur 10 au plus
+const JOURS = ['Aujourd’hui', 'Hier', 'Cette semaine', 'La semaine dernière'];
+const SRC = {etagere:['Étagère', plateauG], dl:['Téléchargés', flecheBas], air:['Reçu par AirDrop', airdropG], cap:['Capture d’écran', viseurG]};
+const DOSSIER = {etagere:'son dossier', dl:'Téléchargements', air:'Téléchargements', cap:'Captures d’écran'};
+const FILTRES = [['tout', 'Tout'], ['docs', 'Documents'], ['images', 'Images'], ['cap', 'Captures'], ['air', 'AirDrop'], ['dl', 'Téléchargés']];
+const filtreOk = (f, k) => k === 'tout' || (k === 'docs' && f.k === 'doc') || (k === 'images' && f.k !== 'doc') || (k === 'cap' && f.src === 'cap') || (k === 'air' && f.src === 'air') || (k === 'dl' && f.src === 'dl');
+const sansAccent = ch => ch.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const plat = s => [...s].map(ch => sansAccent(ch)[0] || ch).join('');
+/* ce que montre la bibliothèque, groupé : les épinglés d'abord, puis par date */
+function groupes(){
+  const q = plat(st.q.trim());
+  const vus = FI.filter(f => !st.retires.has(f.id) && filtreOk(f, st.filtre) && (!q || plat(f.nm).includes(q)) && st.sources[f.src] !== false);
+  const tri = (a, b) => st.tri === 'recent' ? a.o - b.o : b.o - a.o;
+  const g = [], ep = vus.filter(f => st.epingles.has(f.id)).sort(tri);
+  if (ep.length) g.push(['Épinglés', ep, true]);
+  const reste = vus.filter(f => !st.epingles.has(f.id)).sort(tri);
+  for (const f of reste){ const nom = JOURS[f.j]; const d = g[g.length - 1]; if (d && d[0] === nom) d[1].push(f); else g.push([nom, [f], false]); }
+  return {g, n:vus.length};
+}
+const surligne = nm => { const q = plat(st.q.trim()); if (!q) return nm; const i = plat(nm).indexOf(q); return i < 0 ? nm : nm.slice(0, i) + '<mark>' + nm.slice(i, i + q.length) + '</mark>' + nm.slice(i + q.length); };
+
+/* =========================================================
+   Ce que l'îlot affiche : [nom, x (depuis le centre), y, html]
+   ========================================================= */
+const tuile = (t, b) => `<button class="tg" data-t="${t}"><span class="rd"><span class="gl"></span></span><b>${b}</b><i></i></button>`;
+const punaise = `<span class="punaise">${punaiseG(12, 'rgba(255,255,255,.5)')}Reste ouvert</span>`;
+const retour = (vers, txt) => `<button class="pil retour" data-act="${vers}">${chevG(13, '#fff', 'g')}${txt}</button>`;
+const CARTE_CENTRE = `<div class="cc" id="cc">
+  <div class="cc-tete">${punaise}<button class="pil" data-act="rien">${guillemets(12)}Dictées</button><button class="pil" data-act="rien">Modifier</button></div>
+  <div class="cc-ronds">${tuile('micro', 'Micro')}${tuile('dl', 'Téléchargements')}${tuile('dictee', 'Dictée')}${tuile('cal', 'Calendrier')}${tuile('claude', 'Claude Code')}${tuile('rappel', 'Rappel')}</div>
+  <div class="cc-larges">
+    <div class="tl" id="tlMin"><div class="tl-t">${minuteurG(17, 'var(--ambre)')}<span class="mseg"><button data-mt="minuteur">Minuteur</button><button data-mt="reveil">Réveil</button></span><span class="quand" id="minQuand"></span></div>
+      <div class="tl-caps" id="minCaps"></div></div>
+    <div class="tl eta" data-act="etagere" id="tlEta"><div class="tl-t">${plateauG(17, '#5eb0ff')}Étagère<em class="nb">${ETAGERE.length}</em></div>
+      <div class="eta-plein">${doc(28)}<div><div class="nm">Devis-cuisine.pdf</div><div class="sub">et 3 autres</div></div></div></div>
+  </div>
+  <button class="tr" data-act="rien"><span class="tr-pt"></span><span>Noter la réunion</span><span class="tr-s">Verbe écrit tout ce qui se dit</span></button>
+</div>`;
+const CARTE_ETAGERE = `<div class="ce" id="ce">
+  <div class="ce-tete">${retour('centre', 'Centre')}${plateauG(22, 'var(--ciel)')}
+    <div class="tx"><div class="t15">Étagère</div><div class="t125 ell">${ETAGERE.length} fichiers · glisse-les vers une app</div></div>
+    <button class="pil droite" data-act="rien">Tout vider</button></div>
+  <div class="ce-g">${ETAGERE.map(id => FID[id]).map(f => `<div class="gi"><span class="ic">${f.ic(36)}</span><span>${f.nm.length <= 15 ? f.nm : f.nm.slice(0, 7) + '…' + f.nm.slice(-6)}</span></div>`).join('')}</div>
+  <div class="ce-bib" data-act="biblio">${livresG(20, 'rgba(255,255,255,.85)')}<div class="tx"><b>Bibliothèque</b><i>Tout ce qui est passé par ici, et plus</i></div>
+    <button class="pil blanc" data-act="biblio" id="toutVoir">Tout voir${chevG(12, '#000', 'd')}</button></div>
+</div>`;
+const CARTE_BIBLIO = `<div class="bc" id="bc">
+  <div class="bc-tete">${retour('etagere', 'Étagère')}
+    <label class="champ" id="bcChamp">${loupe(14, 'currentColor')}<input id="bcRech" type="text" placeholder="Rechercher un fichier" autocomplete="off" spellcheck="false" aria-label="Rechercher dans la bibliothèque"><span class="efface" data-act="efface">${croixG(8, '#000')}</span></label>
+    <button class="tri" data-act="tri" id="bcTri"></button></div>
+  <div class="chips" id="bcChips">${FILTRES.map(([k, l]) => `<button class="chip" data-filtre="${k}">${l}</button>`).join('')}</div>
+  <div class="bl-liste" id="blListe"></div>
+  <div class="pied" id="bcPied"></div>
+</div>`;
+const BAN_DICTE = `<div class="dic"><span class="mic">${micro(17, '#fff')}</span><p id="dicTx"></p></div>`;
+const BAN_REGLE = `<div class="ban">${reveilG(26, 'var(--ambre)')}<div class="tx"><b>Réveil réglé · 9:00</b><span>Demain, jeudi · rien n’a été collé</span></div><button class="act" data-act="annule-reveil">Annuler</button></div>`;
+const BAN_SONNE = `<div class="ban"><span class="sonne">${reveilG(28, 'var(--ambre)')}</span><div class="tx"><b>Réveil · 9:00</b><span>Bonjour · jeudi 12 novembre</span></div><button class="act" data-act="encore">Encore 10 min</button><button class="act ambre" data-act="ok-reveil">OK</button></div>`;
+const BAN_10 = `<div class="ban">${calG(26, 'var(--rouge)')}<div class="tx"><b>Point client</b><span>Dans 10 min · Visio</span></div><span class="hr">10:30</span></div>`;
+const BAN_GO = `<div class="go"><div class="l1 ban">${calG(26, 'var(--rouge)')}<div class="tx"><b>Point client commence</b><span>Maintenant · Google Meet</span></div><span class="hr">10:30</span></div>
+  <div class="l2"><button class="vert" data-act="rejoindre" id="rejoindre">${cameraG(17, '#000')}Rejoindre</button><button class="gris" data-act="noter"><span class="tr-pt"></span>Noter la réunion</button></div></div>`;
+const CONTENUS = [
+  ['revG', -(HC + AILE - 6), mid(17), `<span class="aile ambre" id="revAile">${reveilG(15, '#ffb340')}<b id="revH">9:00</b></span>`],
+  ['calG', -(HC + AILE - 10), mid(17), `<span class="aile">${calG(16, 'var(--rouge)')}</span>`],
+  ['calD', HC + 8, mid(17), `<span class="aile">10 min</span>`],
+  ['batt', -NO + 13, mid(13), `<span class="epaule">${batterie(64)}</span>`],
+  ['airp', HC + 8, mid(17), `<span class="epaule">${airpods(15)}78 %</span>`],
+  ['dicte', 0, B + 12, BAN_DICTE],
+  ['banRegle', 0, B + 12, BAN_REGLE],
+  ['banSonne', 0, B + 12, BAN_SONNE],
+  ['ban10', 0, B + 12, BAN_10],
+  ['banGo', 0, B + 12, BAN_GO],
+  ['centre', GX, B + 14, CARTE_CENTRE],
+  ['etagere', GX, B + 14, CARTE_ETAGERE],
+  ['biblio', GX, B + 14, CARTE_BIBLIO]
+];
+const contenu = $('#contenu');
+contenu.innerHTML = CONTENUS.map(([nom, x, y, html]) => `<div class="c e" data-c="${nom}" style="left:${f2(500 + x)}px;top:${f2(y)}px">${html}</div>`).join('');
+const c = {}; contenu.querySelectorAll('[data-c]').forEach(n => c[n.dataset.c] = n);
+const tg = t => contenu.querySelector(`.tg[data-t="${t}"]`);
+const rd = t => tg(t).querySelector('.rd');
+
+/* =========================================================
+   L'état de Verbe
+   ========================================================= */
+const st = {};
+function remettre(){
+  Object.assign(st, {carte:null, ban:null, punaise:false, plie:null,
+    filtre:'tout', q:'', tri:'recent', epingles:new Set(['contrat']), retires:new Set(), dernierRetire:null, survol:null, survolAct:null, choisis:new Set(), tire:false,
+    sources:{etagere:true, dl:true, air:true, cap:true}, mailMode:'pj', mailPj:[],
+    minTab:'minuteur', reveil:null, capSurvol:null, dicte:'', cal:false, question:false, page:'article'});
+}
+
+/* --- le Centre --- */
+function majCentre(pop){
+  const pose = (t, cl, gl, sous) => {
+    const n = tg(t); n.className = 'tg ' + cl; n.querySelector('.gl').innerHTML = gl; n.querySelector('i').textContent = sous;
+    if (pop === t && !instant && !REDUIT) n.querySelector('.rd').animate([{transform:'scale(1)'}, {transform:'scale(.86)'}, {transform:'scale(1.06)'}, {transform:'scale(1)'}], {duration:380 * K, easing:'ease-out'});
+  };
+  pose('micro', '', micro(24, '#fff'), 'Ouvert');
+  pose('dl', 'bleu', flecheBas(24), 'Allumé');
+  pose('dictee', '', airpods(24), 'AirPods');
+  pose('cal', st.cal ? 'rouge' : '', calG(24, '#fff'), st.cal ? 'Allumé' : 'Éteint');
+  pose('claude', 'corail', etoile(22, '#fff'), 'Prêt');
+  pose('rappel', '', cloche(23, 'var(--jaune)'), 'Dire un rappel');
+  contenu.querySelectorAll('[data-mt]').forEach(b => b.classList.toggle('on', b.dataset.mt === st.minTab));
+  const rev = st.minTab === 'reveil';
+  $('#minCaps').innerHTML = rev
+    ? ['7:00', '8:00', '9:00'].map(h => `<button class="cap${st.reveil === h ? ' choisi' : ''}${st.capSurvol === h ? ' survol' : ''}" data-rv="${h}">${h}</button>`).join('') + '<button class="cap" data-rv="autre">Autre…</button>'
+    : '<button class="cap">5</button><button class="cap">10</button><button class="cap">25</button><span class="tl-u">min</span>';
+  $('#minQuand').textContent = rev && st.reveil ? 'demain' : '';
+  contenu.querySelectorAll('.punaise').forEach(p => p.classList.toggle('vu', st.punaise));
+}
+/* --- la Bibliothèque, dans l'îlot --- */
+function majBiblio(){
+  const {g, n} = groupes();
+  $('#bcTri').innerHTML = `${triG(13, '#fff')}${st.tri === 'recent' ? 'Récents' : 'Anciens'}`;
+  contenu.querySelectorAll('.chip').forEach(b => b.classList.toggle('on', b.dataset.filtre === st.filtre));
+  const ch = $('#bcRech'); if (ch.value !== st.q) ch.value = st.q;
+  $('#bcChamp').classList.toggle('plein', !!st.q); $('#bcChamp').classList.toggle('actif', !!st.q);
+  $('#bc').classList.toggle('choix', st.choisis.size > 0);
+  const l = $('#blListe');
+  l.innerHTML = n ? g.map(([nom, fs, ep]) => `<div class="bl-g">${ep ? punaiseG(11, 'rgba(255,255,255,.42)') : ''}${nom}</div>` + fs.map(f => {
+    const [sl, sg] = SRC[f.src], quand = f.j === 0 ? f.h : f.h;
+    const pin = st.epingles.has(f.id);
+    return `<div class="bl${st.survol === f.id ? ' survol' : ''}${st.choisis.has(f.id) ? ' choisi' : ''}" data-fid="${f.id}">
+      <button class="sel" data-act="choisir" aria-label="Choisir"><i>${st.choisis.has(f.id) ? coche(10, '#fff') : ''}</i></button>
+      <span class="bl-ic">${f.ic(28)}</span>
+      <span class="bl-tx"><b>${surligne(f.nm)}</b><i>${sg(11, 'rgba(255,255,255,.45)')}${sl} · ${quand} · ${f.t}</i></span>
+      <span class="bl-d">${pin ? `<span class="pin-vu">${punaiseG(13, '#fff')}</span>` : ''}<span class="bl-act">
+        <button class="ib-r${pin ? ' on' : ''}${st.survolAct === 'pin' && st.survol === f.id ? ' survol' : ''}" data-act="epingler" aria-label="${pin ? 'Détacher' : 'Épingler'}">${punaiseG(13, pin ? '#ffb340' : '#fff')}</button>
+        <button class="mini-pil${st.survolAct === 'retirer' && st.survol === f.id ? ' survol' : ''}" data-act="retirer">Retirer</button></span></span></div>`;
+  }).join('')).join('') : '<div class="bl-rien">Aucun fichier</div>';
+  l.classList.toggle('defile', l.scrollHeight > l.clientHeight + 1);
+  const p = $('#bcPied');
+  p.className = 'pied';
+  if (st.choisis.size){
+    const k = st.choisis.size;
+    p.innerHTML = `<button class="poignee${st.tire ? ' pris' : ''}" id="poignee" data-act="glisser">${pileG(15)}Glisser les ${k}</button><span class="nbc">${k} choisi${k > 1 ? 's' : ''}</span><button class="lien" data-act="annule-choix">Annuler</button>`;
+  } else if (st.dernierRetire){
+    const f = FID[st.dernierRetire]; p.classList.add('retire');
+    p.innerHTML = `${coche(13, '#5fe08a')}<span class="txt">Retiré d’ici. Le fichier reste dans ${DOSSIER[f.src]}.</span><button class="lien" data-act="annule-retrait">Annuler</button>`;
+  } else {
+    p.innerHTML = `${lienG(14, 'rgba(255,255,255,.45)')}<span class="txt">Rien n’est copié : Verbe garde seulement le chemin</span><button class="lien" data-act="grand" id="enGrand">En grand${sortieG(13, 'currentColor')}</button>`;
+  }
+}
+/* --- la fenêtre de Verbe, onglet Bibliothèque --- */
+function majFenetre(){
+  $('#vbOnglet').innerHTML = `${livresG(16, '#ece9e3')}Bibliothèque`;
+  const tous = FI.filter(f => !st.retires.has(f.id));
+  $('#vbCpt').textContent = `${tous.length} fichiers · ${ETAGERE.length} sur l’étagère`;
+  $('#vbCh').innerHTML = `${loupe(14, '#88857e')}Rechercher un fichier`;
+  $('#vbTri').innerHTML = `${triG(14, '#cfccc5')}Plus récents d’abord${chevG(11, '#88857e', 'b')}`;
+  $('#vbChips').innerHTML = FILTRES.map(([k, l]) => `<button class="${k === 'tout' ? 'on' : ''}" data-vf="${k}">${l}<i>${tous.filter(f => filtreOk(f, k)).length}</i></button>`).join('');
+  const sauve = {filtre:st.filtre, q:st.q}; st.filtre = 'tout'; st.q = '';
+  const {g} = groupes(); Object.assign(st, sauve);
+  const vig = f => f.k === 'doc' ? f.ic(56) : f.k === 'cap' ? vignette(56) : f.id === 'plan' ? photo(88, 0, '#c9a27a', '#efe0c8', '#8a6a4a', 128) : photo(88, 0, '#7fb4e0', '#e8b07a', '#9a5c3c', 128);
+  $('#vbGrille').innerHTML = g.map(([nom, fs, ep]) => `<div class="vb-g">${ep ? punaiseG(12, '#a8a59e') : ''}${nom}</div><div class="vb-tuiles">` + fs.map(f =>
+    `<div class="vt"><div class="th">${vig(f)}</div>${ep ? `<span class="pin">${punaiseG(12, '#fff')}</span>` : ''}<b>${f.nm}</b><i>${SRC[f.src][0]} · ${f.h} · ${f.t}</i></div>`).join('') + '</div>').join('');
+  const so = (k, g, b, i) => `<div class="so">${g(18, '#cfccc5')}<div class="tx"><b>${b}</b><i>${i}</i></div>${k ? `<button data-so="${k}" style="cursor:pointer">${interrupteur(st.sources[k])}</button>` : '<span class="tj">toujours</span>'}</div>`;
+  $('#vbCote').innerHTML = `<h4>Ce que la bibliothèque montre</h4><div class="s">L’étagère, plus les sources que tu allumes.</div>
+    ${so('', plateauG, 'Étagère', 'Tout ce que tu y as posé')}${so('dl', flecheBas, 'Téléchargés', 'Dossier Téléchargements')}${so('air', airdropG, 'Reçus par AirDrop', 'Depuis tes autres appareils')}${so('cap', viseurG, 'Captures d’écran', 'Où qu’elles soient rangées')}
+    <div class="vb-note"><p><b>Rien n’est copié.</b> Verbe garde seulement le chemin de chaque fichier.</p><p><b>« Retirer »</b> l’enlève d’ici ; le fichier, lui, reste où il est.</p><p>Glisse un fichier vers une app. Choisis-en plusieurs pour les glisser ensemble.</p></div>`;
+}
+/* --- Mail --- */
+function majMail(){
+  const pj = st.mailMode === 'pj';
+  $('#mailTitre').textContent = pj ? 'Devis cuisine' : 'Demain';
+  $('#mailA').textContent = pj ? 'Paul Martin' : 'Julie Bernard';
+  $('#mailObjet').textContent = pj ? 'Devis cuisine' : 'Demain';
+  $('#mailCorps').innerHTML = pj
+    ? `Bonjour Paul,<br><br>Voici le devis, le plan du salon et le contrat.<div class="ma-pjs" id="pjs">${st.mailPj.map(id => FID[id]).map(f => `<div class="ma-pj">${f.k === 'doc' ? f.ic(40) : photo(38, 4, ...(f.id === 'plan' ? ['#c9a27a', '#efe0c8', '#8a6a4a'] : []))}<span>${f.nm}</span></div>`).join('')}</div>Bonne journée,<br>Hugues`
+    : `Coucou Julie,<br><br>On se voit demain à 10 h au café ?<span class="curseur"></span>`;
+}
+/* --- la page de Chrome --- */
+function majPage(){
+  const v = st.page === 'visio', p = $('#page');
+  p.className = 'page' + (v ? ' visio' : '');
+  $('#ongletTitre').textContent = v ? 'Point client – Meet' : 'Bien ranger ses notes de projet';
+  $('#url').innerHTML = v ? 'meet.google.com<span>/kfp-rxta-pqm</span>' : 'carnet-de-bord.fr<span>/methode/ranger-ses-notes</span>';
+  p.innerHTML = v ? `<div class="vi-cam"><span class="av">H</span><div class="bt"><i></i><i></i></div></div><div class="vi-tx"><h3>Prêt à participer ?</h3><p>Point client · 10:30 – 11:00</p><span>Participer</span></div>`
+    : `<div class="art-col"><small>MÉTHODE · 6 MIN DE LECTURE</small><h2>Bien ranger ses notes de projet, sans y passer ses soirées</h2>
+      <p>Une fiche par projet, une page « où j’en suis » mise à jour à chaque fin de séance, et un seul dossier pour les décisions : c’est tout ce qu’il faut pour reprendre un travail une semaine plus tard sans tout relire.</p>
+      <p>Le plus dur n’est pas d’écrire, c’est de savoir où ranger. Une règle simple aide : ce qui change souvent va dans « projets », ce qui ne bouge plus va dans « docs ».</p></div>`;
+}
+function majDicte(){ const p = $('#dicTx'); p.textContent = st.dicte || 'J’écoute…'; p.className = st.dicte ? '' : 'vide'; }
+function majTout(){ majCentre(); majBiblio(); majFenetre(); majMail(); majPage(); majDicte(); $('#revH').textContent = st.reveil || '9:00'; }
+
+/* =========================================================
+   Minuteries et attentes annulables (reprises de ilot-centre.html)
+   ========================================================= */
+let jeton = 0, instant = false, enCoursN = 0, cibleN = 0, auto = false;
+const minuteries = new Set();
+function apres(t, fn){ const id = setTimeout(() => { minuteries.delete(id); fn(); }, t * 1000 * K); minuteries.add(id); return id; }
+function annuler(){ minuteries.forEach(clearTimeout); minuteries.clear(); }
+function suite(){ const j = jeton; return Promise.resolve().then(() => { if (j !== jeton) throw 'stop'; }); }
+function attendre(t){
+  if (instant) return suite();
+  const j = jeton;
+  return new Promise((ok, ko) => apres(t, () => (j === jeton ? ok() : ko('stop'))));
+}
+const fin = () => instant && enCoursN === cibleN;   // dans un état posé, le retour au calme de la dernière étape n'est pas joué
+
+/* =========================================================
+   L'îlot : ressorts, forme, contenu
+   ========================================================= */
+const forme = $('#forme'), ombre = $('#ombre');
+const R = {}; CLES.forEach(k => R[k] = new Ressort(REPOS[k]));
+const TOUS = CLES.map(k => R[k]);
+let cible = {...REPOS}, anime = false, tPrec = 0;
+function ilot(g, o = {}){
+  const grand = (g.bw + g.bd) * g.h >= (cible.bw + cible.bd) * cible.h - .5;
+  const rep = o.rep ?? (grand ? .46 : .38), z = o.z ?? (grand ? .78 : 1), att = o.attente ?? (grand ? 0 : .06);
+  cible = {...g};
+  for (const k of CLES){
+    if (instant) R[k].poser(g[k]);
+    else { const haut = k === 'h' && grand; R[k].viser(g[k], haut ? rep * 1.06 : rep, z, att + (haut ? .02 : 0)); }
+  }
+  demarrer();
+}
+function montre(noms, d = .14){
+  const vus = new Set(noms);
+  for (const nom in c){
+    const n = c[nom], on = vus.has(nom);
+    if (on && !n.classList.contains('on')) n.style.setProperty('--d', d + 's');
+    n.classList.toggle('on', on);
+  }
+}
+function demarrer(){
+  if (FIGE || instant){ rendu(); return; }
+  if (!anime){ anime = true; tPrec = performance.now(); requestAnimationFrame(boucle); }
+}
+function boucle(){
+  const t = performance.now(), dt = clamp((t - tPrec) / 1000, 0, .05) / K; tPrec = t;
+  const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+  for (let i = 0; i < n; i++) for (const r of TOUS) r.pas(h);
+  let bouge = false;
+  for (const r of TOUS) if (!r.pose()) bouge = true;
+  rendu();
+  if (bouge) requestAnimationFrame(boucle); else anime = false;
+}
+function rendu(){
+  const g = {}; for (const k of CLES) g[k] = R[k].x;
+  forme.setAttribute('d', chemin(g));
+  const a = clamp((g.h - B - 6) / 40, 0, 1);
+  ombre.style.filter = a > .01 ? `drop-shadow(0 ${(9 * a).toFixed(1)}px ${(18 * a).toFixed(1)}px rgba(10,20,40,${(.32 * a).toFixed(3)}))` : 'none';
+}
+/* l'îlot épouse sa carte, jusqu'à 330 pt ; au-delà, on fait défiler dans la carte */
+const HAUTEUR = carte => Math.min(HMAX, B + 14 + c[carte].firstElementChild.offsetHeight + 14);
+const FORME = carte => bandeau(BW, HAUTEUR(carte), NO);
+/* replié : l'aile du réveil, celle du rendez-vous, ou l'encoche seule */
+const PLIE = () => st.plie === 'reveil' ? compact(HC + AILE, HC) : st.plie === 'cal' ? compact(HC + AILE, HC + AILE) : REPOS;
+const PLIE_NOMS = () => st.plie === 'reveil' ? ['revG'] : st.plie === 'cal' ? ['calG', 'calD'] : [];
+const OUVERT = carte => ['batt', 'airp', carte];
+function ouvrir(carte){
+  st.carte = carte; st.ban = null;
+  montre([], 0);
+  ilot(FORME(carte));
+  montre(OUVERT(carte), .14);
+}
+function changer(carte){
+  if (!st.carte){ ouvrir(carte); return; }
+  if (st.carte === carte) return;
+  const bas = RANG[carte] > RANG[st.carte], vient = c[carte], part = c[st.carte];
+  vient.style.transition = 'none'; vient.style.setProperty('--sy', (bas ? 26 : -26) + 'px'); void vient.offsetWidth; vient.style.transition = '';
+  part.style.setProperty('--sy', (bas ? -26 : 26) + 'px');
+  st.carte = carte;
+  if (carte === 'biblio'){ majBiblio(); $('#blListe').scrollTop = 0; }
+  ilot(FORME(carte));
+  montre(OUVERT(carte), .1);
+}
+function replier(){
+  st.carte = null; st.ban = null; st.punaise = false; st.survol = null; st.survolAct = null; st.capSurvol = null; majCentre();
+  if (document.activeElement === $('#bcRech')) $('#bcRech').blur();
+  montre([], 0);
+  ilot(PLIE()); montre(PLIE_NOMS(), .16);
+}
+function reformer(){ if (st.carte) ilot(FORME(st.carte)); }
+/* un bandeau épouse son contenu (comme ContenuAnnonce) */
+function banniere(nom){
+  st.carte = null; st.ban = nom;
+  const n = c[nom], w = n.offsetWidth, h = n.offsetHeight;
+  n.style.left = f2(500 - w / 2) + 'px';
+  montre([], 0);
+  ilot(bandeau(w / 2 + 20, B + 12 + h + 14, HC + 6));
+  montre([nom], .14);
+}
+
+/* =========================================================
+   L'écran : fenêtres, barre des menus, pointeur, mains
+   ========================================================= */
+const ecran = $('#ecran'), pointeur = $('#pointeur'), fantome = $('#fantome'), pad = $('#pad'), fnT = $('#fn');
+const F = {chrome:$('[data-f="chrome"]'), mail:$('[data-f="mail"]'), verbe:$('[data-f="verbe"]')};
+const APP = {chrome:'Chrome', mail:'Mail', verbe:'Verbe'};
+let ordre = ['chrome', 'mail', 'verbe'];
+function devant(nom){
+  ordre = ordre.filter(n => n !== nom).concat(nom);
+  ordre.forEach((n, i) => { F[n].style.zIndex = i + 1; F[n].classList.toggle('arriere', n !== nom); });
+  const app = APP[nom];
+  $('#menus').innerHTML = POMME + `<b>${app}</b>` + MENUS[app].map(m => `<span>${m}</span>`).join('');
+}
+function fenetre(nom, vu){ F[nom].classList.toggle('cache', !vu); }
+function question(vu){ st.question = vu; $('#alerte').classList.toggle('cache', !vu); }
+function veille(vu){ $('#veille').classList.toggle('vu', vu); }
+const XR = dx => ecran.clientWidth / 2 + dx;
+function ou(el){ const r = el.getBoundingClientRect(), e = ecran.getBoundingClientRect(); return [r.left + r.width / 2 - e.left, r.top + r.height / 2 - e.top]; }
+function cur(x, y, o = {}){
+  const saute = instant || o.saute;
+  pointeur.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
+  pointeur.style.transform = `translate(${f2(x)}px,${f2(y)}px)`;
+  if (saute){ void pointeur.offsetWidth; pointeur.style.transition = ''; }
+  pointeur.classList.toggle('vu', o.vu !== false);
+}
+async function va(x, y, d = .75){ cur(x, y, {duree:d}); await attendre(d); }
+async function vers(el, d = .75, dx = 0, dy = 0){ const [x, y] = ou(el); await va(x + dx, y + dy, d); }
+function doigts(mode){ pad.className = 'pad' + (mode ? ' ' + mode : ''); }
+async function clic(){
+  if (instant) return suite();
+  doigts('un'); pointeur.classList.add('appui');
+  await attendre(.13);
+  pointeur.classList.remove('appui'); doigts('');
+}
+function fn(oui){ fnT.classList.toggle('on', oui); }
+function porte(ids){
+  fantome.innerHTML = ids ? `<div class="paquet">${ids.slice(0, 3).map(id => `<div>${FID[id].k === 'doc' ? FID[id].ic(34) : photo(30, 4)}</div>`).join('')}<b>${ids.length}</b></div>` : '';
+  fantome.classList.toggle('vu', !!ids);
+}
+/* glisser les fichiers choisis dans le message : ils restent dans la bibliothèque */
+function deposer(){
+  st.mailPj = [...st.choisis].sort((a, b) => ['devis', 'plan', 'contrat'].indexOf(a) - ['devis', 'plan', 'contrat'].indexOf(b));
+  st.choisis.clear(); st.tire = false; majMail(); majBiblio();
+}
+
+/* =========================================================
+   Les étapes
+   ========================================================= */
+function init(){
+  remettre();
+  fenetre('chrome', true); fenetre('mail', true); fenetre('verbe', false); devant('chrome'); devant('mail');
+  heure('Mer. 11 nov. 14:44');
+  majTout();
+  ilot(REPOS); montre([]);
+  cur(XR(250), 380, {vu:false, saute:true});
+  pointeur.classList.remove('appui'); porte(null);
+  question(false); veille(false);
+  doigts(''); fn(false);
+}
+async function survolCentre(){
+  cur(XR(260), 330, {saute:true}); await attendre(.05);
+  await va(XR(30), 20, .7); await attendre(.1);
+  ouvrir('centre'); await attendre(.55);
+}
+async function taper(mot){ for (const ch of mot){ st.q += ch; majBiblio(); reformer(); await attendre(.12); } }
+const ETAPES = [
+  /* ---------------- Partie A : la Bibliothèque ---------------- */
+  {t:'L’étagère : « Tout voir »', g:'Survol, puis un clic sur Étagère',
+   p:'Survoler l’îlot ouvre le Centre. Un clic sur la case Étagère : les 4 fichiers posés là (10 au plus, comme aujourd’hui). Tout en bas, une nouvelle ligne : « Bibliothèque · Tout voir ».',
+   async jeu(){
+     await survolCentre();
+     await vers($('#tlEta'), .6, -20, 4); await clic();
+     st.punaise = true; majCentre(); changer('etagere'); await attendre(.7);
+     await vers($('#toutVoir'), .6, -6, 3); await attendre(.2);
+   }},
+  {t:'La Bibliothèque, dans l’îlot', g:'Un clic sur « Tout voir »',
+   p:'Tout ce qui est passé par l’étagère, plus les fichiers téléchargés, reçus par AirDrop et les captures d’écran. Les épinglés en haut, puis du plus récent au plus ancien : nom, d’où il vient, date, taille. On fait défiler dans la carte.',
+   async jeu(){
+     await clic(); changer('biblio'); await attendre(.8);
+     await va(XR(110), 240, .7);
+   }},
+  {t:'Un filtre, une recherche', g:'Un clic, puis taper « devis »',
+   p:'Les pastilles trient par sorte : Documents, Images, Captures, AirDrop, Téléchargés. Le champ cherche dans les noms. Ici : Documents, puis « devis » — les deux devis restent, d’où qu’ils viennent.',
+   async jeu(){
+     await vers(contenu.querySelector('[data-filtre="docs"]'), .6, 0, 3); await clic();
+     st.filtre = 'docs'; majBiblio(); reformer(); await attendre(.6);
+     await vers($('#bcChamp'), .55, -40, 3); await clic(); await attendre(.15);
+     await taper('devis'); await attendre(.5);
+   }},
+  {t:'Épingler, retirer', g:'Survol d’une ligne, deux clics',
+   p:'Au survol d’une ligne : la punaise l’épingle tout en haut ; « Retirer » l’enlève de la bibliothèque seulement. Le fichier, lui, reste où il est : Verbe le dit en bas, avec « Annuler ».',
+   async jeu(){
+     await vers(contenu.querySelector('[data-act="efface"]'), .55, 0, 0); await clic();
+     st.q = ''; st.filtre = 'tout'; majBiblio(); reformer(); await attendre(.5);
+     st.survol = 'plan'; majBiblio();
+     const l = $('#blListe'), lig = () => l.querySelector('.bl[data-fid="plan"]');
+     l.scrollTop = Math.max(0, lig().offsetTop - l.offsetTop - 40);
+     await vers(lig().querySelector('[data-act="epingler"]'), .6, 0, 2); st.survolAct = 'pin'; majBiblio(); await attendre(.2); await clic();
+     st.epingles.add('plan'); st.survol = null; st.survolAct = null; majBiblio(); l.scrollTop = 0; await attendre(.7);
+     st.survol = 'cap'; majBiblio();
+     await vers(l.querySelector('.bl[data-fid="cap"] [data-act="retirer"]'), .6, 0, 2); st.survolAct = 'retirer'; majBiblio(); await attendre(.2); await clic();
+     st.retires.add('cap'); st.dernierRetire = 'cap'; st.survol = null; st.survolAct = null; majBiblio(); reformer(); await attendre(.6);
+   }},
+  {t:'Plusieurs à la fois, vers Mail', g:'Trois clics, puis glisser',
+   p:'Les petits ronds à gauche choisissent plusieurs fichiers. La poignée « Glisser les 3 » les emporte ensemble : lâchés dans le message, ce sont 3 pièces jointes. Ils restent dans la bibliothèque (et sur l’étagère).',
+   async jeu(){
+     st.dernierRetire = null; majBiblio();
+     for (const id of ['devis', 'plan', 'contrat']){
+       await vers($('#blListe').querySelector(`.bl[data-fid="${id}"] .sel`), .45, 0, 1); await clic();
+       st.choisis.add(id); majBiblio(); await attendre(.15);
+     }
+     await attendre(.3);
+     await vers($('#poignee'), .5, -10, 2); await attendre(.1);
+     if (fin()) return;
+     doigts('un'); st.tire = true; majBiblio(); porte([...st.choisis]);
+     const [mx, my] = ou($('#pjs'));
+     cur(mx - 60, my + 6, {duree:1.1}); await attendre(.3);
+     replier(); await attendre(.85);
+     doigts(''); porte(null); deposer(); await attendre(.6);
+   }},
+  {t:'En grand : l’onglet Bibliothèque', g:'Survol, puis « En grand »',
+   p:'L’îlot reste compact. La vue complète vit dans la fenêtre de Verbe, onglet « Bibliothèque », à côté de Dictées, Journée, Réunions, Mots et Réglages : mêmes pastilles, plus grand, et à droite les sources qu’on allume ou non.',
+   async jeu(){
+     await survolCentre();
+     await vers($('#tlEta'), .45, -20, 4); await clic(); st.punaise = true; majCentre(); changer('etagere'); await attendre(.45);
+     await vers($('#toutVoir'), .45, -6, 3); await clic(); changer('biblio'); await attendre(.55);
+     await vers($('#enGrand'), .55, 0, 2); $('#enGrand').classList.add('survol'); await attendre(.15); await clic();
+     replier(); majFenetre(); fenetre('verbe', true); devant('verbe'); await attendre(.5);
+     await va(XR(-120), 360, .7);
+   }},
+  /* ---------------- Partie B : le Réveil ---------------- */
+  {t:'Réveil : un onglet du Minuteur', g:'Survol, puis un clic sur « Réveil »',
+   p:'Le soir. Dans la case Minuteur du Centre, un 2e onglet, « Réveil » : 7:00, 8:00, 9:00 ou « Autre… ». Un clic sur l’heure suffit. Ou bien on le dit, sans rien ouvrir : c’est l’étape suivante.',
+   async jeu(){
+     fenetre('verbe', false); st.mailMode = 'soir'; st.mailPj = []; majMail(); devant('mail'); heure('Mer. 11 nov. 23:12');
+     await attendre(.4);
+     await survolCentre();
+     await vers(contenu.querySelector('[data-mt="reveil"]'), .6, 0, 2); await clic();
+     st.punaise = true; st.minTab = 'reveil'; majCentre(); await attendre(.6);
+     await vers(contenu.querySelector('[data-rv="9:00"]'), .5, 0, 3); st.capSurvol = '9:00'; majCentre(); await attendre(.3);
+   }},
+  {t:'À la voix : « réveille-moi à 9 h »', g:'Maintenir fn, parler, lâcher',
+   p:'On maintient fn et on dit « réveille-moi à 9 h ». Verbe comprend que c’est pour lui : rien n’est collé dans Mail, le réveil est réglé pour demain 9:00. Replié, l’îlot garde un petit réveil et « 9:00 » dans son aile gauche.',
+   async jeu(){
+     await va(XR(-260), 470, .7); await clic(); replier(); await attendre(.6);
+     fn(true); st.dicte = ''; majDicte(); banniere('dicte'); await attendre(.5);
+     for (const m of 'réveille-moi à 9 h'.split(' ')){ st.dicte += (st.dicte ? ' ' : '') + m; majDicte(); await attendre(.24); }
+     await attendre(.4); fn(false);
+     st.reveil = '9:00'; st.minTab = 'reveil'; majCentre(); $('#revH').textContent = '9:00';
+     banniere('banRegle'); await attendre(1.8);
+     st.plie = 'reveil'; replier(); await attendre(.6);
+   }},
+  {t:'9:00 : ça sonne, même écran éteint', g:'Rien à faire',
+   p:'Le lendemain, l’écran dormait. À 9:00, il se rallume et l’îlot sonne en grand, comme le minuteur : « Encore 10 min » ou « OK ». Le réveil sonne même si l’écran était éteint.',
+   async jeu(){
+     pointeur.classList.remove('vu');
+     veille(true); await attendre(1.0);
+     heure('Jeu. 12 nov. 9:00'); await attendre(.3);
+     veille(false); st.plie = null; banniere('banSonne'); await attendre(.9);
+   }},
+  /* ---------------- Partie C : rejoindre la visio ---------------- */
+  {t:'Calendrier : un clic, une seule question', g:'Survol, puis deux clics',
+   p:'Le calendrier existait mais était éteint. Un clic sur le rond « Calendrier » du Centre : macOS demande l’accès, une seule fois. « Autoriser », et le rond s’allume.',
+   async jeu(){
+     replier(); st.reveil = null; st.minTab = 'minuteur'; majCentre();
+     fenetre('mail', false); st.page = 'article'; majPage(); devant('chrome'); heure('Jeu. 12 nov. 10:12');
+     await attendre(.4);
+     await survolCentre();
+     await vers(rd('cal'), .6, 2, 4); await clic();
+     st.punaise = true; majCentre(); question(true); await attendre(.7);
+     await vers($('#autoriser'), .6, 0, 3); await clic();
+     question(false); st.cal = true; majCentre('cal'); await attendre(.5);
+     await vers(rd('cal'), .5, 30, 40); await attendre(.3);
+   }},
+  {t:'10 min avant : un bandeau', g:'Mains au repos',
+   p:'À 10:20, l’îlot descend : « Point client · dans 10 min · Visio ». Puis il se range en petit : le calendrier à gauche, « 10 min » à droite, rien de plus dans la barre des menus.',
+   async jeu(){
+     await va(XR(-300), 460, .7); await clic(); replier(); pointeur.classList.remove('vu'); await attendre(.6);
+     heure('Jeu. 12 nov. 10:20'); banniere('ban10'); await attendre(.8);
+     if (fin()) return;
+     await attendre(1.8); st.plie = 'cal'; replier(); await attendre(.6);
+   }},
+  {t:'C’est l’heure : « Rejoindre »', g:'Rien à faire',
+   p:'À 10:30, l’alerte : un grand bouton vert « Rejoindre » ouvre le lien de la visio (Meet, Zoom ou Teams, pris dans l’invitation), et « Noter la réunion » lance la prise de notes de Verbe.',
+   async jeu(){
+     st.plie = 'cal'; heure('Jeu. 12 nov. 10:30'); await attendre(.3);
+     st.plie = null; banniere('banGo'); await attendre(.9);
+   }},
+  {t:'Un clic : la visio s’ouvre', g:'Un clic sur « Rejoindre »',
+   p:'Chrome passe devant, sur le lien de la réunion. L’îlot se range. Si on veut des notes plus tard, « Noter la réunion » reste dans le Centre.',
+   async jeu(){
+     cur(XR(260), 330, {saute:true}); await attendre(.05);
+     await vers($('#rejoindre'), .8, 0, 3); await clic();
+     replier(); st.page = 'visio'; majPage(); devant('chrome'); await attendre(.5);
+     await va(XR(240), 420, .7);
+   }}
+];
+const N = ETAPES.length;
+const PAUSES = [1.4, 1.6, 1.6, 1.6, 1.8, 2.2, 1.4, 1.8, 2.2, 1.6, 1.4, 1.8, 2.4];
+const PARTIE = n => n <= 6 ? 'A' : n <= 9 ? 'B' : 'C';
+
+/* =========================================================
+   Régie (reprise de ilot-centre.html)
+   ========================================================= */
+let etape = 0;
+$('#pas').innerHTML = ETAPES.map((e, i) => (i === 6 || i === 9 ? '<li class="sep"></li>' : '') + `<li><button data-e="${i + 1}"><span>${PARTIE(i + 1)}${i + 1}</span>${e.t}</button></li>`).join('');
+function majRegie(n){
+  etape = n;
+  const m = Math.max(1, n), e = ETAPES[m - 1], p = PARTIE(m);
+  $('#num').textContent = `${p === 'A' ? 'Partie A · Bibliothèque' : p === 'B' ? 'Partie B · Réveil' : 'Partie C · Rejoindre la visio'} · étape ${m} sur ${N}`;
+  const fr = t => t.replace(/ ([:»?!;])/g, ' $1').replace(/« /g, '« ');
+  $('#titre').textContent = fr(e.t); $('#phrase').textContent = fr(e.p); $('#geste').textContent = e.g;
+  document.querySelectorAll('#pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === m));
+  $('#partieA').classList.toggle('ici', p === 'A'); $('#partieB').classList.toggle('ici', p === 'B'); $('#partieC').classList.toggle('ici', p === 'C');
+}
+async function poser(n){
+  annuler();
+  instant = true; racine.classList.add('snap');
+  try {
+    cibleN = n; enCoursN = 0;
+    init();
+    for (let i = 1; i <= n; i++){ enCoursN = i; await ETAPES[i - 1].jeu(); }
+  } finally { instant = false; }
+  majRegie(n); rendu();
+  void ecran.offsetWidth;
+  requestAnimationFrame(() => requestAnimationFrame(() => racine.classList.remove('snap')));
+}
+async function jouer(n){
+  majRegie(n);
+  if (REDUIT) return poser(n);
+  racine.classList.remove('snap'); void ecran.offsetWidth;
+  cibleN = 0; enCoursN = n;
+  await ETAPES[n - 1].jeu();
+}
+function arreter(){ jeton++; auto = false; annuler(); doigts(''); }
+const autoCase = $('#autoCase');
+async function tourner(){
+  arreter(); const j = jeton; auto = true;
+  try {
+    await poser(0); await attendre(.9);
+    for (;;){
+      for (let n = 1; n <= N; n++){ await jouer(n); await attendre(PAUSES[n - 1]); }
+      if (!autoCase.checked) break;
+      ecran.style.opacity = 0; await attendre(.3);
+      await poser(0); ecran.style.opacity = 1; await attendre(1.0);
+    }
+  } catch (e){ if (e !== 'stop') console.error(e); }
+  ecran.style.opacity = 1;
+  if (j === jeton) auto = false;
+}
+function lance(n){
+  arreter(); ecran.style.opacity = 1;
+  poser(n - 1).then(() => jouer(n)).catch(e => { if (e !== 'stop') console.error(e); });
+}
+$('#rejouer').addEventListener('click', () => { if (autoCase.checked) tourner(); else lance(Math.max(1, etape)); });
+$('#suivant').addEventListener('click', () => { autoCase.checked = false; lance(etape >= N ? 1 : etape + 1); });
+$('#pas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; autoCase.checked = false; lance(+b.dataset.e); });
+$$('.partie').forEach(b => b.addEventListener('click', () => { autoCase.checked = false; lance(+b.dataset.aller); }));
+autoCase.addEventListener('change', () => { if (autoCase.checked) tourner(); else arreter(); });
+function ralenti(oui){ K = oui ? 4 : 1; racine.style.setProperty('--k', K); $('#lentCase').checked = oui; }
+$('#lentCase').addEventListener('change', e => ralenti(e.target.checked));
+
+/* =========================================================
+   À la main : la vraie souris marche aussi (survol, clics, défilement, fn)
+   ========================================================= */
+function aLaMain(){ if (auto || autoCase.checked){ autoCase.checked = false; arreter(); } pointeur.classList.remove('vu'); }
+function local(e){ const r = ecran.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top]; }
+function dansIlot(x, y){
+  if (st.carte || st.ban) return Math.abs(x) <= Math.max(cible.bw, cible.ng) + 4 && y <= cible.h + 4;
+  return y <= cible.h + 4 && Math.abs(x) <= Math.max(cible.ng, cible.nd, cible.bw) + 4;
+}
+const ALERTE = () => st.ban === 'banSonne' || st.ban === 'banGo' || st.ban === 'dicte' || st.question;
+let tFerme = 0, verrou = 0;
+ecran.addEventListener('mousemove', e => {
+  if (FIGE) return;
+  const [x, y] = local(e), dedans = dansIlot(x, y);
+  if (dedans){
+    clearTimeout(tFerme); tFerme = 0;
+    if (!st.carte && !ALERTE()){ aLaMain(); majCentre(); ouvrir('centre'); }
+  } else if (st.carte && !st.punaise && !tFerme && !auto && !st.question){
+    tFerme = setTimeout(() => { tFerme = 0; if (!st.punaise) replier(); }, 320);
+  }
+});
+ecran.addEventListener('pointerdown', e => {
+  if (FIGE || e.target.closest('#contenu .c') || e.target.closest('#alerte')) return;
+  const [x, y] = local(e);
+  if ((st.carte || st.ban) && !dansIlot(x, y) && !ALERTE()){ aLaMain(); replier(); }
+});
+ecran.addEventListener('wheel', e => {
+  if (FIGE || !st.carte) return;
+  const [x, y] = local(e); if (!dansIlot(x, y)) return;
+  const l = e.target.closest('.bl-liste');
+  if (l){ requestAnimationFrame(() => l.classList.toggle('defile', l.scrollTop + l.clientHeight < l.scrollHeight - 1)); return; }
+  e.preventDefault();
+}, {passive:false});
+$('#bcRech').addEventListener('focus', () => { if (FIGE) return; aLaMain(); st.punaise = true; });
+$('#bcRech').addEventListener('input', e => { if (FIGE) return; st.q = e.target.value; majBiblio(); reformer(); });
+$('#autoriser').addEventListener('click', () => { if (FIGE) return; aLaMain(); question(false); st.cal = true; majCentre('cal'); });
+$('#refuser').addEventListener('click', () => { if (FIGE) return; aLaMain(); question(false); });
+F.verbe.style.pointerEvents = 'auto';
+F.verbe.addEventListener('click', e => {
+  if (FIGE) return;
+  const s = e.target.closest('[data-so]'); if (s){ aLaMain(); st.sources[s.dataset.so] = !st.sources[s.dataset.so]; majFenetre(); majBiblio(); }
+});
+contenu.addEventListener('mouseover', e => {
+  if (FIGE) return;
+  const b = e.target.closest('.bl'); if (b && st.survol && st.survol !== b.dataset.fid){ st.survol = null; st.survolAct = null; majBiblio(); }
+});
+contenu.addEventListener('click', e => {
+  if (FIGE) return;
+  aLaMain();
+  if (st.carte) st.punaise = true;
+  const f = e.target.closest('[data-filtre]');
+  if (f){ st.filtre = f.dataset.filtre; majBiblio(); reformer(); return; }
+  const mt = e.target.closest('[data-mt]');
+  if (mt){ st.minTab = mt.dataset.mt; majCentre(); return; }
+  const rv = e.target.closest('[data-rv]');
+  if (rv){ if (rv.dataset.rv === 'autre') return; st.reveil = st.reveil === rv.dataset.rv ? null : rv.dataset.rv; st.plie = st.reveil ? 'reveil' : null; $('#revH').textContent = st.reveil || ''; majCentre(); return; }
+  const a = e.target.closest('[data-act]'), t = e.target.closest('.tg[data-t]');
+  if (a){
+    const act = a.dataset.act, lig = a.closest('.bl'), id = lig && lig.dataset.fid;
+    if (RANG[act]) changer(act);
+    else if (act === 'efface'){ e.preventDefault(); st.q = ''; majBiblio(); reformer(); }
+    else if (act === 'tri'){ st.tri = st.tri === 'recent' ? 'ancien' : 'recent'; majBiblio(); }
+    else if (act === 'epingler'){ st.epingles.has(id) ? st.epingles.delete(id) : st.epingles.add(id); majBiblio(); majFenetre(); }
+    else if (act === 'retirer'){ st.retires.add(id); st.dernierRetire = id; st.choisis.delete(id); majBiblio(); majFenetre(); reformer(); }
+    else if (act === 'annule-retrait'){ st.retires.delete(st.dernierRetire); st.dernierRetire = null; majBiblio(); majFenetre(); reformer(); }
+    else if (act === 'choisir'){ st.choisis.has(id) ? st.choisis.delete(id) : st.choisis.add(id); st.dernierRetire = null; majBiblio(); }
+    else if (act === 'annule-choix'){ st.choisis.clear(); majBiblio(); }
+    else if (act === 'glisser'){ st.mailMode = 'pj'; fenetre('mail', true); devant('mail'); deposer(); replier(); }
+    else if (act === 'grand'){ replier(); majFenetre(); fenetre('verbe', true); devant('verbe'); }
+    else if (act === 'annule-reveil'){ st.reveil = null; st.plie = null; majCentre(); replier(); }
+    else if (act === 'ok-reveil'){ st.reveil = null; st.plie = null; majCentre(); replier(); }
+    else if (act === 'encore'){ st.reveil = '9:10'; st.plie = 'reveil'; $('#revH').textContent = '9:10'; replier(); }
+    else if (act === 'rejoindre'){ replier(); st.page = 'visio'; majPage(); fenetre('chrome', true); devant('chrome'); }
+    else if (act === 'noter'){ replier(); }
+    return;
+  }
+  if (!t) return;
+  if (t.dataset.t === 'cal'){ if (st.cal){ st.cal = false; majCentre('cal'); } else question(true); }
+});
+/* la touche fn dessinée dans la régie : maintenue, on dit « réveille-moi à 9 h » */
+let tMots = 0;
+fnT.addEventListener('pointerdown', () => {
+  if (FIGE) return;
+  aLaMain(); fn(true); st.punaise = false;
+  st.dicte = ''; majDicte(); banniere('dicte');
+  const mots = 'réveille-moi à 9 h'.split(' '); let i = 0;
+  clearInterval(tMots); tMots = setInterval(() => { if (i >= mots.length) return clearInterval(tMots); st.dicte += (i ? ' ' : '') + mots[i++]; majDicte(); }, 240 * K);
+});
+const lacheFn = () => {
+  if (!fnT.classList.contains('on')) return;
+  fn(false); clearInterval(tMots);
+  if (st.ban !== 'dicte') return;
+  if (!/9 h/.test(st.dicte)){ replier(); return; }
+  st.reveil = '9:00'; st.minTab = 'reveil'; $('#revH').textContent = '9:00'; majCentre();
+  banniere('banRegle');
+  setTimeout(() => { if (st.ban === 'banRegle'){ st.plie = 'reveil'; replier(); } }, 2200 * K);
+};
+window.addEventListener('pointerup', lacheFn);
+fnT.addEventListener('pointerleave', lacheFn);
+
+/* =========================================================
+   Démarrage
+   ========================================================= */
+if (Q.has('lent')) ralenti(true);
+const e0 = clamp(+(Q.get('etape') || 0), 0, N);
+if (FIGE){ autoCase.checked = false; poser(e0).catch(() => {}); }
+else if (Q.has('joue') && e0 >= 1){ autoCase.checked = false; poser(e0 - 1).then(() => setTimeout(() => jouer(e0).catch(() => {}), 400)); }
+else setTimeout(() => tourner(), 300);
+window.verbe = {poser, jouer, st, R, ralenti};
+</script>
+</body>
+</html>
