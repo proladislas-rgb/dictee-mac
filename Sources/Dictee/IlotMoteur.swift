@@ -1125,7 +1125,9 @@ final class IlotMoteur: ObservableObject {
         }
         // au repos ou en compact : à peine plus que la forme (aucun clic pris aux icônes voisines) ; déplié : de la place pour l'ombre
         let petit = r.height <= CGFloat(geometrie.hauteur) + 40
-        let cote: CGFloat = petit ? 2 : 18, bas: CGFloat = petit ? 6 : 30
+        // replié (rien sous la barre) : pas un point sous la barre des menus, c'est là que sont les onglets des apps (Chrome…)
+        let replie = r.height <= CGFloat(geometrie.hauteur) + 0.5
+        let cote: CGFloat = petit ? 2 : 18, bas: CGFloat = replie ? 0 : (petit ? 6 : 30)
         return CGRect(x: r.minX - cote, y: 0, width: r.width + 2 * cote, height: r.height + bas)
     }
 }

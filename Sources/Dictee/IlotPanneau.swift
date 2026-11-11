@@ -150,7 +150,7 @@ final class IlotPanneau {
         }
         f.alphaValue = invisible ? 0 : 1
         f.ignoresMouseEvents = invisible || moniteurTraversee != nil
-        if !f.isVisible { f.orderFrontRegardless() }
+        if !f.isVisible { f.orderFrontRegardless(); reevaluerPointeur() }
         _ = ecran
     }
 
@@ -174,6 +174,17 @@ final class IlotPanneau {
         f.setFrame(cadre, display: false)
         conteneur?.frame = NSRect(origin: .zero, size: cadre.size)
         vue?.frame = NSRect(x: -r.minX - IlotMoteur.largeur / 2, y: cadre.height - IlotMoteur.hauteurMax, width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax)
+        reevaluerPointeur()
+    }
+
+    /// La fenêtre vient de changer de taille sous une souris IMMOBILE (une bulle qui apparaît, l'îlot qui se déplie ou se replie) :
+    /// aucun mouvement ne viendra dire où elle est. Sans cette relecture, le vide de la fenêtre prenait les clics et le défilement
+    /// de l'app dessous (les onglets de Chrome) jusqu'au prochain mouvement de souris.
+    private func reevaluerPointeur() {
+        guard let f = fenetre, let ecran, !invisible, f.isVisible else { return }
+        let m = NSEvent.mouseLocation
+        guard f.frame.contains(m) else { if sousForme || sousPastille { pointeur(nil) }; return }
+        pointeur(CGPoint(x: m.x - centre, y: ecran.frame.maxY - m.y))
     }
 
     private func recaler() {
