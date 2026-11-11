@@ -162,7 +162,7 @@ final class IlotControleur {
         capturesSource.surArrivee = { [weak self] l in self?.capturesArrivees(l) }
         capturesSource.surRefus = { [weak self] in self?.capturesRefusees() }
         capturesSource.surPret = { [weak self] in self?.moteur.capturesAttente = false }
-        capturesSource.surArret = { [weak self] in self?.moteur.capturesAttente = false }
+        capturesSource.surArret = { [weak self] in self?.capturesIntrouvables() }
         claudeSource.surLignes = { [weak self] l, relecture in self?.lignesClaude(l, relecture: relecture) }
         micro.surChangement = { [weak self] in self?.microChange() }
         moteur.surBulleVue = { [weak self] in self?.reglagesCentre.marquerBulleVue() }

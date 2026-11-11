@@ -5,6 +5,8 @@ import SwiftUI
 struct GeometrieEncoche: Equatable {
     var largeur: CGFloat = 200      // la caméra : on n'y dessine jamais rien
     var hauteur: CGFloat = 32       // hauteur de la barre des menus / de l'encoche
+    /// Une vraie encoche (caméra) ; faux : une caméra fictive (écran externe, MacBook fermé), où l'îlot vide n'existe pas.
+    var reelle = true
     /// Place de chaque côté de la caméra pour l'icône et les barres de son.
     static let aile: CGFloat = 90
     /// Largeur ajoutée en mains libres pour ✕ et ✓.
@@ -30,6 +32,7 @@ extension GeometrieEncoche {
             g.hauteur = ecran.safeAreaInsets.top
             centre = ecran.frame.minX + gauche.width + g.largeur / 2
         } else {
+            g.reelle = false
             g.hauteur = max(24, ecran.frame.maxY - ecran.visibleFrame.maxY)
         }
         return (g, centre)

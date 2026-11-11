@@ -866,6 +866,8 @@ func controlesEtagere(_ t0: Date) {
              "dans la barre des menus : à 58 pt de la caméra, ouvert ; à 68 pt, rien (les icônes voisines restent atteignables)")
     verifier(A.proche(x: 0, y: 170, demiCamera: 92, barre: 32) && !A.proche(x: 0, y: 180, demiCamera: 92, barre: 32), "sous l'encoche : jusqu'à 140 pt sous la barre")
     verifier(!A.proche(x: -400, y: 5, demiCamera: 92, barre: 32), "dans la barre des menus, loin de la caméra : rien")
+    verifier(A.distanceRetour == 60 && !A.proche(x: 0, y: 132, demiCamera: 92, barre: 32, retour: true) && A.proche(x: 0, y: 90, demiCamera: 92, barre: 32, retour: true),
+             "zones déjà quittées pendant ce glisser : à 100 pt, rien ; à 58 pt, elles se rouvrent (on visait autre chose sous l'encoche)")
     // zone ouverte : elle le reste sur la FORME ou à 40 pt autour (jugé sur le tracé, dans l'essai de bout en bout `--ilot-essai`)
     verifier(A.marge == 40, "zone ouverte : 40 pt de marge autour de la forme")
     var sg = SuiviGlisser()
@@ -948,6 +950,29 @@ func controlesEtagereRapide(_ t0: Date) {
     verifier(e.elements.last?.id == ids[2], "« Remettre » : même fichier, même identifiant, même signet")
     verifier(EtagereIlot.partis(3, app: "Mail") == "3 fichiers partis dans Mail" && EtagereIlot.partis(1, app: "Mail") == "1 fichier parti dans Mail"
              && EtagereIlot.partis(2, app: nil) == "2 fichiers partis", "« 3 fichiers partis dans Mail », « 1 fichier parti… » ; sans app : « 2 fichiers partis »")
+    verifier(EtagereIlot.appDuLacher(bundle: "com.apple.dock", nom: "Dock") == nil && EtagereIlot.appDuLacher(bundle: "com.apple.mail", nom: "Mail") == "Mail"
+             && EtagereIlot.appDuLacher(bundle: nil, nom: "") == nil, "lâché sur une icône du Dock : pas « parti dans Dock », aucun nom ; dans Mail : « Mail »")
+
+    groupe("Îlot : l'étagère plus rapide, une capture ne chasse jamais un fichier rangé à la main")
+    var main = EtagereIlot()
+    main.ajouter((1...10).map { el("/m/\($0).pdf") })
+    let rc = main.ajouter([el("/c/Capture 1.png")], seuls: true)
+    verifier(main.elements.map(\.nom) == (1...10).map { "\($0).pdf" } && rc.ajoutes.isEmpty && rc.sortis.isEmpty && rc.ecartes == 1,
+             "10 fichiers rangés à la main + 1 capture : les 10 restent, la capture n'est pas rangée")
+    var mixte = EtagereIlot()
+    mixte.ajouter((1...8).map { el("/m/\($0).pdf") })
+    mixte.ajouter([el("/c/A.png"), el("/c/B.png")], seuls: true)
+    let rm = mixte.ajouter([el("/c/C.png"), el("/c/D.png"), el("/c/E.png")], seuls: true)
+    verifier(mixte.elements.map(\.nom) == (1...8).map { "\($0).pdf" } + ["D.png", "E.png"] && rm.sortis.map(\.nom) == ["A.png", "B.png"] && rm.ecartes == 1
+             && rm.ajoutes.map(\.nom) == ["D.png", "E.png"],
+             "8 à la main + 2 captures, puis 3 captures : les plus anciennes captures font la place (la 3e nouvelle aussi), jamais un fichier à la main")
+    verifier(mixte.elements.filter(\.arriveSeul).count == 2 && !mixte.elements[0].arriveSeul, "les captures sont marquées « arrivées toutes seules »")
+    let rh = mixte.ajouter([el("/m/Contrat.pdf")])
+    verifier(rh.sortis.map(\.nom) == ["1.pdf"] && mixte.elements.last?.nom == "Contrat.pdf", "un fichier rangé à la main, étagère pleine : le plus ancien sort, comme avant (un geste)")
+    if let d = mixte.donnees(), let relu = EtagereIlot.depuis(d) { verifier(relu == mixte && relu.elements.filter(\.arriveSeul).count == 2, "fichier : la marque des captures relue") }
+    else { verifier(false, "fichier : encodage des captures") }
+    let ancien = #"{"elements":[{"ajout":"2026-11-10T09:00:00Z","chemin":"/a/Contrat.pdf","id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","nom":"Contrat.pdf","signet":"AA=="}]}"#
+    verifier(EtagereIlot.depuis(Data(ancien.utf8))?.elements.first.map { !$0.arriveSeul && $0.nom == "Contrat.pdf" } == true, "une étagère d'avant (sans marque) se relit : fichiers rangés à la main")
 
     groupe("Îlot : l'étagère plus rapide, les captures d'écran")
     typealias C = CapturesEcran

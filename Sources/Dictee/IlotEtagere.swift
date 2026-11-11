@@ -94,11 +94,13 @@ extension IlotControleur {
         if oui { montrerEtagere() } else { moteur.montrerDepot(false) }
     }
 
-    /// Des fichiers ont été lâchés sur l'îlot : un signet pour chacun, sans doublon. Rend le nombre de fichiers rangés.
+    /// Des fichiers ont été lâchés sur l'îlot : un signet pour chacun, sans doublon. Rend le nombre de fichiers rangés. `nouveau` : ils
+    /// arrivent tout seuls (des captures d'écran) ; étagère pleine, ils ne font de la place que parmi les autres arrivés tout seuls,
+    /// jamais parmi les fichiers rangés à la main.
     @discardableResult
     func ranger(_ urls: [URL], nouveau: Bool = false) -> Int {
         let t = maintenant()
-        let r = etagere.ajouter(urls.compactMap { SignetsEtagere.element($0, a: t) })
+        let r = etagere.ajouter(urls.compactMap { SignetsEtagere.element($0, a: t) }, seuls: nouveau)
         for e in r.sortis { iconesEtagere[e.id] = nil; nouveautes.remove(e.id) }
         if nouveau { nouveautes.formUnion(r.ajoutes.map(\.id)) }
         // les fichiers viennent d'être lâchés (donc accessibles) : leur icône est lue tout de suite
@@ -106,7 +108,8 @@ extension IlotControleur {
         sauverEtagere()
         montrerEtagere()
         // jamais de nom de fichier au journal
-        Log.ecrire("étagère : \(r.ajoutes.count) rangé(s), \(r.doublons) déjà là, \(r.sortis.count) sorti(s) pour faire de la place")
+        Log.ecrire("étagère : \(r.ajoutes.count) rangé(s), \(r.doublons) déjà là, \(r.sortis.count) sorti(s) pour faire de la place"
+                   + (r.ecartes > 0 ? ", \(r.ecartes) capture(s) non rangée(s) (étagère pleine de fichiers rangés à la main)" : ""))
         return r.ajoutes.count
     }
 
@@ -120,6 +123,10 @@ extension IlotControleur {
         let t = Date()
         guard force || t.timeIntervalSince(relectureEtagere.derniere) >= 5 else { finRelecture(); return }
         relectureEtagere = (true, false, t)
+        // le dossier des captures a pu changer (Capture d'écran, « Options ») : relu en même temps, la surveillance suit. Seulement sur
+        // un geste (la carte ouverte, un fichier ouvert) : un nouveau dossier protégé peut faire poser sa question à macOS, jamais au
+        // simple survol
+        if force, moteur.capturesActives { activerCaptures(true) }
         let elements = etagere.elements
         let sansIcone = Set(elements.map(\.id)).subtracting(iconesEtagere.keys)
         DispatchQueue.global(qos: .userInitiated).async {
@@ -255,16 +262,32 @@ extension IlotControleur {
 
     /// « Captures d'écran ici » : on surveille le dossier des captures (comme Téléchargements : le noyau prévient, aucun sondage). Au
     /// lancement, seulement si l'option est allumée (l'accès a alors déjà été donné).
+    /// Le dossier est relu à chaque fois (réglages appliqués, étagère relue) : s'il a changé dans Capture d'écran, la surveillance passe
+    /// sur le nouveau.
     func activerCaptures(_ oui: Bool) {
         moteur.capturesActives = oui
+        moteur.capturesIntrouvable = false
         if oui {
-            guard !capturesSource.actif else { return }
-            capturesSource.dossier = dossierCaptures()
+            let d = dossierCaptures()
+            if capturesSource.actif {
+                guard capturesSource.dossier.standardizedFileURL != d.standardizedFileURL else { return }
+                capturesSource.arreter()
+                Log.ecrire("captures : le dossier des captures a changé, surveillance déplacée")
+            }
+            capturesSource.dossier = d
             capturesSource.demarrer()
         } else {
             capturesSource.arreter()
             moteur.capturesAttente = false
         }
+    }
+    /// Le dossier des captures est absent (disque débranché, dossier supprimé) : l'interrupteur dit ce qui est vrai (rien n'est
+    /// surveillé) et la ligne dit pourquoi. Le réglage reste : au prochain lancement, ou au prochain clic, on réessaie.
+    func capturesIntrouvables() {
+        moteur.capturesAttente = false
+        moteur.capturesActives = false
+        moteur.capturesIntrouvable = true
+        moteur.donneesChangees()
     }
     /// De nouveaux fichiers finis dans le dossier des captures : les captures (pas les autres fichiers du Bureau) vont sur l'étagère,
     /// marquées « Nouveau » ; la pile de l'aile compte un fichier de plus.
@@ -297,14 +320,18 @@ extension IlotControleur {
     }
 
     /// L'app sous un point de l'écran (là où des fichiers ont été lâchés) : la fenêtre la plus haute à cet endroit (hors Verbe), puis son
-    /// propriétaire. Aucune autorisation : seul le numéro du processus est lu, jamais le titre ni le contenu des fenêtres.
+    /// propriétaire. Aucune autorisation : seul le numéro du processus est lu, jamais le titre ni le contenu des fenêtres. Une icône du
+    /// Dock : pas de nom (le Dock possède la fenêtre, pas l'app de l'icône).
     static func appSous(_ p: NSPoint) -> String? {
         var dessous = 0
         for _ in 0..<4 {
             let n = NSWindow.windowNumber(at: p, belowWindowWithWindowNumber: dessous)
             guard n > 0, let infos = CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(n)) as? [[String: Any]],
                   let pid = infos.first?[kCGWindowOwnerPID as String] as? pid_t else { return nil }
-            if pid != getpid() { return NSRunningApplication(processIdentifier: pid)?.localizedName }
+            if pid != getpid() {
+                let app = NSRunningApplication(processIdentifier: pid)
+                return EtagereIlot.appDuLacher(bundle: app?.bundleIdentifier, nom: app?.localizedName)
+            }
             dessous = n
         }
         return nil
@@ -347,8 +374,9 @@ final class EnvoiAirDrop: NSObject, NSSharingServiceDelegate {
 
 /// Un glisser de fichiers qui PART de l'étagère, fait avec AppKit (`NSDraggingSession`) plutôt qu'avec `onDrag` de SwiftUI : on peut y
 /// mettre plusieurs fichiers d'un coup (« Tout »), et on sait où il finit. Accepté par une app (Mail, le Finder, une conversation…) : les
-/// fichiers quittent l'étagère (« Remettre » quelques secondes) ; refusé, annulé ou lâché sur l'îlot : ils restent. Un clic sans glisser
-/// appelle `clic` (ouvrir le fichier). Se pose en `.overlay` de ce qu'on prend.
+/// fichiers quittent l'étagère (« Remettre » quelques secondes) ; refusé, annulé, lâché sur l'îlot ou pris en lien seulement (le Terminal
+/// qui colle le chemin) : ils restent. Un clic sans glisser appelle `clic` (ouvrir le fichier, ou la carte pour « Tout ») ; VoiceOver
+/// « appuie » de même. Se pose en `.overlay` de ce qu'on prend.
 struct SourceFichiers: NSViewRepresentable {
     var fichiers: [FichierEtagere]
     var m: IlotMoteur?
@@ -370,10 +398,23 @@ final class VueSourceFichiers: NSView, NSDraggingSource {
     var config: SourceFichiers?
     /// Les essais : le glisser n'est jamais remis au système (il prendrait la vraie souris) ; l'essai reçoit les fichiers et dit lui-même
     /// où le glisser finit (accepté ou non, et en quel point de l'écran).
-    nonisolated(unsafe) static var essai: ((_ urls: [URL], _ fin: @escaping (_ accepte: Bool, _ point: NSPoint) -> Void) -> Void)?
+    nonisolated(unsafe) static var essai: ((_ urls: [URL], _ fin: @escaping (_ operation: NSDragOperation, _ point: NSPoint) -> Void) -> Void)?
     private var appui: NSPoint?
     private var parti = false
-    private var fin: ((Bool, NSPoint) -> Void)?
+    private var fin: ((NSDragOperation, NSPoint) -> Void)?
+
+    /// Les fichiers quittent l'étagère seulement si l'app en a pris une copie (Mail, le Finder, une conversation) ; un lien seul (le
+    /// Terminal ou un éditeur qui collent le chemin, un alias fait dans le Finder) les laisse où ils sont.
+    static func quitteLEtagere(_ operation: NSDragOperation) -> Bool { operation.contains(.copy) }
+    /// Ce qu'on propose : hors de Verbe, une copie ou un lien, jamais « générique » (que le Finder lit comme « déplacer » sur le même
+    /// disque, et la Corbeille du Dock comme « jeter ») : le fichier d'origine ne bouge jamais. Dans Verbe (l'îlot lui-même) : rien.
+    static func masque(_ context: NSDraggingContext) -> NSDragOperation { context == .outsideApplication ? [.copy, .link] : [] }
+
+    override func accessibilityPerformPress() -> Bool {
+        guard let c = config?.clic else { return false }
+        c()
+        return true
+    }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func updateTrackingAreas() {
@@ -399,10 +440,10 @@ final class VueSourceFichiers: NSView, NSDraggingSource {
     private func commencer(_ c: SourceFichiers, _ e: NSEvent) {
         let m = c.m, ids = c.fichiers.map(\.id)
         MainActor.assumeIsolated { m?.glisserSortantCommence() }
-        let fin: (Bool, NSPoint) -> Void = { accepte, point in
+        let fin: (NSDragOperation, NSPoint) -> Void = { operation, point in
             MainActor.assumeIsolated {
                 m?.glisserSortantFini()
-                if accepte { m?.surAction(.etagereSortis(ids, point)) }
+                if Self.quitteLEtagere(operation) { m?.surAction(.etagereSortis(ids, point)) }
             }
         }
         if let essai = Self.essai { essai(c.fichiers.map(\.url), fin); return }
@@ -420,13 +461,10 @@ final class VueSourceFichiers: NSView, NSDraggingSource {
         s.draggingFormation = .pile
     }
 
-    /// Vers une autre app seulement (copie, lien) : rien n'est déplacé ; lâché sur l'îlot lui-même, c'est refusé.
-    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-        context == .outsideApplication ? [.copy, .link, .generic] : []
-    }
+    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation { Self.masque(context) }
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         let f = fin; fin = nil
-        f?(operation != [], screenPoint)
+        f?(operation, screenPoint)
     }
 }
 
@@ -739,12 +777,13 @@ struct LigneCaptures: View {
     static let titre = "Captures d\u{2019}écran ici"
     var body: some View {
         let sous: String = m.capturesAttente ? "Un instant\u{2026}" : (m.capturesRefusees ? "Accès refusé : ouvrir Réglages Système" :
-            (m.capturesActives ? "Les nouvelles arrivent sur l\u{2019}étagère" : "Les nouvelles arriveront sur l\u{2019}étagère"))
+            (m.capturesIntrouvable ? "Dossier des captures introuvable" :
+            (m.capturesActives ? "Les nouvelles arrivent sur l\u{2019}étagère" : "Les nouvelles arriveront sur l\u{2019}étagère")))
         HStack(spacing: 10) {
             Image(systemName: "viewfinder").font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.white.opacity(0.8)).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
                 Text(Self.titre).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
-                Text(sous).font(.system(size: 11, weight: .medium)).foregroundStyle(m.capturesRefusees ? Color(hex: 0xFF6961) : CouleursIlot.encre3).lineLimit(1)
+                Text(sous).font(.system(size: 11, weight: .medium)).foregroundStyle(m.capturesRefusees || m.capturesIntrouvable ? Color(hex: 0xFF6961) : CouleursIlot.encre3).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
@@ -815,7 +854,9 @@ struct RangeeEtagere: View {
             .frame(width: Self.tout, height: 46)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(survolTout ? CouleursIlot.bleu.opacity(0.32) : Color.white.opacity(0.12)))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(CouleursIlot.bleu.opacity(survolTout ? 0.9 : 0), lineWidth: 1.5))
-            .overlay { if !m.statique { SourceFichiers(fichiers: f, m: m, survol: { survolTout = $0 }, etiquette: "Glisser les \(EtagereIlot.resume(f.count)) d\u{2019}un coup") } }
+            // un clic (sans glisser) ouvre la carte Étagère, comme le chevron : « Tout » n'est jamais un bouton qui ne fait rien
+            .overlay { if !m.statique { SourceFichiers(fichiers: f, m: m, clic: { m.epinglerLeCentre(); m.ouvrirEtagere() }, survol: { survolTout = $0 },
+                                                       etiquette: "Glisser les \(EtagereIlot.resume(f.count)) d\u{2019}un coup, ou ouvrir l\u{2019}étagère") } }
             .animation(.easeOut(duration: 0.12), value: survolTout)
             Rectangle().fill(Color.white.opacity(0.14)).frame(width: 1, height: 34).padding(.horizontal, (Self.separateur - 1) / 2)
             ForEach(montres) { x in

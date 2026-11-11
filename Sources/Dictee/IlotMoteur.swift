@@ -256,6 +256,8 @@ final class IlotMoteur: ObservableObject {
     var capturesActives = false { didSet { if capturesActives != oldValue { rev += 1 } } }
     var capturesAttente = false { didSet { if capturesAttente != oldValue { rev += 1 } } }
     var capturesRefusees = false { didSet { if capturesRefusees != oldValue { rev += 1 } } }
+    /// Le dossier des captures est absent (disque débranché) : rien n'est surveillé, la ligne le dit.
+    var capturesIntrouvable = false { didSet { if capturesIntrouvable != oldValue { rev += 1 } } }
     /// La carte Étagère vient de se fermer après avoir été vue : les fichiers « Nouveau » ne le sont plus.
     var surEtagereVue: () -> Void = {}
     /// La batterie du Mac (nil : Mac sans batterie, ou réglage éteint) et les écouteurs connectés : les épaules de l'îlot déplié.
@@ -372,7 +374,9 @@ final class IlotMoteur: ObservableObject {
         e.claude = claude != nil
         e.claudeAttend = claude?.etat == .attend
         e.claudeListe = claude?.progres != nil
-        e.etagere = etagereActive && !etagere.isEmpty
+        // sans encoche (écran externe, MacBook fermé), l'îlot vide n'existe pas : pas de pile dans la barre des menus toute la journée ;
+        // l'étagère reste au Centre et au glisser
+        e.etagere = etagereActive && !etagere.isEmpty && geometrie.reelle
         e.alerte = alerte?.vue
         e.bandeau = bandeau?.vue
         return e

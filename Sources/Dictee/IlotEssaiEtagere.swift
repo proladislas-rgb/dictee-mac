@@ -11,7 +11,7 @@ enum EssaiEtagere {
     static var app: String? = "Mail"
     static var captures = false
     static var glisses: [[URL]] = []
-    static var finGlisser: ((Bool, NSPoint) -> Void)?
+    static var finGlisser: ((NSDragOperation, NSPoint) -> Void)?
 }
 
 extension IlotEssai {
@@ -58,6 +58,16 @@ extension IlotEssai {
         }
         attendre(1.0) { m.boucleActive }
         verifier(!m.boucleActive, "la pile posée : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
+        // sans encoche (écran externe, MacBook fermé) : pas de pile dans la barre des menus, la fenêtre se cache comme au repos
+        m.geometrie.reelle = false; m.donneesChangees(); c.panneau.ajuster()
+        attendre(1.5) { c.panneau.estVisible }
+        verifier(m.resolution.principal == .repos && m.courante == .repos && !c.panneau.estVisible,
+                 "sans encoche, des fichiers sur l'étagère : rien dans la barre des menus, fenêtre cachée (\(m.courante), visible : \(c.panneau.estVisible))")
+        c.panneau.glisser(CGPoint(x: -300, y: 500)) { true }; pause(0.5)
+        verifier(m.courante == .etagereAppel && c.panneau.estVisible, "sans encoche, un glisser de fichiers : l'îlot appelle quand même (\(m.courante))")
+        c.panneau.finDuGlisser(); pause(0.9)
+        m.geometrie.reelle = true; m.donneesChangees(); c.panneau.ajuster(); pause(0.9)
+        verifier(m.courante == .etagerePile && c.panneau.estVisible, "l'encoche revenue : la pile revient (\(m.courante))")
         // une vidéo occupe l'îlot : la pile disparaît (l'étagère se voit au survol, dans le Centre)
         c.lecture.modele.morceau = MorceauEnCours(titre: "Vlog", app: "essai.lecture", joue: true, duree: 600, position: 12)
         c.lecture.surIlot(true); pause(0.9)
@@ -95,7 +105,7 @@ extension IlotEssai {
         verifier(m.glisserSortant && m.courante == .centre, "pendant le glisser : le Centre reste (sa vue porte le glisser)")
         // le pointeur est parti vers Mail : il n'est plus sur l'îlot
         c.panneau.simulerPointeur(forme: false)
-        EssaiEtagere.finGlisser?(true, NSPoint(x: 600, y: 300)); pause(0.9)
+        EssaiEtagere.finGlisser?(.copy, NSPoint(x: 600, y: 300)); pause(0.9)
         verifier(c.etagere.estVide && !m.glisserSortant && m.courante == .etagerePartis, "lâchés dans une app : les fichiers quittent l'étagère, l'îlot dit où ils sont partis (\(m.courante))")
         verifier(m.bandeau?.ligne1 == "3 fichiers partis dans Mail", "« \(m.bandeau?.ligne1 ?? "") »")
         verifier([contrat, photo, devis].allSatisfy { FileManager.default.fileExists(atPath: $0.path) }, "les fichiers eux-mêmes n'ont pas bougé")
@@ -107,34 +117,72 @@ extension IlotEssai {
         verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Photo-chantier.heic", "Devis-cuisine.pdf"] && m.bandeau == nil && m.courante == .etagerePile,
                  "vrai clic sur « Remettre » : les 3 fichiers reviennent, l'îlot redevient la pile (\(c.etagere.elements.map(\.nom)))")
 
+        // --- un vrai clic (sans glisser) sur « Tout » : la carte Étagère s'ouvre, et reste (épinglée) quand le pointeur s'en va
+        c.panneau.simulerPointeur(forme: true); pause(0.9)
+        verifier(m.courante == .centre, "survol : le Centre (\(m.courante))")
+        let glissesAvantClic = EssaiEtagere.glisses.count
+        clic(CGPoint(x: r.minX + RangeeEtagere.xTout(), y: r.midY), 0.9)
+        verifier(m.courante == .etagere && EssaiEtagere.glisses.count == glissesAvantClic, "vrai clic sur « Tout » : la carte Étagère, aucun glisser (\(m.courante))")
+        c.panneau.simulerPointeur(forme: false); pause(0.6)
+        verifier(m.courante == .etagere, "… et elle reste quand le pointeur s'en va (\(m.courante))")
+        // VoiceOver « appuie » sur « Tout » (la vue AppKit trouvée par le vrai test de position) : la carte aussi
+        m.fermer(); pause(0.8)
+        c.panneau.simulerPointeur(forme: true); pause(0.9)
+        let sourceTout = c.panneau.sourceFichiers(en: CGPoint(x: r.minX + RangeeEtagere.xTout(), y: r.midY))
+        verifier(sourceTout?.accessibilityPerformPress() == true, "VoiceOver : « Tout » a une action (\(sourceTout?.accessibilityLabel() ?? "pas de vue"))")
+        pause(0.9)
+        verifier(m.courante == .etagere, "… qui ouvre la carte Étagère (\(m.courante))")
+        c.panneau.simulerPointeur(forme: false); pause(0.4)
+
         // --- un seul fichier glissé depuis la carte ; refusé : il reste ; accepté : il part, « Remettre » s'en va seul
-        m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
         verifier(m.courante == .etagere, "la carte Étagère ouverte")
         let zc = m.grille.zone(.etagere, haut: 10, bas: 12)
         let lt = TuileEtagere.largeur(zc.width)
         let tuile2 = CGPoint(x: zc.minX + lt * 1.5 + TuileEtagere.espace, y: zc.minY + 42 + 8 + 26)
         glisserDepuis(tuile2)
         verifier(EssaiEtagere.glisses.last?.map(\.lastPathComponent) == ["Photo-chantier.heic"], "vrai glisser de la 2e tuile : ce fichier-là seulement")
-        EssaiEtagere.finGlisser?(false, NSPoint(x: 600, y: 300)); pause(0.5)
+        EssaiEtagere.finGlisser?([], NSPoint(x: 600, y: 300)); pause(0.5)
         verifier(c.etagere.elements.count == 3 && m.courante == .etagere && !m.glisserSortant, "lâché nulle part (refusé) : il reste, la carte aussi")
+        // pris en lien seulement (le Terminal colle le chemin) : le fichier n'est parti nulle part, il reste
+        glisserDepuis(tuile2)
+        EssaiEtagere.finGlisser?(.link, NSPoint(x: 600, y: 300)); pause(0.5)
+        verifier(c.etagere.elements.count == 3 && m.bandeau == nil && m.courante == .etagere, "lâché dans une app qui ne prend qu'un lien : il reste, aucun « parti » (\(m.courante))")
+        verifier(VueSourceFichiers.masque(.outsideApplication) == [.copy, .link] && VueSourceFichiers.masque(.withinApplication) == [],
+                 "proposé aux autres apps : copie ou lien, jamais « générique » (le Finder déplacerait le fichier) ; à l'îlot lui-même : rien")
         // le « × » d'une tuile (la source du glisser est posée sur la tuile : le « × », au-dessus, doit rester cliquable) : un vrai
         // mouvement de souris sur la 3e tuile pour qu'il paraisse, puis un vrai clic dessus
         let tuile3 = CGPoint(x: zc.minX + lt * 2.5 + TuileEtagere.espace * 2, y: zc.minY + 42 + 8 + 26)
         verifier(c.panneau.survolerSourceFichiers(en: tuile3), "sur la 3e tuile, AppKit trouve bien la source du glisser (test de position réel)")
         pause(0.4)
         clic(CGPoint(x: tuile3.x + lt / 2 - 4 - 9, y: zc.minY + 42 + 8 + 2 + 9), 0.6)
-        verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Photo-chantier.heic"] && EssaiEtagere.glisses.count == 2 && m.courante == .etagere,
+        verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Photo-chantier.heic"] && EssaiEtagere.glisses.count == 3 && m.courante == .etagere,
                  "vrai clic sur le « × » de la 3e tuile (au survol) : retirée, sans glisser ni fermer la carte (\(c.etagere.elements.map(\.nom)))")
         c.ranger([devis]); pause(0.4)
         glisserDepuis(tuile2)
         EssaiEtagere.app = nil
-        EssaiEtagere.finGlisser?(true, NSPoint(x: 600, y: 300)); pause(0.6)
+        EssaiEtagere.finGlisser?(.copy, NSPoint(x: 600, y: 300)); pause(0.6)
         verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Devis-cuisine.pdf"] && m.bandeau?.ligne1 == "1 fichier parti", "accepté (app inconnue) : « \(m.bandeau?.ligne1 ?? "") »")
         EssaiEtagere.app = "Mail"
         pause(Double(IlotControleur.dureeRemettre) + 0.2)
         verifier(m.bandeau == nil && m.courante == .etagerePile && c.etagere.elements.count == 2, "\(Int(IlotControleur.dureeRemettre)) s plus tard, sans geste : « Remettre » s'en va, le fichier reste parti")
         attendre(1.0) { m.boucleActive }
         verifier(!m.boucleActive, "au repos : aucune boucle (bouge encore : \(m.ceQuiBouge))")
+
+        // --- 1 · les zones quittées pendant un glisser ne se rouvrent qu'à 60 pt (il visait un onglet, une barre d'outils sous l'encoche)
+        c.panneau.glisser(CGPoint(x: 200, y: 520)) { true }; pause(0.3)
+        c.panneau.glisser(CGPoint(x: 0, y: barre + 100)) { true }; pause(0.7)
+        verifier(m.depot, "première approche : à 100 pt sous la barre, les zones s'ouvrent")
+        c.panneau.glisser(CGPoint(x: 0, y: barre + 400)) { true }; pause(0.7)
+        verifier(!m.depot && m.appel, "le pointeur s'en va : les zones se ferment, l'appel reste (\(m.courante))")
+        c.panneau.glisser(CGPoint(x: 0, y: barre + 100)) { true }; pause(0.6)
+        verifier(!m.depot, "revenu à 100 pt pendant le même glisser : elles restent fermées (\(m.courante))")
+        c.panneau.glisser(CGPoint(x: 0, y: barre + 50)) { true }; pause(0.7)
+        verifier(m.depot, "à 50 pt : elles se rouvrent (\(m.courante))")
+        c.panneau.finDuGlisser(); pause(1.0)
+        c.panneau.glisser(CGPoint(x: 0, y: barre + 100)) { true }; pause(0.7)
+        verifier(m.depot, "le glisser suivant : de nouveau 140 pt (\(m.courante))")
+        c.panneau.finDuGlisser(); pause(1.0)
+        verifier(!m.depot && !m.appel && m.courante == .etagerePile, "glisser fini : la pile (\(m.courante))")
 
         // --- 2, 4, 5 · AirDrop : les zones, le lâcher à droite, « Envoi… » puis la réponse du service (jamais de vrai AirDrop)
         EssaiEtagere.envois = []
@@ -184,6 +232,19 @@ extension IlotEssai {
                  "une capture arrive sur l'étagère ; la capture déjà là et l'autre fichier, non (\(c.etagere.elements.map(\.nom)))")
         verifier(m.etagere.last?.nouveau == true && m.etagere.first?.nouveau == false, "elle est marquée « Nouveau »")
         verifier(FileManager.default.fileExists(atPath: dejaLa.path), "rien n'est déplacé dans le dossier des captures")
+        // le dossier changé dans Capture d'écran : relu avec l'étagère, la surveillance le suit
+        let captures2 = dossier.appendingPathComponent("Captures 2", isDirectory: true)
+        try? FileManager.default.createDirectory(at: captures2, withIntermediateDirectories: true)
+        let dossierCapturesAvant = c.dossierCaptures
+        c.dossierCaptures = { captures2 }
+        c.relireEtagere(force: true); pause(0.6)
+        verifier(c.capturesSource.actif && c.capturesSource.dossier == captures2 && m.capturesActives, "dossier des captures changé : la surveillance passe sur le nouveau")
+        _ = creer("Capture d\u{2019}écran 2026-11-11 à 15.00.00.png", captures2)
+        attendre(3.5) { c.etagere.elements.count < 4 }
+        verifier(c.etagere.elements.last?.nom == "Capture d\u{2019}écran 2026-11-11 à 15.00.00.png", "… et la capture faite là arrive (\(c.etagere.elements.map(\.nom)))")
+        c.dossierCaptures = dossierCapturesAvant
+        c.relireEtagere(force: true); pause(0.6)
+        verifier(c.capturesSource.dossier == captures, "retour au premier dossier")
         m.fermer(); pause(0.8)
         verifier(m.etagere.allSatisfy { !$0.nouveau }, "la carte vue puis fermée : plus « Nouveau »")
         m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
@@ -199,7 +260,16 @@ extension IlotEssai {
         verifier(!m.capturesActives && m.capturesRefusees && !EssaiEtagere.captures && !m.capturesAttente && !c.capturesSource.actif,
                  "accès refusé : éteint, « Accès refusé : ouvrir Réglages Système »")
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: ferme.path)
+        // dossier absent (disque débranché) : l'interrupteur dit la vérité (éteint), la ligne dit pourquoi ; le réglage reste
+        c.dossierCaptures = { dossier.appendingPathComponent("Disque débranché/Captures", isDirectory: true) }
+        clic(interrupteur, 1.0)
+        verifier(!m.capturesActives && m.capturesIntrouvable && !m.capturesAttente && !c.capturesSource.actif && EssaiEtagere.captures,
+                 "dossier introuvable : éteint, « Dossier des captures introuvable », réglage gardé pour le prochain lancement")
         c.dossierCaptures = dossierAvant
+        clic(interrupteur, 0.8)
+        verifier(m.capturesActives && !m.capturesIntrouvable && c.capturesSource.actif, "le dossier revenu, un clic : allumé de nouveau")
+        clic(interrupteur, 0.6)
+        verifier(!m.capturesActives && !c.capturesSource.actif && !EssaiEtagere.captures, "puis éteint")
 
         // --- « Réduire les animations » : la forme saute à sa place, l'appel ne bouge pas
         m.fermer(); pause(0.8)

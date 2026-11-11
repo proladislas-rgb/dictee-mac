@@ -98,7 +98,7 @@ final class IlotPanneau {
         ecran = e
     }
     /// Une encoche réelle (caméra) : l'îlot vide a sa place dans l'encoche. Sans encoche, l'îlot vide n'existe pas.
-    private var encocheReelle: Bool { ecran.map { $0.safeAreaInsets.top > 0 } ?? false }
+    private var encocheReelle: Bool { ecran != nil && moteur.geometrie.reelle }
 
     private func creerFenetre() {
         let f = PanneauSansFocus(contentRect: NSRect(x: 0, y: 0, width: 10, height: 10), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -276,13 +276,19 @@ final class IlotPanneau {
     /// directement que la souris est entrée. Faux s'il n'y a pas de telle vue à cet endroit.
     @discardableResult
     func survolerSourceFichiers(en p: CGPoint) -> Bool {
-        guard let f = fenetre, let ecran, let c = f.contentView else { return false }
+        guard let f = fenetre, let ecran, let v = sourceFichiers(en: p) else { return false }
         let local = NSPoint(x: centre + p.x - f.frame.minX, y: ecran.frame.maxY - p.y - f.frame.minY)
-        guard let v = c.hitTest(c.convert(local, from: nil)) as? VueSourceFichiers,
-              let e = NSEvent.mouseEvent(with: .mouseMoved, location: local, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+        guard let e = NSEvent.mouseEvent(with: .mouseMoved, location: local, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
                                          windowNumber: f.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0) else { return false }
         v.mouseEntered(with: e)
         return true
+    }
+
+    /// Pour les essais : la source d'un glisser de fichiers sous le point `p` (le vrai test de position d'AppKit), ou nil.
+    func sourceFichiers(en p: CGPoint) -> VueSourceFichiers? {
+        guard let f = fenetre, let ecran, let c = f.contentView else { return nil }
+        let local = NSPoint(x: centre + p.x - f.frame.minX, y: ecran.frame.maxY - p.y - f.frame.minY)
+        return c.hitTest(c.convert(local, from: nil)) as? VueSourceFichiers
     }
 
     /// Pour les essais : simule la souris sur la forme ou ailleurs.
@@ -312,6 +318,9 @@ final class IlotPanneau {
     private var dernierRegard: TimeInterval = 0
     /// Des fichiers viennent d'être lâchés : l'îlot les montre un instant, la fin du glisser ne le referme pas.
     private(set) var depotLache = false
+    /// Les zones se sont ouvertes puis refermées pendant CE glisser (le pointeur visait autre chose sous l'encoche) : elles ne se
+    /// rouvrent plus qu'à 60 pt (`ApprocheEtagere.distanceRetour`). Oublié à la fin du glisser.
+    private(set) var zonesQuittees = false
     private let pressePapiersGlisser = NSPasteboard(name: .drag)
     /// La fenêtre accepte-t-elle des fichiers lâchés ? (essais)
     var accepteLesFichiers: Bool { (fenetre?.contentView?.registeredDraggedTypes.contains(.fileURL) ?? false) && etagereActive }
@@ -336,7 +345,7 @@ final class IlotPanneau {
         switch type {
         case .leftMouseDown:
             suiviGlisser.bouton(enfonce: true, compte: pressePapiersGlisser.changeCount)
-            glisserDeFichiers = nil; depotLache = false; dernierRegard = 0
+            glisserDeFichiers = nil; depotLache = false; dernierRegard = 0; zonesQuittees = false
         case .leftMouseDragged:
             guard let p = pointEcran(NSEvent.mouseLocation) else { return }
             glisser(p, nouveau: { [pressePapiersGlisser, suiviGlisser] in
@@ -376,7 +385,7 @@ final class IlotPanneau {
     }
 
     private func procheEncoche(_ p: CGPoint) -> Bool {
-        ApprocheEtagere.proche(x: Double(p.x), y: Double(p.y), demiCamera: Double(moteur.demiCamera), barre: Double(moteur.geometrie.hauteur))
+        ApprocheEtagere.proche(x: Double(p.x), y: Double(p.y), demiCamera: Double(moteur.demiCamera), barre: Double(moteur.geometrie.hauteur), retour: zonesQuittees)
     }
 
     /// Des fichiers glissés sont en `p` : près de l'encoche, l'îlot s'ouvre en « Déposez ici » et la fenêtre les accepte ; ouvert, il le
@@ -392,6 +401,7 @@ final class IlotPanneau {
             moteur.montrerDepot(true)
             if moteur.depot { accepterLeDepot(true) }
         } else if !proche, moteur.depot, !depotLache {
+            zonesQuittees = true
             moteur.montrerDepot(false)
             accepterLeDepot(false)
             // la fenêtre, encore grande le temps que la forme se referme, laisse passer le glisser vers ce qui est dessous
@@ -435,6 +445,7 @@ final class IlotPanneau {
     /// (l'ordre dépend de macOS) : la zone attend donc `delaiFinGlisser` avant de se refermer, et un dépôt arrivé entre-temps l'emporte.
     func finDuGlisser() {
         glisserDeFichiers = nil
+        zonesQuittees = false
         // l'appel se range tout de suite (le glisser s'est fini ailleurs) ; les zones, elles, attendent un éventuel dépôt
         if !moteur.depot || depotLache { guetterLaFin(false); moteur.montrerAppel(false); return }
         // déjà en attente : chaque mouvement de la souris après le glisser ne repousse pas la fermeture

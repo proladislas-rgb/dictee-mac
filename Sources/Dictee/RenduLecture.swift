@@ -391,6 +391,7 @@ enum RenduLecture {
         capture[0].nouveau = true
         ecrire(bureau(hauteur: grandBureau + 20) { ilot(scene { m in m.etagereActive = true; m.etagere = Array(trois.prefix(1)) + capture; m.capturesActives = true; m.energie = batterie; m.ouvrirEtagere() }) }, "ilot-24m-carte-capture-nouveau")
         ecrire(bureau(hauteur: grandBureau + 20, clair: false) { ilot(scene { m in m.etagereActive = true; m.etagere = trois; m.capturesRefusees = true; m.ouvrirEtagere() }) }, "ilot-24n-carte-captures-acces-refuse")
+        ecrire(bureau(hauteur: grandBureau + 20) { ilot(scene { m in m.etagereActive = true; m.etagere = trois; m.capturesIntrouvable = true; m.ouvrirEtagere() }) }, "ilot-24q-carte-captures-dossier-introuvable")
         ecrire(bureau(hauteur: petitBureau + 140) { ilot(miCourse(scene { m in m.etagereActive = true; m.etagere = trois; m.montrerAppel(true) }, 0.16) { $0.montrerDepot(true) }) }, "ilot-24o-etagere-appel-vers-zones-mi-course")
         ecrire(bureau(hauteur: petitBureau + 40) { ilot(miCourse(scene { m in m.etagereActive = true; m.etagere = trois }, 0.14) { $0.montrerAppel(true) }) }, "ilot-24p-etagere-pile-vers-appel-mi-course")
         // le Centre (maquette ilot-centre.html, mêmes étapes) : la bulle « Nouveau », la lecture et son bouton « Centre », le Centre et
