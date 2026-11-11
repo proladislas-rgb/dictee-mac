@@ -40,9 +40,10 @@ final class PisteReunion: @unchecked Sendable {
     private(set) var aRecuDuSon = false           // au moins un échantillon non nul (un son du Mac qui ne donne que des zéros est suspect)
     private(set) var morceauxEmis = 0
 
-    init(locuteur: Locuteur, fichierSon: URL? = nil) {
+    /// `horsSauvegarde` : le son n'est que de passage (réglage « Garder le son » éteint) : Time Machine ne le copie pas.
+    init(locuteur: Locuteur, fichierSon: URL? = nil, horsSauvegarde: Bool = true) {
         self.locuteur = locuteur
-        if let fichierSon { ecrivain = EcrivainWAV(url: fichierSon) }
+        if let fichierSon { ecrivain = EcrivainWAV(url: fichierSon, horsSauvegarde: horsSauvegarde) }
     }
 
     /// Niveau 0…1 depuis la dernière lecture (puis retombe) : sert aux deux traces de l'encoche.
@@ -103,7 +104,12 @@ final class PisteReunion: @unchecked Sendable {
         return AttenteDirect(locuteur: locuteur, debut: b + Double(chunker.debutDuMorceau) / 16_000)
     }
 
-    func terminer() { suspendre(); ecrivain?.fermer(); ecrivain = nil }
+    /// Le dernier morceau part, puis le fichier son est complété et fermé (attend les écritures en cours).
+    func terminer() {
+        suspendre()
+        verrou.lock(); let e = ecrivain; ecrivain = nil; verrou.unlock()
+        e?.fermer()
+    }
 
     /// À appeler verrou pris. Les bornes du découpeur sont en échantillons depuis le début de la tranche d'enregistrement.
     private func morceau(_ r: VoiceChunker.Range) -> MorceauReunion? {
@@ -163,47 +169,75 @@ final class PisteReunion: @unchecked Sendable {
 }
 
 /// Un fichier WAV (16 kHz mono 16 bits) écrit au fil de l'eau, droits 0600 ; l'en-tête est complété à la fermeture.
+/// `ajouter` et `caler` sont appelés depuis le rappel temps réel du son (micro, son du Mac) : ils ne font AUCUN appel système, ils
+/// comptent les échantillons et confient l'écriture à une file série à part (un disque chargé ne fait plus perdre de tampons).
 final class EcrivainWAV: @unchecked Sendable {
     private let url: URL
-    private var handle: FileHandle?
-    private var octets = 0
-    /// Échantillons écrits depuis le début du fichier.
+    private let file = DispatchQueue(label: "dictee.reunion.wav", qos: .utility)
+    private var handle: FileHandle?            // touché seulement sur `file`
+    private var octets = 0                     // compté par l'appelant (un seul fil à la fois : le verrou de la piste)
+    private var ferme = false
+    /// Échantillons écrits (ou confiés à la file) depuis le début du fichier.
     var echantillons: Int { octets / 2 }
 
     /// Complète par du silence jusqu'à `secondes` (l'heure de réunion du prochain échantillon). Un retard de moins de 20 ms est ignoré.
+    /// Le silence est fabriqué et écrit sur la file, pas sur le fil de l'appelant.
     func caler(sur secondes: Double) {
         let cible = Int((secondes * 16_000).rounded())
-        var manque = cible - echantillons
-        guard manque > 320 else { return }
-        let bloc = [Int16](repeating: 0, count: 16_000)
-        while manque > 0 { let n = min(manque, bloc.count); ajouter(Array(bloc[0..<n])); manque -= n }
+        let manque = cible - echantillons
+        guard manque > 320, !ferme else { return }
+        octets += manque * 2
+        file.async { [self] in
+            guard let handle else { return }
+            let bloc = Data(count: 32_000)
+            var reste = manque * 2
+            while reste > 0 { let n = min(reste, bloc.count); try? handle.write(contentsOf: bloc.prefix(n)); reste -= n }
+        }
     }
 
-    init?(url: URL) {
+    /// `horsSauvegarde` : le fichier est exclu de Time Machine (son temporaire, effacé après la note).
+    init?(url: URL, horsSauvegarde: Bool = true) {
         self.url = url
         let fm = FileManager.default
         try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         guard fm.createFile(atPath: url.path, contents: WAV.encode(samples: []), attributes: [.posixPermissions: 0o600]),
               let h = try? FileHandle(forWritingTo: url) else { return nil }
+        if horsSauvegarde {
+            var u = url, v = URLResourceValues()
+            v.isExcludedFromBackup = true
+            do { try u.setResourceValues(v) } catch { Log.ecrire("réunion : son non exclu de la sauvegarde (\(error.localizedDescription))") }
+        }
         _ = try? h.seekToEnd()
         handle = h
     }
 
     func ajouter(_ s: [Int16]) {
-        guard let handle, !s.isEmpty else { return }
-        let donnees = s.withUnsafeBufferPointer { Data(buffer: $0) }   // petit boutiste sur Apple Silicon et Intel
-        try? handle.write(contentsOf: donnees)
-        octets += donnees.count
+        guard !s.isEmpty, !ferme else { return }
+        octets += s.count * 2
+        file.async { [self] in
+            guard let handle else { return }
+            let donnees = s.withUnsafeBufferPointer { Data(buffer: $0) }   // petit boutiste sur Apple Silicon et Intel
+            try? handle.write(contentsOf: donnees)
+        }
     }
 
+    /// Attend que tout soit écrit, complète l'en-tête et ferme le fichier.
     func fermer() {
-        guard let h = handle else { return }
-        handle = nil
-        func u32(_ v: Int) -> Data { var x = UInt32(v).littleEndian; return Data(bytes: &x, count: 4) }
-        try? h.seek(toOffset: 4); try? h.write(contentsOf: u32(36 + octets))
-        try? h.seek(toOffset: 40); try? h.write(contentsOf: u32(octets))
-        try? h.close()
+        guard !ferme else { return }
+        ferme = true
+        file.sync {
+            guard let h = handle else { return }
+            handle = nil
+            func u32(_ v: Int) -> Data { var x = UInt32(v).littleEndian; return Data(bytes: &x, count: 4) }
+            let taille = (try? h.seekToEnd()).map { Int($0) - LectureWAV.entete } ?? octets
+            try? h.seek(toOffset: 4); try? h.write(contentsOf: u32(36 + taille))
+            try? h.seek(toOffset: 40); try? h.write(contentsOf: u32(taille))
+            try? h.close()
+        }
     }
+
+    /// Attend la fin des écritures confiées à la file (sans fermer) : pour lire le fichier pendant qu'il s'écrit.
+    func vider() { file.sync {} }
 }
 
 /// Lecture d'un WAV écrit par `EcrivainWAV` (16 kHz mono 16 bits, en-tête de 44 octets). Les tailles de l'en-tête ne sont pas lues :

@@ -15,8 +15,9 @@ final class ReunionStore: ObservableObject {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee/Reunions", isDirectory: true)
     }
 
-    /// `lire = false` : aucun accès au disque (rendus PNG avec des réunions d'exemple).
-    init(dossier: URL? = nil, lire: Bool = true) {
+    /// `lire = false` : aucun accès au disque (rendus PNG avec des réunions d'exemple). `maintenant` : l'heure du lancement (le son
+    /// gardé pour réessayer qui a dépassé son délai est effacé).
+    init(dossier: URL? = nil, lire: Bool = true, maintenant: Date = Date()) {
         self.dossier = dossier ?? Self.dossierParDefaut
         guard lire else { return }
         try? FileManager.default.createDirectory(at: self.dossier, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -30,7 +31,14 @@ final class ReunionStore: ObservableObject {
             trouvees.append(reprise)
         }
         reunions = trouvees.sorted { $0.debut > $1.debut }
+        for r in reunions where ArchiveReunions.sonPerime(r, maintenant: maintenant) && (sonPresent(r, .moi) || sonPresent(r, .eux)) {
+            for u in [fichierSon(r, .moi), fichierSon(r, .eux)] { try? FileManager.default.removeItem(at: u) }
+            Log.ecrire("réunions : son gardé pour réessayer effacé (plus de \(ArchiveReunions.joursSonEnAttente) jours)")
+        }
     }
+
+    /// Attend que les fichiers confiés à la file soient écrits (Verbe se ferme).
+    func attendreEcritures() { file.sync {} }
 
     /// Ajoute ou met à jour une réunion, et réécrit ses fichiers.
     func enregistrer(_ r: Reunion) {
@@ -53,8 +61,9 @@ final class ReunionStore: ObservableObject {
         Log.ecrire("réunions : une réunion effacée")
     }
 
-    /// Les fichiers du son d'une réunion : écrits pendant l'appel (0600), gardés le temps de la relecture et de la note, puis effacés
-    /// sauf si « Garder le son des réunions » est actif.
+    /// Les fichiers du son d'une réunion : écrits pendant l'appel (0600, hors de Time Machine si le réglage « Garder le son » est
+    /// éteint), gardés le temps de la relecture et de la note, puis effacés sauf si « Garder le son des réunions » est actif. Une
+    /// relecture incomplète ou une note pas écrite les garde `ArchiveReunions.joursSonEnAttente` jours, pour « Refaire la note ».
     func fichierSon(_ r: Reunion, _ l: Locuteur) -> URL {
         dossier.appendingPathComponent("\(ArchiveReunions.nomDeBase(r))-\(l.rawValue).wav")
     }
@@ -65,7 +74,7 @@ final class ReunionStore: ObservableObject {
     func effacerSon(_ r: Reunion) {
         let urls = [fichierSon(r, .moi), fichierSon(r, .eux)]
         file.async { for u in urls { try? FileManager.default.removeItem(at: u) } }
-        Log.ecrire("réunions : son de la réunion effacé (note prête)")
+        Log.ecrire("réunions : son de la réunion effacé (note prête, tout l'appel relu)")
     }
 
     private func ecrire(_ r: Reunion) {

@@ -636,11 +636,18 @@ struct NoteReunionVue: View {
 
     private var etat: AnyView? {
         switch r.etat {
-        case .prete: return nil
+        case .prete:
+            // une partie de l'appel n'a pas pu être relue (réseau, limite) : le son est gardé quelques jours pour réessayer
+            guard r.relue == false, m.sonDisponible(r) else { return nil }
+            return AnyView(HStack(spacing: 12) {
+                Text("Une partie de l\u{2019}appel n\u{2019}a pas pu être relue.").font(Polices.commande(13.5)).foregroundStyle(Palette.texte2)
+                BoutonNote(titre: "Refaire la note") { m.surRefaireLaNote(r.id) }
+            })
         case .sansNote:
+            // la transcription, ou à défaut le son de l'appel (Verbe fermé pendant l'appel, relecture impossible), suffit à réessayer
             return AnyView(HStack(spacing: 12) {
                 Text("La note n\u{2019}a pas été écrite.").font(Polices.commande(13.5)).foregroundStyle(Palette.texte2)
-                if !r.segments.isEmpty { BoutonNote(titre: "Refaire la note") { m.surRefaireLaNote(r.id) } }
+                if !r.segments.isEmpty || m.sonDisponible(r) { BoutonNote(titre: "Refaire la note") { m.surRefaireLaNote(r.id) } }
             })
         default:
             return AnyView(Text("La note est en préparation\u{2026}").font(Polices.commande(13.5)).foregroundStyle(Palette.texte2))

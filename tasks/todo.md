@@ -246,3 +246,12 @@ Ancienne lecture (gardée si Hugues la confirme) : l'îlot ouvert devient une pi
 - [x] Contrôles, essai de bout en bout sans réseau ni micro (relecture et note factices), rendus comparés à la maquette, commit
 - [ ] Hugues : essayer en vrai (5 points « À vérifier en vrai » de la section « la note après l'appel » de docs/spec-v1.md). Non vérifiés d'ici : la vraie réponse de Groq (relecture, note par sujets, « Demander »), le son réel réécouté, la durée réelle du traitement.
 - [ ] Suite : séparation des voix (« Qui parle », les noms de chacun) ; décider si le son doit être écrit compressé pendant l'appel (≈ 115 Mo par heure et par piste aujourd'hui, effacé à la fin).
+
+### Relecture Réunions (9 points de l'équipe, 12/11)
+- [x] Grave : le son de l'appel n'est plus effacé quand la relecture échoue (réunion gardée « sans note », son gardé 7 jours, « Refaire la note » le relit) ; effacé seulement note prête ET tout l'appel relu
+- [x] ⌘Q pendant l'appel : sources coupées, son fermé, passages de parole enregistrés (aussi toutes les 5 s) ; « Refaire la note » dès que le son est là ; son gardé pour réessayer effacé au lancement après 7 jours
+- [x] Son temporaire hors de Time Machine ; écriture du WAV sur une file à part (plus rien sur le fil temps réel)
+- [x] À l'arrêt : les morceaux du direct pas encore partis ne partent plus (la relecture les reprend) ; relecture sur le modèle précis seulement (plus de secours turbo pris à la dictée)
+- [x] Réunion effacée ou renommée pendant l'enregistrement / la préparation : rien n'est recréé, le titre et les orateurs changés sont gardés
+- [x] « Ce que j'ai raté » : seulement les 3 dernières minutes d'un long tour ; puces mesurées à la vraie police, coupées à un mot entier
+- [x] Contrôles (2 282), essai de l'îlot (section « le son gardé tant qu'il peut servir »), rendus comparés (nouveau : reunions-14-pas-entierement-relue)

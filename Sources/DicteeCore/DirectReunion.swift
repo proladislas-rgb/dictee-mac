@@ -114,10 +114,13 @@ public enum DirectReunion {
 
     private static func cle(_ l: Locuteur, _ debut: Double) -> String { "\(l.rawValue)-\(Int((debut * 10).rounded()))" }
 
-    /// Les passages des `secondes` dernières secondes (pour « Ce que j'ai raté »), échos et reprises retirés, dans l'ordre.
+    /// Les passages des `secondes` dernières secondes (pour « Ce que j'ai raté »), échos et reprises retirés, dans l'ordre. Les
+    /// morceaux sont choisis AVANT d'être recollés en tours : un long tour commencé il y a dix minutes n'envoie que sa fin (au plus le
+    /// morceau à cheval sur le début de la fenêtre, 30 s au plus), pas tout le monologue.
     public static func dernieresMinutes(moi: [SegmentReunion], eux: [SegmentReunion], maintenant: Double, secondes: Double = 180) -> [SegmentReunion] {
-        let (tout, _) = FusionPistes.transcription(moi: moi, eux: eux)
-        return tout.filter { $0.fin >= maintenant - secondes }
+        let depuis = maintenant - secondes
+        let (tout, _) = FusionPistes.transcription(moi: moi.filter { $0.fin >= depuis }, eux: eux.filter { $0.fin >= depuis })
+        return tout
     }
 }
 

@@ -145,4 +145,64 @@ func controlesReunionNote() {
         verifier(QuestionReunion.analyserToutes(#"{"reponse": "Le 2.", "reunion": 1}"#, nombre: 2)?.reunion == 0 && QuestionReunion.analyserToutes(#"{"reponse": "Le 2.", "reunion": 7}"#, nombre: 2)?.reunion == nil,
                  "la réponse renvoie à une réunion qui existe, sinon à aucune")
     }
+
+    groupe("Réunions, relecture de l'équipe : le son gardé tant qu'il sert, les changements gardés, « Ce que j'ai raté »")
+    do {
+        var r = Reunion(debut: debut, duree: 600, etat: .prete, sonGarde: false)
+        r.relue = true
+        verifier(ArchiveReunions.sonInutile(apresNote: r), "note prête et tout l'appel relu : le son peut partir")
+        var x = r; x.relue = false
+        verifier(!ArchiveReunions.sonInutile(apresNote: x), "un lot pas relu : le son reste (« Refaire la note » en a besoin)")
+        x = r; x.etat = .sansNote
+        verifier(!ArchiveReunions.sonInutile(apresNote: x), "note pas écrite : le son reste")
+        x = r; x.sonGarde = true
+        verifier(!ArchiveReunions.sonInutile(apresNote: x), "réglage « garder le son » : jamais effacé")
+        let fin = debut.addingTimeInterval(600)
+        x = r; x.etat = .sansNote
+        verifier(!ArchiveReunions.sonPerime(x, maintenant: fin.addingTimeInterval(6 * 86_400)) && ArchiveReunions.sonPerime(x, maintenant: fin.addingTimeInterval(8 * 86_400)),
+                 "son gardé pour réessayer : \(ArchiveReunions.joursSonEnAttente) jours, puis effacé")
+        x.etat = .transcription
+        verifier(!ArchiveReunions.sonPerime(x, maintenant: fin.addingTimeInterval(30 * 86_400)), "une réunion pas encore reprise n'est jamais vidée de son son")
+        x = r; x.etat = .sansNote; x.sonGarde = true
+        verifier(!ArchiveReunions.sonPerime(x, maintenant: fin.addingTimeInterval(30 * 86_400)), "réglage « garder » : jamais effacé")
+
+        // les passages de parole voyagent avec la réunion ; une ancienne réunion se lit sans eux
+        var p = Reunion(debut: debut)
+        p.passagesParVoix = [.moi: [PassageParole(debut: 1, fin: 4)], .eux: []]
+        let relue = ArchiveReunions.encoder(p).flatMap(ArchiveReunions.decoder)
+        verifier(relue?.passagesParVoix[.moi] == [PassageParole(debut: 1, fin: 4)] && relue?.passagesParVoix[.eux] == [], "passages enregistrés et relus (une voix muette reste « connue et vide »)")
+        verifier(Reunion(debut: debut).passagesParVoix.isEmpty, "sans passages : inconnus")
+        verifier(RelectureReunion.passagesInconnus(direct: [], locuteur: .moi, dureeSon: 42) == [PassageParole(debut: 0, fin: 42)],
+                 "passages inconnus et rien dans la transcription (Verbe fermé tôt, direct en panne) : tout le son est relu")
+        verifier(RelectureReunion.passagesInconnus(direct: [s(10, 14, .moi, "Oui.")], locuteur: .moi, dureeSon: 42) == [PassageParole(debut: 10, fin: 14)],
+                 "passages inconnus : ceux de la transcription")
+
+        // ce que l'utilisateur change pendant la préparation de la note est gardé
+        var depart = Reunion(debut: debut, segments: [s(0, 3, .eux, "Bonjour.")], etat: .transcription)
+        depart.titre = ""
+        var actuelle = depart
+        actuelle.titre = "Point Dupont"
+        actuelle.renommer(orateur: Locuteur.eux.rawValue, en: "Claire")
+        var nouvelle = depart
+        nouvelle.titre = "Titre de la note"
+        nouvelle.actions = [ActionReunion(qui: "Eux", quoi: "Envoyer le devis")]
+        let g = ArchiveReunions.garderLesModifications(de: actuelle, depuis: depart, dans: nouvelle)
+        verifier(g.titre == "Point Dupont" && g.orateur(id: Locuteur.eux.rawValue).nom == "Claire" && g.actions.first?.qui == "Claire",
+                 "titre et orateur renommés pendant la préparation : gardés, les prochaines étapes suivent (\(g.titre), \(g.actions.first?.qui ?? "-"))")
+        let h = ArchiveReunions.garderLesModifications(de: depart, depuis: depart, dans: nouvelle)
+        verifier(h == nouvelle, "rien changé entre-temps : la nouvelle note telle quelle")
+
+        // « Ce que j'ai raté » : un long tour commencé il y a 10 minutes n'envoie que les 3 dernières minutes
+        let monologue = stride(from: 0.0, to: 600, by: 20).map { s($0, $0 + 19, .eux, "Phrase à \(Int($0)) s.") }
+        let dm = DirectReunion.dernieresMinutes(moi: [], eux: monologue, maintenant: 600, secondes: 180)
+        verifier((dm.first?.debut ?? 0) >= 400 && dm.map(\.texte).joined().contains("Phrase à 580 s.") && !dm.map(\.texte).joined().contains("Phrase à 0 s."),
+                 "long tour de 10 min : seules ses 3 dernières minutes partent (dès \(Int(dm.first?.debut ?? 0)) s)")
+
+        // une puce trop longue pour la carte : coupée à un mot entier, avec « … »
+        let tient: (String) -> Bool = { $0.count <= 30 }
+        verifier(RattrapageReunion.ajuster("Paul envoie le devis.", tient: tient) == "Paul envoie le devis.", "une puce qui tient reste entière")
+        let a = RattrapageReunion.ajuster("Claire envoie le devis signé jeudi avant midi à Paul.", tient: tient)
+        verifier(tient(a) && a == "Claire envoie le devis signé\u{2026}", "une puce qui ne tient pas : coupée au dernier mot entier qui tient (« \(a) »)")
+        verifier(RattrapageReunion.ajuster("Anticonstitutionnellement-anticonstitutionnellement", tient: tient).hasSuffix("\u{2026}"), "un seul mot géant : « … » quand même")
+    }
 }

@@ -41,7 +41,24 @@ public enum RattrapageReunion {
     /// Une puce trop longue est coupée au dernier mot entier, avec « … ».
     static func couper(_ s: String) -> String {
         guard s.count > maxCaracteres else { return s }
-        let debut = String(s.prefix(maxCaracteres))
+        return auMot(String(s.prefix(maxCaracteres)))
+    }
+
+    /// La puce telle que la carte peut la montrer : si elle ne tient pas (`tient` : la mesure de la carte, deux lignes à la vraie police),
+    /// elle perd des mots par la fin et finit par « … » ; jamais coupée au milieu d'un mot.
+    public static func ajuster(_ s: String, tient: (String) -> Bool) -> String {
+        guard !tient(s) else { return s }
+        var mots = s.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        while mots.count > 1 {
+            mots.removeLast()
+            let essai = auMot(mots.joined(separator: " ") + " ")
+            if tient(essai) { return essai }
+        }
+        return auMot((mots.first ?? s) + " ")
+    }
+
+    /// Le texte jusqu'au dernier mot entier (le dernier espace), ponctuation pendante retirée, avec « … ».
+    private static func auMot(_ debut: String) -> String {
         let jusquAuMot = debut.range(of: " ", options: .backwards).map { String(debut[..<$0.lowerBound]) } ?? debut
         return jusquAuMot.trimmingCharacters(in: CharacterSet(charactersIn: ",;: ")) + "\u{2026}"
     }

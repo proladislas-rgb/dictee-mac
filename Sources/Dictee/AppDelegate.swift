@@ -144,6 +144,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var toutEstAccorde: Bool { Permissions.premierManquant == nil && Permissions.microOK && clavier.actif }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // une réunion en cours : son fermé, passages et transcription enregistrés avant de partir (« Refaire la note » au retour)
+        reunionControleur.terminerAvantDeQuitter()
         ilot.arreter()
         Log.ecrire("arrêt")
         Log.vider()

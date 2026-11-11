@@ -16,6 +16,9 @@ struct RelectureAudio: Sendable {
         var segments: [SegmentReunion]
         var lots: Int
         var echoues: Int
+        /// Tout l'appel a été relu (aucun lot en échec).
+        var complete: Bool { lots > 0 && echoues == 0 }
+        /// Au moins un lot relu.
         var relue: Bool { lots > 0 && echoues < lots }
     }
 
@@ -25,8 +28,9 @@ struct RelectureAudio: Sendable {
         var tous: [(LotRelecture, URL)] = []
         for l in [Locuteur.eux, .moi] {
             guard let url = fichiers[l], FileManager.default.fileExists(atPath: url.path) else { continue }
-            let p = passages[l] ?? RelectureReunion.passages(de: direct, locuteur: l)
-            tous += RelectureReunion.lots(p, locuteur: l, duree: max(duree, LectureWAV.duree(url))).map { ($0, url) }
+            let dureeFichier = LectureWAV.duree(url)
+            let p = passages[l] ?? RelectureReunion.passagesInconnus(direct: direct, locuteur: l, dureeSon: dureeFichier)
+            tous += RelectureReunion.lots(p, locuteur: l, duree: max(duree, dureeFichier)).map { ($0, url) }
         }
         // les lots dans l'ordre du temps : si la relecture s'arrête en route, le début de la réunion est relu
         tous.sort { $0.0.debut < $1.0.debut }
@@ -60,8 +64,8 @@ struct RelectureAudio: Sendable {
         return Resultat(segments: parVoix, lots: lots.count, echoues: echoues.count)
     }
 
-    /// Groq : whisper-large-v3, avec le budget d'audio et de requêtes du modèle précis (la dictée garde sa part), quelques essais
-    /// en cas de réseau ou de limite, abandon au-delà de cinq minutes d'attente.
+    /// Groq : whisper-large-v3 seulement, avec le budget d'audio et de requêtes du modèle précis (jamais le turbo : sa part est
+    /// celle de la dictée), quelques essais en cas de réseau ou de limite, abandon au-delà de cinq minutes d'attente.
     static let parGroq: @Sendable (LotRelecture, [Int16], Int) async throws -> [PhraseWhisper] = { lot, son, numero in
         let prompt = PreparationLexique.promptPour(langue: Settings.langue, genre: .other, champ: { nil }, recents: [])(nil)
         var attendu = 0.0, essais = 0

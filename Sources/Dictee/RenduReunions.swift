@@ -192,6 +192,18 @@ enum RenduReunions {
         fenetre("reunions-11-etroite-note", store: store, ouverte: boutique.id, taille: petite)
         fenetre("reunions-12-etroite-liste", store: store, taille: petite)
         fenetre("reunions-13-a-la-taille-de-hugues", store: store, taille: CGSize(width: 1190, height: 650))
+        // une partie de l'appel n'a pas pu être relue (réseau, limite) : le son est gardé quelques jours, « Refaire la note » réessaie
+        var partielle = boutique; partielle.relue = false; partielle.sonGarde = false
+        partielle.avertissements = ["2 passages de l\u{2019}appel n\u{2019}ont pas pu être relus (réseau ou limite de Groq) : c\u{2019}est la transcription du direct.",
+                                    "\(ReunionController.avertissementSonGarde) \(ArchiveReunions.joursSonEnAttente) jours sur ce Mac, le temps de « Refaire la note »."]
+        let dossierPartielle = FileManager.default.temporaryDirectory.appendingPathComponent("dictee-rendu-reunions-partielle")
+        try? FileManager.default.removeItem(at: dossierPartielle)
+        let storePartielle = ReunionStore(dossier: dossierPartielle, lire: false)
+        storePartielle.enregistrer(partielle)
+        try? FileManager.default.createDirectory(at: dossierPartielle, withIntermediateDirectories: true)
+        for l in [Locuteur.moi, .eux] { FileManager.default.createFile(atPath: storePartielle.fichierSon(partielle, l).path, contents: Data()) }
+        fenetre("reunions-14-pas-entierement-relue", store: storePartielle)
+        try? FileManager.default.removeItem(at: dossierPartielle)
 
         // MARK: panneau compact avec l'entrée « Noter la réunion »
         for (nom, enCours) in [("panneau-reunion-1", false), ("panneau-reunion-2-en-cours", true)] {

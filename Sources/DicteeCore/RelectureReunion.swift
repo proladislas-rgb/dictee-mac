@@ -97,6 +97,13 @@ public enum RelectureReunion {
         segments.filter { $0.locuteur == locuteur }.map { PassageParole(debut: $0.debut, fin: max($0.fin, $0.debut + 1)) }
     }
 
+    /// Les passages à relire d'une piste dont on ne connaît pas les passages de parole (réunion d'avant leur enregistrement) : ceux de
+    /// la transcription ; si elle n'a rien de cette voix (le direct avait échoué, Verbe fermé tôt), tout le son du fichier.
+    public static func passagesInconnus(direct: [SegmentReunion], locuteur: Locuteur, dureeSon: Double) -> [PassageParole] {
+        let p = passages(de: direct, locuteur: locuteur)
+        return p.isEmpty && dureeSon > 0.5 ? [PassageParole(debut: 0, fin: dureeSon)] : p
+    }
+
     /// Lit une réponse `verbose_json` de Whisper : ses phrases horodatées. Une réponse sans phrases mais avec un texte en donne une seule.
     public static func analyser(_ donnees: Data) -> [PhraseWhisper]? {
         guard let o = (try? JSONSerialization.jsonObject(with: donnees)) as? [String: Any] else { return nil }

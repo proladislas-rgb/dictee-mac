@@ -59,27 +59,35 @@ final class ReunionController: ObservableObject {
         let verrou = NSLock()
         var segmentsMoi: [SegmentReunion] = []
         var segmentsEux: [SegmentReunion] = []
-        /// Les passages de parole vus pendant l'appel, voix par voix : ce que la relecture renverra (sans les silences).
-        var passages: [Locuteur: [PassageParole]] = [:]
+        /// Les passages de parole vus pendant l'appel, voix par voix : ce que la relecture renverra (sans les silences). Les deux voix
+        /// sont toujours là (une liste vide : cette voix n'a rien dit, la relecture n'envoie rien).
+        var passages: [Locuteur: [PassageParole]] = [.moi: [], .eux: []]
         var points: [Double] = []
         var sonSystemeActif = false
         var derniereSauvegarde = Date.distantPast
+        /// Change à chaque passage transcrit ou entendu : la sauvegarde de 5 s ne réécrit que si quelque chose a changé.
+        private var version = 0
+        var versionSauvee = -1
         init(reunion: Reunion, fichiers: (Locuteur) -> URL?) {
             self.reunion = reunion
-            moi = PisteReunion(locuteur: .moi, fichierSon: fichiers(.moi))
-            eux = PisteReunion(locuteur: .eux, fichierSon: fichiers(.eux))
+            // le son n'est que de passage (réglage « garder » éteint) : hors de Time Machine
+            moi = PisteReunion(locuteur: .moi, fichierSon: fichiers(.moi), horsSauvegarde: !reunion.sonGarde)
+            eux = PisteReunion(locuteur: .eux, fichierSon: fichiers(.eux), horsSauvegarde: !reunion.sonGarde)
             moi.horloge = { [horloge] in horloge.temps() }
             eux.horloge = { [horloge] in horloge.temps() }
         }
         func ajouter(_ s: SegmentReunion) {
             verrou.lock(); defer { verrou.unlock() }
             if s.locuteur == .moi { segmentsMoi.append(s) } else { segmentsEux.append(s) }
+            version += 1
         }
         func copies() -> ([SegmentReunion], [SegmentReunion]) { verrou.lock(); defer { verrou.unlock() }; return (segmentsMoi, segmentsEux) }
         func noterPassage(_ m: MorceauReunion) {
             verrou.lock(); defer { verrou.unlock() }
             passages[m.locuteur, default: []].append(PassageParole(debut: m.debut, fin: m.debut + m.duree))
+            version += 1
         }
+        func versionActuelle() -> Int { verrou.lock(); defer { verrou.unlock() }; return version }
         func copiePassages() -> [Locuteur: [PassageParole]] { verrou.lock(); defer { verrou.unlock() }; return passages }
     }
 
@@ -187,7 +195,7 @@ final class ReunionController: ObservableObject {
         guard session === s else { return }
         s.reunion.avertissements.append("Le son du Mac n'a pas pu être capté : seul ton micro est dans cette note. Vérifie, dans Réglages Système › Confidentialité et sécurité, l'autorisation d'enregistrer le son du système pour Verbe.")
         etatIlot?.microSeul = true
-        store.enregistrer(s.reunion)
+        guard sauver(s) else { return }
         rafraichirEncoche()
     }
 
@@ -228,32 +236,71 @@ final class ReunionController: ObservableObject {
         finPoint?.cancel()
         etatIlot = nil
         etapeTraitement = PreparationNote.relecture; progresTraitement = 0
-        s.reunion.duree = duree
-        s.reunion.points = s.points.isEmpty ? nil : s.points
-        s.reunion.etat = .transcription
-        store.enregistrer(s.reunion)
+        // effacée pendant l'appel (onglet Réunions) : rien n'est recréé
+        guard let actuelle = store.reunion(id: s.reunion.id) else {
+            s.transcripteur.annuler()
+            Log.ecrire("réunion : effacée pendant l'enregistrement, aucune note")
+            terminerTraitement(note: nil, message: "Réunion effacée")
+            return
+        }
+        var r = Self.photo(s, actuelle: actuelle)
+        r.etat = .transcription
+        s.reunion = r
+        store.enregistrer(r)
         majPhase()
         libelleEnCours = "Transcription en cours…"
         Task { await traiter(s) }
+    }
+
+    /// Verbe se ferme pendant l'appel (⌘Q, fin de session) : les sources se coupent, les pistes envoient leur dernier morceau (noté
+    /// dans les passages) et ferment leur fichier son, la réunion est enregistrée avec ses passages de parole, et on ATTEND l'écriture
+    /// sur le disque. Au lancement suivant elle passe en « sans note » ; « Refaire la note » relit le son (gardé quelques jours).
+    func terminerAvantDeQuitter() {
+        if let s = session {
+            session = nil
+            arreterMinuteurs()
+            s.horloge.pause()
+            s.micro.arreter(); s.son.arreter()
+            s.moi.terminer(); s.eux.terminer()
+            s.transcripteur.annuler()
+            if let actuelle = store.reunion(id: s.reunion.id) {
+                s.reunion = Self.photo(s, actuelle: actuelle)
+                store.enregistrer(s.reunion)
+                Log.ecrire("réunion : Verbe se ferme pendant l'appel, réunion et son gardés (\(FormatReunion.horloge(s.reunion.duree)))")
+            }
+        }
+        store.attendreEcritures()
     }
 
     // MARK: après l'arrêt
 
     typealias RedigerNote = @Sendable ([SegmentReunion], Double, Date, @escaping @Sendable (Int, Int) -> Void) async throws -> (note: NoteBrute, retraits: [String])
 
-    /// Après l'arrêt : tout l'appel est relu avec le modèle précis (en même temps, les derniers morceaux du direct finissent : ils
-    /// remplacent un lot que la relecture n'aurait pas pu refaire), puis la note s'écrit. L'îlot montre l'étape et la progression.
+    /// Après l'arrêt : tout l'appel est relu avec le modèle précis, puis la note s'écrit. L'îlot montre l'étape et la progression.
+    /// Quand le son est sur le disque, les morceaux du direct pas encore partis ne partent plus (la relecture les reprend avec le
+    /// modèle précis) : on n'attend que ceux déjà chez Groq, qui servent de repli à un lot que la relecture n'aurait pas pu refaire.
     private func traiter(_ s: Session) async {
         let r0 = s.reunion
         let fichiers = [Locuteur.moi: store.fichierSon(r0, .moi), .eux: store.fichierSon(r0, .eux)]
+        if fichiers.values.contains(where: { FileManager.default.fileExists(atPath: $0.path) }) { s.transcripteur.abandonnerLaFile() }
         await s.transcripteur.attendreLaFin()
         let (moi, eux) = s.copies()
-        let prepare = await Self.preparer(r0, passages: s.copiePassages(), direct: moi + eux, fichiers: fichiers, relecture: relecture, rediger: rediger,
+        await finir(r0, passages: s.copiePassages(), direct: moi + eux, fichiers: fichiers, echecsDirect: s.transcripteur.echecs,
+                    sonMuet: s.sonSystemeActif && s.eux.secondesRecues >= 10 && !s.eux.aRecuDuSon)
+    }
+
+    /// La fin du traitement, sans la session (l'essai l'appelle avec une relecture et une rédaction factices, dans un dossier à part) :
+    /// relecture, note, avertissements, son effacé ou gardé, annonce. Rien n'est effacé si la relecture a échoué ; rien n'est recréé
+    /// si la réunion a été effacée pendant ce temps ; ce que l'utilisateur a changé entre-temps (titre, orateurs) est gardé.
+    func finir(_ r0: Reunion, passages: [Locuteur: [PassageParole]], direct: [SegmentReunion], fichiers: [Locuteur: URL],
+               echecsDirect: Int = 0, sonMuet: Bool = false) async {
+        let prepare = await Self.preparer(r0, passages: passages, direct: direct, fichiers: fichiers, relecture: relecture, rediger: rediger,
                                           surNote: { [weak self] r in
             Task { @MainActor in
                 // jamais par-dessus la note déjà rangée (la transcription relue n'est enregistrée que si la réunion attend encore)
                 guard let self, let actuelle = self.store.reunion(id: r.id), actuelle.etat == .transcription else { return }
-                self.store.enregistrer(r); self.libelleEnCours = "Note en préparation…"
+                self.store.enregistrer(ArchiveReunions.garderLesModifications(de: actuelle, depuis: r0, dans: r))
+                self.libelleEnCours = "Note en préparation…"
             }
         }) { [weak self] p, etape in
             Task { @MainActor in self?.avancer(p, etape) }
@@ -264,21 +311,46 @@ final class ReunionController: ObservableObject {
             terminerTraitement(note: nil, message: "Rien entendu, réunion non gardée")
             return
         }
-        if s.transcripteur.echecs > 0, r.relue != true {
-            r.avertissements.append("\(s.transcripteur.echecs) passage\(s.transcripteur.echecs > 1 ? "s" : "") n'ont pas pu être transcrit\(s.transcripteur.echecs > 1 ? "s" : "") (réseau ou limite de Groq).")
+        guard let actuelle = store.reunion(id: r0.id) else {
+            Log.ecrire("réunion : effacée pendant la préparation de la note, rien n'est réécrit")
+            terminerTraitement(note: nil)
+            return
         }
-        if s.sonSystemeActif, s.eux.secondesRecues >= 10, !s.eux.aRecuDuSon {
+        r = ArchiveReunions.garderLesModifications(de: actuelle, depuis: r0, dans: r)
+        if echecsDirect > 0, r.relue != true {
+            r.avertissements.append("\(echecsDirect) passage\(echecsDirect > 1 ? "s" : "") du direct n'\(echecsDirect > 1 ? "ont" : "a") pas pu être transcrit\(echecsDirect > 1 ? "s" : "") (réseau ou limite de Groq).")
+        }
+        if sonMuet {
             r.avertissements.append("Le son du Mac est resté totalement silencieux. Soit rien ne jouait, soit l'autorisation d'enregistrer le son du système manque (Réglages Système › Confidentialité et sécurité).")
         }
-        // le son n'a servi qu'à la relecture : il part, sauf si le réglage demande de le garder (pour réécouter un moment)
-        if !r.sonGarde { store.effacerSon(r) }
+        rangerLeSon(&r)
         store.enregistrer(r)
         avancer(1, PreparationNote.redaction)
-        terminerTraitement(note: r.id, sansNote: r.etat == .sansNote)
+        if r.segments.isEmpty {
+            // ni relecture ni direct : pas de « Transcription prête » vide ; la réunion attend dans Réunions, son gardé
+            terminerTraitement(note: nil, message: "Relecture impossible, son gardé")
+        } else {
+            terminerTraitement(note: r.id, sansNote: r.etat == .sansNote)
+        }
     }
 
+    /// Le son n'a servi qu'à la relecture : il part quand la note est prête ET que tout l'appel a été relu (sauf si le réglage demande
+    /// de le garder, pour réécouter un moment). Sinon il reste `joursSonEnAttente` jours pour « Refaire la note », et la note le dit.
+    private func rangerLeSon(_ r: inout Reunion) {
+        r.avertissements.removeAll { $0.hasPrefix(Self.avertissementSonGarde) }
+        if ArchiveReunions.sonInutile(apresNote: r) {
+            store.effacerSon(r)
+            r.passagesParVoix = [:]
+        } else if !r.sonGarde, store.sonPresent(r, .moi) || store.sonPresent(r, .eux) {
+            r.avertissements.append("\(Self.avertissementSonGarde) \(ArchiveReunions.joursSonEnAttente) jours sur ce Mac, le temps de « Refaire la note ».")
+        }
+    }
+    static let avertissementSonGarde = "Le son de l\u{2019}appel est gardé"
+    static let avertissementRelecture = "pas pu être relu"
+
     /// La relecture puis la note, sans rien du contrôleur (l'essai l'appelle avec une relecture et une rédaction factices) : la réunion
-    /// prête (ou « sans note » si la rédaction a échoué), nil si rien n'a été entendu. `surNote` : la transcription relue, juste avant
+    /// prête (ou « sans note » si la rédaction ou la relecture a échoué), nil seulement si rien n'a été entendu (aucun passage, ou une
+    /// relecture complète qui n'a rien trouvé) : une relecture en échec ne fait JAMAIS effacer l'appel. `surNote` : la transcription relue, juste avant
     /// la rédaction (elle est enregistrée tout de suite : rien ne se perd si la rédaction échoue ou si Verbe est fermé).
     nonisolated static func preparer(_ depart: Reunion, passages: [Locuteur: [PassageParole]], direct: [SegmentReunion], fichiers: [Locuteur: URL],
                                      relecture: RelectureAudio, rediger: RedigerNote, surNote: @escaping @Sendable (Reunion) -> Void = { _ in },
@@ -290,10 +362,20 @@ final class ReunionController: ObservableObject {
         let (fusion, echos) = FusionPistes.transcription(moi: relu.segments.filter { $0.locuteur == .moi }, eux: relu.segments.filter { $0.locuteur == .eux },
                                                          dureeMax: RelectureReunion.tourMax)
         if echos > 0 { Log.ecrire("réunion : \(echos) écho(s) du haut-parleur retiré(s) de la piste Moi") }
-        guard !fusion.isEmpty, depart.duree >= 3 else { return nil }
+        guard depart.duree >= 3 else { return nil }
         var r = depart
+        r.passagesParVoix = passages
+        // relue : TOUT l'appel relu ; sinon le son reste pour « Refaire la note »
+        r.relue = relu.complete
+        if fusion.isEmpty {
+            // vraiment rien entendu (la relecture a tout relu, ou il n'y avait aucun passage) : la réunion n'est pas gardée ; mais si la
+            // relecture a échoué, l'enregistrement est intact sur le disque : la réunion reste, sans note, pour réessayer
+            guard relu.echoues > 0 else { return nil }
+            r.etat = .sansNote
+            r.avertissements.append("L\u{2019}appel n\u{2019}a pas pu être relu (réseau ou limite de Groq) et le direct n\u{2019}a rien donné. « Refaire la note » réessaiera.")
+            return r
+        }
         r.segments = fusion
-        r.relue = relu.relue
         if relu.echoues > 0 {
             r.avertissements.append("\(relu.echoues) passage\(relu.echoues > 1 ? "s" : "") de l\u{2019}appel n\u{2019}\(relu.echoues > 1 ? "ont" : "a") pas pu être relu\(relu.echoues > 1 ? "s" : "") (réseau ou limite de Groq) : c\u{2019}est la transcription du direct.")
         }
@@ -331,51 +413,111 @@ final class ReunionController: ObservableObject {
         if case .prete = machine.phase { programmerRetrait(apres: 8) }
     }
 
-    /// Réécrit la note d'une réunion qui n'en a pas (la transcription est gardée) : bouton « Refaire la note ».
-    func refaireLaNote(id: UUID) {
-        guard var r = store.reunion(id: id), !r.segments.isEmpty, r.etat == .sansNote || r.etat == .prete else { return }
+    /// Réécrit la note d'une réunion : bouton « Refaire la note » (note pas écrite, appel pas entièrement relu, Verbe fermé pendant
+    /// l'appel). Si le son est encore là et que l'appel n'a pas été entièrement relu, il est relu d'abord, avec les passages de parole
+    /// enregistrés pendant l'appel. Rien n'est effacé tant que la note n'est pas prête ET l'appel entièrement relu.
+    @discardableResult
+    func refaireLaNote(id: UUID) -> Task<Void, Never>? {
+        guard var r = store.reunion(id: id), r.etat == .sansNote || r.etat == .prete else { return nil }
+        let sonLa = store.sonPresent(r, .moi) || store.sonPresent(r, .eux)
+        guard !r.segments.isEmpty || sonLa else { return nil }
         r.etat = .redaction
         r.avertissements.removeAll { $0.hasPrefix("La note n'a pas pu être écrite") }
         store.enregistrer(r)
+        let depart = r
         libelleEnCours = "Note en préparation…"
         let fichiers = [Locuteur.moi: store.fichierSon(r, .moi), .eux: store.fichierSon(r, .eux)]
-        let relire = r.relue != true && (store.sonPresent(r, .moi) || store.sonPresent(r, .eux))
-        Task {
-            // un appel interrompu (Verbe fermé) garde son son : il est relu avant la note, comme à l'arrêt normal
+        let relire = r.relue != true && sonLa
+        return Task {
             if relire {
-                let relu = await relecture.relire(passages: [:], direct: r.segments, fichiers: fichiers, duree: r.duree) { _, _ in }
+                let relu = await relecture.relire(passages: r.passagesParVoix, direct: r.segments, fichiers: fichiers, duree: r.duree) { _, _ in }
                 if relu.relue {
                     r.segments = FusionPistes.transcription(moi: relu.segments.filter { $0.locuteur == .moi }, eux: relu.segments.filter { $0.locuteur == .eux },
                                                             dureeMax: RelectureReunion.tourMax).segments
-                    r.relue = true
+                }
+                if relu.lots > 0 { r.relue = relu.complete }
+                if relu.complete { r.avertissements.removeAll { $0.contains(Self.avertissementRelecture) } }
+            }
+            if r.segments.isEmpty {
+                r.etat = .sansNote
+                if !r.avertissements.contains(where: { $0.contains(Self.avertissementRelecture) }) {
+                    r.avertissements.append("L\u{2019}appel n\u{2019}a pas pu être relu (réseau ou limite de Groq). « Refaire la note » réessaiera.")
+                }
+            } else {
+                do {
+                    let (note, _) = try await rediger(r.segments, r.duree, r.debut) { _, _ in }
+                    NoteReunion.appliquer(note, a: &r, segments: r.segments)
+                    r.etat = .prete
+                } catch {
+                    r.etat = .sansNote
+                    r.avertissements.append("La note n'a pas pu être écrite (\(error)). La transcription est gardée : « Refaire la note » réessaie.")
                 }
             }
-            do {
-                let (note, _) = try await rediger(r.segments, r.duree, r.debut) { _, _ in }
-                NoteReunion.appliquer(note, a: &r, segments: r.segments)
-                r.etat = .prete
-                if !r.sonGarde { store.effacerSon(r) }
-            } catch {
-                r.etat = .sansNote
-                r.avertissements.append("La note n'a pas pu être écrite (\(error)). La transcription est gardée : « Refaire la note » réessaie.")
-            }
-            store.enregistrer(r)
             libelleEnCours = machine.enregistre ? "Réunion en cours…" : (machine.enTraitement > 0 ? "Note en préparation…" : nil)
+            // effacée pendant ce temps : rien n'est recréé ; sinon ce qui a été changé entre-temps est gardé
+            guard let actuelle = store.reunion(id: id) else { return }
+            r = ArchiveReunions.garderLesModifications(de: actuelle, depuis: depart, dans: r)
+            rangerLeSon(&r)
+            store.enregistrer(r)
         }
     }
 
     // MARK: pendant l'enregistrement
 
     private func segmentRecu(_ s: Session) {
-        if session === s { majDirect(s) }
-        guard Date().timeIntervalSince(s.derniereSauvegarde) > 5 || session !== s else { return }
+        guard session === s else { return }
+        majDirect(s)
+        sauverSiBesoin(s)
+    }
+
+    /// Toutes les 5 s au plus, si quelque chose a changé (passage entendu ou transcrit) : la réunion en cours est enregistrée, avec
+    /// ses passages de parole (rien ne se perd si Verbe s'arrête, même quand le direct échoue).
+    private func sauverSiBesoin(_ s: Session) {
+        guard Date().timeIntervalSince(s.derniereSauvegarde) > 5, s.versionActuelle() != s.versionSauvee else { return }
+        sauver(s)
+    }
+
+    /// Enregistre la réunion en cours. Effacée entre-temps (onglet Réunions) : l'enregistrement s'arrête, sans note, et rien n'est
+    /// recréé (faux dans ce cas).
+    @discardableResult
+    private func sauver(_ s: Session) -> Bool {
+        guard session === s else { return false }
+        guard let actuelle = store.reunion(id: s.reunion.id) else { abandonnerEffacee(s); return false }
+        s.versionSauvee = s.versionActuelle()
         s.derniereSauvegarde = Date()
+        s.reunion = Self.photo(s, actuelle: actuelle)
+        store.enregistrer(s.reunion)
+        return true
+    }
+
+    /// La réunion de la session telle qu'elle est maintenant : transcription du direct, durée, points, passages de parole ; le titre
+    /// et les orateurs sont ceux de la version enregistrée (l'utilisateur a pu les changer pendant l'appel).
+    private static func photo(_ s: Session, actuelle: Reunion) -> Reunion {
         let (moi, eux) = s.copies()
         var r = s.reunion
         r.segments = FusionPistes.transcription(moi: moi, eux: eux).segments
         r.duree = s.horloge.temps()
         r.points = s.points.isEmpty ? nil : s.points
-        if session === s { s.reunion = r; store.enregistrer(r) }
+        r.passagesParVoix = s.copiePassages()
+        r.titre = actuelle.titre
+        r.orateurs = actuelle.orateurs
+        return r
+    }
+
+    /// La réunion en cours a été effacée : tout s'arrête, sans note (ses fichiers sont déjà effacés).
+    private func abandonnerEffacee(_ s: Session) {
+        guard session === s, machine.arreter() else { return }
+        session = nil
+        Log.ecrire("réunion : effacée pendant l'enregistrement, arrêtée sans note")
+        s.horloge.pause()
+        s.moi.terminer(); s.eux.terminer()
+        arreterLesSources(s)
+        s.transcripteur.annuler()
+        arreterMinuteurs()
+        rattrapage?.cancel(); rattrapage = nil
+        finPoint?.cancel()
+        etatIlot = nil
+        terminerTraitement(note: nil, message: "Réunion effacée")
     }
 
     /// Pendant l'enregistrement seulement : une fois par seconde, le direct est recalculé (la parole en cours, les morceaux partis chez
@@ -386,6 +528,7 @@ final class ReunionController: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self, let s, self.session === s, self.machine.enregistre else { return }
                 self.majDirect(s)
+                self.sauverSiBesoin(s)
             }
         }
         direct.tolerance = 0.3
@@ -416,8 +559,7 @@ final class ReunionController: ObservableObject {
         guard let s = session, machine.enregistre else { return }
         let t = s.horloge.temps()
         s.points.append(t)
-        s.reunion.points = s.points
-        store.enregistrer(s.reunion)
+        guard sauver(s) else { return }
         Log.ecrire("réunion : point marqué à \(FormatReunion.horloge(t))")
         etatIlot?.rattrapage = .ferme
         rattrapage?.cancel(); rattrapage = nil

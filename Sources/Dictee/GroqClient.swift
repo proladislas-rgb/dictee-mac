@@ -135,21 +135,13 @@ final class GroqClient: @unchecked Sendable {
     }
 
     /// La relecture d'après l'appel : un lot de son (deux minutes au plus) transcrit avec ses phrases horodatées (`verbose_json`,
-    /// horodatage par phrase), avec le modèle demandé (précis par défaut ; le turbo prend le relais si le précis est limité ou en panne).
-    func transcrirePhrases(fichier: EncodeurAudio.Fichier, prompt: String, langue: String?, etiquette: String, modele: ModeleWhisper = .precis) async throws -> [PhraseWhisper] {
-        var modele = modele
-        if modele == .precis, BudgetRequetes.precis.enPause() { modele = .rapide; Log.ecrire("\(etiquette) : modèle précis en pause -> turbo") }
-        func une(_ m: ModeleWhisper) async throws -> [PhraseWhisper] {
-            let langueEnvoyee = (langue?.isEmpty ?? true) ? nil : langue
-            let r = try await requete(modele: m, fichier: fichier, prompt: prompt, langue: langueEnvoyee, verbose: true, etiquette: etiquette, horodatage: true)
-            guard let phrases = RelectureReunion.analyser(r.donnees) else { throw GroqErreur.reponseIllisible }
-            return phrases
-        }
-        do { return try await une(modele) }
-        catch let e as GroqErreur where modele == .precis && Self.justifieLeSecours(e) {
-            Log.ecrire("\(etiquette) : modèle précis en échec (\(e)) -> turbo")
-            return try await une(.rapide)
-        }
+    /// horodatage par phrase), avec le modèle précis SEULEMENT. Pas de secours sur le turbo : ses minutes sont celles de la dictée et
+    /// du direct (`BudgetAudio.partage`), et un lot refusé a déjà son repli, gratuit (le direct, et le son gardé pour « Refaire la note »).
+    func transcrirePhrases(fichier: EncodeurAudio.Fichier, prompt: String, langue: String?, etiquette: String) async throws -> [PhraseWhisper] {
+        let langueEnvoyee = (langue?.isEmpty ?? true) ? nil : langue
+        let r = try await requete(modele: .precis, fichier: fichier, prompt: prompt, langue: langueEnvoyee, verbose: true, etiquette: etiquette, horodatage: true)
+        guard let phrases = RelectureReunion.analyser(r.donnees) else { throw GroqErreur.reponseIllisible }
+        return phrases
     }
 
     private func requete(modele: ModeleWhisper, fichier: EncodeurAudio.Fichier, prompt: String, langue: String?, verbose: Bool, etiquette: String,

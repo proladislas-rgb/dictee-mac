@@ -80,6 +80,14 @@ enum MesureIlot {
         let f = chiffres ? NSFont.monospacedDigitSystemFont(ofSize: taille, weight: poids) : NSFont.systemFont(ofSize: taille, weight: poids)
         return ceil((s as NSString).size(withAttributes: [.font: f, .kern: interlettre]).width) + 1
     }
+    /// Le nombre de lignes d'un texte coupé à `largeur` (Core Text, même police que la carte).
+    static func lignes(_ s: String, _ taille: CGFloat, _ poids: NSFont.Weight, largeur: CGFloat) -> Int {
+        guard !s.isEmpty, largeur > 0 else { return s.isEmpty ? 0 : .max }
+        let f = NSFont.systemFont(ofSize: taille, weight: poids)
+        let h = (s as NSString).boundingRect(with: NSSize(width: largeur, height: .greatestFiniteMagnitude),
+                                             options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: f]).height
+        return max(1, Int((h / (f.ascender - f.descender + f.leading)).rounded()))
+    }
     static func symbole(_ nom: String, _ taille: CGFloat, _ poids: NSFont.Weight = .semibold) -> CGFloat {
         let c = NSImage.SymbolConfiguration(pointSize: taille, weight: poids)
         return ceil(NSImage(systemSymbolName: nom, accessibilityDescription: nil)?.withSymbolConfiguration(c)?.size.width ?? taille)

@@ -451,7 +451,7 @@ struct RattrapageVue: View {
                     ForEach(Array(puces.enumerated()), id: \.offset) { _, p in
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Circle().fill(Color.white.opacity(0.5)).frame(width: 5, height: 5).alignmentGuide(.firstTextBaseline) { d in d[.bottom] + 4 }
-                            Text(p).font(.system(size: 13.5, weight: .regular)).foregroundStyle(Color.white.opacity(0.92))
+                            Text(Self.puce(p, largeur: largeur)).font(.system(size: 13.5, weight: .regular)).foregroundStyle(Color.white.opacity(0.92))
                                 .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -463,6 +463,18 @@ struct RattrapageVue: View {
                 EmptyView()
             }
         }
+    }
+}
+
+extension RattrapageVue {
+    /// La place du texte d'une puce : la largeur de la carte moins le point (5 pt), l'écart (10 pt) et la marge (2 pt).
+    static func largeurPuce(_ largeur: CGFloat) -> CGFloat { largeur - 17 }
+
+    /// La puce mesurée : si elle demande plus de deux lignes à la vraie police, elle finit au dernier mot entier qui tient, avec « … »
+    /// (sinon `lineLimit(2)` la rognerait au milieu d'un mot, souvent sur l'échéance ou le nom). 2 pt de marge : SwiftUI et Core Text
+    /// ne coupent pas les lignes exactement au même point.
+    static func puce(_ p: String, largeur: CGFloat) -> String {
+        RattrapageReunion.ajuster(p) { MesureIlot.lignes($0, 13.5, .regular, largeur: largeurPuce(largeur) - 2) <= 2 }
     }
 }
 

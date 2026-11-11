@@ -130,9 +130,13 @@ public struct Reunion: Codable, Equatable, Identifiable, Sendable {
     public var sujets: [SujetReunion]?
     /// Les orateurs et leur nom (nil : « Moi » et « Eux »).
     public var orateurs: [OrateurReunion]?
-    /// Vrai quand tout l'enregistrement a été retranscrit d'un coup après l'appel (modèle précis) ; faux ou absent : la transcription
-    /// est celle du direct, recollée.
+    /// Vrai quand TOUT l'enregistrement a été retranscrit d'un coup après l'appel (modèle précis) ; faux : une partie (ou tout) n'a
+    /// pas pu être relue (réseau, limite de Groq) et c'est le direct qui la remplace ; absent : notes d'avant la relecture.
     public var relue: Bool?
+    /// Les passages de parole vus pendant l'appel, voix par voix (ce que la relecture renvoie, sans les silences). Gardés tant que le
+    /// son l'est : « Refaire la note » après un arrêt brutal ou une relecture impossible les relit. nil : inconnus (anciennes notes).
+    public var passagesMoi: [PassageParole]?
+    public var passagesEux: [PassageParole]?
 
     public init(id: UUID = UUID(), debut: Date = Date(), duree: Double = 0, titre: String = "", participants: [String] = [],
                 dit: [String] = [], decisions: [String] = [], actions: [ActionReunion] = [], segments: [SegmentReunion] = [],
@@ -203,6 +207,17 @@ public struct Reunion: Codable, Equatable, Identifiable, Sendable {
     }
 
     public var motsTranscrits: Int { segments.reduce(0) { $0 + Historique.compterMots($1.texte) } }
+
+    /// Les passages de parole connus, voix par voix (une voix absente : inconnue, la relecture les retrouve dans la transcription).
+    public var passagesParVoix: [Locuteur: [PassageParole]] {
+        get {
+            var d: [Locuteur: [PassageParole]] = [:]
+            if let p = passagesMoi { d[.moi] = p }
+            if let p = passagesEux { d[.eux] = p }
+            return d
+        }
+        set { passagesMoi = newValue[.moi]; passagesEux = newValue[.eux] }
+    }
 }
 
 /// Dates et durées à la française.
@@ -361,5 +376,36 @@ public enum ArchiveReunions {
             s.avertissements.append("Cette réunion s'est arrêtée avant la fin (Verbe a été fermé). La transcription est celle des morceaux déjà reçus.")
         }
         return s
+    }
+
+    /// Jours pendant lesquels le son d'une réunion reste sur le Mac quand il n'a pas pu servir (relecture incomplète, note pas écrite,
+    /// Verbe fermé pendant l'appel) : le temps de « Refaire la note ». Au-delà, il est effacé au lancement.
+    public static let joursSonEnAttente = 7
+
+    /// Le son peut-il partir maintenant que la note est faite ? Seulement si la note est prête ET que tout l'appel a été relu
+    /// (sinon « Refaire la note » en a encore besoin), et si le réglage « Garder le son des réunions » était éteint.
+    public static func sonInutile(apresNote r: Reunion) -> Bool {
+        !r.sonGarde && r.etat == .prete && r.relue == true
+    }
+
+    /// Au lancement : un son gardé pour réessayer, plus vieux que `joursSonEnAttente` jours, est effacé (le réglage « garder » éteint).
+    public static func sonPerime(_ r: Reunion, maintenant: Date) -> Bool {
+        guard !r.sonGarde, r.etat == .prete || r.etat == .sansNote else { return false }
+        return maintenant.timeIntervalSince(r.debut.addingTimeInterval(r.duree)) > Double(joursSonEnAttente) * 86_400
+    }
+
+    /// Une réunion réécrite après un long traitement (relecture, note) : ce que l'utilisateur a changé pendant ce temps dans la version
+    /// enregistrée (`actuelle`, par rapport à `depart`, celle d'où le traitement est parti) est gardé : le titre, les orateurs renommés,
+    /// les prochaines étapes cochées.
+    public static func garderLesModifications(de actuelle: Reunion, depuis depart: Reunion, dans r: Reunion) -> Reunion {
+        var x = r
+        if actuelle.titre != depart.titre { x.titre = actuelle.titre }
+        for o in actuelle.orateurs ?? [] where o.nom != depart.orateur(id: o.id, piste: o.piste).nom {
+            x.renommer(orateur: o.id, en: o.nom)
+        }
+        for a in actuelle.actions where a.fait && !(depart.actions.first { $0.id == a.id }?.fait ?? false) {
+            if let i = x.actions.firstIndex(where: { $0.id == a.id || $0.quoi == a.quoi }) { x.actions[i].fait = true }
+        }
+        return x
     }
 }
