@@ -65,6 +65,8 @@ enum ActionIlot {
     case rappelFormulaire
     case rendezVousRejoindre(EvenementAgenda), rendezVousNoter(EvenementAgenda)
     case collerLaDerniereDictee
+    /// Le micro de la dictée : celui des AirPods (vrai) ou celui du Mac (faux, le réglage Automatique).
+    case microChoisir(airpods: Bool)
     /// « Ouvrir » sur le bandeau Téléchargé : le fichier (un seul) ou le Finder sur les fichiers (plusieurs).
     case fichiersOuvrir([URL])
     /// « Rouvrir » sur le micro coupé déplié.
@@ -189,6 +191,8 @@ final class IlotMoteur: ObservableObject {
     private(set) var dernierClaude: SessionClaude?
     /// L'étagère (réglage allumé) et ses fichiers, dans l'ordre où ils ont été rangés.
     var etagereActive = false
+    /// Des écouteurs Bluetooth avec un micro sont là : l'accueil propose « Micro : Mac / AirPods » (nom des écouteurs, leur micro choisi ?).
+    var choixMicro: (nom: String, airpods: Bool)?
     var etagere: [FichierEtagere] = []
     /// Un glisser de fichiers est près de l'encoche : l'îlot s'ouvre en « Déposez ici ». `depotSurvole` : le pointeur est sur la zone,
     /// elle s'éclaire.
@@ -333,6 +337,7 @@ final class IlotMoteur: ObservableObject {
     var hauteursEnPlus: [VueIlot: CGFloat] {
         var d: [VueIlot: CGFloat] = [:]
         if etagereActive, !etagere.isEmpty { d[.accueil] = CGFloat(GeoIlot.ligneAccueil); d[.lectureMinuteur] = CGFloat(GeoIlot.ligneAccueil) }
+        if choixMicro != nil { d[.accueil, default: 0] += CGFloat(GeoIlot.ligneAccueil) }
         if EtagereIlot.rangees(etagere.count) > 1 { d[.etagere] = CGFloat(GeoIlot.rangeeEtagere) }
         return d
     }

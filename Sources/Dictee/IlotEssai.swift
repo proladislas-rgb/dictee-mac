@@ -35,6 +35,7 @@ enum IlotEssai {
             c.montrer = { finder.append($0) }
             c.surNoter = { _ in notes += 1 }
             c.panneau.invisible = true
+            c.lireMicros = { [] }
             c.lecture.essaiInvisible = true
             return c
         }

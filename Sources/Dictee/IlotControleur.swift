@@ -303,6 +303,7 @@ final class IlotControleur {
     }
     private func appareilsChanges() {
         moteur.ecouteurs = appareilsSource.ecouteurs
+        relireChoixMicro()
         moteur.donneesChangees()
     }
     /// Des écouteurs (ou une souris, un clavier) viennent de se connecter : 3,5 s de bandeau, avec leurs jauges.
@@ -369,7 +370,16 @@ final class IlotControleur {
 
     /// L'îlot se déplie : on relit ce que l'accueil montre (dernière dictée, prochain rendez-vous) et le site de la lecture. L'heure n'y
     /// est plus : la barre des menus l'affiche déjà juste à côté.
+    /// Un micro Bluetooth est branché (AirPods…) : l'accueil propose de choisir le micro de la dictée. « Mac » = le réglage Automatique.
+    /// Les micros du Mac (injectable : l'essai ne lit jamais les vrais).
+    var lireMicros: () -> [PeripheriqueEntree] = { AudioCapture.peripheriquesEntree() }
+    func relireChoixMicro() {
+        let bt = lireMicros().first { $0.transport == .bluetooth }
+        moteur.choixMicro = bt.map { ($0.nom, Settings.micro == $0.uid) }
+    }
+
     private func depliage() {
+        relireChoixMicro()
         if let e = HistoriqueStore.shared.historique.entrees.first(where: { $0.insere || !$0.texte.isEmpty }) {
             let texte = e.texte.trimmingCharacters(in: .whitespacesAndNewlines)
             moteur.derniereDictee = (String(texte.prefix(90)), ageLisible(e.date))
@@ -433,6 +443,13 @@ final class IlotControleur {
             ramenerApp(app)
         case .etagereOuvrir, .etagereRetirer, .etagereVider:
             agirEtagere(action)
+        case .microChoisir(let airpods):
+            let bt = lireMicros().first { $0.transport == .bluetooth }
+            Settings.micro = airpods ? bt?.uid : nil
+            Log.ecrire("micro : choisi depuis l'îlot, \(airpods ? "celui de \(bt?.nom ?? "?")" : "celui du Mac (Automatique)")")
+            relireChoixMicro()
+            moteur.donneesChangees()
+            NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
         case .collerLaDerniereDictee:
             if let d = HistoriqueStore.shared.historique.entrees.first?.texte, !d.isEmpty { moteur.fermer(); surColler(d) }
         }

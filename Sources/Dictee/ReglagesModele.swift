@@ -128,7 +128,8 @@ final class ReglagesModele: ObservableObject {
         if reel {
             NotificationCenter.default.addObserver(forName: .verbeIlotReglagesRelus, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { guard let self else { return }; if self.ilotCalendrier != Settings.ilotCalendrier { self.ilotCalendrier = Settings.ilotCalendrier }
-                    if self.ilotTelechargements != Settings.ilotTelechargements { self.ilotTelechargements = Settings.ilotTelechargements } }
+                    if self.ilotTelechargements != Settings.ilotTelechargements { self.ilotTelechargements = Settings.ilotTelechargements }
+                    if self.micro != (Settings.micro ?? "") { self.micro = Settings.micro ?? "" } }
             }
         }
         if reel { rafraichir() } else { micros.append(MicroChoix(id: "exemple", nom: "Micro du MacBook")); disponibiliteSecours = .pret; cle = .trousseau }

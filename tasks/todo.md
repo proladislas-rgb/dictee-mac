@@ -189,3 +189,19 @@ Maquette : `design/maquettes/apple-acces/1-controles.html`. Hugues ne trouvait p
 - [x] 5. Réglage « Batterie et appareils » (Réglages › Îlot), NSBluetoothAlwaysUsageDescription dans l'Info.plist
 - [x] 6. Contrôles (géométrie, bulle, épaules), essai îlot, rendus comparés à la maquette, relecture par un agent, installation, push
 - [ ] Hugues : essayer en vrai (bulle à côté pendant une vidéo + minuteur, survol = batterie et AirPods, brancher le chargeur, connecter les AirPods ; macOS demande une fois le Bluetooth). Non vérifié d'ici : la batterie de vrais AirPods (méthodes non documentées).
+
+## Les 5 idées en plus, à la suite (11/11, Hugues : « fais les 5 à la suite… pouvoir scroller… optimisé, fluide, cohérent avec l'UX de mon Mac »)
+MAQUETTE D'ABORD (Hugues montre la maquette concept 3 « Spotlight » : « les propos de cette maquette sont excellents ») : `design/maquettes/ilot-cinq.html`, les 5 à la suite sur une page qui défile, chacune jouée étape par étape sur un vrai écran ; construction dans Verbe après son choix.
+Ancienne lecture (gardée si Hugues la confirme) : l'îlot ouvert devient une pile de cartes qu'on fait défiler à deux doigts (trackpad), comme une pile de widgets, points de page à droite ; le contenu suit le doigt, puis se cale avec un ressort.
+- [ ] A. Pile de cartes : défilement à deux doigts sur l'îlot ouvert (accueil, activité, nouvelles cartes), points de page, élastique aux bouts, « Réduire les animations » respecté
+- [x] B. Téléchargé : un fichier qui arrive dans Téléchargements (AirDrop compris) → bandeau 4 s (icône, nom, taille, « Ouvrir ») ; carte des derniers téléchargements (glisser vers une app)
+- [x] C. Claude au travail : crochets de Claude Code (~/.claude/settings.json, fusion sans rien écraser) → fichier d'état → l'îlot montre la tâche, « 3 sur 7 », « Terminé », « Attend ta réponse »
+- [x] D. Micro coupé : raccourci global (réglable), micro d'entrée coupé (CoreAudio), activité rouge dans l'îlot tant que c'est coupé ; la dictée fn le rouvre le temps de dicter
+- [x] E. Volume et luminosité : les touches du clavier s'affichent dans l'îlot (barre) à la place de l'affichage du système
+- [x] F. Étagère : glisser des fichiers sur l'encoche → ils y restent (carte Étagère), on les reprend en les glissant
+- [x] Pour chacun : contrôles, essai, rendus, relecture, installation, push (équipe : 65f702a f5e0951 84ba865 f8d243f e7da86f, relecture bbf4bda ; installé 11/11 14 h)
+- [ ] Hugues : essayer en vrai (⌃⌥M, touches volume/luminosité, Réglages › Téléchargements à allumer, « Brancher Claude Code », glisser un fichier sur l'encoche). Non vérifiés d'ici : vrais gestes clavier/souris.
+- [x] (Hugues 11/11 ~11 h, capture) Épaule batterie : « 100… » tronqué et l'icône verte avec éclair « pas dingue » → pile dessinée façon iPhone : le pourcentage DANS la pile (chiffres découpés), remplissage blanc / vert en charge / rouge ≤ 20 %, petit éclair à côté si branché ; ~34 pt, plus jamais tronqué. À faire APRÈS l'équipe (elle travaille sur main, ne pas compiler en même temps).
+- [x] (11/11 12 h 20) Micro avec AirPods : micro du Mac ouvert directement (EntreeHAL, d109a59), correctif installé seul (sur dcc62db). VÉRIFIÉ par Hugues à 12 h 57 (« ça marche, très agréable »), premier son en 48 ms. Était : À VÉRIFIER dans le journal à la prochaine dictée avec AirPods (« micro direct « Micro MacBook Air » » puis « premier son »).
+- [ ] Même défaut possible dans les notes de réunion (MicroReunion.swift impose aussi un micro via AVAudioEngine) : passer à EntreeHAL
+- [x] (Hugues 11/11 : « je veux que les deux soient possibles ») Micro du Mac OU des AirPods : déjà dans Réglages › Micro ; ajouter un choix rapide dans l'îlot quand des AirPods sont connectés (ligne « Micro : Mac / AirPods » dans l'accueil et touche sur l'épaule AirPods), après l'équipe

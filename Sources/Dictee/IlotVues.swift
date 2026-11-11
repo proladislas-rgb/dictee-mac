@@ -177,9 +177,11 @@ struct IlotCalques: View {
         let couleur = v == .batterieCharge ? CouleursIlot.vert : CouleursIlot.rouge
         let c = g.centreAile(v, droite: false)
         return ZStack(alignment: .topLeading) {
-            Image(systemName: v == .batterieCharge ? "battery.100percent.bolt" : "battery.25percent")
-                .font(.system(size: 15, weight: .semibold)).foregroundStyle(couleur)
-                .posee(CGRect(x: c - 18, y: 0, width: 36, height: g.barre), m.aspect(v, rang: 0), ancre: .center, .center)
+            Group {
+                if v == .batterieCharge { Image(systemName: "bolt.fill").font(.system(size: 14, weight: .semibold)).foregroundStyle(couleur) }
+                else { PileIlot(pourcent: e.pourcent, secteur: false, chiffres: false, echelle: 1.15) }
+            }
+            .posee(CGRect(x: c - 18, y: 0, width: 36, height: g.barre), m.aspect(v, rang: 0), ancre: .center, .center)
             heureAile(v, e.texte, couleur)
         }
         .accessibilityElement(children: .ignore)
@@ -473,11 +475,22 @@ struct IlotCalques: View {
             }
             ligneAccueil(v, 3, glyphe: GlypheIlot(nom: "quote.opening", couleur: Color.white.opacity(0.7), taille: 15),
                          titre: d?.texte ?? "Rien pour l\u{2019}instant", police: TexteIlot.extrait, couleurTitre: Color.white.opacity(0.86),
-                         sous: "Dernière dictée" + (d.map { " \u{00B7} il y a " + $0.age } ?? ""), filet: etagere) {
+                         sous: "Dernière dictée" + (d.map { " \u{00B7} il y a " + $0.age } ?? ""), filet: etagere || m.choixMicro != nil) {
                 if d != nil { CapIlot(titre: "Coller", hauteur: 28, etiquette: "Coller la dernière dictée") { m.surAction(.collerLaDerniereDictee) } }
             }
+            // des AirPods (ou un autre casque) sont là : on choisit d'un clic le micro qui écoute la dictée
+            if let c = m.choixMicro {
+                ligneAccueil(v, 4, glyphe: GlypheIlot(nom: c.airpods ? "airpodspro" : "laptopcomputer", couleur: Color.white.opacity(0.85), taille: 16),
+                             titre: "Micro", sous: c.airpods ? "Celui de tes écouteurs" : "Celui du Mac \u{00B7} meilleur son",
+                             filet: etagere) {
+                    HStack(spacing: 6) {
+                        CapIlot(titre: "Mac", style: c.airpods ? .gris : .vert, hauteur: 28, etiquette: "Dicter avec le micro du Mac") { m.surAction(.microChoisir(airpods: false)) }
+                        CapIlot(titre: "AirPods", style: c.airpods ? .vert : .gris, hauteur: 28, etiquette: "Dicter avec le micro de \(c.nom)") { m.surAction(.microChoisir(airpods: true)) }
+                    }
+                }
+            }
             // l'étagère, quand elle garde des fichiers : « Étagère · 2 fichiers », leurs noms ; un clic ouvre la carte
-            if etagere { ligneEtagere(v, 4, filet: false) }
+            if etagere { ligneEtagere(v, m.choixMicro != nil ? 5 : 4, filet: false) }
             Spacer(minLength: 0)
         }
         .frame(width: z.width, height: z.height, alignment: .top)
@@ -831,12 +844,7 @@ struct EpaulesIlot: View {
         let l = CGFloat(GeoIlot.epaules) - 4
         ZStack(alignment: .topLeading) {
             if let e = m.energie {
-                HStack(spacing: 2.5) {
-                    Image(systemName: e.symbole).font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(e.secteur ? CouleursIlot.vert : (e.pourcent <= 20 ? CouleursIlot.rouge : Color.white))
-                    Text(e.texte).font(.system(size: 12, weight: .semibold).monospacedDigit()).foregroundStyle(.white)
-                }
-                .lineLimit(1).minimumScaleFactor(0.8)
+                PileIlot(pourcent: e.pourcent, secteur: e.secteur)
                 .posee(CGRect(x: -g.hc - CGFloat(GeoIlot.epaules) + 2, y: 0, width: l, height: g.barre), a, ancre: .center, .center)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Batterie du Mac, \(e.pourcent) %" + (e.secteur ? ", branché" : ""))
@@ -941,5 +949,43 @@ extension View {
                 return NSItemProvider(contentsOf: url) ?? NSItemProvider(object: url as NSURL)
             }
         } else { self }
+    }
+}
+
+/// La pile de l'îlot, dessinée comme celle de l'iPhone : un corps gris, le niveau qui le remplit (blanc ; vert sur le secteur ; rouge à
+/// 20 % et moins), le pourcentage DÉCOUPÉ dedans (on voit le noir de l'îlot à travers), un petit éclair à côté quand elle est branchée.
+/// 26 × 12 pt (34 avec l'éclair) : « 100 » tient toujours, plus jamais de « 100… ».
+struct PileIlot: View {
+    var pourcent: Int
+    var secteur: Bool
+    var chiffres = true
+    var echelle: CGFloat = 1
+    var body: some View {
+        let p = CGFloat(min(100, max(0, pourcent))) / 100
+        let couleur = secteur ? CouleursIlot.vert : (pourcent <= 20 ? CouleursIlot.rouge : Color.white)
+        HStack(spacing: 1.5 * echelle) {
+            HStack(spacing: 1 * echelle) {
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3.6 * echelle, style: .continuous).fill(Color.white.opacity(chiffres ? 0.32 : 0))
+                    RoundedRectangle(cornerRadius: 3.6 * echelle, style: .continuous)
+                        .strokeBorder(Color.white.opacity(chiffres ? 0 : 0.45), lineWidth: 1 * echelle)
+                    // le niveau : rogné par le corps (coins nets à gauche, coupe droite)
+                    Rectangle().fill(couleur).frame(width: (chiffres ? 24 : 20) * echelle * p)
+                        .padding(chiffres ? 0 : 2 * echelle)
+                        .clipShape(RoundedRectangle(cornerRadius: (chiffres ? 3.6 : 2) * echelle, style: .continuous))
+                    if chiffres {
+                        Text("\(pourcent)").font(.system(size: 9.5 * echelle, weight: .heavy).monospacedDigit())
+                            .frame(maxWidth: .infinity)
+                            .blendMode(.destinationOut)
+                    }
+                }
+                .frame(width: 24 * echelle, height: 12 * echelle)
+                .compositingGroup()
+                RoundedRectangle(cornerRadius: 0.8 * echelle).fill(Color.white.opacity(0.38)).frame(width: 1.6 * echelle, height: 4.5 * echelle)
+            }
+            if secteur { Image(systemName: "bolt.fill").font(.system(size: 8.5 * echelle, weight: .bold)).foregroundStyle(CouleursIlot.vert) }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Batterie \(pourcent) %" + (secteur ? ", branchée" : ""))
     }
 }
