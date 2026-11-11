@@ -65,9 +65,14 @@ public struct VeilleTelechargements {
     public private(set) var connus: [String: Int64]
     /// Les nouveaux venus qu'on regarde se stabiliser : leur dernière mesure et depuis quand elle n'a pas bougé.
     public private(set) var candidats: [String: (entree: EntreeDossier, depuis: Date, premier: Date)] = [:]
+    /// Les nouveaux venus encore VIDES, sans « .part » en cours : un fichier écrit sur place (curl -o, wget, cp, AirDrop) se remplit
+    /// sans que le dossier ne prévienne (seuls les ajouts, retraits et renommages le font). On les relit donc de loin en loin.
+    public private(set) var vides: [String: (premier: Date, prochaine: Date)] = [:]
     public static let stabilite: TimeInterval = 1
     /// Un candidat qui grossit encore au bout d'une demi-heure n'est plus suivi (aucune relecture sans fin).
     public static let abandon: TimeInterval = 1800
+    /// Les relectures d'un fichier vide, depuis qu'on l'a vu : de plus en plus espacées, jamais au-delà de `abandon`.
+    public static let pasVides: [TimeInterval] = [1, 3, 10, 30, 60, 120, 300, 600, 1200, 1800]
 
     public init(existants: [EntreeDossier]) {
         connus = Dictionary(existants.map { ($0.nom, Self.cle($0)) }, uniquingKeysWith: { a, _ in a })
@@ -80,17 +85,26 @@ public struct VeilleTelechargements {
         // ce qui a disparu est oublié : un fichier supprimé puis retéléchargé sous le même nom s'annonce de nouveau
         for n in connus.keys where !presents.contains(n) { connus[n] = nil }
         for n in candidats.keys where !presents.contains(n) { candidats[n] = nil }
+        for n in vides.keys where !presents.contains(n) { vides[n] = nil }
         let enCours = Set(noms.compactMap(FiltreTelechargements.cible(deEnCours:)))
         var prets: [EntreeDossier] = []
         for n in noms where FiltreTelechargements.estFini(n) {
             // connu (et pas vide) : rien à relire ; connu vide : rien tant qu'un téléchargement en cours va le remplacer
-            if let taille = connus[n], taille != 0 || enCours.contains(n) { continue }
+            if let taille = connus[n], taille != 0 || enCours.contains(n) { vides[n] = nil; continue }
             guard let e = mesure(n) else { continue }
+            if e.taille == 0, !e.dossier {
+                // vide : un nouveau venu (ou un vide déjà suivi) est relu de loin en loin, sauf si un « .part » va le remplacer (Firefox) ;
+                // le vide déjà là au lancement ne l'est pas
+                let suivi = connus[n] == nil || vides[n] != nil
+                connus[n] = 0; candidats[n] = nil
+                if suivi, !enCours.contains(n) { planifierVide(n, a: t) } else { vides[n] = nil }
+                continue
+            }
+            vides[n] = nil
             if connus[n] != nil {
-                if e.taille == 0 || e.dossier { continue }
+                if e.dossier { continue }
                 connus[n] = nil
             }
-            if e.taille == 0, !e.dossier { connus[n] = 0; candidats[n] = nil; continue }
             if let c = candidats[n] {
                 if c.entree == e {
                     if t.timeIntervalSince(c.depuis) >= Self.stabilite - 0.02 { prets.append(e); connus[n] = Self.cle(e); candidats[n] = nil }
@@ -109,9 +123,18 @@ public struct VeilleTelechargements {
     /// La valeur gardée pour un nom connu : sa taille, ou -1 pour un dossier (jamais relu).
     static func cle(_ e: EntreeDossier) -> Int64 { e.dossier ? -1 : e.taille }
 
-    /// Quand relire le dossier (le premier candidat qui aura été stable assez longtemps) ; nil : rien n'attend, aucun réveil.
+    /// La prochaine relecture d'un fichier vide (le pas suivant depuis qu'on l'a vu) ; au-delà d'une demi-heure, il n'est plus suivi.
+    private mutating func planifierVide(_ n: String, a t: Date) {
+        let premier = vides[n]?.premier ?? t
+        let ecoule = t.timeIntervalSince(premier)
+        guard let pas = Self.pasVides.first(where: { $0 > ecoule + 0.02 }), pas <= Self.abandon else { vides[n] = nil; return }
+        vides[n] = (premier, premier.addingTimeInterval(pas))
+    }
+
+    /// Quand relire le dossier (le premier candidat qui aura été stable assez longtemps, ou le prochain coup d'œil à un fichier vide) ;
+    /// nil : rien n'attend, aucun réveil.
     public var prochaineRelecture: Date? {
-        candidats.values.map { $0.depuis.addingTimeInterval(Self.stabilite) }.min()
+        (candidats.values.map { $0.depuis.addingTimeInterval(Self.stabilite) } + vides.values.map(\.prochaine)).min()
     }
 }
 

@@ -2,7 +2,8 @@ import Foundation
 
 // « Micro coupé » (maquette design/maquettes/ilot-apple.html, « Cinq idées de plus », 5) : logique pure, sans CoreAudio ni clavier.
 // Un raccourci global coupe le micro d'entrée par défaut du Mac et le rouvre ; tant qu'il est coupé, l'îlot le montre (micro barré rouge,
-// « Coupé »). La dictée de Verbe le rouvre le temps de dicter, puis le recoupe. Ce que fait le système (Réglages Système) fait foi.
+// « Coupé »). La dictée de Verbe rouvre le micro qu'elle écoute s'il est coupé, le temps de dicter, puis le recoupe. Ce que fait le
+// système (Réglages Système) fait foi.
 
 /// Un raccourci clavier : une touche (le caractère que la disposition du clavier donne, en minuscule : « m » sur un AZERTY comme sur un
 /// QWERTY, quelle que soit la place de la touche) et ses touches de modification.
@@ -62,11 +63,20 @@ public struct RaccourciIlot: Equatable, Sendable {
     }
 }
 
-/// Ce que Verbe sait du micro et ce qu'il doit faire. L'îlot montre `coupe` ; les commandes partent vers CoreAudio. Le système fait foi :
-/// chaque changement qu'il signale est relu tel qu'il est au moment où on le traite (jamais la valeur d'une notification ancienne), et
-/// l'écho de nos propres commandes ne change rien.
+/// Ce que Verbe sait des micros et ce qu'il doit faire. L'îlot montre `coupe` (le micro PAR DÉFAUT, celui que les apps entendent) ;
+/// les commandes partent vers CoreAudio, chacune pour un micro précis (son UID). Le système fait foi : chaque changement qu'il signale
+/// est relu tel qu'il est au moment où on le traite (jamais la valeur d'une notification ancienne), et l'écho de nos propres commandes
+/// ne change rien.
+///
+/// La dictée peut écouter un autre micro que celui par défaut (le micro du Mac quand des AirPods sont là, ou un micro choisi dans les
+/// Réglages) : c'est CE micro-là qu'elle rouvre s'il est coupé, puis qu'elle recoupe à la fin, même si le micro par défaut a changé entre
+/// temps (son UID est gardé).
 public struct VeilleMicro: Equatable, Sendable {
-    public enum Commande: Equatable, Sendable { case couper, rouvrir }
+    public enum Commande: Equatable, Sendable {
+        case couper(String)
+        case rouvrir(String)
+        public var uid: String { switch self { case .couper(let u), .rouvrir(let u): return u } }
+    }
     public enum Annonce: Equatable, Sendable {
         /// Le micro vient d'être rouvert (raccourci, bouton « Rouvrir », ou Réglages Système) : un bandeau vert court.
         case ouvert
@@ -78,77 +88,87 @@ public struct VeilleMicro: Equatable, Sendable {
         public static let rien = Reponse()
     }
 
-    /// Le micro est coupé (ce que l'îlot montre). Reste vrai pendant une dictée qui l'a rouvert : il sera recoupé à la fin.
+    /// L'UID du micro par défaut (nil : aucun micro d'entrée).
+    public private(set) var defaut: String?
+    /// Le micro par défaut est coupé (ce que l'îlot montre). Reste vrai pendant une dictée qui l'a rouvert : il sera recoupé à la fin.
     public private(set) var coupe = false
-    /// La dictée de Verbe l'a rouvert le temps de dicter : il faudra le recouper à la fin.
-    public private(set) var rouvertPourDictee = false
+    /// L'UID du micro que la dictée a rouvert le temps de dicter : à recouper à la fin (nil : rien à recouper).
+    public private(set) var rouvertPourDictee: String?
     public private(set) var dicteeEnCours = false
-    /// La dictée en cours écoute ce micro-là.
-    private var dicteeSurCeMicro = false
+    /// L'UID du micro qu'écoute la dictée en cours.
+    private var microDictee: String?
     public init() {}
 
-    /// Le raccourci : coupe, ou rouvre.
+    /// Le raccourci : coupe, ou rouvre (le micro par défaut).
     public mutating func basculer() -> Reponse { coupe ? rouvrir() : couper() }
 
     public mutating func couper() -> Reponse {
-        guard !coupe else { return .rien }
+        guard let d = defaut, !coupe else { return .rien }
         coupe = true
-        // pendant une dictée, couper le micro couperait la dictée : il reste ouvert jusqu'à la fin, puis il est coupé
-        if dicteeEnCours, dicteeSurCeMicro { rouvertPourDictee = true; return .rien }
-        return Reponse(commande: .couper)
+        // pendant une dictée sur ce micro, le couper couperait la dictée : il reste ouvert jusqu'à la fin, puis il est coupé
+        if dicteeEnCours, microDictee == d { rouvertPourDictee = d; return .rien }
+        return Reponse(commande: .couper(d))
     }
 
     /// Le raccourci ou « Rouvrir ». Pendant une dictée qui l'avait rouvert, il est déjà ouvert : il le reste après.
     public mutating func rouvrir() -> Reponse {
-        guard coupe else { return .rien }
+        guard let d = defaut, coupe else { return .rien }
         coupe = false
-        if rouvertPourDictee { rouvertPourDictee = false; return Reponse(annonce: .ouvert) }
-        return Reponse(commande: .rouvrir, annonce: .ouvert)
+        if rouvertPourDictee == d { rouvertPourDictee = nil; return Reponse(annonce: .ouvert) }
+        return Reponse(commande: .rouvrir(d), annonce: .ouvert)
     }
 
-    /// Le système dit où en est le micro (au lancement, ou quand la propriété change : Réglages Système, autre app, autre micro).
-    public mutating func systeme(coupe c: Bool) -> Reponse {
-        if rouvertPourDictee {
-            // ouvert : c'est nous, pour la dictée. Coupé pendant la dictée : quelqu'un d'autre l'a fait, il n'y a plus rien à recouper.
-            if c { rouvertPourDictee = false }
+    /// Le système dit quel est le micro par défaut et où il en est (au lancement, ou quand quelque chose change : Réglages Système,
+    /// autre app, autre micro par défaut).
+    public mutating func systeme(defaut d: String?, coupe c: Bool) -> Reponse {
+        if d != defaut {
+            // un autre micro par défaut (des AirPods qui arrivent) : l'îlot montre où en est celui-là, sans annonce (rien n'a été rouvert)
+            defaut = d
+            coupe = d != nil && (c || rouvertPourDictee == d)
             return .rien
         }
-        guard c != coupe else { return .rien }      // l'écho de nos commandes
+        if let r = rouvertPourDictee, r == d {
+            // ouvert : c'est nous, pour la dictée. Coupé pendant la dictée : quelqu'un d'autre l'a fait, il n'y a plus rien à recouper.
+            if c { rouvertPourDictee = nil }
+            return .rien
+        }
+        guard d != nil, c != coupe else { return .rien }      // l'écho de nos commandes
         coupe = c
         return c ? .rien : Reponse(annonce: .ouvert)
     }
 
-    /// La dictée de Verbe commence ou finit. `memeMicro` : la dictée écoute ce micro-là (en « Automatique » avec des AirPods par défaut,
-    /// elle écoute le micro du Mac : inutile de rouvrir celui des AirPods, qu'un appel entendrait).
-    public mutating func dictee(enCours: Bool, memeMicro: Bool = true) -> Reponse {
+    /// La dictée de Verbe commence (`micro` : l'UID du micro qu'elle écoutera, `coupe` : ce micro est coupé en ce moment) ou finit.
+    /// Un micro coupé est rouvert le temps de dicter, puis recoupé, quel que soit le micro par défaut ; un autre micro n'est jamais touché
+    /// (celui des AirPods, qu'un appel entendrait, reste coupé quand la dictée écoute le micro du Mac).
+    public mutating func dictee(enCours: Bool, micro m: String? = nil, coupe c: Bool = false) -> Reponse {
         guard enCours != dicteeEnCours else { return .rien }
         dicteeEnCours = enCours
-        dicteeSurCeMicro = enCours && memeMicro
+        microDictee = enCours ? m : nil
         if enCours {
-            guard coupe, memeMicro, !rouvertPourDictee else { return .rien }
-            rouvertPourDictee = true
-            return Reponse(commande: .rouvrir)
+            guard let m, c, rouvertPourDictee == nil else { return .rien }
+            rouvertPourDictee = m
+            return Reponse(commande: .rouvrir(m))
         }
-        guard rouvertPourDictee else { return .rien }
-        rouvertPourDictee = false
-        return Reponse(commande: .couper)
+        guard let r = rouvertPourDictee else { return .rien }
+        rouvertPourDictee = nil
+        return Reponse(commande: .couper(r))
     }
 
-    /// CoreAudio a refusé la commande (un micro sans muet ni volume réglable) : on revient à ce qui est vrai, sans rien annoncer.
+    /// CoreAudio a refusé la commande (un micro sans muet ni volume réglable, débranché entre-temps) : on revient à ce qui est vrai,
+    /// sans rien annoncer.
     public mutating func commandeEchouee(_ c: Commande) {
+        let u = c.uid
+        if rouvertPourDictee == u { rouvertPourDictee = nil }
+        guard u == defaut else { return }
         switch c {
-        case .couper:
-            // couper a échoué : le micro est ouvert (pendant une dictée qui l'avait rouvert, il le reste)
-            coupe = false; rouvertPourDictee = false
-        case .rouvrir:
-            // rouvrir a échoué : il reste coupé (la dictée n'entendra rien), rien à recouper à la fin
-            coupe = true; rouvertPourDictee = false
+        case .couper: coupe = false     // couper a échoué : le micro est ouvert
+        case .rouvrir: coupe = true     // rouvrir a échoué : il reste coupé (la dictée n'entendra rien), rien à recouper à la fin
         }
     }
 
-    /// Le réglage s'éteint : on oublie tout (le micro reste comme il est ; s'il était rouvert pour une dictée, il est recoupé).
+    /// Le réglage s'éteint : on oublie tout (les micros restent comme ils sont ; celui rouvert pour une dictée est recoupé).
     public mutating func oublier() -> Reponse {
-        let r = rouvertPourDictee && coupe ? Reponse(commande: .couper) : .rien
+        let r = rouvertPourDictee.map { Reponse(commande: .couper($0)) } ?? .rien
         self = VeilleMicro()
         return r
     }

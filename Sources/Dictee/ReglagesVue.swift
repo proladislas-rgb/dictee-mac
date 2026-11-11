@@ -106,7 +106,7 @@ struct ReglagesVue: View {
             LigneReglage(libelle: "Batterie et appareils", note: "La batterie du Mac et de tes AirPods quand l\u{2019}îlot s\u{2019}ouvre, le chargeur branché, la batterie faible, les écouteurs qui se connectent. macOS demande une fois l\u{2019}accès au Bluetooth.") {
                 Interrupteur(actif: $r.ilotEnergie, etiquette: "Batterie et appareils")
             }
-            LigneReglage(libelle: "Téléchargements", note: "Un fichier qui arrive dans Téléchargements, AirDrop compris : son nom, sa taille et « Ouvrir ». macOS demande une fois l\u{2019}accès au dossier.") {
+            LigneReglage(libelle: "Téléchargements", note: "Un fichier qui arrive dans Téléchargements, AirDrop compris : son nom, sa taille et « Ouvrir ». En l\u{2019}allumant, macOS te demande l\u{2019}accès au dossier.") {
                 Interrupteur(actif: $r.ilotTelechargements, etiquette: "Téléchargements")
             }
             LigneReglage(libelle: "Étagère", note: "Glisse des fichiers sur l\u{2019}encoche : ils y restent. Tu les retrouves en cliquant sur l\u{2019}îlot, et tu les reprends en les glissant vers une app. Verbe garde un lien vers chaque fichier, jamais une copie.") {

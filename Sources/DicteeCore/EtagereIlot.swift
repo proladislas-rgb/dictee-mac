@@ -130,7 +130,8 @@ public struct EtagereIlot: Codable, Equatable, Sendable {
 public enum ApprocheEtagere {
     /// À 60 pt de l'encoche (la caméra sur la hauteur de la barre), l'îlot s'ouvre.
     public static let distance: Double = 60
-    /// Une fois ouvert, il le reste tant que le pointeur est sur la zone ouverte ou à 40 pt autour : on ne la perd pas en la visant.
+    /// Une fois ouvert, il le reste tant que le pointeur est sur la forme ouverte ou à 40 pt autour (la forme elle-même, pas son
+    /// rectangle : voir `IlotMoteur.contient(_:marge:)`) : on ne la perd pas en la visant.
     public static let marge: Double = 40
 
     /// Distance du point à l'encoche (0 dessus).
@@ -139,11 +140,9 @@ public enum ApprocheEtagere {
         return (dx * dx + dy * dy).squareRoot()
     }
 
-    /// `ouvert` : la demi-largeur et la hauteur de la zone ouverte, si elle l'est.
-    public static func proche(x: Double, y: Double, demiCamera: Double, barre: Double, ouvert: (demiLargeur: Double, hauteur: Double)? = nil) -> Bool {
-        if ecart(x: x, y: y, demiCamera: demiCamera, barre: barre) <= distance { return true }
-        guard let o = ouvert else { return false }
-        return abs(x) <= o.demiLargeur + marge && y <= o.hauteur + marge
+    /// Assez près de l'encoche pour que la zone s'ouvre.
+    public static func proche(x: Double, y: Double, demiCamera: Double, barre: Double) -> Bool {
+        ecart(x: x, y: y, demiCamera: demiCamera, barre: barre) <= distance
     }
 }
 

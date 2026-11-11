@@ -57,6 +57,8 @@ final class IlotControleur {
     let claudeSource = SourceClaude()
     var veilleClaude = VeilleClaude()
     var reveilClaude: DispatchWorkItem?
+    /// Les vieux fichiers de sessions ont été effacés (une fois par lancement, même réglage éteint).
+    var claudeNettoye = false
     var appAuPremierPlan: () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
     var ramenerApp: (String?) -> Void = { IlotControleur.ramener($0) }
 
@@ -89,6 +91,9 @@ final class IlotControleur {
     var etagere: EtagereIlot
     var etagereStore: EtagereStore
     var iconesEtagere: [UUID: NSImage] = [:]
+    /// La relecture des signets (sur une file à part) : en cours, à refaire aussitôt, et quand elle a commencé la dernière fois.
+    var relectureEtagere: (enCours: Bool, encore: Bool, derniere: Date) = (false, false, .distantPast)
+    var apresRelecture: [() -> Void] = []
     private var reveilMinuteur: DispatchWorkItem?
     private var reveilRappels: DispatchWorkItem?
     private var reveilAgenda: DispatchWorkItem?
@@ -151,7 +156,9 @@ final class IlotControleur {
         notificationsSource.arreter()
         energieSource.arreter(); appareilsSource.arreter()
         telechargementsSource.arreter()
+        niveaux.arreter()
         activerLeMicro(false)
+        surRaccourciMicro(nil)
         activerClaude(false)
         agenda.arreter()
         panneau.fermer()
@@ -195,10 +202,11 @@ final class IlotControleur {
         if Settings.ilotTelechargements { telechargementsSource.demarrer() }
         else { telechargementsSource.arreter(); rafale = RafaleTelechargements() }
         niveauxActifs = Settings.ilotNiveaux
+        if niveauxActifs { niveaux.demarrer() } else { niveaux.arreter() }
         activerClaude(Settings.ilotClaude)
         activerEtagere(Settings.ilotEtagere)
         activerLeMicro(Settings.ilotMicro)
-        surRaccourciMicro(Settings.ilotMicro ? Settings.raccourciMicro : nil)
+        surRaccourciMicro(Settings.ilotMicro && micro.actif ? Settings.raccourciMicro : nil)
         moteur.donneesChangees()
     }
 
@@ -220,26 +228,42 @@ final class IlotControleur {
         }
     }
 
-    /// Le raccourci (⌃⌥M) : coupe le micro, ou le rouvre.
-    func basculerLeMicro() {
-        guard micro.actif else { return }
-        executer(veilleMicro.basculer())
+    /// Le raccourci (⌃⌥M) : coupe le micro par défaut, ou le rouvre. Renvoie vrai si la touche a servi (elle est alors avalée) ; faux
+    /// quand la fonction ne peut rien (réglage éteint, aucun micro, micro sans muet ni volume réglable, commande refusée) : la touche
+    /// va alors à l'app au premier plan, qui l'attendait peut-être.
+    @discardableResult
+    func basculerLeMicro() -> Bool {
+        guard micro.actif, let d = micro.defaut, let c = micro.estCoupe(d), micro.peutCouper(d) else { return false }
+        // l'état réel d'abord (une notification de CoreAudio peut être encore en route) : le raccourci agit sur ce qui est vrai
+        _ = veilleMicro.systeme(defaut: d, coupe: c)
+        return executer(veilleMicro.basculer())
     }
 
     /// CoreAudio prévient : le micro par défaut, son muet ou son volume a changé. On relit l'état tel qu'il est MAINTENANT (une
-    /// notification en retard sur nos propres commandes ne compte donc pas) ; l'îlot suit, rouvert ailleurs = « Micro ouvert ».
+    /// notification en retard sur nos propres commandes ne compte donc pas) ; l'îlot suit, rouvert ailleurs = « Micro ouvert » (un
+    /// simple changement de micro par défaut n'annonce rien).
     func microChange() {
         guard micro.actif else { return }
         moteur.nomMicro = micro.nom
-        executer(veilleMicro.systeme(coupe: micro.estCoupe() ?? false))
+        let d = micro.defaut
+        executer(veilleMicro.systeme(defaut: d, coupe: d.flatMap { micro.estCoupe($0) } ?? false))
     }
 
-    /// Envoie la commande à CoreAudio, puis montre ce qui est vrai (l'activité, et le bandeau vert « Micro ouvert », 1,5 s).
-    private func executer(_ r: VeilleMicro.Reponse) {
+    /// Envoie la commande à CoreAudio (au micro qu'elle vise), puis montre ce qui est vrai (l'activité, et le bandeau vert « Micro
+    /// ouvert », 1,5 s). Faux si CoreAudio a refusé la commande.
+    @discardableResult
+    private func executer(_ r: VeilleMicro.Reponse) -> Bool {
         var annonce = r.annonce
+        var ok = true
         if let c = r.commande {
-            let ok = c == .couper ? micro.couper() : micro.rouvrir()
-            Log.ecrire("micro coupé : \(c == .couper ? "coupé" : "rouvert")\(veilleMicro.dicteeEnCours ? " (dictée)" : "")\(ok ? "" : " : REFUSÉ, l'îlot reste sur l'état réel")")
+            switch c {
+            case .couper(let u): ok = micro.couper(u)
+            case .rouvrir(let u): ok = micro.rouvrir(u)
+            }
+            let quoi: String
+            switch c { case .couper: quoi = "coupé"; case .rouvrir: quoi = "rouvert" }
+            let autre = c.uid != veilleMicro.defaut ? " (pas le micro par défaut)" : ""
+            Log.ecrire("micro coupé : \(quoi)\(veilleMicro.dicteeEnCours ? " (dictée)" : "")\(autre)\(ok ? "" : " : REFUSÉ, l'îlot reste sur l'état réel")")
             if !ok { veilleMicro.commandeEchouee(c); annonce = nil }
         }
         let change = moteur.microCoupe != veilleMicro.coupe
@@ -247,6 +271,7 @@ final class IlotControleur {
         if annonce == .ouvert {
             moteur.annoncer(bandeau: BandeauIlot(vue: .microOuvert, jusqua: maintenant().addingTimeInterval(1.5), ligne1: "Micro ouvert", ligne2: ""))
         } else if change { moteur.donneesChangees() }
+        return ok
     }
 
     // MARK: téléchargements
@@ -302,9 +327,13 @@ final class IlotControleur {
         } else if armeJusqua > maintenant() {
             armeJusqua = maintenant().addingTimeInterval(12)   // le temps de la transcription
         }
-        // le micro coupé est rouvert AVANT que la dictée n'ouvre le micro (cet appel précède le démarrage de la capture), puis recoupé
+        // le micro qu'écoutera la dictée, s'il est coupé, est rouvert AVANT qu'elle ne l'ouvre (cet appel précède le démarrage de la
+        // capture), puis recoupé à la fin ; c'est bien CE micro-là (son UID), même si ce n'est pas celui par défaut
         if micro.actif {
-            executer(veilleMicro.dictee(enCours: enCours, memeMicro: enCours ? micro.dicteeUtiliseCeMicro() : true))
+            if enCours {
+                let u = micro.microDeLaDictee()
+                executer(veilleMicro.dictee(enCours: true, micro: u, coupe: u.flatMap { micro.estCoupe($0) } ?? false))
+            } else { executer(veilleMicro.dictee(enCours: false)) }
         }
         lecture.dicteeChange(enCours: enCours)
         appliquerLesMasques()
@@ -348,7 +377,8 @@ final class IlotControleur {
         moteur.rendezVousSuivant = PlanAgenda.prochain(evenements, a: maintenant())
         moteur.rappelsAVenir = rappels.aVenir(a: maintenant())
         if Settings.ilotEnergie, appareilsSource.actif { appareilsSource.relireSiAncien() }
-        if moteur.etagereActive { relireEtagere() }
+        // l'accueil s'ouvre au survol : pas plus d'une relecture toutes les 5 s ; la carte de l'étagère, elle, relit toujours
+        if moteur.etagereActive { relireEtagere(force: moteur.courante == .etagere) }
         lecture.ilotDeplie()
     }
     private func ageLisible(_ date: Date) -> String {

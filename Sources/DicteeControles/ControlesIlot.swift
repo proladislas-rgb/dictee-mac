@@ -176,6 +176,26 @@ func controlesIlot() {
         tailles["Rapport.pdf"] = nil; _ = w.lire(noms: noms, a: t0.addingTimeInterval(40), mesure: mesure)
         tailles["Rapport.pdf"] = 2_400_000; _ = w.lire(noms: noms, a: t0.addingTimeInterval(41), mesure: mesure)
         verifier(w.lire(noms: noms, a: t0.addingTimeInterval(42), mesure: mesure).map(\.nom) == ["Rapport.pdf"], "supprimé puis retéléchargé : annoncé de nouveau")
+        // curl -o, wget, cp, AirDrop : le fichier final est créé VIDE puis rempli sur place ; le dossier ne prévient plus (aucun ajout,
+        // retrait ni renommage) : seules nos relectures espacées le voient se remplir
+        var wv = VeilleTelechargements(existants: [])
+        var tv: [String: Int64] = ["Image.iso": 0]
+        func mv(_ n: String) -> EntreeDossier? { tv[n].map { EntreeDossier(nom: n, taille: $0) } }
+        verifier(wv.lire(noms: ["Image.iso"], a: t0, mesure: mv).isEmpty && wv.prochaineRelecture == t0.addingTimeInterval(1),
+                 "fichier créé vide, sans « .part » : rien encore, mais une relecture 1 s plus tard")
+        verifier(wv.lire(noms: ["Image.iso"], a: t0.addingTimeInterval(1), mesure: mv).isEmpty && wv.prochaineRelecture == t0.addingTimeInterval(3),
+                 "toujours vide : la relecture suivante est plus espacée (3 s)")
+        tv["Image.iso"] = 700_000_000
+        verifier(wv.lire(noms: ["Image.iso"], a: t0.addingTimeInterval(3), mesure: mv).isEmpty && wv.prochaineRelecture == t0.addingTimeInterval(4),
+                 "rempli entre-temps, sans aucun événement du dossier : vu à la relecture, suivi jusqu'à ce que sa taille tienne")
+        verifier(wv.lire(noms: ["Image.iso"], a: t0.addingTimeInterval(4), mesure: mv).map(\.nom) == ["Image.iso"] && wv.prochaineRelecture == nil,
+                 "taille stable : « Image.iso » annoncé ; plus rien n'attend")
+        var wz = VeilleTelechargements(existants: [])
+        var vu = 0
+        var quand = wz.lire(noms: ["vide.txt"], a: t0, mesure: { _ in vu += 1; return EntreeDossier(nom: "vide.txt", taille: 0) }).isEmpty ? wz.prochaineRelecture : nil
+        while let q = quand, vu < 50 { _ = wz.lire(noms: ["vide.txt"], a: q, mesure: { _ in vu += 1; return EntreeDossier(nom: "vide.txt", taille: 0) }); quand = wz.prochaineRelecture }
+        verifier(quand == nil && vu == VeilleTelechargements.pasVides.count + 1 && VeilleTelechargements.pasVides.last! <= VeilleTelechargements.abandon,
+                 "un fichier qui reste vide : \(vu) relectures en une demi-heure, puis plus rien (jamais de relecture sans fin)")
         // un dossier (AirDrop d'un dossier) : suivi par sa date, annoncé sans taille
         var w2 = VeilleTelechargements(existants: [])
         let dd = EntreeDossier(nom: "Photos vacances", taille: 0, modification: t0, dossier: true)
@@ -235,48 +255,74 @@ func controlesIlot() {
         verifier(RaccourciIlot(touche: "m", maj: true, commande: true).estValide && RaccourciIlot(touche: "u", controle: true, commande: true).estValide, "⇧⌘M, ⌃⌘U : acceptés")
         verifier(RaccourciIlot(touche: " ", controle: true, option: true).libelle == "\u{2303}\u{2325}Espace", "la barre d'espace s'écrit « Espace »")
 
-        var w = VeilleMicro()
         typealias R = VeilleMicro.Reponse
-        verifier(w.systeme(coupe: false) == .rien && !w.coupe, "lancement, micro ouvert : rien")
-        verifier(w.basculer() == R(commande: .couper) && w.coupe, "raccourci : on coupe ; l'îlot montre « Coupé » tout de suite")
-        verifier(w.systeme(coupe: true) == .rien && w.coupe, "l'écho de notre commande ne change rien")
-        verifier(w.basculer() == R(commande: .rouvrir, annonce: .ouvert) && !w.coupe, "raccourci : on rouvre, bandeau « Micro ouvert »")
-        verifier(w.systeme(coupe: false) == .rien, "l'écho de la réouverture ne change rien")
-        verifier(w.systeme(coupe: true) == .rien && w.coupe, "coupé dans Réglages Système : l'îlot suit, sans bandeau")
-        verifier(w.systeme(coupe: false) == R(annonce: .ouvert) && !w.coupe, "rouvert dans Réglages Système : l'îlot suit, « Micro ouvert »")
+        let mac = "integre", air = "airpods"
+        var w = VeilleMicro()
+        verifier(w.systeme(defaut: mac, coupe: false) == .rien && !w.coupe && w.defaut == mac, "lancement, micro ouvert : rien")
+        verifier(w.basculer() == R(commande: .couper(mac)) && w.coupe, "raccourci : on coupe CE micro (son UID) ; l'îlot montre « Coupé » tout de suite")
+        verifier(w.systeme(defaut: mac, coupe: true) == .rien && w.coupe, "l'écho de notre commande ne change rien")
+        verifier(w.basculer() == R(commande: .rouvrir(mac), annonce: .ouvert) && !w.coupe, "raccourci : on rouvre, bandeau « Micro ouvert »")
+        verifier(w.systeme(defaut: mac, coupe: false) == .rien, "l'écho de la réouverture ne change rien")
+        verifier(w.systeme(defaut: mac, coupe: true) == .rien && w.coupe, "coupé dans Réglages Système : l'îlot suit, sans bandeau")
+        verifier(w.systeme(defaut: mac, coupe: false) == R(annonce: .ouvert) && !w.coupe, "rouvert dans Réglages Système : l'îlot suit, « Micro ouvert »")
         verifier(w.rouvrir() == .rien, "« Rouvrir » sur un micro déjà ouvert : rien")
+        var sans = VeilleMicro()
+        verifier(sans.systeme(defaut: nil, coupe: false) == .rien && sans.basculer() == .rien && !sans.coupe, "aucun micro d'entrée : le raccourci ne fait rien")
+
+        // le micro par défaut change (AirPods) : rien n'a été rouvert, aucun « Micro ouvert »
+        var a = VeilleMicro()
+        _ = a.systeme(defaut: mac, coupe: false); _ = a.basculer()
+        verifier(a.systeme(defaut: air, coupe: false) == .rien && !a.coupe && a.defaut == air, "AirPods connectés (ouverts) pendant que le Mac est coupé : l'îlot montre les AirPods, sans « Micro ouvert »")
+        verifier(a.dictee(enCours: true, micro: mac, coupe: true) == R(commande: .rouvrir(mac)) && a.rouvertPourDictee == mac,
+                 "dictée sur le micro du Mac (imposé), resté coupé : c'est LUI qui est rouvert, pas le micro par défaut")
+        verifier(a.dictee(enCours: false) == R(commande: .couper(mac)) && a.rouvertPourDictee == nil && !a.coupe, "fin : le micro du Mac est recoupé ; les AirPods, jamais touchés")
+        verifier(a.systeme(defaut: mac, coupe: true) == .rien && a.coupe, "AirPods rangés : le micro du Mac, toujours coupé, est montré, sans bandeau")
+        // le défaut change PENDANT une dictée qui avait rouvert le micro du Mac
+        var b = VeilleMicro()
+        _ = b.systeme(defaut: mac, coupe: false); _ = b.basculer()
+        verifier(b.dictee(enCours: true, micro: mac, coupe: true) == R(commande: .rouvrir(mac)), "dictée : le micro du Mac est rouvert")
+        verifier(b.systeme(defaut: air, coupe: false) == .rien && !b.coupe, "les AirPods deviennent le micro par défaut pendant la dictée : rien d'annoncé")
+        verifier(b.dictee(enCours: false) == R(commande: .couper(mac)), "fin : on recoupe le micro du Mac (celui qu'on avait rouvert), jamais les AirPods")
+        var b2 = VeilleMicro()
+        _ = b2.systeme(defaut: air, coupe: false)
+        _ = b2.dictee(enCours: true, micro: mac, coupe: true)
+        verifier(b2.systeme(defaut: mac, coupe: false) == .rien && b2.coupe, "le micro rouvert pour la dictée devient le défaut : l'îlot le montre coupé (il le sera à la fin)")
+        verifier(b2.dictee(enCours: false) == R(commande: .couper(mac)) && b2.coupe, "fin : recoupé")
 
         var x = VeilleMicro()
-        _ = x.basculer()
-        verifier(x.dictee(enCours: true) == R(commande: .rouvrir) && x.coupe && x.rouvertPourDictee, "fn pendant que c'est coupé : la dictée rouvre le micro (l'îlot garde « coupé »)")
-        verifier(x.systeme(coupe: false) == .rien && x.coupe, "l'écho de cette réouverture : rien, pas de « Micro ouvert »")
-        verifier(x.dictee(enCours: true) == .rien, "la dictée déjà en cours : pas deux fois")
-        verifier(x.dictee(enCours: false) == R(commande: .couper) && x.coupe && !x.rouvertPourDictee, "fin de la dictée : recoupé")
-        verifier(x.systeme(coupe: true) == .rien, "l'écho du recoupage : rien")
-        // une notification en retard (ouvert) lue APRÈS la fin : le contrôleur relit l'état réel (coupé) au moment de la traiter
-        verifier(x.systeme(coupe: true) == .rien && x.coupe, "une notification en retard relue telle qu'est le micro maintenant : rien ne bouge")
-        verifier(x.dictee(enCours: true, memeMicro: false) == .rien && x.dictee(enCours: false) == .rien,
-                 "la dictée écoute un autre micro (AirPods par défaut, dictée sur le micro du Mac) : on ne rouvre pas celui que l'appel entend")
-        _ = x.dictee(enCours: true)
-        verifier(x.basculer() == R(annonce: .ouvert) && !x.coupe && !x.rouvertPourDictee, "raccourci pendant une dictée qui l'a rouvert : il reste ouvert (pas de commande), « Micro ouvert »")
+        _ = x.systeme(defaut: mac, coupe: false); _ = x.basculer()
+        verifier(x.dictee(enCours: true, micro: mac, coupe: true) == R(commande: .rouvrir(mac)) && x.coupe && x.rouvertPourDictee == mac, "fn pendant que c'est coupé : la dictée rouvre le micro (l'îlot garde « coupé »)")
+        verifier(x.systeme(defaut: mac, coupe: false) == .rien && x.coupe, "l'écho de cette réouverture : rien, pas de « Micro ouvert »")
+        verifier(x.dictee(enCours: true, micro: mac, coupe: false) == .rien, "la dictée déjà en cours : pas deux fois")
+        verifier(x.dictee(enCours: false) == R(commande: .couper(mac)) && x.coupe && x.rouvertPourDictee == nil, "fin de la dictée : recoupé")
+        verifier(x.systeme(defaut: mac, coupe: true) == .rien, "l'écho du recoupage : rien")
+        verifier(x.systeme(defaut: mac, coupe: true) == .rien && x.coupe, "une notification en retard relue telle qu'est le micro maintenant : rien ne bouge")
+        verifier(x.dictee(enCours: true, micro: air, coupe: false) == .rien && x.dictee(enCours: false) == .rien,
+                 "la dictée écoute un autre micro, ouvert : on ne touche pas à celui-ci (l'appel l'entendrait)")
+        _ = x.dictee(enCours: true, micro: mac, coupe: true)
+        verifier(x.basculer() == R(annonce: .ouvert) && !x.coupe && x.rouvertPourDictee == nil, "raccourci pendant une dictée qui l'a rouvert : il reste ouvert (pas de commande), « Micro ouvert »")
         verifier(x.dictee(enCours: false) == .rien && !x.coupe, "fin de cette dictée : on ne recoupe pas")
-        _ = x.dictee(enCours: true)
-        verifier(x.basculer() == .rien && x.coupe && x.rouvertPourDictee, "raccourci pendant une dictée : couper attend la fin (sinon la dictée n'entend plus rien)")
-        verifier(x.dictee(enCours: false) == R(commande: .couper), "fin de la dictée : coupé")
+        _ = x.dictee(enCours: true, micro: mac, coupe: false)
+        verifier(x.basculer() == .rien && x.coupe && x.rouvertPourDictee == mac, "raccourci pendant une dictée : couper attend la fin (sinon la dictée n'entend plus rien)")
+        verifier(x.dictee(enCours: false) == R(commande: .couper(mac)), "fin de la dictée : coupé")
         _ = x.basculer()
-        _ = x.dictee(enCours: true, memeMicro: false)
-        verifier(x.basculer() == R(commande: .couper), "pendant une dictée sur un autre micro : couper tout de suite")
+        _ = x.dictee(enCours: true, micro: air, coupe: false)
+        verifier(x.basculer() == R(commande: .couper(mac)), "pendant une dictée sur un autre micro : couper tout de suite")
         _ = x.dictee(enCours: false)
-        _ = x.dictee(enCours: true)
-        verifier(x.systeme(coupe: true) == .rien && !x.rouvertPourDictee && x.dictee(enCours: false) == .rien, "recoupé ailleurs pendant la dictée : rien à recouper à la fin")
+        _ = x.dictee(enCours: true, micro: mac, coupe: true)
+        verifier(x.systeme(defaut: mac, coupe: true) == .rien && x.rouvertPourDictee == nil && x.dictee(enCours: false) == .rien, "recoupé ailleurs pendant la dictée : rien à recouper à la fin")
 
         var y = VeilleMicro()
-        _ = y.basculer(); y.commandeEchouee(.couper)
+        _ = y.systeme(defaut: mac, coupe: false)
+        _ = y.basculer(); y.commandeEchouee(.couper(mac))
         verifier(!y.coupe, "un micro qui ne se coupe pas : l'îlot reste sur « ouvert »")
-        _ = y.systeme(coupe: true); _ = y.dictee(enCours: true); y.commandeEchouee(.rouvrir)
-        verifier(y.coupe && !y.rouvertPourDictee && y.dictee(enCours: false) == .rien, "réouverture refusée pour la dictée : il reste coupé, rien à recouper")
-        _ = y.dictee(enCours: true)
-        verifier(y.oublier() == R(commande: .couper) && !y.coupe && !y.dicteeEnCours, "réglage éteint pendant une dictée qui l'a rouvert : recoupé, puis tout est oublié")
+        _ = y.systeme(defaut: mac, coupe: true); _ = y.dictee(enCours: true, micro: mac, coupe: true); y.commandeEchouee(.rouvrir(mac))
+        verifier(y.coupe && y.rouvertPourDictee == nil && y.dictee(enCours: false) == .rien, "réouverture refusée pour la dictée : il reste coupé, rien à recouper")
+        _ = y.dictee(enCours: true, micro: air, coupe: true); y.commandeEchouee(.rouvrir(air))
+        verifier(y.coupe && y.rouvertPourDictee == nil, "réouverture refusée pour un autre micro : le micro par défaut garde son état")
+        _ = y.dictee(enCours: false)
+        _ = y.dictee(enCours: true, micro: mac, coupe: true)
+        verifier(y.oublier() == R(commande: .couper(mac)) && !y.coupe && !y.dicteeEnCours, "réglage éteint pendant une dictée qui l'a rouvert : recoupé, puis tout est oublié")
         verifier(y.oublier() == .rien, "réglage éteint, micro simplement coupé : on le laisse comme il est (c'est l'état du Mac)")
 
         verifier(MicroIlot.volumeARendre(garde: 0.62) == 0.62 && MicroIlot.volumeARendre(garde: nil) == 0.75 && MicroIlot.volumeARendre(garde: 0) == 0.75 && MicroIlot.volumeARendre(garde: 3) == 1,
@@ -751,6 +797,11 @@ func controlesClaude(_ t0: Date) {
              "le Terminal de la session est au premier plan : rien à annoncer ; Chrome : on annonce")
     verifier(VeilleClaude.dejaSousLesYeux(app: nil, premierPlan: "com.googlecode.iterm2") && !VeilleClaude.dejaSousLesYeux(app: "com.googlecode.iterm2", premierPlan: "com.apple.Terminal")
              && !VeilleClaude.dejaSousLesYeux(app: nil, premierPlan: nil), "app inconnue : un terminal connu au premier plan suffit ; un autre terminal que celui de la session : on annonce")
+    let ligneNuit = "{\"t\":1731312345,\"app\":\"\",\"e\":{\"hook_event_name\":\"Stop\",\"session_id\":\"nuit\"}}"
+    let ligneTerminal = "{\"t\":1731312345,\"app\":\"com.apple.Terminal\",\"e\":{\"hook_event_name\":\"Stop\",\"session_id\":\"jour\"}}"
+    verifier(EvenementClaude.depuis(ligne: ligneNuit).map(VeilleClaude.estSuivie) == false && EvenementClaude.depuis(ligne: ligneTerminal).map(VeilleClaude.estSuivie) == true,
+             "session sans app d'origine (claude -p lancé par launchd ou cron, un SDK) : ignorée ; depuis le Terminal : suivie")
+    verifier(ScriptCrochet.texte(dossier: "/tmp/x").contains("[ -n \"$S\" ] && [ -n \"$A\" ]"), "le script n'écrit rien pour une session sans app d'origine")
 
     groupe("Îlot : Claude au travail (dans l'îlot)")
     func etat(_ f: (inout EtatIlot) -> Void) -> ResolutionIlot { var e = EtatIlot(); f(&e); return ArbitrageIlot.resoudre(e) }
@@ -827,9 +878,8 @@ func controlesEtagere(_ t0: Date) {
     verifier(A.proche(x: 150, y: 20, demiCamera: 92, barre: 32) && !A.proche(x: 160, y: 20, demiCamera: 92, barre: 32), "à 58 pt de la caméra : ouvert ; à 68 pt : rien")
     verifier(A.proche(x: 0, y: 90, demiCamera: 92, barre: 32) && !A.proche(x: 0, y: 100, demiCamera: 92, barre: 32), "sous l'encoche : jusqu'à 60 pt sous la barre")
     verifier(!A.proche(x: -400, y: 5, demiCamera: 92, barre: 32), "dans la barre des menus, loin de la caméra : rien")
-    verifier(A.proche(x: 260, y: 160, demiCamera: 92, barre: 32, ouvert: (demiLargeur: 236, hauteur: 134)) && !A.proche(x: 260, y: 160, demiCamera: 92, barre: 32),
-             "zone ouverte : elle le reste tant qu'on est dessus ou à 40 pt autour (sinon on la perdrait en la visant)")
-    verifier(!A.proche(x: 300, y: 200, demiCamera: 92, barre: 32, ouvert: (demiLargeur: 236, hauteur: 134)), "au-delà des 40 pt : elle se referme")
+    // zone ouverte : elle le reste sur la FORME ou à 40 pt autour (jugé sur le tracé, dans l'essai de bout en bout `--ilot-essai`)
+    verifier(A.marge == 40, "zone ouverte : 40 pt de marge autour de la forme")
     var sg = SuiviGlisser()
     verifier(!sg.nouveau(compte: 5), "sans appui vu : pas un glisser de fichiers")
     sg.bouton(enfonce: true, compte: 5)

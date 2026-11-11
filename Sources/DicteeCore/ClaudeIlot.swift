@@ -323,10 +323,11 @@ public enum ScriptCrochet {
           J=$(/bin/cat | /usr/bin/tr -d '\\n\\r')
           champ() { printf '%s' "$J" | /usr/bin/grep -o "\\"$1\\"[[:space:]]*:[[:space:]]*\\"[^\\"]*\\"" | /usr/bin/head -n 1 | /usr/bin/sed -e 's/^[^:]*:[[:space:]]*"//' -e 's/"$//' | /usr/bin/tr -d '\\\\'; }
           S=$(champ session_id | /usr/bin/tr -cd 'A-Za-z0-9_-' | /usr/bin/cut -c1-100)
-          if [ -n "$S" ]; then
+          A=$(printf '%s' "${__CFBundleIdentifier:-}" | /usr/bin/tr -cd 'A-Za-z0-9._-')
+          # sans app d'origine (claude -p lancé par launchd, cron, un SDK) : personne ne regarde, rien n'est écrit
+          if [ -n "$S" ] && [ -n "$A" ]; then
             E=$(champ hook_event_name | /usr/bin/tr -cd 'A-Za-z')
             O=$(champ tool_name | /usr/bin/tr -cd 'A-Za-z0-9_.-')
-            A=$(printf '%s' "${__CFBundleIdentifier:-}" | /usr/bin/tr -cd 'A-Za-z0-9._-')
             T=$(/bin/date +%s)
             case "$O" in
               \(outilsDeTaches.joined(separator: "|"))) L="{\\"t\\":$T,\\"app\\":\\"$A\\",\\"e\\":$J}" ;;
@@ -590,6 +591,10 @@ public struct VeilleClaude: Equatable, Sendable {
     /// compare alors aux terminaux connus).
     public static let terminaux: Set<String> = ["com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable", "com.mitchellh.ghostty",
                                                  "net.kovidgoyal.kitty", "com.github.wez.wezterm", "org.alacritty", "com.microsoft.VSCode"]
+    /// Une session que l'îlot suit : lancée depuis une app (Terminal, iTerm, VS Code…). Sans app d'origine (`claude -p` lancé par
+    /// launchd ou cron, un SDK, une automatisation de nuit), personne ne la regarde : ni étoile, ni « Terminé », ni « Claude attend ».
+    public static func estSuivie(_ e: EvenementClaude) -> Bool { e.app != nil }
+
     public static func dejaSousLesYeux(app: String?, premierPlan: String?) -> Bool {
         guard let p = premierPlan else { return false }
         if let app { return app == p }

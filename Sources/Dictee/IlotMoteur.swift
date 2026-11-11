@@ -509,8 +509,9 @@ final class IlotMoteur: ObservableObject {
     // MARK: volume et luminosité
 
     /// L'îlot peut-il montrer une touche de volume ou de luminosité ? Pas pendant la dictée, la réunion ou une autre annonce de l'encoche
-    /// (il est effacé), ni pendant une alerte (elle attend un geste) : la touche reste alors à macOS, avec son propre affichage.
-    var peutMontrerNiveau: Bool { !cache && alerte == nil }
+    /// (il est effacé), ni pendant une alerte (elle attend un geste), ni quand il est déplié, épinglé ou sur une carte (le lecteur ouvert
+    /// se refermerait sous les doigts), ni pendant un glisser de fichiers : la touche reste alors à macOS, avec son propre affichage.
+    var peutMontrerNiveau: Bool { !cache && alerte == nil && !fenetreOuverte && !depot && !glisserSortant }
 
     /// Une touche de volume ou de luminosité vient d'être appliquée : le bandeau reste 1,5 s après la DERNIÈRE touche ; la barre part
     /// de `avant` (la valeur d'avant la touche) et glisse sur son ressort. Une touche tenue (répétitions) prolonge le même bandeau,
@@ -551,8 +552,15 @@ final class IlotMoteur: ObservableObject {
     }
     private func reveilleToi() {
         let t = maintenant()
-        // la souris est dessus : on ne retire rien (même règle que la maquette)
-        if pointeurSurForme, (alerte?.jusqua ?? .distantFuture) <= t || (bandeau?.jusqua ?? .distantFuture) <= t {
+        // un fichier est en train d'être glissé hors du bandeau : il reste (sa vue est la source du glisser) jusqu'au relâchement
+        if glisserSortant, let b = bandeau, b.jusqua <= t {
+            bandeau?.jusqua = t.addingTimeInterval(0.5)
+            programmerReveil(); return
+        }
+        // la souris est dessus : on ne retire rien (même règle que la maquette), sauf le volume et la luminosité (la souris immobile
+        // sur l'encoche n'a rien à voir avec les touches du clavier)
+        let niveau = bandeau?.vue.estNiveau ?? false
+        if pointeurSurForme, (alerte?.jusqua ?? .distantFuture) <= t || (!niveau && (bandeau?.jusqua ?? .distantFuture) <= t) {
             if alerte?.jusqua.map({ $0 <= t }) == true { alerte?.jusqua = t.addingTimeInterval(1.5) }
             if bandeau.map({ $0.jusqua <= t }) == true { bandeau?.jusqua = t.addingTimeInterval(1.5) }
             programmerReveil(); return
@@ -562,6 +570,40 @@ final class IlotMoteur: ObservableObject {
         donneesChangees()
     }
     var surAlerteExpiree: () -> Void = {}
+
+    // MARK: glisser un fichier hors de l'îlot
+
+    /// Un fichier part de l'îlot (bandeau « Téléchargé », tuile de l'étagère) : sa vue est la source du glisser, elle ne doit pas
+    /// disparaître en route. Le bandeau reste, la carte ne se referme pas, et la zone de dépôt ne s'ouvre pas pour ce glisser-là ; tout
+    /// redevient normal au relâchement du bouton (regardé toutes les 0,25 s, seulement pendant le glisser).
+    private(set) var glisserSortant = false
+    /// Le bouton de la souris est-il enfoncé ? (Injectable : les essais simulent le glisser sans toucher à la souris.)
+    var boutonEnfonce: () -> Bool = { NSEvent.pressedMouseButtons & 1 != 0 }
+    private var suiviSortant: DispatchWorkItem?
+    func glisserSortantCommence() {
+        glisserSortant = true
+        intention?.cancel(); fermeture?.cancel()
+        surveillerSortant()
+    }
+    private func surveillerSortant() {
+        suiviSortant?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.glisserSortant else { return }
+                if self.boutonEnfonce() { self.surveillerSortant(); return }
+                self.glisserSortantFini()
+            }
+        }
+        suiviSortant = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: item)
+    }
+    private func glisserSortantFini() {
+        glisserSortant = false; suiviSortant?.cancel(); suiviSortant = nil
+        // le bandeau se retire une seconde après (le temps de voir le fichier arrivé) ; la carte se referme si la souris est partie
+        if let b = bandeau, b.jusqua < maintenant().addingTimeInterval(1) { bandeau?.jusqua = maintenant().addingTimeInterval(1) }
+        programmerReveil()
+        if !pointeurSurForme { survolForme(false) }
+    }
 
     // MARK: souris
 
@@ -583,7 +625,7 @@ final class IlotMoteur: ObservableObject {
         } else {
             guard survole || epingle else { return }
             if epingle { return }
-            let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { guard let self, !self.epingle, !self.pointeurSurForme else { return }; self.survole = false; self.sousVue = nil; self.donneesChangees(); self.fermerMoniteur() } }
+            let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { guard let self, !self.epingle, !self.pointeurSurForme, !self.glisserSortant else { return }; self.survole = false; self.sousVue = nil; self.donneesChangees(); self.fermerMoniteur() } }
             fermeture = item
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.delaiFermeture, execute: item)
         }
@@ -810,6 +852,13 @@ final class IlotMoteur: ObservableObject {
         // rectangle centré sur 0 : les coordonnées du chemin sont celles du point (x depuis le centre, y depuis le haut)
         let chemin = FormeNoire(points: trace).path(in: CGRect(x: -IlotMoteur.largeur / 2, y: 0, width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax))
         return chemin.contains(point) || chemin.contains(CGPoint(x: point.x, y: point.y + 1.5))
+    }
+
+    /// La forme visée, élargie de `marge` points tout autour (la zone de dépôt ne se perd pas en la visant, mais le vide de la fenêtre
+    /// loin de la forme, à côté du cou dans la barre, n'en fait pas partie).
+    func contient(_ point: CGPoint, marge: CGFloat) -> Bool {
+        let chemin = FormeNoire(points: traceCible).path(in: CGRect(x: -IlotMoteur.largeur / 2, y: 0, width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax))
+        return chemin.contains(point) || chemin.strokedPath(StrokeStyle(lineWidth: 2 * marge, lineCap: .round, lineJoin: .round)).contains(point)
     }
 
     /// La pastille, devenue « bulle » (maquette ilot-apple.html, comme les deux activités de la Dynamic Island) : À DROITE de l'îlot,

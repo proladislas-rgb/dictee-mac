@@ -297,7 +297,8 @@ final class IlotPanneau {
     /// Le pointeur glisse quelque chose en `p` (points depuis le centre de l'encoche et le haut de l'écran). `fichiers` n'est appelé
     /// qu'une fois par glisser, et seulement près de l'encoche : loin d'elle, on ne regarde même pas ce qui est glissé.
     func glisser(_ p: CGPoint, fichiers: () -> Bool) {
-        guard etagereActive else { return }
+        // un fichier qui PART de l'îlot (bandeau « Téléchargé », tuile de la carte) n'ouvre jamais la zone sous lui-même
+        guard etagereActive, !moteur.glisserSortant else { return }
         guard moteur.depot || procheEncoche(p) else { return }
         if glisserDeFichiers == nil { glisserDeFichiers = fichiers() }
         guard glisserDeFichiers == true else { return }
@@ -309,20 +310,26 @@ final class IlotPanneau {
     }
 
     /// Des fichiers glissés sont en `p` : près de l'encoche, l'îlot s'ouvre en « Déposez ici » et la fenêtre les accepte ; ouvert, il le
-    /// reste tant que le pointeur est sur la zone ou tout près ; la zone s'éclaire quand le pointeur est sur la forme.
+    /// reste tant que le pointeur est sur la FORME ou à 40 pt autour (pas sur tout le rectangle de la fenêtre, qui couvre les icônes de
+    /// la barre à côté du cou) ; la zone s'éclaire quand le pointeur est sur la forme, le seul endroit où un lâcher est accepté.
     func approcher(_ p: CGPoint) {
-        let r = moteur.rectCible()
-        let ouvert = moteur.depot ? (demiLargeur: Double(r.maxX), hauteur: Double(r.height)) : nil
-        let proche = ApprocheEtagere.proche(x: Double(p.x), y: Double(p.y), demiCamera: Double(moteur.demiCamera), barre: Double(moteur.geometrie.hauteur), ouvert: ouvert)
+        // dans la barre des menus, seulement près du cou (à côté, ce sont les icônes des autres apps) ; dessous, près de la forme
+        let marge = CGFloat(ApprocheEtagere.marge)
+        let garde = moteur.depot && (p.y < moteur.geometrie.hauteur ? abs(p.x) <= CGFloat(moteur.traceCible.cou) + marge : moteur.contient(p, marge: marge))
+        let proche = procheEncoche(p) || garde
         if proche, !moteur.depot {
             moteur.montrerDepot(true)
             if moteur.depot { accepterLeDepot(true) }
         } else if !proche, moteur.depot, !depotLache {
             moteur.montrerDepot(false)
             accepterLeDepot(false)
+            // la fenêtre, encore grande le temps que la forme se referme, laisse passer le glisser vers ce qui est dessous
+            laisserPasser(true)
         }
         if moteur.depot, !depotLache { moteur.depotSurvole = moteur.contient(p) }
     }
+    /// Un lâcher en `p` serait-il accepté ? Seulement sur la forme de « Déposez ici » (pas dans le vide de la fenêtre à côté).
+    func peutDeposer(_ p: CGPoint) -> Bool { etagereActive && moteur.depot && !depotLache && moteur.contient(p) }
 
     /// La zone est ouverte : la fenêtre prend la souris (sinon le dépôt passerait aux menus dessous) ; un petit moniteur guette la fin
     /// du glisser (le premier mouvement sans bouton), au cas où le relâchement ne nous parviendrait pas. Il disparaît avec la zone.
@@ -341,19 +348,33 @@ final class IlotPanneau {
     }
 
     /// Le glisser est fini (lâché ailleurs, ou annulé) : la zone se referme, sauf si les fichiers viennent d'être lâchés sur l'îlot
-    /// (il les montre un instant, puis se referme de lui-même).
+    /// (il les montre un instant, puis se referme de lui-même). Le relâchement du bouton peut nous parvenir AVANT le message de dépôt
+    /// (l'ordre dépend de macOS) : la zone attend donc `delaiFinGlisser` avant de se refermer, et un dépôt arrivé entre-temps l'emporte.
     func finDuGlisser() {
         glisserDeFichiers = nil
+        guard moteur.depot, !depotLache else { accepterLeDepot(false); return }
+        // déjà en attente : chaque mouvement de la souris après le glisser ne repousse pas la fermeture
+        guard fermetureGlisser == nil else { return }
+        let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.fermerApresGlisser() } }
+        fermetureGlisser = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.delaiFinGlisser, execute: item)
+    }
+    static let delaiFinGlisser: TimeInterval = 0.3
+    private var fermetureGlisser: DispatchWorkItem?
+    private func fermerApresGlisser() {
+        fermetureGlisser = nil
         accepterLeDepot(false)
         if moteur.depot, !depotLache { moteur.montrerDepot(false) }
     }
 
-    /// Le glisser passe sur la fenêtre de l'îlot (le système le dit lui-même) : s'il n'avait pas été vu venir, la zone s'ouvre ici.
-    func glisserSurLIlot(_ p: CGPoint) -> Bool {
-        guard etagereActive, !moteur.cache else { return false }
+    /// Le glisser passe sur la fenêtre de l'îlot (le système le dit lui-même) : s'il n'avait pas été vu venir, la zone s'ouvre ici. Un
+    /// glisser parti de Verbe lui-même (`interne` : une tuile de la carte, le fichier du bandeau « Téléchargé ») n'ouvre rien. Vrai : un
+    /// lâcher à cet endroit serait accepté.
+    func glisserSurLIlot(_ p: CGPoint, interne: Bool = false) -> Bool {
+        guard etagereActive, !moteur.cache, !interne, !moteur.glisserSortant else { return false }
         glisserDeFichiers = true
         approcher(p)
-        return moteur.depot
+        return peutDeposer(p)
     }
     func glisserHorsDeLIlot() { if !depotLache { moteur.depotSurvole = false } }
 
@@ -362,6 +383,7 @@ final class IlotPanneau {
     func deposer(_ urls: [URL]) -> Bool {
         let fichiers = urls.filter(\.isFileURL)
         guard etagereActive, moteur.depot, !fichiers.isEmpty else { finDuGlisser(); return false }
+        fermetureGlisser?.cancel(); fermetureGlisser = nil
         depotLache = true
         accepterLeDepot(false)
         surDepot(fichiers)
@@ -406,14 +428,20 @@ final class ConteneurIlot: NSView {
     static func operation(_ masque: NSDragOperation) -> NSDragOperation {
         masque.contains(.link) ? .link : (masque.contains(.copy) ? .copy : .generic)
     }
+    /// Un glisser venu d'une autre app (le Finder, Mail…) : `draggingSource` est nil. Non nil, il part de Verbe lui-même (une tuile de
+    /// l'étagère, le bandeau « Téléchargé ») : ce n'est jamais un dépôt.
     private func accepte(_ s: NSDraggingInfo) -> NSDragOperation {
-        guard let panneau, let p = point(s), IlotPanneau.contientDesFichiers(s.draggingPasteboard), panneau.glisserSurLIlot(p) else { return [] }
+        guard let panneau, let p = point(s), IlotPanneau.contientDesFichiers(s.draggingPasteboard),
+              panneau.glisserSurLIlot(p, interne: s.draggingSource != nil) else { return [] }
         return Self.operation(s.draggingSourceOperationMask)
     }
     override func draggingEntered(_ s: NSDraggingInfo) -> NSDragOperation { accepte(s) }
     override func draggingUpdated(_ s: NSDraggingInfo) -> NSDragOperation { accepte(s) }
     override func draggingExited(_ s: NSDraggingInfo?) { panneau?.glisserHorsDeLIlot() }
-    override func prepareForDragOperation(_ s: NSDraggingInfo) -> Bool { panneau?.moteur.depot ?? false }
+    override func prepareForDragOperation(_ s: NSDraggingInfo) -> Bool {
+        guard let panneau, s.draggingSource == nil, let p = point(s) else { return false }
+        return panneau.peutDeposer(p)
+    }
     override func performDragOperation(_ s: NSDraggingInfo) -> Bool {
         let urls = s.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
         return panneau?.deposer(urls) ?? false

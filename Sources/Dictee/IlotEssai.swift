@@ -264,9 +264,43 @@ enum IlotEssai {
         verifier(finder.last?.count == 3 && m.bandeau == nil, "« Afficher » montre les trois dans le Finder (capturé)")
         attendre(1.5)
         verifier(!m.boucleActive, "plus rien n'arrive : aucune boucle, aucune relecture du dossier")
+        // curl -o / wget / AirDrop : le fichier est créé vide, puis écrit SUR PLACE (aucun ajout ni renommage : le dossier ne prévient pas)
+        let iso = telechargements.appendingPathComponent("Image.iso")
+        FileManager.default.createFile(atPath: iso.path, contents: nil); attendre(0.5)
+        if let h = try? FileHandle(forWritingTo: iso) { h.write(Data(repeating: 0x2A, count: 2_000_000)); try? h.close() }
+        attendre(4.0) { m.bandeauVu?.ligne1 != "Image.iso" }
+        verifier(m.courante == .telecharge && m.bandeauVu?.ligne1 == "Image.iso", "fichier créé vide puis rempli sur place : annoncé quand même (\(m.bandeauVu?.ligne1 ?? "rien"))")
+        // le fichier glissé hors du bandeau : le bandeau (source du glisser) reste jusqu'au relâchement, puis se retire
+        var boutonTenu = true
+        m.boutonEnfonce = { boutonTenu }
+        m.glisserSortantCommence()
+        attendre(5.0)
+        verifier(m.bandeau?.vue == .telecharge && m.glisserSortant, "glisser en cours, 5 s après l'arrivée : le bandeau reste (sa vue est la source du glisser)")
+        boutonTenu = false
+        attendre(0.5)
+        verifier(!m.glisserSortant && m.bandeau?.vue == .telecharge, "bouton relâché : le glisser est fini, le bandeau reste encore un instant")
+        attendre(1.5) { m.bandeau != nil }
+        verifier(m.bandeau == nil, "puis il se retire")
+        m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 }
         c.telechargementsSource.arreter(); attendre(0.2)
         deposer("Après.pdf", 3_000); attendre(1.8)
         verifier(m.bandeau == nil && !c.telechargementsSource.actif, "réglage éteint (surveillance arrêtée) : plus rien n'est annoncé")
+        // refus d'accès (EACCES) : le réglage s'éteint ; dossier absent : la surveillance s'arrête, le réglage reste (jamais de vrais
+        // réglages touchés ici : le rappel de refus est remplacé)
+        let refusAvant = c.telechargementsSource.surRefus
+        var refus = 0
+        c.telechargementsSource.surRefus = { refus += 1 }
+        c.telechargementsSource.dossier = dossier.appendingPathComponent("absent", isDirectory: true)
+        c.telechargementsSource.demarrer(); attendre(0.4)
+        verifier(refus == 0 && !c.telechargementsSource.actif, "dossier absent : surveillance arrêtée, ce n'est pas un refus (le réglage reste)")
+        let ferme = dossier.appendingPathComponent("ferme", isDirectory: true)
+        try? FileManager.default.createDirectory(at: ferme, withIntermediateDirectories: true)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: ferme.path)
+        c.telechargementsSource.dossier = ferme
+        c.telechargementsSource.demarrer(); attendre(0.4)
+        verifier(refus == 1 && !c.telechargementsSource.actif, "accès refusé (EACCES) : c'est un refus, le réglage s'éteindrait")
+        try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: ferme.path)
+        c.telechargementsSource.surRefus = refusAvant
         liensOuverts = []
 
         // --- dictée : tout est effacé ; ce qui arrive attend la fin, sans son
@@ -292,7 +326,7 @@ enum IlotEssai {
             c.activerLeMicro(true); attendre(0.9)
             verifier(faux.actif && !m.microCoupe && m.resolution.principal == .lectureCompact, "micro ouvert au départ : rien ne change, la lecture garde l'îlot")
             c.basculerLeMicro(); attendre(0.9)
-            verifier(faux.commandes == ["couper"] && faux.coupe && m.microCoupe, "raccourci : le micro est coupé (une seule commande)")
+            verifier(faux.commandes == ["couper integre"] && faux.coupe && m.microCoupe, "raccourci : le micro est coupé (une seule commande, sur ce micro)")
             verifier(m.courante == .microCompact && m.pastille == .lecture, "micro coupé : il prend l'îlot, la lecture devient la bulle")
             verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && abs(m.trace.hauteur - Double(g.hauteur)) < 0.01,
                      "micro coupé : dans les ailes, \(Int(m.trace.bande - Double(m.demiCamera))) pt de chaque côté de la caméra (≤ 66), rien sous la barre")
@@ -314,7 +348,7 @@ enum IlotEssai {
             let pb = CGPoint(x: z.maxX - bouton / 2, y: z.midY)
             c.panneau.envoyerSouris(.leftMouseDown, en: pb); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pb)
             c.panneau.simulerPointeur(forme: false); attendre(0.4)
-            verifier(faux.commandes.last == "rouvrir" && !faux.coupe && !m.microCoupe, "vrai clic sur « Rouvrir » : le micro est rouvert")
+            verifier(faux.commandes.last == "rouvrir integre" && !faux.coupe && !m.microCoupe, "vrai clic sur « Rouvrir » : le micro est rouvert")
             verifier(m.courante == .microOuvert && m.bandeauVu?.ligne1 == "Micro ouvert", "bandeau vert « Micro ouvert »")
             attendre(1.6)
             verifier(m.bandeau == nil && m.resolution.principal == .lectureCompact && m.resolution.pastille == nil,
@@ -330,22 +364,43 @@ enum IlotEssai {
             c.basculerLeMicro(); attendre(0.6)
             let n1 = faux.commandes.count
             occ.dictee = true; c.dicteeChange(enCours: true)
-            verifier(Array(faux.commandes.dropFirst(n1)) == ["rouvrir"] && !faux.coupe, "fn tenue pendant que c'est coupé : le micro est rouvert tout de suite, avant la capture")
+            verifier(Array(faux.commandes.dropFirst(n1)) == ["rouvrir integre"] && !faux.coupe, "fn tenue pendant que c'est coupé : le micro est rouvert tout de suite, avant la capture")
             c.occupationChangee(); attendre(0.6)
             verifier(m.cache && m.bandeau == nil, "pendant la dictée : l'îlot est effacé, aucun « Micro ouvert » (l'écho est ignoré)")
             occ.dictee = false; c.dicteeChange(enCours: false)
-            verifier(Array(faux.commandes.dropFirst(n1)) == ["rouvrir", "couper"] && faux.coupe, "fn relâchée : le micro est recoupé")
+            verifier(Array(faux.commandes.dropFirst(n1)) == ["rouvrir integre", "couper integre"] && faux.coupe, "fn relâchée : le micro est recoupé")
             c.occupationChangee(); attendre(0.9)
             verifier(m.microCoupe && m.resolution.principal == .microCompact && m.bandeau == nil, "après la dictée : « Coupé » de nouveau, aucun bandeau")
             // dictée éclair : les deux notifications arrivent après coup, relues telles qu'est le micro (coupé) : rien ne bouge
             c.dicteeChange(enCours: true); c.dicteeChange(enCours: false); attendre(0.4)
             verifier(faux.coupe && m.microCoupe && m.bandeau == nil, "dictée éclair (notifications en retard) : toujours coupé, pas de faux « Micro ouvert »")
-            // la dictée écoute un autre micro : on ne rouvre pas celui que l'appel entend
-            faux.memeMicroQueLaDictee = false
+            // la dictée écoute un autre micro (ouvert) : on ne rouvre pas celui que l'appel entend
+            faux.coupes["airpods"] = false; faux.microDictee = "airpods"
             let n2 = faux.commandes.count
             c.dicteeChange(enCours: true); c.dicteeChange(enCours: false); attendre(0.3)
             verifier(faux.commandes.count == n2 && faux.coupe, "dictée sur un autre micro : celui-ci reste coupé")
-            faux.memeMicroQueLaDictee = true
+            faux.microDictee = nil; faux.coupes["airpods"] = nil
+            // micro du Mac coupé, puis les AirPods arrivent (micro par défaut) : la dictée, qui garde le micro du Mac, le rouvre LUI
+            faux.brancher("airpods"); attendre(0.4)
+            verifier(!m.microCoupe && m.bandeau == nil && faux.coupes["integre"] == true,
+                     "AirPods connectés : l'îlot montre leur micro (ouvert), sans faux « Micro ouvert » ; celui du Mac reste coupé")
+            faux.microDictee = "integre"
+            let n4 = faux.commandes.count
+            occ.dictee = true; c.dicteeChange(enCours: true)
+            verifier(Array(faux.commandes.dropFirst(n4)) == ["rouvrir integre"] && faux.coupes["integre"] == false, "dictée sur le micro du Mac : c'est lui qui est rouvert (sinon : du silence)")
+            // pendant la dictée, les AirPods partent : le micro par défaut redevient celui du Mac
+            faux.debrancher("airpods"); attendre(0.3)
+            occ.dictee = false; c.dicteeChange(enCours: false); c.occupationChangee(); attendre(0.6)
+            verifier(Array(faux.commandes.dropFirst(n4)) == ["rouvrir integre", "couper integre"] && faux.coupe && m.microCoupe && m.bandeau == nil,
+                     "fin de la dictée : le micro du Mac est recoupé (celui qu'on avait rouvert), l'îlot le montre, aucun bandeau")
+            // l'inverse : pendant une dictée qui a rouvert le micro du Mac, les AirPods arrivent ; à la fin, seul le Mac est recoupé
+            let n5 = faux.commandes.count
+            occ.dictee = true; c.dicteeChange(enCours: true); faux.brancher("airpods"); attendre(0.3)
+            occ.dictee = false; c.dicteeChange(enCours: false); c.occupationChangee(); attendre(0.6)
+            verifier(Array(faux.commandes.dropFirst(n5)) == ["rouvrir integre", "couper integre"] && faux.coupes["airpods"] == false,
+                     "les AirPods arrivés pendant la dictée ne sont jamais coupés ; le micro du Mac l'est de nouveau")
+            faux.debrancher("airpods"); faux.microDictee = nil; attendre(0.4)
+            verifier(m.microCoupe && m.bandeau == nil, "AirPods rangés : le micro du Mac, coupé, revient dans l'îlot")
             // le raccourci, sur des touches fabriquées (jamais envoyées) : « m » selon la disposition du clavier de ce Mac
             let src = CGEventSource(stateID: .privateState)
             func touche(_ code: CGKeyCode, _ f: CGEventFlags) -> CGEvent? { let e = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: true); e?.flags = f; return e }
@@ -358,20 +413,35 @@ enum IlotEssai {
                          && touche(codeA, [.maskControl, .maskAlternate]).map { KeyMonitor.correspond($0, a: r) } == false
                          && touche(codeM, []).map { KeyMonitor.correspond($0, a: r) } == false, "⌃M, ⌃⌥⌘M, ⌃⌥A, m seul : pas le raccourci")
             } else { verifier(false, "touche « m » introuvable sur ce clavier") }
-            // un micro qui ne se coupe pas : l'îlot reste sur ce qui est vrai
-            c.basculerLeMicro(); attendre(1.8)
-            verifier(!m.microCoupe && m.bandeau == nil, "rouvert (raccourci), bandeau parti")
-            faux.reglable = false
-            c.basculerLeMicro(); attendre(0.6)
-            verifier(!m.microCoupe && m.resolution.principal == .lectureCompact && m.bandeau == nil, "micro qui refuse d'être coupé : l'îlot ne ment pas")
-            faux.reglable = true
+            // la touche n'est avalée que si elle a servi (KeyMonitor sans écoute réelle : les touches fabriquées lui sont passées)
+            if let codeM = (0..<128).map({ CGKeyCode($0) }).first(where: { touche($0, []).flatMap { NSEvent(cgEvent: $0)?.charactersIgnoringModifiers } == "m" }),
+               let bas = touche(codeM, [.maskControl, .maskAlternate]), let haut = CGEvent(keyboardEventSource: src, virtualKey: codeM, keyDown: false) {
+                haut.flags = [.maskControl, .maskAlternate]
+                let clavier = KeyMonitor()
+                clavier.raccourciMicro = .microParDefaut
+                clavier.onMicro = { c.basculerLeMicro() }
+                let n6 = faux.commandes.count
+                verifier(clavier.recevoir(type: .keyDown, event: bas) && clavier.recevoir(type: .keyUp, event: haut) && faux.commandes.count == n6 + 1,
+                         "⌃⌥M qui rouvre le micro : appui et relâchement avalés")
+                attendre(1.8)
+                faux.reglable = false
+                verifier(!clavier.recevoir(type: .keyDown, event: bas) && !clavier.recevoir(type: .keyUp, event: haut) && faux.commandes.count == n6 + 1,
+                         "micro qui ne se coupe pas : ⌃⌥M n'est PAS avalé (l'app au premier plan le reçoit), aucune commande")
+                verifier(!m.microCoupe && m.resolution.principal == .lectureCompact && m.bandeau == nil, "micro qui refuse d'être coupé : l'îlot ne ment pas")
+                faux.reglable = true
+                c.surRaccourciMicro = { clavier.raccourciMicro = $0 }
+                c.activerLeMicro(false); c.surRaccourciMicro(nil)
+                verifier(!clavier.recevoir(type: .keyDown, event: bas) && !clavier.recevoir(type: .keyUp, event: haut), "réglage éteint : ⌃⌥M n'est plus avalé")
+                c.surRaccourciMicro = { _ in }
+                c.activerLeMicro(true); attendre(0.4)
+            } else { verifier(false, "touche « m » introuvable sur ce clavier") }
             // réglage éteint : plus d'écoute ; le micro reste comme il est
             c.basculerLeMicro(); attendre(0.6)
             c.activerLeMicro(false); attendre(0.6)
             verifier(!faux.actif && !m.microCoupe && m.resolution.principal == .lectureCompact, "réglage éteint : l'îlot ne montre plus le micro")
             let n3 = faux.commandes.count
-            c.basculerLeMicro(); faux.depuisLeSysteme(coupe: false); attendre(0.4)
-            verifier(faux.commandes.count == n3 && m.bandeau == nil, "réglage éteint : le raccourci et CoreAudio ne font plus rien")
+            let servi = c.basculerLeMicro(); faux.depuisLeSysteme(coupe: false); attendre(0.4)
+            verifier(!servi && faux.commandes.count == n3 && m.bandeau == nil, "réglage éteint : le raccourci et CoreAudio ne font plus rien")
             attendre(1.2) { m.boucleActive }
             verifier(!m.boucleActive, "micro : tout est posé, aucune boucle d'animation")
         }
@@ -481,6 +551,49 @@ enum IlotEssai {
             let rep = touche(.volumePlus, repetition: true), haut = touche(.volumePlus, enfoncee: false)
             verifier(rep && haut && faux.ecritures.count == n3, "touche tenue quand la dictée commence : répétitions et relâchement avalés, rien de réglé")
             occ.dictee = false; c.occupationChangee(); attendre(0.3)
+            // le réglage se fait hors du rappel du clavier (comme la vraie file) : la touche est avalée tout de suite, l'îlot suit
+            attendre(1.8) { m.bandeau != nil }
+            faux.differe = true
+            let v0 = faux.son.valeur
+            let d1 = touche(.volumePlus)
+            verifier(d1 && faux.son.valeur == v0 && m.bandeau == nil, "touche avalée sans attendre le système (rien n'est lu ni écrit dans le rappel du clavier)")
+            attendre(0.15)
+            verifier(faux.son.valeur > v0 && m.bandeau?.vue == .volume, "puis le volume est réglé et l'îlot le montre")
+            _ = touche(.volumePlus, enfoncee: false)
+            faux.differe = false
+            // une écriture refusée (sortie qui change pendant l'écriture) : la touche suivante va à macOS, plus rien n'est avalé pour rien
+            attendre(1.8) { m.bandeau != nil }
+            faux.refuser = true
+            let n4 = faux.ecritures.count
+            let r1 = appuyer(.volumePlus)
+            let r2 = appuyer(.volumePlus)
+            verifier(r1.bas && r1.haut && !r2.bas && !r2.haut && faux.ecritures.count == n4 && m.bandeau == nil,
+                     "écriture refusée : l'appui suivant et son relâchement vont à macOS (son affichage), l'îlot ne montre rien de faux")
+            faux.refuser = false; faux.changement()
+            verifier(appuyer(.volumePlus).bas, "le système signale un changement (nouvelle sortie) : Verbe reprend la main")
+            // le lecteur épinglé ouvert : la touche reste à macOS, l'îlot ne se referme pas sous les doigts
+            attendre(1.8) { m.bandeau != nil }
+            m.clicForme(); attendre(0.6)
+            let n5 = faux.ecritures.count
+            let ep = appuyer(.volumeMoins)
+            verifier(m.epingle && !ep.bas && !ep.haut && faux.ecritures.count == n5 && m.courante == .lectureEtendu,
+                     "lecteur épinglé ouvert : volume − laissé à macOS, le lecteur reste ouvert et épinglé (\(m.courante))")
+            m.fermer(); attendre(0.6)
+            // la souris immobile sur l'encoche ne retient pas le volume
+            _ = appuyer(.volumePlus)
+            c.panneau.simulerPointeur(forme: true)
+            attendre(2.2)
+            verifier(m.bandeau == nil, "souris posée sur l'encoche : le bandeau du volume part quand même (1,5 s après la touche)")
+            c.panneau.simulerPointeur(forme: false); attendre(0.5)
+            // macOS coupe puis rallume l'écoute du clavier pendant qu'une touche est tenue : ce qui la retenait repart de zéro
+            _ = touche(.volumePlus)
+            let clavierN = KeyMonitor()
+            clavierN.onReinitialisation = { c.aiguillageNiveau = AiguillageNiveau() }
+            if let ev = CGEvent(source: nil) {
+                _ = clavierN.recevoir(type: .tapDisabledByTimeout, event: ev)
+                verifier(!c.aiguillageNiveau.avalee(.volumePlus) && !touche(.volumePlus, enfoncee: false), "écoute coupée par macOS : la touche tenue est oubliée, son relâchement va à macOS")
+            }
+            attendre(1.8) { m.bandeau != nil }
             // « Réduire les animations » : la barre saute à sa place
             m.reduire = true
             _ = appuyer(.volumeMoins)
@@ -514,6 +627,24 @@ enum IlotEssai {
             verifier((try? inst.brancher()) != nil && lireReglages() == branche, "« Brancher » deux fois : rien en double, le fichier ne change pas")
             let commande = CrochetsClaude.commande(script: inst.script.path)
             verifier(branche.contains(JSONOrdonne.citer(commande)), "la commande écrite est le chemin du script, cité")
+            // un settings.json présent mais illisible (octets qui ne sont pas de l'UTF-8, lien cassé) : jamais remplacé par nos seuls crochets
+            func echec(_ i: InstallationClaude, _ faire: (InstallationClaude) throws -> Void) -> Bool {
+                do { try faire(i); return false } catch InstallationClaude.Echec.inaccessible { return true } catch { return false }
+            }
+            let abime = InstallationClaude(reglages: racine.appendingPathComponent("abime/settings.json"), dossierVerbe: inst.dossierVerbe)
+            try? FileManager.default.createDirectory(at: abime.reglages.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let octets = Data([0x7B, 0x22, 0x6D, 0x6F, 0x64, 0xFF, 0xFE, 0x22, 0x3A, 0x31, 0x7D])
+            try? octets.write(to: abime.reglages)
+            verifier(echec(abime) { try $0.brancher() } && echec(abime) { try $0.debrancher() } && !abime.estBranche,
+                     "settings.json non UTF-8 : « Brancher » et « Débrancher » refusent (« n'a pas pu être lu »)")
+            verifier((try? Data(contentsOf: abime.reglages)) == octets && !FileManager.default.fileExists(atPath: abime.sauvegarde.path),
+                     "… et le fichier est intact, octet pour octet (rien écrit, aucune copie à la place)")
+            let casse = InstallationClaude(reglages: racine.appendingPathComponent("lien/settings.json"), dossierVerbe: inst.dossierVerbe)
+            try? FileManager.default.createDirectory(at: casse.reglages.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let nullePart = racine.appendingPathComponent("lien/nulle-part.json")
+            try? FileManager.default.createSymbolicLink(at: casse.reglages, withDestinationURL: nullePart)
+            verifier(echec(casse) { try $0.brancher() } && (try? FileManager.default.destinationOfSymbolicLink(atPath: casse.reglages.path)) == nullePart.path
+                     && !FileManager.default.fileExists(atPath: nullePart.path), "settings.json lien cassé : refusé, le lien reste un lien, rien n'est créé")
 
             // le script, lancé par /bin/sh -c avec la commande écrite dans settings.json, le JSON de Claude Code sur l'entrée
             func crochet(_ json: String, app: String? = "com.apple.Terminal") -> (sortie: String, code: Int32) {
@@ -545,6 +676,9 @@ enum IlotEssai {
             verifier(r0.code == 0 && r0.sortie.isEmpty && l0.hasSuffix("\n") && l0.components(separatedBy: "\n").count == 2, "le script : une ligne ajoutée, rien sur la sortie, code 0")
             verifier(!l0.contains("mot-de-passe-secret") && l0.contains("\"app\":\"com.apple.Terminal\"") && l0.contains("\"cwd\":\"/Users/essai/dev/dictee-mac\""),
                      "la demande tapée n'est jamais écrite ; l'app d'où vient la session et le dossier le sont")
+            let rn = crochet(ev("nuit", "Stop"), app: nil)
+            verifier(rn.code == 0 && !FileManager.default.fileExists(atPath: fichier("nuit").path),
+                     "session sans app d'origine (claude -p lancé par launchd ou cron) : le script n'écrit rien, code 0")
             var premierPlan: String? = "com.google.Chrome"
             var ramenes: [String?] = []
             c.appAuPremierPlan = { premierPlan }
@@ -747,6 +881,16 @@ enum IlotEssai {
             verifier(!m.boucleActive, "« Déposez ici » posé : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
             c.panneau.glisser(CGPoint(x: m.trace.corps + 30, y: barre + 60)) { true }; attendre(0.3)
             verifier(m.depot, "pointeur 30 pt à côté de la zone : elle reste ouverte (on ne la perd pas en la visant)")
+            verifier(!c.panneau.peutDeposer(CGPoint(x: m.trace.corps + 30, y: barre + 60)) && c.panneau.peutDeposer(CGPoint(x: 0, y: barre + 50)),
+                     "un lâcher n'est accepté que sur la forme (pas dans le vide de la fenêtre autour)")
+            // dans la barre des menus, à côté du cou mais dans le rectangle de la fenêtre : la zone se referme (ce sont les icônes voisines)
+            let icone = CGPoint(x: m.traceCible.cou + 80, y: barre / 2)
+            let fenetreLarge = c.panneau.cadre.map { Double($0.width) / 2 > Double(icone.x) } ?? false
+            verifier(!c.panneau.peutDeposer(icone), "dans la barre, à côté du cou : aucun lâcher accepté")
+            c.panneau.glisser(icone) { true }; attendre(0.6)
+            verifier(!m.depot && fenetreLarge, "dans la barre, 80 pt à côté du cou (encore dans la fenêtre) : la zone se referme, l'icône voisine reçoit le glisser")
+            c.panneau.glisser(CGPoint(x: 0, y: barre + 10)) { true }; attendre(0.6)
+            verifier(m.depot, "revenu sous l'encoche : la zone se rouvre")
             c.panneau.glisser(CGPoint(x: 600, y: 420)) { true }; attendre(0.9)
             verifier(!m.depot && m.courante == .repos, "pointeur reparti loin sans lâcher : la zone se referme")
             c.panneau.finDuGlisser()
@@ -764,10 +908,31 @@ enum IlotEssai {
             verifier(m.depot, "le relâchement du bouton, qui suit le dépôt, ne coupe pas ce coup d'œil")
             attendre(1.6)
             verifier(!m.depot && m.courante == .repos, "0,9 s plus tard : l'îlot se referme de lui-même")
+            // le relâchement du bouton arrive AVANT le message de dépôt (l'ordre dépend de macOS) : le dépôt est quand même accepté
             c.panneau.glisser(CGPoint(x: 0, y: 10)) { true }; attendre(0.3)
+            c.panneau.finDuGlisser(); attendre(0.05)
+            verifier(m.depot && c.panneau.peutDeposer(CGPoint(x: 0, y: barre + 40)), "relâchement vu d'abord : la zone attend un instant le dépôt")
             c.panneau.deposer([photo, notes, URL(string: "https://exemple.fr/page")!]); attendre(1.6)
             verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Photo.heic", "Notes.txt"], "redéposé : pas de doublon ; un lien web est ignoré")
             verifier(fabriquer().etagere.elements.map(\.nom) == ["Contrat.pdf", "Photo.heic", "Notes.txt"], "après relance : l'étagère est relue depuis son fichier")
+            // relâché ailleurs : la zone se referme, après ce court délai
+            c.panneau.glisser(CGPoint(x: 0, y: 10)) { true }; attendre(0.6)
+            c.panneau.finDuGlisser(); c.panneau.finDuGlisser(); attendre(0.1); c.panneau.finDuGlisser()
+            verifier(m.depot, "relâché : la zone attend encore (les mouvements qui suivent ne repoussent pas l'échéance)")
+            attendre(0.4)
+            verifier(!m.depot, "\(Int(IlotPanneau.delaiFinGlisser * 1000)) ms après le relâchement, sans dépôt : la zone se referme")
+            attendre(0.6)
+            // un glisser qui PART de l'îlot (une tuile, le fichier du bandeau « Téléchargé ») n'ouvre jamais la zone sous lui-même
+            verifier(!c.panneau.glisserSurLIlot(CGPoint(x: 0, y: barre + 40), interne: true) && !m.depot,
+                     "glisser venu de Verbe lui-même (source dans l'app) : refusé, pas de « Déposez ici »")
+            var tenu = true
+            m.boutonEnfonce = { tenu }
+            m.glisserSortantCommence()
+            c.panneau.glisser(CGPoint(x: 0, y: 10)) { true }; attendre(0.4)
+            verifier(!m.depot && !c.panneau.glisserSurLIlot(CGPoint(x: 0, y: barre + 40)), "fichier sorti d'une tuile, repassé sur l'encoche : la zone ne s'ouvre pas")
+            tenu = false; attendre(0.5)
+            m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 }
+            c.panneau.finDuGlisser()
             // pendant la dictée : rien ne s'ouvre
             occ.dictee = true; c.occupationChangee(); attendre(0.3)
             c.panneau.glisser(CGPoint(x: 0, y: 10)) { true }; attendre(0.3)

@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import SwiftUI
 import DicteeCore
 
@@ -43,8 +44,11 @@ enum SignetsEtagere {
               let d = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) else { return nil }
         return ElementEtagere(chemin: cheminReel(url), signet: d, ajout: date)
     }
-    /// Où est le fichier maintenant ? Un disque externe débranché n'efface rien : le fichier reviendra avec lui.
-    static func relire(_ e: ElementEtagere) -> SignetRelu {
+    /// Où est le fichier maintenant ? Un disque externe débranché n'efface rien : le fichier reviendra avec lui (et on n'y touche pas :
+    /// aucun signet résolu, aucune lecture sur un volume absent). Appelée hors du fil principal (un partage réseau injoignable peut
+    /// bloquer plusieurs secondes).
+    nonisolated static func relire(_ e: ElementEtagere) -> SignetRelu {
+        if volumeAbsent(e.chemin) != nil { return .present(chemin: e.chemin, signet: nil) }
         var perime = false
         if let u = try? URL(resolvingBookmarkData: e.signet, options: [.withoutUI, .withoutMounting], relativeTo: nil, bookmarkDataIsStale: &perime),
            FileManager.default.fileExists(atPath: u.path) {
@@ -54,8 +58,18 @@ enum SignetsEtagere {
         if volumeAbsent(e.chemin) != nil { return .present(chemin: e.chemin, signet: nil) }
         return .disparu
     }
+    /// L'icône du Finder, lue par les propriétés du fichier (sans AppKit : se lit hors du fil principal) ; nil sur un volume absent.
+    nonisolated static func icone(_ chemin: String) -> NSImage? {
+        guard volumeAbsent(chemin) == nil else { return nil }
+        return (try? URL(fileURLWithPath: chemin).resourceValues(forKeys: [.effectiveIconKey]))?.effectiveIcon as? NSImage
+    }
+    /// L'icône du type de fichier, d'après son extension seule (aucun accès au fichier) : en attendant la vraie.
+    static func iconeDuType(_ chemin: String) -> NSImage {
+        let ext = (chemin as NSString).pathExtension
+        return NSWorkspace.shared.icon(for: ext.isEmpty ? .data : (UTType(filenameExtension: ext) ?? .data))
+    }
     /// « /Volumes/Disque/… » dont le disque n'est pas branché.
-    static func volumeAbsent(_ chemin: String) -> String? {
+    nonisolated static func volumeAbsent(_ chemin: String) -> String? {
         let c = (chemin as NSString).pathComponents
         guard c.count > 2, c[1] == "Volumes" else { return nil }
         let racine = "/Volumes/" + c[2]
@@ -64,11 +78,13 @@ enum SignetsEtagere {
 }
 
 extension IlotControleur {
-    /// Le réglage « Étagère » : la fenêtre écoute les glissers, l'accueil montre la ligne de l'étagère.
+    /// Le réglage « Étagère » : la fenêtre écoute les glissers, l'accueil montre la ligne de l'étagère. Au lancement, aucun fichier
+    /// n'est lu (ni signet résolu, ni icône lue sur le disque : pas de demande d'autorisation sans geste) ; les signets sont relus à
+    /// l'ouverture de l'accueil ou de la carte.
     func activerEtagere(_ oui: Bool) {
         panneau.etagereActive = oui
         moteur.etagereActive = oui
-        if oui { relireEtagere() } else { moteur.montrerDepot(false) }
+        if oui { montrerEtagere() } else { moteur.montrerDepot(false) }
     }
 
     /// Des fichiers ont été lâchés sur l'îlot : un signet pour chacun, sans doublon. Rend le nombre de fichiers rangés.
@@ -77,6 +93,8 @@ extension IlotControleur {
         let t = maintenant()
         let r = etagere.ajouter(urls.compactMap { SignetsEtagere.element($0, a: t) })
         for e in r.sortis { iconesEtagere[e.id] = nil }
+        // les fichiers viennent d'être lâchés (donc accessibles) : leur icône est lue tout de suite
+        for e in r.ajoutes { iconesEtagere[e.id] = NSWorkspace.shared.icon(forFile: e.chemin) }
         sauverEtagere()
         montrerEtagere()
         // jamais de nom de fichier au journal
@@ -84,27 +102,54 @@ extension IlotControleur {
         return r.ajoutes.count
     }
 
-    /// Relit les signets (à l'ouverture de l'accueil ou de l'étagère, et au lancement) : un fichier déplacé suit, un fichier supprimé
-    /// ou mis à la Corbeille s'en va. Dix signets au plus : rien de lourd.
-    func relireEtagere() {
+    /// Relit les signets (à l'ouverture de l'accueil ou de la carte) : un fichier déplacé suit, un fichier supprimé ou mis à la
+    /// Corbeille s'en va. La résolution se fait sur une file à part (un partage réseau injoignable ou une clé lente ne gèlent ni l'îlot ni
+    /// la dictée), puis le résultat est appliqué ici. Une seule relecture à la fois ; à l'ouverture de l'accueil (au simple survol de
+    /// l'encoche), pas plus d'une toutes les 5 s. `puis` : appelé quand l'étagère est à jour.
+    func relireEtagere(force: Bool = true, puis: (() -> Void)? = nil) {
+        if let puis { apresRelecture.append(puis) }
+        if relectureEtagere.enCours { relectureEtagere.encore = relectureEtagere.encore || force; return }
+        let t = Date()
+        guard force || t.timeIntervalSince(relectureEtagere.derniere) >= 5 else { finRelecture(); return }
+        relectureEtagere = (true, false, t)
+        let elements = etagere.elements
+        let sansIcone = Set(elements.map(\.id)).subtracting(iconesEtagere.keys)
+        DispatchQueue.global(qos: .userInitiated).async {
+            var relus: [UUID: SignetRelu] = [:], icones: [UUID: NSImage] = [:]
+            for e in elements {
+                let r = SignetsEtagere.relire(e)
+                relus[e.id] = r
+                if sansIcone.contains(e.id), case .present(let chemin, _) = r, let i = SignetsEtagere.icone(chemin) { icones[e.id] = i }
+            }
+            let resultat = (relus, icones)
+            DispatchQueue.main.async { MainActor.assumeIsolated { self.appliquerRelecture(resultat.0, icones: resultat.1) } }
+        }
+    }
+    private func finRelecture() { let l = apresRelecture; apresRelecture = []; l.forEach { $0() } }
+
+    private func appliquerRelecture(_ relus: [UUID: SignetRelu], icones: [UUID: NSImage]) {
         let avant = etagere
-        let retires = etagere.relire(SignetsEtagere.relire)
+        // un fichier rangé pendant la relecture n'a pas été relu : il reste tel quel
+        let retires = etagere.relire { relus[$0.id] ?? .present(chemin: $0.chemin, signet: nil) }
+        for (id, i) in icones { iconesEtagere[id] = i }
         for e in retires { iconesEtagere[e.id] = nil }
         if etagere != avant {
             sauverEtagere()
             if !retires.isEmpty { Log.ecrire("étagère : \(retires.count) fichier(s) disparu(s), retiré(s)") }
         }
         montrerEtagere()
+        let encore = relectureEtagere.encore
+        relectureEtagere.enCours = false
+        if encore { relireEtagere(force: true) } else { finRelecture() }
     }
 
     func sauverEtagere() { etagereStore.ecrire(etagere) }
 
-    /// Ce que l'îlot montre : le nom, le chemin, l'icône du Finder (lue une fois par fichier).
+    /// Ce que l'îlot montre : le nom, le chemin, l'icône du Finder (lue une fois par fichier, hors du fil principal ; en attendant,
+    /// celle du type de fichier, qui ne touche pas au disque).
     func montrerEtagere() {
         moteur.etagere = etagere.elements.map { e in
-            let icone = iconesEtagere[e.id] ?? NSWorkspace.shared.icon(forFile: e.chemin)
-            iconesEtagere[e.id] = icone
-            return FichierEtagere(id: e.id, nom: e.nom, url: URL(fileURLWithPath: e.chemin), icone: icone)
+            FichierEtagere(id: e.id, nom: e.nom, url: URL(fileURLWithPath: e.chemin), icone: iconesEtagere[e.id] ?? SignetsEtagere.iconeDuType(e.chemin))
         }
         moteur.donneesChangees()
     }
@@ -112,10 +157,12 @@ extension IlotControleur {
     func agirEtagere(_ action: ActionIlot) {
         switch action {
         case .etagereOuvrir(let id):
-            relireEtagere()
-            guard let e = etagere.elements.first(where: { $0.id == id }) else { return }
+            // le chemin d'aujourd'hui (le fichier a pu être déplacé), relu hors du fil principal, puis on ouvre
             moteur.fermer()
-            ouvrir(URL(fileURLWithPath: e.chemin))
+            relireEtagere { [weak self] in
+                guard let self, let e = self.etagere.elements.first(where: { $0.id == id }) else { return }
+                self.ouvrir(URL(fileURLWithPath: e.chemin))
+            }
         case .etagereRetirer(let id):
             if etagere.retirer(id) { iconesEtagere[id] = nil; sauverEtagere(); montrerEtagere() }
         case .etagereVider:
@@ -136,6 +183,8 @@ struct TuileEtagere: View {
 
     var fichier: FichierEtagere
     var largeur: CGFloat
+    /// Le moteur, prévenu quand la tuile est glissée hors de la carte (nil dans l'accueil, où les tuiles ne se prennent pas).
+    var m: IlotMoteur?
     var actions = false
     var ouvrir: () -> Void = {}
     var retirer: () -> Void = {}
@@ -146,7 +195,7 @@ struct TuileEtagere: View {
             contenu
                 .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .onTapGesture { ouvrir() }
-                .glisserFichier(fichier.url)
+                .glisserFichier(fichier.url, m)
                 .overlay(alignment: .topTrailing) {
                     if survol {
                         Button(action: retirer) {
@@ -267,7 +316,7 @@ struct CarteEtagere: View {
                     ForEach(Array(rangees.enumerated()), id: \.offset) { r, rangee in
                         HStack(spacing: TuileEtagere.espace) {
                             ForEach(rangee) { f in
-                                TuileEtagere(fichier: f, largeur: lt, actions: true,
+                                TuileEtagere(fichier: f, largeur: lt, m: m, actions: true,
                                              ouvrir: { m.surAction(.etagereOuvrir(f.id)) }, retirer: { m.surAction(.etagereRetirer(f.id)) })
                             }
                         }

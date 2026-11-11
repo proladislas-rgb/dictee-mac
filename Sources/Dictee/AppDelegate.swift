@@ -329,7 +329,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         dictee.surInterception = { [weak self] texte in self?.ilot.intercepter(texte) ?? false }
         // « Micro coupé » : le raccourci passe par la même écoute du clavier que fn et ⌥⌘N
-        clavier.onMicro = { [weak self] in self?.ilot.basculerLeMicro() }
+        clavier.onMicro = { [weak self] in self?.ilot.basculerLeMicro() ?? false }
+        clavier.onReinitialisation = { [weak self] in self?.ilot.aiguillageNiveau = AiguillageNiveau() }
         ilot.surRaccourciMicro = { [weak self] r in self?.clavier.raccourciMicro = r }
         // « Volume et luminosité » : les touches spéciales passent par la même écoute ; avalées seulement si l'îlot les montre
         clavier.onNiveau = { [weak self] e, f in

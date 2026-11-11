@@ -4,7 +4,9 @@ import DicteeCore
 // « Téléchargé » (maquette design/maquettes/ilot-apple.html, cinq idées de plus) : un fichier arrive dans Téléchargements (AirDrop y
 // dépose aussi), l'îlot l'annonce 4 s avec son icône, son nom, sa taille et « Ouvrir ».
 // Aucun sondage : le noyau prévient quand une entrée du dossier change (DispatchSource sur le dossier) ; on relit alors ses noms, et la
-// taille des seuls nouveaux venus. Tant qu'un fichier se stabilise, UNE relecture est programmée une seconde plus tard ; au repos, rien.
+// taille des seuls nouveaux venus. Tant qu'un fichier se stabilise, UNE relecture est programmée une seconde plus tard ; un nouveau
+// fichier encore vide (curl, wget, AirDrop l'écrivent sur place, sans que le dossier ne prévienne) est relu quelques fois, de plus en
+// plus espacé, au plus une demi-heure ; au repos, rien.
 
 /// Le dossier Téléchargements, surveillé sur une file à part : macOS peut demander l'accès au dossier à la première ouverture et
 /// attendre la réponse (jamais sur le fil principal), et un dossier de mille fichiers se relit sans gêner l'îlot.
@@ -12,7 +14,8 @@ import DicteeCore
 final class SourceTelechargements {
     /// Des fichiers finis viennent d'arriver.
     var surArrivee: ([FichierTelecharge]) -> Void = { _ in }
-    /// Le dossier n'a pas pu être ouvert (accès refusé dans Réglages Système).
+    /// L'accès au dossier a été refusé (EPERM / EACCES : refus dans la demande de macOS, ou dans Réglages Système). Un dossier absent
+    /// ou illisible sur le moment n'est pas un refus : la surveillance s'arrête, le réglage reste, elle reprendra au prochain lancement.
     var surRefus: () -> Void = {}
     /// Le dossier surveillé (les essais en donnent un temporaire : jamais le vrai, qui demanderait une autorisation).
     var dossier: URL = SourceTelechargements.dossierParDefaut
@@ -33,8 +36,8 @@ final class SourceTelechargements {
         t.surArrivee = { [weak self, weak t] l in
             DispatchQueue.main.async { MainActor.assumeIsolated { guard let self, let t, self.travail === t else { return }; self.surArrivee(l) } }
         }
-        t.surRefus = { [weak self, weak t] in
-            DispatchQueue.main.async { MainActor.assumeIsolated { guard let self, let t, self.travail === t else { return }; self.arreter(); self.surRefus() } }
+        t.surEchec = { [weak self, weak t] refus in
+            DispatchQueue.main.async { MainActor.assumeIsolated { guard let self, let t, self.travail === t else { return }; self.arreter(); if refus { self.surRefus() } } }
         }
         t.demarrer()
     }
@@ -50,7 +53,8 @@ private final class SurveillanceDossier: @unchecked Sendable {
     let dossier: URL
     private let file = DispatchQueue(label: "verbe.ilot.telechargements", qos: .utility)
     var surArrivee: ([FichierTelecharge]) -> Void = { _ in }
-    var surRefus: () -> Void = {}
+    /// L'ouverture a échoué ; vrai : c'est un refus d'accès.
+    var surEchec: (_ refus: Bool) -> Void = { _ in }
     private var source: DispatchSourceFileSystemObject?
     private var veille: VeilleTelechargements?
     private var relecture: DispatchWorkItem?
@@ -73,10 +77,17 @@ private final class SurveillanceDossier: @unchecked Sendable {
         guard !arrete, source == nil else { return }
         let fd = open(dossier.path, O_EVTONLY)
         guard fd >= 0 else {
-            Log.ecrire("téléchargements : dossier inaccessible (errno \(errno)), surveillance non démarrée")
-            surRefus(); return
+            let e = errno
+            Log.ecrire("téléchargements : dossier inaccessible (errno \(e)), surveillance non démarrée")
+            surEchec(Self.estUnRefus(e)); return
         }
-        guard let noms = lireNoms() else { close(fd); Log.ecrire("téléchargements : dossier illisible"); surRefus(); return }
+        let noms: [String]
+        do { noms = try lireNoms() } catch {
+            close(fd)
+            let e = Self.codePosix(de: error)
+            Log.ecrire("téléchargements : dossier illisible (errno \(e.map(String.init) ?? "?")), surveillance non démarrée")
+            surEchec(e.map(Self.estUnRefus) ?? false); return
+        }
         // ce qui est déjà là au lancement n'est jamais annoncé
         veille = VeilleTelechargements(existants: noms.compactMap(mesurer))
         let s = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename, .delete], queue: file)
@@ -88,7 +99,7 @@ private final class SurveillanceDossier: @unchecked Sendable {
     }
 
     private func relire() {
-        guard !arrete, var v = veille, let noms = lireNoms() else { return }
+        guard !arrete, var v = veille, let noms = try? lireNoms() else { return }
         let prets = v.lire(noms: noms, a: Date(), mesure: mesurer)
         veille = v
         programmer(v.prochaineRelecture)
@@ -108,7 +119,18 @@ private final class SurveillanceDossier: @unchecked Sendable {
         file.asyncAfter(deadline: .now() + max(0.05, quand.timeIntervalSinceNow), execute: item)
     }
 
-    private func lireNoms() -> [String]? { try? FileManager.default.contentsOfDirectory(atPath: dossier.path) }
+    private func lireNoms() throws -> [String] { try FileManager.default.contentsOfDirectory(atPath: dossier.path) }
+
+    /// Un vrai refus d'accès (la réponse de macOS, ou Réglages Système), pas un dossier absent ou un incident passager.
+    static func estUnRefus(_ e: Int32) -> Bool { e == EPERM || e == EACCES }
+    /// Le code POSIX derrière une erreur de FileManager (« Operation not permitted » = EPERM).
+    static func codePosix(de erreur: Error) -> Int32? {
+        let n = erreur as NSError
+        if n.domain == NSPOSIXErrorDomain { return Int32(n.code) }
+        if let u = n.userInfo[NSUnderlyingErrorKey] as? NSError, u.domain == NSPOSIXErrorDomain { return Int32(u.code) }
+        if n.domain == NSCocoaErrorDomain, n.code == NSFileReadNoPermissionError { return EACCES }
+        return nil
+    }
 
     private func mesurer(_ nom: String) -> EntreeDossier? {
         guard let a = try? FileManager.default.attributesOfItem(atPath: dossier.appendingPathComponent(nom).path) else { return nil }

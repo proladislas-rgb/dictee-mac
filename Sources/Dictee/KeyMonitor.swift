@@ -30,14 +30,19 @@ final class KeyMonitor {
     var onReunion: (() -> Void)?
     private var reunionAvalee = false
     private let codeN: Int64 = 45
-    /// « Micro coupé » : le raccourci (⌃⌥M par défaut ; nil = réglage éteint) coupe ou rouvre le micro. La touche est avalée.
+    /// « Micro coupé » : le raccourci (⌃⌥M par défaut ; nil = réglage éteint) coupe ou rouvre le micro. `onMicro` rend vrai si la
+    /// touche a servi : elle est alors avalée (appui, répétitions, relâchement) ; faux (aucun micro, micro qui ne se coupe pas, commande
+    /// refusée) : elle va à l'app au premier plan, qui l'attendait peut-être.
     var raccourciMicro: RaccourciIlot?
-    var onMicro: (() -> Void)?
+    var onMicro: (() -> Bool)?
     private var microAvale: Int64?
     /// Les Réglages enregistrent un nouveau raccourci : on laisse passer la touche jusqu'à eux.
     static var enregistrementEnCours = false
     /// « Volume et luminosité » : les touches spéciales (volume, muet, luminosité) ; vrai = avalée (l'îlot l'applique et la montre).
     var onNiveau: ((EvenementNiveau, CGEventFlags) -> Bool)?
+    /// macOS a coupé puis rallumé l'écoute : des relâchements ont pu se perdre, ce qui retenait des touches (volume, luminosité)
+    /// repart de zéro.
+    var onReinitialisation: (() -> Void)?
     /// Les événements « systemDefined » (NX_SYSDEFINED) : touches de volume, de luminosité, de lecture.
     nonisolated static let typeSysteme = CGEventType(rawValue: 14)!
     private(set) var detector = FnGestureDetector()
@@ -98,8 +103,8 @@ final class KeyMonitor {
     /// Quand une dictée se termine d'elle-même (erreur), on remet la machine à zéro.
     func reinitialiserGeste() { detector.reset() }
 
-    /// Renvoie `true` si l'événement doit être avalé.
-    private func recevoir(type: CGEventType, event: CGEvent) -> Bool {
+    /// Renvoie `true` si l'événement doit être avalé. (Interne pour les essais, qui lui passent des touches fabriquées, jamais envoyées.)
+    func recevoir(type: CGEventType, event: CGEvent) -> Bool {
         if type == Self.typeSysteme {
             guard let onNiveau, event.getIntegerValueField(.eventSourceUserData) != Self.marqueInterne,
                   let e = Self.evenementNiveau(event) else { return false }
@@ -113,6 +118,8 @@ final class KeyMonitor {
             if detector.isActive { onAction?(.cancel) }
             detector.reset()
             fnEnfoncee = false
+            microAvale = nil; reunionAvalee = false; echapAvale = false
+            onReinitialisation?()
             return false
 
         case .flagsChanged:
@@ -134,10 +141,16 @@ final class KeyMonitor {
                 if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { reunionAvalee = true; onReunion?() }
                 return true
             }
-            if let r = raccourciMicro, onMicro != nil, !Self.enregistrementEnCours, Self.correspond(event, a: r) {
-                if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { onMicro?() }
-                microAvale = code
-                return true
+            if let r = raccourciMicro, let onMicro, !Self.enregistrementEnCours, Self.correspond(event, a: r) {
+                // l'appui décide pour ses répétitions et son relâchement : avalé seulement si le micro a vraiment été coupé ou rouvert
+                if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 {
+                    if microAvale == code { return true }
+                } else if onMicro() {
+                    microAvale = code
+                    return true
+                } else {
+                    microAvale = nil
+                }
             }
             frappes += 1
             // Les répétitions de touche ne comptent pas comme de nouvelles frappes.

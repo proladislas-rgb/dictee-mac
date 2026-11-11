@@ -200,14 +200,14 @@ struct IlotCalques: View {
                 else if let glyphe = c.glyphe { glyphe } else { Color.clear }
             }
             .frame(width: c.coteSymbole, height: c.coteSymbole)
-            .glisserFichier(c.glisser)
+            .glisserFichier(c.glisser, m)
             .aspectIlot(m.aspect(v, rang: 0), ancre: .center)
             VStack(alignment: .leading, spacing: 2) {
                 Text(c.l1).font(TexteIlot.l1).tracking(ContenuAnnonce.interlettreL1).foregroundStyle(.white).lineLimit(1).truncationMode(c.coupureL1)
                 c.texteL2.font(TexteIlot.l2).foregroundStyle(c.couleurL2 ?? CouleursIlot.encre2).lineLimit(1).truncationMode(.tail)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glisserFichier(c.glisser)
+            .glisserFichier(c.glisser, m)
             .aspectIlot(m.aspect(v, rang: 1), ancre: .topLeading)
             switch c.droite {
             case .rien: EmptyView()
@@ -931,10 +931,15 @@ struct IconesFichiers: View {
 }
 
 extension View {
-    /// Le fichier se glisse hors de l'îlot (vers le Bureau, un mail, une conversation) : l'URL du fichier, comme depuis le Finder.
-    @ViewBuilder func glisserFichier(_ url: URL?) -> some View {
+    /// Le fichier se glisse hors de l'îlot (vers le Bureau, un mail, une conversation) : l'URL du fichier, comme depuis le Finder. Le
+    /// moteur le sait (`glisserSortantCommence`) : la vue source reste à l'écran jusqu'au relâchement, et l'îlot ne s'ouvre pas en zone
+    /// de dépôt sous ce glisser-là.
+    @ViewBuilder func glisserFichier(_ url: URL?, _ m: IlotMoteur?) -> some View {
         if let url {
-            onDrag { NSItemProvider(contentsOf: url) ?? NSItemProvider(object: url as NSURL) }
+            onDrag {
+                MainActor.assumeIsolated { m?.glisserSortantCommence() }
+                return NSItemProvider(contentsOf: url) ?? NSItemProvider(object: url as NSURL)
+            }
         } else { self }
     }
 }

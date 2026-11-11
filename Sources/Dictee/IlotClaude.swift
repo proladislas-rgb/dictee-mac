@@ -174,6 +174,12 @@ final class SourceClaude {
 
     /// La session est finie : son fichier ne sert plus.
     func effacer(_ session: String) { travail?.effacer(session) }
+
+    /// Efface, hors du fil principal, les fichiers de sessions sans nouvelle depuis un jour (une session jamais close : Terminal fermé,
+    /// Mac éteint, ou réglage éteint pendant que Claude Code écrivait).
+    nonisolated static func nettoyer(_ dossier: URL) {
+        DispatchQueue.global(qos: .utility).async { SurveillanceClaude.effacerLesVieux(dossier.resolvingSymlinksInPath()) }
+    }
 }
 
 /// Le travail sur la file : FSEvents sur le dossier, la position lue de chaque fichier. Tout son état ne vit que sur `file`.
@@ -211,10 +217,7 @@ private final class SurveillanceClaude: @unchecked Sendable {
         guard !arrete, flux == nil else { return }
         try? FileManager.default.createDirectory(at: dossier, withIntermediateDirectories: true)
         // les vieux fichiers d'abord, puis tout ce qui reste est relu sans rien annoncer
-        for (_, url) in fichiers() {
-            let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
-            if Date().timeIntervalSince(date) > Self.ageMax { try? FileManager.default.removeItem(at: url) }
-        }
+        Self.effacerLesVieux(dossier)
         var ctx = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil)
         let rappel: FSEventStreamCallback = { _, info, _, _, _, _ in
             guard let info else { return }
@@ -232,9 +235,16 @@ private final class SurveillanceClaude: @unchecked Sendable {
         Log.ecrire("claude : surveillance du dossier des sessions (\(lus.count) déjà là)")
     }
 
-    private func fichiers() -> [(String, URL)] {
+    private func fichiers() -> [(String, URL)] { Self.fichiers(dossier) }
+    static func fichiers(_ dossier: URL) -> [(String, URL)] {
         let l = (try? FileManager.default.contentsOfDirectory(at: dossier, includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey])) ?? []
         return l.filter { $0.pathExtension == "jsonl" }.map { ($0.deletingPathExtension().lastPathComponent, $0) }
+    }
+    static func effacerLesVieux(_ dossier: URL) {
+        for (_, url) in fichiers(dossier) {
+            let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+            if Date().timeIntervalSince(date) > ageMax { try? FileManager.default.removeItem(at: url) }
+        }
     }
 
     /// Relit les lignes ajoutées depuis la dernière fois (seulement les lignes complètes : la fin d'une ligne en cours d'écriture attend).
@@ -287,10 +297,11 @@ struct InstallationClaude {
     }
 
     enum Echec: Error {
-        case illisible, forme, ecriture(String)
+        case illisible, inaccessible, forme, ecriture(String)
         var phrase: String {
             switch self {
             case .illisible: return "Le fichier ~/.claude/settings.json n\u{2019}est pas du JSON valide : rien n\u{2019}a été changé."
+            case .inaccessible: return "Le fichier ~/.claude/settings.json n\u{2019}a pas pu être lu (droits, encodage, lien cassé) : rien n\u{2019}a été changé."
             case .forme: return "Les crochets de ~/.claude/settings.json ont une forme inattendue : rien n\u{2019}a été changé."
             case .ecriture(let m): return "Écriture impossible (\(m)) : rien n\u{2019}a été changé."
             }
@@ -299,9 +310,23 @@ struct InstallationClaude {
 
     /// Le vrai fichier (si settings.json est un lien, celui qu'il désigne : le lien reste en place).
     private var cible: URL { reglages.resolvingSymlinksInPath() }
-    private func lire() -> String? { try? String(contentsOf: cible, encoding: .utf8) }
+    /// Le contenu de settings.json ; nil : il n'existe pas. Un fichier présent mais illisible (droits refusés, octets qui ne sont pas de
+    /// l'UTF-8, lien cassé) n'est JAMAIS pris pour un fichier absent : on refuse (`Echec.inaccessible`), sinon il serait remplacé par
+    /// nos seuls crochets, sans copie.
+    private func lire() throws -> String? {
+        let fm = FileManager.default
+        // le fichier, ou le lien lui-même (sans le suivre : un lien cassé existe, mais ne mène nulle part)
+        let present = fm.fileExists(atPath: cible.path) || (try? fm.attributesOfItem(atPath: reglages.path)) != nil
+        guard present else { return nil }
+        guard let texte = try? String(contentsOf: cible, encoding: .utf8) else {
+            Log.ecrire("claude : settings.json présent mais illisible, rien n'est écrit")
+            throw Echec.inaccessible
+        }
+        return texte
+    }
 
-    var estBranche: Bool { CrochetsClaude.estBranche(lire()) }
+    /// Faux aussi pour un settings.json illisible (on ne sait pas : « Brancher » le dira sans rien écrire).
+    var estBranche: Bool { CrochetsClaude.estBranche((try? lire()) ?? nil) }
 
     func brancher() throws {
         let fm = FileManager.default
@@ -315,13 +340,13 @@ struct InstallationClaude {
 
     /// Retire nos crochets ; le script reste (une session déjà ouverte peut encore l'appeler : il ne fait rien de mal).
     func debrancher() throws {
-        guard lire() != nil else { return }
+        guard try lire() != nil else { return }
         try reecrire { try CrochetsClaude.debrancher($0 ?? "") }
     }
 
     private func reecrire(_ transformer: (String?) throws -> String) throws {
         let fm = FileManager.default
-        let avant = lire()
+        let avant = try lire()
         let apres: String
         do { apres = try transformer(avant) } catch CrochetsClaude.Erreur.illisible { throw Echec.illisible } catch { throw Echec.forme }
         guard apres != avant else { return }
@@ -352,6 +377,8 @@ extension IlotControleur {
             veilleClaude = VeilleClaude()
             claudeSource.demarrer()
         } else {
+            // éteint (ou Verbe lancé réglage éteint) : les fichiers de plus d'un jour sont quand même effacés, une fois par lancement
+            if !claudeNettoye { claudeNettoye = true; SourceClaude.nettoyer(claudeSource.dossier) }
             guard claudeSource.actif || moteur.claude != nil else { return }
             claudeSource.arreter()
             veilleClaude = VeilleClaude()
@@ -368,6 +395,8 @@ extension IlotControleur {
         var annonce: AnnonceClaude?
         for l in lignes {
             guard let e = EvenementClaude.depuis(ligne: l.texte) else { continue }
+            // une session sans app d'origine (claude -p lancé par launchd, cron, un SDK) : personne ne la regarde, l'îlot l'ignore
+            guard VeilleClaude.estSuivie(e) else { if e.genre == .fin { claudeSource.effacer(l.session) }; continue }
             let a = veilleClaude.lire(e, session: l.session)
             if e.genre == .fin { claudeSource.effacer(l.session) }
             if !relecture, let a { annonce = a }

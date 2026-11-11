@@ -111,7 +111,7 @@ final class ReglagesModele: ObservableObject {
         ilotNotifications = reel ? Settings.ilotNotifications : false
         sonFinMinuteur = reel ? Settings.sonFinMinuteur : "Pop"
         ilotEnergie = reel ? Settings.ilotEnergie : true
-        ilotTelechargements = reel ? Settings.ilotTelechargements : true
+        ilotTelechargements = reel ? Settings.ilotTelechargements : false
         ilotMicro = reel ? Settings.ilotMicro : true
         ilotNiveaux = reel ? Settings.ilotNiveaux : true
         ilotEtagere = reel ? Settings.ilotEtagere : true

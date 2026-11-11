@@ -240,9 +240,9 @@ enum Settings {
         set { defaults.set(newValue, forKey: "ilotEnergie") }
     }
     /// Les fichiers qui arrivent dans Téléchargements (AirDrop compris) : un bandeau de 4 s avec « Ouvrir ».
-    /// ALLUMÉ par défaut ; macOS demande une fois l'accès au dossier Téléchargements.
+    /// ÉTEINT par défaut : macOS demande l'accès au dossier Téléchargements, seulement quand on allume le réglage (jamais au lancement).
     static var ilotTelechargements: Bool {
-        get { defaults.object(forKey: "ilotTelechargements") as? Bool ?? true }
+        get { defaults.object(forKey: "ilotTelechargements") as? Bool ?? false }
         set { defaults.set(newValue, forKey: "ilotTelechargements") }
     }
     /// « Micro coupé » : le raccourci coupe le micro du Mac et le rouvre, l'îlot le rappelle tant qu'il est coupé. ALLUMÉ par défaut :
@@ -257,14 +257,15 @@ enum Settings {
         get { defaults.object(forKey: "ilotNiveaux") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotNiveaux") }
     }
-    /// « Claude au travail » : l'îlot montre où en est Claude Code (crochets branchés depuis les Réglages). ALLUMÉ par défaut : tant que
-    /// les crochets ne sont pas branchés, le dossier des sessions reste vide et rien ne s'affiche.
     /// L'étagère : des fichiers glissés sur l'encoche y restent (un signet, jamais une copie) ; on les reprend depuis l'accueil.
-    /// ALLUMÉE par défaut ; aucune autorisation demandée.
+    /// ALLUMÉE par défaut. Rien n'est lu au lancement : les signets sont relus à l'ouverture de l'accueil ou de la carte (un fichier
+    /// rangé depuis le Bureau, les Documents ou une clé peut alors faire demander l'accès à macOS, toujours après un geste).
     static var ilotEtagere: Bool {
         get { defaults.object(forKey: "ilotEtagere") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotEtagere") }
     }
+    /// « Claude au travail » : l'îlot montre où en est Claude Code (crochets branchés depuis les Réglages). ALLUMÉ par défaut : tant que
+    /// les crochets ne sont pas branchés, le dossier des sessions reste vide et rien ne s'affiche.
     static var ilotClaude: Bool {
         get { defaults.object(forKey: "ilotClaude") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotClaude") }
