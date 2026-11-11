@@ -19,10 +19,13 @@ struct GrilleIlot {
     var epaules = false
     /// Ce qu'un contenu variable ajoute à la hauteur d'un écran (la ligne de l'étagère dans l'accueil, une 2e rangée de fichiers).
     var enPlus: [VueIlot: CGFloat] = [:]
+    /// Le pied (bouton « Centre ») ajouté sous le déplié d'une activité (`CartesIlot.piedEnPlus`) : la forme le compte, la zone du
+    /// contenu non (le contenu garde sa place, le pied se pose dessous).
+    var pieds: [VueIlot: CGFloat] = [:]
     static let marge = CGFloat(GeoIlot.marge)
     private func f(_ v: VueIlot) -> [Double] {
         GeoIlot.valeurs(v, hauteurBarre: Double(barre), demiCamera: Double(hc), contenu: contenus[v].map(Double.init), epaules: epaules,
-                        enPlus: Double(enPlus[v] ?? 0))
+                        enPlus: Double((enPlus[v] ?? 0) + (pieds[v] ?? 0)))
     }
     /// Demi-largeur du corps (sous la barre) et du cou (dans la barre), depuis le centre.
     func corps(_ v: VueIlot) -> CGFloat { hc + CGFloat(f(v)[1]) }
@@ -31,7 +34,7 @@ struct GrilleIlot {
     /// Zone du contenu d'un écran déplié : le corps sous la barre, moins la marge.
     func zone(_ v: VueIlot, haut: CGFloat = 16, bas: CGFloat = 16) -> CGRect {
         let w = corps(v)
-        return CGRect(x: -w + Self.marge, y: barre + haut, width: 2 * w - 2 * Self.marge, height: hauteur(v) - barre - haut - bas)
+        return CGRect(x: -w + Self.marge, y: barre + haut, width: 2 * w - 2 * Self.marge, height: hauteur(v) - barre - haut - bas - (pieds[v] ?? 0))
     }
     /// La zone d'une annonce : exactement la largeur de son contenu, centrée. Elle ne diffère de `zone` que si le contenu est plus
     /// étroit que le corps le plus serré (un « Fait » de deux mots) : le bloc est alors centré, jamais collé à gauche devant du vide.
@@ -104,7 +107,7 @@ struct IlotCalques: View {
                 if m.visible(v) { ecran(v) }
             }
             // ce qui s'ajoute aux écrans : le pied de la lecture (bouton « Centre »), les points de page, la bulle « Nouveau »
-            if m.visible(ExtraIlot.pied) { PiedLecture(m: m, g: g) }
+            if m.visible(ExtraIlot.pied) { PiedCarte(m: m, g: g, v: m.carteDuPied) }
             if m.visible(ExtraIlot.points) { PointsCartes(m: m, g: g) }
             if m.visible(ExtraIlot.bulle) { BulleNouveau(m: m, g: g) }
         }

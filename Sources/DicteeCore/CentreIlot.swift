@@ -22,6 +22,18 @@ public enum CartesIlot {
         return .centre
     }
 
+    /// La carte porte-t-elle le bouton « Centre » à son pied ? Le déplié de TOUTE activité (la vidéo, le minuteur, Claude, un rendez-vous,
+    /// un rappel), c'est-à-dire la première carte d'une pile qui contient le Centre : le chemin vers le Centre se voit toujours (on n'a
+    /// jamais à deviner un défilement). Le Centre et l'accueil n'en ont pas ; la rangée Minuteur de la lecture prend sa place.
+    public static func aUnPied(_ v: VueIlot, pile: [VueIlot]) -> Bool {
+        v != .centre && v != .accueil && pile.first == v && pile.contains(.centre)
+    }
+
+    /// Ce que le pied ajoute à la hauteur d'une carte : la lecture l'a déjà dans sa géométrie, les autres dépliés l'ajoutent dessous.
+    public static func piedEnPlus(_ v: VueIlot, pile: [VueIlot]) -> Double {
+        aUnPied(v, pile: pile) && v != .lectureEtendu ? GeoIlot.piedLecture : 0
+    }
+
     /// La carte voisine, `pas` cartes plus bas (+1) ou plus haut (−1) ; nil au bout de la pile (on ne boucle pas).
     public static func voisine(_ pile: [VueIlot], de carte: VueIlot, pas: Int) -> VueIlot? {
         guard let i = pile.firstIndex(of: carte == .lectureMinuteur ? .lectureEtendu : carte) else { return nil }

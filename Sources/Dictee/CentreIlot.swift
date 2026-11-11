@@ -9,9 +9,10 @@ import DicteeCore
 // - deux grandes cases : Minuteur (5 · 10 · 25 min, ou le temps qui reste, pause, arrêt) et Étagère (on y lâche un fichier, on l'en reprend) ;
 // - la bande « Noter la réunion » ;
 // - « Modifier » (CentreModifier.swift) : retirer, ajouter, ranger en glissant ; « OK » enregistre ;
-// - on y arrive sans rien deviner : bouton « Centre » au pied de la lecture, points de page à droite des cartes, défilement (un geste = une
-//   carte) ; l'îlot vide s'ouvre directement dessus ;
-// - un clic sur un bouton épingle l'îlot (« Reste ouvert ») : on enchaîne plusieurs réglages ; il se range au clic ailleurs ou sur la forme.
+// - on y arrive sans rien deviner : bouton « Centre » au pied du déplié de toute activité (la vidéo, le minuteur, Claude, un rendez-vous),
+//   points de page à droite des cartes, défilement (un geste = une carte) ; l'îlot vide s'ouvre directement dessus ;
+// - un clic sur un bouton épingle l'îlot (« Reste ouvert ») : on enchaîne plusieurs réglages, un bandeau attend qu'il se range ; il se
+//   range au clic ailleurs ou sur l'îlot dans la barre des menus (un clic dans son vide ne compte pas : on visait un bouton).
 // La pile des cartes et le défilement sont dans DicteeCore/CentreIlot.swift ; la navigation dans IlotMoteur.swift.
 
 extension GrilleIlot {
@@ -42,6 +43,11 @@ enum PlanCentre {
     /// Où sont les éléments, depuis le centre de l'encoche (x) et le haut de l'écran (y).
     static func zone(_ g: GrilleIlot) -> CGRect { g.zoneCarte(.centre, haut: haut, bas: haut) }
     static func cadreEntete(_ g: GrilleIlot) -> CGRect { let z = zone(g); return CGRect(x: z.minX, y: z.minY, width: z.width, height: entete) }
+    /// Tout le corps du Centre sous la barre (son vide ne range pas l'îlot).
+    static func fond(_ g: GrilleIlot) -> CGRect {
+        let w = g.corps(.centre)
+        return CGRect(x: -w, y: g.barre, width: 2 * w, height: g.hauteur(.centre) - g.barre)
+    }
     /// Une rangée (nil : elle n'est pas montrée).
     static func cadre(_ r: DispositionCentre.Rangee, _ m: IlotMoteur, _ g: GrilleIlot? = nil) -> CGRect? {
         let g = g ?? m.grille
@@ -148,6 +154,12 @@ struct CentreVue: View {
     var body: some View {
         let v = VueIlot.centre
         ZStack(alignment: .topLeading) {
+            // un clic dans le vide du Centre (entre l'en-tête, les ronds, les cases et la bande, dans les marges) ne le range pas : on
+            // visait un bouton à quelques points près ; il se range au clic ailleurs. Seulement tant qu'il est là (pas pendant son départ)
+            Color.clear.contentShape(Rectangle()).onTapGesture {}
+                .allowsHitTesting(m.courante == v)
+                .accessibilityHidden(true)
+                .posee(PlanCentre.fond(g))
             EnteteCentre(m: m, largeur: PlanCentre.cadreEntete(g).width).posee(PlanCentre.cadreEntete(g), m.aspect(v, rang: 0), ancre: .topLeading)
             if !m.rondsCentre.isEmpty { ronds.posee(PlanCentre.cadreRonds(m, g), m.aspect(v, rang: 1), ancre: .top) }
             ForEach(Array(m.disposition.cases.enumerated()), id: \.element) { i, e in
@@ -571,21 +583,34 @@ struct CaseEtagere: View {
     }
 }
 
-// MARK: - le pied de la lecture, les points de page, la bulle « Nouveau »
+// MARK: - le pied des dépliés, les points de page, la bulle « Nouveau »
 
-/// Sous les commandes de la lecture dépliée : le bouton « Centre » (avec les petites icônes de ce qu'il contient) et, tant qu'il n'a
-/// jamais servi, l'aide « Fais défiler ou clique ici ».
-struct PiedLecture: View {
+/// Sous le déplié d'une activité (la vidéo, le minuteur, Claude, un rendez-vous, un rappel) : le bouton « Centre » (avec les petites
+/// icônes de ce qu'il contient, le micro en rouge s'il est coupé) et, tant qu'il n'a jamais servi et s'il y a la place, l'aide « Fais
+/// défiler ou clique ici ». Il est posé en bas de la forme : 30 pt, 14 pt sous lui (la lecture l'a dans sa géométrie, les autres
+/// dépliés l'ajoutent sous leur contenu, `CartesIlot.piedEnPlus`).
+struct PiedCarte: View {
     @ObservedObject var m: IlotMoteur
     var g: GrilleIlot
+    /// La carte qui le porte.
+    var v: VueIlot
     @State private var survol = false
 
-    static func cadre(_ g: GrilleIlot) -> CGRect {
-        let w = g.corps(.lectureEtendu)
-        return CGRect(x: -w + GrilleIlot.marge, y: g.barre + CGFloat(GeoIlot.profondeurLecture) - 4, width: 2 * w - 2 * GrilleIlot.marge - GrilleIlot.placePoints, height: 30)
+    static func cadre(_ g: GrilleIlot, _ v: VueIlot) -> CGRect {
+        let w = g.corps(v)
+        return CGRect(x: -w + GrilleIlot.marge, y: g.hauteur(v) - 44, width: 2 * w - 2 * GrilleIlot.marge - GrilleIlot.placePoints, height: 30)
     }
-    /// Le milieu du bouton « Centre » (essais : où cliquer) : 40 pt après le bord gauche, sur le mot « Centre ».
-    static func pointBouton(_ g: GrilleIlot) -> CGPoint { let c = cadre(g); return CGPoint(x: c.minX + 50, y: c.midY) }
+    /// Le milieu du bouton « Centre » (essais : où cliquer) : 50 pt après le bord gauche, sur le mot « Centre ».
+    static func pointBouton(_ g: GrilleIlot, _ v: VueIlot = .lectureEtendu) -> CGPoint { let c = cadre(g, v); return CGPoint(x: c.minX + 50, y: c.midY) }
+    static let aide = "Fais défiler ou clique ici"
+    /// Le bouton, mesuré (Core Text, mêmes polices) : 9 + glyphe 15 + 7 + « Centre » + 7 + 1 + trois petites icônes (5 pt entre) + 13.
+    static var largeurBouton: CGFloat {
+        let icones = ["mic.slash.fill", "tray.fill", "arrow.down.circle"].map { MesureIlot.symbole($0, 10.5) }.reduce(0, +) + 10
+        return 9 + 15 + 7 + MesureIlot.texte("Centre", 13, .semibold) + 7 + 1 + icones + 13
+    }
+    /// L'aide « ‹ Fais défiler ou clique ici », mesurée ; elle ne paraît que si elle tient à côté du bouton (pas sous un Claude étroit).
+    static var largeurAide: CGFloat { MesureIlot.symbole("chevron.left", 10) + 6 + MesureIlot.texte(aide, 12, .medium) }
+    static func aideTient(_ g: GrilleIlot, _ v: VueIlot) -> Bool { largeurBouton + 10 + largeurAide <= cadre(g, v).width }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -614,16 +639,16 @@ struct PiedLecture: View {
             .aspectIlot(m.aspect(ExtraIlot.pied, rang: 0), ancre: .leading)
             HStack(spacing: 6) {
                 Image(systemName: "chevron.left").font(.system(size: 10, weight: .bold))
-                Text("Fais défiler ou clique ici").font(.system(size: 12, weight: .medium)).lineLimit(1)
+                Text(Self.aide).font(.system(size: 12, weight: .medium)).lineLimit(1).fixedSize()
             }
             .foregroundStyle(Color.white.opacity(0.45))
-            .opacity(m.aideCentre ? 1 : 0)
+            .opacity(m.aideCentre && Self.aideTient(g, v) ? 1 : 0)
             .animation(m.reduire || m.statique ? nil : .easeOut(duration: 0.3), value: m.aideCentre)
             .aspectIlot(m.aspect(ExtraIlot.pied, rang: 1), ancre: .leading)
             .accessibilityHidden(true)
             Spacer(minLength: 0)
         }
-        .posee(Self.cadre(g))
+        .posee(Self.cadre(g, v))
     }
 }
 
@@ -707,6 +732,9 @@ struct ReglagesCentre {
     /// Ce que le Centre montre (« Modifier ») : les identifiants, dans l'ordre ; nil = jamais modifié.
     var disposition: () -> [String]? = { Settings.ilotCentreBoutons }
     var enregistrerDisposition: ([String]) -> Void = { Settings.ilotCentreBoutons = $0 }
+    /// Le minuteur (Réglages › Îlot) : éteint, un clic sur « 5 », « 10 » ou « 25 » dans le Centre l'allume, puis lance le minuteur.
+    var minuteurActif: () -> Bool = { Settings.ilotMinuteur }
+    var allumerMinuteur: () -> Void = { Settings.ilotMinuteur = true }
 }
 
 extension IlotControleur {
@@ -718,18 +746,12 @@ extension IlotControleur {
     func agirCentre(_ a: ActionIlot) {
         switch a {
         case .centreMicro:
-            // « Micro coupé » éteint dans les réglages : le premier clic l'allume (rien n'est demandé à macOS pour couper un micro)
-            if !micro.actif {
-                reglagesCentre.allumerMicro()
-                activerLeMicro(true)
-                NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
-            }
-            if !basculerLeMicro() { Log.ecrire("micro coupé : le Centre n'a pas pu basculer le micro (aucun micro, ou commande refusée)") }
-            moteur.donneesChangees()
+            couperOuRouvrirLeMicro(depuis: "le Centre")
         case .centreTelechargements:
             // allumer : macOS pose sa question à la première lecture du dossier (« Un instant… » jusqu'à la réponse) ; refusé, le bouton
             // revient sur « Éteint » et une ligne mène à Réglages Système
             moteur.avisCentre = nil
+            telechargementsDemandesDuCentre = !moteur.telechargementsActifs
             reglerTelechargements(!moteur.telechargementsActifs)
         case .centreAvis:
             if moteur.avisCentre == .telechargementsRefuses { ouvrir(Self.reglagesFichiers) }
@@ -764,15 +786,33 @@ extension IlotControleur {
         }
     }
 
+    /// Coupe le micro du Mac, ou le rouvre : le bouton Micro du Centre, et l'entrée du menu de Verbe (barre des menus), seul chemin
+    /// quand l'îlot n'a pas d'encoche où s'ouvrir (écran externe, MacBook fermé). « Micro coupé » éteint dans les réglages : il s'allume
+    /// d'abord (rien n'est demandé à macOS pour couper un micro).
+    func couperOuRouvrirLeMicro(depuis origine: String) {
+        if !micro.actif {
+            reglagesCentre.allumerMicro()
+            activerLeMicro(true)
+            NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
+        }
+        if !basculerLeMicro() { Log.ecrire("micro coupé : \(origine) n'a pas pu basculer le micro (aucun micro, ou commande refusée)") }
+        moteur.donneesChangees()
+    }
+    /// Le titre de l'entrée du menu de Verbe : ce qu'un clic fera.
+    var titreMenuMicro: String { moteur.microCoupe ? "Rouvrir le micro" : "Couper le micro" }
+
     /// macOS a refusé l'accès au dossier Téléchargements (à la demande, ou plus tard dans Réglages Système) : le réglage s'éteint, le
-    /// bouton du Centre revient sur « Éteint » et la ligne d'avis dit où le rendre.
+    /// bouton du Centre revient sur « Éteint » et la ligne d'avis dit où le rendre. Demandé depuis le Centre, l'avis est posé même si
+    /// le Centre s'est rangé entre-temps : il attend sa prochaine ouverture.
     func telechargementsRefuses() {
+        let depuisLeCentre = moteur.centreOuvert || telechargementsDemandesDuCentre
+        telechargementsDemandesDuCentre = false
         reglagesCentre.reglerTelechargements(false)
         Log.ecrire("téléchargements : accès au dossier refusé, réglage éteint")
         NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
         moteur.telechargementsActifs = false
         moteur.telechargementsAttente = false
-        if moteur.centreOuvert { moteur.avisCentre = .telechargementsRefuses }
+        if depuisLeCentre { moteur.avisCentre = .telechargementsRefuses }
         moteur.donneesChangees()
     }
 }

@@ -345,6 +345,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func noterLaReunion() { reunionControleur.basculer() }
+    @objc private func couperOuRouvrirLeMicro() { ilot.couperOuRouvrirLeMicro(depuis: "le menu") }
 
     /// Menu de l'app (invisible tant qu'elle n'a pas de Dock, mais ses raccourcis servent la fenêtre) :
     /// ⌘, ouvre la fenêtre, ⌘1-3 changent d'onglet, ⌘W ferme, Édition rend ⌘C ⌘V aux champs de texte.
@@ -400,6 +401,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         let noter = menu.addItem(withTitle: reunionControleur.enregistre ? "Arrêter la réunion" : "Noter la réunion", action: #selector(noterLaReunion), keyEquivalent: "n")
         noter.keyEquivalentModifierMask = [.command, .option]; noter.target = self
+        // le micro, comme le bouton Micro du Centre : sans encoche (écran externe, MacBook fermé), l'îlot vide n'existe pas, c'est le chemin
+        menu.addItem(withTitle: ilot.titreMenuMicro, action: #selector(couperOuRouvrirLeMicro), keyEquivalent: "").target = self
         let ouvrir = menu.addItem(withTitle: "Ouvrir Verbe", action: #selector(ouvrirVerbe), keyEquivalent: ",")
         ouvrir.target = self
         if !HistoriqueStore.shared.historique.estVide {

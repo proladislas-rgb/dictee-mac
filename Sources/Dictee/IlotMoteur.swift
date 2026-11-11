@@ -251,7 +251,9 @@ final class IlotMoteur: ObservableObject {
     /// Téléchargements allumé depuis le Centre : macOS pose sa question (« Un instant… » sous le bouton) jusqu'à la réponse.
     var telechargementsAttente = false { didSet { if telechargementsAttente != oldValue { rev += 1 } } }
     /// Une ligne en haut du Centre quand une action n'a pas pu se faire (accès refusé, crochets de Claude impossibles à écrire).
-    var avisCentre: AvisCentre? { didSet { if avisCentre != oldValue { rev += 1 } } }
+    var avisCentre: AvisCentre? { didSet { if avisCentre != oldValue { rev += 1; avisVu = false } } }
+    /// La ligne d'avis a été à l'écran (le Centre ouvert) : elle peut partir quand il se range.
+    private var avisVu = false
     private var finBulle: DispatchWorkItem?
     private var defilement = DefilementIlot()
 
@@ -371,7 +373,14 @@ final class IlotMoteur: ObservableObject {
         afficher(voulu)
         // le Centre s'est rangé (clic ailleurs, alerte, autre carte) : « Modifier » se termine et enregistre ; la ligne d'avis s'en va
         if editionCentre, courante != .centre { finirEditionCentre() }
-        if avisCentre != nil, !fenetreOuverte { avisCentre = nil }
+        // la ligne d'avis reste jusqu'à ce qu'on l'ait vue : posée Centre fermé (macOS a répondu après coup), elle attend la prochaine
+        // ouverture ; vue, elle part quand le Centre se range
+        if avisCentre != nil { if courante == .centre { avisVu = true } else if avisVu, !fenetreOuverte { avisCentre = nil } }
+        // le Centre s'est rangé : ce qui attendait s'affiche (après ce passage, pas au milieu)
+        if attenteDuCentre, !centreRetientLesBandeaux {
+            attenteDuCentre = false
+            DispatchQueue.main.async { [weak self] in MainActor.assumeIsolated { self?.vidangerAttente() } }
+        }
         majExtras()
         majPastille()
         programmerReveil()
@@ -384,12 +393,19 @@ final class IlotMoteur: ObservableObject {
     private(set) var contenus: [VueIlot: CGFloat] = [:]
     private func cible(_ v: VueIlot) -> [Double] {
         let g = GeoIlot.valeurs(v, hauteurBarre: Double(geometrie.hauteur), demiCamera: Double(demiCamera), contenu: contenus[v].map(Double.init), epaules: epaules,
-                                enPlus: Double(hauteursEnPlus[v] ?? 0))
+                                enPlus: Double((hauteursEnPlus[v] ?? 0) + (piedsEnPlus[v] ?? 0)))
         guard bulleSous(v) else { return g }
         return GeoIlot.avecBulle(g, hauteurBarre: Double(geometrie.hauteur), demiCamera: Double(demiCamera), contenu: Double(BulleNouveau.largeur))
     }
     /// La grille du contenu (mêmes largeurs que la forme).
-    var grille: GrilleIlot { GrilleIlot(hc: demiCamera, barre: geometrie.hauteur, contenus: contenus, epaules: epaules, enPlus: hauteursEnPlus) }
+    var grille: GrilleIlot { GrilleIlot(hc: demiCamera, barre: geometrie.hauteur, contenus: contenus, epaules: epaules, enPlus: hauteursEnPlus, pieds: piedsEnPlus) }
+    /// Le pied (bouton « Centre ») sous le déplié d'une activité autre que la lecture : 40 pt de plus sous son contenu.
+    var piedsEnPlus: [VueIlot: CGFloat] {
+        let pile = cartes
+        guard let p = pile.first else { return [:] }
+        let h = CartesIlot.piedEnPlus(p, pile: pile)
+        return h > 0 ? [p: CGFloat(h)] : [:]
+    }
     /// Ce qu'un contenu variable ajoute à la hauteur d'un écran : la ligne de l'étagère en bas de l'accueil, la deuxième rangée de
     /// fichiers de la carte Étagère. Sous la rangée Minuteur de la lecture dépliée (appui long), la ligne de l'étagère. (L'accueil n'a
     /// plus de ligne variable : l'étagère et le choix du micro sont dans le Centre.)
@@ -563,10 +579,18 @@ final class IlotMoteur: ObservableObject {
     // MARK: alertes et bandeaux
 
     /// Une alerte ou un bandeau arrive. Pendant la dictée ou la réunion, il attend la fin (aucun son qui pourrait gêner ou être capté).
+    /// Pendant que le Centre est épinglé (une suite de réglages : Téléchargements puis un fichier qui arrive, les AirPods qu'on branche
+    /// pour choisir leur micro), un bandeau attend aussi qu'il se range : il ne le referme pas sous le pointeur. Une alerte (minuteur
+    /// fini, rappel, rendez-vous qui commence) passe, elle : elle attend un geste.
     func annoncer(alerte a: AlerteIlot? = nil, bandeau b: BandeauIlot? = nil) {
         if cache { enAttente.append((a, b)); return }
+        if a == nil, b != nil, centreRetientLesBandeaux { enAttente.append((nil, b)); attenteDuCentre = true; return }
         afficherMaintenant(alerte: a, bandeau: b)
     }
+    /// Le Centre est épinglé (ou sa carte Étagère, ouverte depuis lui) : les bandeaux attendent qu'il se range.
+    var centreRetientLesBandeaux: Bool { !cache && epingle && (courante == .centre || courante == .etagere) }
+    /// Des bandeaux attendent que le Centre se range (et non la fin d'une dictée, que le contrôleur guette lui-même).
+    private var attenteDuCentre = false
     private func afficherMaintenant(alerte a: AlerteIlot?, bandeau b: BandeauIlot?) {
         survole = false; epingle = false; sousVue = nil; fermerMoniteur()
         if let a { alerte = a; bandeau = nil; surArrivee(a.vue) }
@@ -778,6 +802,14 @@ final class IlotMoteur: ObservableObject {
         return true
     }
 
+    /// Un clic ailleurs (moniteur du panneau) range l'îlot. Pas pendant que macOS pose sa question pour Téléchargements : on y répond
+    /// d'un clic dans SA fenêtre (un autre processus), et le Centre doit rester là pour montrer la réponse (« Allumé », ou la ligne
+    /// « Accès refusé »).
+    func clicAilleurs() {
+        guard !telechargementsAttente else { return }
+        fermer()
+    }
+
     func fermer() {
         epingle = false; survole = false; sousVue = nil
         intention?.cancel()
@@ -815,6 +847,8 @@ final class IlotMoteur: ObservableObject {
         depot = voulu
         if voulu { intention?.cancel(); fermeture?.cancel() }
         donneesChangees()
+        // le glisser est reparti (vers une autre app) : la fermeture au survol, sautée pendant le dépôt, est reprogrammée
+        if !voulu, survole, !epingle, !pointeurSurForme { survolForme(false) }
     }
     /// Les fichiers sont lâchés sur l'îlot : la zone s'éteint, les nouveaux paraissent parmi les derniers rangés (un coup d'œil de
     /// 0,9 s), puis l'îlot revient où il en était. Un seul réveil, aucune minuterie.
@@ -851,16 +885,21 @@ final class IlotMoteur: ObservableObject {
     /// Le Centre est à l'écran (ou y arrive).
     var centreOuvert: Bool { courante == .centre }
 
-    /// Passe à une carte de la pile (bouton « Centre », points de page, défilement). L'îlot reste ouvert ; épinglé, il le reste.
+    /// Passe à une carte de la pile (bouton « Centre », points de page, « ‹ Vidéo », défilement). L'îlot reste ouvert ; épinglé, il le
+    /// reste. Vers une carte plus COURTE (l'accueil sous le Centre), la forme rétrécit sous le pointeur, qui se retrouve hors d'elle sans
+    /// avoir bougé : l'îlot s'épingle alors (sinon il se refermerait au premier mouvement de la souris, avant qu'on ait pu cliquer).
+    /// Vers une carte plus haute (la lecture → le Centre), rien ne change : le Centre se range quand la souris s'en va (maquette, étape 3).
     func allerA(_ carte: VueIlot) {
         guard !cache, !resolution.verrou, cartes.contains(carte) else { return }
         intention?.cancel(); fermeture?.cancel()
-        // depuis la lecture vers le Centre : l'aide « Fais défiler ou clique ici » a servi
-        if carte == .centre, carteCourante == .lectureEtendu, aideCentre { aideCentre = false; surCentreUtilise() }
+        // depuis le déplié d'une activité vers le Centre : l'aide « Fais défiler ou clique ici » a servi
+        if carte == .centre, let c = carteCourante, c == cartes.first, aideCentre { aideCentre = false; surCentreUtilise() }
         // la première carte d'une activité est son déplié (pas de sous-vue) ; le Centre et l'accueil sont gardés tels quels, même si une
         // activité commence pendant qu'ils sont ouverts
+        let plusCourte = cible(carte)[2] < geo[2].cibleFinale - 0.5
         sousVue = carte == cartes.first && carte != .centre ? nil : carte
         survole = true
+        if plusCourte { epingle = true }
         donneesChangees(); surDepliageMoniteur()
     }
     /// Une carte plus bas (+1) ou plus haut (−1). Depuis la carte Étagère (ouverte depuis le Centre), on revient au Centre.
@@ -877,7 +916,7 @@ final class IlotMoteur: ObservableObject {
         if let pas = defilement.recevoir(dy: dy, dx: dx, phase: phase, inertie: inertie, t: t) { defiler(pas) }
     }
     /// Un clic sur un bouton du Centre : l'îlot reste ouvert (« Reste ouvert ») pour enchaîner d'autres réglages ; il se range au clic
-    /// ailleurs ou d'un clic sur la forme.
+    /// ailleurs ou d'un clic sur l'îlot dans la barre des menus (un clic dans le vide du Centre ne compte pas, `PlanCentre.fond`).
     func epinglerLeCentre() {
         guard !cache, !resolution.verrou else { return }
         intention?.cancel(); fermeture?.cancel()
@@ -892,13 +931,18 @@ final class IlotMoteur: ObservableObject {
 
     private func majExtras() {
         let pile = cartes
-        let pied = courante == .lectureEtendu && pile.contains(.centre)
+        // le bouton « Centre » au pied de tout déplié d'activité (la vidéo, le minuteur, Claude, un rendez-vous) : le chemin se voit
+        let pied = CartesIlot.aUnPied(courante, pile: pile)
+        if pied { carteDuPied = courante }
         let points = [.lectureEtendu, .centre, .accueil].contains(courante) && pile.count > 1 && fenetreOuverte
         let bulle = bulleSous(courante)
         for (e, voulu) in [(ExtraIlot.pied, pied), (.points, points), (.bulle, bulle)] {
             if voulu { entrer(&apparitionsExtra[e], delai: e == .bulle ? 0.2 : 0.14) } else { sortir(&apparitionsExtra[e]) }
         }
     }
+
+    /// La carte qui porte (ou portait, pendant qu'il s'efface) le bouton « Centre ».
+    private(set) var carteDuPied: VueIlot = .lectureEtendu
 
     /// La bulle se pose-t-elle sous cet écran ? Seulement sous l'îlot replié (ou vide), sans bulle d'une 2e activité à côté, et tant
     /// que rien ne s'ouvre ni ne s'annonce.

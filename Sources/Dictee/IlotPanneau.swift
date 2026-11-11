@@ -454,8 +454,8 @@ final class IlotPanneau {
                 case .leftMouseDown: self.glisserAuClic = self.pressePapiersGlisser.changeCount
                 case .leftMouseUp:
                     guard self.pressePapiersGlisser.changeCount == self.glisserAuClic, !self.moteur.depot else { return }
-                    self.moteur.fermer()
-                default: self.moteur.fermer()
+                    self.moteur.clicAilleurs()
+                default: self.moteur.clicAilleurs()
                 }
             }
         }

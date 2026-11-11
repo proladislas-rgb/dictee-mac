@@ -63,6 +63,9 @@ final class IlotControleur {
     /// essais ne touchent jamais ~/.claude, ~/Downloads ni les vrais réglages).
     var installationClaude = InstallationClaude.parDefaut
     var reglagesCentre = ReglagesCentre()
+    /// Téléchargements vient d'être allumé d'un clic dans le Centre : un refus de macOS laisse alors la ligne d'avis, même si le Centre
+    /// s'est rangé avant la réponse (un refus venu plus tard, d'ailleurs, n'en laisse pas).
+    var telechargementsDemandesDuCentre = false
 
     /// Ce qui occupe l'encoche en dehors de la dictée de ce contrôleur (rempli par l'AppDelegate).
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
@@ -135,7 +138,9 @@ final class IlotControleur {
         appareilsSource.surConnexion = { [weak self] a in self?.appareilConnecte(a) }
         telechargementsSource.surArrivee = { [weak self] l in self?.fichiersArrives(l) }
         telechargementsSource.surRefus = { [weak self] in self?.telechargementsRefuses() }
-        telechargementsSource.surPret = { [weak self] in self?.moteur.telechargementsAttente = false }
+        telechargementsSource.surPret = { [weak self] in self?.moteur.telechargementsAttente = false; self?.telechargementsDemandesDuCentre = false }
+        // ni accordé ni refusé (dossier absent ou illisible sur le moment) : plus de « Un instant… », le clic ailleurs range de nouveau
+        telechargementsSource.surArret = { [weak self] in self?.moteur.telechargementsAttente = false; self?.telechargementsDemandesDuCentre = false }
         lecture.modele.surClicIlot = { [weak self] in self?.moteur.clicForme() }
         panneau.surDepot = { [weak self] urls in self?.ranger(urls) }
         claudeSource.surLignes = { [weak self] l, relecture in self?.lignesClaude(l, relecture: relecture) }
@@ -443,7 +448,14 @@ final class IlotControleur {
         case .minuteurPlusUneMinute:
             minuteur?.ajouter(60, a: maintenant()); mettreAJourLeMinuteur()
         case .minuteurArreter: arreterLeMinuteur(); if !moteur.centreOuvert { moteur.fermer() }
-        case .minuteurLancerDansLeCentre(let minutes): lancerLeMinuteur(secondes: minutes * 60, bandeau: false, fermer: false)
+        case .minuteurLancerDansLeCentre(let minutes):
+            // le minuteur éteint dans les réglages : le clic l'allume (comme le bouton Micro), sinon le bouton ne ferait rien
+            if !reglagesCentre.minuteurActif() {
+                reglagesCentre.allumerMinuteur()
+                Log.ecrire("minuteur : allumé depuis le Centre")
+                NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
+            }
+            lancerLeMinuteur(secondes: minutes * 60, bandeau: false, fermer: false)
         case .centreMicro, .centreTelechargements, .centreClaude, .etagereAllumer, .centreReunion, .centreAvis: agirCentre(action)
         case .alerteOK: moteur.quitterAlerte()
         case .rappelPlusTard(let id):
@@ -500,7 +512,7 @@ final class IlotControleur {
     // MARK: minuteur
 
     func lancerLeMinuteur(secondes: Double, bandeau: Bool, fermer: Bool = true) {
-        guard Settings.ilotMinuteur else { return }
+        guard reglagesCentre.minuteurActif() else { return }
         let t = maintenant()
         minuteur = MinuteurIlot(secondes: secondes, depuis: t)
         moteur.minuteur = minuteur

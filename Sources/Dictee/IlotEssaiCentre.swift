@@ -97,8 +97,8 @@ extension IlotEssai {
         let ent = PlanCentre.cadreEntete(m.grille)
         clic(CGPoint(x: ent.minX + 30, y: ent.midY), 0.8)
         verifier(m.courante == .lectureEtendu, "vrai clic sur « ‹ Vidéo » : la lecture (\(m.courante))")
-        clic(PiedLecture.pointBouton(m.grille), 0.9)
-        verifier(m.courante == .centre && !m.epingle, "vrai clic sur « Centre » : le Centre (pas encore épinglé)")
+        clic(PiedCarte.pointBouton(m.grille), 0.9)
+        verifier(m.courante == .centre, "vrai clic sur « Centre » : le Centre (\(m.courante))")
         verifier(m.trace.bande <= hc + GeoIlot.aileMax + 0.01 && Double(m.geo[2].x) + 30 <= Double(IlotMoteur.hauteurMax),
                  "Centre : \(Int(m.trace.bande - hc)) pt de chaque côté de la caméra dans la barre (≤ 66), \(Int(m.geo[2].x)) pt de haut (zone de dessin : \(Int(IlotMoteur.hauteurMax)))")
         attendre(1.2) { m.boucleActive }
@@ -168,10 +168,10 @@ extension IlotEssai {
                  "le fichier est sur l'étagère ; le Centre reste ouvert, épinglé")
         c.panneau.finDuGlisser()
 
-        // --- un clic sur la forme (pas sur un bouton) range l'îlot ; replié, le micro coupé dit « Coupé »
+        // --- un clic sur l'îlot dans la barre (pas dans le vide du Centre, qui ne compte pas) le range ; replié, le micro coupé dit « Coupé »
         attendre(1.0) { m.boucleActive }
-        clic(CGPoint(x: 0, y: PlanCentre.cadreEntete(m.grille).midY), 0.9)
-        verifier(m.courante == .microCompact && m.pastille == .lecture, "vrai clic sur la forme : l'îlot se range ; micro coupé : « Coupé » dans les ailes, la vidéo en bulle (\(m.courante))")
+        clic(CGPoint(x: 0, y: g.hauteur / 2), 0.9)
+        verifier(m.courante == .microCompact && m.pastille == .lecture, "vrai clic sur l'îlot dans la barre : il se range ; micro coupé : « Coupé » dans les ailes, la vidéo en bulle (\(m.courante))")
         if let f = c.panneau.cadre {
             verifier(Double(f.width) <= 2 * (hc + GeoIlot.aileMax) + 4.5 + Double(m.largeurPastilleOuverte(.lecture)) + 20 && Double(f.height) <= barre + 6.5,
                      "replié : la fenêtre reprend la taille des ailes et de la bulle (\(Int(f.width)) × \(Int(f.height)))")

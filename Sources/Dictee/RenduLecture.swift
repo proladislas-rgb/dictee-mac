@@ -209,7 +209,9 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.minuteur = minut(10, restant: 392) }) }, "ilot-1b-compact-minuteur")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: musique) { $0.lecturePresente = true }) }, "ilot-1c-compact-musique")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true }) }, "ilot-1c2-compact-video")
-        ecrire(bureau(hauteur: moyenBureau) { ilot(scene { $0.minuteur = minut(10, restant: 392); $0.survole = true }) }, "ilot-1d-etendu-minuteur")
+        // les dépliés d'activité portent le bouton « Centre » à leur pied (40 pt de plus) : `piedBureau` les montre en entier
+        let piedBureau: CGFloat = geometrie.hauteur + 175
+        ecrire(bureau(hauteur: piedBureau) { ilot(scene { $0.minuteur = minut(10, restant: 392); $0.survole = true }) }, "ilot-1d-etendu-minuteur")
         ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: musique) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1e-etendu-musique")
         ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1f-etendu-video-titre-long")
         ecrire(bureau(hauteur: grandBureau, clair: false) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1f2-etendu-video-fond-sombre")
@@ -239,7 +241,7 @@ enum RenduLecture {
         ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.calendrierActif = false; m.donneesChangees(); m.allerA(.accueil) }) }, "ilot-3a2-accueil-vide")
         ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.bandeau = BandeauIlot(vue: .minuteurLance, jusqua: t0, ligne1: "Minuteur lancé", ligne2: "10 min \u{00B7} fin à 14:42"); $0.minuteur = minut(10) }) }, "ilot-3b-minuteur-lance")
         ecrire(bureau(hauteur: moyenBureau) { ilot(scene { $0.alerte = AlerteIlot(vue: .minuteurFini, jusqua: nil, libelle: "10 min") }) }, "ilot-3d-minuteur-fini")
-        ecrire(bureau(hauteur: moyenBureau) { ilot(scene { var x = minut(10, restant: 392); x.pause(a: t0); $0.minuteur = x; $0.survole = true }) }, "ilot-3e-minuteur-en-pause")
+        ecrire(bureau(hauteur: piedBureau) { ilot(scene { var x = minut(10, restant: 392); x.pause(a: t0); $0.minuteur = x; $0.survole = true }) }, "ilot-3e-minuteur-en-pause")
         // 4 · rappels
         ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelAjoute, jusqua: t0, ligne1: "Rappel ajouté", ligne2: "Appeler Paul \u{00B7} aujourd\u{2019}hui", meta: "15:00") }) }, "ilot-4a-rappel-ajoute")
         ecrire(bureau(hauteur: grandBureau) { ilot(scene { let r = Rappel(texte: "Appeler Paul", echeance: t0.addingTimeInterval(1700), cree: t0); let r2 = Rappel(texte: "Envoyer le devis à la mairie avant la réunion de jeudi", echeance: t0.addingTimeInterval(10000), cree: t0); $0.rappelsAVenir = [r, r2]; $0.ouvrirFormulaireRappel() }) }, "ilot-4b-rappels-liste")
@@ -265,7 +267,7 @@ enum RenduLecture {
         for (t, nom) in [(0.08, "e"), (0.20, "f")] {
             ecrire(bureau(hauteur: grandBureau) { ilot(miCourse(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.survole = true }, t) { $0.survole = false }) }, "ilot-9\(nom)-fermeture-\(Int(t * 1000))ms")
         }
-        ecrire(bureau(hauteur: moyenBureau) { ilot(miCourse(scene { $0.minuteur = minut(10, restant: 392) }, 0.2) { $0.survole = true }) }, "ilot-9g-minuteur-mi-course")
+        ecrire(bureau(hauteur: piedBureau) { ilot(miCourse(scene { $0.minuteur = minut(10, restant: 392) }, 0.2) { $0.survole = true }) }, "ilot-9g-minuteur-mi-course")
         // la dictée prend la place : tout est effacé, il ne reste que l'encoche de la dictée
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: musique) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 372); $0.dictee = true }) }, "ilot-10-dictee-efface-tout")
         // batterie et appareils (maquette ilot-apple.html) : épaules du déplié, écouteurs connectés, chargeur branché, batterie faible
@@ -325,7 +327,7 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.claude = claude() }) }, "ilot-21a-claude-3-sur-7")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.claude = claude(total: 0) }) }, "ilot-21b-claude-sans-liste")
         ecrire(bureau(hauteur: petitBureau, clair: false) { ilot(scene { $0.claude = claude(faites: 12, total: 14) }) }, "ilot-21c-claude-12-sur-14-sombre")
-        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.claude = claude(); $0.survole = true }) }, "ilot-21d-claude-survol")
+        ecrire(bureau(hauteur: piedBureau) { ilot(scene { $0.claude = claude(); $0.survole = true }) }, "ilot-21d-claude-survol")
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in let s = claude(.attend); m.claude = s
             m.bandeau = BandeauIlot(vue: .claudeAttend, jusqua: t0, ligne1: "Claude attend ta réponse", ligne2: s.projet, claude: s) }) }, "ilot-21e-claude-attend-ta-reponse")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.claude = claude(.attend) }) }, "ilot-21f-claude-attend-video-en-bulle")
@@ -333,7 +335,7 @@ enum RenduLecture {
             m.bandeau = BandeauIlot(vue: .claudeTermine, jusqua: t0, ligne1: "Terminé", ligne2: s.projet, claude: s) }) }, "ilot-21g-claude-termine")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.claude = claude() }) }, "ilot-21h-video-et-claude-en-bulle")
         ecrire(bureau(hauteur: grandBureau) { ilot(miCourse(scene { $0.claude = claude() }, 0.16) { $0.survole = true }) }, "ilot-21i-claude-survol-mi-course")
-        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.claude = claude(total: 0); $0.survole = true }) }, "ilot-21j-claude-survol-sans-liste")
+        ecrire(bureau(hauteur: piedBureau) { ilot(scene { $0.claude = claude(total: 0); $0.survole = true }) }, "ilot-21j-claude-survol-sans-liste")
         // l'étagère (maquette ilot-apple.html, cinq idées de plus, 2) : « Déposez ici » pendant qu'on glisse des fichiers près de l'encoche
         // (vide, puis sous les derniers fichiers rangés, éclairé quand le pointeur est dessus), la ligne de l'accueil, la carte (une et deux
         // rangées, noms longs coupés au milieu, vide), pendant une vidéo, et l'ouverture à mi-course
@@ -380,6 +382,12 @@ enum RenduLecture {
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.choixMicro = nil; m.claude = claude(); m.epinglerLeCentre() })) }, "ilot-23k-centre-claude-au-travail-sans-airpods")
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); m.rendezVousSuivant = rdv; m.allerA(.accueil) })) }, "ilot-23l-centre-accueil-dessous")
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.etagere = deux; m.ouvrirEtagere() })) }, "ilot-23m-centre-carte-etagere-retour")
+        // le chemin vers le Centre depuis TOUT déplié (relecture) : le minuteur (avec l'aide, la première fois), Claude quand le micro est
+        // coupé (le survol ouvre Claude, la 2e activité ; le micro rouge est dans le bouton)
+        ecrire(bureau(hauteur: piedBureau) { ilot(scene { m in m.minuteur = minut(25, restant: 1380); m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false)
+            m.ecouteurs = airpodsPro; m.aideCentre = true; m.donneesChangees(); m.survole = true; m.donneesChangees() }) }, "ilot-23q-centre-chemin-depuis-le-minuteur")
+        ecrire(bureau(hauteur: piedBureau, clair: false) { ilot(scene { m in m.microCoupe = true; m.nomMicro = "Micro MacBook Air"; m.claude = claude()
+            m.donneesChangees(); m.survole = true; m.donneesChangees() }) }, "ilot-23r-centre-chemin-depuis-claude-micro-coupe")
         // « Modifier » (maquette, étape 9) : le Centre avec Rappel ajouté (cinq ronds) ; « Modifier » lui-même (inclinaison figée : dans
         // l'app, ils tremblent), « Ajouter : + Rappel + Dernière dictée », puis Rappel ajouté ; « Modifier » quand les ajouts ne tiennent
         // pas tous (« +3 › ») ; enfin les autorisations (« Un instant… », accès refusé et sa ligne d'avis)

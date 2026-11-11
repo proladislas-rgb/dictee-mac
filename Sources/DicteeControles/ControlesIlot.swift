@@ -909,6 +909,21 @@ func controlesCentre() {
     verifier(CartesIlot.survol(.microEtendu, deuxieme: nil) == .centre && CartesIlot.survol(.microEtendu, deuxieme: .lectureEtendu) == .lectureEtendu
              && CartesIlot.survol(.lectureEtendu, deuxieme: .minuteurEtendu) == .lectureEtendu,
              "micro coupé au survol : la vidéo en bulle, sinon le Centre (le bouton Micro y est) ; les autres activités gardent leur déplié")
+    // le bouton « Centre » au pied de TOUT déplié d'activité (relecture : il n'existait que sous la lecture)
+    for v in [VueIlot.lectureEtendu, .minuteurEtendu, .claudeEtendu, .agendaEtendu, .rappelEtendu] {
+        let pile = CartesIlot.pile(survol: v)
+        verifier(CartesIlot.aUnPied(v, pile: pile) && !CartesIlot.aUnPied(.centre, pile: pile) && !CartesIlot.aUnPied(.accueil, pile: pile),
+                 "\(v.rawValue) : le bouton « Centre » à son pied (pas sur le Centre ni sur l'accueil)")
+        verifier(CartesIlot.piedEnPlus(v, pile: pile) == (v == .lectureEtendu ? 0 : GeoIlot.piedLecture),
+                 "\(v.rawValue) : le pied ajoute \(Int(CartesIlot.piedEnPlus(v, pile: pile))) pt (la lecture l'a déjà dans sa géométrie)")
+        for barre in [32.0, 37.0] {
+            let h = GeoIlot.valeurs(v, hauteurBarre: barre, enPlus: CartesIlot.piedEnPlus(v, pile: pile))[2]
+            verifier(h + 30 <= 380, "\(v.rawValue) avec son pied (barre \(Int(barre))) : \(Int(h)) pt + 30 d'ombre, dans la zone de dessin (380)")
+        }
+    }
+    verifier(!CartesIlot.aUnPied(.lectureMinuteur, pile: CartesIlot.pile(survol: .lectureMinuteur)) && !CartesIlot.aUnPied(.centre, pile: CartesIlot.pile(survol: .centre))
+             && !CartesIlot.aUnPied(.minuteurEtendu, pile: []),
+             "pas de pied : sous la rangée Minuteur (elle prend sa place), sur l'îlot vide (il s'ouvre sur le Centre), verrouillé (alerte, bandeau)")
 
     groupe("Îlot : le Centre, le défilement (un geste = une carte)")
     var d = DefilementIlot()

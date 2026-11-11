@@ -343,7 +343,7 @@ enum IlotEssai {
             verifier(m.courante == .lectureEtendu && m.cartes == [.lectureEtendu, .centre, .accueil] && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01,
                      "survol, micro coupé pendant une vidéo : la vidéo se déplie, le Centre est la carte suivante (\(m.courante))")
             // vrai clic sur « Centre » au pied de la lecture, puis sur le bouton Micro, rouge
-            let pc = PiedLecture.pointBouton(m.grille)
+            let pc = PiedCarte.pointBouton(m.grille)
             c.panneau.envoyerSouris(.leftMouseDown, en: pc); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pc); attendre(0.9)
             verifier(m.courante == .centre, "vrai clic sur « Centre » : le Centre (\(m.courante))")
             let pm = PlanCentre.centreRond(m, .micro)
@@ -958,6 +958,7 @@ enum IlotEssai {
 
         IlotEssai.centre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.modifierCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.cheminsDuCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)

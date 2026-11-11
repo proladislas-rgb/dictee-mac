@@ -19,6 +19,8 @@ final class SourceTelechargements {
     var surRefus: () -> Void = {}
     /// Le dossier est ouvert et lu : l'accès est accordé (la question de macOS, s'il y en avait une, a eu sa réponse).
     var surPret: () -> Void = {}
+    /// La surveillance n'a pas démarré sans que ce soit un refus (dossier absent ou illisible sur le moment) : plus rien à attendre.
+    var surArret: () -> Void = {}
     /// Le dossier surveillé (les essais en donnent un temporaire : jamais le vrai, qui demanderait une autorisation).
     var dossier: URL = SourceTelechargements.dossierParDefaut
     private var travail: SurveillanceDossier?
@@ -42,7 +44,7 @@ final class SourceTelechargements {
             DispatchQueue.main.async { MainActor.assumeIsolated { guard let self, let t, self.travail === t else { return }; self.surPret() } }
         }
         t.surEchec = { [weak self, weak t] refus in
-            DispatchQueue.main.async { MainActor.assumeIsolated { guard let self, let t, self.travail === t else { return }; self.arreter(); if refus { self.surRefus() } } }
+            DispatchQueue.main.async { MainActor.assumeIsolated { guard let self, let t, self.travail === t else { return }; self.arreter(); if refus { self.surRefus() } else { self.surArret() } } }
         }
         t.demarrer()
     }
