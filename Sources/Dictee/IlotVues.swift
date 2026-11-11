@@ -142,6 +142,9 @@ struct IlotCalques: View {
         case .claudeEtendu, .claudeAttend, .claudeTermine: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .etagereDepot: DepotEtagere(m: m, g: g)
         case .etagere: CarteEtagere(m: m, g: g)
+        case .etagerePile: PileEtagere(m: m, g: g)
+        case .etagereAppel: AppelEtagere(m: m, g: g)
+        case .etagereEnvoi, .etagerePartis: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .centre: CentreVue(m: m, g: g)
         case .dictees: DicteesCarte(m: m, d: m.dictees, g: g)
         }
@@ -238,6 +241,15 @@ struct IlotCalques: View {
                     }
                 }
                 .fixedSize().aspectIlot(m.aspect(v, rang: 2), ancre: .topTrailing)
+            }
+            if c.attente {
+                RouetIlot(anime: !m.reduire && !m.statique).frame(width: ContenuAnnonce.coteRouet, height: ContenuAnnonce.coteRouet)
+                    .aspectIlot(m.aspect(v, rang: 2), ancre: .center)
+            }
+            if let k = c.compte {
+                AnneauCompte(fin: k.fin, duree: k.duree, maintenant: m.maintenant)
+                    .padding(.leading, ContenuAnnonce.espaceBoutons - ContenuAnnonce.espace)
+                    .aspectIlot(m.aspect(v, rang: 3), ancre: .center)
             }
         }
         .frame(width: z.width, height: z.height)
@@ -903,6 +915,56 @@ struct BoutonRondIlot: View {
         .buttonStyle(Style())
         .onHover { survol = $0 }
         .accessibilityLabel(etiquette)
+    }
+}
+
+// MARK: compte à rebours, attente
+
+/// L'anneau de « Remettre » (maquette : 16 pt, il se vide) : il part de ce qui reste jusqu'à `fin` et se vide d'un trait, sur une
+/// animation de SwiftUI (aucune minuterie : rien ne tourne une fois le bandeau parti). Si la fin recule (la souris sur l'îlot retient le
+/// bandeau), il repart de là.
+struct AnneauCompte: View {
+    var fin: Date
+    var duree: TimeInterval
+    var maintenant: () -> Date
+    @State private var reste: Double
+    init(fin: Date, duree: TimeInterval, maintenant: @escaping () -> Date) {
+        self.fin = fin; self.duree = duree; self.maintenant = maintenant
+        _reste = State(initialValue: AnneauCompte.part(fin: fin, duree: duree, a: maintenant()))
+    }
+    static func part(fin: Date, duree: TimeInterval, a t: Date) -> Double { duree > 0 ? min(1, max(0, fin.timeIntervalSince(t) / duree)) : 0 }
+    var body: some View {
+        ZStack {
+            Circle().stroke(Color.white.opacity(0.2), lineWidth: 2.4)
+            Circle().trim(from: 0, to: reste).stroke(Color.white.opacity(0.78), style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .padding(1.2)
+        .frame(width: ContenuAnnonce.coteCompte, height: ContenuAnnonce.coteCompte)
+        .onAppear { vider() }
+        .onChange(of: fin) { vider() }
+        .accessibilityHidden(true)
+    }
+    private func vider() {
+        let r = max(0, fin.timeIntervalSince(maintenant()))
+        var t = Transaction(); t.disablesAnimations = true
+        withTransaction(t) { reste = AnneauCompte.part(fin: fin, duree: duree, a: maintenant()) }
+        guard r > 0 else { return }
+        DispatchQueue.main.async { withAnimation(.linear(duration: r)) { reste = 0 } }
+    }
+}
+
+/// Le rouet de l'envoi AirDrop : un arc bleu qui tourne tant que le panneau de macOS attend (immobile avec « Réduire les animations »
+/// et dans les rendus).
+struct RouetIlot: View {
+    var anime: Bool
+    @State private var angle = 0.0
+    var body: some View {
+        Circle().trim(from: 0, to: 0.72).stroke(Color(hex: 0x5EB0FF), style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
+            .padding(2)
+            .rotationEffect(.degrees(angle - 90))
+            .onAppear { if anime { withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) { angle = 360 } } }
+            .accessibilityLabel("Envoi en cours")
     }
 }
 

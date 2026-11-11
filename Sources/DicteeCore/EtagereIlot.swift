@@ -12,8 +12,14 @@ public struct ElementEtagere: Codable, Equatable, Sendable, Identifiable {
     public var chemin: String
     public var signet: Data
     public var ajout: Date
-    public init(id: UUID = UUID(), chemin: String, signet: Data, ajout: Date) {
+    /// Arrivé tout seul (une capture d'écran, option « Captures d'écran ici ») plutôt que rangé à la main : quand l'étagère est pleine,
+    /// un ajout tout seul ne fait de la place que parmi eux. Absent du fichier pour un fichier rangé à la main (les étagères d'avant se
+    /// relisent telles quelles).
+    public var seul: Bool?
+    public var arriveSeul: Bool { seul == true }
+    public init(id: UUID = UUID(), chemin: String, signet: Data, ajout: Date, seul: Bool = false) {
         self.id = id; self.chemin = chemin; self.signet = signet; self.ajout = ajout
+        self.seul = seul ? true : nil
         nom = (chemin as NSString).lastPathComponent
     }
 }
@@ -24,11 +30,13 @@ public enum SignetRelu: Equatable, Sendable {
     case disparu
 }
 
-/// Ce qu'un dépôt a changé : les fichiers rangés, ceux déjà sur l'étagère, et les plus anciens sortis pour faire de la place.
+/// Ce qu'un dépôt a changé : les fichiers rangés, ceux déjà sur l'étagère, les plus anciens sortis pour faire de la place, et les
+/// fichiers arrivés tout seuls qui n'ont pas trouvé de place (l'étagère est pleine de fichiers rangés à la main).
 public struct RangementEtagere: Equatable, Sendable {
     public var ajoutes: [ElementEtagere] = []
     public var doublons = 0
     public var sortis: [ElementEtagere] = []
+    public var ecartes = 0
 }
 
 public struct EtagereIlot: Codable, Equatable, Sendable {
@@ -47,20 +55,24 @@ public struct EtagereIlot: Codable, Equatable, Sendable {
 
     /// Range des fichiers, dans l'ordre du dépôt, à la suite des autres. Un fichier déjà là (ou deux fois dans le même dépôt) n'est pas
     /// rangé deux fois et garde sa place. Au-delà de la capacité, les plus anciens sortent.
+    /// `seuls` : ils arrivent tout seuls (des captures d'écran), sans geste. Ils ne font alors de la place que parmi les fichiers arrivés
+    /// tout seuls (le plus ancien d'abord, eux compris) : un fichier rangé à la main ne quitte jamais l'étagère sans geste. Pleine de
+    /// fichiers rangés à la main, l'étagère ne prend pas la capture (`ecartes`).
     @discardableResult
-    public mutating func ajouter(_ nouveaux: [ElementEtagere]) -> RangementEtagere {
+    public mutating func ajouter(_ nouveaux: [ElementEtagere], seuls: Bool = false) -> RangementEtagere {
         var r = RangementEtagere()
         var vus = Set(elements.map { Self.cle($0.chemin) })
-        for e in nouveaux {
+        for var e in nouveaux {
             let k = Self.cle(e.chemin)
             if vus.contains(k) { r.doublons += 1; continue }
             vus.insert(k)
+            if seuls { e.seul = true }
             elements.append(e); r.ajoutes.append(e)
         }
-        if elements.count > Self.capacite {
-            let n = elements.count - Self.capacite
-            r.sortis = Array(elements.prefix(n))
-            elements.removeFirst(n)
+        while elements.count > Self.capacite {
+            let i = seuls ? (elements.firstIndex(where: \.arriveSeul) ?? 0) : 0
+            let s = elements.remove(at: i)
+            if let j = r.ajoutes.firstIndex(where: { $0.id == s.id }) { r.ajoutes.remove(at: j); r.ecartes += 1 } else { r.sortis.append(s) }
         }
         return r
     }
@@ -73,6 +85,35 @@ public struct EtagereIlot: Codable, Equatable, Sendable {
     }
 
     public mutating func vider() { elements = [] }
+
+    /// Des fichiers glissés HORS de l'étagère (vers Mail, le Bureau…) la quittent : on les retire et on les rend, dans l'ordre de
+    /// l'étagère, pour pouvoir les « Remettre » quelques secondes.
+    @discardableResult
+    public mutating func retirer(ids: [UUID]) -> [ElementEtagere] {
+        let l = Set(ids)
+        let partis = elements.filter { l.contains($0.id) }
+        elements.removeAll { l.contains($0.id) }
+        return partis
+    }
+
+    /// « Remettre » : les fichiers partis reviennent (à la suite, sans doublon : un fichier redéposé entre-temps n'est pas compté deux
+    /// fois ; mêmes signets, même identifiant).
+    @discardableResult
+    public mutating func remettre(_ partis: [ElementEtagere]) -> RangementEtagere { ajouter(partis) }
+
+    /// « 1 fichier parti dans Mail », « 3 fichiers partis dans Mail » ; sans app connue : « 3 fichiers partis ».
+    public static func partis(_ n: Int, app: String?) -> String {
+        let debut = n == 1 ? "1 fichier parti" : "\(n) fichiers partis"
+        guard let app, !app.isEmpty else { return debut }
+        return debut + " dans " + app
+    }
+
+    /// Le nom de l'app où des fichiers ont été lâchés, d'après le propriétaire de la fenêtre sous le point. Le Dock possède les fenêtres
+    /// de ses icônes : lâché sur l'icône de Mail, ce n'est pas « Dock » ; on ne dit alors aucun nom (« 1 fichier parti »).
+    public static func appDuLacher(bundle: String?, nom: String?) -> String? {
+        guard bundle != "com.apple.dock", let nom, !nom.isEmpty else { return nil }
+        return nom
+    }
 
     /// Un fichier mis à la Corbeille n'est plus là pour l'utilisateur, même si son signet le retrouve encore.
     public static func estALaCorbeille(_ chemin: String) -> Bool {
@@ -125,11 +166,15 @@ public struct EtagereIlot: Codable, Equatable, Sendable {
     }
 }
 
-/// Le pointeur qui glisse des fichiers est-il assez près de l'encoche pour que l'îlot s'ouvre en « Déposez ici » ? Points depuis le
-/// centre de l'encoche (x) et le haut de l'écran (y).
+/// Le pointeur qui glisse des fichiers est-il assez près de l'encoche pour que l'îlot s'ouvre en grand (les deux zones) ? Points depuis
+/// le centre de l'encoche (x) et le haut de l'écran (y). Plus loin, l'îlot appelle seulement (« Glisse ici ») dès que le glisser commence.
 public enum ApprocheEtagere {
-    /// À 60 pt de l'encoche (la caméra sur la hauteur de la barre), l'îlot s'ouvre.
-    public static let distance: Double = 60
+    /// À 140 pt de l'encoche (la caméra sur la hauteur de la barre), l'îlot s'ouvre en grand (maquette ilot-etagere-rapide.html : bien
+    /// avant d'atteindre l'encoche ; c'était 60 pt, il fallait viser).
+    public static let distance: Double = 140
+    /// Revenu après avoir quitté les zones pendant le même glisser (il visait autre chose sous l'encoche : un onglet, une barre
+    /// d'outils), elles ne se rouvrent qu'à 60 pt : les 140 pt ne servent qu'à la première approche.
+    public static let distanceRetour: Double = 60
     /// Une fois ouvert, il le reste tant que le pointeur est sur la forme ouverte ou à 40 pt autour (la forme elle-même, pas son
     /// rectangle : voir `IlotMoteur.contient(_:marge:)`) : on ne la perd pas en la visant.
     public static let marge: Double = 40
@@ -140,9 +185,49 @@ public enum ApprocheEtagere {
         return (dx * dx + dy * dy).squareRoot()
     }
 
-    /// Assez près de l'encoche pour que la zone s'ouvre.
-    public static func proche(x: Double, y: Double, demiCamera: Double, barre: Double) -> Bool {
-        ecart(x: x, y: y, demiCamera: demiCamera, barre: barre) <= distance
+    /// Dans la barre des menus, seulement à 60 pt de la caméra : plus loin, ce sont les icônes des autres apps (on peut y glisser un
+    /// fichier sans que l'îlot ne s'ouvre par-dessus).
+    public static let distanceBarre: Double = 60
+
+    /// Assez près de l'encoche pour que la zone s'ouvre. `retour` : les zones ont déjà été ouvertes puis quittées pendant ce glisser.
+    public static func proche(x: Double, y: Double, demiCamera: Double, barre: Double, retour: Bool = false) -> Bool {
+        if y < barre { return max(0, abs(x) - demiCamera) <= distanceBarre }
+        return ecart(x: x, y: y, demiCamera: demiCamera, barre: barre) <= (retour ? distanceRetour : distance)
+    }
+}
+
+/// Les deux zones de dépôt, côte à côte sous l'encoche : « Étagère » (à gauche : la garder pour plus tard) et « AirDrop » (à droite :
+/// l'envoyer). Celle sous le pointeur s'éclaire ; le lâcher va à celle-là.
+public enum ZoneDepotEtagere: String, Equatable, Sendable {
+    case etagere, airdrop
+    /// La zone sous le pointeur (x depuis le centre de l'encoche, y depuis le haut de l'écran) : la gauche est l'étagère, la droite
+    /// AirDrop. Encore dans la barre des menus (sur le cou, au-dessus des zones) : l'étagère, qu'on peut toujours défaire.
+    public static func sous(x: Double, y: Double, barre: Double) -> ZoneDepotEtagere { y < barre || x < 0 ? .etagere : .airdrop }
+}
+
+/// En option (« Captures d'écran ici », éteint par défaut) : les nouvelles captures d'écran arrivent sur l'étagère. Où macOS les range,
+/// et comment les reconnaître.
+public enum CapturesEcran {
+    /// Les débuts de nom des captures de macOS (français, anglais), quand le réglage « name » de com.apple.screencapture n'en donne pas.
+    public static let prefixes = ["Capture d\u{2019}écran", "Capture d'écran", "Screenshot", "Screen Shot"]
+
+    /// Le dossier des captures : le réglage « location » de com.apple.screencapture (« ~/Documents/ »), sinon le Bureau. `maison` : le
+    /// dossier de l'utilisateur.
+    public static func dossier(location: String?, maison: String) -> String {
+        let bureau = (maison as NSString).appendingPathComponent("Desktop")
+        guard var l = location?.trimmingCharacters(in: .whitespacesAndNewlines), !l.isEmpty else { return bureau }
+        if l == "~" { l = maison } else if l.hasPrefix("~/") { l = (maison as NSString).appendingPathComponent(String(l.dropFirst(2))) }
+        guard l.hasPrefix("/") else { return bureau }
+        return (l as NSString).standardizingPath
+    }
+
+    /// Une capture d'écran : macOS la marque (attribut kMDItemIsScreenCapture), ou son nom commence comme celui des captures (le préfixe
+    /// choisi dans les réglages, sinon ceux de macOS). Un autre fichier posé dans le même dossier (le Bureau) n'est jamais pris.
+    public static func estUneCapture(nom: String, marquee: Bool, prefixe: String? = nil) -> Bool {
+        guard FiltreTelechargements.estFini(nom) else { return false }
+        if marquee { return true }
+        let p = [prefixe].compactMap { $0 }.filter { !$0.isEmpty } + prefixes
+        return p.contains { nom.hasPrefix($0) }
     }
 }
 

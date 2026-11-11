@@ -99,6 +99,9 @@ struct EnteteCentre: View {
                 avis(a)
             } else if let nom = m.nomPremiereCarte, let premiere = m.cartes.first {
                 PiluleCentre(titre: nom, retour: true, etiquette: "Revenir à : \(nom)") { m.allerA(premiere) }
+            } else if m.miseEnPageCentre.etagereEnHaut {
+                // les fichiers de l'étagère sont en haut : leur titre et leur nombre ouvrent la carte (maquette ilot-etagere-rapide.html)
+                TitreEtagereCentre(m: m)
             } else {
                 Text("Centre").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(CouleursIlot.encre2).padding(.leading, 2)
             }
@@ -201,6 +204,29 @@ struct PastilleAjout: View {
         .disabled(!possible)
         .onHover { survol = $0 }
         .accessibilityLabel(possible ? "Ajouter « \(element.nom) » au Centre" : "« \(element.nom) » : la rangée est pleine, retire d\u{2019}abord un bouton")
+    }
+}
+
+/// « Étagère 3 › » dans l'en-tête du Centre, quand les fichiers sont en haut : un clic ouvre la carte Étagère.
+struct TitreEtagereCentre: View {
+    @ObservedObject var m: IlotMoteur
+    @State private var survol = false
+    var body: some View {
+        Button { m.epinglerLeCentre(); m.ouvrirEtagere() } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "tray").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color(hex: 0x5EB0FF))
+                Text("Étagère").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1).fixedSize()
+                Text("\(m.etagere.count)").font(.system(size: 11.5, weight: .bold).monospacedDigit()).foregroundStyle(.white)
+                    .padding(.horizontal, 5).frame(minWidth: 18, minHeight: 18).background(Capsule().fill(Color.white.opacity(0.2)))
+                Image(systemName: "chevron.right").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(Color.white.opacity(0.5))
+            }
+            .padding(.horizontal, 4).frame(height: 26)
+            .background(Capsule().fill(Color.white.opacity(survol ? 0.1 : 0)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(AppuiIlot(echelle: 0.95))
+        .onHover { survol = $0 }
+        .accessibilityLabel("Étagère, \(EtagereIlot.resume(m.etagere.count)) : l\u{2019}ouvrir")
     }
 }
 

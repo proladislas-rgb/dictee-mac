@@ -362,6 +362,42 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau + 80) { ilot(miCourse(scene { m in m.etagereActive = true; m.etagere = deux }, 0.16) { $0.montrerDepot(true) }) }, "ilot-22i-etagere-ouverture-mi-course")
         ecrire(bureau(hauteur: grandBureau + 70) { ilot(scene(lecture: videoLongue) { m in m.etagereActive = true; m.etagere = deux; m.lecturePresente = true
             m.donneesChangees(); m.appuiLong(minuteurActif: true) }) }, "ilot-22j-lecture-rangee-et-etagere")
+        // l'étagère plus rapide (maquette ilot-etagere-rapide.html, validée) : l'appel dès que le glisser commence, les deux zones (Étagère
+        // éclairée, AirDrop éclairée, « Rangé »), la pile replié dans l'aile gauche, l'envoi AirDrop (en cours, envoyé, annulé), le Centre
+        // avec les fichiers en haut (et « Tout »), « 3 fichiers partis dans Mail · Remettre », la carte avec une capture « Nouveau » et
+        // l'interrupteur, l'ouverture à mi-course
+        let trois = etagere([("Contrat.pdf", .pdf), ("Photo-chantier.heic", .heic), ("Devis-cuisine.pdf", .pdf)])
+        let cinq = trois + etagere([("Budget-2026.xlsx", .spreadsheet), ("Lettre-banque.docx", .plainText)])
+        func zones(_ f: [FichierEtagere], _ z: ZoneDepotEtagere?) -> (IlotMoteur) -> Void {
+            { m in m.etagereActive = true; m.etagere = f; m.montrerAppel(true); m.montrerDepot(true); m.depotSurvole = z != nil; m.depotZone = z }
+        }
+        ecrire(bureau(hauteur: petitBureau + 40) { ilot(scene { m in m.etagereActive = true; m.etagere = Array(trois.prefix(2)); m.montrerAppel(true) }) }, "ilot-24a-etagere-glisse-ici")
+        ecrire(bureau(hauteur: petitBureau + 140) { ilot(scene(zones(Array(trois.prefix(2)), .etagere))) }, "ilot-24b-etagere-zones-etagere-eclairee")
+        ecrire(bureau(hauteur: petitBureau + 140, clair: false) { ilot(scene(zones(Array(trois.prefix(2)), .airdrop))) }, "ilot-24c-etagere-zones-airdrop-eclairee")
+        ecrire(bureau(hauteur: petitBureau + 140) { ilot(scene { m in zones(trois, .etagere)(m); m.depotTermine(apres: 60) }) }, "ilot-24d-etagere-range")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { m in m.etagereActive = true; m.etagere = trois }) }, "ilot-24e-etagere-pile-repliee")
+        ecrire(bureau(hauteur: petitBureau, clair: false) { ilot(scene { m in m.etagereActive = true; m.etagere = huit + Array(trois.prefix(2)) }) }, "ilot-24f-etagere-pile-dix-sombre")
+        let plan = NSWorkspace.shared.icon(for: .jpeg)
+        func envoi(_ e: EnvoiEtagere.Etat) -> (IlotMoteur) -> Void {
+            { m in m.etagereActive = true; m.etagere = trois
+                m.bandeau = BandeauIlot(vue: .etagereEnvoi, jusqua: t0, ligne1: "", ligne2: "", envoi: EnvoiEtagere(etat: e, noms: ["Plan-salon.jpg"], icone: plan)) }
+        }
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene(envoi(.enCours))) }, "ilot-24g-etagere-airdrop-envoi")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene(envoi(.envoye))) }, "ilot-24h-etagere-airdrop-envoye")
+        ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene(envoi(.annule))) }, "ilot-24i-etagere-airdrop-annule")
+        ecrire(bureau(hauteur: geometrie.hauteur + 345) { ilot(scene { m in m.etagereActive = true; m.etagere = trois; m.energie = batterie; m.survole = true }) }, "ilot-24j-centre-fichiers-en-haut")
+        ecrire(bureau(hauteur: geometrie.hauteur + 345, clair: false) { ilot(scene(lecture: videoLongue) { m in m.etagereActive = true; m.etagere = cinq; m.lecturePresente = true
+            m.donneesChangees(); m.allerA(.centre) }) }, "ilot-24k-centre-fichiers-en-haut-depuis-video")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in m.etagereActive = true
+            m.bandeau = BandeauIlot(vue: .etagerePartis, jusqua: t0.addingTimeInterval(3.6), ligne1: EtagereIlot.partis(3, app: "Mail"), ligne2: "Ils ont quitté l\u{2019}étagère",
+                                    partis: PartisEtagere(nombre: 3, app: "Mail", icones: trois.suffix(2).reversed().map(\.icone), duree: 5)) }) }, "ilot-24l-etagere-partis-remettre")
+        var capture = etagere([("Capture d\u{2019}écran 2026-11-11 à 14.32.10.png", .png)])
+        capture[0].nouveau = true
+        ecrire(bureau(hauteur: grandBureau + 20) { ilot(scene { m in m.etagereActive = true; m.etagere = Array(trois.prefix(1)) + capture; m.capturesActives = true; m.energie = batterie; m.ouvrirEtagere() }) }, "ilot-24m-carte-capture-nouveau")
+        ecrire(bureau(hauteur: grandBureau + 20, clair: false) { ilot(scene { m in m.etagereActive = true; m.etagere = trois; m.capturesRefusees = true; m.ouvrirEtagere() }) }, "ilot-24n-carte-captures-acces-refuse")
+        ecrire(bureau(hauteur: grandBureau + 20) { ilot(scene { m in m.etagereActive = true; m.etagere = trois; m.capturesIntrouvable = true; m.ouvrirEtagere() }) }, "ilot-24q-carte-captures-dossier-introuvable")
+        ecrire(bureau(hauteur: petitBureau + 140) { ilot(miCourse(scene { m in m.etagereActive = true; m.etagere = trois; m.montrerAppel(true) }, 0.16) { $0.montrerDepot(true) }) }, "ilot-24o-etagere-appel-vers-zones-mi-course")
+        ecrire(bureau(hauteur: petitBureau + 40) { ilot(miCourse(scene { m in m.etagereActive = true; m.etagere = trois }, 0.14) { $0.montrerAppel(true) }) }, "ilot-24p-etagere-pile-vers-appel-mi-course")
         // le Centre (maquette ilot-centre.html, mêmes étapes) : la bulle « Nouveau », la lecture et son bouton « Centre », le Centre et
         // ses boutons (micro coupé et « Reste ouvert », l'étagère qui reçoit un fichier, Téléchargements allumé, Claude prêt), puis d'autres
         // états (îlot vide, minuteur qui tourne, Claude au travail, l'accueil sous le Centre, la carte Étagère, le passage à mi-course)

@@ -12,7 +12,7 @@ func controlesIlot() {
         for v in VueIlot.allCases {
             let g = GeoIlot.valeurs(v, hauteurBarre: barre)
             let p = TraceIlot.calculer(g, demiCamera: demi, barre: barre)
-            verifier(g.count == 7 && p.bande <= demi + GeoIlot.aileMax + 0.001, "\(v.rawValue) (caméra \(Int(2 * demi)), barre \(Int(barre))) : dans la barre, \(String(format: "%.0f", p.bande - demi)) pt de chaque côté de la caméra, ≤ 66")
+            verifier(g.count == 8 && p.bande <= demi + GeoIlot.aileMax + 0.001, "\(v.rawValue) (caméra \(Int(2 * demi)), barre \(Int(barre))) : dans la barre, \(String(format: "%.0f", p.bande - demi)) pt de chaque côté de la caméra, ≤ 66")
             if GeoIlot.profondeur(v) > 0 {
                 verifier(p.corps >= p.bande + 40, "\(v.rawValue) : le corps (sous la barre) est plus large que le cou")
             }
@@ -860,9 +860,14 @@ func controlesEtagere(_ t0: Date) {
     groupe("Îlot : l'étagère, le glisser près de l'encoche")
     typealias A = ApprocheEtagere
     verifier(A.ecart(x: 0, y: 10, demiCamera: 92, barre: 32) == 0 && A.ecart(x: 152, y: 20, demiCamera: 92, barre: 32) == 60, "écart : 0 sur l'encoche, 60 pt à droite de la caméra")
-    verifier(A.proche(x: 150, y: 20, demiCamera: 92, barre: 32) && !A.proche(x: 160, y: 20, demiCamera: 92, barre: 32), "à 58 pt de la caméra : ouvert ; à 68 pt : rien")
-    verifier(A.proche(x: 0, y: 90, demiCamera: 92, barre: 32) && !A.proche(x: 0, y: 100, demiCamera: 92, barre: 32), "sous l'encoche : jusqu'à 60 pt sous la barre")
+    verifier(A.distance == 140, "l'îlot s'ouvre en grand à 140 pt de l'encoche (c'était 60 : il fallait viser)")
+    verifier(A.proche(x: 230, y: 40, demiCamera: 92, barre: 32) && !A.proche(x: 240, y: 40, demiCamera: 92, barre: 32), "sous la barre, à 138 pt de la caméra : ouvert ; à 148 pt : rien")
+    verifier(A.proche(x: 150, y: 20, demiCamera: 92, barre: 32) && !A.proche(x: 160, y: 20, demiCamera: 92, barre: 32),
+             "dans la barre des menus : à 58 pt de la caméra, ouvert ; à 68 pt, rien (les icônes voisines restent atteignables)")
+    verifier(A.proche(x: 0, y: 170, demiCamera: 92, barre: 32) && !A.proche(x: 0, y: 180, demiCamera: 92, barre: 32), "sous l'encoche : jusqu'à 140 pt sous la barre")
     verifier(!A.proche(x: -400, y: 5, demiCamera: 92, barre: 32), "dans la barre des menus, loin de la caméra : rien")
+    verifier(A.distanceRetour == 60 && !A.proche(x: 0, y: 132, demiCamera: 92, barre: 32, retour: true) && A.proche(x: 0, y: 90, demiCamera: 92, barre: 32, retour: true),
+             "zones déjà quittées pendant ce glisser : à 100 pt, rien ; à 58 pt, elles se rouvrent (on visait autre chose sous l'encoche)")
     // zone ouverte : elle le reste sur la FORME ou à 40 pt autour (jugé sur le tracé, dans l'essai de bout en bout `--ilot-essai`)
     verifier(A.marge == 40, "zone ouverte : 40 pt de marge autour de la forme")
     var sg = SuiviGlisser()
@@ -885,9 +890,119 @@ func controlesEtagere(_ t0: Date) {
     let acc = GeoIlot.valeurs(.accueil, hauteurBarre: 32), accPlus = GeoIlot.valeurs(.accueil, hauteurBarre: 32, enPlus: GeoIlot.ligneAccueil)
     verifier(accPlus[2] - acc[2] == 42 && accPlus[1] == acc[1], "accueil avec l'étagère : une ligne de 42 pt de plus, même largeur")
     verifier(GeoIlot.valeurs(.etagereDepot, hauteurBarre: 32)[1] == GeoIlot.valeurs(.accueil, hauteurBarre: 32)[1], "« Déposez ici » : la largeur de l'accueil")
-    verifier(GeoIlot.profondeur(.etagereDepot) == 16 + 70 + 16, "« Déposez ici » : 70 pt de zone, 16 pt de marge dessus et dessous (maquette)")
+    verifier(GeoIlot.profondeur(.etagereDepot) == 14 + 112 + 14, "les deux zones : 112 pt de haut, 14 pt de marge dessus et dessous (maquette)")
     verifier(!VueIlot.etagereDepot.estBandeau && !VueIlot.etagere.estBandeau && !GeoIlot.ajusteAuContenu(.etagere), "ni bandeau ni écran ajusté au contenu")
+    controlesEtagereRapide(t0)
     controlesCentre()
+}
+
+/// L'étagère plus rapide (maquette design/maquettes/ilot-etagere-rapide.html) : l'aile de la pile (une seule, à gauche), l'appel, les
+/// deux zones, « Remettre », les captures d'écran, le Centre avec les fichiers en haut.
+func controlesEtagereRapide(_ t0: Date) {
+    groupe("Îlot : l'étagère plus rapide, la forme")
+    for (barre, demi) in [(32.0, 100.0), (33.0, 90.0), (37.0, 92.0)] {
+        let g = GeoIlot.valeurs(.etagerePile, hauteurBarre: barre, demiCamera: demi)
+        let p = TraceIlot.calculer(g, demiCamera: demi, barre: barre)
+        verifier(abs(p.bandeGauche - demi - 52) < 0.001 && p.bandeGauche - demi <= GeoIlot.aileMax, "pile replié (caméra \(Int(2 * demi))) : l'aile gauche, \(String(format: "%.0f", p.bandeGauche - demi)) pt au-delà de la caméra (46 + épaule de 6, ≤ 66)")
+        verifier(abs(p.cou - demi) < 0.001 && p.bandeDroite - demi <= 6.001, "pile replié : à droite, rien que la caméra (\(String(format: "%.0f", p.bandeDroite - demi)) pt : l'épaule)")
+        verifier(p.hauteur == barre, "pile replié : rien sous la barre")
+        let a = TraceIlot.calculer(GeoIlot.valeurs(.etagereAppel, hauteurBarre: barre, demiCamera: demi), demiCamera: demi, barre: barre)
+        verifier(a.bande - demi <= 10.001 && a.hauteur == barre + 38 && a.corps - demi >= 50,
+                 "« Glisse ici » : le cou serré contre la caméra (\(String(format: "%.0f", a.bande - demi)) pt dans la barre : le congé), 38 pt dessous, le corps un peu plus large")
+        // une forme symétrique est la même avec ou sans le cou droit (rien n'a changé pour les autres écrans)
+        for v in [VueIlot.centre, .lectureEtendu, .minuteurCompact, .notification, .repos] {
+            let g8 = GeoIlot.valeurs(v, hauteurBarre: barre, demiCamera: demi, epaules: true)
+            verifier(TraceIlot.calculer(g8, demiCamera: demi, barre: barre).commandes == TraceIlot.calculer(Array(g8.prefix(7)), demiCamera: demi, barre: barre).commandes,
+                     "\(v.rawValue) : le même tracé qu'avant (forme symétrique)")
+        }
+        let c = TraceIlot.calculer(g, demiCamera: demi, barre: barre)
+        let cg = c.commandes.compactMap { if case .ligne(let x, _) = $0 { return x } else { return nil } }
+        verifier((cg.min() ?? 0) >= -(demi + 52) - 0.001 && (cg.max() ?? 0) <= demi + 6.001, "pile : le tracé ne sort jamais de l'aile gauche ni de l'épaule droite")
+    }
+    // un passage de la pile vers une forme symétrique : le cou droit est une largeur (il s'ouvre avec elles)
+    verifier(GeoIlot.largeurs.contains(7) && !GeoIlot.hauteurs.contains(7), "le cou droit suit les largeurs (ressorts de la largeur)")
+
+    groupe("Îlot : l'étagère plus rapide, qui a l'îlot")
+    func res(_ f: (inout EtatIlot) -> Void) -> ResolutionIlot { var e = EtatIlot(); f(&e); return ArbitrageIlot.resoudre(e) }
+    verifier(res { $0.etagere = true } == ResolutionIlot(principal: .etagerePile, survol: .centre, verrou: false, pastille: nil),
+             "rien ne joue, l'étagère garde des fichiers : la pile dans l'aile ; au survol, le Centre")
+    verifier(res { $0.etagere = true; $0.lecture = true }.principal == .lectureCompact && res { $0.etagere = true; $0.lecture = true }.pastille == nil,
+             "une vidéo joue : elle a l'îlot, l'étagère se voit au survol seulement (pas de bulle)")
+    verifier(res { $0.etagere = true; $0.minuteur = true }.principal == .minuteurCompact, "un minuteur : il passe avant la pile")
+    verifier(res { $0.etagere = true; $0.bandeau = .etagerePartis }.principal == .etagerePartis && res { $0.bandeau = .etagerePartis }.verrou, "« partis dans Mail » : un bandeau (verrou)")
+    verifier(VueIlot.etagereEnvoi.estBandeau && VueIlot.etagerePartis.estBandeau && GeoIlot.ajusteAuContenu(.etagerePartis) && GeoIlot.ajusteAuContenu(.etagereEnvoi),
+             "envoi AirDrop et fichiers partis : des bandeaux qui épousent leur contenu")
+    verifier(!VueIlot.etagerePile.estBandeau && GeoIlot.profondeur(.etagerePile) == 0 && !VueIlot.etagereAppel.estBandeau, "la pile et l'appel ne sont pas des bandeaux")
+
+    groupe("Îlot : l'étagère plus rapide, les zones et « Remettre »")
+    verifier(ZoneDepotEtagere.sous(x: -40, y: 80, barre: 32) == .etagere && ZoneDepotEtagere.sous(x: 40, y: 80, barre: 32) == .airdrop, "à gauche « Étagère », à droite « AirDrop »")
+    verifier(ZoneDepotEtagere.sous(x: 20, y: 10, barre: 32) == .etagere, "encore dans la barre (sur le cou) : l'étagère, qu'on peut défaire (AirDrop ouvrirait un panneau)")
+    func el(_ chemin: String) -> ElementEtagere { ElementEtagere(chemin: chemin, signet: Data(chemin.utf8), ajout: t0) }
+    var e = EtagereIlot()
+    e.ajouter([el("/a/Contrat.pdf"), el("/a/Photo.heic"), el("/a/Devis.pdf")])
+    let ids = e.elements.map(\.id)
+    let partis = e.retirer(ids: [ids[2], ids[0]])
+    verifier(partis.map(\.nom) == ["Contrat.pdf", "Devis.pdf"] && e.elements.map(\.nom) == ["Photo.heic"], "glissés vers une app : ils quittent l'étagère (rendus dans l'ordre de l'étagère)")
+    e.ajouter([el("/a/Contrat.pdf")])
+    let r = e.remettre(partis)
+    verifier(r.ajoutes.map(\.nom) == ["Devis.pdf"] && r.doublons == 1 && e.elements.map(\.nom) == ["Photo.heic", "Contrat.pdf", "Devis.pdf"],
+             "« Remettre » : ils reviennent, sans doublon (Contrat redéposé entre-temps)")
+    verifier(e.elements.last?.id == ids[2], "« Remettre » : même fichier, même identifiant, même signet")
+    verifier(EtagereIlot.partis(3, app: "Mail") == "3 fichiers partis dans Mail" && EtagereIlot.partis(1, app: "Mail") == "1 fichier parti dans Mail"
+             && EtagereIlot.partis(2, app: nil) == "2 fichiers partis", "« 3 fichiers partis dans Mail », « 1 fichier parti… » ; sans app : « 2 fichiers partis »")
+    verifier(EtagereIlot.appDuLacher(bundle: "com.apple.dock", nom: "Dock") == nil && EtagereIlot.appDuLacher(bundle: "com.apple.mail", nom: "Mail") == "Mail"
+             && EtagereIlot.appDuLacher(bundle: nil, nom: "") == nil, "lâché sur une icône du Dock : pas « parti dans Dock », aucun nom ; dans Mail : « Mail »")
+
+    groupe("Îlot : l'étagère plus rapide, une capture ne chasse jamais un fichier rangé à la main")
+    var main = EtagereIlot()
+    main.ajouter((1...10).map { el("/m/\($0).pdf") })
+    let rc = main.ajouter([el("/c/Capture 1.png")], seuls: true)
+    verifier(main.elements.map(\.nom) == (1...10).map { "\($0).pdf" } && rc.ajoutes.isEmpty && rc.sortis.isEmpty && rc.ecartes == 1,
+             "10 fichiers rangés à la main + 1 capture : les 10 restent, la capture n'est pas rangée")
+    var mixte = EtagereIlot()
+    mixte.ajouter((1...8).map { el("/m/\($0).pdf") })
+    mixte.ajouter([el("/c/A.png"), el("/c/B.png")], seuls: true)
+    let rm = mixte.ajouter([el("/c/C.png"), el("/c/D.png"), el("/c/E.png")], seuls: true)
+    verifier(mixte.elements.map(\.nom) == (1...8).map { "\($0).pdf" } + ["D.png", "E.png"] && rm.sortis.map(\.nom) == ["A.png", "B.png"] && rm.ecartes == 1
+             && rm.ajoutes.map(\.nom) == ["D.png", "E.png"],
+             "8 à la main + 2 captures, puis 3 captures : les plus anciennes captures font la place (la 3e nouvelle aussi), jamais un fichier à la main")
+    verifier(mixte.elements.filter(\.arriveSeul).count == 2 && !mixte.elements[0].arriveSeul, "les captures sont marquées « arrivées toutes seules »")
+    let rh = mixte.ajouter([el("/m/Contrat.pdf")])
+    verifier(rh.sortis.map(\.nom) == ["1.pdf"] && mixte.elements.last?.nom == "Contrat.pdf", "un fichier rangé à la main, étagère pleine : le plus ancien sort, comme avant (un geste)")
+    if let d = mixte.donnees(), let relu = EtagereIlot.depuis(d) { verifier(relu == mixte && relu.elements.filter(\.arriveSeul).count == 2, "fichier : la marque des captures relue") }
+    else { verifier(false, "fichier : encodage des captures") }
+    let ancien = #"{"elements":[{"ajout":"2026-11-10T09:00:00Z","chemin":"/a/Contrat.pdf","id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","nom":"Contrat.pdf","signet":"AA=="}]}"#
+    verifier(EtagereIlot.depuis(Data(ancien.utf8))?.elements.first.map { !$0.arriveSeul && $0.nom == "Contrat.pdf" } == true, "une étagère d'avant (sans marque) se relit : fichiers rangés à la main")
+
+    groupe("Îlot : l'étagère plus rapide, les captures d'écran")
+    typealias C = CapturesEcran
+    verifier(C.dossier(location: nil, maison: "/Users/h") == "/Users/h/Desktop" && C.dossier(location: "  ", maison: "/Users/h") == "/Users/h/Desktop", "sans réglage : le Bureau")
+    verifier(C.dossier(location: "~/Documents/", maison: "/Users/h") == "/Users/h/Documents" && C.dossier(location: "/Volumes/X/Captures", maison: "/Users/h") == "/Volumes/X/Captures",
+             "le dossier choisi dans Capture d'écran (« ~/Documents/ », un chemin complet)")
+    verifier(C.dossier(location: "Captures", maison: "/Users/h") == "/Users/h/Desktop", "un réglage incompréhensible : le Bureau")
+    verifier(C.estUneCapture(nom: "Capture d\u{2019}écran 2026-11-11 à 14.32.10.png", marquee: false) && C.estUneCapture(nom: "Screenshot 2026-11-11 at 14.32.10.png", marquee: false),
+             "« Capture d’écran … », « Screenshot … » : des captures")
+    verifier(C.estUneCapture(nom: "IMG_0001.png", marquee: true) && !C.estUneCapture(nom: "Devis.pdf", marquee: false), "marquée par macOS : une capture, quel que soit son nom ; un autre fichier du Bureau : non")
+    verifier(C.estUneCapture(nom: "Écran 1.png", marquee: false, prefixe: "Écran") && !C.estUneCapture(nom: ".Capture d\u{2019}écran 2026.png", marquee: true),
+             "le préfixe choisi dans les réglages ; une capture en cours d'écriture (nom caché) : pas encore")
+
+    groupe("Îlot : l'étagère plus rapide, le Centre avec les fichiers en haut")
+    let d = DispositionCentre()
+    let mp = d.miseEnPage(fichiers: true)
+    verifier(mp.etagereEnHaut && mp.cases == [.minuteur, .reunion] && !mp.bande, "des fichiers : l'étagère en haut, « Noter la réunion » en case à côté du Minuteur")
+    verifier(d.miseEnPage(fichiers: false) == DispositionCentre.MiseEnPage(etagereEnHaut: false, cases: [.minuteur, .etagere], bande: true), "étagère vide : le Centre comme avant")
+    var sansEtagere = DispositionCentre(); sansEtagere.retirer(.etagere)
+    verifier(!sansEtagere.miseEnPage(fichiers: true).etagereEnHaut, "l'étagère retirée du Centre (« Modifier ») : pas de rangée de fichiers")
+    var sansMinuteur = DispositionCentre(); sansMinuteur.retirer(.minuteur)
+    verifier(sansMinuteur.miseEnPage(fichiers: true).cases == [.reunion], "sans le Minuteur : « Noter la réunion » prend toute la largeur")
+    let pl = DispositionCentre.plan(etagere: true, ronds: true, cases: true, bande: false)
+    verifier(pl.hauts[.etagere] == 14 + 26 + 12 && pl.hauts[.ronds] == 14 + 26 + 12 + 64 + 10 && pl.profondeur == 322,
+             "le Centre avec les fichiers en haut : 14 + 26 + 12 + 64 + 10 + 96 + 10 + 76 + 14 = 322 pt sous la barre")
+    for (barre, demi) in [(32.0, 100.0), (33.0, 90.0), (37.0, 92.0)] {
+        let c = GeoIlot.valeurs(.centre, hauteurBarre: barre, demiCamera: demi, epaules: true, enPlus: pl.profondeur - GeoIlot.profondeurCentre)
+        // l'ombre de la forme descend de 15 pt au plus (rayon 10, décalage 5)
+        verifier(c[2] + 15 <= 380, "Centre avec les fichiers (barre \(Int(barre))) : \(Int(c[2])) pt de haut, ombre comprise dans la zone de dessin (380)")
+    }
 }
 
 /// Le Centre (maquette design/maquettes/ilot-centre.html) : la pile des cartes, le défilement (un geste = une carte), la géométrie.

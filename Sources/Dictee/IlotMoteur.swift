@@ -36,6 +36,27 @@ struct BandeauIlot {
     var niveau: NiveauIlot?
     /// La session de Claude Code qui attend une réponse ou qui a fini (bandeaux `.claudeAttend` et `.claudeTermine`).
     var claude: SessionClaude?
+    /// Des fichiers partis de l'étagère vers une app (bandeau `.etagerePartis`, avec « Remettre »).
+    var partis: PartisEtagere?
+    /// Un envoi AirDrop depuis la zone « AirDrop » (bandeau `.etagereEnvoi`).
+    var envoi: EnvoiEtagere?
+}
+
+/// « 3 fichiers partis dans Mail · Remettre » : les icônes (une pile), la phrase, et le compte à rebours (l'anneau se vide jusqu'à
+/// `jusqua` du bandeau, sur `duree` secondes).
+struct PartisEtagere {
+    var nombre: Int
+    var app: String?
+    var icones: [NSImage]
+    var duree: TimeInterval
+}
+
+/// Un envoi AirDrop : le panneau de macOS choisit l'appareil ; l'îlot dit où on en est d'après ce que le service répond.
+struct EnvoiEtagere {
+    enum Etat: Equatable { case enCours, envoye, annule, indisponible }
+    var etat: Etat
+    var noms: [String]
+    var icone: NSImage?
 }
 
 /// Ce que montre le bandeau « Téléchargé » : la rafale (noms, tailles, AirDrop) et les icônes du Finder, lues une fois à l'annonce.
@@ -51,6 +72,8 @@ struct FichierEtagere: Identifiable {
     var nom: String
     var url: URL
     var icone: NSImage
+    /// Arrivé de lui-même (une capture d'écran, option « Captures d'écran ici ») et pas encore vu dans la carte : marqué « Nouveau ».
+    var nouveau = false
 }
 
 /// Ce que l'îlot demande aux contrôleurs (le moteur ne sait rien du minuteur, des rappels ni du calendrier : il montre et il relaie).
@@ -87,6 +110,12 @@ enum ActionIlot {
     case dicteeCopier(UUID), dicteeColler(UUID)
     case ouvrirFenetre(Onglet)
     case dicteesClavier(Bool)
+    /// Des fichiers de l'étagère glissés hors d'elle et acceptés par une app, lâchés à ce point de l'écran (AppKit) : ils la quittent ;
+    /// « Remettre » les ramène quelques secondes.
+    case etagereSortis([UUID], NSPoint)
+    case etagereRemettre
+    /// L'interrupteur « Captures d'écran ici » de la carte Étagère ; la ligne « Accès refusé » (elle ouvre Réglages Système).
+    case etagereCaptures, etagereCapturesReglages
 }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
@@ -217,11 +246,25 @@ final class IlotMoteur: ObservableObject {
     /// Des écouteurs Bluetooth avec un micro sont là : l'accueil propose « Micro : Mac / AirPods » (nom des écouteurs, leur micro choisi ?).
     var choixMicro: (nom: String, airpods: Bool)?
     var etagere: [FichierEtagere] = []
-    /// Un glisser de fichiers est près de l'encoche : l'îlot s'ouvre en « Déposez ici ». `depotSurvole` : le pointeur est sur la zone,
-    /// elle s'éclaire.
+    /// Un glisser de FICHIERS a commencé quelque part (`appel` : l'îlot s'étire un peu et dit « Glisse ici ») ; il est près de l'encoche
+    /// (`depot` : l'îlot s'ouvre en grand, deux zones « Étagère » et « AirDrop »). `depotSurvole` : le pointeur est sur la forme ;
+    /// `depotZone` : la zone sous lui, qui s'éclaire.
+    private(set) var appel = false
     private(set) var depot = false
     var depotSurvole = false { didSet { if depotSurvole != oldValue { rev += 1 } } }
+    var depotZone: ZoneDepotEtagere? { didSet { if depotZone != oldValue { rev += 1 } } }
+    /// Les fichiers viennent d'être lâchés sur « Étagère » : la zone dit « Rangé » le temps d'un coup d'œil.
+    private(set) var depotRange = false
     private var finDepot: DispatchWorkItem?
+    /// L'option « Captures d'écran ici » (carte Étagère) : allumée ; macOS pose sa question (« Un instant… ») ; accès refusé (la ligne
+    /// mène à Réglages Système).
+    var capturesActives = false { didSet { if capturesActives != oldValue { rev += 1 } } }
+    var capturesAttente = false { didSet { if capturesAttente != oldValue { rev += 1 } } }
+    var capturesRefusees = false { didSet { if capturesRefusees != oldValue { rev += 1 } } }
+    /// Le dossier des captures est absent (disque débranché) : rien n'est surveillé, la ligne le dit.
+    var capturesIntrouvable = false { didSet { if capturesIntrouvable != oldValue { rev += 1 } } }
+    /// La carte Étagère vient de se fermer après avoir été vue : les fichiers « Nouveau » ne le sont plus.
+    var surEtagereVue: () -> Void = {}
     /// La batterie du Mac (nil : Mac sans batterie, ou réglage éteint) et les écouteurs connectés : les épaules de l'îlot déplié.
     var energie: EnergieIlot?
     var ecouteurs: AppareilIlot?
@@ -341,6 +384,9 @@ final class IlotMoteur: ObservableObject {
         e.claude = claude != nil
         e.claudeAttend = claude?.etat == .attend
         e.claudeListe = claude?.progres != nil
+        // sans encoche (écran externe, MacBook fermé), l'îlot vide n'existe pas : pas de pile dans la barre des menus toute la journée ;
+        // l'étagère reste au Centre et au glisser
+        e.etagere = etagereActive && !etagere.isEmpty && geometrie.reelle
         e.alerte = alerte?.vue
         e.bandeau = bandeau?.vue
         return e
@@ -350,7 +396,7 @@ final class IlotMoteur: ObservableObject {
     func donneesChangees() {
         if cache {
             if appuiEnCours { annulerAppui() }
-            if depot { depot = false; depotSurvole = false; finDepot?.cancel() }
+            if depot || appel { depot = false; appel = false; depotSurvole = false; depotZone = nil; depotRange = false; finDepot?.cancel() }
             if resolution.principal != .repos || courante != .repos || pastille != nil {
                 resolution = ResolutionIlot(principal: .repos, survol: nil, verrou: true, pastille: nil)
                 epingle = false; survole = false; sousVue = nil
@@ -374,15 +420,18 @@ final class IlotMoteur: ObservableObject {
         if ancien.principal != resolution.principal, !(survole || epingle) { sousVue = nil }
         if sousVue == .lectureMinuteur, FamilleIlot.de(resolution.principal) != .lecture || resolution.verrou { sousVue = nil }
         if sousVue == .etagere, !etagereActive { sousVue = nil }
-        if depot, !etagereActive { depot = false; depotSurvole = false }
+        if depot || appel, !etagereActive { depot = false; appel = false; depotSurvole = false; depotZone = nil }
         // le Centre ouvert le reste quand une activité commence (un minuteur lancé, le micro coupé, une vidéo) : on ne saute pas ailleurs
         if courante == .centre, survole || epingle, sousVue == nil, !resolution.verrou, resolution.survol != .centre, ancien.survol != resolution.survol { sousVue = .centre }
         // la bulle « Nouveau » a servi : l'îlot vient d'être ouvert
         if bulleNouveau, survole || epingle { cacherBulle() }
         let carte = sousVue ?? ((survole || epingle) && resolution.survol != nil && !resolution.verrou ? resolution.survol! : resolution.principal)
-        // un glisser de fichiers près de l'encoche passe avant tout le reste : on vise la zone, puis l'îlot revient où il en était. Sur le
-        // Centre ouvert, c'est la case Étagère qui reçoit les fichiers : la forme ne bouge pas
-        let voulu = depot && carte != .centre ? .etagereDepot : carte
+        // un glisser de fichiers près de l'encoche passe avant tout le reste : on vise les zones, puis l'îlot revient où il en était. Sur
+        // le Centre ouvert, c'est l'étagère du Centre qui reçoit les fichiers : la forme ne bouge pas. Plus loin, le glisser vient de
+        // commencer : l'îlot appelle (« Glisse ici »), sauf ouvert ou occupé par une alerte ou un bandeau
+        var voulu = carte
+        if depot, carte != .centre { voulu = .etagereDepot }
+        else if appel, !fenetreOuverte, !resolution.verrou { voulu = .etagereAppel }
         afficher(voulu)
         // le Centre s'est rangé (clic ailleurs, alerte, autre carte) : « Modifier » se termine et enregistre ; la ligne d'avis s'en va
         if editionCentre, courante != .centre { finirEditionCentre() }
@@ -430,8 +479,9 @@ final class IlotMoteur: ObservableObject {
         var d: [VueIlot: CGFloat] = [:]
         if etagereActive, !etagere.isEmpty { d[.lectureMinuteur] = CGFloat(GeoIlot.ligneAccueil) }
         if EtagereIlot.rangees(etagere.count) > 1 { d[.etagere] = CGFloat(GeoIlot.rangeeEtagere) }
-        // le Centre suit ce qu'il montre (« Modifier ») : ronds, cases et bande de la réunion, la hauteur de la table
-        let p = DispositionCentre.plan(ronds: !rondsCentre.isEmpty, cases: !disposition.cases.isEmpty, bande: disposition.bande).profondeur
+        // le Centre suit ce qu'il montre (« Modifier ») : les fichiers de l'étagère en haut, ronds, cases et bande de la réunion
+        let mp = miseEnPageCentre
+        let p = DispositionCentre.plan(etagere: mp.etagereEnHaut, ronds: !rondsCentre.isEmpty, cases: !mp.cases.isEmpty, bande: mp.bande).profondeur
         if p != GeoIlot.profondeurCentre { d[.centre] = CGFloat(p - GeoIlot.profondeurCentre) }
         // les Dictées épousent leur liste (« Aucun résultat », trois lignes, une ligne dépliée…), jusqu'à 200 pt ; elle défile au-delà
         dictees.largeurTexte = PlanDictees.largeurTexte(demiCamera: demiCamera)
@@ -475,6 +525,8 @@ final class IlotMoteur: ObservableObject {
         if avant != v { for c in Self.couches(avant) where !Self.couches(v).contains(c) { sortir(&apparitions[c], glisse: glisse) } }
         for c in Self.couches(v) { entrer(&apparitions[c], delai: delaiContenu, glisse: glisse) }
         if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere || v == .centre || v == .dictees { surDepliage() }
+        // la carte Étagère vue puis quittée : les captures arrivées ne sont plus « Nouveau »
+        if avant == .etagere, v != .etagere { surEtagereVue() }
     }
 
     /// Les couches de contenu d'un écran : la rangée Minuteur se pose sous la lecture dépliée, qui ne s'efface pas pour autant.
@@ -637,7 +689,7 @@ final class IlotMoteur: ObservableObject {
     /// L'îlot peut-il montrer une touche de volume ou de luminosité ? Pas pendant la dictée, la réunion ou une autre annonce de l'encoche
     /// (il est effacé), ni pendant une alerte (elle attend un geste), ni quand il est déplié, épinglé ou sur une carte (le lecteur ouvert
     /// se refermerait sous les doigts), ni pendant un glisser de fichiers : la touche reste alors à macOS, avec son propre affichage.
-    var peutMontrerNiveau: Bool { !cache && alerte == nil && !fenetreOuverte && !depot && !glisserSortant }
+    var peutMontrerNiveau: Bool { !cache && alerte == nil && !fenetreOuverte && !depot && !appel && !glisserSortant }
 
     /// Une touche de volume ou de luminosité vient d'être appliquée : le bandeau reste 1,5 s après la DERNIÈRE touche ; la barre part
     /// de `avant` (la valeur d'avant la touche) et glisse sur son ressort. Une touche tenue (répétitions) prolonge le même bandeau,
@@ -723,7 +775,9 @@ final class IlotMoteur: ObservableObject {
         suiviSortant = item
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: item)
     }
-    private func glisserSortantFini() {
+    /// Le glisser parti de l'îlot est fini (AppKit le dit : `SourceFichiers`), ou le bouton est remonté.
+    func glisserSortantFini() {
+        guard glisserSortant else { return }
         glisserSortant = false; suiviSortant?.cancel(); suiviSortant = nil
         // le bandeau se retire une seconde après (le temps de voir le fichier arrivé) ; la carte se referme si la souris est partie
         if let b = bandeau, b.jusqua < maintenant().addingTimeInterval(1) { bandeau?.jusqua = maintenant().addingTimeInterval(1) }
@@ -827,7 +881,7 @@ final class IlotMoteur: ObservableObject {
     /// d'un clic dans SA fenêtre (un autre processus), et le Centre doit rester là pour montrer la réponse (« Allumé », ou la ligne
     /// « Accès refusé »).
     func clicAilleurs() {
-        guard !telechargementsAttente else { return }
+        guard !telechargementsAttente, !capturesAttente else { return }
         fermer()
     }
 
@@ -858,12 +912,21 @@ final class IlotMoteur: ObservableObject {
 
     // MARK: étagère
 
-    /// Un glisser de fichiers approche de l'encoche (ou s'en éloigne) : l'îlot s'ouvre en « Déposez ici », puis revient où il en était.
-    /// Rien pendant la dictée ou la réunion (l'îlot est effacé), ni si l'étagère est éteinte dans les réglages.
+    /// Un glisser de fichiers a commencé n'importe où (ou s'est fini) : l'îlot s'étire un peu et dit « Glisse ici ». Rien pendant la
+    /// dictée ou la réunion (l'îlot est effacé), ni si l'étagère est éteinte dans les réglages.
+    func montrerAppel(_ oui: Bool) {
+        let voulu = oui && etagereActive && !cache
+        guard voulu != appel else { return }
+        appel = voulu
+        if voulu { cacherBulle() }
+        donneesChangees()
+    }
+    /// Un glisser de fichiers approche de l'encoche (ou s'en éloigne) : l'îlot s'ouvre en grand (les deux zones), puis revient où il en
+    /// était. Rien pendant la dictée ou la réunion (l'îlot est effacé), ni si l'étagère est éteinte dans les réglages.
     func montrerDepot(_ oui: Bool) {
         finDepot?.cancel(); finDepot = nil
         let voulu = oui && etagereActive && !cache
-        if !voulu { depotSurvole = false }
+        if !voulu { depotSurvole = false; depotZone = nil; depotRange = false }
         guard voulu != depot else { return }
         depot = voulu
         if voulu { intention?.cancel(); fermeture?.cancel() }
@@ -871,10 +934,12 @@ final class IlotMoteur: ObservableObject {
         // le glisser est reparti (vers une autre app) : la fermeture au survol, sautée pendant le dépôt, est reprogrammée
         if !voulu, survole, !epingle, !pointeurSurForme { survolForme(false) }
     }
-    /// Les fichiers sont lâchés sur l'îlot : la zone s'éteint, les nouveaux paraissent parmi les derniers rangés (un coup d'œil de
-    /// 0,9 s), puis l'îlot revient où il en était. Un seul réveil, aucune minuterie.
-    func depotTermine(apres: TimeInterval = 0.9) {
+    /// Les fichiers sont lâchés sur « Étagère » : la zone dit « Rangé » (un coup d'œil de 0,85 s), puis l'îlot se replie (la pile de
+    /// l'aile compte un fichier de plus). Lâchés sur le Centre ouvert : il reste ouvert. Un seul réveil, aucune minuterie.
+    func depotTermine(apres: TimeInterval = 0.85) {
         depotSurvole = false
+        if depot, !centreOuvert { depotRange = true; rev += 1 }
+        appel = false
         // lâché sur le Centre : il reste ouvert (un geste, comme un clic sur un bouton)
         if centreOuvert { epinglerLeCentre() }
         finDepot?.cancel()
@@ -978,7 +1043,7 @@ final class IlotMoteur: ObservableObject {
     /// La bulle se pose-t-elle sous cet écran ? Seulement sous l'îlot replié (ou vide), sans bulle d'une 2e activité à côté, et tant
     /// que rien ne s'ouvre ni ne s'annonce.
     func bulleSous(_ v: VueIlot) -> Bool {
-        bulleNouveau && !cache && !fenetreOuverte && !depot && !resolution.verrou && resolution.pastille == nil && GeoIlot.profondeur(v) == 0
+        bulleNouveau && !cache && !fenetreOuverte && !depot && !appel && !resolution.verrou && resolution.pastille == nil && GeoIlot.profondeur(v) == 0
     }
     /// Premier lancement : la bulle « Nouveau : survole l'îlot », une seule fois. Elle part quand l'îlot s'ouvre, ou d'elle-même après
     /// `duree` secondes (un seul réveil, aucune minuterie).
@@ -1079,15 +1144,14 @@ final class IlotMoteur: ObservableObject {
         TraceIlot.calculer(geo.map(\.cibleFinale), demiCamera: Double(demiCamera), barre: Double(geometrie.hauteur))
     }
     /// Le rectangle de la forme au point voulu (x depuis le centre, y depuis le haut de l'écran).
+    /// Chaque côté a sa largeur : la pile de l'étagère n'a qu'une aile, la fenêtre ne couvre pas les icônes à droite de la caméra.
     func rectCible() -> CGRect {
         let p = traceCible
-        let w = max(p.corps, p.bande)
-        return CGRect(x: -w, y: 0, width: 2 * w, height: p.hauteur)
+        return CGRect(x: -p.gauche, y: 0, width: p.gauche + p.droite, height: p.hauteur)
     }
     func rectActuel() -> CGRect {
         let p = trace
-        let w = max(p.corps, p.bande)
-        return CGRect(x: -w, y: 0, width: 2 * w, height: p.hauteur)
+        return CGRect(x: -p.gauche, y: 0, width: p.gauche + p.droite, height: p.hauteur)
     }
     /// La souris est-elle sur la forme elle-même (pas sur le vide à côté du cou, où sont les menus) ?
     func contient(_ point: CGPoint) -> Bool {

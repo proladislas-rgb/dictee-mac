@@ -23,9 +23,13 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// Claude Code au travail : l'étoile seule (pas de liste de tâches), ou l'étoile dans son anneau et « 3 sur 7 » (ou « Attend ») ;
     /// au survol, le projet, où il en est et « Ouvrir ». Bandeaux : Claude attend ta réponse, Claude a terminé.
     case claudeMinimal, claudeCompact, claudeEtendu, claudeAttend, claudeTermine
-    /// L'étagère : pendant qu'on glisse des fichiers près de l'encoche, la zone « Déposez ici » (et les derniers fichiers rangés) ;
-    /// depuis l'accueil, la carte des fichiers gardés (icône, nom, glissables vers une app).
+    /// L'étagère : pendant qu'on glisse des fichiers près de l'encoche, deux zones côte à côte, « Étagère » (la garder) et « AirDrop »
+    /// (l'envoyer) ; depuis le Centre, la carte des fichiers gardés (icône, nom, glissables vers une app).
     case etagereDepot, etagere
+    /// L'étagère plus rapide (maquette design/maquettes/ilot-etagere-rapide.html) : replié, la pile et le nombre de fichiers dans l'aile
+    /// gauche (`etagerePile`) ; un glisser de fichiers commence n'importe où, l'îlot appelle « Glisse ici » (`etagereAppel`) ; l'envoi
+    /// AirDrop (« Envoi… », « Envoyé », « Annulé ») ; des fichiers partis dans une app, avec « Remettre » quelques secondes.
+    case etagerePile, etagereAppel, etagereEnvoi, etagerePartis
     /// Le Centre (maquette design/maquettes/ilot-centre.html) : tout ce qui se règle depuis l'îlot, à la souris. Une rangée de gros boutons
     /// ronds (micro, micro de la dictée, téléchargements, Claude Code) et deux grandes cases (minuteur, étagère). On y passe depuis la lecture
     /// dépliée (bouton « Centre », points de page, défilement) ; l'îlot vide s'ouvre directement dessus.
@@ -38,7 +42,8 @@ public enum VueIlot: String, CaseIterable, Sendable {
     public var estBandeau: Bool {
         switch self {
         case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
-             .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .volume, .luminosite, .claudeAttend, .claudeTermine: return true
+             .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .volume, .luminosite, .claudeAttend, .claudeTermine,
+             .etagereEnvoi, .etagerePartis: return true
         default: return false
         }
     }
@@ -64,6 +69,11 @@ public enum GeoIlot {
     public static let ligneAccueil: Double = 42
     /// Une rangée de plus de fichiers dans la carte Étagère (tuile de 72 pt + 8 pt d'écart).
     public static let rangeeEtagere: Double = 80
+    /// La ligne « Captures d'écran ici » au bas de la carte Étagère (interrupteur).
+    public static let ligneCaptures: Double = 40
+    /// Les écrans dont le cou droit n'est pas celui de gauche : la pile de l'étagère n'a qu'une aile, à gauche ; à droite, la caméra seule
+    /// (les icônes de la barre des menus à droite de l'encoche restent dégagées). Valeur au-delà de la demi-caméra.
+    public static let couDroit: [VueIlot: Double] = [.etagerePile: 0]
     /// La lecture dépliée jusqu'à ses commandes (pochette, titre, barre, boutons) : la rangée Minuteur (appui long) se pose dessous.
     public static let profondeurLecture: Double = 175
     /// Le pied de la lecture dépliée : le bouton « Centre » (30 pt) et sa marge (maquette : 12 pt dessus, 14 dessous ; ici 6 + 30 + 4,
@@ -114,17 +124,26 @@ public enum GeoIlot {
         // anneau (aile gauche) et « 3 sur 7 » (43 pt mesurés, aile droite : 48 pt) ; 60 + 6 = 66. La maquette posait l'anneau à côté du
         // texte : ensemble ils font 61 pt, ça déborderait. Au survol et pour les annonces, un bandeau qui épouse son contenu
         .claudeMinimal: compact(36), .claudeCompact: compact(60), .claudeEtendu: bandeau, .claudeAttend: bandeau, .claudeTermine: bandeau,
-        // l'étagère, de la largeur de l'accueil : « Déposez ici » sous les derniers fichiers rangés (16 + 70 + 16 pt, maquette) ; la carte :
-        // l'en-tête (42 pt) et une rangée de tuiles (72 pt) ; une deuxième rangée s'ajoute (`enPlus`) au-delà de cinq fichiers
-        .etagereDepot: [14, 144, 102, 6, 30, 16, 10],
-        .etagere: [14, 144, 10 + 42 + 8 + 72 + 12, 6, 34, 18, 10],
+        // l'étagère, de la largeur de l'accueil : les deux zones « Étagère » et « AirDrop » (14 + 112 + 14 pt, maquette) ; la carte :
+        // l'en-tête (42 pt), une rangée de tuiles (72 pt), la ligne « Captures d'écran ici » (40 pt) ; une deuxième rangée de tuiles
+        // s'ajoute (`enPlus`) au-delà de cinq fichiers
+        .etagereDepot: [14, 144, 14 + 112 + 14, 6, 30, 16, 10],
+        .etagere: [14, 144, 10 + 42 + 8 + 72 + 10 + ligneCaptures + 12, 6, 34, 18, 10],
+        // replié, l'étagère garde des fichiers : la pile et le nombre dans l'aile GAUCHE seule (46 + épaule de 6 = 52 pt au-delà de la
+        // caméra : la pile et « 10 » mesurent 39 pt, 3 pt de marge de chaque côté) ; à droite, rien que la caméra (`couDroit`)
+        .etagerePile: compact(46),
+        // un glisser de fichiers commence : « Glisse ici » sous la caméra, le cou serré contre elle (le congé seul dans la barre, 10 pt),
+        // le corps 54 pt au-delà de la caméra (plus que la maquette, 28 : sinon le congé et le coin haut n’ont pas leur place)
+        .etagereAppel: [0, 54, 38, 6, 24, 14, 10],
+        // l'envoi AirDrop et les fichiers partis : des bandeaux qui épousent leur contenu
+        .etagereEnvoi: bandeau, .etagerePartis: bandeau,
         .centre: [14, 144, profondeurCentre, 6, 34, 18, 10],
         // les Dictées : la largeur du Centre (on passe de l'un à l'autre sans que la forme s'élargisse), la hauteur de la liste
         .dictees: [14, 144, profondeurDictees, 6, 34, 18, 10],
     ]
-    /// Indices des valeurs : largeurs (cou, corps) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur mène ; à la
-    /// fermeture la hauteur se replie d'abord.
-    public static let largeurs = [0, 1]
+    /// Indices des valeurs : largeurs (cou, corps, cou droit) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur
+    /// mène ; à la fermeture la hauteur se replie d'abord.
+    public static let largeurs = [0, 1, 7]
     public static let hauteurs = [2, 3, 4, 5, 6]
 
     /// Marge du contenu tout autour du corps (la grille de l'îlot).
@@ -149,7 +168,8 @@ public enum GeoIlot {
         return min(t[1], max(t[0] + evasementMin, (largeur / 2 + marge - demiCamera).rounded(.up)))
     }
 
-    /// Les sept valeurs pour une vue, la hauteur comptée depuis le haut de l'écran avec la vraie barre des menus. `contenu` : la largeur
+    /// Les valeurs pour une vue (les sept de la table, puis le cou droit, égal au cou sauf pour une forme à une seule aile), la hauteur
+    /// comptée depuis le haut de l'écran avec la vraie barre des menus. `contenu` : la largeur
     /// mesurée du contenu (pt) pour un écran qui s'y ajuste ; nil = le plus large de la table. `enPlus` : la hauteur qu'un contenu
     /// variable ajoute (la ligne de l'étagère dans l'accueil, une deuxième rangée de fichiers) ou retire (un Centre sans ses cases).
     public static func valeurs(_ v: VueIlot, hauteurBarre: Double, demiCamera: Double = 0, contenu: Double? = nil, epaules avecEpaules: Bool = false, enPlus: Double = 0) -> [Double] {
@@ -157,6 +177,7 @@ public enum GeoIlot {
         g[2] = max(0, g[2] + enPlus) + hauteurBarre
         if avecEpaules, aEpaules(v) { g[0] = max(g[0], epaules) }
         if let contenu, ajusteAuContenu(v) { g[1] = corps(v, contenu: contenu, demiCamera: demiCamera) }
+        g.append(couDroit[v] ?? g[0])
         return g
     }
     /// Profondeur sous la barre (0 pour un repos ou un compact).
@@ -215,6 +236,7 @@ public struct EtatIlot: Equatable, Sendable {
     public var claude = false              // Claude Code travaille ou attend une réponse
     public var claudeAttend = false        // … il attend une réponse (il passe alors avant la lecture)
     public var claudeListe = false         // … il a une liste de tâches (l'anneau et « 3 sur 7 »)
+    public var etagere = false             // l'étagère (allumée) garde des fichiers : replié, la pile dans l'aile gauche
     public var alerte: VueIlot?            // minuteurFini, rappelEtendu ou agendaDebut, en cours
     public var bandeau: VueIlot?           // un bandeau passager
     public init() {}
@@ -276,7 +298,9 @@ public enum ArbitrageIlot {
             let compact = premiere == .claude && !e.claudeListe && !e.claudeAttend ? VueIlot.claudeMinimal : v.compact
             return ResolutionIlot(principal: compact, survol: v.etendu, verrou: false, pastille: p.count > 1 ? p[1] : nil)
         }
-        // rien ne joue : l'îlot vide s'ouvre directement sur le Centre (au survol comme au clic)
+        // rien ne joue : l'îlot s'ouvre directement sur le Centre (au survol comme au clic) ; s'il garde des fichiers, la pile de
+        // l'étagère et leur nombre dans l'aile gauche (une activité passe avant : l'étagère se voit alors au survol, dans le Centre)
+        if e.etagere { return ResolutionIlot(principal: .etagerePile, survol: .centre, verrou: false, pastille: nil) }
         return ResolutionIlot(principal: .repos, survol: .centre, verrou: false, pastille: nil)
     }
 
@@ -356,11 +380,21 @@ public enum TraceIlot {
         public var commandes: [Commande]
         /// Plus grande demi-largeur dans la hauteur de la barre (cou + épaule ou congé) : jamais plus que les ailes.
         public var bande: Double
-        /// Demi-largeur du cou lui-même (le bord droit de l'îlot sous l'épaule, là où s'aligne la pastille).
+        /// Demi-largeur du cou lui-même, à droite (le bord droit de l'îlot sous l'épaule, là où s'aligne la pastille).
         public var cou: Double
         /// Demi-largeur du corps sous la barre.
         public var corps: Double
         public var hauteur: Double
+        /// Le cou à gauche (différent du droit pour une forme à une seule aile, la pile de l'étagère), et la largeur dans la barre de
+        /// chaque côté.
+        public var couGauche: Double = 0
+        public var bandeGauche: Double = 0
+        public var bandeDroite: Double = 0
+        public var corpsGauche: Double = 0
+        public var corpsDroit: Double = 0
+        /// Jusqu'où va la forme de chaque côté (dans la barre ou dessous) : le rectangle de la fenêtre n'en prend pas plus.
+        public var gauche: Double { max(corpsGauche, bandeGauche) }
+        public var droite: Double { max(corpsDroit, bandeDroite) }
         /// Largeur dans la barre (gauche, droite) et largeur du bas (gauche, droite).
         public var xGauche: Double { -bande }
         public var xDroite: Double { bande }
@@ -370,37 +404,46 @@ public enum TraceIlot {
 
     public static let portee = 1.6, poignee = 0.18
 
-    /// `g` : les sept valeurs de `GeoIlot.valeurs` ; `demiCamera` : la moitié de la vraie caméra ; `barre` : la hauteur de la barre.
+    /// `g` : les valeurs de `GeoIlot.valeurs` (sept, ou huit avec le cou droit) ; `demiCamera` : la moitié de la vraie caméra ; `barre` :
+    /// la hauteur de la barre. Chaque côté est calculé avec son propre cou (une forme symétrique donne les deux mêmes côtés).
     public static func calculer(_ g: [Double], demiCamera: Double, barre: Double) -> Points {
-        let n = demiCamera + max(0, g[0]), bw = demiCamera + max(0, g[1]), h = max(1, g[2])
+        let ng = demiCamera + max(0, g[0]), nd = demiCamera + max(0, g.count > 7 ? g[7] : g[0])
+        let bw = demiCamera + max(0, g[1]), h = max(1, g[2])
         let rs = max(0, g[3]), rb = max(0, g[4]), rt = max(0, g[5]), f = max(0, g[6])
         let B = barre
         let sousBarre = max(0, h - B)
         // le corps s'élargit dès qu'il existe sous la barre (pas de languette qui tombe avant de s'ouvrir)
         let u = min(sousBarre, 40) / 40
         let e = 1 - pow(1 - u, 2.5)
-        let d = max(0, bw - n) * e
-        let W = n + d
-        let fe = max(0, min(f, d * 0.45, B - rs - 2, sousBarre * 0.6))
-        let rte = max(0, min(rt, (d - fe) / portee, sousBarre / 3.2))
-        let lam = min(1, d / 6)
-        let dispo = (1 - lam) * (h - rs) + lam * (h - B - portee * rte)
-        let rbe = max(0, min(rb, dispo / portee, W / portee))
-        let a1 = portee * rte, c1 = poignee * a1, a2 = portee * rbe, c2 = poignee * a2
+        // un côté : son cou `n`, l'évasement du corps `d`, sa largeur `W`, le congé, le coin haut et le coin bas qui y tiennent
+        func cote(_ n: Double) -> (n: Double, d: Double, W: Double, fe: Double, rte: Double, rbe: Double) {
+            let d = max(0, bw - n) * e
+            let W = n + d
+            let fe = max(0, min(f, d * 0.45, B - rs - 2, sousBarre * 0.6))
+            let rte = max(0, min(rt, (d - fe) / portee, sousBarre / 3.2))
+            let lam = min(1, d / 6)
+            let dispo = (1 - lam) * (h - rs) + lam * (h - B - portee * rte)
+            let rbe = max(0, min(rb, dispo / portee, W / portee))
+            return (n, d, W, fe, rte, rbe)
+        }
+        let L = cote(ng), D = cote(nd)
+        let a1 = portee * L.rte, c1 = poignee * a1, a2 = portee * L.rbe, c2 = poignee * a2
+        let b1 = portee * D.rte, d1 = poignee * b1, b2 = portee * D.rbe, d2 = poignee * b2
         var c: [Commande] = []
-        c.append(.deplacer(-n - rs, -1)); c.append(.ligne(-n - rs, 0)); c.append(.quad(-n, 0, -n, rs))
-        if d > 0.5 {
-            c.append(.ligne(-n, B - fe)); c.append(.quad(-n, B, -n - fe, B))
-            c.append(.ligne(-W + a1, B)); c.append(.cubique(-W + c1, B, -W, B + c1, -W, B + a1))
+        c.append(.deplacer(-L.n - rs, -1)); c.append(.ligne(-L.n - rs, 0)); c.append(.quad(-L.n, 0, -L.n, rs))
+        if L.d > 0.5 {
+            c.append(.ligne(-L.n, B - L.fe)); c.append(.quad(-L.n, B, -L.n - L.fe, B))
+            c.append(.ligne(-L.W + a1, B)); c.append(.cubique(-L.W + c1, B, -L.W, B + c1, -L.W, B + a1))
         }
-        c.append(.ligne(-W, h - a2)); c.append(.cubique(-W, h - c2, -W + c2, h, -W + a2, h))
-        c.append(.ligne(W - a2, h)); c.append(.cubique(W - c2, h, W, h - c2, W, h - a2))
-        if d > 0.5 {
-            c.append(.ligne(W, B + a1)); c.append(.cubique(W, B + c1, W - c1, B, W - a1, B))
-            c.append(.ligne(n + fe, B)); c.append(.quad(n, B, n, B - fe))
+        c.append(.ligne(-L.W, h - a2)); c.append(.cubique(-L.W, h - c2, -L.W + c2, h, -L.W + a2, h))
+        c.append(.ligne(D.W - b2, h)); c.append(.cubique(D.W - d2, h, D.W, h - d2, D.W, h - b2))
+        if D.d > 0.5 {
+            c.append(.ligne(D.W, B + b1)); c.append(.cubique(D.W, B + d1, D.W - d1, B, D.W - b1, B))
+            c.append(.ligne(D.n + D.fe, B)); c.append(.quad(D.n, B, D.n, B - D.fe))
         }
-        c.append(.ligne(n, rs)); c.append(.quad(n, 0, n + rs, 0)); c.append(.ligne(n + rs, -1))
-        return Points(commandes: c, bande: max(n + rs, n + fe), cou: n, corps: W, hauteur: h)
+        c.append(.ligne(D.n, rs)); c.append(.quad(D.n, 0, D.n + rs, 0)); c.append(.ligne(D.n + rs, -1))
+        return Points(commandes: c, bande: max(L.n + rs, L.n + L.fe, D.n + rs, D.n + D.fe), cou: D.n, corps: max(L.W, D.W), hauteur: h,
+                      couGauche: L.n, bandeGauche: max(L.n + rs, L.n + L.fe), bandeDroite: max(D.n + rs, D.n + D.fe), corpsGauche: L.W, corpsDroit: D.W)
     }
 
     /// Plus grande demi-largeur de la forme à la hauteur `y` (pour vérifier que rien ne dépasse dans la barre des menus).

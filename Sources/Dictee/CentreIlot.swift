@@ -51,11 +51,17 @@ enum PlanCentre {
     /// Une rangée (nil : elle n'est pas montrée).
     static func cadre(_ r: DispositionCentre.Rangee, _ m: IlotMoteur, _ g: GrilleIlot? = nil) -> CGRect? {
         let g = g ?? m.grille
-        let p = DispositionCentre.plan(ronds: !m.rondsCentre.isEmpty, cases: !m.disposition.cases.isEmpty, bande: m.disposition.bande)
+        let mp = m.miseEnPageCentre
+        let p = DispositionCentre.plan(etagere: mp.etagereEnHaut, ronds: !m.rondsCentre.isEmpty, cases: !mp.cases.isEmpty, bande: mp.bande)
         guard let y = p.hauts[r] else { return nil }
         let z = zone(g)
         let h: Double
-        switch r { case .ronds: h = DispositionCentre.ronds; case .cases: h = DispositionCentre.cases; case .bande: h = DispositionCentre.bande }
+        switch r {
+        case .etagere: h = DispositionCentre.rangeeEtagere
+        case .ronds: h = DispositionCentre.ronds
+        case .cases: h = DispositionCentre.cases
+        case .bande: h = DispositionCentre.bande
+        }
         return CGRect(x: z.minX, y: g.barre + CGFloat(y), width: z.width, height: CGFloat(h))
     }
     static func cadreRonds(_ m: IlotMoteur, _ g: GrilleIlot? = nil) -> CGRect { cadre(.ronds, m, g) ?? .zero }
@@ -63,7 +69,7 @@ enum PlanCentre {
     /// Une grande case : seule, elle prend toute la largeur ; à deux, chacune la moitié (10 pt entre elles).
     static func cadreCase(_ m: IlotMoteur, _ e: ElementCentre, _ g: GrilleIlot? = nil) -> CGRect {
         guard let c = cadre(.cases, m, g) else { return .zero }
-        let cs = m.disposition.cases
+        let cs = m.miseEnPageCentre.cases
         guard cs.count > 1, let i = cs.firstIndex(of: e) else { return c }
         let l = (c.width - CGFloat(DispositionCentre.ecart)) / 2
         return CGRect(x: i == 0 ? c.minX : c.minX + l + CGFloat(DispositionCentre.ecart), y: c.minY, width: l, height: c.height)
@@ -111,6 +117,11 @@ extension ElementCentre {
 }
 
 extension IlotMoteur {
+    /// Comment le Centre se range maintenant : les fichiers de l'étagère en haut quand elle en garde (pas pendant « Modifier », où l'on
+    /// range la disposition telle qu'elle est enregistrée).
+    var miseEnPageCentre: DispositionCentre.MiseEnPage {
+        disposition.miseEnPage(fichiers: etagereActive && !etagere.isEmpty && !editionCentre)
+    }
     /// Un élément peut-il paraître ? Le choix du micro de la dictée n'existe qu'avec des AirPods (un micro Bluetooth) branchés.
     func disponibleDansLeCentre(_ e: ElementCentre) -> Bool { e != .dictee || choixMicro != nil }
     /// Les ronds montrés, dans l'ordre (cinq au plus).
@@ -161,12 +172,15 @@ struct CentreVue: View {
                 .accessibilityHidden(true)
                 .posee(PlanCentre.fond(g))
             EnteteCentre(m: m, largeur: PlanCentre.cadreEntete(g).width).posee(PlanCentre.cadreEntete(g), m.aspect(v, rang: 0), ancre: .topLeading)
+            if let r = PlanCentre.cadre(.etagere, m, g) {
+                RangeeEtagere(m: m, largeur: r.width).posee(r, m.aspect(v, rang: 1), ancre: .top)
+            }
             if !m.rondsCentre.isEmpty { ronds.posee(PlanCentre.cadreRonds(m, g), m.aspect(v, rang: 1), ancre: .top) }
-            ForEach(Array(m.disposition.cases.enumerated()), id: \.element) { i, e in
+            ForEach(Array(m.miseEnPageCentre.cases.enumerated()), id: \.element) { i, e in
                 grandeCase(e, rang: i).posee(PlanCentre.cadreCase(m, e, g), m.aspect(v, rang: 2 + i), ancre: .top)
                     .zIndex(glisse?.element == e ? 1 : 0)
             }
-            if m.disposition.bande {
+            if m.miseEnPageCentre.bande {
                 BandeReunion(m: m).posee(PlanCentre.cadreBande(m, g), m.aspect(v, rang: 4), ancre: .top)
             }
         }
@@ -222,6 +236,7 @@ struct CentreVue: View {
         Group {
             switch e {
             case .minuteur: CaseMinuteur(m: m)
+            case .reunion: CaseReunion(m: m)
             default: CaseEtagere(m: m)
             }
         }
@@ -444,6 +459,36 @@ private struct FondCase: View {
             }
             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .onTapGesture {}
+    }
+}
+
+/// « Noter la réunion » en grande case, à côté du Minuteur, quand les fichiers de l'étagère prennent le haut du Centre (maquette
+/// ilot-etagere-rapide.html, étape 6) : le point rouge, le titre, ce que ça fait.
+struct CaseReunion: View {
+    @ObservedObject var m: IlotMoteur
+    @State private var survol = false
+    var body: some View {
+        Button { m.epinglerLeCentre(); m.surAction(.centreReunion) } label: {
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white.opacity(survol ? 0.14 : 0.1))
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 7) {
+                        Circle().strokeBorder(CouleursIlot.rouge, lineWidth: 1.8)
+                            .overlay(Circle().fill(CouleursIlot.rouge).padding(4.2))
+                            .frame(width: 16, height: 16).frame(width: 18, height: 17)
+                        Text(BandeReunion.titre).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                    }
+                    .frame(height: 17)
+                    Text(BandeReunion.sousTitre).font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5))
+                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 11)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .buttonStyle(AppuiIlot(echelle: 0.97))
+        .onHover { survol = $0 }
+        .accessibilityLabel("Noter la réunion : Verbe écrit tout ce qui se dit")
     }
 }
 
@@ -770,6 +815,9 @@ struct ReglagesCentre {
     var allumerMicro: () -> Void = { Settings.ilotMicro = true }
     var allumerClaude: () -> Void = { Settings.ilotClaude = true }
     var allumerEtagere: () -> Void = { Settings.ilotEtagere = true }
+    /// « Captures d'écran ici » (carte Étagère) : lu au lancement, écrit par l'interrupteur.
+    var captures: () -> Bool = { Settings.ilotCapturesEtagere }
+    var reglerCaptures: (Bool) -> Void = { Settings.ilotCapturesEtagere = $0 }
     /// Ce que le Centre montre (« Modifier ») : les identifiants, dans l'ordre ; nil = jamais modifié.
     var disposition: () -> [String]? = { Settings.ilotCentreBoutons }
     var enregistrerDisposition: ([String]) -> Void = { Settings.ilotCentreBoutons = $0 }
