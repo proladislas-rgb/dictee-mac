@@ -3,12 +3,11 @@ import AVFoundation
 import DicteeCore
 
 /// Chef d'orchestre des notes de réunion : lancer, mettre en pause, arrêter ; capter le micro (Moi) et le son du Mac (Eux) sur deux
-/// pistes ; transcrire au fil de l'eau ; écrire la note après l'arrêt ; montrer l'état dans l'encoche. Toutes les transitions sont
-/// dans `MachineReunion` (logique pure, contrôlée) ; ici on les applique.
+/// pistes ; transcrire au fil de l'eau ; écrire la note après l'arrêt ; montrer l'état dans l'îlot (IlotReunion.swift : la réunion y est
+/// une activité, avec son direct). Toutes les transitions sont dans `MachineReunion` (logique pure, contrôlée) ; ici on les applique.
 ///
-/// Dictée pendant une réunion : la touche fn reste possible. La réunion a son propre moteur micro et sa propre fenêtre d'encoche ;
-/// la dictée garde les siens et passe devant (son encoche recouvre brièvement celle de la réunion). Ce que tu dictes est aussi dit
-/// dans la pièce : il se retrouve donc aussi dans la piste « Moi ».
+/// Dictée pendant une réunion : la touche fn reste possible. La réunion a son propre moteur micro ; la dictée garde le sien et passe
+/// devant (l'îlot s'efface le temps de la dictée). Ce que tu dictes est aussi dit dans la pièce : il se retrouve donc aussi dans « Moi ».
 @MainActor
 final class ReunionController: ObservableObject {
     /// Ce qui s'affiche en tête de la liste des réunions pendant qu'une réunion est en cours ou en traitement (nil : rien).
@@ -16,7 +15,6 @@ final class ReunionController: ObservableObject {
     @Published private(set) var phase: PhaseReunion = .repos
 
     let store: ReunionStore
-    let panneau = ReunionPanneau()
     private var machine = MachineReunion()
     private var session: Session?
     private var suiveur = SuiveurAppel()
@@ -26,6 +24,21 @@ final class ReunionController: ObservableObject {
     /// L'app ouvre la note (fenêtre principale, onglet Réunions).
     var surOuvrirNote: (UUID) -> Void = { _ in }
     var enregistre: Bool { machine.enregistre }
+    /// Ce que l'îlot montre : la réunion qui s'enregistre (le temps, le direct, « Ce que j'ai raté »…) et l'annonce du moment.
+    var surIlot: (ReunionIlot?, AnnonceReunion?) -> Void = { _, _ in }
+    /// La souris est-elle sur l'îlot ? Une annonce (« Note prête ») ne se retire pas sous le pointeur.
+    var annonceSurvolee: () -> Bool = { false }
+    /// « Ce que j'ai raté » : le résumé des dernières minutes (le même service que la note ; remplacé dans les essais).
+    var resumer: ([SegmentReunion]) async throws -> [String] = { try await GenerationNote().rattraper($0) }
+    /// L'heure (injectable).
+    var maintenant: () -> Date = { Date() }
+    private(set) var etatIlot: ReunionIlot?
+    /// L'app de l'appel qu'on a proposé de noter (« Noter » la garde pour l'en-tête de la carte).
+    private var appProposee: String?
+    /// Ce qui se passe après l'arrêt (« Transcription, 3 morceaux », « Note en préparation, partie 2 sur 4 »).
+    private var etapeTraitement = "Transcription\u{2026}"
+    private var finPoint: DispatchWorkItem?
+    private var rattrapage: Task<Void, Never>?
 
     private final class Session: @unchecked Sendable {
         let id = UUID()
@@ -39,6 +52,7 @@ final class ReunionController: ObservableObject {
         let verrou = NSLock()
         var segmentsMoi: [SegmentReunion] = []
         var segmentsEux: [SegmentReunion] = []
+        var points: [Double] = []
         var sonSystemeActif = false
         var derniereSauvegarde = Date.distantPast
         init(reunion: Reunion, fichiers: (Locuteur) -> URL?) {
@@ -57,13 +71,22 @@ final class ReunionController: ObservableObject {
 
     init(store: ReunionStore? = nil) {
         self.store = store ?? ReunionStore.shared
-        let m = panneau.modele
-        m.surArreter = { [weak self] in self?.arreter() }
-        m.surPause = { [weak self] in self?.pause() }
-        m.surReprendre = { [weak self] in self?.reprendre() }
-        m.surOuvrir = { [weak self] in self?.ouvrirDerniereNote() }
-        m.surNoter = { [weak self] in self?.lancer() }
-        m.surRefuser = { [weak self] in self?.refuserProposition() }
+    }
+
+    /// Un geste dans l'îlot.
+    func agir(_ a: ActionIlot) {
+        switch a {
+        case .reunionNoter: lancer()
+        case .reunionRefuser: refuserProposition()
+        case .reunionPause: pause()
+        case .reunionReprendre: reprendre()
+        case .reunionArreter: arreter()
+        case .reunionPoint: ajouterUnPoint()
+        case .reunionRattrapage: rattraper()
+        case .reunionDirect: fermerRattrapage()
+        case .reunionOuvrirNote: ouvrirDerniereNote()
+        default: break
+        }
     }
 
     // MARK: lancer / arrêter
@@ -86,6 +109,7 @@ final class ReunionController: ObservableObject {
             return
         }
         annonce?.cancel()
+        if case .proposition(let app) = machine.phase { appProposee = app } else { appProposee = nil }
         let reunion = Reunion(debut: Date(), etat: .enregistrement, sonGarde: Settings.garderSonReunions)
         let s = Session(reunion: reunion, fichiers: { [store] l in Settings.garderSonReunions ? store.fichierSon(reunion, l) : nil })
         session = s
@@ -103,14 +127,15 @@ final class ReunionController: ObservableObject {
         s.transcripteur.surProgression = { [weak self, weak s] n in
             Task { @MainActor in
                 guard let self, let s, self.machine.phase == .traitement, self.session !== s || !self.machine.enregistre else { return }
-                self.panneau.modele.traitement = n > 0 ? "Transcription, \(n) morceau\(n > 1 ? "x" : "")" : "Note en préparation"
+                self.etapeTraitement = n > 0 ? "Transcription, \(n) morceau\(n > 1 ? "x" : "") à finir" : "Note en préparation"
+                self.majPhase()
             }
         }
 
-        let m = panneau.modele
-        m.minuterie = "00:00"
-        m.traceMoi = Array(repeating: 0, count: 12); m.traceEux = Array(repeating: 0, count: 12)
-        m.sources = "Micro et son de l\u{2019}appel"
+        var e = ReunionIlot()
+        e.depuis = maintenant()
+        e.app = appProposee
+        etatIlot = e
         rafraichirEncoche()
         Retours.reunionDebut()
         demarrerLesSources(s)
@@ -152,8 +177,9 @@ final class ReunionController: ObservableObject {
     private func sonSystemeRefuse(_ s: Session) {
         guard session === s else { return }
         s.reunion.avertissements.append("Le son du Mac n'a pas pu être capté : seul ton micro est dans cette note. Vérifie, dans Réglages Système › Confidentialité et sécurité, l'autorisation d'enregistrer le son du système pour Verbe.")
-        panneau.modele.sources = "Micro seul"
+        etatIlot?.microSeul = true
         store.enregistrer(s.reunion)
+        rafraichirEncoche()
     }
 
     private func arreterLesSources(_ s: Session) {
@@ -165,6 +191,7 @@ final class ReunionController: ObservableObject {
         s.horloge.pause()
         s.moi.suspendre(); s.eux.suspendre()
         Log.ecrire("réunion : pause à \(FormatReunion.horloge(s.horloge.temps()))")
+        etatIlot?.duree = s.horloge.temps(); etatIlot?.depuis = nil; etatIlot?.enPause = true
         majPhase()
     }
 
@@ -173,6 +200,7 @@ final class ReunionController: ObservableObject {
         s.horloge.reprendre()
         s.moi.reprendre(); s.eux.reprendre()
         Log.ecrire("réunion : reprise")
+        etatIlot?.duree = s.horloge.temps(); etatIlot?.depuis = maintenant(); etatIlot?.enPause = false
         majPhase()
     }
 
@@ -187,10 +215,12 @@ final class ReunionController: ObservableObject {
         arreterMinuteurs()
         Retours.reunionFin()
         Log.ecrire("réunion : arrêt à \(FormatReunion.horloge(duree)) (\(s.transcripteur.restants) morceau(x) encore à transcrire)")
-        let m = panneau.modele
-        m.minuterie = FormatReunion.horloge(duree)
-        m.traitement = "Transcription…"
+        rattrapage?.cancel(); rattrapage = nil
+        finPoint?.cancel()
+        etatIlot = nil
+        etapeTraitement = s.transcripteur.restants > 0 ? "Transcription de la fin de l\u{2019}appel" : "Note en préparation"
         s.reunion.duree = duree
+        s.reunion.points = s.points.isEmpty ? nil : s.points
         s.reunion.etat = .transcription
         store.enregistrer(s.reunion)
         majPhase()
@@ -222,10 +252,11 @@ final class ReunionController: ObservableObject {
         r.etat = .redaction
         store.enregistrer(r)
         libelleEnCours = "Note en préparation…"
-        panneau.modele.traitement = "Note en préparation"
+        etapeTraitement = "Résumé, décisions, prochaines étapes"
+        majPhase()
         do {
             let (note, retraits) = try await GenerationNote().rediger(segments: fusion, duree: r.duree, debut: r.debut) { [weak self] etape in
-                Task { @MainActor in self?.panneau.modele.traitement = etape }
+                Task { @MainActor in self?.etapeTraitement = etape; self?.majPhase() }
             }
             for x in retraits { Log.ecrire("réunion : garde anti-invention, retiré \(x)") }
             NoteReunion.appliquer(note, a: &r, segments: fusion)
@@ -242,9 +273,9 @@ final class ReunionController: ObservableObject {
     private func terminerTraitement(note: UUID?, sansNote: Bool = false, message: String? = nil) {
         libelleEnCours = machine.enregistre ? "Réunion en cours…" : nil
         machine.traitementFini(note: note)
-        panneau.modele.libellePrete = sansNote ? "Transcription prête" : "Note prête"
         if note == nil, let message { annoncerMessage(message) } else { majPhase() }
-        if case .prete = machine.phase { programmerRetrait(apres: 25) }
+        // « Note prête » : 8 s sans clic, puis l'îlot se range (maquette, étape 10) ; la note attend dans Réunions
+        if case .prete = machine.phase { programmerRetrait(apres: 8) }
     }
 
     /// Réécrit la note d'une réunion qui n'en a pas (la transcription est gardée) : bouton « Refaire la note ».
@@ -271,29 +302,30 @@ final class ReunionController: ObservableObject {
     // MARK: pendant l'enregistrement
 
     private func segmentRecu(_ s: Session) {
+        if session === s { majDirect(s) }
         guard Date().timeIntervalSince(s.derniereSauvegarde) > 5 || session !== s else { return }
         s.derniereSauvegarde = Date()
         let (moi, eux) = s.copies()
         var r = s.reunion
-        r.segments = FusionPistes.fusionner(moi: moi, eux: eux)
+        r.segments = FusionPistes.transcription(moi: moi, eux: eux).segments
         r.duree = s.horloge.temps()
+        r.points = s.points.isEmpty ? nil : s.points
         if session === s { s.reunion = r; store.enregistrer(r) }
     }
 
+    /// Pendant l'enregistrement seulement : une fois par seconde, le direct est recalculé (la parole en cours, les morceaux partis chez
+    /// Whisper) et poussé à l'îlot s'il a changé. Le temps, lui, s'affiche seul (l'îlot le calcule depuis l'heure de départ).
     private func demarrerMinuteurs(_ s: Session) {
         arreterMinuteurs()
-        let affichage = Timer(timeInterval: 0.1, repeats: true) { [weak self, weak s] _ in
+        let direct = Timer(timeInterval: 1, repeats: true) { [weak self, weak s] _ in
             MainActor.assumeIsolated {
-                guard let self, let s, self.session === s else { return }
-                let m = self.panneau.modele
-                let t = FormatReunion.horloge(s.horloge.temps())
-                if m.minuterie != t { m.minuterie = t }
-                ReunionEncocheModele.pousser(&m.traceMoi, s.moi.niveau())
-                ReunionEncocheModele.pousser(&m.traceEux, s.eux.niveau())
+                guard let self, let s, self.session === s, self.machine.enregistre else { return }
+                self.majDirect(s)
             }
         }
-        RunLoop.main.add(affichage, forMode: .common)
-        minuteurs = [affichage]
+        direct.tolerance = 0.3
+        RunLoop.main.add(direct, forMode: .common)
+        minuteurs = [direct]
         // Un son du Mac qui n'a donné que des zéros pendant 15 s : on le note au journal (sans conclure : un Mac silencieux est possible).
         DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self, weak s] in
             guard let s, self?.session === s, s.sonSystemeActif else { return }
@@ -301,21 +333,98 @@ final class ReunionController: ObservableObject {
         }
     }
 
+    /// Le direct : passages transcrits, ce qui s'entend encore, les points marqués (DirectReunion décide de l'ordre, des tours, des échos).
+    private func majDirect(_ s: Session) {
+        guard etatIlot != nil else { return }
+        let (moi, eux) = s.copies()
+        let attentes = s.transcripteur.attentes() + [s.moi.parole(), s.eux.parole()].compactMap { $0 }
+        let lignes = DirectReunion.lignes(moi: moi, eux: eux, attentes: attentes, points: s.points)
+        guard lignes != etatIlot?.lignes else { return }
+        etatIlot?.lignes = lignes
+        rafraichirEncoche()
+    }
+
+    // MARK: « Ajouter un point », « Ce que j'ai raté »
+
+    /// Marque le moment (secondes de réunion) : il apparaît dans le direct, puis dans la note et l'export.
+    private func ajouterUnPoint() {
+        guard let s = session, machine.enregistre else { return }
+        let t = s.horloge.temps()
+        s.points.append(t)
+        s.reunion.points = s.points
+        store.enregistrer(s.reunion)
+        Log.ecrire("réunion : point marqué à \(FormatReunion.horloge(t))")
+        etatIlot?.rattrapage = .ferme
+        rattrapage?.cancel(); rattrapage = nil
+        etatIlot?.pointFait = true
+        majDirect(s)
+        rafraichirEncoche()
+        finPoint?.cancel()
+        let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.etatIlot?.pointFait = false; self?.rafraichirEncoche() } }
+        finPoint = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4, execute: item)
+    }
+
+    /// Les 3 dernières minutes en deux ou trois puces, par le même service que la note (seulement ces minutes-là sont envoyées).
+    private func rattraper() {
+        guard let s = session, machine.enregistre, etatIlot != nil else { return }
+        let (moi, eux) = s.copies()
+        let segments = DirectReunion.dernieresMinutes(moi: moi, eux: eux, maintenant: s.horloge.temps(), secondes: RattrapageReunion.fenetre)
+        rattrapage?.cancel()
+        guard !segments.isEmpty else {
+            etatIlot?.rattrapage = .echec("Rien de nouveau ces 3 dernières minutes.")
+            rafraichirEncoche(); return
+        }
+        etatIlot?.rattrapage = .enCours
+        rafraichirEncoche()
+        let resumer = self.resumer
+        rattrapage = Task { [weak self] in
+            let resultat: EtatRattrapage
+            do { resultat = .pret(try await resumer(segments)) }
+            catch is CancellationError { return }
+            catch {
+                Log.ecrire("réunion : « Ce que j'ai raté » impossible (\(error))")
+                resultat = .echec("Résumé impossible pour l\u{2019}instant (réseau ou limite de Groq).")
+            }
+            guard let self, !Task.isCancelled, self.session === s, self.etatIlot?.rattrapage == .enCours else { return }
+            self.etatIlot?.rattrapage = resultat
+            self.rafraichirEncoche()
+        }
+    }
+
+    private func fermerRattrapage() {
+        rattrapage?.cancel(); rattrapage = nil
+        guard etatIlot?.rattrapage != .ferme else { return }
+        etatIlot?.rattrapage = .ferme
+        rafraichirEncoche()
+    }
+
     private func arreterMinuteurs() { minuteurs.forEach { $0.invalidate() }; minuteurs = [] }
 
-    // MARK: encoche
+    // MARK: îlot
 
     private func majPhase() {
         phase = machine.phase
         rafraichirEncoche()
     }
 
+    /// Pousse à l'îlot ce qu'il doit montrer : la réunion qui s'enregistre (activité) et l'annonce du moment.
     private func rafraichirEncoche() {
         phase = machine.phase
-        let m = panneau.modele
-        m.phase = machine.phase
-        if machine.phase == .repos { panneau.masquer(); return }
-        if m.ouverte { panneau.ajuster() } else { panneau.afficher() }
+        if !machine.enregistre { etatIlot = nil }
+        surIlot(etatIlot, annonceActuelle())
+    }
+
+    private func annonceActuelle() -> AnnonceReunion? {
+        switch machine.phase {
+        case .repos, .enregistrement: return nil
+        case .proposition(let app): return .propose(app: app)
+        case .traitement: return .prepare(etape: etapeTraitement)
+        case .message(let t): return .message(t)
+        case .prete(let id):
+            let r = store.reunion(id: id)
+            return .prete(id: id, titre: r?.titreAffiche ?? "", duree: r?.duree ?? 0, sansNote: r?.etat == .sansNote)
+        }
     }
 
     private func annoncerMessage(_ texte: String) {
@@ -331,6 +440,8 @@ final class ReunionController: ObservableObject {
         let avant = machine.phase
         let item = DispatchWorkItem { [weak self] in
             guard let self, self.machine.phase == avant else { return }
+            // la souris est sur l'annonce : elle reste (même règle que les bandeaux de l'îlot)
+            if self.annonceSurvolee() { self.programmerRetrait(apres: 1.5); return }
             if case .proposition = avant { self.machine.refuserProposition() } else { self.machine.acquitter() }
             self.majPhase()
         }

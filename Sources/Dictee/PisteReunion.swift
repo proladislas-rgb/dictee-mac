@@ -3,6 +3,7 @@ import DicteeCore
 
 /// Un morceau de son d'une piste de réunion, prêt à partir chez Whisper : qui parle, quand (secondes de réunion) et le son 16 kHz mono.
 struct MorceauReunion: @unchecked Sendable {
+    var id = UUID()
     var locuteur: Locuteur
     var debut: Double
     var echantillons: [Int16]
@@ -87,6 +88,14 @@ final class PisteReunion: @unchecked Sendable {
     }
 
     func reprendre() { verrou.lock(); actif = true; verrou.unlock() }
+
+    /// La parole entendue en ce moment et pas encore partie chez Whisper (le direct de l'îlot montre « … » gris à sa place) ; nil :
+    /// silence, ou piste en pause.
+    func parole() -> AttenteDirect? {
+        verrou.lock(); defer { verrou.unlock() }
+        guard actif, chunker.hasSpeechInChunk, let b = base else { return nil }
+        return AttenteDirect(locuteur: locuteur, debut: b + Double(chunker.debutDuMorceau) / 16_000)
+    }
 
     func terminer() { suspendre(); ecrivain?.fermer(); ecrivain = nil }
 

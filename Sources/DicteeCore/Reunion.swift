@@ -92,6 +92,8 @@ public struct Reunion: Codable, Equatable, Identifiable, Sendable {
     public var citations: [CitationReunion]?
     /// Une échéance (ou rien) par décision, dans l'ordre de `decisions`.
     public var decisionsEcheances: [EcheanceReunion?]?
+    /// Les moments marqués pendant l'appel (« Ajouter un point » dans l'îlot), en secondes de réunion.
+    public var points: [Double]?
 
     public init(id: UUID = UUID(), debut: Date = Date(), duree: Double = 0, titre: String = "", participants: [String] = [],
                 dit: [String] = [], decisions: [String] = [], actions: [ActionReunion] = [], segments: [SegmentReunion] = [],
@@ -172,6 +174,14 @@ public enum FormatReunion {
 
 /// Export Markdown de la note : lisible tel quel, collable dans Notion (qui le convertit en blocs).
 public enum ReunionMarkdown {
+    /// « , juste après « tous les textes avant le 25 » » : la fin de ce qui venait d'être dit au moment marqué.
+    static func avant(_ t: Double, dans segments: [SegmentReunion]) -> String {
+        guard let s = segments.last(where: { $0.debut <= t }) else { return "" }
+        let m = s.texte.split(separator: " ")
+        guard !m.isEmpty else { return "" }
+        let fin = m.suffix(6).joined(separator: " ").trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?…"))
+        return ", juste après « " + (m.count > 6 ? "\u{2026}" : "") + fin + " »"
+    }
     public static func rendre(_ r: Reunion, calendrier: Calendar = .current) -> String {
         var l: [String] = []
         l.append("# \(r.titreAffiche)")
@@ -191,6 +201,9 @@ public enum ReunionMarkdown {
                 if let q = a.quand, !q.isEmpty { ligne += " (\(q))" }
                 l.append(ligne)
             }
+        }
+        if let p = r.points, !p.isEmpty {
+            l += ["", "## Points marqués pendant l'appel", ""] + p.sorted().map { "- " + FormatReunion.heure(r.debut.addingTimeInterval($0), calendrier: calendrier) + Self.avant($0, dans: r.segments) }
         }
         if !r.avertissements.isEmpty { l += ["", "## À savoir", ""] + r.avertissements.map { "- \($0)" } }
         if !r.segments.isEmpty {

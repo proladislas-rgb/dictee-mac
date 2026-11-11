@@ -1861,8 +1861,8 @@ do {
     verifier(aff(OccupationEncoche(), morceau: false) == .aucun, "rien ne joue : rien")
     verifier(aff(OccupationEncoche(), reglage: false) == .aucun && aff(OccupationEncoche(dictee: true), reglage: false) == .aucun, "réglage coupé : rien, même pendant une dictée")
     verifier(aff(OccupationEncoche(dictee: true)) == .miniature, "dictée : l'îlot s'efface, la lecture devient une mini-miniature dans le ruban de la dictée")
-    verifier(aff(OccupationEncoche(reunion: true)) == .aucun, "réunion : la lecture ne s'affiche pas")
-    verifier(aff(OccupationEncoche(dictee: true, reunion: true)) == .aucun, "dictée pendant une réunion : toujours rien")
+    verifier(aff(OccupationEncoche(reunion: true)) == .ilot, "réunion : la lecture reste dans l'îlot (la réunion a l'îlot, la vidéo passe dans la bulle)")
+    verifier(aff(OccupationEncoche(dictee: true, reunion: true)) == .miniature, "dictée pendant une réunion : comme toute dictée")
     verifier(aff(OccupationEncoche(filet: true)) == .aucun && aff(OccupationEncoche(miseAJour: true)) == .aucun && aff(OccupationEncoche(autreAnnonce: true)) == .aucun, "filet, mise à jour, autre annonce : la lecture s'efface")
     verifier(aff(OccupationEncoche(dictee: true, filet: true)) == .miniature, "dictée + filet : la dictée garde la place, la lecture reste une mini-miniature")
 }
@@ -1913,6 +1913,7 @@ do {
 }
 controlesPrecision()
 controlesIlot()
+controlesReunionIlot()
 
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)

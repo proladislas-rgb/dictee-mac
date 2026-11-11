@@ -2,8 +2,7 @@ import AppKit
 import SwiftUI
 import DicteeCore
 
-/// `Dictee --rendu-reunion dossier` : l'encoche des réunions (enregistrement, survol, pause, proposition, traitement, note prête),
-/// la liste et la note en PNG, sans fenêtre. Réunions d'exemple, jamais celles de l'utilisateur ; ni micro ni son du Mac.
+/// `Dictee --rendu-reunion dossier` : la liste et la note en PNG (la réunion dans l'îlot : `--rendu-ilot`, ilot-27*), sans fenêtre. Réunions d'exemple, jamais celles de l'utilisateur ; ni micro ni son du Mac.
 enum RenduReunions {
     /// Les réunions d'exemple de la maquette `reunions-v2.html` (jour de référence : lundi 9 novembre 2026, comme la maquette).
     static func reunionsExemple() -> [Reunion] {
@@ -67,40 +66,8 @@ enum RenduReunions {
         let url = URL(fileURLWithPath: (dossier as NSString).expandingTildeInPath, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         var ok = true
-        let g = GeometrieEncoche()   // caméra fictive 200 × 32 pt, comme les maquettes
 
-        // MARK: encoche
-        func encoche(_ nom: String, phase: PhaseReunion, survol: Bool = false, minuterie: String = "12:48", sources: String = "Micro et son de l\u{2019}appel", traitement: String = "Transcription…", prete: String = "Note prête") {
-            let m = ReunionEncocheModele()
-            m.geometrie = g; m.ouverte = true; m.phase = phase; m.survol = survol; m.minuterie = minuterie; m.sources = sources; m.traitement = traitement; m.libellePrete = prete
-            m.traceMoi = [3, 5, 8, 6, 4, 7, 8, 5, 3, 6, 4, 2].map { $0 / 8 }
-            m.traceEux = [2, 2, 3, 5, 7, 8, 6, 4, 3, 2, 2, 3].map { $0 / 8 }
-            let largeur = g.largeur + 2 * GeometrieEncoche.aile + 2 * (FormeEncoche.congeHaut.width + 4)
-            let taille = CGSize(width: ceil(largeur), height: g.hauteur + GeometrieEncoche.hauteurRuban + 8)
-            let scene = CGSize(width: 640, height: 130)
-            let vue = ZStack(alignment: .top) {
-                Color(hex: 0x0F0F0E)
-                HStack {
-                    Text("Visio").bold(); Text("Fichier"); Text("Édition"); Spacer()
-                    FormeGuillemets().fill(Palette.texte).frame(width: 14, height: 14 / Guillemets.rapport)
-                    Text("lun. 9 nov.  14:15")
-                }
-                .font(.system(size: 13)).foregroundStyle(Palette.texte2)
-                .padding(.horizontal, 16).frame(height: g.hauteur).frame(maxWidth: .infinity)
-                .background(Color(hex: 0x141413))
-                ReunionEncocheVue(m: m, tailleFenetre: taille)
-            }
-            .frame(width: scene.width, height: scene.height, alignment: .top)
-            ok = RenduVues.ecrire(RenduVues.png(vue, taille: scene), url.appendingPathComponent("\(nom).png")) && ok
-        }
-        encoche("encoche-1-enregistrement", phase: .enregistrement(enPause: false))
-        encoche("encoche-2-survol", phase: .enregistrement(enPause: false), survol: true)
-        encoche("encoche-3-pause", phase: .enregistrement(enPause: true), survol: true)
-        encoche("encoche-4-micro-seul", phase: .enregistrement(enPause: false), survol: true, sources: "Micro seul")
-        encoche("encoche-5-proposition", phase: .proposition(app: "Zoom"), minuterie: "")
-        encoche("encoche-6-traitement", phase: .traitement, minuterie: "38:12", traitement: "Note en préparation, partie 2 sur 4")
-        encoche("encoche-7-note-prete", phase: .prete(UUID()), minuterie: "38:12")
-        encoche("encoche-8-sans-note", phase: .prete(UUID()), minuterie: "38:12", prete: "Transcription prête")
+        // L'encoche des réunions est devenue une activité de l'îlot : ses rendus sont avec ceux de l'îlot (`--rendu-ilot`, ilot-27*).
 
         // MARK: fenêtre
         let exemples = reunionsExemple()

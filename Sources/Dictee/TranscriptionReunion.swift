@@ -12,6 +12,8 @@ final class TranscriptionReunion: @unchecked Sendable {
     private let verrou = NSLock()
     private var file: [Travail] = []
     private var enVol = 0
+    /// Les morceaux partis chez Whisper et pas encore revenus (le direct les montre en gris).
+    private var envoles: [MorceauReunion] = []
     private var boucle: Task<Void, Never>?
     private var annule = false
     private var dernierTexte: [Locuteur: String] = [:]
@@ -37,6 +39,12 @@ final class TranscriptionReunion: @unchecked Sendable {
 
     var restants: Int { verrou.lock(); defer { verrou.unlock() }; return file.count + enVol }
 
+    /// Ce qui est entendu mais pas encore transcrit : les morceaux en file et ceux partis chez Whisper.
+    func attentes() -> [AttenteDirect] {
+        verrou.lock(); defer { verrou.unlock() }
+        return (envoles + file.map(\.morceau)).map { AttenteDirect(locuteur: $0.locuteur, debut: $0.debut, fin: $0.debut + $0.duree) }
+    }
+
     func soumettre(_ m: MorceauReunion) {
         verrou.lock()
         file.append(Travail(morceau: m))
@@ -61,13 +69,15 @@ final class TranscriptionReunion: @unchecked Sendable {
         verrou.lock(); defer { verrou.unlock() }
         guard !annule, !file.isEmpty else { boucle = nil; return nil }
         enVol += 1
-        return file.removeFirst()
+        let t = file.removeFirst()
+        envoles.append(t.morceau)
+        return t
     }
 
     private func tourner() async {
         while let travail = suivant() {
             await traiter(travail)
-            let n = verrou.withLock { () -> Int in enVol -= 1; return file.count + enVol }
+            let n = verrou.withLock { () -> Int in enVol -= 1; envoles.removeAll { $0.id == travail.morceau.id }; return file.count + enVol }
             surProgression?(n)
         }
     }

@@ -126,7 +126,10 @@ struct BoutonNu: View {
 
 /// Les pilules de la maquette (« Plus tard », « Fait », « Rejoindre », « 5 min »…) : 32 pt de haut, texte de 13,5 pt semi-gras.
 struct CapIlot: View {
-    enum Style { case gris, jaune, vert, ambre }
+    /// `blanc` : « Ouvrir » sur « Note prête » ; `noter` : blanc, un point rouge devant (« Noter cet appel ? », maquette ilot-reunion.html).
+    enum Style { case gris, jaune, vert, ambre, blanc, noter }
+    /// Le point rouge de `noter` (9 pt) et son écart (6 pt) : `MesureIlot.bouton` les compte.
+    static let placePoint: CGFloat = 15
     var titre: String
     var icone: String?
     var style: Style = .gris
@@ -143,6 +146,7 @@ struct CapIlot: View {
         case .jaune: return CouleursIlot.jaune.opacity(survol ? 0.88 : 1)
         case .vert: return CouleursIlot.vert.opacity(survol ? 0.88 : 1)
         case .ambre: return CouleursIlot.ambre.opacity(survol ? 0.88 : 1)
+        case .blanc, .noter: return Color.white.opacity(survol ? 0.88 : 1)
         }
     }
     private var encre: Color {
@@ -151,11 +155,13 @@ struct CapIlot: View {
         case .jaune: return Color(hex: 0x1A1400)
         case .vert: return Color(hex: 0x04210D)
         case .ambre: return Color(hex: 0x231300)
+        case .blanc, .noter: return .black
         }
     }
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
+                if style == .noter { Circle().fill(CouleursIlot.rouge).frame(width: 9, height: 9) }
                 if let icone { Image(systemName: icone).font(.system(size: hauteur >= 32 ? 13 : 11.5, weight: .semibold)) }
                 Text(titre).font(.system(size: hauteur >= 32 ? 13.5 : 12.5, weight: .semibold)).lineLimit(1).fixedSize()
             }

@@ -719,6 +719,17 @@ struct NoteReunionVue: View {
         }
     }
 
+    /// Les passages et les points marqués, dans l'ordre du temps (un point se pose avant le premier passage qui commence après lui).
+    struct ElementTranscription { var id: String; var segment: SegmentReunion?; var point: Double? }
+    static func elementsTranscription(_ r: Reunion) -> [ElementTranscription] {
+        var l = r.segments.map { ElementTranscription(id: $0.id.uuidString, segment: $0, point: nil) }
+        for t in (r.points ?? []).sorted() {
+            let i = l.firstIndex { ($0.segment?.debut ?? -1) > t } ?? l.count
+            l.insert(ElementTranscription(id: "point-\(t)", segment: nil, point: t), at: i)
+        }
+        return l
+    }
+
     private var transcription: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button { withAnimation(.easeOut(duration: 0.15)) { m.transcriptionDepliee.toggle() } } label: {
@@ -739,7 +750,17 @@ struct NoteReunionVue: View {
             .accessibilityLabel(m.transcriptionDepliee ? "Replier la transcription" : "Afficher la transcription")
             if m.transcriptionDepliee {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(r.segments) { s in
+                    ForEach(Self.elementsTranscription(r), id: \.id) { e in
+                        if let t = e.point {
+                            // un moment marqué pendant l'appel (« Ajouter un point » dans l'îlot)
+                            HStack(spacing: 7) {
+                                Image(systemName: "flag.fill").font(.system(size: 10.5, weight: .semibold))
+                                Text("Point marqué \u{00B7} " + FormatReunion.heure(r.debut.addingTimeInterval(t))).font(Polices.commande(12, .medium))
+                            }
+                            .foregroundStyle(Color(hex: 0xFFB340))
+                            .padding(.leading, 60).padding(.vertical, 6)
+                            .accessibilityElement(children: .combine)
+                        } else if let s = e.segment {
                         HStack(alignment: .top, spacing: 12) {
                             Text(FormatReunion.horloge(s.debut)).font(Polices.commande(12).monospacedDigit()).foregroundStyle(Palette.texte3).frame(width: 48, alignment: .leading).padding(.top, 2)
                             VStack(alignment: .leading, spacing: 0) {
@@ -749,6 +770,7 @@ struct NoteReunionVue: View {
                         }
                         .padding(.vertical, 6)
                         .accessibilityElement(children: .combine)
+                        }
                     }
                 }
                 .padding(.bottom, 12)

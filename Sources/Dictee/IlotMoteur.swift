@@ -87,6 +87,9 @@ enum ActionIlot {
     case dicteeCopier(UUID), dicteeColler(UUID)
     case ouvrirFenetre(Onglet)
     case dicteesClavier(Bool)
+    /// La réunion (IlotReunion.swift) : « Noter » ou « Non » sur « Noter cet appel ? », pause, reprise, arrêt, « Ajouter un point »,
+    /// « Ce que j'ai raté » (et le retour au direct), « Ouvrir » sur « Note prête ».
+    case reunionNoter, reunionRefuser, reunionPause, reunionReprendre, reunionArreter, reunionPoint, reunionRattrapage, reunionDirect, reunionOuvrirNote
 }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
@@ -264,11 +267,23 @@ final class IlotMoteur: ObservableObject {
     /// La carte Dictées : sa recherche, sa liste (lue dans l'historique), ce qu'on y survole, déplie, copie.
     let dictees = DicteesIlot()
 
-    // MARK: masques (dictée, réunion, autres annonces : l'îlot s'efface)
+    // MARK: la réunion (IlotReunion.swift) : une activité de l'îlot, plus un masque
+    /// La réunion qui s'enregistre (nil : aucune) ; la dernière vue, pour un écran qui s'efface.
+    var reunion: ReunionIlot? { didSet { if let reunion { derniereReunion = reunion } } }
+    private(set) var derniereReunion = ReunionIlot()
+    /// L'annonce de la réunion à l'écran (« Noter cet appel ? », « Note en préparation… », « Note prête », un message).
+    var annonceReunion: AnnonceReunion? { didSet { if let annonceReunion { derniereAnnonceReunion = annonceReunion } } }
+    private(set) var derniereAnnonceReunion: AnnonceReunion?
+    /// Le défilement du direct dans la carte « Réunion » (il suit les phrases tant qu'on est en bas).
+    var defilementDirect = DefilementDirect()
+    /// La mise en page du direct, gardée tant que ses lignes et sa largeur ne changent pas (le dessin la relit à chaque image d'une
+    /// animation : on ne remesure pas 40 lignes de texte 120 fois par seconde).
+    var miseEnPageDirectGardee: (lignes: [LigneDirect], largeur: CGFloat, p: MiseEnPageDirect)?
+
+    // MARK: masques (dictée, autres annonces : l'îlot s'efface ; la réunion, elle, est une activité)
     var dictee = false
-    var reunion = false
     var masque = false
-    var cache: Bool { dictee || reunion || masque }
+    var cache: Bool { dictee || masque }
     private var enAttente: [(alerte: AlerteIlot?, bandeau: BandeauIlot?)] = []
 
     // MARK: sorties
@@ -311,6 +326,8 @@ final class IlotMoteur: ObservableObject {
     var epingle = false
     private(set) var sousVue: VueIlot?
     private var pointeurSurForme = false
+    /// La souris est sur la forme (une annonce de la réunion ne se retire pas dessous).
+    var pointeurSurLaForme: Bool { pointeurSurForme }
     private var intention: DispatchWorkItem?
     private var fermeture: DispatchWorkItem?
     private var reveil: DispatchWorkItem?
@@ -343,6 +360,8 @@ final class IlotMoteur: ObservableObject {
         e.claudeListe = claude?.progres != nil
         e.alerte = alerte?.vue
         e.bandeau = bandeau?.vue
+        e.reunion = reunion != nil
+        e.annonceReunion = annonceReunion?.vue
         return e
     }
 
@@ -357,7 +376,7 @@ final class IlotMoteur: ObservableObject {
                 afficher(.repos)
                 majPastille()
             }
-            // une dictée (ou une réunion) commence pendant une recherche dans les Dictées : le clavier retourne à l'app AVANT que le
+            // une dictée commence pendant une recherche dans les Dictées : le clavier retourne à l'app AVANT que le
             // texte dicté n'y soit écrit (sinon il irait dans le champ de l'îlot)
             if dictees.rechercheActive { dictees.rechercheActive = false; surAction(.dicteesClavier(false)) }
             majExtras()
@@ -448,6 +467,8 @@ final class IlotMoteur: ObservableObject {
         let c = cible(v)
         if v == courante, geo.enumerated().allSatisfy({ $0.element.cibleFinale == c[$0.offset] }) { return }
         let avant = courante
+        // la carte « Réunion » s'ouvre sur les dernières phrases (le direct reprend en bas)
+        if v == .reunionEtendu, avant != .reunionEtendu { defilementDirect.revenirEnBas() }
         let fa = FamilleIlot.de(avant), fv = FamilleIlot.de(v)
         let modeAvant = fa == .autre ? 0 : ouvertureCourante(fa)
         courante = v
@@ -599,7 +620,8 @@ final class IlotMoteur: ObservableObject {
 
     // MARK: alertes et bandeaux
 
-    /// Une alerte ou un bandeau arrive. Pendant la dictée ou la réunion, il attend la fin (aucun son qui pourrait gêner ou être capté).
+    /// Une alerte ou un bandeau arrive. Pendant la dictée, il attend la fin (aucun son qui pourrait gêner ou être capté) ; pendant une
+    /// réunion il s'affiche, sans son (le contrôleur n'en joue aucun).
     /// Pendant que le Centre est épinglé (une suite de réglages : Téléchargements puis un fichier qui arrive, les AirPods qu'on branche
     /// pour choisir leur micro), un bandeau attend aussi qu'il se range : il ne le referme pas sous le pointeur. Une alerte (minuteur
     /// fini, rappel, rendez-vous qui commence) passe, elle : elle attend un geste.
@@ -618,7 +640,7 @@ final class IlotMoteur: ObservableObject {
         if let b { if alerte == nil { bandeau = b; if b.sonore { surArrivee(b.vue) } } }
         donneesChangees()
     }
-    /// Après la dictée ou la réunion : ce qui attendait s'affiche.
+    /// Après la dictée : ce qui attendait s'affiche.
     func vidangerAttente() {
         guard !cache, !enAttente.isEmpty else { return }
         let l = enAttente; enAttente = []
@@ -939,9 +961,11 @@ final class IlotMoteur: ObservableObject {
     /// d'une autre carte (le Centre, qui passe aux Dictées en chemin) reste un changement de carte jusqu'au bout (`pourLaListe`).
     func recevoirDefilement(dy: Double, dx: Double, phase: DefilementIlot.Phase, inertie: Bool, en p: CGPoint? = nil, t: Double = ProcessInfo.processInfo.systemUptime) {
         guard fenetreOuverte, !cache else { return }
-        let surListe = courante == .dictees && p.map { PlanDictees.cadreListe(grille).contains($0) } == true && dictees.defile
+        let surListe = (courante == .dictees && p.map { PlanDictees.cadreListe(grille).contains($0) } == true && dictees.defile)
+            || (courante == .reunionEtendu && p.map { PlanReunion.direct(grille).contains($0) } == true && directDefile)
         if defilement.pourLaListe(phase: phase, inertie: inertie, surListe: surListe) {
             if courante == .dictees, abs(dy) >= abs(dx) { dictees.defiler(dy) }
+            if courante == .reunionEtendu, abs(dy) >= abs(dx) { defilerLeDirect(dy) }
             return
         }
         if let pas = defilement.recevoir(dy: dy, dx: dx, phase: phase, inertie: inertie, t: t) { defiler(pas) }
@@ -965,7 +989,7 @@ final class IlotMoteur: ObservableObject {
         // le bouton « Centre » au pied de tout déplié d'activité (la vidéo, le minuteur, Claude, un rendez-vous) : le chemin se voit
         let pied = CartesIlot.aUnPied(courante, pile: pile)
         if pied { carteDuPied = courante }
-        let points = [.lectureEtendu, .centre, .dictees, .accueil].contains(courante) && pile.count > 1 && fenetreOuverte
+        let points = [.lectureEtendu, .centre, .dictees, .accueil, .reunionEtendu].contains(courante) && pile.count > 1 && fenetreOuverte
         let bulle = bulleSous(courante)
         for (e, voulu) in [(ExtraIlot.pied, pied), (.points, points), (.bulle, bulle)] {
             if voulu { entrer(&apparitionsExtra[e], delai: e == .bulle ? 0.2 : 0.14) } else { sortir(&apparitionsExtra[e]) }
@@ -1118,6 +1142,8 @@ final class IlotMoteur: ObservableObject {
             let t = texteClaude(claude ?? dernierClaude, taille: 12.5)
             return t.isEmpty ? 33 : 39 + MesureIlot.texte(t, 12.5, .semibold, chiffres: true)
         case .alerte: return 30
+        // le point rouge et le temps : 10 + 7 + 6 + texte + 10
+        case .reunion: return 33 + MesureIlot.texte(FormatIlot.chrono((reunion ?? derniereReunion).temps(a: maintenant())).replacingOccurrences(of: "[0-9]", with: "0", options: .regularExpression), 12.5, .semibold, chiffres: true)
         }
     }
     /// Ouverte au survol : la lecture montre son titre, le rappel le sien (à côté de la cloche et de l'heure).

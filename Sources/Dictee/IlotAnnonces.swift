@@ -84,7 +84,7 @@ enum MesureIlot {
     }
     /// Une pilule `CapIlot` de 32 pt.
     static func bouton(_ b: ContenuAnnonce.Bouton) -> CGFloat {
-        texte(b.titre, 13.5, .semibold) + 28 + (b.icone.map { symbole($0, 13) + 6 } ?? 0)
+        texte(b.titre, 13.5, .semibold) + 28 + (b.icone.map { symbole($0, 13) + 6 } ?? 0) + (b.style == .noter ? CapIlot.placePoint : 0)
     }
     static func boutons(_ bs: [ContenuAnnonce.Bouton], memeLargeur: Bool = false) -> CGFloat {
         guard !bs.isEmpty else { return 0 }
@@ -172,6 +172,8 @@ extension IlotMoteur {
             return ContenuAnnonce(glyphe: GlypheIlot(nom: "checkmark.circle.fill", couleur: CouleursIlot.vert, taille: 22), l1: b?.ligne1 ?? "Terminé",
                                   l2: b?.ligne2 ?? s?.projet ?? "",
                                   droite: .boutons([.init(titre: "Ouvrir", etiquette: "Revenir à Claude Code", action: .claudeOuvrir(s?.app))]))
+        case .reunionPropose, .reunionPrepare, .reunionPrete, .reunionMessage:
+            return contenuReunion(v)
         case .microEtendu:
             // le micro barré voyage depuis l'aile gauche (sa place est gardée) ; le nom du micro peut être long : coupé au bout
             return ContenuAnnonce(glyphe: nil, l1: "Micro coupé", l2: nomMicro ?? "Micro du Mac",

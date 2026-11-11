@@ -319,6 +319,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.reunionControleur.basculer()
         }
         clavier.onReunion = { [weak self] in self?.reunionControleur.basculer() }
+        // la réunion vit dans l'îlot (plus de fenêtre d'encoche à part) : son état y est poussé, ses gestes en reviennent
+        reunionControleur.surIlot = { [weak self] r, annonce in self?.ilot.reunionChangee(r, annonce: annonce) }
+        reunionControleur.annonceSurvolee = { [weak self] in self?.ilot.moteur.pointeurSurLaForme ?? false }
+        ilot.surReunion = { [weak self] a in self?.reunionControleur.agir(a) }
         reunionControleur.demarrerSurveillanceDesAppels()
     }
 

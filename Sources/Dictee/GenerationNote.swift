@@ -40,6 +40,23 @@ struct GenerationNote {
         return (propre, retraits)
     }
 
+    /// « Ce que j'ai raté » : les dernières minutes en deux ou trois puces, un seul appel court (le même modèle et le même plafond de
+    /// jetons que la note). On n'attend pas plus de 8 s une place sous le plafond : au-delà, le résumé est dit impossible pour l'instant.
+    func rattraper(_ segments: [SegmentReunion]) async throws -> [String] {
+        let message = RattrapageReunion.message(segments)
+        let maxSortie = 1500   // le raisonnement du modèle compte dans la limite (leçon du 09/11)
+        let estimation = DecoupeReunion.jetons(RattrapageReunion.consigne) + DecoupeReunion.jetons(message) + maxSortie
+        let attente = Self.budget.delaiAvant(jetons: estimation)
+        if attente > 8 { throw Erreur.abandon("plafond de jetons par minute") }
+        if attente > 0 { try await Task.sleep(for: .seconds(attente)) }
+        let t0 = ProcessInfo.processInfo.systemUptime
+        let r = try await groq.completerNote(modele: modele, systeme: RattrapageReunion.consigne, texte: message, maxSortie: maxSortie, effort: "low", delai: 30)
+        Self.budget.noter(jetons: r.jetons > 0 ? r.jetons : estimation)
+        Log.ecrire("réunion : « Ce que j'ai raté », réponse de \(modele) en \(Int((ProcessInfo.processInfo.systemUptime - t0) * 1000)) ms (\(r.jetons) jetons)")
+        guard let puces = RattrapageReunion.analyser(r.texte) else { throw Erreur.reponseIllisible }
+        return puces
+    }
+
     private func appeler(systeme: String, message: String, maxSortie: Int, effort: String) async throws -> NoteBrute {
         let estimation = DecoupeReunion.jetons(systeme) + DecoupeReunion.jetons(message) + maxSortie
         for essai in 1...6 {

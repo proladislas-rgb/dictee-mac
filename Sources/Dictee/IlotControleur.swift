@@ -78,6 +78,9 @@ final class IlotControleur {
     }
     /// Lance la prise de notes d'une réunion (rempli par l'AppDelegate).
     var surNoter: (EvenementAgenda?) -> Void = { _ in }
+    /// Les gestes de la réunion dans l'îlot (Noter, Non, pause, reprise, Arrêter, « Ajouter un point », « Ce que j'ai raté », « Ouvrir ») :
+    /// le contrôleur des réunions les reçoit (rempli par l'AppDelegate ; capturés dans les essais, jamais de vrai micro).
+    var surReunion: (ActionIlot) -> Void = { _ in }
     /// Ouvre la fenêtre principale sur un onglet (le pied de la carte Dictées ; rempli par l'AppDelegate).
     var surOuvrirFenetre: (Onglet) -> Void = { _ in }
     /// Met un texte dans le presse-papiers (un clic sur une dictée ; injectable : les essais ne touchent jamais le vrai presse-papiers).
@@ -383,11 +386,15 @@ final class IlotControleur {
         let o = occupation()
         let dictee = o.dictee || lecture.dicteeConfirmee
         let masque = o.filet || o.miseAJour || o.autreAnnonce
-        guard dictee != moteur.dictee || o.reunion != moteur.reunion || masque != moteur.masque else { return }
-        moteur.dictee = dictee; moteur.reunion = o.reunion; moteur.masque = masque
+        // la réunion n'efface plus l'îlot : elle y est une activité (`reunionChangee`)
+        guard dictee != moteur.dictee || masque != moteur.masque else { return }
+        moteur.dictee = dictee; moteur.masque = masque
         moteur.donneesChangees()
         if !moteur.cache { moteur.vidangerAttente() }
     }
+
+    /// La réunion a changé (contrôleur des réunions) : ce que l'îlot en montre.
+    func reunionChangee(_ r: ReunionIlot?, annonce: AnnonceReunion?) { moteur.reunionChangee(r, annonce: annonce) }
 
     private func lectureVisible(_ visible: Bool) {
         moteur.lecturePresente = visible
@@ -397,7 +404,8 @@ final class IlotControleur {
     // MARK: arrivées (son, vibration)
 
     private func arrivee(_ v: VueIlot) {
-        if moteur.reunion { sons.silencieux(); return }
+        // pendant une réunion, aucun son (il serait entendu par les autres, et enregistré) : la vibration seule
+        if moteur.reunion != nil { sons.silencieux(); return }
         switch v {
         case .minuteurFini: sons.minuteurFini(); moteur.bourdonner()
         case .rappelEtendu, .agendaDebut: sons.rappel(); moteur.bourdonner()
@@ -520,6 +528,11 @@ final class IlotControleur {
         case .ouvrirFenetre(let o):
             moteur.fermer()
             surOuvrirFenetre(o)
+        case .reunionNoter, .reunionRefuser, .reunionPause, .reunionReprendre, .reunionArreter, .reunionPoint, .reunionRattrapage, .reunionDirect:
+            surReunion(action)
+        case .reunionOuvrirNote:
+            moteur.fermer()
+            surReunion(action)
         case .dicteesClavier(let oui):
             if oui {
                 guard moteur.courante == .dictees, !moteur.cache else { return }

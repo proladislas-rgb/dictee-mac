@@ -137,6 +137,7 @@ extension IlotMoteur {
         case .minuteurEtendu: return "Minuteur"
         case .microEtendu: return "Micro"
         case .claudeEtendu: return "Claude"
+        case .reunionEtendu: return "Réunion"
         case .agendaEtendu: return "Rendez-vous"
         case .rappelEtendu, .rappelListe: return "Rappel"
         default: return nil

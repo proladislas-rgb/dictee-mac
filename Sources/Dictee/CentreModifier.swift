@@ -204,29 +204,51 @@ struct PastilleAjout: View {
     }
 }
 
-/// La bande « Noter la réunion » (maquette : 40 pt, toute la largeur) : Verbe écrit tout ce qui se dit. Pendant la réunion l'îlot
-/// s'efface (comme pendant une dictée) : on l'arrête par ⌥⌘N ou la fenêtre Réunions, comme avant.
+/// La bande « Noter la réunion » (maquette : 40 pt, toute la largeur) : Verbe écrit tout ce qui se dit. Pendant la réunion (maquette
+/// ilot-reunion.html, étape 7) elle devient « Réunion en cours · 12:41 · voir le direct », en rouge, et ramène à la carte de la réunion.
 struct BandeReunion: View {
     @ObservedObject var m: IlotMoteur
     @State private var survol = false
     static let titre = "Noter la réunion", sousTitre = "Verbe écrit tout ce qui se dit"
-    /// Le point (16), 10, le titre, au moins 12, le sous-titre ; 14 et 16 de marge.
-    static var largeurUtile: CGFloat { 14 + 16 + 10 + MesureIlot.texte(titre, 13.5, .semibold) + 12 + MesureIlot.texte(sousTitre, 12, .medium) + 16 }
+    static let titreEnCours = "Réunion en cours", suiteEnCours = " \u{00B7} voir le direct"
+    /// Le point (16), 10, le titre, au moins 12, le sous-titre ; 14 et 16 de marge (la plus longue des deux formes).
+    static var largeurUtile: CGFloat {
+        let repos = MesureIlot.texte(titre, 13.5, .semibold) + 12 + MesureIlot.texte(sousTitre, 12, .medium)
+        let enCours = MesureIlot.texte(titreEnCours, 13.5, .semibold) + 12 + MesureIlot.texte("0:00:00" + suiteEnCours, 12, .medium, chiffres: true)
+        return 14 + 16 + 10 + max(repos, enCours) + 16
+    }
 
     var body: some View {
         let ed = m.editionCentre
-        Button { if !ed { m.epinglerLeCentre(); m.surAction(.centreReunion) } } label: {
+        let r = m.reunion
+        Button {
+            guard !ed else { return }
+            if r != nil, m.cartes.contains(.reunionEtendu) { m.allerA(.reunionEtendu) } else { m.epinglerLeCentre(); m.surAction(.centreReunion) }
+        } label: {
             HStack(spacing: 10) {
-                Circle().strokeBorder(CouleursIlot.rouge, lineWidth: 1.8)
-                    .overlay(Circle().fill(CouleursIlot.rouge).padding(4.2))
-                    .frame(width: 16, height: 16)
-                Text(Self.titre).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1).fixedSize()
+                Group {
+                    if let r {
+                        Circle().strokeBorder(CouleursIlot.rouge, lineWidth: 1.8)
+                            .overlay(PointReunion(enPause: r.enPause, animer: !m.reduire && !m.statique, cote: 10))
+                    } else {
+                        Circle().strokeBorder(CouleursIlot.rouge, lineWidth: 1.8).overlay(Circle().fill(CouleursIlot.rouge).padding(4.2))
+                    }
+                }
+                .frame(width: 16, height: 16)
+                Text(r == nil ? Self.titre : Self.titreEnCours).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1).fixedSize()
                 Spacer(minLength: 12)
-                Text(Self.sousTitre).font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1).fixedSize()
+                if r != nil {
+                    HStack(spacing: 0) {
+                        ChronoReunion(m: m, taille: 12).fixedSize()
+                        Text(Self.suiteEnCours).font(.system(size: 12, weight: .medium)).foregroundStyle(Color(hex: 0xFF8A82)).lineLimit(1).fixedSize()
+                    }
+                } else {
+                    Text(Self.sousTitre).font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1).fixedSize()
+                }
             }
             .padding(.leading, 14).padding(.trailing, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Capsule().fill(Color.white.opacity(survol && !ed ? 0.15 : 0.1)))
+            .background(Capsule().fill(r != nil ? CouleursIlot.rouge.opacity(survol && !ed ? 0.3 : 0.24) : Color.white.opacity(survol && !ed ? 0.15 : 0.1)))
             .contentShape(Capsule())
         }
         .buttonStyle(AppuiIlot(echelle: ed ? 1 : 0.97))
@@ -235,7 +257,7 @@ struct BandeReunion: View {
         .overlay(alignment: .topLeading) {
             if ed { BadgeRetirer(nom: "Noter la réunion") { m.retirerDuCentre(.reunion) }.offset(x: -6, y: -6) }
         }
-        .accessibilityLabel("Noter la réunion : Verbe écrit tout ce qui se dit")
+        .accessibilityLabel(r != nil ? "Réunion en cours : voir le direct" : "Noter la réunion : Verbe écrit tout ce qui se dit")
     }
 }
 

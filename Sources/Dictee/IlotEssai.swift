@@ -749,14 +749,17 @@ enum IlotEssai {
             verifier(!m.boucleActive, "Claude : tout est posé, aucune boucle d'animation")
         }
 
-        // --- réunion : rien à l'écran, vibration seule
-        occ.reunion = true; c.occupationChangee(); attendre(0.5)
+        // --- réunion : l'îlot reste (la réunion y est une activité) ; un rappel qui sonne s'affiche, sans aucun son (vibration seule)
+        var enCours = ReunionIlot(); enCours.depuis = c.maintenant()
+        occ.reunion = true; c.occupationChangee(); c.reunionChangee(enCours, annonce: nil); attendre(0.5)
+        verifier(!m.cache && m.courante == .reunionCompact, "réunion : l'îlot ne s'efface plus, la réunion y est une activité (\(m.courante))")
         let s0 = compteurs
         c.ajouterUnRappel(texte: "Appeler Paul", quand: Date().addingTimeInterval(decalage + 0.4))
         attendre(1.4)
-        verifier(m.cache && m.alerte == nil, "réunion : un rappel qui sonne n'affiche rien")
-        occ.reunion = false; c.occupationChangee(); attendre(0.9)
-        verifier(m.alerte?.vue == .rappelEtendu && compteurs.rappel == s0.rappel + 1, "réunion finie : le rappel s'affiche")
+        verifier(m.alerte?.vue == .rappelEtendu && compteurs.rappel == s0.rappel && compteurs.silence == s0.silence + 1 && m.pastille == .reunion,
+                 "réunion : le rappel s'affiche sans son (vibration seule), la réunion dans la bulle")
+        occ.reunion = false; c.occupationChangee(); c.reunionChangee(nil, annonce: nil); attendre(0.9)
+        verifier(m.alerte?.vue == .rappelEtendu, "réunion finie : le rappel est toujours là")
         verifier(c.rappels.enAttente.count == 1, "le rappel est marqué « sonné » (la cloche reste s'il n'est pas acquitté)")
         // sans réponse : l'alerte se retire seule (12 s) et la cloche reste ; ici on simule en retirant l'alerte
         c.moteur.quitterAlerte(); attendre(0.5)
@@ -966,6 +969,7 @@ enum IlotEssai {
         IlotEssai.modifierCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.cheminsDuCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
+        IlotEssai.reunion(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)

@@ -78,6 +78,8 @@ public struct VoiceChunker: Sendable {
         min(config.maxThresholdDb, max(config.minThresholdDb, noiseFloorDb + config.marginDb))
     }
     public var hasSpeechInChunk: Bool { speechFrames >= config.minSpeechFrames }
+    /// Le début du morceau en cours, en échantillons depuis le début (avec la marge gardée avant la parole).
+    public var debutDuMorceau: Int { chunkStartFrame * config.frameSamples }
     public var framesReceived: Int { frame }
 
     /// Donne le niveau d'une tranche. Renvoie un morceau à envoyer si une pause vient de le terminer.
