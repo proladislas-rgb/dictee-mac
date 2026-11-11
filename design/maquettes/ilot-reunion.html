@@ -1,0 +1,1386 @@
+<!doctype html>
+<!--
+Verbe (bientôt Lucarne) — « Noter la réunion », refait sur le modèle du Notetaker de Wispr Flow.
+Pourquoi : pendant une réunion, l'îlot disparaissait (IlotMoteur.cache = dictee || reunion || masque) et une autre fenêtre
+d'encoche prenait sa place ; la transcription en direct était peu lisible. Ici :
+  - la réunion n'est qu'une activité de l'îlot : un point rouge et le temps dans une aile (comme l'enregistrement sur iPhone) ;
+    une autre activité (minuteur, vidéo) part dans la bulle à côté ; le Centre et les autres cartes restent joignables ;
+  - au survol : la transcription en direct (dernières phrases, « Moi » / « Eux » en petit), « Ce que j'ai raté »,
+    « Ajouter un point », pause, Arrêter ;
+  - à l'arrêt : « Note en préparation… » puis « Note prête · Ouvrir » ; la note relit tout l'enregistrement : sujets, décisions,
+    prochaines étapes par personne, transcription avec les noms et l'heure (un clic rejoue le moment), « Demander ».
+Aucun raccourci clavier : seule la touche fn reste (dicter). Toutes les personnes et tous les échanges sont inventés.
+Format repris tel quel de ilot-centre.html (forme `chemin`/`cote`, ressorts, faux écran, régie).
+Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt.
+Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
+                   ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbe · Noter la réunion</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --serif:"Newsreader","New York",ui-serif,Charter,Georgia,serif;
+  --ambre:#ff9f0a; --vert:#30d158; --rouge:#ff453a; --corail:#e8835c; --bleu:#0a84ff; --jaune:#ffd60a;
+  --regie:#0f0f11;
+  --clair:#f5f5f7;
+  /* la fenêtre de Verbe (reprise de reunions-v2.html) */
+  --pan:#1a1a19; --raised:#242422; --raised-2:#2e2e2c; --ink:#ece9e3; --ink-2:#a8a59e; --ink-3:#88857e;
+  --hair:rgba(236,233,227,.10); --caret:#e6a04a;
+  --p-moi:#e6a04a; --p-claire:#86b6e6; --p-marc:#8fcf9a; --p-ines:#e3a6b3;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--regie)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--clair);min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block;overflow:visible}
+html.fige *,html.fige *::before,html.fige *::after{animation-play-state:paused!important}
+
+/* =====================================================================
+   Le faux écran : haut d'un MacBook, macOS 26, apparence claire
+   ===================================================================== */
+#ecran{position:relative;height:clamp(500px,calc(100vh - 236px),740px);overflow:hidden;isolation:isolate;
+  user-select:none;-webkit-user-select:none;background:#dbe4ee;transition:opacity calc(.26s*var(--k)) ease}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(70% 90% at 90% 4%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 60%),
+  radial-gradient(60% 80% at 4% 100%,rgba(248,228,210,.95) 0,rgba(248,228,210,0) 62%),
+  linear-gradient(168deg,#c6d6ea 0%,#d9e4f0 40%,#ebe8e6 74%,#f0e2d6 100%)}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ---- barre des menus ---- */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;z-index:4;
+  font-size:13.5px;color:#1d1d1f;white-space:nowrap;pointer-events:none}
+.menus,.etats{display:flex;flex-wrap:wrap;align-content:flex-start;height:33px;overflow:hidden;max-width:calc(50% - 172px)}
+.menus{column-gap:19px;padding-left:18px}
+.menus>*{height:33px;line-height:33px;font-weight:500}
+.menus>svg{height:17px;margin-top:7px;flex:none}
+.menus>b{font-weight:700}
+.etats{flex-direction:row-reverse;column-gap:15px;padding-right:15px;max-width:calc(50% - 250px)}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats svg{width:17px;height:17px;color:#1d1d1f}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* ---- fenêtres ---- */
+.fen{position:absolute;color:#1d1d1f;border-radius:13px;overflow:hidden;z-index:1;background:#fff;display:flex;flex-direction:column;pointer-events:none;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.26),0 36px 80px -20px rgba(24,36,60,.42),0 12px 26px -10px rgba(24,36,60,.22);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.fen.cache{opacity:0;transform:scale(.965)}
+.feux{position:absolute;left:15px;top:13px;display:flex;gap:8px;z-index:1}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.fen.arriere .feux i{background:#4a4a4e}
+
+/* l'app de visio (générique, sans marque) */
+.fen.visio{left:max(18px,5.2%);right:max(18px,5.2%);top:41px;bottom:16px;background:#141518;color:#ececef}
+.vi-barre{height:38px;flex:none;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;color:#d9d9de;background:#1d1e22;border-bottom:1px solid rgba(255,255,255,.06)}
+.vi-barre span{font-weight:500;color:#8b8b93}
+.vi-grille{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;padding:8px 10px}
+.tuile{position:relative;border-radius:12px;overflow:hidden;background:#222}
+.tuile>svg{position:absolute;inset:-4px;width:calc(100% + 8px);height:calc(100% + 8px);filter:blur(.7px) saturate(.92)}
+.tuile::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);transition:box-shadow .3s ease}
+.tuile.parle::after{box-shadow:inset 0 0 0 2.5px #34c759}
+.vi-nom{position:absolute;left:10px;bottom:10px;height:24px;border-radius:7px;padding:0 9px 0 7px;display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.5);font-size:12.5px;font-weight:600;color:#fff}
+.vi-bas{height:60px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;background:#1d1e22;border-top:1px solid rgba(255,255,255,.06)}
+.vi-bas .vi-t{flex:1;font-size:12.5px;font-weight:500;color:#8b8b93}
+.vi-bas .vi-mil{display:flex;gap:10px}
+.vi-b{width:40px;height:40px;border-radius:20px;background:#2c2d32;display:grid;place-items:center}
+.vi-quit{height:36px;border-radius:18px;padding:0 16px;background:#e5484d;color:#fff;font-size:13px;font-weight:600;display:grid;place-items:center}
+.vi-d{flex:1;display:flex;justify-content:flex-end}
+
+/* =====================================================================
+   L'îlot (noir, opaque) et ce qu'il affiche
+   ===================================================================== */
+.calque{position:absolute;left:calc(50% - 500px);top:0;width:1000px;height:400px;pointer-events:none}
+#forme-svg{z-index:5}
+#contenu{z-index:6}
+#encoche-svg{z-index:7}
+.c{position:absolute;color:#fff;white-space:nowrap;text-align:left;font-family:var(--sans)}
+.e{opacity:0;filter:blur(7px);transform:translateY(var(--sy,0px)) scale(.965);
+  transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
+.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+  transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+.t15{font-size:15px;line-height:19px;font-weight:600;letter-spacing:-.2px}
+.t125{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(255,255,255,.55);margin-top:3px}
+.t135{font-size:13.5px;line-height:17px;font-weight:600;letter-spacing:-.1px;font-variant-numeric:tabular-nums}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eq{display:flex;align-items:center;justify-content:space-between;width:18.4px;height:14px}
+.eq i{display:block;width:2.6px;height:14px;border-radius:1.3px;background:var(--rouge);transform:scaleY(.3);animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(1){animation-duration:.82s;animation-delay:-.3s}
+.eq i:nth-child(2){animation-duration:1.06s;animation-delay:-.7s}
+.eq i:nth-child(3){animation-duration:.74s;animation-delay:-.1s}
+.eq i:nth-child(4){animation-duration:.95s;animation-delay:-.5s}
+.eq i:nth-child(5){animation-duration:1.18s;animation-delay:-.2s}
+.eq.dort i{animation:none;transform:scaleY(.22);background:rgba(255,255,255,.4)}
+@keyframes eq{0%{transform:scaleY(.28)}22%{transform:scaleY(.95)}41%{transform:scaleY(.5)}63%{transform:scaleY(1)}82%{transform:scaleY(.36)}100%{transform:scaleY(.28)}}
+@keyframes pouls{50%{opacity:.4}}
+.epaule{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;height:17px}
+.coach{width:268px;text-align:center;font-size:14px;line-height:20px;font-weight:500;color:rgba(255,255,255,.8)}
+.coach b{color:#fff;font-weight:700}
+/* l'aile droite pendant la réunion : point rouge + temps, comme l'enregistrement sur iPhone */
+.rec{display:flex;align-items:center;gap:4px;height:14px}
+.rec-pt{width:7px;height:7px;border-radius:50%;background:var(--rouge);animation:pouls 1.4s ease-in-out infinite;flex:none}
+.rec-pt.pause{background:rgba(255,255,255,.45);animation:none}
+.chrono{display:flex;align-items:center;height:17px;font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;color:#ff6961;letter-spacing:-.1px}
+.chrono.pause{color:rgba(255,255,255,.55)}
+.minu-t{font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ambre);height:17px;display:flex;align-items:center}
+/* la bulle détachée à côté de l'îlot (deuxième activité) */
+.bulle{position:absolute;top:2px;height:29px;border-radius:14.5px;background:#000;display:flex;align-items:center;gap:6px;padding:0 11px 0 7px;
+  color:var(--ambre);font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;opacity:0;transform:scale(.4);transform-origin:0 50%;
+  transition:opacity calc(.18s*var(--k)) ease,transform calc(.42s*var(--k)) var(--ressort),left calc(.42s*var(--k)) var(--ressort)}
+.bulle.on{opacity:1;transform:none;pointer-events:auto;cursor:pointer}
+
+/* bandeaux : proposition, préparation, note prête */
+.bd{width:300px}
+.bd-haut{display:flex;align-items:center;gap:12px;height:36px}
+.bd-ic{width:36px;height:36px;border-radius:9px;flex:none;display:grid;place-items:center;background:linear-gradient(160deg,#2f8f5b,#1d6a41);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.2)}
+.bd-tx{min-width:0;flex:1}
+.bd-act{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;height:30px}
+.bt{height:30px;border-radius:15px;padding:0 13px;display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.12);font-size:13px;font-weight:600;cursor:pointer;flex:none;
+  transition:background-color .15s ease,color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.bt:hover{background:rgba(255,255,255,.2)}
+.bt.blanc{background:#fff;color:#000}
+.bt.blanc:hover{background:#e9e9ec}
+.bt.ic{padding-left:10px}
+.pt-r{width:9px;height:9px;border-radius:50%;background:var(--rouge);flex:none}
+.prep{width:280px}
+.prep-l{display:flex;align-items:baseline;justify-content:space-between}
+.prep-p{font-size:12.5px;font-weight:600;color:rgba(255,255,255,.5);font-variant-numeric:tabular-nums}
+.prep-barre{position:relative;height:6px;border-radius:3px;background:rgba(255,255,255,.16);overflow:hidden;margin-top:12px}
+.prep-barre b{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:#fff}
+.ok-rond{width:36px;height:36px;border-radius:50%;flex:none;display:grid;place-items:center;background:rgba(48,209,88,.2)}
+
+/* carte : la réunion en direct */
+.rc{width:420px}
+.rc-tete{display:flex;align-items:center;gap:8px;height:26px}
+.rc-pt{width:9px;height:9px;border-radius:50%;background:var(--rouge);animation:pouls 1.4s ease-in-out infinite;flex:none;margin-left:3px}
+.rc-t{font-size:13.5px;font-weight:600}
+.rc-h{font-size:13.5px;font-weight:600;color:#ff6961;font-variant-numeric:tabular-nums}
+.rc-app{font-size:12.5px;font-weight:500;color:rgba(255,255,255,.45)}
+.rc.pause .rc-pt{background:rgba(255,255,255,.4);animation:none}
+.rc.pause .rc-h{color:rgba(255,255,255,.55)}
+.pil{height:26px;border-radius:13px;padding:0 11px;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.12);font-size:12.5px;font-weight:600;cursor:pointer;flex:none;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.pil:hover{background:rgba(255,255,255,.2)}
+.pil.retour{padding-left:7px}
+.rc-tete .pil{margin-left:auto}
+.rc-zone{position:relative;height:152px;margin-top:10px;overflow:hidden}
+.rc-direct{position:absolute;inset:0;-webkit-mask-image:linear-gradient(transparent 0,#000 40px);mask-image:linear-gradient(transparent 0,#000 40px);transition:opacity calc(.22s*var(--k)) ease}
+.rc-liste{position:absolute;left:0;right:0;bottom:0}
+.rl{display:flex;gap:10px;padding:2px 0}
+.rl-q{flex:none;width:30px;font-size:11.5px;line-height:21px;font-weight:600;color:rgba(255,255,255,.4)}
+.rl.moi .rl-q{color:rgba(255,179,64,.8)}
+.rl-x{flex:1;min-width:0;font-family:var(--serif);font-size:15px;line-height:21px;color:rgba(255,255,255,.86);white-space:normal}
+.rl.enc .rl-x{color:rgba(255,255,255,.4)}
+.rl.neuf{animation:neuf calc(.45s*var(--k)) ease-out}
+@keyframes neuf{from{opacity:0}}
+.rl-mq{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 10px 0 8px;border-radius:11px;background:rgba(255,159,10,.16);color:#ffb340;font-size:12px;font-weight:600;margin:2px 0 2px 40px}
+.rc-vide{position:absolute;left:40px;bottom:4px;font-family:var(--serif);font-size:15px;color:rgba(255,255,255,.45)}
+.rc-rate{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity calc(.22s*var(--k)) ease}
+.rc-zone.rate .rc-direct{opacity:0}
+.rc-zone.rate .rc-rate{opacity:1;pointer-events:auto}
+.rr-t{display:flex;align-items:center;height:20px;font-size:12px;font-weight:600;color:rgba(255,255,255,.5)}
+.rr-t button{margin-left:auto;font-size:12.5px;font-weight:600;color:rgba(255,255,255,.75);cursor:pointer;display:flex;align-items:center;gap:3px}
+.rr-t button:hover{color:#fff}
+.rr-l{list-style:none;margin-top:8px}
+.rr-l li{position:relative;padding-left:15px;font-size:13.5px;line-height:19px;color:rgba(255,255,255,.92);margin-bottom:7px;white-space:normal}
+.rr-l li::before{content:"";position:absolute;left:2px;top:7px;width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.5)}
+.rr-ch{margin-top:12px}
+.rr-ch i{display:block;height:11px;border-radius:6px;margin-bottom:12px;background:linear-gradient(90deg,rgba(255,255,255,.08),rgba(255,255,255,.17),rgba(255,255,255,.08));background-size:200% 100%;animation:luit 1.1s linear infinite}
+@keyframes luit{from{background-position:100% 0}to{background-position:-100% 0}}
+.rc-zone .rr-ch,.rc-zone.pret .rr-l{display:block}
+.rc-zone .rr-l,.rc-zone.pret .rr-ch{display:none}
+.rc-pied{display:flex;align-items:center;gap:8px;margin-top:12px;height:30px}
+.bt.on{background:#fff;color:#000}
+.bt.fait{background:rgba(255,159,10,.2);color:#ffb340}
+.rond{width:30px;height:30px;border-radius:15px;background:rgba(255,255,255,.12);display:grid;place-items:center;margin-left:auto;cursor:pointer;flex:none;transition:background-color .15s ease}
+.rond:hover{background:rgba(255,255,255,.2)}
+.arret{height:30px;border-radius:15px;padding:0 14px 0 12px;display:flex;align-items:center;gap:7px;background:var(--rouge);color:#fff;font-size:13px;font-weight:600;cursor:pointer;flex:none}
+.arret:hover{filter:brightness(1.08)}
+.arret i{width:9px;height:9px;border-radius:2px;background:#fff}
+
+/* carte : le Centre (reprise de ilot-centre.html) */
+.cc{width:420px}
+.cc-tete{display:flex;align-items:center;gap:8px;height:26px}
+.punaise{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.5);opacity:0;transition:opacity .25s ease}
+.punaise.vu{opacity:1}
+.cc-ronds{display:flex;justify-content:space-around;margin-top:12px;height:96px}
+.tg{width:84px;display:flex;flex-direction:column;align-items:center;cursor:pointer;color:#fff;flex:none}
+.tg .rd{position:relative;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center;
+  transition:background-color .2s ease,box-shadow .2s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.tg:hover .rd{filter:brightness(1.18)}
+.tg b{font-size:11.5px;line-height:15px;font-weight:600;margin-top:7px;letter-spacing:-.25px}
+.tg i{font-style:normal;font-size:11.5px;line-height:14px;color:rgba(255,255,255,.55);font-weight:500;margin-top:1px}
+.tg.rouge .rd{background:var(--rouge)}
+.tg.rouge i{color:#ff6961}
+.tg.bleu .rd{background:var(--bleu)}
+.tg.bleu i{color:#5eb0ff}
+.tg.corail .rd{background:var(--corail)}
+.cc-larges{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;height:76px}
+.tl{position:relative;border-radius:20px;background:rgba(255,255,255,.1);padding:11px 14px}
+.tl-t{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600}
+.tl-caps{display:flex;gap:6px;margin-top:8px;align-items:center}
+.cap{height:28px;width:44px;border-radius:14px;background:rgba(255,255,255,.14);font-size:13px;font-weight:600;display:grid;place-items:center;cursor:pointer;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.cap:hover{background:rgba(255,255,255,.22)}
+.cap.choisi{background:var(--ambre);color:#000}
+.tl-u{font-size:12px;font-weight:500;color:rgba(255,255,255,.5);margin-left:3px}
+.tl-eta{background:transparent;border:1.5px dashed rgba(255,255,255,.3);padding:9.5px 12.5px}
+.eta-vide{font-size:12.5px;line-height:16px;color:rgba(255,255,255,.55);margin-top:12px;font-weight:500}
+.tr{position:relative;display:flex;align-items:center;gap:10px;width:100%;height:40px;margin-top:10px;border-radius:20px;padding:0 16px 0 14px;
+  background:rgba(255,255,255,.1);font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;transition:background-color .2s ease}
+.tr:hover{background:rgba(255,255,255,.15)}
+.tr-pt{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1.8px var(--rouge);background:radial-gradient(circle,var(--rouge) 0 3.6px,transparent 4.2px)}
+.tr-s{margin-left:auto;font-size:12px;font-weight:500;color:rgba(255,255,255,.5);font-variant-numeric:tabular-nums}
+.tr.on{background:rgba(255,69,58,.24)}
+.tr.on .tr-pt{background:radial-gradient(circle,var(--rouge) 0 5px,transparent 5.6px);animation:pouls 1.4s ease-in-out infinite}
+.tr.on .tr-s{color:#ff8a82}
+.pts{display:flex;flex-direction:column;gap:2px;transition:transform calc(.42s*var(--k)) var(--ressort)}
+.pts button{width:16px;height:14px;display:grid;place-items:center;cursor:pointer}
+.pts i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3);transition:background-color .2s ease,transform .2s ease}
+.pts button:hover i{background:rgba(255,255,255,.6)}
+.pts button.on i{background:#fff;transform:scale(1.1)}
+
+/* carte : les Dictées (simplifiée) */
+.dc{width:420px}
+.dc-tete{display:flex;align-items:center;gap:8px;height:30px}
+.dc-champ{flex:1;min-width:0;height:30px;border-radius:15px;background:rgba(255,255,255,.1);display:flex;align-items:center;gap:7px;padding:0 12px 0 10px;color:rgba(255,255,255,.45);font-size:13px;font-weight:500}
+.dd-liste{margin-top:6px}
+.dd-g{height:20px;padding:5px 0 0 52px;font-size:11.5px;line-height:14px;font-weight:600;color:rgba(255,255,255,.42)}
+.dd-l{display:flex;align-items:center;gap:8px;min-height:32px;padding:0 4px 0 8px;border-radius:10px;cursor:pointer;transition:background-color .12s ease}
+.dd-l:hover{background:rgba(255,255,255,.1)}
+.dd-h{width:36px;flex:none;font-size:12px;line-height:16px;font-weight:500;color:rgba(255,255,255,.42);font-variant-numeric:tabular-nums}
+.dd-x{flex:1;min-width:0;font-family:var(--serif);font-size:15px;line-height:20px;color:rgba(255,255,255,.78);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-app{min-width:44px;text-align:right;font-size:12px;font-weight:500;color:rgba(255,255,255,.42);padding-right:4px}
+
+/* =====================================================================
+   La fenêtre de Verbe, onglet Réunions : la note
+   ===================================================================== */
+.fen.vb{left:max(18px,4.2%);right:max(18px,4.2%);top:41px;bottom:12px;background:var(--pan);color:var(--ink);pointer-events:auto;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.5),0 36px 80px -20px rgba(24,36,60,.5),0 12px 26px -10px rgba(24,36,60,.3)}
+.fen.vb .feux i:first-child{cursor:pointer}
+.vb-barre{height:48px;flex:none;display:flex;align-items:center;gap:4px;padding:0 12px 0 84px;border-bottom:1px solid var(--hair)}
+.vb-barre .og{height:28px;border-radius:14px;padding:0 12px;display:grid;place-items:center;font-size:13px;font-weight:500;color:var(--ink-3)}
+.vb-barre .og.on{background:rgba(255,255,255,.1);color:var(--ink)}
+.vb-barre .esp{flex:1}
+.nb{height:28px;border-radius:14px;padding:0 12px 0 10px;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.07);font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;transition:background-color .15s ease}
+.nb:hover{background:rgba(255,255,255,.12)}
+.nb.fait{color:#8fcf9a}
+.vb-corps{flex:1;min-height:0;display:grid;grid-template-columns:236px minmax(0,1fr)}
+.vb-cote{border-right:1px solid var(--hair);padding:12px 10px;background:#171716;overflow:hidden}
+.vb-rech{height:30px;border-radius:9px;background:rgba(255,255,255,.06);display:flex;align-items:center;gap:7px;padding:0 10px;font-size:12.5px;color:var(--ink-3)}
+.vb-tous{display:flex;align-items:center;gap:8px;height:32px;margin-top:8px;padding:0 8px;border-radius:8px;font-size:12.5px;font-weight:500;color:var(--ink-2)}
+.vb-g{font-size:11px;font-weight:600;color:var(--ink-3);margin:14px 0 4px 8px}
+.vb-r{padding:7px 9px;border-radius:9px}
+.vb-r b{display:block;font-size:13px;line-height:17px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vb-r span{display:block;font-size:11.5px;line-height:15px;color:var(--ink-3);margin-top:1px}
+.vb-r.sel{background:rgba(255,255,255,.08)}
+.vb-main{position:relative;min-height:0}
+.vb-defil{position:absolute;inset:0;overflow-y:auto;scrollbar-width:none;padding:24px 40px 230px}
+.vb-defil::-webkit-scrollbar{display:none}
+.n-col{max-width:780px;margin:0 auto}
+.n-titre{font:400 29px/35px var(--serif);color:#fff;letter-spacing:-.2px}
+.n-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-top:8px;font-size:12.5px;color:var(--ink-3)}
+.n-gens{display:flex;gap:10px}
+.n-gens span{display:flex;align-items:center;gap:5px;color:var(--ink-2)}
+.n-gens i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+.n-bref{font:400 16px/25px var(--serif);color:var(--ink);margin-top:16px;max-width:700px}
+.n-grille{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:34px;align-items:start}
+.n-h{font-size:12px;font-weight:600;color:var(--ink-3);letter-spacing:.02em;margin-bottom:10px}
+.n-sujet+.n-sujet{margin-top:16px}
+.n-sujet h3{font-size:14.5px;line-height:19px;font-weight:600;color:#fff}
+.n-ul{list-style:none;margin-top:6px}
+.n-ul li{position:relative;padding-left:14px;font-size:13.5px;line-height:20px;color:var(--ink);margin-top:3px}
+.n-ul li::before{content:"";position:absolute;left:2px;top:8px;width:4.5px;height:4.5px;border-radius:50%;background:var(--ink-3)}
+.n-ul .n-ul li{font-size:13px;color:var(--ink-2)}
+.n-ul .n-ul li::before{background:transparent;box-shadow:inset 0 0 0 1px var(--ink-3)}
+.n-boite{border-radius:14px;background:var(--raised);padding:13px 14px 12px}
+.n-boite+.n-boite{margin-top:12px}
+.n-dec{display:flex;gap:8px;font-size:13px;line-height:18px;color:var(--ink);padding:5px 0}
+.n-dec svg{flex:none;margin-top:1.5px}
+.n-dec em{font-style:normal;color:var(--ink-3)}
+.n-pe{padding:7px 0;border-top:1px solid var(--hair)}
+.n-pe:first-of-type{border-top:0;padding-top:2px}
+.n-qui{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--c)}
+.n-qui i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+.n-tache{display:flex;gap:8px;margin-top:4px;font-size:13px;line-height:18px;color:var(--ink)}
+.n-case{flex:none;width:14px;height:14px;border-radius:4px;box-shadow:inset 0 0 0 1.4px var(--ink-3);margin-top:2px}
+.n-pe-l{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.n-quand{display:inline-block;font-size:11.5px;font-weight:600;color:var(--ink-2);background:rgba(255,255,255,.07);border-radius:6px;padding:1px 7px}
+.n-mq{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:#ffb340}
+.n-trans{margin-top:30px;padding-top:20px;border-top:1px solid var(--hair)}
+.n-trans-h{display:flex;align-items:center}
+.n-trans-h .n-h{margin:0}
+.n-trans-h span{margin-left:auto;font-size:12px;color:var(--ink-3)}
+.n-tour{display:block;width:100%;text-align:left;padding:7px 10px 8px;margin:4px -10px 0;border-radius:10px;cursor:pointer;transition:background-color .12s ease;position:relative}
+.n-tour:hover{background:rgba(255,255,255,.04)}
+.n-tour.joue{background:rgba(230,160,74,.12)}
+.n-tour .q{display:flex;align-items:baseline;gap:8px;font-size:12.5px;font-weight:600;color:var(--c)}
+.n-tour .q em{font-style:normal;font-weight:500;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.n-tour .x{font:400 15px/23px var(--serif);color:var(--ink);margin-top:2px}
+.n-tour .ec{position:absolute;right:10px;top:7px;display:none;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--caret)}
+.n-tour:hover .ec{display:flex}
+.n-tour.joue .ec{display:none}
+.n-tour .mini{display:none;align-items:center;gap:10px;margin-top:7px;font-size:12px;font-weight:500;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.n-tour.joue .mini{display:flex}
+.mini .jb{width:22px;height:22px;border-radius:11px;background:var(--caret);display:grid;place-items:center;flex:none}
+.mini .lb{width:220px;height:4px;border-radius:2px;background:rgba(255,255,255,.14);position:relative;overflow:hidden}
+.mini .lb b{position:absolute;left:0;top:0;bottom:0;width:38%;background:var(--caret);border-radius:2px}
+.mini em{font-style:normal}
+.n-tmq{display:flex;align-items:center;gap:7px;margin:10px 0 4px;font-size:12px;font-weight:600;color:#ffb340}
+.n-tmq::after{content:"";flex:1;height:1px;background:rgba(255,179,64,.3)}
+/* en bas : la lecture d'un moment, la réponse, le champ « Demander » */
+.n-bas{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;flex-direction:column;gap:8px;padding:30px max(32px,calc((100% - 620px) / 2)) 14px;background:linear-gradient(rgba(26,26,25,0),var(--pan) 30px)}
+.n-rep{display:none;border-radius:16px;background:var(--raised-2);padding:12px 15px 12px;box-shadow:0 0 0 .5px rgba(255,255,255,.08),0 10px 30px -10px rgba(0,0,0,.6)}
+.n-rep.vu{display:block}
+.n-rep .rq{font-size:12px;font-weight:600;color:var(--ink-3)}
+.n-rep .rx{font:400 15px/22px var(--serif);color:var(--ink);margin-top:4px;white-space:normal}
+.n-rep .rl2{display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:12.5px;font-weight:600;color:var(--caret);cursor:pointer}
+.n-rep .rpt{display:flex;gap:4px;margin-top:8px}
+.n-rep .rpt i{width:6px;height:6px;border-radius:50%;background:var(--ink-3);animation:pouls 1s ease-in-out infinite}
+.n-rep .rpt i:nth-child(2){animation-delay:-.33s}.n-rep .rpt i:nth-child(3){animation-delay:-.66s}
+.n-dem{height:44px;border-radius:22px;background:var(--raised);display:flex;align-items:center;gap:9px;padding:0 6px 0 15px;color:var(--ink-3);
+  box-shadow:0 0 0 .5px rgba(255,255,255,.1),0 12px 34px -10px rgba(0,0,0,.7);transition:box-shadow .15s ease}
+.n-dem.actif{box-shadow:0 0 0 1.5px rgba(230,160,74,.6),0 12px 34px -10px rgba(0,0,0,.7)}
+.n-dem input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--ink);font:500 14px/18px var(--sans);caret-color:var(--caret);-webkit-user-select:text;user-select:text}
+.n-dem input::placeholder{color:var(--ink-3)}
+.n-env{width:32px;height:32px;border-radius:16px;background:rgba(255,255,255,.1);display:grid;place-items:center;flex:none;cursor:pointer}
+.n-dem.plein .n-env{background:var(--ink)}
+
+/* faux pointeur */
+.pointeur{position:absolute;left:0;top:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .22s}
+.pointeur.vu{opacity:1}
+.pointeur .fleche{position:relative;width:18px;height:26px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));transform-origin:2px 2px;transition:transform .12s ease}
+.pointeur.appui .fleche{transform:scale(.86)}
+
+/* =====================================================================
+   La régie, sous la scène (reprise de ilot-centre.html)
+   ===================================================================== */
+.regie{max-width:1340px;margin:0 auto;padding:14px 28px 18px}
+.r-haut{display:grid;grid-template-columns:minmax(0,1fr) 250px auto;gap:36px;align-items:center;min-height:96px}
+.r-num{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(245,245,247,.46);font-variant-numeric:tabular-nums}
+.r-titre{font-size:21px;line-height:27px;font-weight:600;letter-spacing:-.3px;margin-top:2px}
+.r-phrase{font-size:14px;line-height:20px;color:rgba(245,245,247,.64);margin-top:4px;max-width:660px;min-height:40px}
+.r-mains{display:flex;align-items:center;gap:14px}
+.pad{position:relative;width:96px;height:62px;border-radius:12px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);flex:none}
+.pad i{position:absolute;top:30px;left:32px;width:14px;height:14px;border-radius:50%;background:var(--clair);opacity:0;transition:opacity .15s}
+.pad.un i:first-child{opacity:1}
+.r-geste{font-size:12.5px;line-height:16px;color:rgba(245,245,247,.55);min-height:32px;max-width:140px}
+.r-cmd{display:grid;grid-template-columns:auto auto;gap:10px 8px;align-items:center}
+.bouton{height:34px;padding:0 17px;border-radius:17px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s ease}
+.bouton:active{transform:scale(.95)}
+.bouton.creux{background:rgba(255,255,255,.1)}
+.bouton.creux:hover{background:rgba(255,255,255,.16)}
+.bouton.plein{background:var(--clair);color:var(--regie)}
+.bouton.plein:hover{background:#fff}
+.r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:var(--clair)}
+.r-pas{display:flex;flex-wrap:wrap;gap:2px 4px;list-style:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.r-pas button{height:30px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:8px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+.r-pas button span{font-variant-numeric:tabular-nums;opacity:.7}
+.r-pas button:hover{color:rgba(245,245,247,.8)}
+.r-pas button.ici{color:var(--clair);background:rgba(255,255,255,.09)}
+.notes{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 32px;font-size:12.5px;line-height:18px;color:rgba(245,245,247,.42)}
+.notes b{color:rgba(245,245,247,.7);font-weight:600}
+@media (max-width:900px){.r-haut{grid-template-columns:1fr;gap:16px}.n-grille{grid-template-columns:1fr}.vb-corps{grid-template-columns:1fr}.vb-cote{display:none}}
+</style>
+</head>
+<body>
+<section id="ecran" aria-label="Faux écran de MacBook, taille réelle">
+  <div class="papier" aria-hidden="true">
+    <svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMid slice">
+      <path d="M0 0H1440V190C1190 290 930 180 660 240S210 350 0 280Z" fill="#b7cbe4" opacity=".28"/>
+      <path d="M0 560C260 470 540 520 780 600S1250 720 1440 620V760H0Z" fill="#fff" opacity=".2"/>
+    </svg>
+  </div>
+
+  <!-- ===== l'app de visio (générique) ===== -->
+  <div class="fen visio" data-f="visio" aria-hidden="true">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="vi-barre">Point lancement boutique <span>· 4 participants</span></div>
+    <div class="vi-grille" id="grille"></div>
+    <div class="vi-bas">
+      <span class="vi-t">Point lancement boutique</span>
+      <span class="vi-mil" id="viBoutons"></span>
+      <span class="vi-d"><span class="vi-quit">Quitter</span></span>
+    </div>
+  </div>
+
+  <!-- ===== la fenêtre de Verbe : onglet Réunions, la note ===== -->
+  <div class="fen cache vb" data-f="verbe" aria-label="Fenêtre de Verbe, onglet Réunions">
+    <div class="feux" id="vbFermer" title="Fermer"><i></i><i></i><i></i></div>
+    <div class="vb-barre" id="vbBarre"></div>
+    <div class="vb-corps">
+      <aside class="vb-cote" id="vbCote"></aside>
+      <div class="vb-main">
+        <div class="vb-defil" id="vbDefil"><div class="n-col" id="note"></div></div>
+        <div class="n-bas">
+          <div class="n-rep" id="nRep"></div>
+          <label class="n-dem" id="nDem"><span id="nDemIc"></span><input id="nDemIn" type="text" placeholder="Demander quelque chose sur cette réunion" autocomplete="off" spellcheck="false" aria-label="Demander quelque chose sur cette réunion"><button class="n-env" id="nEnv" aria-label="Envoyer"></button></label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== barre des menus ===== -->
+  <div class="mb" aria-hidden="true"><div class="menus" id="menus"></div><div class="etats" id="etats"></div></div>
+
+  <!-- ===== l'îlot ===== -->
+  <svg id="forme-svg" class="calque" viewBox="-500 0 1000 400" aria-hidden="true"><g id="ombre"><path id="forme" fill="#000" d=""/></g></svg>
+  <div id="contenu" class="calque"></div>
+  <svg id="encoche-svg" class="calque" viewBox="-500 0 1000 400" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/>
+    <circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+
+  <div class="pointeur" id="pointeur" aria-hidden="true"><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+</section>
+
+<!-- ===== régie ===== -->
+<section class="regie">
+  <div class="r-haut">
+    <div aria-live="polite">
+      <div class="r-num" id="num"></div>
+      <h1 class="r-titre" id="titre"></h1>
+      <p class="r-phrase" id="phrase"></p>
+    </div>
+    <div class="r-mains" aria-hidden="true"><div class="pad" id="pad"><i></i><i></i></div><div class="r-geste" id="geste"></div></div>
+    <div class="r-cmd">
+      <button class="bouton creux" id="rejouer">Rejouer</button>
+      <button class="bouton plein" id="suivant">Étape suivante</button>
+      <div class="r-opts">
+        <label><input type="checkbox" id="autoCase" checked> Lecture automatique</label>
+        <label><input type="checkbox" id="lentCase"> Ralenti ×4</label>
+      </div>
+    </div>
+  </div>
+  <ol class="r-pas" id="pas"></ol>
+  <div class="notes">
+    <div><b>À essayer ici.</b> Décochez Lecture automatique, puis passez la souris sur l’îlot noir. Pendant la réunion : « Ce que j’ai raté », « Ajouter un point », pause, « Centre », Arrêter. Dans la note : un clic sur une phrase, et le champ « Demander ».</div>
+    <div><b>Ce qui change.</b> L’îlot ne disparaît plus pendant une réunion : elle devient une activité comme une autre (point rouge et temps). Le Centre, les Dictées, le minuteur, la dictée avec fn restent là. Plus de seconde fenêtre d’encoche.</div>
+    <div><b>Comme Wispr Flow.</b> En direct : « Moi » et « Eux », pas encore de noms. Après l’appel : tout est relu d’un coup, les noms arrivent, la note se range par sujets, avec décisions et prochaines étapes par personne.</div>
+  </div>
+</section>
+
+<script>
+'use strict';
+/* =========================================================
+   Constantes — 1 px CSS = 1 pt
+   ========================================================= */
+const B = 33;                 // hauteur de la barre des menus
+const HC = 90;                // demi-caméra (encoche de 180 pt)
+const NO = 154;               // îlot ouvert : épaules de 64 pt dans la barre (limite 66)
+const BW = 232;               // îlot ouvert : demi-largeur du corps (464 pt, limite 470)
+const GX = -BW + 16;          // bord gauche des cartes
+const NG = HC + 38;           // pendant la réunion : aile gauche (point rouge + onde)
+const NB = HC + 24;           // cou des bandeaux
+const HR = B + 14 + 26 + 10 + 152 + 12 + 30 + 14;                    // hauteur : la réunion en direct (291)
+const HCC = B + 14 + 26 + 12 + 96 + 10 + 76 + 10 + 40 + 14;          // hauteur : le Centre (331)
+const HPROPO = B + 12 + 36 + 12 + 30 + 14;                           // « Noter cet appel ? » (137)
+const HPREP = B + 12 + 19 + 3 + 16 + 12 + 6 + 14;                    // « Note en préparation… » (115)
+const HPRETE = B + 12 + 36 + 12;                                     // « Note prête » (93)
+const HCOACH = B + 40;
+const ORDRE = ['reunion', 'centre', 'dictees'];
+const Q = new URLSearchParams(location.search);
+const racine = document.documentElement;
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const f2 = v => Math.round(v * 100) / 100;
+const mid = t => (B - t) / 2;
+const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+let K = 1;
+const FIGE = Q.has('fige');
+const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+let REDUIT = mq.matches;
+mq.addEventListener && mq.addEventListener('change', e => { REDUIT = e.matches; });
+if (FIGE) racine.classList.add('fige');
+
+/* =========================================================
+   Forme de l'îlot (reprise de ilot-centre.html)
+   ng / nd = cou à gauche / à droite dans la barre, bw / bd = corps sous la barre, h = hauteur,
+   rs = épaule creuse en haut, rb = coin bas, rt = coin haut du corps, f = congé du cou
+   ========================================================= */
+const PORTEE = 1.6, POIGNEE = 0.18;
+function cote(g, n, bw){
+  const corps = Math.max(0, g.h - B), u = Math.min(corps, 40) / 40, e = 1 - Math.pow(1 - u, 2.5);
+  const d = Math.max(0, bw - n) * e, W = n + d, serre = 1 - clamp((n - HC) / 24, 0, 1);
+  const rs = g.rs + (4 - g.rs) * serre, rbv = lerp(g.rb + (8 - g.rb) * serre, g.rb, clamp(corps / 12, 0, 1));
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6), dispo = (1 - lam) * (g.h - rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(rbv, dispo / PORTEE, W / PORTEE));
+  return {n, W, d, fe, rte, rbe, rs};
+}
+function chemin(g){
+  const h = g.h, L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd), X = f2, Y = f2;
+  const a1 = PORTEE * L.rte, c1 = POIGNEE * a1, a2 = PORTEE * L.rbe, c2 = POIGNEE * a2;
+  const b1 = PORTEE * D.rte, d1 = POIGNEE * b1, b2 = PORTEE * D.rbe, d2 = POIGNEE * b2;
+  let p = `M${X(-L.n - L.rs)} ${Y(-1)}L${X(-L.n - L.rs)} 0Q${X(-L.n)} 0 ${X(-L.n)} ${Y(L.rs)}`;
+  if (L.d > 0.5) p += `L${X(-L.n)} ${Y(B - L.fe)}Q${X(-L.n)} ${B} ${X(-L.n - L.fe)} ${B}L${X(-L.W + a1)} ${B}C${X(-L.W + c1)} ${B} ${X(-L.W)} ${Y(B + c1)} ${X(-L.W)} ${Y(B + a1)}`;
+  p += `L${X(-L.W)} ${Y(h - a2)}C${X(-L.W)} ${Y(h - c2)} ${X(-L.W + c2)} ${Y(h)} ${X(-L.W + a2)} ${Y(h)}`;
+  p += `L${X(D.W - b2)} ${Y(h)}C${X(D.W - d2)} ${Y(h)} ${X(D.W)} ${Y(h - d2)} ${X(D.W)} ${Y(h - b2)}`;
+  if (D.d > 0.5) p += `L${X(D.W)} ${Y(B + b1)}C${X(D.W)} ${Y(B + d1)} ${X(D.W - d1)} ${B} ${X(D.W - b1)} ${B}L${X(D.n + D.fe)} ${B}Q${X(D.n)} ${B} ${X(D.n)} ${Y(B - D.fe)}`;
+  p += `L${X(D.n)} ${Y(D.rs)}Q${X(D.n)} 0 ${X(D.n + D.rs)} 0L${X(D.n + D.rs)} ${Y(-1)}Z`;
+  return p;
+}
+const CLES = ['ng', 'nd', 'bw', 'bd', 'h', 'rs', 'rb', 'rt', 'f'];
+const REPOS = {ng:HC, nd:HC, bw:HC, bd:HC, h:B, rs:4, rb:8, rt:0, f:0};                  // l'encoche seule
+const compact = (g, d) => ({ng:g, nd:d, bw:g, bd:d, h:B, rs:6, rb:10, rt:0, f:0});       // des ailes dans la barre
+const bandeau = (w, h, n, nd = n) => ({ng:n, nd, bw:w, bd:w, h, rs:6, rb:30, rt:16, f:10}); // il descend sous la barre
+$('#encoche').setAttribute('d', chemin(REPOS));
+
+/* =========================================================
+   Ressorts (réponse en s, amortissement) — interruptibles
+   ========================================================= */
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = .8; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){
+      this.attente -= dt;
+      if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; }
+    }
+    const w = 2 * Math.PI / this.rep, a = w * w * (this.cible - this.x) - 2 * this.z * w * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+(function(){   // courbe CSS « ressort » (même formule), pour les zooms d'entrée
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){
+    pts.push(x);
+    for (let s = 0, n = Math.round((T / N) / dt); s < n; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; }
+  }
+  pts[pts.length - 1] = 1;
+  racine.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+/* =========================================================
+   Glyphes (dessinés à la main, façon symboles SF)
+   ========================================================= */
+const micro = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const airpods = (t, c = '#fff') => { const b = 'M5.6 3a3.1 3.1 0 0 0-3.1 3.1v.9a3.1 3.1 0 0 0 3.1 3.1h.3v6.4a1.2 1.2 0 0 0 2.4 0V5.9A3 3 0 0 0 5.6 3z';
+  return `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><path d="${b}"/><path d="${b}" transform="matrix(-1 0 0 1 20 0)"/></svg>`; };
+const flecheBas = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.4" fill="none" stroke="${c}" stroke-width="1.7"/><path d="M10 5.4v8.2M6.6 10.4 10 13.8l3.4-3.4" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const etoile = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20">${[0, 30, 60, 90, 120, 150].map(a => `<rect x="9" y="1.5" width="2" height="17" rx="1" fill="${c}" transform="rotate(${a} 10 10)"/>`).join('')}</svg>`;
+const minuteurG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><circle cx="12" cy="13.4" r="7.6" fill="none" stroke="${c}" stroke-width="2.1"/><path d="M12 13.4V9.2M9.5 2.8h5" stroke="${c}" stroke-width="2.1" stroke-linecap="round"/></svg>`;
+const plateauG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M2.6 11.2 4.9 4.6A2 2 0 0 1 6.8 3.3h6.4a2 2 0 0 1 1.9 1.3l2.3 6.6v4a2 2 0 0 1-2 2H4.6a2 2 0 0 1-2-2z"/><path d="M2.8 11.2h4.1l1 2.2h4.2l1-2.2h4.1"/></svg>`;
+const guillemets = (t, c = '#fff') => `<svg width="${t}" height="${f2(t * .7)}" viewBox="-.45 -.3 3 2.1"><g fill="${c}"><path d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><path transform="translate(1.1 0)" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/></g></svg>`;
+const grilleG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><circle cx="6" cy="6" r="3.3"/><circle cx="14" cy="6" r="3.3"/><rect x="2.7" y="11.2" width="14.6" height="6.4" rx="3.2"/></svg>`;
+const punaiseG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><path d="M6.6 2.4h6.8l-1.2 5.2 3 3.2H4.8l3-3.2z" fill="${c}"/><path d="M10 10.6v7" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const chevG = (t, c, d = 'g') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d === 'g' ? 'M12.5 4.5 7 10l5.5 5.5' : d === 'd' ? 'M7.5 4.5 13 10l-5.5 5.5' : d === 'h' ? 'M4.5 12.5 10 7l5.5 5.5' : 'M4.5 7.5 10 13l5.5-5.5'}"/></svg>`;
+const pauseG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><rect x="4.5" y="3" width="4" height="14" rx="1.2"/><rect x="11.5" y="3" width="4" height="14" rx="1.2"/></svg>`;
+const lectureG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><path d="M5.5 3.6c0-.9 1-1.4 1.7-.9l9 6.4c.6.4.6 1.4 0 1.8l-9 6.4c-.7.5-1.7 0-1.7-.9z"/></svg>`;
+const drapeau = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 18V3"/><path d="M4.5 3.5h10.2l-2.4 3.6 2.4 3.6H4.5" fill="${c}"/></svg>`;
+const rattrape = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 10a6.6 6.6 0 1 0 2-4.7"/><path d="M3.4 2.8v3.4h3.4"/><path d="M10 6.6V10l2.4 1.6"/></svg>`;
+const loupe = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><circle cx="6.9" cy="6.9" r="4.9"/><path d="M10.6 10.6 14.2 14.2"/></svg>`;
+const coche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.6 12.8 4.6"/></svg>`;
+const cameraG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="${c}"><rect x="2.5" y="6.5" width="13" height="11" rx="2.6"/><path d="M16.5 10.6l4.2-2.6c.6-.4 1.3.1 1.3.8v6.4c0 .7-.7 1.2-1.3.8l-4.2-2.6z"/></svg>`;
+const ecranG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 13.4V8M9.6 10.2 12 7.8l2.4 2.4"/></svg>`;
+const gensG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="${c}"><circle cx="9" cy="8.5" r="3.4"/><path d="M2.8 19c.4-3.4 3-5.4 6.2-5.4s5.8 2 6.2 5.4z"/><circle cx="16.6" cy="9.2" r="2.7" opacity=".7"/><path d="M16.6 13.4c2.6 0 4.4 1.6 4.8 4.4h-4.2c-.2-1.6-.8-3-1.9-4.1.4-.2.9-.3 1.3-.3z" opacity=".7"/></svg>`;
+const envoyer = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 16V4.5M5 9.2 10 4.2l5 5"/></svg>`;
+const bulleQ = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round"><path d="M3.2 9.4c0-3.4 3-5.8 6.8-5.8s6.8 2.4 6.8 5.8-3 5.8-6.8 5.8c-.9 0-1.8-.1-2.6-.4L4 16.4l.9-3.2a5.4 5.4 0 0 1-1.7-3.8z"/></svg>`;
+const anneau = (t, part, c = 'var(--ambre)') => { const r = 6.6, L = 2 * Math.PI * r;
+  return `<svg width="${t}" height="${t}" viewBox="0 0 18 18"><circle cx="9" cy="9" r="${r}" fill="none" stroke="rgba(255,159,10,.25)" stroke-width="2.4"/><circle cx="9" cy="9" r="${r}" fill="none" stroke="${c}" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="${f2(L * part)} ${f2(L)}" transform="rotate(-90 9 9)"/></svg>`; };
+const batterie = n => `<svg width="28" height="13" viewBox="0 0 28 13"><rect width="24" height="13" rx="4" fill="#fff"/><text x="12" y="10" font-size="9.6" font-weight="700" text-anchor="middle" fill="#000" font-family="-apple-system,Helvetica,sans-serif">${n}</text><path d="M26 4.6v3.8" stroke="rgba(255,255,255,.5)" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
+const MENUS = {Visio:['Fichier', 'Édition', 'Présentation', 'Appel', 'Fenêtre', 'Aide'], Verbe:['Fichier', 'Édition', 'Présentation', 'Fenêtre', 'Aide']};
+
+/* Icônes de la barre des menus, de la droite vers la gauche */
+(function(){
+  const s = d => `<span><svg viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg></span>`;
+  $('#etats').innerHTML = '<span class="heure" id="heure">Mer. 11 nov.&nbsp; 14:02</span>' +
+    s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
+    s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
+    s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>';
+})();
+const heure = h => { $('#heure').innerHTML = 'Mer. 11 nov.&nbsp; ' + h; };
+
+/* =========================================================
+   La visio : quatre vignettes dessinées (personnes inventées)
+   ========================================================= */
+function personne(p){
+  const long = p.long ? `<path d="M128 84c-2 40 6 64 12 74h40c6-10 14-34 12-74z" fill="${p.ch}"/>` : '';
+  return `<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
+    <defs><linearGradient id="f${p.id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${p.a}"/><stop offset="1" stop-color="${p.b}"/></linearGradient>
+    <radialGradient id="l${p.id}" cx="${p.lx}" cy="20%" r="60%"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
+    <rect width="320" height="180" fill="url(#f${p.id})"/><rect width="320" height="180" fill="url(#l${p.id})"/>
+    ${p.decor}
+    ${long}
+    <path d="M86 182c4-34 34-50 74-50s70 16 74 50z" fill="${p.haut}"/>
+    <rect x="148" y="108" width="24" height="28" rx="8" fill="${p.peau}" filter="brightness(.9)"/>
+    <ellipse cx="160" cy="88" rx="26" ry="31" fill="${p.peau}"/>
+    <g fill="#2a1d16" opacity=".6"><ellipse cx="150" cy="88" rx="2.6" ry="2"/><ellipse cx="170" cy="88" rx="2.6" ry="2"/></g>
+    <path d="M144.5 81.5q5.5-2.4 10 0M165.5 81.5q5-2.4 10 0" stroke="${p.ch}" stroke-width="2" fill="none" stroke-linecap="round" opacity=".75"/>
+    <path d="M160 92.5q-1.6 5.4 1.2 6.2" stroke="#000" stroke-width="1.4" fill="none" opacity=".14" stroke-linecap="round"/>
+    <path d="M152.5 105q7.5 4.2 15 0" stroke="#7a3f33" stroke-width="2" fill="none" stroke-linecap="round" opacity=".55"/>
+    <path d="M133 86c-2-26 12-38 27-38s30 10 27 38c-4-14-14-20-27-20s-23 6-27 20z" fill="${p.ch}"/>
+  </svg>`;
+}
+const GENS = [
+  {id:'claire', nom:'Claire Morel', a:'#3e5163', b:'#26313b', lx:'80%', peau:'#e7bea3', ch:'#4a2f22', haut:'#c9ced6', long:true,
+   decor:'<rect x="22" y="40" width="80" height="5" rx="2" fill="#fff" opacity=".1"/><rect x="30" y="22" width="16" height="18" rx="2" fill="#fff" opacity=".08"/><rect x="52" y="16" width="12" height="24" rx="2" fill="#fff" opacity=".07"/>'},
+  {id:'marc', nom:'Marc Lefèvre', a:'#4b4339', b:'#2b2620', lx:'20%', peau:'#c99172', ch:'#2a211b', haut:'#3c5a7a',
+   decor:'<rect x="236" y="28" width="56" height="74" rx="3" fill="#000" opacity=".18"/><rect x="242" y="34" width="44" height="62" rx="2" fill="#d7c39a" opacity=".22"/>'},
+  {id:'ines', nom:'Inès Garnier', a:'#3c5248', b:'#22302a', lx:'60%', peau:'#f0caae', ch:'#b07a45', haut:'#e1d7c6', long:true,
+   decor:'<circle cx="270" cy="60" r="26" fill="#5c8a63" opacity=".35"/><rect x="262" y="84" width="16" height="30" rx="3" fill="#000" opacity=".2"/>'},
+  {id:'moi', nom:'Moi', a:'#45474f', b:'#2a2b31', lx:'40%', peau:'#d9a98a', ch:'#1f1a17', haut:'#2f3238',
+   decor:'<rect x="0" y="120" width="320" height="60" fill="#000" opacity=".12"/>'}
+];
+$('#grille').innerHTML = GENS.map(p => `<div class="tuile" data-p="${p.id}">${personne(p)}<span class="vi-nom">${p.id === 'moi' ? micro(13, '#fff') : ''}${p.nom}</span></div>`).join('');
+$('#viBoutons').innerHTML = [micro(19, '#fff'), cameraG(19), ecranG(19), gensG(19)].map(g => `<span class="vi-b">${g}</span>`).join('');
+const parle = qui => document.querySelectorAll('.tuile').forEach(t => t.classList.toggle('parle', t.dataset.p === qui));
+
+/* =========================================================
+   Les textes (tout est inventé)
+   ========================================================= */
+// le direct : ce que Verbe entend, « Moi » (le micro) et « Eux » (le son du Mac), sans les noms
+const DIRECT0 = [
+  {q:'eux', x:'Bon, la page d’accueil me va.'},
+  {q:'eux', x:'Je changerais juste la couleur du bouton, il se voit mal sur téléphone.'},
+  {q:'moi', x:'D’accord, on garde le vert de la marque alors.'},
+  {q:'eux', x:'Pour la mise en ligne, le 2 décembre…', enc:true}
+];
+const SUITE = [
+  {fin:'Pour la mise en ligne, le 2 décembre, c’est faisable de mon côté.'},
+  {q:'eux', x:'À condition d’avoir tous les textes avant le 25.'},
+  {q:'moi', x:'Je m’occupe des fiches produits, je te les envoie lundi.'}
+];
+const RATE = ['Claire valide la page d’accueil, seul le bouton change de couleur.',
+  'Marc peut mettre le site en ligne le 2 décembre, si les textes arrivent avant le 25.',
+  'Tu as dit que tu enverrais les fiches produits lundi.'];
+// la note, après l'appel : tout relu d'un coup, avec les noms
+const P = {moi:['Moi', 'var(--p-moi)'], claire:['Claire Morel', 'var(--p-claire)'], marc:['Marc Lefèvre', 'var(--p-marc)'], ines:['Inès Garnier', 'var(--p-ines)']};
+const TRANS = [
+  {q:'claire', h:'14:13', x:'Bon, la page d’accueil me va. Je changerais juste la couleur du bouton « Commander », il se voit mal sur téléphone.'},
+  {q:'moi', x:'D’accord, on garde le vert de la marque alors, il ressort mieux.'},
+  {q:'marc', h:'14:14', x:'Pour la mise en ligne, le 2 décembre, c’est faisable de mon côté. À condition d’avoir tous les textes avant le 25.'},
+  {q:'moi', x:'Je m’occupe des fiches produits. Je te les envoie lundi.'},
+  {mq:'14:15'},
+  {q:'ines', h:'14:15', x:'Parfait. Et pour les photos, je préfère qu’on fasse une seule séance à l’atelier, plutôt que deux.'},
+  {q:'claire', x:'Oui, les photos actuelles sont trop sombres, surtout pour les tasses.'},
+  {q:'ines', h:'14:16', id:'photo', x:'Je réserve la séance avant le 20 et je vous dis le jour demain.'},
+  {q:'marc', x:'Et le paiement en trois fois, on le met dès le lancement ?'},
+  {q:'moi', h:'14:17', x:'Non, après. On lance simple, on l’ajoute en janvier.'}
+];
+const REPONSES = {
+  photo:{q:'Qui s’occupe des photos ?', x:'Inès. Elle réserve une seule séance photo à l’atelier avant le 20 novembre et donne le jour demain.', a:'photo', h:'14:16'},
+  date:{q:'Quand le site sort-il ?', x:'Le mercredi 2 décembre, si Marc a tous les textes avant le 25 novembre.', a:2, h:'14:14'},
+  rien:{q:'', x:'Je n’ai rien trouvé là-dessus dans cette réunion.'}
+};
+
+/* =========================================================
+   Ce que l'îlot affiche : [nom, x (depuis le centre), y, html]
+   ========================================================= */
+const CARTE_REUNION = `<div class="rc" id="rc">
+  <div class="rc-tete"><span class="rc-pt"></span><span class="rc-t" id="rcT">Réunion</span><span class="rc-h" id="rcH">0:00</span><span class="rc-app">· Visio</span>
+    <button class="pil" data-act="centre">${grilleG(14)}Centre</button></div>
+  <div class="rc-zone" id="rcZone">
+    <div class="rc-direct"><div class="rc-liste" id="rcListe"></div></div>
+    <div class="rc-rate"><div class="rr-t">Ces 5 dernières minutes<button data-act="direct">Retour au direct${chevG(11, 'currentColor', 'd')}</button></div>
+      <div class="rr-ch"><i style="width:92%"></i><i style="width:78%"></i><i style="width:64%"></i></div>
+      <ul class="rr-l">${RATE.map(r => `<li>${r}</li>`).join('')}</ul></div>
+  </div>
+  <div class="rc-pied">
+    <button class="bt ic" data-act="rate" id="btRate">${rattrape(15, 'currentColor')}Ce que j’ai raté</button>
+    <button class="bt ic" data-act="point" id="btPoint">${drapeau(14, 'currentColor')}<span id="btPointT">Ajouter un point</span></button>
+    <button class="rond" data-act="pause" id="btPause" aria-label="Pause">${pauseG(14)}</button>
+    <button class="arret" data-act="arreter" id="btArret"><i></i>Arrêter</button>
+  </div>
+</div>`;
+const tuile = (t, b) => `<button class="tg" data-t="${t}"><span class="rd"><span class="gl"></span></span><b>${b}</b><i></i></button>`;
+const CARTE_CENTRE = `<div class="cc" id="cc">
+  <div class="cc-tete">
+    <button class="pil retour" data-act="reunion" id="ccRetour">${chevG(13, '#fff', 'g')}Réunion</button>
+    <span class="punaise" id="punaise">${punaiseG(12, 'rgba(255,255,255,.5)')}Reste ouvert</span>
+    <button class="pil" data-act="dictees" id="versDictees">${guillemets(12)}Dictées</button>
+  </div>
+  <div class="cc-ronds">${tuile('micro', 'Micro')}${tuile('dictee', 'Dictée')}${tuile('dl', 'Téléchargements')}${tuile('claude', 'Claude Code')}</div>
+  <div class="cc-larges">
+    <div class="tl"><div class="tl-t">${minuteurG(17, 'var(--ambre)')}Minuteur</div>
+      <div class="tl-caps"><button class="cap" data-min="5">5</button><button class="cap" data-min="10">10</button><button class="cap" data-min="25">25</button><span class="tl-u">min</span></div></div>
+    <div class="tl tl-eta"><div class="tl-t">${plateauG(17, '#5eb0ff')}Étagère</div><div class="eta-vide">Glisse un fichier ici</div></div>
+  </div>
+  <button class="tr" data-act="reunion" id="reunionBt"><span class="tr-pt"></span><span id="reunionT">Noter la réunion</span><span class="tr-s" id="reunionS">Verbe écrit tout ce qui se dit</span></button>
+</div>`;
+const DICTEES = [['14:12', 'Je serai en retard de dix minutes, commencez sans moi.', 'Messages'], ['13:50', 'Ajoute une section installation dans le README.', 'Terminal'],
+  ['11:27', 'Bonjour Madame Martin, je vous confirme le rendez-vous de mardi.', 'Mail'], ['10:04', 'Liste de courses : pain, œufs, café, lessive.', 'Notes']];
+const CARTE_DICTEES = `<div class="dc" id="dc">
+  <div class="dc-tete"><button class="pil retour" data-act="centre">${chevG(13, '#fff', 'g')}Centre</button><span class="dc-champ">${loupe(14, 'currentColor')}Rechercher</span></div>
+  <div class="dd-liste"><div class="dd-g">Aujourd’hui</div>${DICTEES.map(([h, x, a]) => `<div class="dd-l"><span class="dd-h">${h}</span><span class="dd-x">${x}</span><span class="dd-app">${a}</span></div>`).join('')}</div>
+</div>`;
+const CONTENUS = [
+  ['rec', -(HC + 34), mid(14), '<span class="rec"><b class="rec-pt" id="recPt"></b><div class="eq" id="recEq"><i></i><i></i><i></i><i></i><i></i></div></span>'],
+  ['chrono', HC + 9, mid(17), '<span class="chrono" id="chrono"><span id="chronoT">0:00</span></span>'],
+  ['coach', -134, B + 10, '<div class="coach"><b>Survole</b> pour lire en direct</div>'],
+  ['minuG', -(HC + 30), mid(18), '<span id="minuG"></span>'],
+  ['minuD', HC + 9, mid(17), '<span class="minu-t" id="minuD">0:00</span>'],
+  ['propo', -150, B + 12, `<div class="bd">
+     <div class="bd-haut"><span class="bd-ic">${cameraG(20)}</span><div class="bd-tx"><div class="t15">Noter cet appel ?</div><div class="t125">Visio utilise le micro</div></div></div>
+     <div class="bd-act"><button class="bt" data-act="plusTard">Plus tard</button><button class="bt blanc ic" data-act="noter" id="btNoter"><span class="pt-r"></span>Noter</button></div></div>`],
+  ['prep', -140, B + 12, `<div class="prep">
+     <div class="prep-l"><span class="t15">Note en préparation…</span><span class="prep-p" id="prepP">0 %</span></div>
+     <div class="t125" id="prepT">Relecture de tout l’appel</div>
+     <div class="prep-barre"><b id="prepB" style="width:0%"></b></div></div>`],
+  ['prete', -150, B + 12, `<div class="bd"><div class="bd-haut"><span class="ok-rond">${coche(18, '#5fe08a')}</span>
+     <div class="bd-tx"><div class="t15">Note prête</div><div class="t125 ell">Boutique en ligne · 29 min</div></div>
+     <button class="bt blanc" data-act="ouvrir" id="btOuvrir">Ouvrir</button></div></div>`],
+  ['batt', -NO + 13, mid(13), `<span class="epaule">${batterie(64)}</span>`],
+  ['airp', HC + 8, mid(17), `<span class="epaule">${airpods(15)}78 %</span>`],
+  ['reunion', GX, B + 14, CARTE_REUNION],
+  ['centre', GX, B + 14, CARTE_CENTRE],
+  ['dictees', GX, B + 14, CARTE_DICTEES],
+  ['points', BW - 23, 0, '<div class="pts" id="pts"><button data-act="reunion" aria-label="La réunion"><i></i></button><button data-act="centre" aria-label="Le Centre"><i></i></button><button data-act="dictees" aria-label="Les dictées"><i></i></button></div>']
+];
+const contenu = $('#contenu');
+contenu.innerHTML = CONTENUS.map(([nom, x, y, html]) => `<div class="c e" data-c="${nom}" style="left:${f2(500 + x)}px;top:${f2(y)}px">${html}</div>`).join('') +
+  '<div class="bulle" id="bulle" aria-label="Minuteur"></div>';
+const c = {}; contenu.querySelectorAll('[data-c]').forEach(n => c[n.dataset.c] = n);
+const tg = t => contenu.querySelector(`.tg[data-t="${t}"]`);
+const bulle = $('#bulle');
+
+/* =========================================================
+   L'état de Verbe
+   ========================================================= */
+const st = {};
+const MINU0 = 1500;
+function remettre(){
+  Object.assign(st, {phase:'avant', carte:null, t:0, pause:false, minu:0, choix:0, lignes:[], rate:false, pointFait:false, punaise:false,
+    micCoupe:false, dictee:'airpods', dl:false, claude:true, prep:0, ecoute:null, rep:null, question:'', demActif:false, copie:false, export:false});
+}
+const enReunion = () => st.phase === 'rec';
+const ndRec = () => Math.min(HC + 60, HC + 9 + c.chrono.firstElementChild.offsetWidth + 8);
+const ndMinu = () => Math.min(HC + 60, HC + 9 + $('#minuD').offsetWidth + 9);
+const REC = () => compact(NG, ndRec());
+const COACH = () => ({ng:NG, nd:ndRec(), bw:150, bd:150, h:HCOACH, rs:6, rb:30, rt:16, f:10});
+const MINU = () => compact(NG, ndMinu());
+const PROPO = () => bandeau(166, HPROPO, NB);
+const PREP = () => bandeau(156, HPREP, NB);
+const PRETE = () => bandeau(166, HPRETE, NB);
+const HAUTEUR = {reunion:() => HR, centre:() => HCC, dictees:() => B + 14 + $('#dc').offsetHeight + 14};
+const FORME = carte => bandeau(BW, HAUTEUR[carte](), NO);
+
+function majChrono(){
+  $('#chronoT').textContent = fmt(st.t);
+  $('#chrono').classList.toggle('pause', st.pause);
+  $('#recEq').classList.toggle('dort', st.pause); $('#recPt').classList.toggle('pause', st.pause);
+  $('#rcH').textContent = fmt(st.t);
+  $('#rcT').textContent = st.pause ? 'En pause' : 'Réunion';
+  $('#rc').classList.toggle('pause', st.pause);
+  $('#btPause').innerHTML = st.pause ? lectureG(14) : pauseG(14);
+  $('#btPause').setAttribute('aria-label', st.pause ? 'Reprendre' : 'Pause');
+  $('#reunionBt').classList.toggle('on', enReunion());
+  $('#reunionT').textContent = enReunion() ? 'Réunion en cours' : 'Noter la réunion';
+  $('#reunionS').textContent = enReunion() ? fmt(st.t) + ' · voir le direct' : 'Verbe écrit tout ce qui se dit';
+  $('#ccRetour').style.display = enReunion() ? '' : 'none';
+  const part = st.choix ? st.minu / (st.choix * 60) : 0;
+  $('#minuG').innerHTML = anneau(18, part);
+  $('#minuD').textContent = fmt(st.minu);
+  bulle.innerHTML = anneau(16, part) + fmt(st.minu);
+}
+function majCentre(pop){
+  const pose = (t, cl, gl, sous) => {
+    const n = tg(t); n.className = 'tg ' + cl; n.querySelector('.gl').innerHTML = gl; n.querySelector('i').textContent = sous;
+    if (pop === t && !instant && !REDUIT) n.querySelector('.rd').animate([{transform:'scale(1)'}, {transform:'scale(.86)'}, {transform:'scale(1.06)'}, {transform:'scale(1)'}], {duration:380 * K, easing:'ease-out'});
+  };
+  pose('micro', st.micCoupe ? 'rouge' : '', micro(24, '#fff'), st.micCoupe ? 'Coupé' : 'Ouvert');
+  pose('dictee', '', airpods(24), 'AirPods');
+  pose('dl', st.dl ? 'bleu' : '', flecheBas(24), st.dl ? 'Allumé' : 'Éteint');
+  pose('claude', st.claude ? 'corail' : '', etoile(22, '#fff'), st.claude ? 'Prêt' : 'Éteint');
+  contenu.querySelectorAll('.cap').forEach(b => b.classList.toggle('choisi', st.minu > 0 && +b.dataset.min === st.choix));
+  $('#punaise').classList.toggle('vu', st.punaise);
+  majChrono();
+}
+
+/* le direct : la liste glisse vers le haut quand une ligne arrive ou grandit */
+const echap = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+function majDirect(anime, neuve){
+  const l = $('#rcListe'), h0 = l.offsetHeight;
+  l.innerHTML = st.lignes.length ? st.lignes.map((d, i) => d.mq
+    ? `<div class="rl mq${neuve === i && !instant ? ' neuf' : ''}"><span class="rl-mq">${drapeau(12, 'currentColor')}Point ajouté · ${d.mq}</span></div>`
+    : `<div class="rl ${d.q}${d.enc ? ' enc' : ''}${neuve === i && !instant ? ' neuf' : ''}"><span class="rl-q">${d.q === 'moi' ? 'Moi' : 'Eux'}</span><span class="rl-x">${echap(d.x)}</span></div>`).join('')
+    : '<div class="rc-vide">J’écoute… les phrases arrivent ici.</div>';
+  if (!anime || instant || REDUIT) return;
+  const dh = l.offsetHeight - h0;
+  if (dh <= 0) return;
+  l.getAnimations().forEach(a => a.cancel());
+  l.animate([{transform:`translateY(${dh}px)`}, {transform:'none'}], {duration:420 * K, easing:'cubic-bezier(.2,.8,.25,1)'});
+}
+function majRate(){
+  const z = $('#rcZone');
+  z.classList.toggle('rate', !!st.rate);
+  z.classList.toggle('pret', st.rate === 'oui');
+  $('#btRate').classList.toggle('on', !!st.rate);
+  $('#btPoint').classList.toggle('fait', st.pointFait);
+  $('#btPointT').textContent = st.pointFait ? 'Point ajouté' : 'Ajouter un point';
+}
+
+/* =========================================================
+   La note (fenêtre de Verbe, onglet Réunions)
+   ========================================================= */
+const qui = (k, lbl) => `<span class="n-qui" style="--c:${P[k][1]}"><i></i>${lbl || P[k][0]}</span>`;
+$('#vbBarre').innerHTML = ['Dictées', 'Journée', 'Réunions', 'Mots', 'Réglages'].map(o => `<span class="og${o === 'Réunions' ? ' on' : ''}">${o}</span>`).join('') +
+  `<span class="esp"></span><button class="nb" id="nCopier">${coche(13, 'currentColor')}<span>Copier</span></button><button class="nb" id="nExporter">${flecheBas(14, 'currentColor')}<span>Exporter</span></button>`;
+$('#nCopier').firstElementChild.style.display = 'none';
+$('#vbCote').innerHTML = `<div class="vb-rech">${loupe(13, 'currentColor')}Rechercher dans les réunions</div>
+  <div class="vb-tous">${bulleQ(15, 'currentColor')}Demander à mes réunions</div>
+  <div class="vb-g">Aujourd’hui</div><div class="vb-r sel"><b>Lancement de la boutique en ligne</b><span>14:02 · 29 min · 4 personnes</span></div>
+  <div class="vb-g">Lundi 9 novembre</div><div class="vb-r"><b>Point fournisseur emballages</b><span>10:30 · 18 min · 2 personnes</span></div>
+  <div class="vb-g">Jeudi 5 novembre</div><div class="vb-r"><b>Appel avec la comptable</b><span>16:00 · 42 min · 2 personnes</span></div>
+  <div class="vb-r"><b>Visite de l’atelier</b><span>9:15 · 25 min · 3 personnes</span></div>`;
+const dec = (x, q) => `<div class="n-dec">${coche(14, '#8fcf9a')}<span>${x}${q ? ` <em>· ${q}</em>` : ''}</span></div>`;
+const pe = (k, x, q) => `<div class="n-pe"><div class="n-pe-l">${qui(k)}<span class="n-quand">${q}</span></div><div class="n-tache"><span class="n-case"></span><span>${x}</span></div></div>`;
+$('#note').innerHTML = `
+  <div class="n-grille">
+    <div>
+      <h2 class="n-titre">Lancement de la boutique en ligne</h2>
+      <div class="n-meta"><span>Mercredi 11 novembre · 14:02 – 14:31 · 29 min</span>
+        <span class="n-gens">${['claire', 'marc', 'ines', 'moi'].map(k => `<span style="--c:${P[k][1]}"><i></i>${P[k][0]}</span>`).join('')}</span></div>
+      <p class="n-bref">La page d’accueil est validée et le site sortira le 2 décembre, à condition que les textes arrivent avant le 25 novembre.</p>
+      <div class="n-h" style="margin-top:22px">Résumé par sujet</div>
+      <div class="n-sujet"><h3>Page d’accueil</h3><ul class="n-ul">
+        <li>Claire valide la maquette, seul le bouton « Commander » change de couleur
+          <ul class="n-ul"><li>On garde le vert de la marque, plus lisible sur téléphone</li></ul></li>
+        <li>Les avis clients passent sous les photos</li></ul></div>
+      <div class="n-sujet"><h3>Date de mise en ligne</h3><ul class="n-ul">
+        <li>Marc peut mettre le site en ligne le mercredi 2 décembre
+          <ul class="n-ul"><li>À une condition : tous les textes avant le 25 novembre</li></ul></li>
+        <li>Paiement en trois fois ajouté après le lancement, en janvier</li></ul></div>
+      <div class="n-sujet"><h3>Photos et fiches produits</h3><ul class="n-ul">
+        <li>40 produits à photographier, les photos actuelles sont trop sombres</li>
+        <li>Une seule séance à l’atelier plutôt que deux</li></ul></div>
+      <div class="n-sujet"><h3>Point marqué pendant l’appel</h3>
+        <div class="n-mq" style="margin-top:6px">${drapeau(13, 'currentColor')}14:15 · juste après « tous les textes avant le 25 »</div></div>
+    </div>
+    <div>
+      <div class="n-boite"><div class="n-h">Décisions</div>
+        ${dec('Mise en ligne le 2 décembre', 'textes avant le 25')}${dec('Bouton « Commander » en vert')}${dec('Paiement en trois fois en janvier')}</div>
+      <div class="n-boite"><div class="n-h">Prochaines étapes</div>
+        ${pe('moi', 'Écrire les 40 fiches produits, les envoyer à Marc', 'lun. 16 nov.')}
+        ${pe('claire', 'Passer le bouton en vert sur la maquette', 'ven. 13 nov.')}
+        ${pe('ines', 'Réserver la séance photo à l’atelier', 'avant le 20 nov.')}
+        ${pe('marc', 'Mettre le site en ligne', 'mer. 2 déc.')}</div>
+    </div>
+  </div>
+  <div class="n-trans" id="nTrans">
+    <div class="n-trans-h"><div class="n-h">Transcription</div><span>Un clic sur une phrase la fait réécouter</span></div>
+    ${TRANS.map((t, i) => t.mq ? `<div class="n-tmq">${drapeau(12, 'currentColor')}Point marqué · ${t.mq}</div>`
+      : `<button class="n-tour" data-i="${i}" style="--c:${P[t.q][1]}"><span class="q">${P[t.q][0]}${t.h ? `<em>${t.h}</em>` : ''}</span><div class="x">${t.x}</div><span class="ec">${lectureG(10, 'currentColor')}Écouter</span><span class="mini"><span class="jb">${pauseG(10, '#1a1a19')}</span><span class="lb"><b></b></span><em>0:03 / 0:08</em></span></button>`).join('')}
+  </div>`;
+$('#nDemIc').innerHTML = bulleQ(17, 'currentColor');
+function majNote(){
+  document.querySelectorAll('.n-tour').forEach(b => b.classList.toggle('joue', +b.dataset.i === st.ecoute));
+  const r = $('#nRep');
+  r.classList.toggle('vu', !!st.rep);
+  if (st.rep === 'attente') r.innerHTML = `<div class="rq">${echap(st.question)}</div><div class="rpt"><i></i><i></i><i></i></div>`;
+  else if (st.rep){ const R = REPONSES[st.rep];
+    r.innerHTML = `<div class="rq">${echap(st.question || R.q)}</div><div class="rx">${R.x}</div>${R.h ? `<button class="rl2" data-aller="${R.a}">${lectureG(10, 'currentColor')}Écouter à ${R.h}${chevG(11, 'currentColor', 'd')}</button>` : ''}`; }
+  const d = $('#nDem'), inp = $('#nDemIn');
+  if (inp.value !== st.question && document.activeElement !== inp) inp.value = st.question;
+  d.classList.toggle('actif', st.demActif);
+  d.classList.toggle('plein', !!st.question);
+  $('#nEnv').innerHTML = envoyer(15, st.question ? '#1a1a19' : 'var(--ink-3)');
+  $('#nCopier').classList.toggle('fait', st.copie);
+  $('#nCopier').firstElementChild.style.display = st.copie ? '' : 'none';
+  $('#nCopier').lastElementChild.textContent = st.copie ? 'Copiée' : 'Copier';
+  $('#nExporter').lastElementChild.textContent = st.export ? 'Enregistrée dans Documents' : 'Exporter';
+}
+const indexPhoto = TRANS.findIndex(t => t.id === 'photo');
+function repondre(texte){
+  const t = texte.toLowerCase();
+  return /photo/.test(t) ? 'photo' : /(quand|date|sort|ligne)/.test(t) ? 'date' : 'rien';
+}
+
+/* =========================================================
+   Minuteries et attentes annulables (reprises de ilot-centre.html)
+   ========================================================= */
+let jeton = 0, instant = false, enCoursN = 0, cibleN = 0, auto = false;
+const minuteries = new Set();
+function apres(t, fn){ const id = setTimeout(() => { minuteries.delete(id); fn(); }, t * 1000 * K); minuteries.add(id); return id; }
+function annuler(){ minuteries.forEach(clearTimeout); minuteries.clear(); }
+function suite(){ const j = jeton; return Promise.resolve().then(() => { if (j !== jeton) throw 'stop'; }); }
+function attendre(t){
+  if (instant) return suite();
+  const j = jeton;
+  return new Promise((ok, ko) => apres(t, () => (j === jeton ? ok() : ko('stop'))));
+}
+function tween(duree, fn){
+  if (instant){ fn(1); return suite(); }
+  const j = jeton, t0 = performance.now();
+  return new Promise((ok, ko) => {
+    const pas = () => {
+      if (j !== jeton) return ko('stop');
+      const u = clamp((performance.now() - t0) / (duree * 1000 * K), 0, 1);
+      fn(u);
+      if (u < 1) requestAnimationFrame(pas); else ok();
+    };
+    pas();
+  });
+}
+const fin = () => instant && enCoursN === cibleN;
+const facile = u => 1 - Math.pow(1 - u, 3);
+const douce = u => u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+
+/* =========================================================
+   L'îlot : ressorts, forme, contenu
+   ========================================================= */
+const forme = $('#forme'), ombre = $('#ombre');
+const R = {}; CLES.forEach(k => R[k] = new Ressort(REPOS[k]));
+const TOUS = CLES.map(k => R[k]);
+let cible = {...REPOS}, enCours = false, tPrec = 0;
+function ilot(g, o = {}){
+  const grand = (g.bw + g.bd) * g.h >= (cible.bw + cible.bd) * cible.h - .5;
+  const rep = o.rep ?? (grand ? .46 : .38), z = o.z ?? (grand ? .78 : 1), att = o.attente ?? (grand ? 0 : .06);
+  cible = {...g};
+  for (const k of CLES){
+    if (instant) R[k].poser(g[k]);
+    else { const haut = k === 'h' && grand; R[k].viser(g[k], haut ? rep * 1.06 : rep, z, att + (haut ? .02 : 0)); }
+  }
+  demarrer();
+}
+function montre(noms, d = .14){
+  const vus = new Set(noms);
+  for (const nom in c){
+    const n = c[nom], on = vus.has(nom);
+    if (on && !n.classList.contains('on')) n.style.setProperty('--d', d + 's');
+    n.classList.toggle('on', on);
+  }
+}
+function demarrer(){
+  if (FIGE || instant){ rendu(); return; }
+  if (!enCours){ enCours = true; tPrec = performance.now(); requestAnimationFrame(boucle); }
+}
+function boucle(){
+  const t = performance.now(), dt = clamp((t - tPrec) / 1000, 0, .05) / K; tPrec = t;
+  const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+  for (let i = 0; i < n; i++) for (const r of TOUS) r.pas(h);
+  let bouge = false;
+  for (const r of TOUS) if (!r.pose()) bouge = true;
+  rendu();
+  if (bouge) requestAnimationFrame(boucle); else enCours = false;
+}
+function rendu(){
+  const g = {}; for (const k of CLES) g[k] = R[k].x;
+  forme.setAttribute('d', chemin(g));
+  const a = clamp((g.h - B - 6) / 40, 0, 1);
+  ombre.style.filter = a > .01 ? `drop-shadow(0 ${(9 * a).toFixed(1)}px ${(18 * a).toFixed(1)}px rgba(10,20,40,${(.32 * a).toFixed(3)}))` : 'none';
+}
+/* la bulle : la deuxième activité (ici le minuteur), à droite de l'îlot, tant que la réunion ou un bandeau a l'îlot */
+function majBulle(){
+  const vu = st.minu > 0 && !st.carte && ['rec', 'prep', 'prete'].includes(st.phase);
+  if (vu) bulle.style.left = f2(500 + Math.max(cible.nd, cible.h > B + 1 ? cible.bd : 0) + 10) + 'px';
+  bulle.classList.toggle('on', vu);
+}
+function points(carte){
+  const h = HAUTEUR[carte](), pts = $('#pts');
+  pts.style.transform = `translateY(${f2(B + (h - B) / 2 - 22)}px)`;
+  pts.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.act === carte));
+  pts.firstElementChild.style.display = enReunion() ? '' : 'none';
+}
+const OUVERT = carte => ['batt', 'airp', carte, 'points'];
+function ouvrir(carte){                       // depuis l'îlot replié
+  st.carte = carte;
+  montre([], 0);
+  ilot(FORME(carte));
+  montre(OUVERT(carte), .14);
+  points(carte); majBulle();
+}
+function changer(carte){                      // d'une carte à l'autre, îlot ouvert
+  if (!st.carte){ ouvrir(carte); return; }
+  if (st.carte === carte) return;
+  const bas = ORDRE.indexOf(carte) > ORDRE.indexOf(st.carte), vient = c[carte], part = c[st.carte];
+  vient.style.transition = 'none'; vient.style.setProperty('--sy', (bas ? 26 : -26) + 'px'); void vient.offsetWidth; vient.style.transition = '';
+  part.style.setProperty('--sy', (bas ? -26 : 26) + 'px');
+  st.carte = carte;
+  ilot(FORME(carte));
+  montre(OUVERT(carte), .1);
+  points(carte); majCentre();
+}
+function replier(){                           // l'îlot se range, selon ce qui se passe
+  st.carte = null; st.punaise = false; majCentre();
+  montre([], 0);
+  const p = st.phase;
+  if (p === 'propo'){ ilot(PROPO()); montre(['propo'], .16); }
+  else if (p === 'rec'){ ilot(REC()); montre(['rec', 'chrono'], .16); }
+  else if (p === 'prep'){ ilot(PREP()); montre(['prep'], .16); }
+  else if (p === 'prete'){ ilot(PRETE()); montre(['prete'], .16); }
+  else if (st.minu > 0){ ilot(MINU()); montre(['minuG', 'minuD'], .16); }
+  else ilot(REPOS);
+  majBulle();
+}
+function demarrerReunion(depuisCentre){
+  Object.assign(st, {phase:'rec', t:0, pause:false, lignes:[], rate:false, pointFait:false});
+  majDirect(); majRate(); majChrono(); parle('claire');
+  if (depuisCentre) changer('reunion'); else replier();
+}
+function preparation(u){
+  st.prep = u;
+  $('#prepB').style.width = (u * 100).toFixed(1) + '%';
+  $('#prepP').textContent = Math.round(u * 100) + ' %';
+  $('#prepT').textContent = u < .34 ? 'Relecture de tout l’appel' : u < .67 ? 'Qui parle : les noms de chacun' : 'Résumé, décisions, prochaines étapes';
+}
+async function terminer(){                    // à la main : Arrêter → préparation → note prête
+  st.phase = 'prep'; st.rate = false; majRate(); preparation(0); replier(); parle(null);
+  await tween(3.2, u => preparation(u));
+  st.phase = 'prete'; replier();
+  await attendre(8);
+  if (st.phase === 'prete'){ st.phase = 'fini'; replier(); }
+}
+
+/* =========================================================
+   L'écran : fenêtres, barre des menus, pointeur, mains
+   ========================================================= */
+const ecran = $('#ecran'), pointeur = $('#pointeur'), pad = $('#pad');
+const F = {visio:$('[data-f="visio"]'), verbe:$('[data-f="verbe"]')};
+function devant(nom){
+  ['visio', 'verbe'].forEach((n, i) => { F[n].style.zIndex = n === nom ? 3 : 1; F[n].classList.toggle('arriere', n !== nom); });
+  const app = {visio:'Visio', verbe:'Verbe'}[nom];
+  $('#menus').innerHTML = POMME + `<b>${app}</b>` + MENUS[app].map(m => `<span>${m}</span>`).join('');
+}
+function fenetre(nom, vu){ F[nom].classList.toggle('cache', !vu); }
+const defil = $('#vbDefil');
+function fenetreVerbe(){
+  st.phase = 'fini'; replier();
+  defil.scrollTop = 0;
+  fenetre('verbe', true); devant('verbe');
+}
+$('#vbFermer').addEventListener('click', e => { if (FIGE || e.target !== e.currentTarget.firstElementChild) return; fenetre('verbe', false); devant('visio'); });
+const XR = dx => ecran.clientWidth / 2 + dx;
+function ou(el){ const r = el.getBoundingClientRect(), e = ecran.getBoundingClientRect(); return [r.left + r.width / 2 - e.left, r.top + r.height / 2 - e.top]; }
+function cur(x, y, o = {}){
+  const saute = instant || o.saute;
+  pointeur.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
+  pointeur.style.transform = `translate(${f2(x)}px,${f2(y)}px)`;
+  if (saute){ void pointeur.offsetWidth; pointeur.style.transition = ''; }
+  pointeur.classList.toggle('vu', o.vu !== false);
+}
+async function va(x, y, d = .75){ cur(x, y, {duree:d}); await attendre(d); }
+async function vers(el, d = .75, dx = 0, dy = 0){ const [x, y] = ou(el); await va(x + dx, y + dy, d); }
+function doigts(mode){ pad.className = 'pad' + (mode ? ' ' + mode : ''); }
+async function clic(){
+  if (instant) return suite();
+  doigts('un'); pointeur.classList.add('appui');
+  await attendre(.13);
+  pointeur.classList.remove('appui'); doigts('');
+}
+const ligneNote = i => document.querySelector(`.n-tour[data-i="${i}"]`);
+async function defiler(vers, d = .9){ const a = defil.scrollTop; await tween(d, u => { defil.scrollTop = lerp(a, vers, douce(u)); }); }
+
+/* =========================================================
+   Les étapes
+   ========================================================= */
+function init(){
+  remettre();
+  fenetre('verbe', false); devant('visio'); heure('14:02'); parle(null);
+  majCentre(); majDirect(); majRate(); majNote(); preparation(0);
+  defil.scrollTop = 0; $('#nDemIn').value = '';
+  ilot(REPOS); montre([]); majBulle(); points('reunion');
+  cur(XR(250), 380, {vu:false, saute:true});
+  pointeur.classList.remove('appui'); doigts('');
+}
+const ETAPES = [
+  {t:'Un appel commence : « Noter cet appel ? »', g:'Mains au repos',
+   p:'Une app de visio prend le micro : l’îlot propose de noter, sans bot dans l’appel. Un clic sur « Noter ». (À tout moment, le grand bouton « Noter la réunion » du Centre fait la même chose.)',
+   async jeu(){ await attendre(.5); parle('claire'); st.phase = 'propo'; replier(); await attendre(.6); }},
+  {t:'Un clic sur « Noter » : un point rouge, le temps', g:'Un clic',
+   p:'L’îlot se range en petit : un point rouge, l’onde et le temps, comme l’enregistrement sur iPhone. Il ne disparaît plus : la dictée (fn), le Centre, les Dictées restent là. La première fois seulement : « Survole pour lire en direct ».',
+   async jeu(){
+     await vers($('#btNoter'), .7, -8, 5); await clic();
+     Object.assign(st, {phase:'rec', t:4, lignes:[]}); majDirect(); majChrono();
+     montre([], 0); ilot(COACH()); montre(['rec', 'chrono', 'coach'], .16); await attendre(.8);
+   }},
+  {t:'Survoler : la transcription en direct', g:'Pointeur sur l’îlot',
+   p:'Douze minutes plus tard. Au survol, la carte de la réunion : les dernières phrases, propres et ponctuées. « Moi » (ton micro) et « Eux » (le son du Mac), en petit à gauche ; les noms viendront après l’appel.',
+   async jeu(){
+     st.t = 761; heure('14:14'); parle('marc'); st.lignes = DIRECT0.map(d => ({...d})); majDirect(); majChrono();
+     if (!st.carte){ montre([], 0); ilot(REC()); montre(['rec', 'chrono']); }
+     cur(XR(250), 330, {saute:true}); await attendre(.05);
+     await va(XR(60), 18, .8); await attendre(.1);
+     ouvrir('reunion'); await attendre(.7);
+   }},
+  {t:'Les phrases arrivent', g:'Rien à faire',
+   p:'La phrase en cours s’écrit en gris clair, puis devient blanche une fois sûre. La liste glisse doucement vers le haut, sans à-coups ; si on remonte pour relire, elle arrête de suivre.',
+   async jeu(){
+     const enc = st.lignes[st.lignes.length - 1], mots = SUITE[0].fin.split(' '), deja = enc.x.replace('…', '').split(' ').length - 1;
+     for (let i = deja; i < mots.length; i++){ enc.x = mots.slice(0, i + 1).join(' ') + (i < mots.length - 1 ? '…' : ''); majDirect(true); await attendre(.14); }
+     enc.x = SUITE[0].fin; enc.enc = false; majDirect(true); await attendre(.5);
+     st.t += 6; majChrono();
+     st.lignes.push({...SUITE[1]}); majDirect(true, st.lignes.length - 1); await attendre(.8);
+     parle('moi'); st.t += 5; majChrono();
+     const m = {q:'moi', x:'', enc:true}; st.lignes.push(m);
+     const mm = SUITE[2].x.split(' ');
+     for (let i = 0; i < mm.length; i++){ m.x = mm.slice(0, i + 1).join(' ') + '…'; majDirect(true, i === 0 ? st.lignes.length - 1 : undefined); await attendre(.13); }
+     m.x = SUITE[2].x; m.enc = false; majDirect(true); await attendre(.6);
+   }},
+  {t:'« Ce que j’ai raté »', g:'Un clic',
+   p:'La tête ailleurs une minute ? Un clic : trois lignes sur les 5 dernières minutes, ce que les autres ont dit et ce que tu as promis. « Retour au direct » revient au fil.',
+   async jeu(){
+     st.t = 780; majChrono(); parle('ines');
+     await vers($('#btRate'), .6, -10, 3); await clic();
+     st.rate = 'charge'; majRate(); await attendre(.8);
+     st.rate = 'oui'; majRate(); await attendre(.9);
+   }},
+  {t:'« Ajouter un point »', g:'Un clic',
+   p:'Un moment important ? Un clic le marque, avec l’heure. On revient au direct ; le point se retrouvera dans la note, à réécouter.',
+   async jeu(){
+     await vers($('#btPoint'), .6, -12, 3); await clic();
+     st.t = 790; st.rate = false; st.pointFait = true;
+     st.lignes.push({mq:fmt(st.t)}); majRate(); majChrono(); majDirect(true, st.lignes.length - 1); await attendre(.6);
+     st.lignes.push({q:'eux', x:'Parfait. Et pour les photos, je préfère qu’on fasse…', enc:true}); majDirect(true, st.lignes.length - 1);
+     await attendre(1.0);
+     if (fin()) return;
+     st.pointFait = false; majRate();
+   }},
+  {t:'Le Centre reste là : un minuteur', g:'Clic sur « Centre », puis sur 25',
+   p:'Pendant la réunion, tout le reste marche. « Centre » : le grand bouton dit « Réunion en cours » et ramène au direct. On lance ici un minuteur de 25 minutes.',
+   async jeu(){
+     st.pointFait = false; majRate();
+     await vers(c.reunion.querySelector('.rc-tete .pil'), .6, -10, 3); await clic();
+     st.t = 805; heure('14:15'); st.punaise = true; changer('centre'); await attendre(.7);
+     await vers(contenu.querySelector('.cap[data-min="25"]'), .6, 2, 4); await clic();
+     st.minu = MINU0; st.choix = 25; majCentre(); await attendre(.8);
+   }},
+  {t:'Replier : le minuteur dans la bulle', g:'Un clic sur la page',
+   p:'L’îlot se range. La réunion le garde (onde, point rouge, temps) ; le minuteur part dans la bulle à côté, comme deux activités sur l’iPhone. Un clic sur la bulle ouvre le minuteur.',
+   async jeu(){
+     await va(XR(-300), 440, .8); await clic();
+     st.t = 812; st.minu = MINU0 - 7; replier(); await attendre(1.0);
+   }},
+  {t:'Arrêter : « Note en préparation… »', g:'Survol, puis clic sur Arrêter',
+   p:'Fin de l’appel : survol, Arrêter. Verbe relit tout l’enregistrement d’un coup, avec le contexte : un texte plus juste, et qui parle. L’îlot montre où il en est ; le minuteur reste dans sa bulle.',
+   async jeu(){
+     st.t = 1716; st.minu = MINU0 - 911; heure('14:30'); majChrono(); replier();
+     cur(XR(300), 300, {saute:true}); await attendre(.05);
+     await va(XR(60), 18, .7); await attendre(.05);
+     ouvrir('reunion'); await attendre(.6);
+     await vers($('#btArret'), .6, -8, 3); await clic();
+     st.phase = 'prep'; preparation(0); parle(null); replier();
+     await tween(2.2, u => preparation(.72 * facile(u)));
+     await attendre(.3);
+   }},
+  {t:'« Note prête · Ouvrir »', g:'Rien à faire',
+   p:'Moins d’une minute plus tard : « Note prête », avec un titre trouvé seul et la durée. Sans clic, l’îlot se range après 8 secondes ; la note attend dans Réunions.',
+   async jeu(){
+     st.minu = MINU0 - 960; majChrono(); heure('14:31');
+     await tween(.9, u => preparation(lerp(.72, 1, u)));
+     await attendre(.25);
+     st.phase = 'prete'; replier(); await attendre(1.0);
+   }},
+  {t:'La note : sujets, décisions, prochaines étapes', g:'Un clic sur « Ouvrir »',
+   p:'Les noms de chacun, une phrase pour l’essentiel, le résumé rangé par sujet ; à droite, les décisions et qui fait quoi, pour quand. « Copier » et « Exporter » en haut.',
+   async jeu(){
+     await vers($('#btOuvrir'), .7, -6, 3); await clic();
+     fenetreVerbe(); await attendre(.6);
+     await va(XR(-60), 380, .7);
+     await attendre(.4);
+   }},
+  {t:'Réécouter un moment, demander', g:'Clic sur une phrase, puis taper',
+   p:'Plus bas, la transcription relue : chaque nom, l’heure. Un clic sur une phrase rejoue ce moment. En bas, « Demander » : une question sur cette réunion, une réponse courte qui renvoie au moment exact.',
+   async jeu(){
+     const l = ligneNote(indexPhoto);
+     await defiler(l.offsetTop - 150, 1.2); await attendre(.3);
+     await vers(l.querySelector('.x'), .7, -60, 0); await clic();
+     st.ecoute = indexPhoto; majNote(); await attendre(.8);
+     await vers($('#nDemIn'), .6, -120, 0); await clic();
+     st.demActif = true; majNote();
+     for (const ch of REPONSES.photo.q){ st.question += ch; majNote(); await attendre(.045); }
+     await attendre(.25);
+     st.rep = 'attente'; st.demActif = false; majNote(); await attendre(.7);
+     st.rep = 'photo'; majNote(); await attendre(1.2);
+   }}
+];
+const N = ETAPES.length;
+const PAUSES = [1.6, 1.8, 1.6, 1.6, 1.8, 1.6, 1.6, 1.8, 1.6, 1.8, 2.4, 3.0];
+
+/* =========================================================
+   Régie (reprise de ilot-centre.html)
+   ========================================================= */
+let etape = 0;
+$('#pas').innerHTML = ETAPES.map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${e.t}</button></li>`).join('');
+function majRegie(n){
+  etape = n;
+  const m = Math.max(1, n), e = ETAPES[m - 1];
+  $('#num').textContent = `Noter la réunion · comme Wispr Flow · étape ${m} sur ${N}`;
+  const fr = t => t.replace(/ ([:»?!;])/g, ' $1').replace(/« /g, '« ');
+  $('#titre').textContent = fr(e.t); $('#phrase').textContent = fr(e.p); $('#geste').textContent = e.g;
+  document.querySelectorAll('#pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === m));
+}
+async function poser(n){
+  annuler();
+  instant = true; racine.classList.add('snap');
+  try {
+    cibleN = n; enCoursN = 0;
+    init();
+    for (let i = 1; i <= n; i++){ enCoursN = i; await ETAPES[i - 1].jeu(); }
+  } finally { instant = false; }
+  majRegie(n); rendu();
+  void ecran.offsetWidth;
+  requestAnimationFrame(() => requestAnimationFrame(() => racine.classList.remove('snap')));
+}
+async function jouer(n){
+  majRegie(n);
+  if (REDUIT) return poser(n);
+  racine.classList.remove('snap'); void ecran.offsetWidth;
+  cibleN = 0; enCoursN = n;
+  await ETAPES[n - 1].jeu();
+}
+function arreter(){ jeton++; auto = false; annuler(); doigts(''); }
+const autoCase = $('#autoCase');
+async function tourner(){
+  arreter(); const j = jeton; auto = true;
+  try {
+    await poser(0); await attendre(.9);
+    for (;;){
+      for (let n = 1; n <= N; n++){ await jouer(n); await attendre(PAUSES[n - 1]); }
+      if (!autoCase.checked) break;
+      ecran.style.opacity = 0; await attendre(.3);
+      await poser(0); ecran.style.opacity = 1; await attendre(1.0);
+    }
+  } catch (e){ if (e !== 'stop') console.error(e); }
+  ecran.style.opacity = 1;
+  if (j === jeton) auto = false;
+}
+function lance(n){
+  arreter(); ecran.style.opacity = 1;
+  poser(n - 1).then(() => jouer(n)).catch(e => { if (e !== 'stop') console.error(e); });
+}
+$('#rejouer').addEventListener('click', () => { if (autoCase.checked) tourner(); else lance(Math.max(1, etape)); });
+$('#suivant').addEventListener('click', () => { autoCase.checked = false; lance(etape >= N ? 1 : etape + 1); });
+$('#pas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; autoCase.checked = false; lance(+b.dataset.e); });
+autoCase.addEventListener('change', () => { if (autoCase.checked) tourner(); else arreter(); });
+function ralenti(oui){ K = oui ? 4 : 1; racine.style.setProperty('--k', K); $('#lentCase').checked = oui; }
+$('#lentCase').addEventListener('change', e => ralenti(e.target.checked));
+
+/* =========================================================
+   À la main : la vraie souris marche aussi (survol, clics, défilement)
+   ========================================================= */
+function aLaMain(){ if (auto || autoCase.checked){ autoCase.checked = false; arreter(); } pointeur.classList.remove('vu'); }
+function local(e){ const r = ecran.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top]; }
+function dansIlot(x, y){
+  if (st.carte) return Math.abs(x) <= BW + 4 && y <= cible.h + 4;
+  return y <= cible.h + 4 && x >= -cible.ng - 4 && x <= Math.max(cible.nd, cible.bd) + 4;
+}
+let tFerme = 0, verrou = 0;
+ecran.addEventListener('mousemove', e => {
+  if (FIGE) return;
+  const [x, y] = local(e), dedans = dansIlot(x, y);
+  if (dedans){
+    clearTimeout(tFerme); tFerme = 0;
+    if (!st.carte && !['propo', 'prep', 'prete'].includes(st.phase)){ aLaMain(); ouvrir(enReunion() ? 'reunion' : 'centre'); }
+  } else if (st.carte && !st.punaise && !tFerme && !auto){
+    tFerme = setTimeout(() => { tFerme = 0; if (!st.punaise && st.carte) replier(); }, 320);
+  }
+});
+ecran.addEventListener('pointerdown', e => {
+  if (FIGE || e.target.closest('#contenu .c') || e.target.closest('#bulle')) return;
+  const [x, y] = local(e);
+  if (st.carte && !dansIlot(x, y)){ aLaMain(); replier(); }
+});
+ecran.addEventListener('wheel', e => {
+  if (FIGE || !st.carte || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  const [x, y] = local(e); if (!dansIlot(x, y)) return;
+  e.preventDefault();
+  if (performance.now() < verrou || Math.abs(e.deltaY) < 4) return;
+  verrou = performance.now() + 500; aLaMain();
+  const liste = ORDRE.filter(o => o !== 'reunion' || enReunion());
+  const i = clamp(liste.indexOf(st.carte) + (e.deltaY > 0 ? 1 : -1), 0, liste.length - 1);
+  changer(liste[i]);
+}, {passive:false});
+contenu.addEventListener('click', e => {
+  if (FIGE) return;
+  const a = e.target.closest('[data-act]'), t = e.target.closest('.tg[data-t]'), cap = e.target.closest('.cap');
+  if (!a && !t && !cap) return;
+  aLaMain();
+  if (st.carte === 'centre' || st.carte === 'dictees') st.punaise = true;
+  if (cap){ const m = +cap.dataset.min; if (st.choix === m && st.minu > 0){ st.minu = 0; st.choix = 0; } else { st.minu = m * 60; st.choix = m; } majCentre(); return; }
+  if (t){
+    const k = t.dataset.t;
+    if (k === 'micro') st.micCoupe = !st.micCoupe;
+    else if (k === 'dl') st.dl = !st.dl;
+    else if (k === 'claude') st.claude = !st.claude;
+    majCentre(k); return;
+  }
+  const act = a.dataset.act;
+  if (act === 'noter') demarrerReunion(false);
+  else if (act === 'plusTard'){ st.phase = 'avant'; replier(); }
+  else if (act === 'reunion'){ if (enReunion()) changer('reunion'); else demarrerReunion(true); }
+  else if (ORDRE.includes(act)) changer(act);
+  else if (act === 'rate'){
+    if (st.rate){ st.rate = false; majRate(); return; }
+    st.rate = 'charge'; majRate(); setTimeout(() => { if (st.rate){ st.rate = 'oui'; majRate(); } }, 700 * K);
+  }
+  else if (act === 'direct'){ st.rate = false; majRate(); }
+  else if (act === 'point'){
+    st.rate = false; st.pointFait = true; st.lignes.push({mq:fmt(st.t)}); majRate(); majDirect(true, st.lignes.length - 1);
+    setTimeout(() => { st.pointFait = false; majRate(); }, 1400 * K);
+  }
+  else if (act === 'pause'){ st.pause = !st.pause; majChrono(); }
+  else if (act === 'arreter') terminer().catch(() => {});
+  else if (act === 'ouvrir') fenetreVerbe();
+});
+bulle.addEventListener('click', () => { if (FIGE) return; aLaMain(); st.punaise = true; ouvrir('centre'); });   // un clic sur la bulle : le minuteur, dans le Centre
+/* la note : un clic sur une phrase la rejoue ; « Demander » */
+$('#note').addEventListener('click', e => {
+  if (FIGE) return;
+  const b = e.target.closest('.n-tour'); if (!b) return;
+  aLaMain(); st.ecoute = st.ecoute === +b.dataset.i ? null : +b.dataset.i; majNote();
+});
+$('#nRep').addEventListener('click', e => {
+  const b = e.target.closest('[data-aller]'); if (!b || FIGE) return;
+  const i = b.dataset.aller === 'photo' ? indexPhoto : +b.dataset.aller;
+  st.ecoute = i; majNote(); const l = ligneNote(i); defil.scrollTo({top:l.offsetTop - 150, behavior:REDUIT ? 'auto' : 'smooth'});
+});
+const inp = $('#nDemIn');
+inp.addEventListener('focus', () => { if (FIGE) return; aLaMain(); st.demActif = true; majNote(); });
+inp.addEventListener('blur', () => { st.demActif = false; majNote(); });
+inp.addEventListener('input', () => { st.question = inp.value; majNote(); });
+function poserQuestion(){
+  if (!st.question.trim()) return;
+  st.rep = 'attente'; majNote();
+  setTimeout(() => { st.rep = repondre(st.question); majNote(); }, 700 * K);
+}
+inp.addEventListener('keydown', e => { if (e.key === 'Enter') poserQuestion(); });
+$('#nEnv').addEventListener('click', e => { e.preventDefault(); poserQuestion(); });
+$('#nCopier').addEventListener('click', () => { if (FIGE) return; st.copie = true; majNote(); setTimeout(() => { st.copie = false; majNote(); }, 1400); });
+$('#nExporter').addEventListener('click', () => { if (FIGE) return; st.export = true; majNote(); setTimeout(() => { st.export = false; majNote(); }, 1800); });
+
+/* le temps passe (sauf figé) */
+setInterval(() => {
+  if (FIGE) return;
+  let change = false;
+  if (enReunion() && !st.pause){ st.t++; change = true; }
+  if (st.minu > 0){ st.minu--; change = true; if (st.minu === 0) replier(); }
+  if (change) majChrono();
+}, 1000);
+
+/* =========================================================
+   Démarrage
+   ========================================================= */
+if (Q.has('lent')) ralenti(true);
+const e0 = clamp(+(Q.get('etape') || 0), 0, N);
+if (FIGE){ autoCase.checked = false; poser(e0).catch(() => {}); }
+else if (Q.has('joue') && e0 >= 1){ autoCase.checked = false; poser(e0 - 1).then(() => setTimeout(() => jouer(e0).catch(() => {}), 400)); }
+else setTimeout(() => tourner(), 300);
+window.verbe = {poser, jouer, st, R, ralenti};
+</script>
+</body>
+</html>
