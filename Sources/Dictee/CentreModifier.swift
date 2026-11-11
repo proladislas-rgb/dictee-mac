@@ -56,8 +56,9 @@ extension IlotMoteur {
     func rangerDansLeCentre(_ e: ElementCentre, versRang r: Int, parmi visibles: [ElementCentre]) { modifier(e) { $0.deplacer(e, versRang: r, parmi: visibles) } }
 }
 
-/// L'en-tête du Centre : « ‹ Vidéo » (ou l'étagère, ou « Centre »), ou la ligne d'avis ; « Reste ouvert » quand l'îlot est épinglé ;
-/// « Outils › » (la 2e page) ; « Dictées » ; « Modifier ». Sur la page Outils : « ‹ Centre », « Reste ouvert », « Modifier ».
+/// L'en-tête du Centre : « ‹ Vidéo » (ou l'étagère, ou « Centre »), ou la ligne d'avis ; « Reste ouvert » quand l'îlot est épinglé (l'épingle
+/// seule s'il n'y a pas la place) ; « Outils › » (la 2e page) ; « Dictées » ; « Modifier ». Sur la page Outils : « ‹ Centre », « Reste
+/// ouvert », « Modifier ».
 /// Dans « Modifier » : « Ajouter : » et les pastilles de ce qu'on peut ajouter (celles qui tiennent, puis « +N »), et « OK ».
 struct EnteteCentre: View {
     @ObservedObject var m: IlotMoteur
@@ -116,10 +117,17 @@ struct EnteteCentre: View {
             }
             Spacer(minLength: 0)
             if !ed, m.avisCentre == nil || page == .outils {
-                HStack(spacing: 4) {
+                // « Outils › », « Dictées » et « Modifier » à droite, et à gauche « ‹ Vidéo » ou l'étagère : s'il ne reste pas la place du
+                // mot entier, l'épingle seule (jamais « Reste ouv… »)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "pin.fill").font(.system(size: 10, weight: .semibold))
+                        Text("Reste ouvert").font(.system(size: 11.5, weight: .semibold)).lineLimit(1).fixedSize()
+                    }
                     Image(systemName: "pin.fill").font(.system(size: 10, weight: .semibold))
-                    Text("Reste ouvert").font(.system(size: 11.5, weight: .semibold))
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Reste ouvert")
                 .foregroundStyle(Color.white.opacity(0.5))
                 .opacity(m.epingle ? 1 : 0)
                 .animation(m.reduire || m.statique ? nil : .easeOut(duration: 0.25), value: m.epingle)
@@ -133,8 +141,8 @@ struct EnteteCentre: View {
             if ed {
                 PiluleCentre(titre: Self.titreOK, plein: true, etiquette: "Terminer : enregistrer le Centre") { m.finirEditionCentre() }
             } else {
-                // les Dictées (l'ancien panneau de la barre des menus), la dernière carte de la pile
-                if m.avisCentre == nil {
+                // les Dictées (l'ancien panneau de la barre des menus), la dernière carte de la pile ; sur le Centre seulement
+                if page == .centre, m.avisCentre == nil {
                     PiluleCentre(titre: "Dictées", symbole: "quote.opening", etiquette: "Les dictées : chercher, copier, coller") { m.allerA(.dictees) }
                 }
                 PiluleCentre(titre: Self.titreModifier, etiquette: "Modifier le Centre : ajouter, retirer, ranger les boutons") { m.commencerEditionCentre() }

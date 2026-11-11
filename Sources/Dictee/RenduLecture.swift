@@ -418,6 +418,9 @@ enum RenduLecture {
         ecrire(bureau(hauteur: geometrie.hauteur + 345) { ilot(scene { m in m.etagereActive = true; m.etagere = trois; m.energie = batterie; m.survole = true }) }, "ilot-24j-centre-fichiers-en-haut")
         ecrire(bureau(hauteur: geometrie.hauteur + 345, clair: false) { ilot(scene(lecture: videoLongue) { m in m.etagereActive = true; m.etagere = cinq; m.lecturePresente = true
             m.donneesChangees(); m.allerA(.centre) }) }, "ilot-24k-centre-fichiers-en-haut-depuis-video")
+        // l'en-tête le plus chargé (« ‹ Vidéo », « Outils › », « Dictées », « Modifier ») épinglé : l'épingle seule, jamais « Reste ouv… »
+        ecrire(bureau(hauteur: geometrie.hauteur + 345) { ilot(scene(lecture: videoLongue) { m in m.etagereActive = true; m.etagere = cinq; m.lecturePresente = true
+            m.donneesChangees(); m.allerA(.centre); m.epingle = true }) }, "ilot-24r-centre-en-tete-charge-epingle")
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in m.etagereActive = true
             m.bandeau = BandeauIlot(vue: .etagerePartis, jusqua: t0.addingTimeInterval(3.6), ligne1: EtagereIlot.partis(3, app: "Mail"), ligne2: "Ils ont quitté l\u{2019}étagère",
                                     partis: PartisEtagere(nombre: 3, app: "Mail", icones: trois.suffix(2).reversed().map(\.icone), duree: 5)) }) }, "ilot-24l-etagere-partis-remettre")
