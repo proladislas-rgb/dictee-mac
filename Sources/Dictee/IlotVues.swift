@@ -103,6 +103,10 @@ struct IlotCalques: View {
             ForEach(VueIlot.allCases, id: \.self) { v in
                 if m.visible(v) { ecran(v) }
             }
+            // ce qui s'ajoute aux écrans : le pied de la lecture (bouton « Centre »), les points de page, la bulle « Nouveau »
+            if m.visible(ExtraIlot.pied) { PiedLecture(m: m, g: g) }
+            if m.visible(ExtraIlot.points) { PointsCartes(m: m, g: g) }
+            if m.visible(ExtraIlot.bulle) { BulleNouveau(m: m, g: g) }
         }
         .frame(width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax, alignment: .topLeading)
     }
@@ -135,6 +139,7 @@ struct IlotCalques: View {
         case .claudeEtendu, .claudeAttend, .claudeTermine: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .etagereDepot: DepotEtagere(m: m, g: g)
         case .etagere: CarteEtagere(m: m, g: g)
+        case .centre: CentreVue(m: m, g: g)
         }
     }
 
@@ -414,7 +419,7 @@ struct IlotCalques: View {
     private var rangeeMinuteurLecture: some View {
         let v = VueIlot.lectureMinuteur
         let w = g.corps(v), l = 2 * w - 2 * GrilleIlot.marge
-        let haut = g.barre + CGFloat(GeoIlot.profondeur(.lectureEtendu))
+        let haut = g.barre + CGFloat(GeoIlot.profondeurLecture)
         let etagere = m.etagereActive && !m.etagere.isEmpty
         return ZStack(alignment: .topLeading) {
             filet.posee(CGRect(x: -w + GrilleIlot.marge, y: haut - 1, width: l, height: 1), m.aspect(v, rang: 0))
@@ -450,47 +455,27 @@ struct IlotCalques: View {
 
     // MARK: accueil
 
-    /// L'accueil (clic sur l'îlot vide) : une liste à filets fins, une ligne par chose à faire, l'action à droite.
+    /// L'accueil, la carte sous le Centre : une liste à filets fins (le prochain rendez-vous, « Dire un rappel », la dernière dictée),
+    /// l'action à droite. Le minuteur, le choix du micro et l'étagère sont dans le Centre. Les points de page sont à droite.
     private var accueil: some View {
         let v = VueIlot.accueil
-        let z = g.zone(v, haut: 10, bas: 12)
+        let z = g.zoneCarte(v, haut: 10, bas: 12)
         let e = m.rendezVousSuivant
         let d = m.derniereDictee
-        let etagere = m.etagereActive && !m.etagere.isEmpty
         return VStack(spacing: 0) {
             ligneAccueil(v, 0, glyphe: GlypheIlot(nom: GlypheIlot.calendrier, couleur: CouleursIlot.rouge, taille: 17),
                          titre: e?.titre ?? (m.calendrierActif ? "Rien de prévu" : "Calendrier éteint"),
                          sous: e.map { FormatIlot.heure($0.debut) + " \u{00B7} " + PlanAgenda.dans($0.debut.timeIntervalSince(m.maintenant())) } ?? (m.calendrierActif ? "Aucun rendez-vous à venir" : "Activable dans les réglages")) {
                 if let e, e.lien != nil { CapIlot(titre: "Rejoindre", icone: "video.fill", style: .vert, hauteur: 28) { m.surAction(.rendezVousRejoindre(e)) } }
             }
-            ligneAccueil(v, 1, glyphe: GlypheIlot(nom: "timer", couleur: CouleursIlot.ambre, taille: 17), titre: "Minuteur", sous: "Lancer un compte à rebours") {
-                HStack(spacing: 6) {
-                    ForEach([5, 10, 25], id: \.self) { n in
-                        CapIlot(titre: "\(n) min", hauteur: 28, etiquette: "Minuteur de \(n) minutes") { m.surAction(.minuteurLancer(minutes: Double(n))) }
-                    }
-                }
-            }
-            ligneAccueil(v, 2, glyphe: GlypheIlot(nom: "bell.fill", couleur: CouleursIlot.jaune, taille: 16), titre: "Rappel", sous: "Dis \u{00AB}\u{00A0}appeler Paul à 15 h\u{00A0}\u{00BB}") {
+            ligneAccueil(v, 1, glyphe: GlypheIlot(nom: "bell.fill", couleur: CouleursIlot.jaune, taille: 16), titre: "Rappel", sous: "Dis \u{00AB}\u{00A0}appeler Paul à 15 h\u{00A0}\u{00BB}") {
                 CapIlot(titre: "Dire un rappel", icone: "mic.fill", hauteur: 28) { m.surAction(.rappelFormulaire) }
             }
-            ligneAccueil(v, 3, glyphe: GlypheIlot(nom: "quote.opening", couleur: Color.white.opacity(0.7), taille: 15),
+            ligneAccueil(v, 2, glyphe: GlypheIlot(nom: "quote.opening", couleur: Color.white.opacity(0.7), taille: 15),
                          titre: d?.texte ?? "Rien pour l\u{2019}instant", police: TexteIlot.extrait, couleurTitre: Color.white.opacity(0.86),
-                         sous: "Dernière dictée" + (d.map { " \u{00B7} il y a " + $0.age } ?? ""), filet: etagere || m.choixMicro != nil) {
+                         sous: "Dernière dictée" + (d.map { " \u{00B7} il y a " + $0.age } ?? ""), filet: false) {
                 if d != nil { CapIlot(titre: "Coller", hauteur: 28, etiquette: "Coller la dernière dictée") { m.surAction(.collerLaDerniereDictee) } }
             }
-            // des AirPods (ou un autre casque) sont là : on choisit d'un clic le micro qui écoute la dictée
-            if let c = m.choixMicro {
-                ligneAccueil(v, 4, glyphe: GlypheIlot(nom: c.airpods ? "airpodspro" : "laptopcomputer", couleur: Color.white.opacity(0.85), taille: 16),
-                             titre: "Micro", sous: c.airpods ? "Celui de tes écouteurs" : "Celui du Mac \u{00B7} meilleur son",
-                             filet: etagere) {
-                    HStack(spacing: 6) {
-                        CapIlot(titre: "Mac", style: c.airpods ? .gris : .vert, hauteur: 28, etiquette: "Dicter avec le micro du Mac") { m.surAction(.microChoisir(airpods: false)) }
-                        CapIlot(titre: "AirPods", style: c.airpods ? .vert : .gris, hauteur: 28, etiquette: "Dicter avec le micro de \(c.nom)") { m.surAction(.microChoisir(airpods: true)) }
-                    }
-                }
-            }
-            // l'étagère, quand elle garde des fichiers : « Étagère · 2 fichiers », leurs noms ; un clic ouvre la carte
-            if etagere { ligneEtagere(v, m.choixMicro != nil ? 5 : 4, filet: false) }
             Spacer(minLength: 0)
         }
         .frame(width: z.width, height: z.height, alignment: .top)
@@ -588,7 +573,9 @@ struct LectureEtendue: View {
         let v = VueIlot.lectureEtendu
         let w = g.corps(v), b = g.barre
         let art = LectureVoyageurs.cadreEtendu(g, large: lecture.pochetteLarge)
-        let x = art.maxX + 14, l = w - GrilleIlot.marge - x
+        // à droite, la place des points de page (lecture, Centre, accueil)
+        let md = GrilleIlot.marge + GrilleIlot.placePoints
+        let x = art.maxX + 14, l = w - md - x
         let titre = lecture.morceau?.titre ?? ""
         let musique = lecture.genre == .musique
         ZStack(alignment: .topLeading) {
@@ -598,8 +585,8 @@ struct LectureEtendue: View {
                 .posee(CGRect(x: x, y: b + 31, width: l, height: 21), m.aspect(v, rang: 0), ancre: .topLeading)
             Text(lecture.sousTitre).font(TexteIlot.source).foregroundStyle(CouleursIlot.encre2).lineLimit(1).truncationMode(.tail)
                 .posee(CGRect(x: x, y: b + 54, width: l, height: 17), m.aspect(v, rang: 1), ancre: .topLeading)
-            BarreLecture(lecture: lecture, largeur: 2 * w - 2 * GrilleIlot.marge, teinte: teinteIlot(lecture.teinte.clair))
-                .posee(CGRect(x: -w + GrilleIlot.marge, y: b + 98, width: 2 * w - 2 * GrilleIlot.marge, height: 20), m.aspect(v, rang: 2))
+            BarreLecture(lecture: lecture, largeur: 2 * w - GrilleIlot.marge - md, teinte: teinteIlot(lecture.teinte.clair))
+                .posee(CGRect(x: -w + GrilleIlot.marge, y: b + 98, width: 2 * w - GrilleIlot.marge - md, height: 20), m.aspect(v, rang: 2))
             HStack(spacing: 24) {
                 if musique {
                     BoutonNu(symbole: "backward.fill", taille: 20, etiquette: "Précédent") { lecture.surPrecedent() }
@@ -618,7 +605,7 @@ struct LectureEtendue: View {
                 // le glyphe (pas sa zone cliquable de 40 pt) finit sur la marge, comme le temps restant juste au-dessus
                 let gs = MesureIlot.symbole("forward.end.fill", 15)
                 BoutonNu(symbole: "forward.end.fill", taille: 15, discret: true, etiquette: "Suivant") { lecture.surSuivant() }
-                    .posee(CGRect(x: w - GrilleIlot.marge - (40 + gs) / 2, y: b + 125, width: 40, height: 40), m.aspect(v, rang: 3), ancre: .center)
+                    .posee(CGRect(x: w - md - (40 + gs) / 2, y: b + 125, width: 40, height: 40), m.aspect(v, rang: 3), ancre: .center)
             }
         }
         .animation(m.reduire ? nil : .easeOut(duration: 0.24), value: titre)
@@ -892,6 +879,8 @@ struct BoutonRondIlot: View {
     var couleur: Color
     var fond: Color
     var etiquette: String
+    /// 32 pt ; 28 dans la case Minuteur du Centre.
+    var cote: CGFloat = 32
     var action: () -> Void
     @State private var survol = false
     private struct Style: ButtonStyle {
@@ -902,8 +891,8 @@ struct BoutonRondIlot: View {
     }
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbole).font(.system(size: 12, weight: .bold)).foregroundStyle(couleur)
-                .frame(width: 32, height: 32)
+            Image(systemName: symbole).font(.system(size: cote >= 32 ? 12 : 11, weight: .bold)).foregroundStyle(couleur)
+                .frame(width: cote, height: cote)
                 .background(Circle().fill(fond).brightness(survol ? 0.08 : 0))
                 .contentShape(Circle())
         }

@@ -61,6 +61,10 @@ final class IlotControleur {
     var claudeNettoye = false
     var appAuPremierPlan: () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
     var ramenerApp: (String?) -> Void = { IlotControleur.ramener($0) }
+    /// Le Centre (CentreIlot.swift) : l'installation des crochets de Claude Code et les réglages qu'il lit ou écrit, injectables (les
+    /// essais ne touchent jamais ~/.claude, ~/Downloads ni les vrais réglages).
+    var installationClaude = InstallationClaude.parDefaut
+    var reglagesCentre = ReglagesCentre()
 
     /// Ce qui occupe l'encoche en dehors de la dictée de ce contrôleur (rempli par l'AppDelegate).
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
@@ -127,15 +131,18 @@ final class IlotControleur {
         appareilsSource.surChangement = { [weak self] in self?.appareilsChanges() }
         appareilsSource.surConnexion = { [weak self] a in self?.appareilConnecte(a) }
         telechargementsSource.surArrivee = { [weak self] l in self?.fichiersArrives(l) }
-        telechargementsSource.surRefus = {
+        telechargementsSource.surRefus = { [weak self] in
             Settings.ilotTelechargements = false
             Log.ecrire("téléchargements : accès au dossier refusé, réglage éteint")
             NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
+            self?.moteur.telechargementsActifs = false; self?.moteur.donneesChangees()
         }
         lecture.modele.surClicIlot = { [weak self] in self?.moteur.clicForme() }
         panneau.surDepot = { [weak self] urls in self?.ranger(urls) }
         claudeSource.surLignes = { [weak self] l, relecture in self?.lignesClaude(l, relecture: relecture) }
         micro.surChangement = { [weak self] in self?.microChange() }
+        moteur.surBulleVue = { [weak self] in self?.reglagesCentre.marquerBulleVue() }
+        moteur.surCentreUtilise = { [weak self] in self?.reglagesCentre.marquerCentreUtilise() }
     }
 
     // MARK: vie
@@ -149,6 +156,9 @@ final class IlotControleur {
         moteur.rappelsAVenir = rappels.aVenir(a: maintenant())
         appliquerLesReglages()
         verifierLesRappels()
+        // le Centre : l'aide sous le bouton « Centre » tant qu'il n'a pas servi ; au tout premier lancement, la bulle « Nouveau »
+        moteur.aideCentre = !reglagesCentre.centreUtilise()
+        if !reglagesCentre.bulleVue() { moteur.montrerBulle() }
     }
 
     func arreter() {
@@ -201,6 +211,7 @@ final class IlotControleur {
         // le dossier Téléchargements : macOS demande une fois l'accès, à la première ouverture (sur une file à part)
         if Settings.ilotTelechargements { telechargementsSource.demarrer() }
         else { telechargementsSource.arreter(); rafale = RafaleTelechargements() }
+        moteur.telechargementsActifs = Settings.ilotTelechargements
         niveauxActifs = Settings.ilotNiveaux
         if niveauxActifs { niveaux.demarrer() } else { niveaux.arreter() }
         activerClaude(Settings.ilotClaude)
@@ -268,6 +279,8 @@ final class IlotControleur {
         }
         let change = moteur.microCoupe != veilleMicro.coupe
         moteur.microCoupe = veilleMicro.coupe
+        // le Centre ouvert montre déjà le micro (« Ouvert » sous son bouton) : pas de bandeau, qui le refermerait
+        if annonce == .ouvert, moteur.centreOuvert { annonce = nil }
         if annonce == .ouvert {
             moteur.annoncer(bandeau: BandeauIlot(vue: .microOuvert, jusqua: maintenant().addingTimeInterval(1.5), ligne1: "Micro ouvert", ligne2: ""))
         } else if change { moteur.donneesChangees() }
@@ -285,6 +298,16 @@ final class IlotControleur {
         let d = TelechargementIlot(rafale: rafale, icones: Self.icones(rafale.fichiers))
         moteur.annoncer(bandeau: BandeauIlot(vue: .telecharge, jusqua: t.addingTimeInterval(RafaleTelechargements.fenetre),
                                              ligne1: rafale.titre, ligne2: rafale.sousTitre, telechargement: d))
+    }
+
+    /// Le bouton Téléchargements du Centre : allume (macOS demande une fois l'accès au dossier, après ce clic) ou éteint le réglage.
+    func reglerTelechargements(_ oui: Bool) {
+        reglagesCentre.reglerTelechargements(oui)
+        if oui { telechargementsSource.demarrer() } else { telechargementsSource.arreter(); rafale = RafaleTelechargements() }
+        moteur.telechargementsActifs = oui
+        Log.ecrire("téléchargements : \(oui ? "allumé" : "éteint") depuis le Centre")
+        NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
+        moteur.donneesChangees()
     }
 
     // MARK: batterie et appareils
@@ -321,7 +344,7 @@ final class IlotControleur {
             // la commande dictée n'existe que si l'accueil de l'îlot (ou la lecture dépliée, qui le remplace pendant une vidéo) est
             // ouvert à cet instant
             let courante = moteur.courante
-            if moteur.fenetreOuverte, [.accueil, .rappelListe, .lectureEtendu, .lectureMinuteur].contains(courante) {
+            if moteur.fenetreOuverte, [.accueil, .centre, .rappelListe, .lectureEtendu, .lectureMinuteur].contains(courante) {
                 armeFormulaire = courante == .rappelListe
                 armeJusqua = maintenant().addingTimeInterval(60)
             }
@@ -375,7 +398,7 @@ final class IlotControleur {
     var lireMicros: () -> [PeripheriqueEntree] = { AudioCapture.peripheriquesEntree() }
     func relireChoixMicro() {
         let bt = lireMicros().first { $0.transport == .bluetooth }
-        moteur.choixMicro = bt.map { ($0.nom, Settings.micro == $0.uid) }
+        moteur.choixMicro = bt.map { ($0.nom, reglagesCentre.microChoisi() == $0.uid) }
     }
 
     private func depliage() {
@@ -389,6 +412,11 @@ final class IlotControleur {
         if Settings.ilotEnergie, appareilsSource.actif { appareilsSource.relireSiAncien() }
         // l'accueil s'ouvre au survol : pas plus d'une relecture toutes les 5 s ; la carte de l'étagère, elle, relit toujours
         if moteur.etagereActive { relireEtagere(force: moteur.courante == .etagere) }
+        // le Centre : l'état de ses boutons (settings.json de Claude Code n'est lu qu'ici, à l'ouverture du Centre)
+        if moteur.courante == .centre {
+            moteur.telechargementsActifs = reglagesCentre.telechargements()
+            moteur.claudeBranche = installationClaude.estBranche
+        }
         lecture.ilotDeplie()
     }
     private func ageLisible(_ date: Date) -> String {
@@ -410,7 +438,9 @@ final class IlotControleur {
             minuteur?.basculer(a: maintenant()); mettreAJourLeMinuteur()
         case .minuteurPlusUneMinute:
             minuteur?.ajouter(60, a: maintenant()); mettreAJourLeMinuteur()
-        case .minuteurArreter: arreterLeMinuteur(); moteur.fermer()
+        case .minuteurArreter: arreterLeMinuteur(); if !moteur.centreOuvert { moteur.fermer() }
+        case .minuteurLancerDansLeCentre(let minutes): lancerLeMinuteur(secondes: minutes * 60, bandeau: false, fermer: false)
+        case .centreMicro, .centreTelechargements, .centreClaude, .etagereAllumer: agirCentre(action)
         case .alerteOK: moteur.quitterAlerte()
         case .rappelPlusTard(let id):
             rappels.reporter(id, depuis: maintenant()); sauver()
@@ -445,7 +475,7 @@ final class IlotControleur {
             agirEtagere(action)
         case .microChoisir(let airpods):
             let bt = lireMicros().first { $0.transport == .bluetooth }
-            Settings.micro = airpods ? bt?.uid : nil
+            reglagesCentre.choisirMicro(airpods ? bt?.uid : nil)
             Log.ecrire("micro : choisi depuis l'îlot, \(airpods ? "celui de \(bt?.nom ?? "?")" : "celui du Mac (Automatique)")")
             relireChoixMicro()
             moteur.donneesChangees()
@@ -465,7 +495,7 @@ final class IlotControleur {
 
     // MARK: minuteur
 
-    func lancerLeMinuteur(secondes: Double, bandeau: Bool) {
+    func lancerLeMinuteur(secondes: Double, bandeau: Bool, fermer: Bool = true) {
         guard Settings.ilotMinuteur else { return }
         let t = maintenant()
         minuteur = MinuteurIlot(secondes: secondes, depuis: t)
@@ -474,7 +504,7 @@ final class IlotControleur {
             moteur.annoncer(bandeau: BandeauIlot(vue: .minuteurLance, jusqua: t.addingTimeInterval(2.4), ligne1: "Minuteur lancé",
                                                  ligne2: FormatIlot.minutes(m.total) + " \u{00B7} fin à " + FormatIlot.heure(m.heureDeFin(a: t))))
         }
-        moteur.fermer()
+        if fermer { moteur.fermer() } else { moteur.donneesChangees() }
         programmerFinDuMinuteur()
     }
     private func mettreAJourLeMinuteur() {

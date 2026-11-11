@@ -93,7 +93,7 @@ struct ReglagesVue: View {
     private var ilot: some View {
         VStack(alignment: .leading, spacing: 0) {
             EnteteSection(titre: "Îlot", phrase: "Le minuteur, les rappels et les rendez-vous dans l\u{2019}encoche.", compte: nil)
-            LigneReglage(libelle: "Minuteur", note: "Depuis l\u{2019}accueil de l\u{2019}îlot (clic sur l\u{2019}encoche vide), ou en dictant « minuteur 10 minutes » quand l\u{2019}accueil est ouvert.", premiere: true) {
+            LigneReglage(libelle: "Minuteur", note: "Depuis le Centre de l\u{2019}îlot (survol de l\u{2019}encoche vide, ou bouton « Centre » sous la lecture), ou en dictant « minuteur 10 minutes » quand le Centre est ouvert.", premiere: true) {
                 Interrupteur(actif: $r.ilotMinuteur, etiquette: "Minuteur")
             }
             LigneReglage(libelle: "Son de fin du minuteur", note: "Joué quand un minuteur ou un rappel sonne ; le volume du Mac le coupe.") {

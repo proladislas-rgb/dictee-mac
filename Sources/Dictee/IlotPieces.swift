@@ -37,6 +37,7 @@ extension View {
         scaleEffect(a.echelle, anchor: ancre)
             .blur(radius: a.flou)
             .opacity(a.opacite)
+            .offset(y: a.decalage)
             .allowsHitTesting(a.opacite > 0.6)
     }
 }

@@ -270,6 +270,16 @@ enum Settings {
         get { defaults.object(forKey: "ilotClaude") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotClaude") }
     }
+    /// Le Centre de l'îlot : la bulle « Nouveau : survole l'îlot » a été montrée (une seule fois, au premier lancement).
+    static var ilotBulleVue: Bool {
+        get { defaults.bool(forKey: "ilotBulleVue") }
+        set { defaults.set(newValue, forKey: "ilotBulleVue") }
+    }
+    /// Le Centre a déjà été ouvert depuis la lecture : l'aide « Fais défiler ou clique ici » ne s'affiche plus sous le bouton Centre.
+    static var ilotCentreUtilise: Bool {
+        get { defaults.bool(forKey: "ilotCentreUtilise") }
+        set { defaults.set(newValue, forKey: "ilotCentreUtilise") }
+    }
     /// Le raccourci de « Micro coupé » (⌃⌥M par défaut ; un raccourci rangé mais devenu invalide revient à ⌃⌥M).
     static var raccourciMicro: RaccourciIlot {
         get { defaults.string(forKey: "raccourciMicro").flatMap(RaccourciIlot.init(texte:)).flatMap { $0.estValide ? $0 : nil } ?? .microParDefaut }

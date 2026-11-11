@@ -75,6 +75,11 @@ enum ActionIlot {
     case claudeOuvrir(String?)
     /// L'étagère : ouvrir un fichier (clic sur sa tuile), le retirer (« × »), tout vider.
     case etagereOuvrir(UUID), etagereRetirer(UUID), etagereVider
+    /// Les boutons du Centre (CentreIlot.swift) : couper ou rouvrir le micro, allumer ou éteindre Téléchargements, brancher Claude Code
+    /// (ou ramener sa session), allumer l'étagère éteinte dans les réglages.
+    case centreMicro, centreTelechargements, centreClaude, etagereAllumer
+    /// Un minuteur lancé depuis le Centre : ni bandeau ni fermeture (on enchaîne d'autres réglages), il part dans la case Minuteur.
+    case minuteurLancerDansLeCentre(minutes: Double)
 }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
@@ -112,6 +117,15 @@ struct ApparitionIlot: Equatable {
     var entre: Bool
     var delai: Double
     var depart: Double
+    /// D'une carte à l'autre (lecture, Centre, accueil) : le contenu glisse aussi, vers le haut (+1, on descend dans la pile) ou vers le
+    /// bas (−1). 0 : il apparaît sur place.
+    var glisse: Double = 0
+}
+
+/// Ce qui s'ajoute à un écran sans en être un : le pied de la lecture (bouton « Centre »), les points de page à droite des cartes, la
+/// bulle « Nouveau » sous l'îlot replié. Chacun a son horloge d'apparition (il reste quand on passe d'une carte à l'autre).
+enum ExtraIlot: CaseIterable {
+    case pied, points, bulle
 }
 
 /// Ce qu'un élément montre à un instant : opacité, flou, zoom (maquette : fondu 0,26 s, flou 8 → 0 en 0,30 s, zoom 0,92 → 1 en 0,46 s
@@ -120,6 +134,8 @@ struct AspectIlot {
     var opacite: Double
     var flou: CGFloat
     var echelle: CGFloat
+    /// Le glissé vertical d'un contenu qui change de carte (0 sinon).
+    var decalage: CGFloat = 0
     static let cache = AspectIlot(opacite: 0, flou: 0, echelle: 1)
     static let visible = AspectIlot(opacite: 1, flou: 0, echelle: 1)
 }
@@ -212,6 +228,21 @@ final class IlotMoteur: ObservableObject {
         return min(1, max(0, min(corps, cou)))
     }
 
+    // MARK: le Centre (CentreIlot.swift pour ses vues)
+    /// Ce que le Centre montre de l'état du Mac (poussé par le contrôleur) : Téléchargements allumé, Claude Code branché.
+    var telechargementsActifs = false
+    var claudeBranche = false
+    /// La bulle « Nouveau : survole l'îlot » (une seule fois, au premier lancement) et l'aide « Fais défiler ou clique ici » sous le
+    /// bouton Centre de la lecture (jusqu'au premier passage de la lecture au Centre). Le contrôleur les garde en mémoire.
+    private(set) var bulleNouveau = false
+    var aideCentre = false
+    var surBulleVue: () -> Void = {}
+    var surCentreUtilise: () -> Void = {}
+    /// « Modifier » (ajouter, retirer, ranger les boutons du Centre) : branché au prochain lot ; rien pour l'instant.
+    var surModifierCentre: () -> Void = {}
+    private var finBulle: DispatchWorkItem?
+    private var defilement = DefilementIlot()
+
     // MARK: masques (dictée, réunion, autres annonces : l'îlot s'efface)
     var dictee = false
     var reunion = false
@@ -230,13 +261,14 @@ final class IlotMoteur: ObservableObject {
 
     // MARK: état de l'affichage
     private(set) var courante: VueIlot = .repos
-    private(set) var resolution = ResolutionIlot(principal: .repos, survol: .accueil, verrou: false, pastille: nil)
+    private(set) var resolution = ResolutionIlot(principal: .repos, survol: .centre, verrou: false, pastille: nil)
     /// Les sept ressorts de la forme (voir `GeoIlot`).
     var geo: [RessortIlot]
     /// Horloge d'animation (secondes) : elle n'avance que pendant que la boucle tourne ; le contenu se règle sur elle.
     private(set) var tAnim: Double = 0
     private(set) var apparitions: [VueIlot: ApparitionIlot] = [:]
     private(set) var apparitionsFamille: [FamilleIlot: ApparitionIlot] = [:]
+    private(set) var apparitionsExtra: [ExtraIlot: ApparitionIlot] = [:]
     /// La forme passe d'un état à l'autre de la même activité : ce qui existe déjà voyage (sinon il apparaît à sa place).
     private(set) var lien = false
     private var dernierMode: [FamilleIlot: Double] = [:]
@@ -301,21 +333,31 @@ final class IlotMoteur: ObservableObject {
                 afficher(.repos)
                 majPastille()
             }
+            majExtras()
             surFenetre(); demarrerBoucle()
             return
         }
         vider()
         let ancien = resolution
         resolution = ArbitrageIlot.resoudre(etat, echange: echange)
+        // le micro coupé s'ouvre sur la vidéo en bulle, ou sur le Centre (où est son bouton) : plus de déplié à lui
+        if let sv = resolution.survol { resolution.survol = CartesIlot.survol(sv, deuxieme: resolution.pastille.map { ArbitrageIlot.vues($0).etendu }) }
         if let e = echange, resolution.pastille != e, ArbitrageIlot.ordre(etat).contains(e) == false { echange = nil }
         if resolution.verrou { epingle = false; survole = false; sousVue = nil }
         if ancien.principal != resolution.principal, !(survole || epingle) { sousVue = nil }
         if sousVue == .lectureMinuteur, FamilleIlot.de(resolution.principal) != .lecture || resolution.verrou { sousVue = nil }
         if sousVue == .etagere, !etagereActive { sousVue = nil }
         if depot, !etagereActive { depot = false; depotSurvole = false }
-        // un glisser de fichiers près de l'encoche passe avant tout le reste : on vise la zone, puis l'îlot revient où il en était
-        let voulu = depot ? .etagereDepot : (sousVue ?? ((survole || epingle) && resolution.survol != nil && !resolution.verrou ? resolution.survol! : resolution.principal))
+        // le Centre ouvert le reste quand une activité commence (un minuteur lancé, le micro coupé, une vidéo) : on ne saute pas ailleurs
+        if courante == .centre, survole || epingle, sousVue == nil, !resolution.verrou, resolution.survol != .centre, ancien.survol != resolution.survol { sousVue = .centre }
+        // la bulle « Nouveau » a servi : l'îlot vient d'être ouvert
+        if bulleNouveau, survole || epingle { cacherBulle() }
+        let carte = sousVue ?? ((survole || epingle) && resolution.survol != nil && !resolution.verrou ? resolution.survol! : resolution.principal)
+        // un glisser de fichiers près de l'encoche passe avant tout le reste : on vise la zone, puis l'îlot revient où il en était. Sur le
+        // Centre ouvert, c'est la case Étagère qui reçoit les fichiers : la forme ne bouge pas
+        let voulu = depot && carte != .centre ? .etagereDepot : carte
         afficher(voulu)
+        majExtras()
         majPastille()
         programmerReveil()
         surFenetre()
@@ -326,18 +368,19 @@ final class IlotMoteur: ObservableObject {
     /// l'écran qui s'efface garde sa grille.
     private(set) var contenus: [VueIlot: CGFloat] = [:]
     private func cible(_ v: VueIlot) -> [Double] {
-        GeoIlot.valeurs(v, hauteurBarre: Double(geometrie.hauteur), demiCamera: Double(demiCamera), contenu: contenus[v].map(Double.init), epaules: epaules,
-                        enPlus: Double(hauteursEnPlus[v] ?? 0))
+        let g = GeoIlot.valeurs(v, hauteurBarre: Double(geometrie.hauteur), demiCamera: Double(demiCamera), contenu: contenus[v].map(Double.init), epaules: epaules,
+                                enPlus: Double(hauteursEnPlus[v] ?? 0))
+        guard bulleSous(v) else { return g }
+        return GeoIlot.avecBulle(g, hauteurBarre: Double(geometrie.hauteur), demiCamera: Double(demiCamera), contenu: Double(BulleNouveau.largeur))
     }
     /// La grille du contenu (mêmes largeurs que la forme).
     var grille: GrilleIlot { GrilleIlot(hc: demiCamera, barre: geometrie.hauteur, contenus: contenus, epaules: epaules, enPlus: hauteursEnPlus) }
     /// Ce qu'un contenu variable ajoute à la hauteur d'un écran : la ligne de l'étagère en bas de l'accueil, la deuxième rangée de
-    /// fichiers de la carte Étagère. Pendant une vidéo, l'accueil n'est pas atteignable : la ligne se pose sous la rangée Minuteur de la
-    /// lecture dépliée (appui long).
+    /// fichiers de la carte Étagère. Sous la rangée Minuteur de la lecture dépliée (appui long), la ligne de l'étagère. (L'accueil n'a
+    /// plus de ligne variable : l'étagère et le choix du micro sont dans le Centre.)
     var hauteursEnPlus: [VueIlot: CGFloat] {
         var d: [VueIlot: CGFloat] = [:]
-        if etagereActive, !etagere.isEmpty { d[.accueil] = CGFloat(GeoIlot.ligneAccueil); d[.lectureMinuteur] = CGFloat(GeoIlot.ligneAccueil) }
-        if choixMicro != nil { d[.accueil, default: 0] += CGFloat(GeoIlot.ligneAccueil) }
+        if etagereActive, !etagere.isEmpty { d[.lectureMinuteur] = CGFloat(GeoIlot.ligneAccueil) }
         if EtagereIlot.rangees(etagere.count) > 1 { d[.etagere] = CGFloat(GeoIlot.rangeeEtagere) }
         return d
     }
@@ -367,14 +410,22 @@ final class IlotMoteur: ObservableObject {
             if fa != .autre { dernierMode[fa] = min(1, max(0, modeAvant)); sortir(&apparitionsFamille[fa]) }
             if fv != .autre { entrer(&apparitionsFamille[fv], delai: delai) }
         }
+        // d'une carte à l'autre de la pile (lecture, Centre, accueil) : le contenu glisse dans le sens du passage, comme une page
+        let pile = cartes
+        var glisse = 0.0
+        if avant != v, !reduire, let i = Self.rang(avant, pile), let j = Self.rang(v, pile), i != j { glisse = j > i ? 1 : -1 }
+        // d'une carte à l'autre, la nouvelle arrive plus tôt (l'ancienne part en 0,15 s) : pas de trou noir entre les deux
+        let delaiContenu = glisse != 0 ? 0.06 : delai
         // un écran fait de plusieurs couches (la lecture + sa rangée) : seules les couches qui changent partent ou arrivent
-        if avant != v { for c in Self.couches(avant) where !Self.couches(v).contains(c) { sortir(&apparitions[c]) } }
-        for c in Self.couches(v) { entrer(&apparitions[c], delai: delai) }
-        if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere { surDepliage() }
+        if avant != v { for c in Self.couches(avant) where !Self.couches(v).contains(c) { sortir(&apparitions[c], glisse: glisse) } }
+        for c in Self.couches(v) { entrer(&apparitions[c], delai: delaiContenu, glisse: glisse) }
+        if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere || v == .centre { surDepliage() }
     }
 
     /// Les couches de contenu d'un écran : la rangée Minuteur se pose sous la lecture dépliée, qui ne s'efface pas pour autant.
     static func couches(_ v: VueIlot) -> [VueIlot] { v == .lectureMinuteur ? [.lectureEtendu, .lectureMinuteur] : [v] }
+    /// La place d'un écran dans la pile des cartes (la rangée Minuteur compte comme la lecture).
+    static func rang(_ v: VueIlot, _ pile: [VueIlot]) -> Int? { pile.firstIndex(of: v == .lectureMinuteur ? .lectureEtendu : v) }
     /// La forme passe de la lecture dépliée à la lecture + rangée (ou l'inverse) : la pochette ne bouge pas.
     private var glisseLecture = false
     /// La lecture + rangée se replie d'un coup en compact : la pochette se règle sur la hauteur de la rangée (sinon, partie de 262 pt
@@ -384,13 +435,13 @@ final class IlotMoteur: ObservableObject {
     // MARK: horloge du contenu
 
     private func opaciteActuelle(_ a: ApparitionIlot?) -> Double { a.map { aspect($0, rang: 0).opacite } ?? 0 }
-    private func entrer(_ a: inout ApparitionIlot?, delai: Double) {
+    private func entrer(_ a: inout ApparitionIlot?, delai: Double, glisse: Double = 0) {
         if let x = a, x.entre { return }
-        a = ApparitionIlot(debut: tAnim, entre: true, delai: delai, depart: opaciteActuelle(a))
+        a = ApparitionIlot(debut: tAnim, entre: true, delai: delai, depart: opaciteActuelle(a), glisse: glisse)
     }
-    private func sortir(_ a: inout ApparitionIlot?) {
+    private func sortir(_ a: inout ApparitionIlot?, glisse: Double = 0) {
         guard let x = a, x.entre else { return }
-        a = ApparitionIlot(debut: tAnim, entre: false, delai: 0, depart: opaciteActuelle(x))
+        a = ApparitionIlot(debut: tAnim, entre: false, delai: 0, depart: opaciteActuelle(x), glisse: glisse)
     }
 
     /// L'aspect d'un élément de rang `rang` (0 = le premier de la cascade, un bloc toutes les 35 ms). `voyage` : sans zoom (la pièce
@@ -408,13 +459,20 @@ final class IlotMoteur: ObservableObject {
             let op = r + (1 - r) * CourbesIlot.ease(t0 / 0.26)
             let flou = 8 * (1 - r) * (1 - CourbesIlot.ease(t0 / 0.30))
             let ech = voyage ? 1 : 1 - 0.08 * (1 - r) * (1 - CourbesIlot.ressort(t0))
-            return AspectIlot(opacite: op, flou: CGFloat(flou), echelle: CGFloat(ech))
+            // la carte qui arrive vient d'en dessous (on descend dans la pile) ou d'au-dessus, 22 pt, sur le ressort du zoom
+            let dec = Self.glisseCarte * a.glisse * (1 - CourbesIlot.ressort(t0))
+            return AspectIlot(opacite: op, flou: CGFloat(flou), echelle: CGFloat(ech), decalage: CGFloat(dec))
         }
         let p = CourbesIlot.ease(t / 0.15)
-        return AspectIlot(opacite: a.depart * (1 - p), flou: CGFloat(8 * p), echelle: voyage ? 1 : CGFloat(1 - 0.06 * p))
+        return AspectIlot(opacite: a.depart * (1 - p), flou: CGFloat(8 * p), echelle: voyage ? 1 : CGFloat(1 - 0.06 * p),
+                          decalage: CGFloat(-Self.glisseCarte * a.glisse * p))
     }
     func aspect(_ v: VueIlot, rang: Int) -> AspectIlot { apparitions[v].map { aspect($0, rang: rang) } ?? .cache }
     func aspect(_ f: FamilleIlot) -> AspectIlot { apparitionsFamille[f].map { aspect($0, rang: 0, voyage: true) } ?? .cache }
+    func aspect(_ e: ExtraIlot, rang: Int = 0) -> AspectIlot { apparitionsExtra[e].map { aspect($0, rang: rang) } ?? .cache }
+    func visible(_ e: ExtraIlot) -> Bool { apparitionsExtra[e].map(enCours) ?? false }
+    /// Le glissé d'une carte qui arrive (maquette : 26 pt ; un peu moins ici, la forme bouge déjà).
+    static let glisseCarte = 22.0
     /// Faut-il dessiner cet écran (ou cette famille) ? Oui tant qu'il est là ou qu'il n'a pas fini de partir.
     func visible(_ v: VueIlot) -> Bool { apparitions[v].map(enCours) ?? false }
     func visible(_ f: FamilleIlot) -> Bool { apparitionsFamille[f].map(enCours) ?? false }
@@ -424,7 +482,7 @@ final class IlotMoteur: ObservableObject {
         return a.entre ? t > a.delai + 0.035 * 4 + 0.47 : t > 0.16
     }
     private var contenuPose: Bool {
-        apparitions.values.allSatisfy(fini) && apparitionsFamille.values.allSatisfy(fini) && fini(apparitionPastille)
+        apparitions.values.allSatisfy(fini) && apparitionsFamille.values.allSatisfy(fini) && apparitionsExtra.values.allSatisfy(fini) && fini(apparitionPastille)
     }
 
     /// Ouverture d'une famille : 0 = au repos dans les ailes, 1 = dépliée (peut dépasser un peu au rebond). C'est la hauteur réelle de la
@@ -612,14 +670,13 @@ final class IlotMoteur: ObservableObject {
 
     // MARK: souris
 
-    /// La souris est sur la forme (`true`) ou en est sortie. L'accueil (îlot vide) ne s'ouvre qu'au clic ; les autres s'ouvrent après
-    /// l'intention. Revenue pendant que la forme se referme : elle repart vers l'ouvert tout de suite, depuis sa vitesse.
+    /// La souris est sur la forme (`true`) ou en est sortie. Elle s'ouvre après l'intention (l'îlot vide aussi : sur le Centre). Revenue
+    /// pendant que la forme se referme : elle repart vers l'ouvert tout de suite, depuis sa vitesse.
     func survolForme(_ dedans: Bool) {
         pointeurSurForme = dedans
         fermeture?.cancel(); intention?.cancel()
         guard !cache, !resolution.verrou else { return }
         if dedans {
-            guard resolution.principal != .repos else { return }
             if survole || epingle { return }
             if resolution.survol != nil, geo[2].x > geo[2].cibleFinale + 2 {
                 survole = true; donneesChangees(); surDepliageMoniteur(); return
@@ -630,14 +687,14 @@ final class IlotMoteur: ObservableObject {
         } else {
             guard survole || epingle else { return }
             if epingle { return }
-            let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { guard let self, !self.epingle, !self.pointeurSurForme, !self.glisserSortant else { return }; self.survole = false; self.sousVue = nil; self.donneesChangees(); self.fermerMoniteur() } }
+            let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { guard let self, !self.epingle, !self.pointeurSurForme, !self.glisserSortant, !self.depot else { return }; self.survole = false; self.sousVue = nil; self.donneesChangees(); self.fermerMoniteur() } }
             fermeture = item
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.delaiFermeture, execute: item)
         }
     }
     var fenetreOuverte: Bool { survole || epingle || sousVue != nil }
 
-    /// Clic sur la forme (hors boutons) : épingle ou relâche l'état déplié. L'îlot vide s'ouvre sur l'accueil.
+    /// Clic sur la forme (hors boutons) : épingle ou relâche l'état déplié. L'îlot vide s'ouvre sur le Centre.
     func clicForme() {
         guard !cache, !resolution.verrou, resolution.survol != nil else { return }
         intention?.cancel(); fermeture?.cancel()
@@ -745,6 +802,8 @@ final class IlotMoteur: ObservableObject {
     /// 0,9 s), puis l'îlot revient où il en était. Un seul réveil, aucune minuterie.
     func depotTermine(apres: TimeInterval = 0.9) {
         depotSurvole = false
+        // lâché sur le Centre : il reste ouvert (un geste, comme un clic sur un bouton)
+        if centreOuvert { epinglerLeCentre() }
         finDepot?.cancel()
         let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.montrerDepot(false) } }
         finDepot = item
@@ -760,6 +819,89 @@ final class IlotMoteur: ObservableObject {
     func ouvrirFormulaireRappel() {
         sousVue = .rappelListe; epingle = true; survole = true
         donneesChangees(); surDepliageMoniteur()
+    }
+
+    // MARK: cartes (lecture, Centre, accueil)
+
+    /// Les cartes de l'îlot ouvert, de haut en bas (vide quand il est verrouillé par une alerte ou un bandeau).
+    var cartes: [VueIlot] { cache ? [] : CartesIlot.pile(survol: resolution.verrou ? nil : resolution.survol) }
+    /// La carte montrée (nil : îlot replié, ou un écran hors de la pile, comme la carte Étagère).
+    var carteCourante: VueIlot? {
+        guard fenetreOuverte, let i = Self.rang(courante, cartes) else { return nil }
+        return cartes[i]
+    }
+    /// Le Centre est à l'écran (ou y arrive).
+    var centreOuvert: Bool { courante == .centre }
+
+    /// Passe à une carte de la pile (bouton « Centre », points de page, défilement). L'îlot reste ouvert ; épinglé, il le reste.
+    func allerA(_ carte: VueIlot) {
+        guard !cache, !resolution.verrou, cartes.contains(carte) else { return }
+        intention?.cancel(); fermeture?.cancel()
+        // depuis la lecture vers le Centre : l'aide « Fais défiler ou clique ici » a servi
+        if carte == .centre, carteCourante == .lectureEtendu, aideCentre { aideCentre = false; surCentreUtilise() }
+        // la première carte d'une activité est son déplié (pas de sous-vue) ; le Centre et l'accueil sont gardés tels quels, même si une
+        // activité commence pendant qu'ils sont ouverts
+        sousVue = carte == cartes.first && carte != .centre ? nil : carte
+        survole = true
+        donneesChangees(); surDepliageMoniteur()
+    }
+    /// Une carte plus bas (+1) ou plus haut (−1). Depuis la carte Étagère (ouverte depuis le Centre), on revient au Centre.
+    func defiler(_ pas: Int) {
+        guard fenetreOuverte, !cache, !resolution.verrou else { return }
+        if courante == .etagere { allerA(.centre); return }
+        guard let c = carteCourante, let v = CartesIlot.voisine(cartes, de: c, pas: pas) else { return }
+        allerA(v)
+    }
+    /// Un événement de défilement (molette, deux doigts) sur l'îlot ouvert : un geste = une carte, l'inertie ignorée.
+    func recevoirDefilement(dy: Double, dx: Double, phase: DefilementIlot.Phase, inertie: Bool, t: Double = ProcessInfo.processInfo.systemUptime) {
+        guard fenetreOuverte, !cache else { return }
+        if let pas = defilement.recevoir(dy: dy, dx: dx, phase: phase, inertie: inertie, t: t) { defiler(pas) }
+    }
+    /// Un clic sur un bouton du Centre : l'îlot reste ouvert (« Reste ouvert ») pour enchaîner d'autres réglages ; il se range au clic
+    /// ailleurs ou d'un clic sur la forme.
+    func epinglerLeCentre() {
+        guard !cache, !resolution.verrou else { return }
+        intention?.cancel(); fermeture?.cancel()
+        if courante == .centre, sousVue == nil { sousVue = .centre }
+        guard !epingle else { return }
+        epingle = true; survole = true
+        rev += 1
+        surDepliageMoniteur()
+    }
+
+    // MARK: ce qui s'ajoute aux écrans (pied de la lecture, points de page, bulle « Nouveau »)
+
+    private func majExtras() {
+        let pile = cartes
+        let pied = courante == .lectureEtendu && pile.contains(.centre)
+        let points = [.lectureEtendu, .centre, .accueil].contains(courante) && pile.count > 1 && fenetreOuverte
+        let bulle = bulleSous(courante)
+        for (e, voulu) in [(ExtraIlot.pied, pied), (.points, points), (.bulle, bulle)] {
+            if voulu { entrer(&apparitionsExtra[e], delai: e == .bulle ? 0.2 : 0.14) } else { sortir(&apparitionsExtra[e]) }
+        }
+    }
+
+    /// La bulle se pose-t-elle sous cet écran ? Seulement sous l'îlot replié (ou vide), sans bulle d'une 2e activité à côté, et tant
+    /// que rien ne s'ouvre ni ne s'annonce.
+    func bulleSous(_ v: VueIlot) -> Bool {
+        bulleNouveau && !cache && !fenetreOuverte && !depot && !resolution.verrou && resolution.pastille == nil && GeoIlot.profondeur(v) == 0
+    }
+    /// Premier lancement : la bulle « Nouveau : survole l'îlot », une seule fois. Elle part quand l'îlot s'ouvre, ou d'elle-même après
+    /// `duree` secondes (un seul réveil, aucune minuterie).
+    func montrerBulle(duree: TimeInterval = 12) {
+        guard !bulleNouveau else { return }
+        bulleNouveau = true
+        finBulle?.cancel()
+        let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { guard let self, self.bulleNouveau else { return }; self.cacherBulle(); self.donneesChangees() } }
+        finBulle = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + duree, execute: item)
+        donneesChangees()
+    }
+    private func cacherBulle() {
+        guard bulleNouveau else { return }
+        bulleNouveau = false
+        finBulle?.cancel(); finBulle = nil
+        surBulleVue()
     }
 
     // clic ailleurs : refermer (installé par le panneau)
@@ -780,6 +922,7 @@ final class IlotMoteur: ObservableObject {
         if !pastilleChute.fini { l.append("bulle \(pastilleChute.x)→\(pastilleChute.cible)") }
         if !pastilleOuverte.fini { l.append("bulle ouverte \(pastilleOuverte.x)→\(pastilleOuverte.cible)") }
         if !contenuPose { l.append("contenu (apparitions)") }
+        if !apparitionsExtra.values.allSatisfy(fini) { l.append("extras \(apparitionsExtra.filter { !fini($0.value) }.keys.map { "\($0)" })") }
         return l.isEmpty ? "rien" : l.joined(separator: ", ")
     }
     private var tousLesRessorts: Bool {

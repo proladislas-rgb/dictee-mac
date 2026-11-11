@@ -26,6 +26,10 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// L'étagère : pendant qu'on glisse des fichiers près de l'encoche, la zone « Déposez ici » (et les derniers fichiers rangés) ;
     /// depuis l'accueil, la carte des fichiers gardés (icône, nom, glissables vers une app).
     case etagereDepot, etagere
+    /// Le Centre (maquette design/maquettes/ilot-centre.html) : tout ce qui se règle depuis l'îlot, à la souris. Une rangée de gros boutons
+    /// ronds (micro, micro de la dictée, téléchargements, Claude Code) et deux grandes cases (minuteur, étagère). On y passe depuis la lecture
+    /// dépliée (bouton « Centre », points de page, défilement) ; l'îlot vide s'ouvre directement dessus.
+    case centre
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
@@ -57,6 +61,13 @@ public enum GeoIlot {
     public static let ligneAccueil: Double = 42
     /// Une rangée de plus de fichiers dans la carte Étagère (tuile de 72 pt + 8 pt d'écart).
     public static let rangeeEtagere: Double = 80
+    /// La lecture dépliée jusqu'à ses commandes (pochette, titre, barre, boutons) : la rangée Minuteur (appui long) se pose dessous.
+    public static let profondeurLecture: Double = 175
+    /// Le pied de la lecture dépliée : le bouton « Centre » (30 pt) et sa marge (maquette : 12 pt dessus, 14 dessous ; ici 6 + 30 + 4,
+    /// les boutons de la lecture ont déjà 7 pt de vide sous leur glyphe).
+    public static let piedLecture: Double = 40
+    /// Le Centre : 14 de marge, l'en-tête (26), 12, la rangée des ronds (96), 10, les deux grandes cases (76), 14 (maquette : 281 − 33).
+    public static let profondeurCentre: Double = 14 + 26 + 12 + 96 + 10 + 76 + 14
     /// Repos d'une activité : rien sous la barre, le cou serré contre la caméra (la place de la pochette, de l'anneau, de l'heure).
     static func compact(_ cou: Double) -> [Double] { [cou, cou, 0, 6, 10, 0, 0] }
     /// Bandeau passager : cou étroit (les menus restent visibles), deux lignes sous la barre. Le corps s'ajuste à son contenu (comme la
@@ -68,14 +79,18 @@ public enum GeoIlot {
         .repos: [0, 0, 0, 0, 8, 0, 0],
         .minuteurMinimal: compact(36), .minuteurCompact: compact(48), .minuteurEtendu: [48, 112, 91, 6, 30, 16, 10],
         .minuteurLance: bandeau, .minuteurFini: alerte,
-        .lectureCompact: compact(44), .lectureEtendu: [44, 144, 175, 6, 34, 18, 10],
-        // la lecture dépliée + la rangée Minuteur de l'accueil (appui long, maquette apple-acces/1-controles.html) : même largeur
-        .lectureMinuteur: [44, 144, 175 + rangeeMinuteur, 6, 34, 18, 10],
+        // la lecture dépliée : ses commandes, puis le pied (bouton « Centre ») ; le Centre a la même largeur (on passe de l'un à l'autre)
+        .lectureCompact: compact(44), .lectureEtendu: [44, 144, profondeurLecture + piedLecture, 6, 34, 18, 10],
+        // la lecture dépliée + la rangée Minuteur de l'accueil (appui long, maquette apple-acces/1-controles.html) : même largeur ; la
+        // rangée prend la place du pied
+        .lectureMinuteur: [44, 144, profondeurLecture + rangeeMinuteur, 6, 34, 18, 10],
         .rappelEtendu: alerte, .rappelCompact: compact(48), .rappelAjoute: bandeau,
         .rappelFait: bandeau, .rappelReporte: bandeau, .rappelListe: [14, 144, 136, 6, 34, 18, 10],
         .agendaAvant: bandeau, .agendaCompact: compact(50), .agendaEtendu: [50, 150, 130, 6, 34, 18, 10], .agendaDebut: bandeau,
         .notification: bandeau, .notifications: bandeau,
-        .accueil: [14, 144, 190, 6, 34, 18, 10],
+        // l'accueil, devenu la carte sous le Centre : le prochain rendez-vous, « Dire un rappel », la dernière dictée (3 lignes de 42 pt).
+        // Le minuteur, le choix du micro et l'étagère sont passés dans le Centre
+        .accueil: [14, 144, 10 + 3 * ligneAccueil + 12, 6, 34, 18, 10],
         // les jauges des écouteurs (anneau + nom) demandent un peu plus de hauteur qu'un bandeau ; l'énergie tient dans les ailes
         .appareil: [14, 150, 80, 6, 30, 16, 10],
         .batterieCharge: compact(60), .batterieFaible: compact(60),
@@ -95,6 +110,7 @@ public enum GeoIlot {
         // l'en-tête (42 pt) et une rangée de tuiles (72 pt) ; une deuxième rangée s'ajoute (`enPlus`) au-delà de cinq fichiers
         .etagereDepot: [14, 144, 102, 6, 30, 16, 10],
         .etagere: [14, 144, 10 + 42 + 8 + 72 + 12, 6, 34, 18, 10],
+        .centre: [14, 144, profondeurCentre, 6, 34, 18, 10],
     ]
     /// Indices des valeurs : largeurs (cou, corps) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur mène ; à la
     /// fermeture la hauteur se replie d'abord.
@@ -114,7 +130,7 @@ public enum GeoIlot {
     /// la batterie du Mac (à gauche) et celle des écouteurs (à droite). 56 + le congé du cou déplié (10 pt) = la limite des ailes (66 pt).
     public static let epaules: Double = 56
     public static func aEpaules(_ v: VueIlot) -> Bool {
-        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere].contains(v)
+        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre].contains(v)
     }
 
     /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.
@@ -250,7 +266,8 @@ public enum ArbitrageIlot {
             let compact = premiere == .claude && !e.claudeListe && !e.claudeAttend ? VueIlot.claudeMinimal : v.compact
             return ResolutionIlot(principal: compact, survol: v.etendu, verrou: false, pastille: p.count > 1 ? p[1] : nil)
         }
-        return ResolutionIlot(principal: .repos, survol: .accueil, verrou: false, pastille: nil)
+        // rien ne joue : l'îlot vide s'ouvre directement sur le Centre (au survol comme au clic)
+        return ResolutionIlot(principal: .repos, survol: .centre, verrou: false, pastille: nil)
     }
 
     /// L'étage de la priorité (1 = le plus haut) : 1 dictée, 2 réunion, 3 alerte (minuteur fini, rappel, rendez-vous) et micro coupé,

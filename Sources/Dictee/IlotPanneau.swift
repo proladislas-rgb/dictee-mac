@@ -6,6 +6,11 @@ import DicteeCore
 /// de l'encoche et le haut de l'écran. C'est le moteur qui décide si la souris est sur la forme ou sur la pastille.
 final class VueHebergeeIlot<Contenu: View>: NSHostingView<Contenu> {
     var surPointeur: ((CGPoint?) -> Void)?
+    /// La molette ou deux doigts sur le trackpad, au-dessus de l'îlot : passer d'une carte à l'autre (lecture, Centre, accueil).
+    var surDefilement: ((NSEvent) -> Void)?
+    override func scrollWheel(with event: NSEvent) {
+        if let surDefilement { surDefilement(event) } else { super.scrollWheel(with: event) }
+    }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -112,6 +117,7 @@ final class IlotPanneau {
         v.frame = NSRect(x: 0, y: 0, width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax)
         v.autoresizingMask = []
         v.surPointeur = { [weak self] p in self?.pointeur(p) }
+        v.surDefilement = { [weak self] e in self?.defilement(e) }
         // le fond de la fenêtre reçoit les fichiers lâchés (l'étagère) ; la vue SwiftUI au-dessus n'en veut pas, ils lui passent dessous
         let c = ConteneurIlot(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
         c.panneau = self
@@ -192,6 +198,39 @@ final class IlotPanneau {
         if surForme != sousForme { sousForme = surForme; moteur.survolForme(surForme) }
         if surPastille != sousPastille { sousPastille = surPastille; moteur.survolPastille(surPastille) }
         laisserPasser(!(surForme || surPastille))
+    }
+
+    // MARK: défilement (molette, deux doigts)
+
+    /// Un geste de défilement sur l'îlot ouvert : une carte de plus ou de moins (le moteur compte : un geste = une carte, l'inertie
+    /// ignorée, un défilement surtout horizontal ne compte pas).
+    private func defilement(_ e: NSEvent) {
+        let phase: DefilementIlot.Phase
+        if e.phase.contains(.began) || e.phase.contains(.mayBegin) { phase = .debut }
+        else if e.phase.contains(.ended) || e.phase.contains(.cancelled) { phase = .fin }
+        else if e.phase.contains(.changed) || e.phase.contains(.stationary) { phase = .suite }
+        else { phase = .aucune }
+        // une molette (crans) donne des valeurs en lignes : on les compte comme un cran chacune
+        let dy = Double(e.hasPreciseScrollingDeltas ? e.scrollingDeltaY : e.scrollingDeltaY * 10)
+        let dx = Double(e.hasPreciseScrollingDeltas ? e.scrollingDeltaX : e.scrollingDeltaX * 10)
+        moteur.recevoirDefilement(dy: dy, dx: dx, phase: phase, inertie: e.momentumPhase != [])
+    }
+
+    /// Pour les essais : un VRAI événement de défilement (CGEvent → NSEvent) remis à la fenêtre, au point `p`. `phase` : 1 début,
+    /// 2 suite, 4 fin, 0 molette ; `inertie` : 1 début, 2 suite, 3 fin (0 : aucune). Rien n'est envoyé au système.
+    func envoyerDefilement(dy: Int32, en p: CGPoint, phase: Int64, inertie: Int64 = 0, trackpad: Bool = true) {
+        guard let f = fenetre, let ecran, let ev = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: dy, wheel2: 0, wheel3: 0) else { return }
+        // position globale (origine en haut à gauche de l'écran principal) du point de l'îlot
+        let principal = NSScreen.screens.first?.frame.maxY ?? ecran.frame.maxY
+        ev.location = CGPoint(x: centre + p.x, y: principal - (ecran.frame.maxY - p.y))
+        ev.setIntegerValueField(.scrollWheelEventIsContinuous, value: trackpad ? 1 : 0)
+        ev.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase)
+        ev.setIntegerValueField(.scrollWheelEventMomentumPhase, value: inertie)
+        ev.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: Int64(f.windowNumber))
+        ev.setIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent, value: Int64(f.windowNumber))
+        guard let e = NSEvent(cgEvent: ev) else { return }
+        if e.window === f { f.sendEvent(e) }
+        else { vue?.scrollWheel(with: e) }   // sans fenêtre associée, l'événement va droit à la vue de l'îlot (même chemin ensuite)
     }
 
     // MARK: clics qui traversent
@@ -299,7 +338,7 @@ final class IlotPanneau {
     func glisser(_ p: CGPoint, fichiers: () -> Bool) {
         // un fichier qui PART de l'îlot (bandeau « Téléchargé », tuile de la carte) n'ouvre jamais la zone sous lui-même
         guard etagereActive, !moteur.glisserSortant else { return }
-        guard moteur.depot || procheEncoche(p) else { return }
+        guard moteur.depot || procheEncoche(p) || (moteur.centreOuvert && moteur.contient(p)) else { return }
         if glisserDeFichiers == nil { glisserDeFichiers = fichiers() }
         guard glisserDeFichiers == true else { return }
         approcher(p)
@@ -316,7 +355,8 @@ final class IlotPanneau {
         // dans la barre des menus, seulement près du cou (à côté, ce sont les icônes des autres apps) ; dessous, près de la forme
         let marge = CGFloat(ApprocheEtagere.marge)
         let garde = moteur.depot && (p.y < moteur.geometrie.hauteur ? abs(p.x) <= CGFloat(moteur.traceCible.cou) + marge : moteur.contient(p, marge: marge))
-        let proche = procheEncoche(p) || garde
+        // le Centre ouvert reçoit les fichiers sur toute sa forme (sa case Étagère s'éclaire) : on y lâche un fichier venu du Finder
+        let proche = procheEncoche(p) || garde || (moteur.centreOuvert && moteur.contient(p))
         if proche, !moteur.depot {
             moteur.montrerDepot(true)
             if moteur.depot { accepterLeDepot(true) }
@@ -401,10 +441,23 @@ final class IlotPanneau {
 
     // MARK: clic ailleurs
 
+    /// Un clic ailleurs referme l'îlot ouvert. Le bouton gauche est jugé au RELÂCHEMENT : s'il a servi à glisser un fichier (vers la case
+    /// Étagère du Centre, par exemple), l'îlot reste ouvert ; les autres boutons referment tout de suite.
+    private var glisserAuClic = 0
     private func installerMoniteur() {
         guard moniteurClic == nil else { return }
-        moniteurClic = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in
-            Task { @MainActor in self?.moteur.fermer() }
+        moniteurClic = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp, .rightMouseDown, .otherMouseDown]) { [weak self] e in
+            let type = e.type
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                switch type {
+                case .leftMouseDown: self.glisserAuClic = self.pressePapiersGlisser.changeCount
+                case .leftMouseUp:
+                    guard self.pressePapiersGlisser.changeCount == self.glisserAuClic, !self.moteur.depot else { return }
+                    self.moteur.fermer()
+                default: self.moteur.fermer()
+                }
+            }
         }
     }
     private func retirerMoniteur() {

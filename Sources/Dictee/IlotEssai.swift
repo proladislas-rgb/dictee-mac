@@ -337,23 +337,21 @@ enum IlotEssai {
             if let b = m.rectPastille() { verifier(b.minX >= CGFloat(m.trace.cou) + 5, "la bulle de la lecture est à côté de l'îlot, pas dessus") }
             attendre(1.2) { m.boucleActive }
             verifier(!m.boucleActive, "micro coupé, posé : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
-            // survol : le petit déplié
+            // survol : le micro coupé n'a plus de déplié à lui (son bouton est dans le Centre) : la vidéo en bulle se déplie
             c.panneau.simulerPointeur(forme: true); attendre(0.9)
-            verifier(m.courante == .microEtendu && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01, "survol : « Micro coupé », son nom et « Rouvrir » ; cou étroit dans la barre")
-            let lm = m.contenus[.microEtendu] ?? 0
-            verifier(lm > 150 && lm <= 2 * m.grille.corps(.microEtendu) - 2 * GrilleIlot.marge + 0.5, "le déplié épouse son contenu (\(Int(lm)) pt)")
-            verifier(m.contenuAnnonce(.microEtendu)?.l2 == "Micro MacBook Air", "le nom du micro vient de la source")
-            // vrai clic sur « Rouvrir »
-            let z = m.grille.zoneAnnonce(.microEtendu)
-            let bouton = MesureIlot.bouton(ContenuAnnonce.Bouton(titre: "Rouvrir", icone: "mic.fill"))
-            let pb = CGPoint(x: z.maxX - bouton / 2, y: z.midY)
-            c.panneau.envoyerSouris(.leftMouseDown, en: pb); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pb)
-            c.panneau.simulerPointeur(forme: false); attendre(0.4)
-            verifier(faux.commandes.last == "rouvrir integre" && !faux.coupe && !m.microCoupe, "vrai clic sur « Rouvrir » : le micro est rouvert")
-            verifier(m.courante == .microOuvert && m.bandeauVu?.ligne1 == "Micro ouvert", "bandeau vert « Micro ouvert »")
-            attendre(1.6)
+            verifier(m.courante == .lectureEtendu && m.cartes == [.lectureEtendu, .centre, .accueil] && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01,
+                     "survol, micro coupé pendant une vidéo : la vidéo se déplie, le Centre est la carte suivante (\(m.courante))")
+            // vrai clic sur « Centre » au pied de la lecture, puis sur le bouton Micro, rouge
+            let pc = PiedLecture.pointBouton(m.grille)
+            c.panneau.envoyerSouris(.leftMouseDown, en: pc); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pc); attendre(0.9)
+            verifier(m.courante == .centre, "vrai clic sur « Centre » : le Centre (\(m.courante))")
+            let pm = PlanCentre.centreRond(m.grille, 0, sur: m.boutonsCentre.count)
+            c.panneau.envoyerSouris(.leftMouseDown, en: pm); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pm); attendre(0.4)
+            verifier(faux.commandes.last == "rouvrir integre" && !faux.coupe && !m.microCoupe, "vrai clic sur le bouton Micro (« Coupé ») : le micro est rouvert")
+            verifier(m.courante == .centre && m.epingle && m.bandeau == nil, "le Centre reste ouvert (« Reste ouvert ») ; pas de bandeau « Micro ouvert », qui le refermerait")
+            c.panneau.simulerPointeur(forme: false); m.fermer(); attendre(0.9)
             verifier(m.bandeau == nil && m.resolution.principal == .lectureCompact && m.resolution.pastille == nil,
-                     "1,5 s plus tard : il se retire, la lecture reprend l'îlot (\(m.bandeau.map { "\($0.vue)" } ?? "sans bandeau"), \(m.resolution.principal), bulle \(m.resolution.pastille.map { "\($0)" } ?? "aucune"))")
+                     "refermé : la lecture reprend l'îlot (\(m.bandeau.map { "\($0.vue)" } ?? "sans bandeau"), \(m.resolution.principal), bulle \(m.resolution.pastille.map { "\($0)" } ?? "aucune"))")
             // Réglages Système : l'îlot suit (CoreAudio prévient ; ici le faux micro prévient de même)
             let n0 = faux.commandes.count
             faux.depuisLeSysteme(coupe: true); attendre(0.6)
@@ -827,25 +825,28 @@ enum IlotEssai {
         verifier(notes == 1, "« Noter la réunion » lance la prise de notes existante")
         decalage = 0
 
-        // --- accueil et commandes dictées
+        // --- le Centre sur l'îlot vide, et commandes dictées
         c.injecterEvenements([]); c.moteur.quitterAlerte(); attendre(0.5)
         c.lecture.modele.morceau = nil; c.lecture.surIlot(false); attendre(0.3)
-        verifier(m.resolution.principal == .repos && m.resolution.survol == .accueil, "plus rien : accueil possible")
-        c.panneau.simulerPointeur(forme: true); attendre(0.6)
-        verifier(m.courante == .repos, "îlot vide : le survol seul n'ouvre pas l'accueil")
-        c.panneau.simulerPointeur(forme: false); attendre(0.6)
+        verifier(m.resolution.principal == .repos && m.resolution.survol == .centre, "plus rien : au survol, le Centre")
+        c.panneau.simulerPointeur(forme: true); attendre(0.15)
+        verifier(m.courante == .repos, "îlot vide, souris posée depuis 0,15 s : rien encore (intention de 0,28 s)")
+        attendre(0.5)
+        verifier(m.courante == .centre, "îlot vide : le survol ouvre directement le Centre")
+        c.panneau.simulerPointeur(forme: false); attendre(0.7)
+        verifier(m.courante == .repos, "souris partie : l'îlot vide se referme")
         m.clicForme(); attendre(0.6)
-        verifier(m.courante == .accueil, "clic sur l'îlot vide : l'accueil et ses tuiles")
+        verifier(m.courante == .centre, "clic sur l'îlot vide : le Centre")
         verifier(c.intercepter("minuteur 10 minutes") == false && c.minuteur == nil, "sans dictée armée, une commande n'est jamais interceptée")
-        c.dicteeChange(enCours: true)   // l'accueil est ouvert à cet instant : la commande dictée est armée
+        c.dicteeChange(enCours: true)   // le Centre est ouvert à cet instant : la commande dictée est armée
         occ.dictee = true; c.occupationChangee(); attendre(0.3)
         occ.dictee = false; c.dicteeChange(enCours: false); c.occupationChangee()
-        verifier(c.intercepter("Bonjour Paul, je te rappelle demain.") == false, "accueil ouvert + phrase normale : le texte est collé normalement")
+        verifier(c.intercepter("Bonjour Paul, je te rappelle demain.") == false, "Centre ouvert + phrase normale : le texte est collé normalement")
         c.moteur.clicForme(); attendre(0.5)
-        verifier(m.courante == .accueil, "accueil rouvert avant de dicter")
+        verifier(m.courante == .centre, "Centre rouvert avant de dicter")
         c.dicteeChange(enCours: true); occ.dictee = true; c.occupationChangee(); attendre(0.2)
         occ.dictee = false; c.dicteeChange(enCours: false); c.occupationChangee(); attendre(0.2)
-        verifier(c.intercepter("Minuteur 10 minutes.") == true && c.minuteur != nil, "accueil ouvert + « minuteur 10 minutes » : minuteur lancé, rien n'est collé")
+        verifier(c.intercepter("Minuteur 10 minutes.") == true && c.minuteur != nil, "Centre ouvert + « minuteur 10 minutes » : minuteur lancé, rien n'est collé")
         verifier(abs((c.minuteur?.restant(a: c.maintenant()) ?? 0) - 600) < 2, "le minuteur dicté dure 10 minutes")
         c.agir(.minuteurArreter)
         verifier(c.intercepter("Minuteur 10 minutes.") == false, "la commande n'est utilisable qu'une fois par dictée armée")
@@ -940,21 +941,21 @@ enum IlotEssai {
             verifier(!m.depot, "pendant la dictée : un glisser n'ouvre rien")
             c.panneau.finDuGlisser()
             occ.dictee = false; c.occupationChangee(); attendre(0.9)
-            // l'accueil et sa ligne
+            // le Centre et sa case Étagère (la forme ne change pas de taille)
             m.clicForme(); attendre(0.9)
-            let hAccueil = barre + GeoIlot.profondeur(.accueil) + GeoIlot.ligneAccueil
-            verifier(m.courante == .accueil && abs(m.geo[2].x - hAccueil) < 0.5, "accueil : la ligne « Étagère · 3 fichiers » en plus (\(Int(m.geo[2].x)) pt de haut)")
+            let hCentre = barre + GeoIlot.profondeur(.centre)
+            verifier(m.courante == .centre && abs(m.geo[2].x - hCentre) < 0.5 && m.etagere.count == 3, "Centre : la case Étagère montre les 3 fichiers (\(Int(m.geo[2].x)) pt de haut)")
             // un fichier supprimé, un autre déplacé et renommé, pendant que l'accueil est ouvert
             try? FileManager.default.removeItem(at: notes)
             let sous = rayon.appendingPathComponent("Rangé", isDirectory: true)
             try? FileManager.default.createDirectory(at: sous, withIntermediateDirectories: true)
             let photo2 = sous.appendingPathComponent("Photo de vacances.heic")
             try? FileManager.default.moveItem(at: photo, to: photo2)
-            // vrai clic sur la ligne de l'étagère (la 5e de l'accueil)
-            let za = m.grille.zone(.accueil, haut: 10, bas: 12)
-            let pl = CGPoint(x: za.minX + 120, y: za.minY + 4 * 42 + 21)
+            // vrai clic sur le titre de la case Étagère du Centre
+            let ce = PlanCentre.cadreCase(m.grille, droite: true)
+            let pl = CGPoint(x: ce.minX + 60, y: ce.minY + 11 + 8)
             c.panneau.envoyerSouris(.leftMouseDown, en: pl); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pl); attendre(0.9)
-            verifier(m.courante == .etagere, "vrai clic sur la ligne de l'étagère : la carte s'ouvre")
+            verifier(m.courante == .etagere, "vrai clic sur le titre de la case Étagère : la carte s'ouvre (\(m.courante))")
             verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Photo de vacances.heic"], "à l'ouverture : le fichier supprimé est retiré, le fichier déplacé suit (\(c.etagere.elements.map(\.nom)))")
             verifier(c.etagere.elements.last?.chemin == SignetsEtagere.cheminReel(photo2), "… avec son nouveau chemin")
             verifier(m.trace.bande <= hc + GeoIlot.aileMax + 0.01, "carte : dans la barre, \(Int(m.trace.bande - hc)) pt de chaque côté (≤ 66)")
@@ -976,7 +977,7 @@ enum IlotEssai {
             verifier(FileManager.default.fileExists(atPath: contrat.path) && FileManager.default.fileExists(atPath: photo2.path), "vider l'étagère ne touche à aucun fichier")
             m.fermer(); attendre(0.6)
             m.clicForme(); attendre(0.9)
-            verifier(m.courante == .accueil && abs(m.geo[2].x - (barre + GeoIlot.profondeur(.accueil))) < 0.5, "étagère vide : l'accueil reprend sa taille, sans la ligne")
+            verifier(m.courante == .centre && abs(m.geo[2].x - hCentre) < 0.5 && m.etagere.isEmpty, "étagère vide : la case du Centre dit « Glisse un fichier ici », même taille")
             m.fermer(); attendre(0.6)
             // réglage éteint
             c.ranger([contrat]); c.activerEtagere(false); attendre(0.3)
@@ -984,9 +985,11 @@ enum IlotEssai {
             verifier(!m.depot && !c.panneau.accepteLesFichiers && !(c.panneau.glisserSurLIlot(CGPoint(x: 0, y: 10))), "réglage éteint : plus de « Déposez ici », la fenêtre refuse les fichiers")
             c.panneau.finDuGlisser()
             m.clicForme(); attendre(0.9)
-            verifier(m.courante == .accueil && abs(m.geo[2].x - (barre + GeoIlot.profondeur(.accueil))) < 0.5, "réglage éteint : pas de ligne Étagère dans l'accueil")
+            verifier(m.courante == .centre && !m.etagereActive, "réglage éteint : la case Étagère du Centre le dit (« Éteinte », Allumer)")
             m.fermer(); attendre(0.8)
         }
+
+        IlotEssai.centre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)

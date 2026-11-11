@@ -233,8 +233,10 @@ enum RenduLecture {
             ecrire(bureau(hauteur: petitBureau) { ilot(miCourse(scene(lecture: musique) { $0.lecturePresente = true }, t) { $0.minuteur = minut(10, restant: 372) }) }, "ilot-2\(nom)-goutte-\(Int(t * 1000))ms")
         }
         // 3 · accueil et minuteur
-        ecrire(bureau(hauteur: grandBureau) { ilot(scene { $0.epingle = true; $0.survole = true; $0.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); $0.rendezVousSuivant = rdv }) }, "ilot-3a-accueil")
-        ecrire(bureau(hauteur: grandBureau) { ilot(scene { $0.calendrierActif = false; $0.epingle = true; $0.survole = true }) }, "ilot-3a2-accueil-vide")
+        // l'accueil est devenu la carte sous le Centre (points de page à droite)
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); m.rendezVousSuivant = rdv
+            m.donneesChangees(); m.allerA(.accueil) }) }, "ilot-3a-accueil")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.calendrierActif = false; m.donneesChangees(); m.allerA(.accueil) }) }, "ilot-3a2-accueil-vide")
         ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.bandeau = BandeauIlot(vue: .minuteurLance, jusqua: t0, ligne1: "Minuteur lancé", ligne2: "10 min \u{00B7} fin à 14:42"); $0.minuteur = minut(10) }) }, "ilot-3b-minuteur-lance")
         ecrire(bureau(hauteur: moyenBureau) { ilot(scene { $0.alerte = AlerteIlot(vue: .minuteurFini, jusqua: nil, libelle: "10 min") }) }, "ilot-3d-minuteur-fini")
         ecrire(bureau(hauteur: moyenBureau) { ilot(scene { var x = minut(10, restant: 392); x.pause(a: t0); $0.minuteur = x; $0.survole = true }) }, "ilot-3e-minuteur-en-pause")
@@ -270,10 +272,12 @@ enum RenduLecture {
         let batterie = EnergieIlot(pourcent: 33, secteur: true, enCharge: true)
         let airpods = AppareilIlot(nom: "AirPods Pro de Hugues", genre: .ecouteurs, gauche: 80, droit: 78, etui: 45)
         ecrire(bureau(hauteur: geometrie.hauteur + 300, clair: false) { ilot(scene(lecture: videoLongue) { m in m.energie = batterie; m.ecouteurs = airpods; m.lecturePresente = true; m.minuteur = minut(10, restant: 578); m.donneesChangees(); m.appuiLong(minuteurActif: true) }) }, "ilot-11a-epaules-lecture-minuteur")
-        ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpods; m.epingle = true; m.survole = true; m.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); m.rendezVousSuivant = rdv }) }, "ilot-11b-epaules-accueil")
+        ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpods; m.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); m.rendezVousSuivant = rdv
+            m.donneesChangees(); m.allerA(.accueil) }) }, "ilot-11b-epaules-accueil")
         ecrire(bureau(hauteur: geometrie.hauteur + 230, clair: false) { ilot(scene(lecture: videoLongue) { m in m.energie = EnergieIlot(pourcent: 100, secteur: true, enCharge: false); m.ecouteurs = airpods; m.lecturePresente = true; m.donneesChangees(); m.survole = true; m.donneesChangees() }) }, "ilot-11f-epaules-100-branche")
         ecrire(bureau(hauteur: geometrie.hauteur + 230, clair: false) { ilot(scene(lecture: videoLongue) { m in m.energie = EnergieIlot(pourcent: 14, secteur: false, enCharge: false); m.ecouteurs = airpods; m.lecturePresente = true; m.donneesChangees(); m.survole = true; m.donneesChangees() }) }, "ilot-11g-epaules-14")
-        ecrire(bureau(hauteur: grandBureau + 50) { ilot(scene { m in m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpods; m.choixMicro = ("AirPods Pro de Hugues", false); m.epingle = true; m.survole = true; m.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); m.rendezVousSuivant = rdv }) }, "ilot-11h-accueil-choix-micro")
+        // le choix du micro de la dictée est passé dans le Centre (bouton « Dictée », Mac / AirPods)
+        ecrire(bureau(hauteur: geometrie.hauteur + 300) { ilot(scene { m in m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpods; m.choixMicro = ("AirPods Pro de Hugues", false); m.survole = true }) }, "ilot-11h-centre-choix-micro")
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.energie = batterie; $0.bandeau = BandeauIlot(vue: .appareil, jusqua: t0, ligne1: airpods.titre, ligne2: "", appareil: airpods) }) }, "ilot-11c-airpods-connectes")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.energie = batterie; $0.bandeau = BandeauIlot(vue: .batterieCharge, jusqua: t0, ligne1: "En charge", ligne2: "", energie: batterie) }) }, "ilot-11d-en-charge")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { let e = EnergieIlot(pourcent: 20, secteur: false, enCharge: false); $0.energie = e; $0.lecturePresente = true; $0.bandeau = BandeauIlot(vue: .batterieFaible, jusqua: t0, ligne1: "Batterie faible", ligne2: "", energie: e) }) }, "ilot-11e-batterie-faible-pendant-video")
@@ -288,15 +292,15 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = telecharge([("Rapport-annuel-2026-direction-financière-version-définitive-signée-v3.pdf", 18_734_000, false, .pdf)]) }) }, "ilot-14b-telecharge-nom-long")
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = telecharge([("IMG_2041.HEIC", 3_100_000, true, .heic)]) }) }, "ilot-14c-recu-par-airdrop")
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.bandeau = telecharge([("Photo 1.heic", 900_000, false, .heic), ("Photo 2.heic", 800_000, false, .heic), ("Devis.pdf", 1_400_000, false, .pdf)]) }) }, "ilot-14d-trois-fichiers-pendant-video")
-        // micro coupé (maquette ilot-apple.html, cinq idées de plus, 5) : seul, pendant une vidéo (la vidéo en bulle), au survol, rouvert,
-        // et la vidéo reprise par un clic sur la bulle (le micro coupé passe en bulle)
+        // micro coupé (maquette ilot-apple.html, cinq idées de plus, 5) : seul, pendant une vidéo (la vidéo en bulle), au survol (le
+        // Centre, où est le bouton Micro ; pendant une vidéo, la vidéo), rouvert, et la vidéo reprise par un clic sur la bulle
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.microCoupe = true; $0.nomMicro = "Micro MacBook Air" }) }, "ilot-19a-micro-coupe")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.microCoupe = true }) }, "ilot-19b-micro-coupe-video-en-bulle")
-        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.microCoupe = true; $0.nomMicro = "Micro MacBook Air"; $0.survole = true }) }, "ilot-19c-micro-coupe-survol")
-        ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.microCoupe = true; $0.nomMicro = "AirPods Pro de Hugues"; $0.survole = true }) }, "ilot-19d-micro-coupe-survol-airpods")
+        ecrire(bureau(hauteur: geometrie.hauteur + 300) { ilot(scene { $0.microCoupe = true; $0.nomMicro = "Micro MacBook Air"; $0.survole = true }) }, "ilot-19c-micro-coupe-survol")
+        ecrire(bureau(hauteur: grandBureau, clair: false) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.microCoupe = true; $0.nomMicro = "AirPods Pro de Hugues"; $0.survole = true }) }, "ilot-19d-micro-coupe-survol-airpods")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .microOuvert, jusqua: t0, ligne1: "Micro ouvert", ligne2: "") }) }, "ilot-19e-micro-ouvert")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.microCoupe = true; m.donneesChangees(); m.poser(); m.cliquerPastille(); m.poser() }) }, "ilot-19f-video-et-bulle-micro-coupe")
-        ecrire(bureau(hauteur: grandBureau) { ilot(miCourse(scene { $0.microCoupe = true; $0.nomMicro = "Micro MacBook Air" }, 0.16) { $0.survole = true }) }, "ilot-19g-micro-coupe-survol-mi-course")
+        ecrire(bureau(hauteur: geometrie.hauteur + 300) { ilot(miCourse(scene { $0.microCoupe = true; $0.nomMicro = "Micro MacBook Air" }, 0.16) { $0.survole = true }) }, "ilot-19g-micro-coupe-survol-mi-course")
         // volume et luminosité (maquette ilot-apple.html, cinq idées de plus, 4) : le haut-parleur et la barre dans les ailes (66 pt de
         // chaque côté au plus) ; pendant une vidéo avec un minuteur en bulle (la bulle ne bouge pas) ; son coupé ; une onde, trois ondes ;
         // la luminosité ; et l'arrivée à mi-course depuis la vidéo (la forme s'élargit, la barre glisse de l'ancienne valeur)
@@ -343,8 +347,8 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau + 80) { ilot(scene(depot([], survol: false))) }, "ilot-22a-etagere-deposez-ici-vide")
         ecrire(bureau(hauteur: petitBureau + 80) { ilot(scene(depot(deux, survol: true))) }, "ilot-22b-etagere-deposez-ici-survol")
         ecrire(bureau(hauteur: petitBureau + 80, clair: false) { ilot(scene(depot(Array(huit.prefix(5)), survol: false))) }, "ilot-22c-etagere-cinq-fichiers-sombre")
-        ecrire(bureau(hauteur: grandBureau + 50) { ilot(scene { m in m.etagereActive = true; m.etagere = deux; m.epingle = true; m.survole = true
-            m.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); m.rendezVousSuivant = rdv }) }, "ilot-22d-accueil-ligne-etagere")
+        // l'étagère est passée de l'accueil au Centre (sa case : les fichiers rangés, glissables)
+        ecrire(bureau(hauteur: geometrie.hauteur + 300) { ilot(scene { m in m.etagereActive = true; m.etagere = deux; m.survole = true }) }, "ilot-22d-centre-case-etagere")
         ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.etagereActive = true; m.etagere = Array(huit.prefix(3)); m.energie = batterie; m.ouvrirEtagere() }) }, "ilot-22e-carte-etagere")
         ecrire(bureau(hauteur: grandBureau + 40, clair: false) { ilot(scene { m in m.etagereActive = true; m.etagere = huit; m.ouvrirEtagere() }) }, "ilot-22f-carte-etagere-deux-rangees")
         ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.etagereActive = true; m.etagere = []; m.ouvrirEtagere() }) }, "ilot-22g-carte-etagere-vide")
@@ -352,6 +356,34 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau + 80) { ilot(miCourse(scene { m in m.etagereActive = true; m.etagere = deux }, 0.16) { $0.montrerDepot(true) }) }, "ilot-22i-etagere-ouverture-mi-course")
         ecrire(bureau(hauteur: grandBureau + 70) { ilot(scene(lecture: videoLongue) { m in m.etagereActive = true; m.etagere = deux; m.lecturePresente = true
             m.donneesChangees(); m.appuiLong(minuteurActif: true) }) }, "ilot-22j-lecture-rangee-et-etagere")
+        // le Centre (maquette ilot-centre.html, mêmes étapes) : la bulle « Nouveau », la lecture et son bouton « Centre », le Centre et
+        // ses boutons (micro coupé et « Reste ouvert », l'étagère qui reçoit un fichier, Téléchargements allumé, Claude prêt), puis d'autres
+        // états (îlot vide, minuteur qui tourne, Claude au travail, l'accueil sous le Centre, la carte Étagère, le passage à mi-course)
+        let hCentre = geometrie.hauteur + 300
+        let airpodsPro = AppareilIlot(nom: "AirPods Pro de Hugues", genre: .ecouteurs, gauche: 80, droit: 78, etui: 45)
+        func centre(_ config: @escaping (IlotMoteur) -> Void = { _ in }) -> (IlotMoteur) -> Void {
+            { m in m.lecturePresente = true; m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpodsPro
+                m.choixMicro = ("AirPods Pro de Hugues", true); m.etagereActive = true; m.aideCentre = true
+                m.donneesChangees(); m.survole = true; m.donneesChangees(); m.allerA(.centre); config(m); m.donneesChangees() }
+        }
+        ecrire(bureau(hauteur: petitBureau + 50) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.donneesChangees(); m.montrerBulle() }) }, "ilot-23a-centre-1-bulle-nouveau")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false)
+            m.ecouteurs = airpodsPro; m.aideCentre = true; m.donneesChangees(); m.survole = true; m.donneesChangees() }) }, "ilot-23b-centre-2-lecture-bouton-centre")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre())) }, "ilot-23c-centre-3-le-centre")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.microCoupe = true; m.epinglerLeCentre() })) }, "ilot-23d-centre-4-micro-coupe-reste-ouvert")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.microCoupe = true; m.epinglerLeCentre(); m.montrerDepot(true); m.depotSurvole = true })) }, "ilot-23e-centre-5-etagere-lache-ici")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.microCoupe = true; m.epinglerLeCentre(); m.etagere = Array(deux.prefix(1)) })) }, "ilot-23f-centre-5-etagere-un-fichier")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.microCoupe = true; m.epinglerLeCentre(); m.etagere = Array(deux.prefix(1)); m.telechargementsActifs = true })) }, "ilot-23g-centre-7-telechargements-allume")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.microCoupe = true; m.epinglerLeCentre(); m.etagere = Array(deux.prefix(1)); m.telechargementsActifs = true; m.claudeBranche = true })) }, "ilot-23h-centre-8-claude-pret")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene { m in m.etagereActive = true; m.survole = true }) }, "ilot-23i-centre-ilot-vide-sombre")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(lecture: musique, centre { m in m.minuteur = minut(10, restant: 392); m.etagere = huit; m.epinglerLeCentre() })) }, "ilot-23j-centre-minuteur-et-cinq-fichiers")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.choixMicro = nil; m.claude = claude(); m.epinglerLeCentre() })) }, "ilot-23k-centre-claude-au-travail-sans-airpods")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); m.rendezVousSuivant = rdv; m.allerA(.accueil) })) }, "ilot-23l-centre-accueil-dessous")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.etagere = deux; m.ouvrirEtagere() })) }, "ilot-23m-centre-carte-etagere-retour")
+        for (t, nom) in [(0.08, "a"), (0.18, "b")] {
+            ecrire(bureau(hauteur: hCentre) { ilot(miCourse(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpodsPro
+                m.donneesChangees(); m.survole = true; m.donneesChangees() }, t) { $0.allerA(.centre) }) }, "ilot-23n\(nom)-centre-passage-\(Int(t * 1000))ms")
+        }
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)
