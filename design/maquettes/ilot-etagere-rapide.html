@@ -1,0 +1,990 @@
+<!doctype html>
+<!--
+Verbe — « L'étagère, encore plus rapide et plus facile ».
+Pourquoi : l'étagère marche déjà très bien (glisser un fichier près de l'encoche → « Déposez ici » ; signets, pas de copie ;
+10 fichiers au plus ; case « Étagère » du Centre ; carte « Étagère » avec × et « Tout vider »). Ici, cinq choses de plus,
+toutes à la souris, sans aucun raccourci (seule la touche fn reste, pour dicter) :
+  1. la cible apparaît dès que le glisser COMMENCE, n'importe où à l'écran (« Glisse ici », avec une flèche) ; plus près, l'îlot s'ouvre en grand ;
+  2. en grand, deux zones côte à côte : « Étagère » (la garder) et « AirDrop » (l'envoyer tout de suite à l'iPhone) ;
+  3. l'étagère est à un survol : replié, l'îlot montre une petite pile et le nombre de fichiers dans son aile gauche
+     (50 pt au-delà de la caméra, limite 66) ; quand rien ne joue, le survol ouvre le Centre avec les fichiers tout en haut ;
+  4. « Tout » : une poignée pour glisser tous les fichiers d'un coup (ici dans Mail) ; les fichiers sortis quittent l'étagère,
+     avec « Remettre » pendant quelques secondes ;
+  5. en option, les captures d'écran arrivent sur l'étagère (interrupteur dans la carte « Étagère »).
+Format repris de ilot-centre.html et ilot-cinq.html (forme de l'îlot `chemin`/`cote`, ressorts, régie).
+Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt.
+Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
+                   ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verbe · Étagère rapide</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --ambre:#ff9f0a; --vert:#30d158; --rouge:#ff453a; --corail:#e8835c; --bleu:#0a84ff; --jaune:#ffd60a; --ciel:#5eb0ff;
+  --regie:#0f0f11;
+  --clair:#f5f5f7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--regie)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--clair);min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block;overflow:visible}
+html.fige *,html.fige *::before,html.fige *::after{animation-play-state:paused!important}
+
+/* =====================================================================
+   Le faux écran : haut d'un MacBook, macOS 26, apparence claire
+   ===================================================================== */
+#ecran{position:relative;height:clamp(500px,calc(100vh - 236px),740px);overflow:hidden;isolation:isolate;
+  user-select:none;-webkit-user-select:none;background:#dbe4ee;transition:opacity calc(.26s*var(--k)) ease}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(70% 90% at 90% 4%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 60%),
+  radial-gradient(60% 80% at 4% 100%,rgba(248,228,210,.95) 0,rgba(248,228,210,0) 62%),
+  linear-gradient(168deg,#c6d6ea 0%,#d9e4f0 40%,#ebe8e6 74%,#f0e2d6 100%)}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ---- barre des menus ---- */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;z-index:4;
+  font-size:13.5px;color:#1d1d1f;white-space:nowrap;pointer-events:none}
+.menus,.etats{display:flex;flex-wrap:wrap;align-content:flex-start;height:33px;overflow:hidden;max-width:calc(50% - 172px)}
+.menus{column-gap:19px;padding-left:18px}
+.menus>*{height:33px;line-height:33px;font-weight:500}
+.menus>svg{height:17px;margin-top:7px;flex:none}
+.menus>b{font-weight:700}
+.etats{flex-direction:row-reverse;column-gap:15px;padding-right:15px}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats svg{width:17px;height:17px;color:#1d1d1f}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* ---- fenêtres ---- */
+.fen{position:absolute;color:#1d1d1f;border-radius:13px;overflow:hidden;z-index:1;background:#fff;display:flex;flex-direction:column;pointer-events:none;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.26),0 36px 80px -20px rgba(24,36,60,.42),0 12px 26px -10px rgba(24,36,60,.22);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.fen.cache{opacity:0;transform:scale(.965)}
+.fen.arriere{box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 18px 40px -16px rgba(24,36,60,.3)}
+.feux{position:absolute;left:15px;top:15px;display:flex;gap:8px;z-index:1}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.fen.arriere .feux i{background:#d3d3d7}
+
+/* Finder (repris de ilot-cinq.html) */
+.fi-barre{height:52px;flex:none;display:flex;align-items:center;gap:16px;padding-left:164px;border-bottom:1px solid #e4e4e8;font-size:14px;font-weight:700;color:#1d1d1f}
+.fi-barre .chev{display:flex;gap:14px;color:#9a9aa0}
+.fi-corps{flex:1;min-height:0;display:flex}
+.fi-cote{width:150px;flex:none;background:#f1f1f4;padding:4px 10px;font-size:12.5px;color:#3a3a3f;border-right:1px solid #e4e4e8;margin-top:-52px;padding-top:56px}
+.fi-cote .ti{font-size:11px;font-weight:600;color:#9a9aa0;margin:10px 0 4px 6px}
+.fi-cote div.r{height:26px;display:flex;align-items:center;gap:8px;padding:0 6px;border-radius:6px}
+.fi-cote div.r.sel{background:rgba(0,0,0,.07);font-weight:500}
+.fi-cote svg{width:15px;height:15px;color:#2e7cf6}
+.fi-grille{flex:1;display:grid;grid-template-columns:repeat(3,94px);grid-auto-rows:92px;gap:2px 6px;padding:14px 16px;align-content:start}
+.fic{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11.5px;color:#1d1d1f;text-align:center}
+.fic .ic{height:52px;display:grid;place-items:end center;padding:2px 6px;border-radius:7px}
+.fic .nm{padding:1px 5px;border-radius:4px;max-width:92px;line-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fic.sel .ic{background:rgba(0,0,0,.08)}
+.fic.sel .nm{background:#2e7cf6;color:#fff}
+
+/* Mail (repris de ilot-cinq.html) */
+.ma-barre{height:52px;flex:none;display:flex;align-items:center;padding-left:84px;padding-right:16px;gap:12px;border-bottom:1px solid #e4e4e8;font-size:14px;font-weight:700}
+.ma-barre .env{margin-left:auto;width:30px;height:30px;border-radius:15px;display:grid;place-items:center;color:#2e7cf6}
+.ma-champ{height:34px;flex:none;display:flex;align-items:center;gap:8px;padding:0 18px;border-bottom:1px solid #ececf0;font-size:13.5px;color:#1d1d1f}
+.ma-champ span{color:#8a8a90;min-width:46px}
+.ma-champ .puce{background:#e8f0fe;color:#1d4fb8;border-radius:5px;padding:1px 7px;font-weight:500;min-width:0}
+.ma-corps{flex:1;padding:16px 18px;font-size:13.5px;line-height:20px;color:#1d1d1f;position:relative}
+.ma-pjs{display:flex;gap:10px;margin:10px 0 12px;min-height:0}
+.ma-pj{width:118px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11.5px;color:#3a3a3f;animation:pjArrive calc(.36s*var(--k)) var(--ressort) both}
+.ma-pj span{max-width:116px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ma-pj:nth-child(2){animation-delay:calc(.05s*var(--k))}.ma-pj:nth-child(3){animation-delay:calc(.1s*var(--k))}
+html.fige .ma-pj,.snap .ma-pj{animation:none}
+@keyframes pjArrive{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
+
+/* l'éclair d'une capture d'écran */
+#eclair{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:15}
+
+/* =====================================================================
+   L'îlot (noir, opaque) et ce qu'il affiche
+   ===================================================================== */
+.calque{position:absolute;left:calc(50% - 500px);top:0;width:1000px;height:360px;pointer-events:none}
+#forme-svg{z-index:5}
+#contenu{z-index:6}
+#encoche-svg{z-index:7}
+.c{position:absolute;color:#fff;white-space:nowrap;text-align:left;font-family:var(--sans)}
+/* le contenu arrive après la forme : fondu, flou, léger zoom (et glissé quand on change de carte) */
+.e{opacity:0;filter:blur(7px);transform:translateY(var(--sy,0px)) scale(.965);
+  transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
+.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+  transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+.t15{font-size:15px;line-height:19px;font-weight:600;letter-spacing:-.2px}
+.t125{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(255,255,255,.55);margin-top:3px}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.epaule{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;height:17px}
+
+/* l'aile : petite pile + nombre (replié) */
+.aile{display:flex;align-items:center;gap:4px;height:16px;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:#fff}
+.aile b{font-weight:700;display:inline-block}
+
+/* « Glisse ici » : l'îlot s'étire un peu dès que le glisser commence */
+.appel{width:236px;height:22px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;font-weight:600;letter-spacing:-.1px}
+.appel .fl{width:22px;height:22px;border-radius:50%;background:rgba(94,176,255,.22);display:grid;place-items:center;animation:monte 1.1s ease-in-out infinite}
+@keyframes monte{0%,100%{transform:translateY(1.5px)}50%{transform:translateY(-2.5px)}}
+
+/* les deux zones : Étagère | AirDrop */
+.zones{width:432px;display:flex;gap:12px}
+.zn{position:relative;flex:1;height:112px;border-radius:20px;border:1.5px dashed rgba(255,255,255,.3);display:grid;place-items:center;
+  transition:border-color .2s ease,background-color .2s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.zn .zv,.zn .zok{display:flex;flex-direction:column;align-items:center;text-align:center}
+.zn b{font-size:15px;line-height:19px;font-weight:600;margin-top:8px;letter-spacing:-.2px}
+.zn i{font-style:normal;font-size:12.5px;line-height:16px;font-weight:500;color:rgba(255,255,255,.55);margin-top:2px}
+.zn.survol{border-color:rgba(255,255,255,.9);background:rgba(10,132,255,.22);transform:scale(1.02)}
+.zn.survol i{color:rgba(255,255,255,.85)}
+.zn .zok{display:none}
+.zn.range{border-style:solid;border-color:transparent;background:rgba(48,209,88,.16)}
+.zn.range .zv{display:none}
+.zn.range .zok{display:flex}
+.zn.range .zok i{color:#7fe3a0}
+.zn .mini{position:absolute;right:10px;top:9px;display:flex;align-items:center;gap:3px;font-size:11.5px;font-weight:700;color:rgba(255,255,255,.5);font-variant-numeric:tabular-nums}
+
+/* l'envoi AirDrop */
+.envoi{width:360px;height:48px;display:flex;align-items:center;gap:12px}
+.envoi .ph{width:44px;height:44px;flex:none}
+.envoi .tx{flex:1;min-width:0}
+.envoi .rg{width:28px;height:28px;flex:none;display:grid;place-items:center}
+.envoi .ok{width:26px;height:26px;border-radius:50%;background:var(--vert);display:none;place-items:center}
+.envoi.fait .ok{display:grid}
+.envoi.fait .anneau{display:none}
+
+/* « 3 fichiers partis dans Mail · Remettre » */
+.partis{width:320px;height:24px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13.5px;font-weight:600}
+.partis .pt{color:rgba(255,255,255,.85)}
+.remettre{height:24px;border-radius:12px;padding:0 10px;background:rgba(94,176,255,.18);color:var(--ciel);font-size:13px;font-weight:600;cursor:pointer;
+  transition:background-color .15s ease}
+.remettre:hover{background:rgba(94,176,255,.3)}
+
+/* le Centre, quand rien ne joue : l'étagère tout en haut */
+.cc{width:432px}
+.cc-tete{display:flex;align-items:center;gap:8px;height:26px}
+.eta-t{height:26px;border-radius:13px;display:flex;align-items:center;gap:6px;padding:0 10px 0 6px;font-size:13.5px;font-weight:600;cursor:pointer;transition:background-color .15s ease}
+.eta-t:hover{background:rgba(255,255,255,.1)}
+.nb{font-style:normal;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:rgba(255,255,255,.2);font-size:12px;font-weight:700;display:grid;place-items:center;font-variant-numeric:tabular-nums}
+.nb.zero{display:none}
+.pil{height:26px;border-radius:13px;padding:0 11px;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.12);font-size:12.5px;font-weight:600;cursor:pointer;flex:none;
+  transition:background-color .15s ease}
+.pil:hover{background:rgba(255,255,255,.2)}
+.pil.retour{padding-left:7px}
+.pil.droite{margin-left:auto}
+.punaise{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.5);opacity:0;transition:opacity .25s ease}
+.punaise.vu{opacity:1}
+.cc-tete .pil.droite{margin-left:0}
+/* la rangée des fichiers */
+.er{display:flex;align-items:center;gap:10px;height:64px;margin-top:8px;border-radius:18px;background:rgba(255,255,255,.1);padding:0 8px;
+  transition:background-color .2s ease,opacity .2s ease}
+.er.vide{background:transparent;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.28);justify-content:center;padding:0;gap:9px;font-size:13px;font-weight:500;color:rgba(255,255,255,.55)}
+.er.vide{background-image:none}
+.tout{position:relative;width:56px;height:50px;flex:none;border-radius:14px;background:rgba(10,132,255,.24);box-shadow:inset 0 0 0 1.5px rgba(94,176,255,.6);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;font-weight:700;cursor:grab;
+  transition:transform calc(.3s*var(--k)) var(--ressort),opacity .2s ease}
+.tout:hover{background:rgba(10,132,255,.34)}
+.tout.pris{opacity:.35;transform:scale(.94)}
+.sep{width:1px;height:36px;background:rgba(255,255,255,.12);flex:none}
+.fl-it{width:90px;flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:grab;transition:opacity .2s ease}
+.fl-it .ic{height:32px;display:grid;place-items:end center}
+.fl-it span{max-width:90px;font-size:11px;line-height:13px;font-weight:600;color:rgba(255,255,255,.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.er.tire .fl-it{opacity:.35}
+.plus{font-size:12px;font-weight:700;color:rgba(255,255,255,.55);flex:none}
+.er .fin{margin-left:auto;width:24px;height:24px;border-radius:12px;display:grid;place-items:center;cursor:pointer;flex:none}
+.er .fin:hover{background:rgba(255,255,255,.12)}
+.cc-ronds{display:flex;justify-content:space-around;margin-top:10px;height:84px}
+.tg{width:84px;display:flex;flex-direction:column;align-items:center;color:#fff;flex:none}
+.tg .rd{width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center}
+.tg b{font-size:11px;line-height:15px;font-weight:600;margin-top:6px;letter-spacing:-.3px}
+.tg i{font-style:normal;font-size:11.5px;line-height:14px;color:rgba(255,255,255,.55);font-weight:500;margin-top:1px}
+.tg.bleu .rd{background:var(--bleu)}
+.tg.bleu i{color:var(--ciel)}
+.tg.corail .rd{background:var(--corail)}
+.cc-larges{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;height:70px}
+.tl{position:relative;border-radius:20px;background:rgba(255,255,255,.1);padding:10px 14px;text-align:left}
+.tl-t{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600}
+.tl-caps{display:flex;gap:6px;margin-top:7px;align-items:center}
+.cap{height:27px;width:44px;border-radius:14px;background:rgba(255,255,255,.14);font-size:13px;font-weight:600;display:grid;place-items:center}
+.tl-u{font-size:12px;font-weight:500;color:rgba(255,255,255,.5);margin-left:3px}
+.tl-reu .tl-s{font-size:12px;line-height:15px;font-weight:500;color:rgba(255,255,255,.5);margin-top:8px;white-space:normal}
+.tr-pt{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1.8px var(--rouge);background:radial-gradient(circle,var(--rouge) 0 3.6px,transparent 4.2px)}
+
+/* la carte « Étagère » (tous les fichiers, ×, Tout vider, captures) */
+.ce{width:432px}
+.ce-tete{display:flex;align-items:center;gap:10px;height:40px}
+.ce-tete .tx{min-width:0}
+.ce-tete .t125{margin-top:1px}
+.ce-g{display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1);min-height:88px}
+.gi{position:relative;width:100px;height:74px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;border-radius:12px;cursor:grab;transition:background-color .15s ease}
+.gi:hover{background:rgba(255,255,255,.07)}
+.gi .ic{height:38px;display:grid;place-items:end center}
+.gi span{max-width:98px;font-size:11px;line-height:14px;font-weight:600;color:rgba(255,255,255,.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-bottom:4px}
+.gi .x{position:absolute;left:8px;top:2px;width:18px;height:18px;border-radius:50%;background:#4a4a4f;display:grid;place-items:center;cursor:pointer;opacity:0;transition:opacity .15s ease}
+.gi:hover .x{opacity:1}
+.gi.neuf::after{content:"Nouveau";position:absolute;right:0;top:-6px;font-size:9.5px;font-weight:700;letter-spacing:.1px;color:#000;background:var(--ciel);border-radius:6px;padding:0 4px;line-height:14px}
+.ce-rien{width:100%;align-self:center;text-align:center;font-size:12.5px;color:rgba(255,255,255,.45);font-weight:500}
+.ce-cap{display:flex;align-items:center;gap:10px;height:44px;margin-top:8px;border-radius:14px;background:rgba(255,255,255,.08);padding:0 10px 0 12px}
+.ce-cap .tx{flex:1;min-width:0}
+.ce-cap b{display:block;font-size:13px;line-height:16px;font-weight:600}
+.ce-cap i{display:block;font-style:normal;font-size:11.5px;line-height:14px;color:rgba(255,255,255,.5);font-weight:500}
+.sw{position:relative;width:40px;height:24px;border-radius:12px;background:rgba(255,255,255,.22);flex:none;cursor:pointer;transition:background-color .2s ease}
+.sw i{position:absolute;left:2px;top:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform calc(.3s*var(--k)) var(--ressort)}
+.sw.on{background:var(--vert)}
+.sw.on i{transform:translateX(16px)}
+
+/* faux pointeur (et le fichier qu'il porte) */
+.pointeur{position:absolute;left:0;top:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .22s}
+.pointeur.vu{opacity:1}
+.pointeur .fleche{position:relative;width:18px;height:26px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));transform-origin:2px 2px;transition:transform .12s ease}
+.pointeur.appui .fleche{transform:scale(.86)}
+.fantome{position:absolute;left:-46px;top:-12px;width:110px;display:flex;flex-direction:column;align-items:center;gap:3px;opacity:0;transform:scale(.6);
+  transition:opacity .16s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.fantome.vu{opacity:.9;transform:none}
+.fantome.petit{opacity:.85;transform:translate(20px,10px) scale(.62)}
+.fantome.aspire{opacity:0;transform:translateY(-6px) scale(.3);transition:opacity calc(.26s*var(--k)) ease,transform calc(.3s*var(--k)) ease}
+.fantome span{white-space:nowrap;font-size:11px;font-weight:600;color:#fff;background:#2e7cf6;border-radius:4px;padding:0 5px;line-height:15px}
+.paquet{position:relative;width:64px;height:50px}
+.paquet>div{position:absolute;left:14px;top:2px}
+.paquet>div:nth-child(1){transform:rotate(-9deg) translate(-10px,3px)}
+.paquet>div:nth-child(2){transform:rotate(8deg) translate(10px,2px)}
+.paquet b{position:absolute;right:-2px;top:-6px;min-width:20px;height:20px;border-radius:10px;background:#ff3b30;color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center;padding:0 5px;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+
+/* =====================================================================
+   La régie, sous la scène (reprise de ilot-centre.html)
+   ===================================================================== */
+.regie{max-width:1340px;margin:0 auto;padding:14px 28px 18px}
+.r-haut{display:grid;grid-template-columns:minmax(0,1fr) 250px auto;gap:36px;align-items:center;min-height:96px}
+.r-num{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(245,245,247,.46);font-variant-numeric:tabular-nums}
+.r-titre{font-size:21px;line-height:27px;font-weight:600;letter-spacing:-.3px;margin-top:2px}
+.r-phrase{font-size:14px;line-height:20px;color:rgba(245,245,247,.64);margin-top:4px;max-width:660px;min-height:40px}
+.r-mains{display:flex;align-items:center;gap:14px}
+.pad{position:relative;width:96px;height:62px;border-radius:12px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);flex:none}
+.pad i{position:absolute;top:30px;left:32px;width:14px;height:14px;border-radius:50%;background:var(--clair);opacity:0;transition:opacity .15s}
+.pad.un i:first-child{opacity:1}
+.r-geste{font-size:12.5px;line-height:16px;color:rgba(245,245,247,.55);min-height:32px;max-width:140px}
+.r-cmd{display:grid;grid-template-columns:auto auto;gap:10px 8px;align-items:center}
+.bouton{height:34px;padding:0 17px;border-radius:17px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s ease}
+.bouton:active{transform:scale(.95)}
+.bouton.creux{background:rgba(255,255,255,.1)}
+.bouton.creux:hover{background:rgba(255,255,255,.16)}
+.bouton.plein{background:var(--clair);color:var(--regie)}
+.bouton.plein:hover{background:#fff}
+.r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:var(--clair)}
+.r-pas{display:flex;flex-wrap:wrap;gap:2px 4px;list-style:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.r-pas button{height:30px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:8px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+.r-pas button span{font-variant-numeric:tabular-nums;opacity:.7}
+.r-pas button:hover{color:rgba(245,245,247,.8)}
+.r-pas button.ici{color:var(--clair);background:rgba(255,255,255,.09)}
+.notes{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 32px;font-size:12.5px;line-height:18px;color:rgba(245,245,247,.42)}
+.notes b{color:rgba(245,245,247,.7);font-weight:600}
+@media (max-width:900px){.r-haut{grid-template-columns:1fr;gap:16px}}
+</style>
+</head>
+<body>
+<section id="ecran" aria-label="Faux écran de MacBook, taille réelle">
+  <div class="papier" aria-hidden="true">
+    <svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMid slice">
+      <path d="M0 0H1440V190C1190 290 930 180 660 240S210 350 0 280Z" fill="#b7cbe4" opacity=".28"/>
+      <path d="M0 560C260 470 540 520 780 600S1250 720 1440 620V760H0Z" fill="#fff" opacity=".2"/>
+    </svg>
+  </div>
+
+  <!-- ===== Finder ===== -->
+  <div class="fen" data-f="finder" style="left:48px;top:318px;width:484px;height:292px" aria-hidden="true">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="fi-barre"><span class="chev"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 2 2 8l6 6"/></svg><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".5"><path d="M2 2l6 6-6 6"/></svg></span>Documents</div>
+    <div class="fi-corps"><div class="fi-cote"><div class="ti">Favoris</div>
+      <div class="r"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.6V8l2.4 1.6" stroke-linecap="round"/></svg>Récents</div>
+      <div class="r"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.8" y="3" width="12.4" height="9" rx="1.6"/><path d="M5.5 14h5"/></svg>Bureau</div>
+      <div class="r sel"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 1.8h5.4L12.5 5v9.2H4z"/></svg>Documents</div>
+      <div class="r"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.5v6.4M5.4 8.4 8 11l2.6-2.6" stroke-linecap="round"/></svg>Téléchargements</div></div>
+      <div class="fi-grille" id="grille"></div></div>
+  </div>
+
+  <!-- ===== Mail (arrive à l'étape 6) ===== -->
+  <div class="fen cache" data-f="mail" style="left:calc(50% - 150px);top:196px;width:min(660px,calc(50% + 120px));height:410px" aria-hidden="true">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="ma-barre">Nouveau message<span class="env"><svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M2.4 9.2 17 2.8c.5-.2 1 .3.8.8L11.4 18c-.2.5-.9.5-1.1 0l-1.9-5.6a1 1 0 0 0-.6-.6L2.4 10.3c-.5-.2-.5-.9 0-1.1z"/></svg></span></div>
+    <div class="ma-champ"><span>À :</span><b class="puce">Paul</b></div>
+    <div class="ma-champ"><span>Objet :</span>Le chantier de la cuisine</div>
+    <div class="ma-corps" id="maCorps">Bonjour Paul,<div style="height:20px"></div>Voici le contrat, le devis et une photo du chantier.<div class="ma-pjs" id="pjs"></div>Bonne journée,<br>Hugues</div>
+  </div>
+
+  <!-- ===== barre des menus ===== -->
+  <div class="mb" aria-hidden="true"><div class="menus" id="menus"></div><div class="etats" id="etats"></div></div>
+
+  <!-- ===== l'îlot ===== -->
+  <svg id="forme-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true"><g id="ombre"><path id="forme" fill="#000" d=""/></g></svg>
+  <div id="contenu" class="calque"></div>
+  <svg id="encoche-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/>
+    <circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+
+  <div id="eclair" aria-hidden="true"></div>
+  <div class="pointeur" id="pointeur" aria-hidden="true"><div class="fantome" id="fantome"></div><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+</section>
+
+<!-- ===== régie ===== -->
+<section class="regie">
+  <div class="r-haut">
+    <div aria-live="polite">
+      <div class="r-num" id="num"></div>
+      <h1 class="r-titre" id="titre"></h1>
+      <p class="r-phrase" id="phrase"></p>
+    </div>
+    <div class="r-mains" aria-hidden="true"><div class="pad" id="pad"><i></i><i></i></div><div class="r-geste" id="geste"></div></div>
+    <div class="r-cmd">
+      <button class="bouton creux" id="rejouer">Rejouer</button>
+      <button class="bouton plein" id="suivant">Étape suivante</button>
+      <div class="r-opts">
+        <label><input type="checkbox" id="autoCase" checked> Lecture automatique</label>
+        <label><input type="checkbox" id="lentCase"> Ralenti ×4</label>
+      </div>
+    </div>
+  </div>
+  <ol class="r-pas" id="pas"></ol>
+  <div class="notes">
+    <div><b>À essayer ici.</b> Décochez Lecture automatique, puis passez la souris sur l’îlot noir : le Centre s’ouvre, l’étagère en haut. Un clic sur « Étagère » ouvre la carte : ×, « Tout vider » et l’interrupteur des captures marchent ; « Remettre » aussi.</div>
+    <div><b>Plus rapide.</b> On ne vise plus l’encoche : l’îlot appelle dès que le glisser commence. On ne cherche plus l’étagère : un survol suffit. On ne sort plus les fichiers un par un : « Tout ». On ne vide plus à la main : ce qui part quitte l’étagère.</div>
+    <div><b>Ce qui ne bouge pas.</b> L’îlot reste noir et opaque. Des signets, pas de copies ; 10 fichiers au plus. Replié, l’aile de la pile tient en 50 pt à gauche de la caméra (limite 66). Aucun raccourci : seule la touche fn reste, pour dicter.</div>
+  </div>
+</section>
+
+<script>
+'use strict';
+/* =========================================================
+   Constantes — 1 px CSS = 1 pt
+   ========================================================= */
+const B = 33;                 // hauteur de la barre des menus
+const HC = 90;                // demi-caméra (encoche de 180 pt)
+const NO = 146;               // îlot ouvert : cou de 56 pt + congé de 10 = 66 pt dans la barre (limite 66)
+const BW = 232;               // îlot ouvert : demi-largeur du corps (464 pt, limite 470)
+const GX = -BW + 16;          // bord gauche des cartes
+const AILE = 44;              // replié : l'aile de la pile (44 + épaule de 6 = 50 pt au-delà de la caméra)
+const HAP = B + 38;                              // « Glisse ici » (71)
+const HZ = B + 14 + 112 + 14;                    // les deux zones (173)
+const WE = 196, HE = B + 12 + 48 + 14;           // l'envoi AirDrop (107)
+const WP = 176, HP = B + 42;                     // « Remettre » (75)
+const HCC = B + 12 + 26 + 8 + 64 + 10 + 84 + 8 + 70 + 12;   // le Centre, l'étagère en haut (327, limite 330)
+const ORDRE = ['centre', 'carte'];
+const MAX = 10;
+const Q = new URLSearchParams(location.search);
+const racine = document.documentElement;
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const f2 = v => Math.round(v * 100) / 100;
+const mid = t => (B - t) / 2;
+let K = 1;
+const FIGE = Q.has('fige');
+const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+let REDUIT = mq.matches;
+mq.addEventListener && mq.addEventListener('change', e => { REDUIT = e.matches; });
+if (FIGE) racine.classList.add('fige');
+
+/* =========================================================
+   Forme de l'îlot (reprise de ilot-cinq.html / ilot-centre.html)
+   ng / nd = cou à gauche / à droite dans la barre, bw / bd = corps sous la barre, h = hauteur,
+   rs = épaule creuse en haut, rb = coin bas, rt = coin haut du corps, f = congé du cou
+   ========================================================= */
+const PORTEE = 1.6, POIGNEE = 0.18;
+function cote(g, n, bw){
+  const corps = Math.max(0, g.h - B), u = Math.min(corps, 40) / 40, e = 1 - Math.pow(1 - u, 2.5);
+  const d = Math.max(0, bw - n) * e, W = n + d, serre = 1 - clamp((n - HC) / 24, 0, 1);
+  const rs = g.rs + (4 - g.rs) * serre, rbv = lerp(g.rb + (8 - g.rb) * serre, g.rb, clamp(corps / 12, 0, 1));
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6), dispo = (1 - lam) * (g.h - rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(rbv, dispo / PORTEE, W / PORTEE));
+  return {n, W, d, fe, rte, rbe, rs};
+}
+function chemin(g){
+  const h = g.h, L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd), X = f2, Y = f2;
+  const a1 = PORTEE * L.rte, c1 = POIGNEE * a1, a2 = PORTEE * L.rbe, c2 = POIGNEE * a2;
+  const b1 = PORTEE * D.rte, d1 = POIGNEE * b1, b2 = PORTEE * D.rbe, d2 = POIGNEE * b2;
+  let p = `M${X(-L.n - L.rs)} ${Y(-1)}L${X(-L.n - L.rs)} 0Q${X(-L.n)} 0 ${X(-L.n)} ${Y(L.rs)}`;
+  if (L.d > 0.5) p += `L${X(-L.n)} ${Y(B - L.fe)}Q${X(-L.n)} ${B} ${X(-L.n - L.fe)} ${B}L${X(-L.W + a1)} ${B}C${X(-L.W + c1)} ${B} ${X(-L.W)} ${Y(B + c1)} ${X(-L.W)} ${Y(B + a1)}`;
+  p += `L${X(-L.W)} ${Y(h - a2)}C${X(-L.W)} ${Y(h - c2)} ${X(-L.W + c2)} ${Y(h)} ${X(-L.W + a2)} ${Y(h)}`;
+  p += `L${X(D.W - b2)} ${Y(h)}C${X(D.W - d2)} ${Y(h)} ${X(D.W)} ${Y(h - d2)} ${X(D.W)} ${Y(h - b2)}`;
+  if (D.d > 0.5) p += `L${X(D.W)} ${Y(B + b1)}C${X(D.W)} ${Y(B + d1)} ${X(D.W - d1)} ${B} ${X(D.W - b1)} ${B}L${X(D.n + D.fe)} ${B}Q${X(D.n)} ${B} ${X(D.n)} ${Y(B - D.fe)}`;
+  p += `L${X(D.n)} ${Y(D.rs)}Q${X(D.n)} 0 ${X(D.n + D.rs)} 0L${X(D.n + D.rs)} ${Y(-1)}Z`;
+  return p;
+}
+const CLES = ['ng', 'nd', 'bw', 'bd', 'h', 'rs', 'rb', 'rt', 'f'];
+const REPOS = {ng:HC, nd:HC, bw:HC, bd:HC, h:B, rs:4, rb:8, rt:0, f:0};                  // l'encoche seule
+const compact = (g, d) => ({ng:g, nd:d, bw:g, bd:d, h:B, rs:6, rb:10, rt:0, f:0});       // des ailes dans la barre
+const bandeau = (w, h, n) => ({ng:n, nd:n, bw:w, bd:w, h, rs:6, rb:30, rt:16, f:10});    // il descend sous la barre
+$('#encoche').setAttribute('d', chemin(REPOS));
+
+/* =========================================================
+   Ressorts (réponse en s, amortissement) — interruptibles
+   ========================================================= */
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = .8; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){
+      this.attente -= dt;
+      if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; }
+    }
+    const w = 2 * Math.PI / this.rep, a = w * w * (this.cible - this.x) - 2 * this.z * w * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+(function(){   // courbe CSS « ressort » (même formule), pour les zooms d'entrée
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){
+    pts.push(x);
+    for (let s = 0, n = Math.round((T / N) / dt); s < n; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; }
+  }
+  pts[pts.length - 1] = 1;
+  racine.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+/* =========================================================
+   Glyphes (dessinés à la main, façon symboles SF)
+   ========================================================= */
+const micro = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const airpods = (t, c = '#fff') => { const b = 'M5.6 3a3.1 3.1 0 0 0-3.1 3.1v.9a3.1 3.1 0 0 0 3.1 3.1h.3v6.4a1.2 1.2 0 0 0 2.4 0V5.9A3 3 0 0 0 5.6 3z';
+  return `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><path d="${b}"/><path d="${b}" transform="matrix(-1 0 0 1 20 0)"/></svg>`; };
+const flecheBas = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.4" fill="none" stroke="${c}" stroke-width="1.7"/><path d="M10 5.4v8.2M6.6 10.4 10 13.8l3.4-3.4" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const flecheHaut = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 16.4V4.2M5 9 10 4l5 5"/></svg>`;
+const etoile = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20">${[0, 30, 60, 90, 120, 150].map(a => `<rect x="9" y="1.5" width="2" height="17" rx="1" fill="${c}" transform="rotate(${a} 10 10)"/>`).join('')}</svg>`;
+const minuteurG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><circle cx="12" cy="13.4" r="7.6" fill="none" stroke="${c}" stroke-width="2.1"/><path d="M12 13.4V9.2M9.5 2.8h5" stroke="${c}" stroke-width="2.1" stroke-linecap="round"/></svg>`;
+const plateauG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M2.6 11.2 4.9 4.6A2 2 0 0 1 6.8 3.3h6.4a2 2 0 0 1 1.9 1.3l2.3 6.6v4a2 2 0 0 1-2 2H4.6a2 2 0 0 1-2-2z"/><path d="M2.8 11.2h4.1l1 2.2h4.2l1-2.2h4.1"/></svg>`;
+const pileG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="2.8" y="7.6" width="14.4" height="10.2" rx="2.6" fill="${c}"/><path d="M4.9 5.1h10.2M7.1 2.6h5.8" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const airdropG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round"><path d="M9.74 14.26a3.2 3.2 0 1 1 4.52 0"/><path d="M7.47 16.53a6.4 6.4 0 1 1 9.06 0"/><path d="M5.21 18.79a9.6 9.6 0 1 1 13.58 0"/><circle cx="12" cy="12" r="1.5" fill="${c}" stroke="none"/></svg>`;
+const viseurG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><path d="M2.5 6.4V4.6a2.1 2.1 0 0 1 2.1-2.1h1.8M13.6 2.5h1.8a2.1 2.1 0 0 1 2.1 2.1v1.8M17.5 13.6v1.8a2.1 2.1 0 0 1-2.1 2.1h-1.8M6.4 17.5H4.6a2.1 2.1 0 0 1-2.1-2.1v-1.8"/><circle cx="10" cy="10" r="2.7"/></svg>`;
+const cloche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><path fill="${c}" d="M12 2.6c-3.3 0-5.8 2.6-5.8 5.9v3.6l-1.6 2.9c-.5.9.1 1.9 1.1 1.9h12.6c1 0 1.6-1 1.1-1.9l-1.6-2.9V8.5c0-3.3-2.5-5.9-5.8-5.9zM9.4 18.7a2.7 2.7 0 0 0 5.2 0z"/></svg>`;
+const guillemets = (t, c = '#fff') => `<svg width="${t}" height="${f2(t * .7)}" viewBox="-.45 -.3 3 2.1"><g fill="${c}"><path d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><path transform="translate(1.1 0)" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/></g></svg>`;
+const punaiseG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><path d="M6.6 2.4h6.8l-1.2 5.2 3 3.2H4.8l3-3.2z" fill="${c}"/><path d="M10 10.6v7" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const chevG = (t, c, d = 'g') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d === 'g' ? 'M12.5 4.5 7 10l5.5 5.5' : 'M7.5 4.5 13 10l-5.5 5.5'}"/></svg>`;
+const croixG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 10 10" stroke="${c}" stroke-width="1.6" stroke-linecap="round"><path d="M2.6 2.6l4.8 4.8M7.4 2.6 2.6 7.4"/></svg>`;
+const coche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.6 12.8 4.6"/></svg>`;
+const anneau = (t, id, c = 'var(--ciel)', ep = 3) => { const r = (t - ep) / 2 - .5, L = f2(2 * Math.PI * r);
+  return `<svg class="anneau" width="${t}" height="${t}" viewBox="0 0 ${t} ${t}"><circle cx="${t / 2}" cy="${t / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="${ep}"/><circle id="${id}" data-l="${L}" cx="${t / 2}" cy="${t / 2}" r="${r}" fill="none" stroke="${c}" stroke-width="${ep}" stroke-linecap="round" stroke-dasharray="${L}" stroke-dashoffset="${L}" transform="rotate(-90 ${t / 2} ${t / 2})"/></svg>`; };
+function remplir(id, u){ const n = document.getElementById(id); if (!n) return; const L = +n.dataset.l; n.setAttribute('stroke-dashoffset', f2(L * (1 - clamp(u, 0, 1)))); }
+const batterie = n => `<svg width="28" height="13" viewBox="0 0 28 13"><rect width="24" height="13" rx="4" fill="#fff"/><text x="12" y="10" font-size="9.6" font-weight="700" text-anchor="middle" fill="#000" font-family="-apple-system,Helvetica,sans-serif">${n}</text><path d="M26 4.6v3.8" stroke="rgba(255,255,255,.5)" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const doc = (t, coul = '#ff453a', lbl = 'PDF') => `<svg width="${f2(t * 0.8)}" height="${t}" viewBox="0 0 32 40"><path d="M4 1h17l10 10v26a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="#f2f2f7" stroke="rgba(0,0,0,.12)" stroke-width=".8"/><path d="M21 1v8a2 2 0 0 0 2 2h8" fill="#d1d1d6"/><rect x="5" y="24" width="22" height="9" rx="2" fill="${coul}"/><text x="16" y="31" text-anchor="middle" font-size="7" font-weight="800" fill="#fff" font-family="-apple-system,sans-serif">${lbl}</text></svg>`;
+const dossier = t => `<svg width="${t}" height="${f2(t * 0.8)}" viewBox="0 0 50 40"><path d="M3 6a3 3 0 0 1 3-3h11.5l4 4H44a3 3 0 0 1 3 3v3H3z" fill="#3d9df3"/><rect x="3" y="10.5" width="44" height="27.5" rx="3.2" fill="#62b6fb"/></svg>`;
+const photo = (t, r = 7, a = '#7fb4e0', b = '#e8b07a', d = '#9a5c3c') => `<div style="width:${t}px;height:${t}px;border-radius:${r}px;background:linear-gradient(160deg,${a},${b} 70%,${d});box-shadow:inset 0 0 0 .5px rgba(255,255,255,.25),0 0 0 .5px rgba(0,0,0,.15);position:relative;overflow:hidden"><div style="position:absolute;left:12%;right:12%;bottom:-18%;height:52%;border-radius:50% 50% 0 0;background:#5d7a4a;opacity:.85"></div></div>`;
+const vignette = t => `<div style="width:${f2(t * 1.4)}px;height:${t}px;border-radius:4px;background:linear-gradient(168deg,#c6d6ea,#ebe8e6);box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 0 0 2px #fff;position:relative;overflow:hidden"><div style="position:absolute;left:12%;top:24%;width:58%;height:60%;border-radius:2px;background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.15)"></div><div style="position:absolute;left:0;right:0;top:0;height:10%;background:rgba(255,255,255,.7)"></div></div>`;
+const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
+const MENUS = {Finder:['Fichier', 'Édition', 'Présentation', 'Aller', 'Fenêtre', 'Aide'],
+  Mail:['Fichier', 'Édition', 'Présentation', 'Boîte aux lettres', 'Message', 'Format', 'Fenêtre', 'Aide']};
+
+/* Icônes de la barre des menus, de la droite vers la gauche */
+(function(){
+  const s = d => `<span><svg viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg></span>`;
+  $('#etats').innerHTML = '<span class="heure">Mer. 11 nov.&nbsp; 14:30</span>' +
+    s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
+    s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
+    s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>';
+})();
+
+/* Le Finder */
+const FINDER = [['devis', doc(42), 'Devis-cuisine.pdf'], ['plan', `<div style="padding-bottom:4px">${photo(42, 4, '#c9a27a', '#efe0c8', '#8a6a4a')}</div>`, 'Plan-salon.jpg'], ['', dossier(50), 'Factures'],
+  ['', doc(42, '#1f9d55', 'XLS'), 'Budget-2026.xlsx'], ['', doc(42, '#2f6fde', 'DOC'), 'Lettre-banque.docx'], ['', dossier(50), 'Impôts']];
+$('#grille').innerHTML = FINDER.map(([id, ic, nm]) => `<div class="fic" ${id ? `data-fic="${id}"` : ''}><div class="ic">${ic}</div><div class="nm">${nm}</div></div>`).join('');
+const fantomeDevis = `${doc(36)}<span>Devis-cuisine.pdf</span>`;
+const fantomePlan = `${photo(34, 4, '#c9a27a', '#efe0c8', '#8a6a4a')}<span>Plan-salon.jpg</span>`;
+
+/* Les fichiers de l'étagère (des signets, pas des copies) */
+const F = {
+  contrat:{id:'contrat', nm:'Contrat.pdf', ic:t => doc(t)},
+  chantier:{id:'chantier', nm:'Photo-chantier.heic', ic:t => photo(t, 5)},
+  devis:{id:'devis', nm:'Devis-cuisine.pdf', ic:t => doc(t, '#ff453a')},
+  cap:{id:'cap', nm:'Capture 14.32.png', ic:t => vignette(Math.round(t * .72))}
+};
+
+/* =========================================================
+   Ce que l'îlot affiche : [nom, x (depuis le centre), y, html]
+   ========================================================= */
+const ZONES = `<div class="zones">
+  <div class="zn" id="znEta"><span class="mini" id="znMini"></span>
+    <span class="zv">${plateauG(28, 'var(--ciel)')}<b>Étagère</b><i>La garder pour plus tard</i></span>
+    <span class="zok">${coche(28, 'var(--vert)')}<b>Rangé</b><i id="znOk"></i></span></div>
+  <div class="zn" id="znAir">
+    <span class="zv">${airdropG(28, 'var(--ciel)')}<b>AirDrop</b><i>Envoyer à iPhone de Hugues</i></span></div>
+</div>`;
+const ENVOI = `<div class="envoi" id="envoi"><div class="ph">${photo(44, 9, '#c9a27a', '#efe0c8', '#8a6a4a')}</div>
+  <div class="tx"><div class="t15 ell" id="envT">Envoi à iPhone de Hugues…</div><div class="t125 ell" id="envS">Plan-salon.jpg · AirDrop</div></div>
+  <div class="rg">${anneau(26, 'envArc')}<span class="ok">${coche(16, '#000')}</span></div></div>`;
+const PARTIS = `<div class="partis">${pileG(15, 'rgba(255,255,255,.7)')}<span class="pt" id="paT"></span><button class="remettre" data-act="remettre">Remettre</button>${anneau(16, 'paArc', 'rgba(255,255,255,.75)', 2.4)}</div>`;
+const tuile = (cl, gl, b, i) => `<div class="tg ${cl}"><span class="rd">${gl}</span><b>${b}</b><i>${i}</i></div>`;
+const CARTE_CENTRE = `<div class="cc" id="cc">
+  <div class="cc-tete">
+    <button class="eta-t" data-act="carte" id="etaTitre">${plateauG(17, 'var(--ciel)')}Étagère<em class="nb" id="ccNb">0</em>${chevG(12, 'rgba(255,255,255,.5)', 'd')}</button>
+    <span class="punaise" id="punaise">${punaiseG(12, 'rgba(255,255,255,.5)')}Reste ouvert</span>
+    <button class="pil droite">${guillemets(12)}Dictées</button><button class="pil">Modifier</button>
+  </div>
+  <div class="er" id="er"></div>
+  <div class="cc-ronds">${tuile('', micro(22, '#fff'), 'Micro', 'Ouvert')}${tuile('', airpods(22), 'Dictée', 'AirPods')}${tuile('bleu', flecheBas(22), 'Téléchargements', 'Allumé')}${tuile('corail', etoile(20, '#fff'), 'Claude Code', 'Prêt')}${tuile('', cloche(21, 'var(--jaune)'), 'Rappel', 'Dire un rappel')}</div>
+  <div class="cc-larges">
+    <div class="tl"><div class="tl-t">${minuteurG(17, 'var(--ambre)')}Minuteur</div>
+      <div class="tl-caps"><span class="cap">5</span><span class="cap">10</span><span class="cap">25</span><span class="tl-u">min</span></div></div>
+    <div class="tl tl-reu"><div class="tl-t"><span class="tr-pt"></span>Noter la réunion</div><div class="tl-s">Verbe écrit tout ce qui se dit</div></div>
+  </div>
+</div>`;
+const CARTE_ETAGERE = `<div class="ce" id="ce">
+  <div class="ce-tete">
+    <button class="pil retour" data-act="centre">${chevG(13, '#fff', 'g')}Centre</button>
+    ${plateauG(22, 'var(--ciel)')}
+    <div class="tx"><div class="t15">Étagère</div><div class="t125 ell" id="ceSous"></div></div>
+    <button class="pil droite" data-act="vider">Tout vider</button>
+  </div>
+  <div class="ce-g" id="ceG"></div>
+  <div class="ce-cap">${viseurG(18, 'rgba(255,255,255,.8)')}<div class="tx"><b>Captures d’écran ici</b><i>Elles arrivent sur l’étagère, plus sur le Bureau</i></div><button class="sw" id="sw" data-act="captures" aria-label="Captures d’écran ici"><i></i></button></div>
+</div>`;
+const CONTENUS = [
+  ['pile', -(HC + AILE - 9), mid(16), `<span class="aile">${pileG(15)}<b id="pileNb">0</b></span>`],
+  ['appel', -118, B + 8, `<div class="appel"><span class="fl">${flecheHaut(13, 'var(--ciel)')}</span>Glisse ici</div>`],
+  ['zones', GX, B + 14, ZONES],
+  ['envoi', -WE + 16, B + 12, ENVOI],
+  ['partis', -160, B + 9, PARTIS],
+  ['batt', -NO + 13, mid(13), `<span class="epaule">${batterie(64)}</span>`],
+  ['centre', GX, B + 12, CARTE_CENTRE],
+  ['carte', GX, B + 14, CARTE_ETAGERE]
+];
+const contenu = $('#contenu');
+contenu.innerHTML = CONTENUS.map(([nom, x, y, html]) => `<div class="c e" data-c="${nom}" style="left:${f2(500 + x)}px;top:${f2(y)}px">${html}</div>`).join('');
+const c = {}; contenu.querySelectorAll('[data-c]').forEach(n => c[n.dataset.c] = n);
+
+/* =========================================================
+   L'état de Verbe
+   ========================================================= */
+const st = {};
+function remettre(){
+  Object.assign(st, {fichiers:[F.contrat, F.chantier], zone:null, range:false, envoi:0, envoye:false, partis:[], compte:1,
+    captures:false, tire:false, carte:null, punaise:false, mail:[], neuf:null});
+}
+const nb = () => st.fichiers.length;
+const PILE = () => nb() ? compact(HC + AILE, HC) : REPOS;
+const APPEL = () => bandeau(118, HAP, HC);
+const DEPOT = () => bandeau(BW, HZ, HC);
+const ENV = () => bandeau(WE, HE, HC);
+const PART = () => bandeau(WP, HP, HC);
+const HAUTEUR = {centre:() => HCC, carte:() => B + 14 + $('#ce').offsetHeight + 14};
+const FORME = carte => bandeau(BW, HAUTEUR[carte](), NO);
+const fichiersMot = n => n + (n > 1 ? ' fichiers' : ' fichier');
+const court = nm => nm.length <= 14 ? nm : nm.slice(0, 7) + '…' + nm.slice(-6);   // comme le Finder : on coupe au milieu
+
+function majEtagere(pop){
+  const n = nb();
+  $('#pileNb').textContent = n;
+  if (pop && !instant && !REDUIT) $('#pileNb').animate([{transform:'scale(1)'}, {transform:'scale(1.5)'}, {transform:'scale(1)'}], {duration:420 * K, easing:'ease-out'});
+  // les zones de dépôt
+  $('#znMini').innerHTML = n ? `${pileG(12, 'rgba(255,255,255,.5)')}${n}` : '';
+  const ze = $('#znEta'), za = $('#znAir');
+  ze.classList.toggle('survol', st.zone === 'eta'); ze.classList.toggle('range', st.range);
+  za.classList.toggle('survol', st.zone === 'air');
+  $('#znOk').textContent = fichiersMot(n) + ' sur l’étagère';
+  // l'envoi AirDrop
+  $('#envoi').classList.toggle('fait', st.envoye);
+  $('#envT').textContent = st.envoye ? 'Envoyé à iPhone de Hugues' : 'Envoi à iPhone de Hugues…';
+  remplir('envArc', st.envoi);
+  // « partis dans Mail »
+  $('#paT').textContent = `${fichiersMot(st.partis.length)} partis dans Mail`;
+  remplir('paArc', st.compte);
+  // le Centre : l'étagère en haut
+  const ccNb = $('#ccNb'); ccNb.textContent = n; ccNb.classList.toggle('zero', !n);
+  const er = $('#er');
+  er.classList.toggle('vide', !n); er.classList.toggle('tire', st.tire);
+  if (!n) er.innerHTML = `${plateauG(18, 'rgba(255,255,255,.55)')}Glisse un fichier ici, ou vers l’encoche`;
+  else {
+    const vus = st.fichiers.slice(0, 3), reste = n - vus.length;
+    er.innerHTML = `<button class="tout${st.tire ? ' pris' : ''}" id="tout" title="Glisser tous les fichiers">${pileG(18)}Tout</button><span class="sep"></span>` +
+      vus.map(f => `<div class="fl-it" data-id="${f.id}" title="${f.nm}"><span class="ic">${f.ic(30)}</span><span>${court(f.nm)}</span></div>`).join('') +
+      (reste > 0 ? `<span class="plus">+${reste}</span>` : '') +
+      `<button class="fin" data-act="carte" aria-label="Ouvrir l’étagère">${chevG(13, 'rgba(255,255,255,.6)', 'd')}</button>`;
+  }
+  // la carte « Étagère »
+  $('#ceSous').textContent = n ? `${fichiersMot(n)} · glisse-${n > 1 ? 'les' : 'le'} vers une app` : 'Vide · glisse un fichier vers l’encoche';
+  $('#ceG').innerHTML = n ? st.fichiers.map(f => `<div class="gi${st.neuf === f.id ? ' neuf' : ''}" data-id="${f.id}"><button class="x" data-act="retirer" data-id="${f.id}" aria-label="Retirer">${croixG(10)}</button><span class="ic">${f.ic(36)}</span><span>${court(f.nm)}</span></div>`).join('')
+    : '<div class="ce-rien">Rien pour l’instant</div>';
+  $('#sw').classList.toggle('on', st.captures);
+  $('#punaise').classList.toggle('vu', st.punaise);
+  // Mail
+  $('#pjs').innerHTML = st.mail.map(f => `<div class="ma-pj">${f.ic(44)}<span>${f.nm}</span></div>`).join('');
+}
+
+/* =========================================================
+   Minuteries et attentes annulables (reprises de ilot-centre.html)
+   ========================================================= */
+let jeton = 0, instant = false, enCoursN = 0, cibleN = 0, auto = false;
+const minuteries = new Set();
+function apres(t, fn){ const id = setTimeout(() => { minuteries.delete(id); fn(); }, t * 1000 * K); minuteries.add(id); return id; }
+function annuler(){ minuteries.forEach(clearTimeout); minuteries.clear(); }
+function suite(){ const j = jeton; return Promise.resolve().then(() => { if (j !== jeton) throw 'stop'; }); }
+function attendre(t){
+  if (instant) return suite();
+  const j = jeton;
+  return new Promise((ok, ko) => apres(t, () => (j === jeton ? ok() : ko('stop'))));
+}
+function tween(duree, fn){
+  if (instant){ fn(1); return suite(); }
+  const j = jeton, t0 = performance.now();
+  return new Promise((ok, ko) => {
+    const pas = () => {
+      if (j !== jeton) return ko('stop');
+      const u = clamp((performance.now() - t0) / (duree * 1000 * K), 0, 1);
+      fn(u);
+      if (u < 1) requestAnimationFrame(pas); else ok();
+    };
+    pas();
+  });
+}
+const facile = u => 1 - Math.pow(1 - u, 3);
+
+/* =========================================================
+   L'îlot : ressorts, forme, contenu
+   ========================================================= */
+const forme = $('#forme'), ombre = $('#ombre');
+const R = {}; CLES.forEach(k => R[k] = new Ressort(REPOS[k]));
+const TOUS = CLES.map(k => R[k]);
+let cible = {...REPOS}, enCours = false, tPrec = 0;
+function ilot(g, o = {}){
+  const grand = (g.bw + g.bd) * g.h >= (cible.bw + cible.bd) * cible.h - .5;
+  const rep = o.rep ?? (grand ? .46 : .38), z = o.z ?? (grand ? .78 : 1), att = o.attente ?? (grand ? 0 : .06);
+  cible = {...g};
+  for (const k of CLES){
+    if (instant) R[k].poser(g[k]);
+    else { const haut = k === 'h' && grand; R[k].viser(g[k], haut ? rep * 1.06 : rep, z, att + (haut ? .02 : 0)); }
+  }
+  demarrer();
+}
+function montre(noms, d = .14){
+  const vus = new Set(noms);
+  for (const nom in c){
+    const n = c[nom], on = vus.has(nom);
+    if (on && !n.classList.contains('on')) n.style.setProperty('--d', d + 's');
+    n.classList.toggle('on', on);
+  }
+}
+function demarrer(){
+  if (FIGE || instant){ rendu(); return; }
+  if (!enCours){ enCours = true; tPrec = performance.now(); requestAnimationFrame(boucle); }
+}
+function boucle(){
+  const t = performance.now(), dt = clamp((t - tPrec) / 1000, 0, .05) / K; tPrec = t;
+  const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+  for (let i = 0; i < n; i++) for (const r of TOUS) r.pas(h);
+  let bouge = false;
+  for (const r of TOUS) if (!r.pose()) bouge = true;
+  rendu();
+  if (bouge) requestAnimationFrame(boucle); else enCours = false;
+}
+function rendu(){
+  const g = {}; for (const k of CLES) g[k] = R[k].x;
+  forme.setAttribute('d', chemin(g));
+  const a = clamp((g.h - B - 6) / 40, 0, 1);
+  ombre.style.filter = a > .01 ? `drop-shadow(0 ${(9 * a).toFixed(1)}px ${(18 * a).toFixed(1)}px rgba(10,20,40,${(.32 * a).toFixed(3)}))` : 'none';
+}
+function etat(g, noms, d = .16){ montre([], 0); ilot(g); montre(noms, d); }
+function plie(){ etat(PILE(), nb() ? ['pile'] : []); }
+function ouvrir(carte){                       // depuis l'îlot replié
+  st.carte = carte; majEtagere();
+  montre([], 0);
+  ilot(FORME(carte));
+  montre(['batt', carte], .14);
+}
+function changer(carte){                      // d'une carte à l'autre, îlot ouvert
+  if (!st.carte){ ouvrir(carte); return; }
+  if (st.carte === carte) return;
+  const bas = ORDRE.indexOf(carte) > ORDRE.indexOf(st.carte), vient = c[carte], part = c[st.carte];
+  vient.style.transition = 'none'; vient.style.setProperty('--sy', (bas ? 26 : -26) + 'px'); void vient.offsetWidth; vient.style.transition = '';
+  part.style.setProperty('--sy', (bas ? -26 : 26) + 'px');
+  st.carte = carte;
+  ilot(FORME(carte));
+  montre(['batt', carte], .1);
+}
+function replier(){ st.carte = null; st.punaise = false; st.tire = false; majEtagere(); plie(); }
+function reformer(){ if (st.carte) ilot(FORME(st.carte)); }
+
+/* =========================================================
+   L'écran : fenêtres, barre des menus, pointeur, mains
+   ========================================================= */
+const ecran = $('#ecran'), pointeur = $('#pointeur'), fantome = $('#fantome'), pad = $('#pad');
+const FEN = {finder:$('[data-f="finder"]'), mail:$('[data-f="mail"]')};
+let ordre = ['mail', 'finder'];
+function devant(nom){
+  ordre = ordre.filter(n => n !== nom).concat(nom);
+  ordre.forEach((n, i) => { FEN[n].style.zIndex = i + 1; FEN[n].classList.toggle('arriere', n !== nom); });
+  const app = {finder:'Finder', mail:'Mail'}[nom];
+  $('#menus').innerHTML = POMME + `<b>${app}</b>` + MENUS[app].map(m => `<span>${m}</span>`).join('');
+}
+function fenetre(nom, vu){ FEN[nom].classList.toggle('cache', !vu); }
+const XR = dx => ecran.clientWidth / 2 + dx;
+function ou(el){ const r = el.getBoundingClientRect(), e = ecran.getBoundingClientRect(); return [r.left + r.width / 2 - e.left, r.top + r.height / 2 - e.top]; }
+function cur(x, y, o = {}){
+  const saute = instant || o.saute;
+  pointeur.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
+  pointeur.style.transform = `translate(${f2(x)}px,${f2(y)}px)`;
+  if (saute){ void pointeur.offsetWidth; pointeur.style.transition = ''; }
+  pointeur.classList.toggle('vu', o.vu !== false);
+}
+async function va(x, y, d = .75){ cur(x, y, {duree:d}); await attendre(d); }
+async function vers(el, d = .75, dx = 0, dy = 0){ const [x, y] = ou(el); await va(x + dx, y + dy, d); }
+function doigts(mode){ pad.className = 'pad' + (mode ? ' ' + mode : ''); }
+async function clic(){
+  if (instant) return suite();
+  doigts('un'); pointeur.classList.add('appui');
+  await attendre(.13);
+  pointeur.classList.remove('appui'); doigts('');
+}
+function prend(html){ fantome.className = 'fantome'; fantome.innerHTML = html; void fantome.offsetWidth; fantome.classList.add('vu'); pointeur.classList.add('appui'); doigts('un'); }
+function lache(aspire){ fantome.classList.remove('vu'); if (aspire) fantome.classList.add('aspire'); pointeur.classList.remove('appui'); doigts(''); }
+function eclair(){ if (!instant && !REDUIT) $('#eclair').animate([{opacity:0}, {opacity:.8, offset:.25}, {opacity:0}], {duration:520 * K, easing:'ease-out'}); }
+const fic = id => document.querySelector(`[data-fic="${id}"]`);
+
+/* =========================================================
+   Les étapes
+   ========================================================= */
+function init(){
+  remettre();
+  fenetre('finder', true); fenetre('mail', false); devant('finder');
+  document.querySelectorAll('.fic.sel').forEach(n => n.classList.remove('sel'));
+  majEtagere();
+  ilot(PILE()); montre(['pile']);
+  cur(XR(-120), 470, {vu:false, saute:true});
+  fantome.className = 'fantome'; pointeur.classList.remove('appui');
+  doigts('');
+}
+const ETAPES = [
+  {t:'Le glisser commence : l’îlot appelle', g:'Cliquer-glisser, n’importe où',
+   p:'Dans le Finder, tout en bas de l’écran, on prend un fichier. L’îlot n’attend pas : il s’étire un peu et dit « Glisse ici », avec une flèche. Plus besoin de viser l’encoche.',
+   async jeu(){
+     const f = fic('devis');
+     await vers(f.querySelector('.ic'), .8, 2, 4);
+     f.classList.add('sel'); prend(fantomeDevis); await attendre(.22);
+     const [x, y] = ou(f.querySelector('.ic'));
+     await va(x + 34, y - 26, .4);
+     etat(APPEL(), ['appel'], .14);
+     await va(x + 64, y - 52, .7);
+   }},
+  {t:'Plus près : deux zones', g:'Continuer vers le haut',
+   p:'En approchant du haut de l’écran, l’îlot s’ouvre en grand. À gauche, « Étagère » : on le garde pour plus tard. À droite, « AirDrop » : on l’envoie tout de suite à l’iPhone. La zone sous le pointeur s’allume.',
+   async jeu(){
+     await va(XR(-170), 200, .55);
+     etat(DEPOT(), ['zones'], .16);
+     await vers($('#znEta'), .6, 62, 40); fantome.classList.add('petit');
+     st.zone = 'eta'; majEtagere(); await attendre(.5);
+   }},
+  {t:'Lâcher sur Étagère : rangé', g:'Lâcher',
+   p:'On lâche : « Rangé ». L’îlot se replie aussitôt. Dans son aile gauche, une petite pile et le nombre de fichiers : 3. Rien de plus dans la barre des menus.',
+   async jeu(){
+     lache(true); st.zone = null; st.range = true; st.fichiers = [...st.fichiers, F.devis]; majEtagere();
+     fic('devis').classList.remove('sel');
+     await attendre(.85);
+     plie(); majEtagere(true);
+     st.range = false;
+     await va(XR(-300), 420, .8); majEtagere();
+   }},
+  {t:'Sur AirDrop : direction l’iPhone', g:'Cliquer-glisser, lâcher à droite',
+   p:'Une photo, cette fois, glissée sur « AirDrop ». Aucune fenêtre de plus : l’envoi part tout de suite vers l’iPhone de Hugues, et l’îlot montre où il en est.',
+   async jeu(){
+     const f = fic('plan');
+     await vers(f.querySelector('.ic'), .7, 2, 4);
+     f.classList.add('sel'); prend(fantomePlan); await attendre(.2);
+     const [x, y] = ou(f.querySelector('.ic'));
+     await va(x + 30, y - 24, .35);
+     etat(APPEL(), ['appel'], .12);
+     await va(XR(40), 210, .55);
+     etat(DEPOT(), ['zones'], .14);
+     await vers($('#znAir'), .5, 62, 40); fantome.classList.add('petit');
+     st.zone = 'air'; majEtagere(); await attendre(.4);
+     lache(true); st.zone = null; majEtagere(); f.classList.remove('sel');
+     etat(ENV(), ['envoi'], .16);
+     await va(XR(-300), 430, .8);
+     await tween(.9, u => { st.envoi = .62 * facile(u); remplir('envArc', st.envoi); });
+   }},
+  {t:'Envoyé : l’îlot se range', g:'Rien à faire',
+   p:'« Envoyé ». La photo n’encombre pas l’étagère : l’aile garde son 3. Rien à confirmer, rien à fermer.',
+   async jeu(){
+     await tween(.6, u => { st.envoi = .62 + .38 * u; remplir('envArc', st.envoi); });
+     st.envoye = true; majEtagere(); await attendre(.9);
+     plie(); await attendre(.5);
+   }},
+  {t:'Un survol : les fichiers d’abord', g:'Pointeur sur l’îlot',
+   p:'Plus tard, dans Mail. Rien ne joue : survoler l’îlot ouvre le Centre avec l’étagère tout en haut. Les 3 fichiers sont là, sans un clic.',
+   async jeu(){
+     fenetre('mail', true); devant('mail'); await attendre(.4);
+     await va(XR(-48), 19, .8); await attendre(.08);
+     ouvrir('centre'); await attendre(.7);
+   }},
+  {t:'« Tout » : les 3 d’un seul geste', g:'Cliquer-glisser « Tout » dans le message',
+   p:'On prend la poignée « Tout » et on la lâche dans le message : 3 pièces jointes d’un coup. Les fichiers quittent l’étagère ; l’îlot propose « Remettre » pendant quelques secondes.',
+   async jeu(){
+     await vers($('#tout'), .6, 4, 6);
+     st.tire = true; majEtagere();
+     prend(`<div class="paquet"><div>${F.contrat.ic(36)}</div><div>${F.chantier.ic(34)}</div><div>${F.devis.ic(36)}</div><b>3</b></div>`);
+     await attendre(.22);
+     const [x, y] = ou($('#maCorps'));
+     cur(x - 120, y - 46, {duree:1.0}); await attendre(.35);
+     st.carte = null; st.tire = false; majEtagere(); plie();
+     await attendre(.75);
+     lache(false);
+     st.partis = st.fichiers; st.mail = st.fichiers; st.fichiers = []; st.compte = 1; majEtagere();
+     await attendre(.15);
+     etat(PART(), ['partis'], .14);
+     await attendre(.3);
+     await tween(.7, u => { st.compte = 1 - .22 * u; remplir('paArc', st.compte); });
+   }},
+  {t:'Quelques secondes, puis c’est propre', g:'Rien à faire (ou un clic sur Remettre)',
+   p:'Le petit cercle se vide. Un clic sur « Remettre » pendant ce temps, et les 3 fichiers reviennent sur l’étagère. Sinon, l’îlot redevient une simple encoche : rien à vider à la main.',
+   async jeu(){
+     const c0 = st.compte;
+     await tween(2.0, u => { st.compte = c0 * (1 - u); remplir('paArc', st.compte); });
+     st.partis = []; plie(); await attendre(.6);
+   }},
+  {t:'En option : les captures d’écran ici', g:'Survol, clic sur « Étagère », clic sur l’interrupteur',
+   p:'Dans la carte « Étagère », un interrupteur : « Captures d’écran ici ». Allumé, chaque capture arrive sur l’étagère au lieu du Bureau, prête à glisser dans un message.',
+   async jeu(){
+     await va(XR(-60), 17, .8); await attendre(.08);
+     ouvrir('centre'); await attendre(.6);
+     await vers($('#etaTitre'), .5, -8, 3); await clic();
+     st.punaise = true; changer('carte'); await attendre(.6);
+     await vers($('#sw'), .6, 2, 3); await clic();
+     st.captures = true; majEtagere(); await attendre(.5);
+     await va(XR(-330), 400, .8); await attendre(.15);
+     eclair(); await attendre(.35);
+     st.fichiers = [F.cap]; st.neuf = 'cap'; majEtagere(true); reformer();
+     await attendre(1.0);
+   }}
+];
+const N = ETAPES.length;
+const PAUSES = [1.2, 1.6, 1.6, 1.4, 1.4, 1.6, 1.4, 1.4, 2.8];
+
+/* =========================================================
+   Régie (reprise de ilot-centre.html)
+   ========================================================= */
+let etape = 0;
+$('#pas').innerHTML = ETAPES.map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${e.t}</button></li>`).join('');
+function majRegie(n){
+  etape = n;
+  const m = Math.max(1, n), e = ETAPES[m - 1];
+  $('#num').textContent = `L’étagère, plus rapide · étape ${m} sur ${N}`;
+  const fr = t => t.replace(/ ([:»?!;])/g, ' $1').replace(/« /g, '« ');
+  $('#titre').textContent = fr(e.t); $('#phrase').textContent = fr(e.p); $('#geste').textContent = e.g;
+  document.querySelectorAll('#pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === m));
+}
+async function poser(n){
+  annuler();
+  instant = true; racine.classList.add('snap');
+  try {
+    cibleN = n; enCoursN = 0;
+    init();
+    for (let i = 1; i <= n; i++){ enCoursN = i; await ETAPES[i - 1].jeu(); }
+  } finally { instant = false; }
+  majRegie(n); rendu();
+  void ecran.offsetWidth;
+  requestAnimationFrame(() => requestAnimationFrame(() => racine.classList.remove('snap')));
+}
+async function jouer(n){
+  majRegie(n);
+  if (REDUIT) return poser(n);
+  racine.classList.remove('snap'); void ecran.offsetWidth;
+  cibleN = 0; enCoursN = n;
+  await ETAPES[n - 1].jeu();
+}
+function arreter(){ jeton++; auto = false; annuler(); doigts(''); }
+const autoCase = $('#autoCase');
+async function tourner(){
+  arreter(); const j = jeton; auto = true;
+  try {
+    await poser(0); await attendre(.9);
+    for (;;){
+      for (let n = 1; n <= N; n++){ await jouer(n); await attendre(PAUSES[n - 1]); }
+      if (!autoCase.checked) break;
+      ecran.style.opacity = 0; await attendre(.3);
+      await poser(0); ecran.style.opacity = 1; await attendre(1.0);
+    }
+  } catch (e){ if (e !== 'stop') console.error(e); }
+  ecran.style.opacity = 1;
+  if (j === jeton) auto = false;
+}
+function lance(n){
+  arreter(); ecran.style.opacity = 1;
+  poser(n - 1).then(() => jouer(n)).catch(e => { if (e !== 'stop') console.error(e); });
+}
+$('#rejouer').addEventListener('click', () => { if (autoCase.checked) tourner(); else lance(Math.max(1, etape)); });
+$('#suivant').addEventListener('click', () => { autoCase.checked = false; lance(etape >= N ? 1 : etape + 1); });
+$('#pas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; autoCase.checked = false; lance(+b.dataset.e); });
+autoCase.addEventListener('change', () => { if (autoCase.checked) tourner(); else arreter(); });
+function ralenti(oui){ K = oui ? 4 : 1; racine.style.setProperty('--k', K); $('#lentCase').checked = oui; }
+$('#lentCase').addEventListener('change', e => ralenti(e.target.checked));
+
+/* =========================================================
+   À la main : la vraie souris marche aussi (survol, clics)
+   ========================================================= */
+function aLaMain(){ if (auto || autoCase.checked){ autoCase.checked = false; arreter(); } pointeur.classList.remove('vu'); }
+function local(e){ const r = ecran.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top]; }
+function dansIlot(x, y){
+  if (st.carte) return Math.abs(x) <= BW + 4 && y <= cible.h + 4;
+  return y <= cible.h + 4 && Math.abs(x) <= Math.max(cible.ng, cible.nd, cible.bw) + 4;
+}
+let tFerme = 0;
+ecran.addEventListener('mousemove', e => {
+  if (FIGE) return;
+  const [x, y] = local(e), dedans = dansIlot(x, y);
+  if (dedans){
+    clearTimeout(tFerme); tFerme = 0;
+    if (!st.carte && !st.partis.length){ aLaMain(); ouvrir('centre'); }
+  } else if (st.carte && !st.punaise && !tFerme && !auto){
+    tFerme = setTimeout(() => { tFerme = 0; if (!st.punaise) replier(); }, 320);
+  }
+});
+ecran.addEventListener('pointerdown', e => {
+  if (FIGE || e.target.closest('#contenu .c')) return;
+  const [x, y] = local(e);
+  if (st.carte && !dansIlot(x, y)){ aLaMain(); replier(); }
+});
+contenu.addEventListener('click', e => {
+  if (FIGE) return;
+  const a = e.target.closest('[data-act]');
+  if (!a) return;
+  aLaMain(); st.punaise = true;
+  const act = a.dataset.act;
+  if (ORDRE.includes(act)){ st.neuf = null; majEtagere(); changer(act); }
+  else if (act === 'retirer'){ st.fichiers = st.fichiers.filter(f => f.id !== a.dataset.id); majEtagere(); reformer(); }
+  else if (act === 'vider'){ st.fichiers = []; majEtagere(); reformer(); }
+  else if (act === 'captures'){ st.captures = !st.captures; majEtagere(); }
+  else if (act === 'remettre'){ st.fichiers = st.partis.slice(0, MAX); st.partis = []; st.mail = []; st.punaise = false; majEtagere(true); plie(); }
+  majEtagere();
+});
+
+/* =========================================================
+   Démarrage
+   ========================================================= */
+devant('finder');
+if (Q.has('lent')) ralenti(true);
+const e0 = clamp(+(Q.get('etape') || 0), 0, N);
+if (FIGE){ autoCase.checked = false; poser(e0).catch(() => {}); }
+else if (Q.has('joue') && e0 >= 1){ autoCase.checked = false; poser(e0 - 1).then(() => setTimeout(() => jouer(e0).catch(() => {}), 400)); }
+else setTimeout(() => tourner(), 300);
+window.verbe = {poser, jouer, st, R, ralenti};
+</script>
+</body>
+</html>
