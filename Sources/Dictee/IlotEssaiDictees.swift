@@ -110,6 +110,28 @@ extension IlotEssai {
         verifier(m.courante == .accueil, "le même geste sur le pied de la carte : la carte suivante, l'accueil (\(m.courante))")
         m.allerA(.dictees); pause(0.8)
 
+        // --- un geste parti du Centre, le pointeur au milieu (là où sera la liste) : la carte passe aux Dictées en chemin ; ni la suite du
+        // geste ni son inertie ne font défiler la liste (on arrive en haut, « Aujourd'hui » et les dernières dictées)
+        c.panneau.envoyerDefilement(dy: -40, en: surListe, phase: 1); pause(0.02); c.panneau.envoyerDefilement(dy: 0, en: surListe, phase: 4); pause(0.3)
+        verifier(abs(d.decalage - 40) < 0.5, "la liste défilée de 40 pt avant de partir (\(Int(d.decalage)) pt)")
+        clic(PlanDictees.pointRetour(m.grille), 0.9)
+        verifier(m.courante == .centre, "« ‹ Centre » : le Centre (\(m.courante))")
+        c.panneau.envoyerDefilement(dy: -6, en: surListe, phase: 1); pause(0.02)
+        c.panneau.envoyerDefilement(dy: -12, en: surListe, phase: 2); pause(0.02)
+        let passee = m.courante == .dictees
+        for _ in 0 ..< 4 { c.panneau.envoyerDefilement(dy: -30, en: surListe, phase: 2); pause(0.02) }
+        c.panneau.envoyerDefilement(dy: 0, en: surListe, phase: 4); pause(0.02)
+        c.panneau.envoyerDefilement(dy: -40, en: surListe, phase: 0, inertie: 1); pause(0.02)
+        for _ in 0 ..< 6 { c.panneau.envoyerDefilement(dy: -25, en: surListe, phase: 0, inertie: 2); pause(0.02) }
+        c.panneau.envoyerDefilement(dy: 0, en: surListe, phase: 0, inertie: 3); pause(0.8)
+        verifier(passee && m.courante == .dictees && d.decalage == 0,
+                 "deux doigts depuis le Centre (238 pt de geste et d'inertie) : les Dictées, en haut de la liste (\(Int(d.decalage)) pt défilés, \(m.courante))")
+        c.panneau.envoyerDefilement(dy: -20, en: surListe, phase: 1); pause(0.02); c.panneau.envoyerDefilement(dy: 0, en: surListe, phase: 4); pause(0.3)
+        verifier(abs(d.decalage - 20) < 0.5 && m.courante == .dictees, "le geste suivant, sur la liste : elle défile (\(Int(d.decalage)) pt)")
+        clic(PlanDictees.pointRetour(m.grille), 0.9)
+        clic(pDictees, 0.9)
+        verifier(m.courante == .dictees && d.decalage == 0, "retour aux Dictées par la pilule du Centre : la liste repart du haut (\(Int(d.decalage)) pt)")
+
         // --- copier : un clic sur la ligne ; « Copié » dans la ligne ; la carte reste
         let d1 = factices[0]
         guard let l1 = PlanDictees.cadreLigne(d1.id, m) else { verifier(false, "la première dictée est à l'écran"); return }
@@ -126,6 +148,38 @@ extension IlotEssai {
         let hDep = d.miseEnPage().elements.first { $0.id == factices[1].id.uuidString }?.h ?? 0
         verifier(hDep >= CarteDictees.ligneDepliee(lignesDeTexte: 1), "ligne dépliée : \(Int(hDep)) pt (une ligne de texte de plus au moins)")
         d.deplie = nil; d.survol = nil; pause(0.4)
+
+        // --- une longue dictée dépliée, plus haute que la liste : elle ne tient jamais entière, elle prend les clics sur sa partie visible
+        // (le chevron, son texte), jamais ceux de l'en-tête quand elle passe dessous
+        let longue = EntreeHistorique(date: c.maintenant(), appNom: "Notes", texte: String(repeating: "Compte rendu du chantier de la rue des Lilas : la dalle est coulée, les menuiseries arrivent lundi, il reste la peinture du couloir et les prises de la cuisine. ", count: 4))
+        memoire.ajouter(longue); pause(0.4)
+        d.survol = longue.id; pause(0.2)
+        if let p = PlanDictees.pointChevron(longue.id, m) { clic(p, 0.4) }
+        let hLongue = d.miseEnPage().elements.first { $0.id == longue.id.uuidString }?.h ?? 0
+        verifier(d.deplie == longue.id && hLongue > Double(liste.height),
+                 "vrai clic sur le chevron d'une dictée de \(longue.texte.count) caractères : dépliée, \(Int(hLongue)) pt, plus haute que la liste (\(Int(liste.height)))")
+        clic(CGPoint(x: liste.minX + 8 + 36 + 8 + 80, y: liste.midY), 0.3)
+        verifier(pressePapiers().last == longue.texte && d.copiee == longue.id, "vrai clic sur son texte, au milieu de la liste : copiée")
+        // « Copié » prend la place de « Coller » (à sa largeur) : le texte garde sa place, le chevron la sienne
+        verifier(PlanDictees.largeurCopie + 4 <= PlanDictees.largeurColler,
+                 "dépliée : « ✓ Copié » (\(Int(PlanDictees.largeurCopie)) pt mesurés) tient à la place de « Coller » (\(Int(PlanDictees.largeurColler)) pt)")
+        if let p = PlanDictees.pointChevron(longue.id, m) { clic(p, 0.4) }
+        verifier(d.deplie == nil && d.copiee == longue.id, "vrai clic sur son chevron « Réduire », « Copié » encore affiché : repliée")
+        if let p = PlanDictees.pointChevron(longue.id, m) { clic(p, 0.4) }
+        // défilée de 50 pt : son haut et son chevron passent sous l'en-tête ; un clic là va au champ « Rechercher »
+        c.panneau.envoyerDefilement(dy: -50, en: surListe, phase: 1); pause(0.02); c.panneau.envoyerDefilement(dy: 0, en: surListe, phase: 4); pause(0.3)
+        let sousEntete = PlanDictees.pointChevron(longue.id, m)
+        verifier(d.deplie == longue.id && abs(d.decalage - 50) < 0.5 && sousEntete.map { PlanDictees.cadreEntete(m.grille).contains($0) } == true,
+                 "dépliée de nouveau, défilée de 50 pt : son chevron est caché sous l'en-tête")
+        if let p = sousEntete { clic(p, 0.4) }
+        verifier(d.deplie == longue.id && d.rechercheActive, "vrai clic là : le champ « Rechercher » le reçoit, pas le chevron caché (dépliée \(d.deplie == longue.id))")
+        attendre(1.0) { !c.panneau.champAuPremierPlan }
+        c.panneau.envoyerTouche(code: 53, caractere: "\u{1b}"); pause(0.3)
+        verifier(!d.rechercheActive && !c.panneau.clavierPris, "Échap : le clavier est rendu")
+        attendre(2.0) { d.copiee != nil }
+        clic(CGPoint(x: liste.minX + 8 + 36 + 8 + 80, y: liste.maxY - 10), 0.3)
+        verifier(d.copiee == longue.id, "défilée : un clic en bas de la liste, sur elle, la copie encore")
+        memoire.supprimer(id: longue.id); d.deplie = nil; d.survol = nil; d.decalage = 0; pause(0.5)
 
         // --- chercher : un clic dans le champ prend le clavier (en essai : simulé, la fenêtre n'est jamais rendue clé) ; de vraies touches
         clic(PlanDictees.pointChamp(m.grille), 0.4)

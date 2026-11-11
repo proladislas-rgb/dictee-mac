@@ -60,8 +60,18 @@ public struct DefilementIlot: Equatable, Sendable {
     private var cumul = 0.0
     private var fait = false
     private var derniereMolette = -1e9
+    private var gesteSurListe = false
 
     public init() {}
+
+    /// Le geste va-t-il à la liste des Dictées (elle défile) plutôt qu'aux cartes ? Décidé là où il COMMENCE (premier contact, ou chaque
+    /// cran de molette) : `surListe` dit si le pointeur est alors sur la liste, carte Dictées montrée. Toute la suite et l'inertie suivent
+    /// ce choix. Un geste parti du Centre, qui passe aux Dictées en chemin, ne fait donc jamais défiler la liste, ni lui ni son inertie ;
+    /// un geste parti de la liste la fait défiler jusqu'au bout, même si le pointeur en sort.
+    public mutating func pourLaListe(phase: Phase, inertie: Bool, surListe: Bool) -> Bool {
+        if !inertie, phase == .debut || phase == .aucune { gesteSurListe = surListe }
+        return gesteSurListe
+    }
 
     /// Un événement de défilement ; rend +1 (carte suivante), −1 (précédente) ou nil (rien encore). `t` : en secondes, croissant.
     public mutating func recevoir(dy: Double, dx: Double = 0, phase: Phase, inertie: Bool, t: Double) -> Int? {
@@ -136,6 +146,16 @@ public enum CarteDictees {
     public static func profondeur(liste: Double) -> Double { marge + entete + ecart + min(max(0, liste), listeMax) + pied + marge }
     /// Le défilement de la liste, borné : 0 en haut, la hauteur cachée en bas.
     public static func borner(_ decalage: Double, liste: Double) -> Double { min(max(0, liste - listeMax), max(0, decalage)) }
+    /// La partie d'un élément de la liste (titre de jour, ligne) qui prend les clics, en points depuis son haut ; nil : aucune. `y` et `h` :
+    /// sa place et sa hauteur dans la liste, `liste` : la hauteur visible. Un élément qui tient dans la liste ne prend les clics qu'entier
+    /// à l'écran (à moitié sous un bord, le clic visait ce qui est autour). Plus haut que la liste (une longue dictée dépliée), il ne tient
+    /// jamais entier : il prend alors les clics sur sa partie visible, jamais sur l'en-tête ni sur le pied.
+    public static func partieCliquable(y: Double, h: Double, decalage: Double, liste: Double) -> (debut: Double, fin: Double)? {
+        let haut = y - decalage
+        if h <= liste { return haut >= -1 && haut + h <= liste + 1 ? (0, h) : nil }
+        let debut = max(0, -haut), fin = min(h, liste - haut)
+        return fin - debut >= 1 ? (debut, fin) : nil
+    }
 }
 
 /// Les mots de la recherche dans le texte d'une dictée, pour les surligner : sans tenir compte des accents ni des majuscules (la même

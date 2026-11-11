@@ -918,6 +918,8 @@ final class IlotMoteur: ObservableObject {
         // la première carte d'une activité est son déplié (pas de sous-vue) ; le Centre et l'accueil sont gardés tels quels, même si une
         // activité commence pendant qu'ils sont ouverts
         let plusCourte = cible(carte)[2] < geo[2].cibleFinale - 0.5
+        // on arrive sur les Dictées par le haut de la liste (« Aujourd'hui », les dernières dictées), pas là où on l'avait laissée
+        if carte == .dictees, courante != .dictees { dictees.decalage = 0 }
         sousVue = carte == cartes.first && carte != .centre ? nil : carte
         survole = true
         // les Dictées restent ouvertes, comme le Centre après un clic (maquette, étape 10) : on y cherche, on y copie
@@ -932,12 +934,14 @@ final class IlotMoteur: ObservableObject {
         guard let c = carteCourante, let v = CartesIlot.voisine(cartes, de: c, pas: pas) else { return }
         allerA(v)
     }
-    /// Un événement de défilement (molette, deux doigts) sur l'îlot ouvert : un geste = une carte, l'inertie ignorée. Sur la liste des
-    /// Dictées qui dépasse sa place (`en` : le pointeur), c'est la liste qui défile, inertie comprise.
+    /// Un événement de défilement (molette, deux doigts) sur l'îlot ouvert : un geste = une carte, l'inertie ignorée. Un geste qui
+    /// COMMENCE sur la liste des Dictées qui dépasse sa place (`en` : le pointeur) la fait défiler, inertie comprise ; un geste parti
+    /// d'une autre carte (le Centre, qui passe aux Dictées en chemin) reste un changement de carte jusqu'au bout (`pourLaListe`).
     func recevoirDefilement(dy: Double, dx: Double, phase: DefilementIlot.Phase, inertie: Bool, en p: CGPoint? = nil, t: Double = ProcessInfo.processInfo.systemUptime) {
         guard fenetreOuverte, !cache else { return }
-        if courante == .dictees, let p, PlanDictees.cadreListe(grille).contains(p), dictees.defile {
-            if abs(dy) >= abs(dx) { dictees.defiler(dy) }
+        let surListe = courante == .dictees && p.map { PlanDictees.cadreListe(grille).contains($0) } == true && dictees.defile
+        if defilement.pourLaListe(phase: phase, inertie: inertie, surListe: surListe) {
+            if courante == .dictees, abs(dy) >= abs(dx) { dictees.defiler(dy) }
             return
         }
         if let pas = defilement.recevoir(dy: dy, dx: dx, phase: phase, inertie: inertie, t: t) { defiler(pas) }

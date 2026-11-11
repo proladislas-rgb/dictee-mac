@@ -196,6 +196,11 @@ enum RenduFenetre {
         fenetre("fenetre-11-petite-dictees", onglet: .dictees, store: exemple, mots: motsExemple(), deplier: true, taille: petite)
         fenetre("fenetre-12-petite-mots", onglet: .mots, store: exemple, mots: motsExemple(), taille: petite)
         fenetre("fenetre-13-petite-reglages", onglet: .reglages, store: exemple, mots: motsExemple(), taille: petite)
+        // toute la hauteur des Réglages : sans encoche, l'interrupteur de l'icône allumé et grisé ; en bas, « Ouvrir le journal » et
+        // « Quitter Verbe » (l'icône et son menu sont éteints par défaut) ; en deux colonnes et en une
+        let sansEncoche = ReglagesModele(reel: false); sansEncoche.iconeToujours = true
+        fenetre("fenetre-14-reglages-sans-encoche-toute-la-hauteur", onglet: .reglages, store: exemple, mots: motsExemple(), reglages: sansEncoche, taille: CGSize(width: 1180, height: 2000))
+        fenetre("fenetre-15-petite-reglages-toute-la-hauteur", onglet: .reglages, store: exemple, mots: motsExemple(), taille: CGSize(width: 700, height: 3900))
         return ok ? 0 : 1
     }
 }

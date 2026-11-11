@@ -164,6 +164,9 @@ enum PlanDictees {
     static let hauteurAction: CGFloat = 24
     static var largeurColler: CGFloat { MesureIlot.texte("Coller", 12, .semibold) + 20 }
     static var largeurActions: CGFloat { largeurColler + 2 + 24 }
+    /// « ✓ Copié » sans ses marges : la coche (≈ 12 pt), 4 pt, le mot mesuré ; dans une ligne dépliée, il tient à la place de « Coller ».
+    static let ecartCopie: CGFloat = 4
+    static var largeurCopie: CGFloat { 12 + ecartCopie + MesureIlot.texte("Copié", 12, .semibold) }
     static let liens: [Onglet] = [.journee, .reunions, .mots, .reglages]
     static let noteLiens = "ouvrent la fenêtre"
 
@@ -326,11 +329,14 @@ struct ListeDicteesIlot: View {
                     .frame(width: cadre.width, alignment: .leading)
             }
             ForEach(p.elements.filter { $0.y + $0.h > dec - 1 && $0.y < dec + h + 1 }) { e in
+                // une ligne à moitié sous le bord ne prend pas le clic destiné à ce qui est autour ; une dictée dépliée plus haute que la
+                // liste le prend sur sa partie visible (`.clipped()` ne rogne que le dessin, pas les clics)
+                let z = CarteDictees.partieCliquable(y: e.y, h: e.h, decalage: dec, liste: h)
                 element(e)
                     .frame(width: cadre.width, height: CGFloat(e.h), alignment: .leading)
+                    .contentShape(Rectangle().path(in: CGRect(x: 0, y: CGFloat(z?.debut ?? 0), width: cadre.width, height: CGFloat((z?.fin ?? 0) - (z?.debut ?? 0)))))
+                    .allowsHitTesting(z != nil)
                     .offset(y: CGFloat(e.y - dec))
-                    // une ligne à moitié sous le bord ne prend pas le clic destiné à ce qui est autour
-                    .allowsHitTesting(e.y - dec >= -1 && e.y + e.h - dec <= h + 1)
             }
         }
         .frame(width: cadre.width, height: cadre.height, alignment: .topLeading)
@@ -387,20 +393,17 @@ struct LigneDicteeIlot: View {
                 .fixedSize(horizontal: false, vertical: dep)
                 .frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: 4) {
-                if copie {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
-                        Text("Copié").font(.system(size: 12, weight: .semibold)).lineLimit(1).fixedSize()
-                    }
-                    .foregroundStyle(Color(hex: 0x5FE08A))
-                    .padding(.leading, 7).padding(.trailing, 9).frame(height: PlanDictees.hauteurAction)
-                    .background(Capsule().fill(CouleursIlot.vert.opacity(0.18)))
-                    .transition(.opacity)
-                }
+                // repliée : « Copié » à côté de « Coller » (maquette, étape 12) ; dépliée, il prend la place de « Coller », à la même largeur :
+                // la place du texte ne change pas (sa hauteur a été mesurée pour elle ; plus étroit, il déborderait de la ligne)
+                if copie && !dep { MarqueCopie().transition(.opacity) }
                 if actions {
                     HStack(spacing: 2) {
-                        BoutonColler { m.surAction(.dicteeColler(e.id)) }
-                            .accessibilityLabel("Coller dans \(e.appNom ?? "l\u{2019}app précédente")")
+                        if copie && dep {
+                            MarqueCopie(largeur: PlanDictees.largeurColler).transition(.opacity)
+                        } else {
+                            BoutonColler { m.surAction(.dicteeColler(e.id)) }
+                                .accessibilityLabel("Coller dans \(e.appNom ?? "l\u{2019}app précédente")")
+                        }
                         BoutonChevron(haut: dep) { d.basculerDepliee(e.id) }
                             .accessibilityLabel(dep ? "Réduire" : "Lire en entier")
                     }
@@ -446,6 +449,23 @@ struct LigneDicteeIlot: View {
             a[lo ..< hi].foregroundColor = CouleursIlot.ambre
         }
         return a
+    }
+}
+
+/// « ✓ Copié » en vert, dans sa pastille : à sa largeur (marges 7 et 9 pt), ou à une largeur donnée (celle de « Coller »).
+private struct MarqueCopie: View {
+    var largeur: CGFloat?
+    var body: some View {
+        let contenu = HStack(spacing: PlanDictees.ecartCopie) {
+            Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
+            Text("Copié").font(.system(size: 12, weight: .semibold)).lineLimit(1).fixedSize()
+        }
+        Group {
+            if let largeur { contenu.frame(width: largeur) } else { contenu.padding(.leading, 7).padding(.trailing, 9) }
+        }
+        .foregroundStyle(Color(hex: 0x5FE08A))
+        .frame(height: PlanDictees.hauteurAction)
+        .background(Capsule().fill(CouleursIlot.vert.opacity(0.18)))
     }
 }
 

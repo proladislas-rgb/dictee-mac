@@ -998,6 +998,35 @@ func controlesDictees() {
     verifier(CarteDictees.borner(-20, liste: six) == 0 && CarteDictees.borner(500, liste: six) == six - 200 && CarteDictees.borner(30, liste: six) == 30
              && CarteDictees.borner(30, liste: 150) == 0, "défilement borné : ni au-dessus du haut, ni plus bas que la fin ; une liste courte ne défile pas")
 
+    groupe("Îlot : les Dictées, où une ligne prend les clics")
+    let L = CarteDictees.listeMax
+    verifier(CarteDictees.partieCliquable(y: 20, h: 32, decalage: 0, liste: L).map { $0 == (0, 32) } == true, "une ligne entière à l'écran : toute la ligne")
+    verifier(CarteDictees.partieCliquable(y: 180, h: 32, decalage: 0, liste: L) == nil && CarteDictees.partieCliquable(y: 20, h: 32, decalage: 30, liste: L) == nil,
+             "une ligne à moitié sous le bas ou sous le haut : aucun clic (il visait ce qui est autour)")
+    // une longue dictée dépliée : 9 lignes de texte = 6 + 21 × 9 + 7 = 202 pt, plus haute que la liste (200) ; elle ne tient jamais entière
+    let longue = CarteDictees.ligneDepliee(lignesDeTexte: 9)
+    verifier(longue == 202 && longue > L, "une dictée dépliée de 9 lignes : \(Int(longue)) pt, plus haute que la liste (\(Int(L)))")
+    let enHaut = CarteDictees.partieCliquable(y: 20, h: longue, decalage: 0, liste: L)
+    verifier(enHaut.map { $0 == (0, 180) } == true, "dépliée, en haut de la liste : cliquable sur sa partie visible (0 à 180 pt), pas sur le pied")
+    let auMilieu = CarteDictees.partieCliquable(y: 20, h: longue, decalage: 21, liste: L)
+    verifier(auMilieu.map { abs($0.debut - 1) < 0.001 && abs($0.fin - 201) < 0.001 } == true, "défilée de 21 pt : sa partie visible (1 à 201 pt), pas l'en-tête au-dessus")
+    verifier(CarteDictees.partieCliquable(y: 20, h: 500, decalage: 300, liste: L).map { $0 == (280, 480) } == true, "très longue, défilée au milieu : les 200 pt visibles")
+    verifier(CarteDictees.partieCliquable(y: 20, h: longue, decalage: 300, liste: L) == nil, "sortie par le haut : aucun clic")
+
+    groupe("Îlot : les Dictées, à qui va le geste (la liste ou les cartes)")
+    var a = DefilementIlot()
+    // parti du Centre, le pointeur au milieu (là où sera la liste) : la carte change en chemin, la suite et l'inertie n'y vont pas
+    verifier(!a.pourLaListe(phase: .debut, inertie: false, surListe: false), "geste commencé sur le Centre : aux cartes")
+    verifier(!a.pourLaListe(phase: .suite, inertie: false, surListe: true) && !a.pourLaListe(phase: .fin, inertie: false, surListe: true),
+             "la carte est passée aux Dictées en plein geste : la suite reste aux cartes (la liste ne bouge pas)")
+    verifier(!a.pourLaListe(phase: .aucune, inertie: true, surListe: true), "son inertie non plus")
+    // parti de la liste : la suite et l'inertie la font défiler, même si le pointeur en sort
+    verifier(a.pourLaListe(phase: .debut, inertie: false, surListe: true) && a.pourLaListe(phase: .suite, inertie: false, surListe: false)
+             && a.pourLaListe(phase: .aucune, inertie: true, surListe: false), "geste commencé sur la liste : elle défile jusqu'au bout, inertie comprise")
+    verifier(!a.pourLaListe(phase: .debut, inertie: false, surListe: false), "geste suivant, commencé ailleurs : aux cartes")
+    verifier(a.pourLaListe(phase: .aucune, inertie: false, surListe: true) && !a.pourLaListe(phase: .aucune, inertie: false, surListe: false),
+             "molette : chaque cran décide là où il tombe")
+
     groupe("Îlot : les Dictées, les mots surlignés")
     verifier(Surlignage.plages("OK pour le devis de la cuisine", requete: "devis") == [11 ..< 16], "« devis » : le mot, à sa place")
     verifier(Surlignage.plages("Le DÉVIS signé", requete: "devis") == [3 ..< 8], "sans accents ni majuscules : « DÉVIS » trouvé par « devis »")

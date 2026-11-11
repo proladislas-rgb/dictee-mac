@@ -32,6 +32,8 @@ final class ReglagesModele: ObservableObject {
     @Published var ilotTelechargements: Bool { didSet { if !installe { return }; Settings.ilotTelechargements = ilotTelechargements; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     /// L'icône ❞ dans la barre des menus (sans encoche, elle reste quoi qu'il arrive : AppDelegate.appliquerIcone).
     @Published var iconeBarre: Bool { didSet { if !installe { return }; Settings.iconeBarreMenus = iconeBarre; NotificationCenter.default.post(name: .verbeIconeBarre, object: nil) } }
+    /// Pas d'encoche sur l'écran principal : l'icône est toujours là (`PresenceIcone`), l'interrupteur la montre allumée, grisé.
+    @Published var iconeToujours = false
     @Published var ilotMicro: Bool { didSet { if !installe { return }; Settings.ilotMicro = ilotMicro; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotNiveaux: Bool { didSet { if !installe { return }; Settings.ilotNiveaux = ilotNiveaux; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotEtagere: Bool { didSet { if !installe { return }; Settings.ilotEtagere = ilotEtagere; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
@@ -115,6 +117,7 @@ final class ReglagesModele: ObservableObject {
         ilotTelechargements = reel ? Settings.ilotTelechargements : false
         ilotMicro = reel ? Settings.ilotMicro : true
         iconeBarre = reel ? (Settings.iconeBarreMenus ?? false) : false
+        iconeToujours = reel ? !PresenceIcone.encochePrincipale : false
         ilotNiveaux = reel ? Settings.ilotNiveaux : true
         ilotEtagere = reel ? Settings.ilotEtagere : true
         ilotClaude = reel ? Settings.ilotClaude : true
@@ -127,6 +130,9 @@ final class ReglagesModele: ObservableObject {
         micros = [MicroChoix(id: ChoixMicro.automatique, nom: "Automatique"), MicroChoix(id: ChoixMicro.systeme, nom: "Micro du système")]
         installe = true
         if reel {
+            NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { guard let self else { return }; let t = !PresenceIcone.encochePrincipale; if self.iconeToujours != t { self.iconeToujours = t } }
+            }
             NotificationCenter.default.addObserver(forName: .verbeIlotReglagesRelus, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { guard let self else { return }; if self.ilotCalendrier != Settings.ilotCalendrier { self.ilotCalendrier = Settings.ilotCalendrier }
                     if self.ilotTelechargements != Settings.ilotTelechargements { self.ilotTelechargements = Settings.ilotTelechargements }
@@ -135,6 +141,11 @@ final class ReglagesModele: ObservableObject {
         }
         if reel { rafraichir() } else { micros.append(MicroChoix(id: "exemple", nom: "Micro du MacBook")); disponibiliteSecours = .pret; cle = .trousseau }
     }
+
+    /// Deux commandes de l'ancien menu de l'icône, qui n'avaient pas d'autre chemin (l'icône est éteinte par défaut sur un Mac à encoche).
+    /// Le journal s'ouvre sur ce Mac, dans l'app choisie pour les fichiers texte.
+    func quitter() { guard reel else { return }; NSApp.terminate(nil) }
+    func ouvrirJournal() { guard reel else { return }; NSWorkspace.shared.open(Log.url) }
 
     /// Relit ce qui peut changer hors de l'app (micros branchés, état du secours, de la clé, du démarrage).
     func rafraichir() {

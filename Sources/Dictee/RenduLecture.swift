@@ -405,6 +405,7 @@ enum RenduLecture {
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees { m in m.dictees.requete = "devis"; m.dictees.rechercheActive = true })) }, "ilot-24c-dictees-11-chercher-devis")
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees { m in m.dictees.requete = "devis"; m.dictees.survol = d1; m.dictees.marquerCopiee(d1) })) }, "ilot-24d-dictees-12-copie-et-coller")
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees { m in m.dictees.deplie = d1 })) }, "ilot-24e-dictees-ligne-depliee")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees { m in m.dictees.deplie = d1; m.dictees.survol = d1; m.dictees.marquerCopiee(d1) })) }, "ilot-24i-dictees-depliee-copiee")
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees { m in m.dictees.survol = d2; m.dictees.decalage = 70 })) }, "ilot-24f-dictees-liste-defilee-survol")
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteDictees { m in m.dictees.requete = "facture plombier" })) }, "ilot-24g-dictees-aucun-resultat")
         ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene { m in m.etagereActive = true; m.survole = true; m.donneesChangees(); m.allerA(.dictees) }) }, "ilot-24h-dictees-ilot-vide-sombre")

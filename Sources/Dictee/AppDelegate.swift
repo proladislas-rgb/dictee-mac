@@ -196,7 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// d'encoche (l'îlot vide n'y existe pas : sans elle, aucun chemin vers Verbe ni vers « Couper le micro »). Sans icône, rouvrir Verbe
     /// (Finder, Spotlight, Launchpad) ouvre la fenêtre principale (`applicationShouldHandleReopen`).
     private func appliquerIcone() {
-        let encoche = NSScreen.screens.first.map { $0.safeAreaInsets.top > 0 } ?? false
+        let encoche = PresenceIcone.encochePrincipale
         let voulue = PresenceIcone.montree(reglage: Settings.iconeBarreMenus, encoche: encoche)
         if voulue, statusItem == nil {
             installerIcone()
@@ -479,6 +479,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func ouvrirJournal() { NSWorkspace.shared.open(Log.url) }
     @objc private func desinstaller() { InstallationApp.desinstaller() }
     @objc private func quitter() { NSApp.terminate(nil) }
+}
+
+extension PresenceIcone {
+    /// L'écran principal (celui de la barre des menus) a-t-il une encoche ?
+    @MainActor static var encochePrincipale: Bool { NSScreen.screens.first.map { $0.safeAreaInsets.top > 0 } ?? false }
 }
 
 /// Fond anthracite doux derrière les guillemets de la barre des menus : au survol, ou quand le panneau est ouvert.

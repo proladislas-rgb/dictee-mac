@@ -127,8 +127,16 @@ struct ReglagesVue: View {
             LigneReglage(libelle: "Calendrier", note: r.phraseCalendrier) {
                 Interrupteur(actif: $r.ilotCalendrier, etiquette: "Calendrier")
             }
-            LigneReglage(libelle: "Icône dans la barre des menus", note: "Éteinte, tout se fait depuis l\u{2019}îlot : survole l\u{2019}encoche, puis « Centre » ou « Dictées ». Rouvre Verbe depuis le Finder ou Spotlight pour cette fenêtre. Sans encoche (écran externe), l\u{2019}icône reste toujours.") {
-                Interrupteur(actif: $r.iconeBarre, etiquette: "Icône dans la barre des menus")
+            LigneReglage(libelle: "Icône dans la barre des menus", note: r.iconeToujours
+                         ? "Toujours là sans encoche : sur cet écran, l\u{2019}îlot vide n\u{2019}existe pas, l\u{2019}icône est le chemin vers Verbe et vers « Couper le micro »."
+                         : "Éteinte, tout se fait depuis l\u{2019}îlot : survole l\u{2019}encoche, puis « Centre » ou « Dictées ». Rouvre Verbe depuis le Finder ou Spotlight pour cette fenêtre. Sans encoche (écran externe), l\u{2019}icône reste toujours.") {
+                if r.iconeToujours {
+                    // sans encoche, elle est là quoi qu'il arrive : l'interrupteur le dit, allumé et grisé
+                    Interrupteur(actif: .constant(true), etiquette: "Icône dans la barre des menus, toujours là sans encoche") { _ in }
+                        .disabled(true).opacity(0.45)
+                } else {
+                    Interrupteur(actif: $r.iconeBarre, etiquette: "Icône dans la barre des menus")
+                }
             }
             LigneReglage(libelle: "Notifications (expérimental)", note: "Montre dans l\u{2019}encoche les notifications des autres apps, en lisant le Centre de notifications avec l\u{2019}Accessibilité déjà accordée. Peut cesser de marcher avec une mise à jour de macOS.") {
                 Interrupteur(actif: $r.ilotNotifications, etiquette: "Notifications")
@@ -197,13 +205,22 @@ struct ReglagesVue: View {
                                                : "Le son reste sur ce Mac (dossier test-precision), pour comparer les modèles plus tard. Désactivé par défaut.") {
                 Interrupteur(actif: $r.testPrecision, etiquette: "Test de précision")
             }
-            HStack(spacing: 24) {
-                LienDiscret(titre: "Revoir la prise en main", action: surRevoirPriseEnMain)
-                LienDiscret(titre: "Désinstaller Verbe", action: surDesinstaller)
+            // « Ouvrir le journal » et « Quitter Verbe » : l'icône de la barre des menus (et son menu) est éteinte par défaut
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 24) { priseEnMain; journal; desinstaller; quitter }
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 24) { priseEnMain; journal }
+                    HStack(spacing: 24) { desinstaller; quitter }
+                }
             }
             .padding(.top, 16)
         }
     }
+
+    private var priseEnMain: some View { LienDiscret(titre: "Revoir la prise en main", action: surRevoirPriseEnMain) }
+    private var journal: some View { LienDiscret(titre: "Ouvrir le journal") { r.ouvrirJournal() } }
+    private var desinstaller: some View { LienDiscret(titre: "Désinstaller Verbe", action: surDesinstaller) }
+    private var quitter: some View { LienDiscret(titre: "Quitter Verbe") { r.quitter() } }
 }
 
 /// « ✓ Enregistrée » : une coche et le mot, en clair.
