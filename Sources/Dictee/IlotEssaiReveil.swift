@@ -25,7 +25,9 @@ extension IlotEssai {
         // ce qui serait réel : capturé
         var sonneries = 0, ecrans = 0, notes = 0
         var liens: [URL] = []
-        let (sonsAvant, ecranAvant, ouvrirAvant, noterAvant) = (c.sons, c.allumerEcran, c.ouvrir, c.surNoter)
+        var colles: [String] = []
+        let (sonsAvant, ecranAvant, ouvrirAvant, noterAvant, collerAvant) = (c.sons, c.allumerEcran, c.ouvrir, c.surNoter, c.surColler)
+        c.surColler = { colles.append($0) }
         c.sons.reveil = { sonneries += 1 }
         c.allumerEcran = { ecrans += 1 }
         c.ouvrir = { liens.append($0) }
@@ -38,6 +40,7 @@ extension IlotEssai {
         c.reglagesCentre.reglerCalendrier = { memoire.calendrier = $0 }
         defer {
             c.maintenant = maintenantAvant; c.sons = sonsAvant; c.allumerEcran = ecranAvant; c.ouvrir = ouvrirAvant; c.surNoter = noterAvant
+            c.surColler = collerAvant
             c.annulerLeReveil()
         }
         let fichier = c.reveilStore.url
@@ -94,6 +97,21 @@ extension IlotEssai {
         verifier(c.reveil == nil, "7:45 a pris la place d'« Autre… », en ambre : un clic l'annule")
         clic(CGPoint(x: xHeure(0), y: yHeures), 0.4)
         verifier(c.reveil?.heure == 7, "vrai clic sur « 7:00 » : réglé")
+        // « Autre… » s'ouvre sur l'heure réglée (7:00) : « OK » la CONFIRME (il ne l'annule pas, contrairement à un 2e clic sur la pastille)
+        clic(CGPoint(x: xAutre, y: yHeures), 0.4)
+        verifier(m.reveilAutre.map { $0.heure == 7 && $0.minute == 0 } == true, "vrai clic sur « Autre… », réveil à 7:00 : le réglage s'ouvre sur 7:00")
+        clic(CGPoint(x: xOK, y: yHeures), 0.5)
+        verifier(c.reveil?.heure == 7 && c.reveil?.minute == 0 && m.reveilAutre == nil && fm.fileExists(atPath: fichier.path),
+                 "vrai clic sur « OK » sans rien changer : le réveil de 7:00 reste réglé (rien n'est annulé en silence)")
+        clic(CGPoint(x: xAutre, y: yHeures), 0.4); clic(CGPoint(x: xPlus, y: yHeures), 0.25); clic(CGPoint(x: xMoins, y: yHeures), 0.25)
+        clic(CGPoint(x: xOK, y: yHeures), 0.5)
+        verifier(c.reveil?.heure == 7 && c.reveil?.minute == 0 && m.reveilAutre == nil, "+ puis − puis « OK » (de nouveau 7:00) : toujours réglé")
+        // le réveil annulé pendant le réglage « Autre… » (bandeau, réglage éteint) : − 7:00 + OK disparaît avec lui
+        clic(CGPoint(x: xAutre, y: yHeures), 0.4)
+        c.agir(.reveilAnnuler); pause(0.3)
+        verifier(c.reveil == nil && m.reveilAutre == nil, "réveil annulé pendant « Autre… » : la rangée − / + / OK s'en va, les heures proposées reviennent")
+        clic(CGPoint(x: xHeure(0), y: yHeures), 0.4)
+        verifier(c.reveil?.heure == 7, "vrai clic sur « 7:00 » : de nouveau réglé")
         // le Centre se range : l'îlot garde le réveil dans ses ailes (≤ 66 pt), rien ne tourne au repos
         m.clicAilleurs(); pause(0.9); poseeSurLaCible()
         verifier(m.courante == .reveilCompact && m.ongletMinuteur == nil, "clic ailleurs : replié, le réveil dans l'aile gauche, « 7:00 » dans la droite (\(m.courante))")
@@ -130,10 +148,27 @@ extension IlotEssai {
             clic(CGPoint(x: z.maxX - l / 2, y: z.midY), 0.6)
         }
         verifier(c.reveil == nil && m.bandeau == nil, "vrai clic sur « Annuler » : plus de réveil, le bandeau part")
+        verifier(colles == ["Réveille-moi à 9 h."], "« Annuler » recolle la phrase dictée (elle était peut-être pour quelqu'un) : \(colles)")
+        // îlot fermé : seulement un ORDRE ; « Le réveil à 7 h. » (écrit à quelqu'un) est collé normalement
+        verifier(c.intercepter("Le réveil à 7 h.") == false && c.intercepter("Réveil à 7 h demain.") == false && c.intercepter("Une alarme à 7 h.") == false
+                 && c.reveil == nil, "îlot fermé, « Le réveil à 7 h. », « Réveil à 7 h demain. » : collés normalement, aucun réveil")
+        // « Minuteur et réveil » éteint dans Réglages › Îlot : le réveil réglé est annulé, et ne sonne jamais
+        c.reglerLeReveil(heure: 6, minute: 30, aLaVoix: false)
         memoire.minuteur = false
+        c.appliquerLeReglageDuReveil(); pause(0.3)
+        verifier(c.reveil == nil && m.reveil == nil && !fm.fileExists(atPath: fichier.path), "« Minuteur et réveil » éteint : le réveil de 6:30 est annulé (fichier effacé, aile vide)")
+        c.reglerLeReveil(heure: 6, minute: 30, aLaVoix: false)
+        verifier(memoire.minuteur && c.reveil != nil, "réglé de nouveau d'un clic : le réglage se rallume (comme 5 · 10 · 25)")
+        memoire.minuteur = false
+        let sAvantEteint = sonneries
+        decalage += c.reveil!.sonnerie.timeIntervalSince(c.maintenant()) + 5
+        c.verifierLeReveil(); pause(0.4)
+        verifier(m.alerte == nil && sonneries == sAvantEteint && ecrans == 0 && c.reveil == nil, "réglage éteint à l'heure du réveil : rien ne sonne, l'écran n'est pas rallumé")
+        refermer()
         verifier(c.intercepter("réveille-moi à 9 h") == false && c.reveil == nil, "minuteur éteint dans les réglages : la phrase est collée (rien n'est mangé)")
         memoire.minuteur = true
-        verifier(c.intercepter("Réveil à 7 h 30.") == true && c.reveil?.minute == 30, "« réveil à 7 h 30 » : 7:30")
+        verifier(c.intercepter("Mets un réveil à 7 h 30.") == true && c.reveil?.minute == 30, "îlot fermé, « mets un réveil à 7 h 30 » : 7:30")
+        verifier(m.bandeauVu?.texteDicte == "Mets un réveil à 7 h 30.", "le bandeau garde la phrase (pour « Annuler »), jamais le fichier")
         attendre(4.5) { m.bandeau != nil }
         verifier(m.courante == .reveilCompact, "le bandeau parti : le réveil dans les ailes (\(m.courante))")
 
@@ -201,6 +236,21 @@ extension IlotEssai {
         verifier(!contenu.contains("Réveille"), "le fichier ne garde jamais le texte dicté")
 
         print("Le Calendrier")
+        // la nouveauté « calendrier » au lancement : un Centre jamais rangé la retient comme donnée ; retirée ensuite par « Modifier »,
+        // elle ne revient pas au lancement suivant (réglages en mémoire)
+        do {
+            let rc = c.reglagesCentre
+            var rangee: [String]? = nil, donnees: [String] = []
+            c.reglagesCentre.disposition = { rangee }; c.reglagesCentre.enregistrerDisposition = { rangee = $0 }
+            c.reglagesCentre.nouveautes = { donnees }; c.reglagesCentre.marquerNouveautes = { donnees = $0 }
+            let d1 = c.dispositionAvecNouveautes()
+            verifier(d1 == DispositionCentre() && donnees == ["calendrier"] && rangee == nil,
+                     "lancement, Centre jamais rangé : le calendrier y est, retenu comme donné (\(donnees))")
+            rangee = d1.identifiants.filter { $0 != "calendrier" }   // « Modifier » : Calendrier retiré, « OK »
+            let d2 = c.dispositionAvecNouveautes()
+            verifier(!d2.elements.contains(.calendrier) && rangee?.contains("calendrier") == false, "retiré par « Modifier », Verbe relancé : il ne revient pas")
+            c.reglagesCentre = rc
+        }
         // --- étape 10 : le rond Calendrier ; macOS demande une fois (ici : une fermeture qui répond après 0,3 s)
         var statut: AgendaSysteme.Statut = .nonDemande
         var accorde = true, demandes = 0

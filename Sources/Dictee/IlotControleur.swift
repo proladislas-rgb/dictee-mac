@@ -205,17 +205,13 @@ final class IlotControleur {
     }
 
     /// Ce que le Centre montre, relu des réglages ; un Centre rangé avant l'arrivée du calendrier le reçoit une fois, à sa place.
+    /// Jamais rangé : le Centre par défaut contient déjà le calendrier, il est retenu comme donné (retiré ensuite, il ne revient pas).
     func dispositionAvecNouveautes() -> DispositionCentre {
-        let ids = reglagesCentre.disposition()
-        let d = DispositionCentre(identifiants: ids)
-        guard ids != nil else { return d }
-        let vues = Set(reglagesCentre.nouveautes())
-        let r = d.avecNouveautes(dejaProposees: vues)
-        guard !r.proposees.isEmpty else { return d }
-        reglagesCentre.marquerNouveautes(Array(vues) + r.proposees.map(\.rawValue))
-        if r.disposition != d {
+        let r = DispositionCentre.relire(identifiants: reglagesCentre.disposition(), dejaProposees: Set(reglagesCentre.nouveautes()))
+        if let n = r.aRetenir { reglagesCentre.marquerNouveautes(n) }
+        if !r.ajoutees.isEmpty {
             reglagesCentre.enregistrerDisposition(r.disposition.identifiants)
-            Log.ecrire("centre : ajouté une fois au Centre rangé : \(r.proposees.map(\.rawValue).joined(separator: ", "))")
+            Log.ecrire("centre : ajouté une fois au Centre rangé : \(r.ajoutees.map(\.rawValue).joined(separator: ", "))")
         }
         return r.disposition
     }
@@ -242,6 +238,7 @@ final class IlotControleur {
             if !notificationsSource.actif, !notificationsSource.demarrer() { Log.ecrire("notifications : non démarrées (voir plus haut)") }
         } else { notificationsSource.arreter(); moteur.notifications = [] }
         if !Settings.ilotMinuteur, minuteur != nil { arreterLeMinuteur() }
+        appliquerLeReglageDuReveil()
         if Settings.ilotEnergie {
             energieSource.demarrer(); appareilsSource.demarrer()
         } else {
@@ -762,11 +759,12 @@ final class IlotControleur {
     /// Appelée avec le texte final d'une dictée, avant le collage. Vrai si c'était une commande de l'îlot (le texte n'est alors PAS collé).
     /// Ne s'applique que si l'accueil de l'îlot était ouvert au début de la dictée : une dictée normale n'est jamais mangée.
     func intercepter(_ texte: String) -> Bool {
-        // l'îlot fermé, une seule commande : le réveil, et seulement si la phrase entière l'est (« réveille-moi à 9 h ») ; une phrase qui
-        // le contient (« dis-lui de me réveiller à 9 h ») est collée normalement (maquette, étape 8 : « sans rien ouvrir »)
+        // l'îlot fermé, une seule commande : le réveil, et seulement si la phrase entière est un ORDRE (« réveille-moi à 9 h », « mets un
+        // réveil à 7 h ») ; une phrase qui le contient ou le décrit (« dis-lui de me réveiller à 9 h », « Le réveil à 7 h. ») est collée
+        // normalement (maquette, étape 8 : « sans rien ouvrir ») ; « Annuler » du bandeau recolle le texte gardé
         guard armeJusqua > maintenant() else {
-            guard reglagesCentre.minuteurActif(), let r = AnalyseCommandeIlot.reveil(texte) else { return false }
-            reglerLeReveil(heure: r.heure, minute: r.minute, aLaVoix: true)
+            guard reglagesCentre.minuteurActif(), let r = AnalyseCommandeIlot.reveil(texte, ordre: true) else { return false }
+            reglerLeReveil(heure: r.heure, minute: r.minute, aLaVoix: true, texteDicte: texte)
             Log.ecrire("îlot : réveil dicté (îlot fermé)")
             return true
         }

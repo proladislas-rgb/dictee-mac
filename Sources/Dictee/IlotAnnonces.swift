@@ -150,7 +150,8 @@ extension IlotMoteur {
                                   droite: e.map { .meta(FormatIlot.heure($0.debut)) } ?? .rien)
         case .reveilRegle:
             return ContenuAnnonce(glyphe: GlypheIlot(nom: "alarm", couleur: CouleursIlot.ambre, taille: 21), l1: b?.ligne1 ?? "Réveil réglé",
-                                  l2: b?.ligne2 ?? "", droite: .boutons([.init(titre: "Annuler", etiquette: "Annuler le réveil", action: .reveilAnnuler)]))
+                                  l2: b?.ligne2 ?? "", droite: .boutons([.init(titre: "Annuler", etiquette: b?.texteDicte == nil ? "Annuler le réveil" : "Annuler le réveil et coller la dictée",
+                                                                                 action: .reveilAnnuler)]))
         case .reveilFini:
             // le réveil se secoue à l'arrivée (sa place est gardée : `ReveilSecoue`, IlotVues)
             return ContenuAnnonce(glyphe: nil, l1: "Réveil \u{00B7} " + (alerteVu?.libelle ?? ""), l2: ReveilIlot.salut(maintenant()),

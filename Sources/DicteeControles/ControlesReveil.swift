@@ -23,6 +23,14 @@ func controlesReveil() {
     verifier(r("Dis-lui de me réveiller à 9 h") == "rien" && r("réveille-moi à 9 h pour le train") == "rien" && r("réveiller les enfants à 7 h") == "rien"
              && r("Réveil difficile ce matin") == "rien" && r("réveille-moi") == "rien" && r("réveille-moi à 25 h") == "rien" && r("Le réveil sonne à 7 h, puis on part") == "rien",
              "strict : une phrase qui contient un réveil sans l'être est collée normalement (rien avant, rien après, heure valide)")
+    func o(_ t: String) -> String { A.reveil(t, ordre: true).map { ReveilIlot.texte($0.heure, $0.minute) } ?? "rien" }
+    verifier(o("Réveille-moi à 9 h.") == "9:00" && o("Mets un réveil à 8 heures") == "8:00" && o("réveillez-moi à 10 heures 30") == "10:30"
+             && o("Programme un réveil pour 6 h 15") == "6:15" && o("règle un réveil à 7 h") == "7:00" && o("Mets une alarme à 7 h") == "7:00",
+             "îlot fermé : les ORDRES (« réveille-moi », « mets / règle / programme un réveil », « mets une alarme »)")
+    verifier(o("Le réveil à 7 h.") == "rien" && o("Réveil à 7 h demain.") == "rien" && o("Un réveil à 7 h") == "rien" && o("réveil 6 h 45") == "rien"
+             && o("Une alarme à 7 h") == "rien" && o("Alarme à 7 h") == "rien" && o("Le réveil à 7 h 30") == "rien",
+             "îlot fermé : un début qui DÉCRIT (« Le réveil à 7 h. », écrit à quelqu'un) est collé normalement")
+    verifier(r("Le réveil à 7 h") == "7:00" && r("Réveil à 7 h 30") == "7:30", "l'accueil ouvert (dictée armée) : la liste large reste")
     verifier(A.analyser("Réveille-moi à 9 h.", maintenant: date(11, 23, 12), calendrier: cal) == .reveil(heure: 9, minute: 0)
              && A.analyser("minuteur 10 minutes", maintenant: date(11, 23), calendrier: cal) == .minuteur(secondes: 600)
              && A.analyser("rappelle-moi d'appeler Paul à 15 h", maintenant: date(11, 10), calendrier: cal) == .rappel(texte: "Appeler Paul", quand: date(11, 15)),
@@ -95,6 +103,20 @@ func controlesReveil() {
     let plein = D(identifiants: ["micro", "dictee", "telechargements", "claude", "rappel", "derniere-dictee"]).avecNouveautes(dejaProposees: [])
     verifier(!plein.disposition.elements.contains(.calendrier) && plein.proposees == [.calendrier], "rangée déjà pleine (6) : rien n'est poussé dehors, « Modifier » le proposera")
     verifier(D(identifiants: ["micro", "calendrier"]).avecNouveautes(dejaProposees: []).disposition.elements == [.micro, .calendrier], "déjà là : rien ne change")
+    // au lancement (`relire`) : un Centre jamais rangé contient déjà le calendrier ; il est retenu comme donné, sinon retiré par
+    // « Modifier » il reviendrait au lancement suivant
+    let jamais = D.relire(identifiants: nil, dejaProposees: [])
+    verifier(jamais.disposition == D() && jamais.aRetenir == ["calendrier"] && jamais.ajoutees.isEmpty,
+             "Centre jamais rangé : le Centre par défaut (calendrier compris), le calendrier retenu comme donné, rien d'enregistré")
+    let retire = D.relire(identifiants: ["micro", "dictee", "telechargements", "claude", "minuteur", "etagere", "reunion"], dejaProposees: Set(jamais.aRetenir ?? []))
+    verifier(!retire.disposition.elements.contains(.calendrier) && retire.aRetenir == nil && retire.ajoutees.isEmpty,
+             "puis retiré par « Modifier » : au lancement suivant il ne revient pas")
+    verifier(D.relire(identifiants: nil, dejaProposees: ["calendrier"]).aRetenir == nil, "jamais rangé, déjà retenu : rien à écrire")
+    let vieux = D.relire(identifiants: ["micro", "telechargements", "claude"], dejaProposees: [])
+    verifier(vieux.disposition.elements == [.micro, .telechargements, .calendrier, .claude] && vieux.aRetenir == ["calendrier"] && vieux.ajoutees == [.calendrier],
+             "rangé avant le calendrier : il arrive une fois (retenu, disposition à enregistrer)")
+    let pleinR = D.relire(identifiants: ["micro", "dictee", "telechargements", "claude", "rappel", "derniere-dictee"], dejaProposees: [])
+    verifier(pleinR.aRetenir == ["calendrier"] && pleinR.ajoutees.isEmpty, "rangée pleine : retenu, rien d'ajouté ni d'enregistré")
     let p2 = D.plan(ronds: true, cases: true, bande: true, nomsSurDeuxLignes: true)
     verifier(p2.profondeur == GeoIlot.profondeurCentre + D.ligneNom && p2.hauts[.cases] == 158 + D.ligneNom, "un nom sur deux lignes : la rangée des ronds s'allonge d'une ligne (14 pt), le reste descend")
     verifier(D.poidsCase(.minuteur) == 1.16 && D.poidsCase(.etagere) == 0.84, "cases côte à côte : Minuteur 1,16, Étagère 0,84 (maquette)")

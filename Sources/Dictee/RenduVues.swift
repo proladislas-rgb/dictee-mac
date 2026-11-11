@@ -109,6 +109,10 @@ enum RenduPanneau {
         panneau("panneau-3-recherche", store: plein, requete: "mail")
         panneau("panneau-4-aucun-resultat", store: plein, requete: "zzz")
         panneau("panneau-5-historique-vide", store: RenduVues.historiqueExemple(vide: true))
+        // les mots du bas tiennent entiers (rien n'est rogné par les coins du panneau)
+        let mots = NavigationBasse<EmptyView>.largeurMots(Onglet.panneau)
+        print("mots du bas du panneau : \(Int(mots)) pt pour \(Int(PanneauVue.taille.width)) pt")
+        if mots > PanneauVue.taille.width { print("ÉCHEC : les mots du bas du panneau ne tiennent pas"); ok = false }
         return ok ? 0 : 1
     }
 }

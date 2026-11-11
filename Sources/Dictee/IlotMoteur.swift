@@ -24,6 +24,8 @@ struct BandeauIlot {
     var sonore = false
     /// Le rappel qu'on peut annuler depuis le bandeau « Rappel ajouté ».
     var rappelId: UUID?
+    /// « Réveil réglé » dicté l'îlot fermé : la phrase, que « Annuler » recolle (seulement en mémoire, le temps du bandeau).
+    var texteDicte: String?
     var evenement: EvenementAgenda?
     var rendezVous: EvenementAgenda? { evenement }
     /// Les écouteurs qui viennent de se connecter (bandeau `.appareil`).
@@ -93,7 +95,8 @@ enum ActionIlot {
     case bibliothequeClavier(Bool)
     /// Le réveil (IlotReveil.swift) : réglé d'un clic dans la case Minuteur du Centre (onglet Réveil), annulé (un clic sur l'heure choisie,
     /// « Annuler » du bandeau), repoussé (« Encore 10 min ») ou arrêté (« OK ») quand il sonne.
-    case reveilRegler(heure: Int, minute: Int), reveilAnnuler, reveilEncore, reveilOK
+    /// `basculer` : une pastille (un second clic sur l'heure réglée l'annule) ; « OK » d'« Autre… » règle toujours.
+    case reveilRegler(heure: Int, minute: Int, basculer: Bool), reveilAnnuler, reveilEncore, reveilOK
     /// Le rond Calendrier du Centre : éteint, un clic l'allume (macOS demande l'accès une fois) ; allumé, un clic l'éteint.
     case centreCalendrier
 }

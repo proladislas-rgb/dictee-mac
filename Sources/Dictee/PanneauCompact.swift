@@ -5,12 +5,17 @@ import DicteeCore
 enum Onglet: String, CaseIterable, Identifiable {
     case dictees = "Dictées", journee = "Journée", reunions = "Réunions", mots = "Mots", bibliotheque = "Bibliothèque", reglages = "Réglages"
     var id: String { rawValue }
+    /// Les mots du bas du panneau de la barre des menus (352 pt) : les six n'y tiennent pas (≈ 420 pt en 13 pt, 324 disponibles ; même en
+    /// 11 pt serré, non). La Bibliothèque, venue après, s'ouvre depuis l'îlot (carte « Bibliothèque ») et la fenêtre ; le panneau garde ses
+    /// cinq mots d'avant, entiers.
+    static let panneau: [Onglet] = [.dictees, .journee, .reunions, .mots, .reglages]
 }
 
-/// Les trois mots du bas : 40 pt, filet fin au-dessus, texte seul (style B).
+/// Les mots du bas : 40 pt, filet fin au-dessus, texte seul (style B).
 struct NavigationBasse<Droite: View>: View {
     var courant: Onglet
     var surChoix: (Onglet) -> Void
+    var onglets: [Onglet] = Onglet.allCases
     var marge: CGFloat = 14
     var hauteur: CGFloat = 40
     var taille: CGFloat = 13
@@ -18,7 +23,7 @@ struct NavigationBasse<Droite: View>: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            ForEach(Onglet.allCases) { o in
+            ForEach(onglets) { o in
                 LienNavigation(titre: o.rawValue, courant: o == courant, taille: taille, hauteur: hauteur) { surChoix(o) }
             }
             Spacer(minLength: 8)
@@ -27,6 +32,12 @@ struct NavigationBasse<Droite: View>: View {
         .padding(.horizontal, marge)
         .frame(height: hauteur)
         .overlay(alignment: .top) { Rectangle().fill(Palette.filet).frame(height: 1) }
+    }
+
+    /// La largeur que prennent les mots (mesurés en demi-gras, le plus large), leurs espaces et les marges : elle doit tenir dans le panneau.
+    static func largeurMots(_ onglets: [Onglet], taille: CGFloat = 13, marge: CGFloat = 14) -> CGFloat {
+        let mots = onglets.map { ceil(($0.rawValue as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: taille, weight: .medium)]).width) }
+        return mots.reduce(0, +) + 16 * CGFloat(max(0, onglets.count - 1)) + 2 * marge
     }
 }
 
@@ -89,7 +100,7 @@ struct PanneauVue: View {
             DicteesVue(m: m, store: store, metriques: .panneau, curseurFactice: curseurFactice)
                 .padding(8)
                 .frame(maxHeight: .infinity, alignment: .top)
-            NavigationBasse(courant: .dictees, surChoix: surOnglet) { EmptyView() }
+            NavigationBasse(courant: .dictees, surChoix: surOnglet, onglets: Onglet.panneau) { EmptyView() }
         }
         .frame(width: Self.taille.width, height: Self.taille.height)
         .background(Palette.surface)

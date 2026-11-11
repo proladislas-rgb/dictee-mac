@@ -49,8 +49,9 @@ extension IlotControleur {
     }
 
     /// Règle le réveil à la prochaine `heure:minute`. À la voix : le bandeau « Réveil réglé · 9:00 » (rien n'a été collé), avec « Annuler ».
-    /// D'un clic dans le Centre : le Centre reste ouvert, la case montre l'heure choisie (ambre) et « demain ».
-    func reglerLeReveil(heure: Int, minute: Int, aLaVoix: Bool) {
+    /// D'un clic dans le Centre : le Centre reste ouvert, la case montre l'heure choisie (ambre) et « demain ». `texteDicte` : la phrase
+    /// dictée l'îlot fermé, gardée dans le bandeau (jamais dans le fichier) pour que « Annuler » la recolle.
+    func reglerLeReveil(heure: Int, minute: Int, aLaVoix: Bool, texteDicte: String? = nil) {
         if !reglagesCentre.minuteurActif() {
             // le minuteur éteint dans les réglages : le clic l'allume (comme « 5 », « 10 », « 25 »), sinon la case ne ferait rien
             reglagesCentre.allumerMinuteur()
@@ -65,8 +66,10 @@ extension IlotControleur {
         moteur.reveilAutre = nil
         Log.ecrire("réveil : réglé à \(r.libelle()) (\(aLaVoix ? "à la voix" : "depuis le Centre"))")
         if aLaVoix {
-            moteur.annoncer(bandeau: BandeauIlot(vue: .reveilRegle, jusqua: t.addingTimeInterval(3), ligne1: "Réveil réglé \u{00B7} " + r.libelle(),
-                                                 ligne2: r.ligneReglee(maintenant: t)))
+            var b = BandeauIlot(vue: .reveilRegle, jusqua: t.addingTimeInterval(3), ligne1: "Réveil réglé \u{00B7} " + r.libelle(),
+                                ligne2: r.ligneReglee(maintenant: t))
+            b.texteDicte = texteDicte
+            moteur.annoncer(bandeau: b)
         } else {
             moteur.donneesChangees()
         }
@@ -78,6 +81,7 @@ extension IlotControleur {
         reveil = nil
         reveilStore.ecrire(nil)
         moteur.reveil = nil
+        moteur.reveilAutre = nil
         echeanceReveil?.cancel(); echeanceReveil = nil
         Log.ecrire("réveil : annulé")
         moteur.donneesChangees()
@@ -85,12 +89,18 @@ extension IlotControleur {
 
     func agirReveil(_ a: ActionIlot) {
         switch a {
-        case .reveilRegler(let h, let mn):
-            // un clic sur l'heure déjà choisie l'annule (maquette : la pastille ambre se rallume en gris)
-            if let r = reveil, !r.repousse, r.heure == h, r.minute == mn { annulerLeReveil() } else { reglerLeReveil(heure: h, minute: mn, aLaVoix: false) }
+        case .reveilRegler(let h, let mn, let basculer):
+            // un clic sur la pastille de l'heure déjà choisie l'annule (maquette : la pastille ambre se rallume en gris) ; « OK » d'« Autre… »
+            // (basculer: false) règle toujours, même sur l'heure déjà réglée
+            if basculer, let r = reveil, !r.repousse, r.heure == h, r.minute == mn { annulerLeReveil() } else { reglerLeReveil(heure: h, minute: mn, aLaVoix: false) }
         case .reveilAnnuler:
             annulerLeReveil()
-            if moteur.bandeau?.vue == .reveilRegle { moteur.quitterBandeau() }
+            if moteur.bandeau?.vue == .reveilRegle {
+                // dicté l'îlot fermé : la phrase n'était peut-être pas pour Verbe (« réveille-moi à 7 h », écrit à quelqu'un) ; elle est recollée
+                let texte = moteur.bandeau?.texteDicte
+                moteur.quitterBandeau()
+                if let texte, !texte.isEmpty { surColler(texte); Log.ecrire("réveil : annulé, la dictée est recollée") }
+            }
         case .reveilEncore:
             // « Encore 10 min » : il sonnera de nouveau dans 10 minutes ; replié, l'aile montre l'heure de cette nouvelle sonnerie
             let t = maintenant()
@@ -118,8 +128,20 @@ extension IlotControleur {
         DispatchQueue.main.asyncAfter(wallDeadline: .now() + max(0.05, r.sonnerie.timeIntervalSince(maintenant())), execute: item)
     }
 
-    /// Il est l'heure ? Alors il sonne (une fois) ; trop en retard, il est oublié ; sinon on attend son échéance.
+    /// « Minuteur et réveil » éteint dans Réglages › Îlot : le réveil réglé est annulé (l'aile se vide, rien ne sonnera). Relu aussi au
+    /// lancement et à l'échéance (`verifierLeReveil`).
+    func appliquerLeReglageDuReveil() {
+        if !reglagesCentre.minuteurActif(), reveil != nil {
+            Log.ecrire("réveil : « Minuteur et réveil » éteint, le réveil est annulé")
+            annulerLeReveil()
+        }
+    }
+
+    /// Il est l'heure ? Alors il sonne (une fois) ; trop en retard, il est oublié ; sinon on attend son échéance. Le réglage éteint : il
+    /// ne sonne jamais (annulé).
     func verifierLeReveil() {
+        guard reveil != nil else { return }
+        appliquerLeReglageDuReveil()
         guard let r = reveil else { return }
         let t = maintenant()
         guard r.du(a: t) else { programmerLeReveil(); return }

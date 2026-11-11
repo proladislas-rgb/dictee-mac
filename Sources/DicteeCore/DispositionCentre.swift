@@ -75,6 +75,23 @@ public struct DispositionCentre: Equatable, Sendable {
         return (d, proposees)
     }
 
+    /// Au lancement : ce que le Centre montre, relu des réglages, avec ce qu'il faut y écrire. `aRetenir` : la liste complète des
+    /// nouveautés déjà données (nil : rien à écrire) ; `ajoutees` : ce qui vient d'entrer dans un Centre rangé (la disposition est à
+    /// enregistrer). Jamais rangé (nil) : le Centre par défaut CONTIENT déjà les nouveautés, elles sont donc retenues comme données ;
+    /// sinon, retirées plus tard par « Modifier », elles reviendraient au lancement suivant.
+    public static func relire(identifiants: [String]?, dejaProposees: Set<String>)
+        -> (disposition: DispositionCentre, aRetenir: [String]?, ajoutees: [ElementCentre]) {
+        let d = DispositionCentre(identifiants: identifiants)
+        guard identifiants != nil else {
+            let manquantes = nouveautes.map(\.rawValue).filter { !dejaProposees.contains($0) }
+            return (d, manquantes.isEmpty ? nil : (dejaProposees.union(manquantes)).sorted(), [])
+        }
+        let r = d.avecNouveautes(dejaProposees: dejaProposees)
+        guard !r.proposees.isEmpty else { return (d, nil, []) }
+        let ajoutees = r.proposees.filter { r.disposition.elements.contains($0) && !d.elements.contains($0) }
+        return (r.disposition, dejaProposees.union(r.proposees.map(\.rawValue)).sorted(), ajoutees)
+    }
+
     /// Les ronds montrés : ceux qui sont disponibles (le choix du micro n'existe qu'avec des AirPods), six au plus.
     public func ronds(disponible: (ElementCentre) -> Bool = { _ in true }) -> [ElementCentre] {
         Array(elements.filter { $0.genre == .rond && disponible($0) }.prefix(Self.maxRonds))

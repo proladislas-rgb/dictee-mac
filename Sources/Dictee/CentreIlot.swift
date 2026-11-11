@@ -617,7 +617,7 @@ struct CaseMinuteur: View {
                     m.epinglerLeCentre(); m.reveilAutre = ReveilIlot.decaler(heure: a.heure, minute: a.minute, de: 1)
                 }
                 CapIlot(titre: "OK", style: .ambre, hauteur: 28, etiquette: "Régler le réveil à \(ReveilIlot.texte(a.heure, a.minute))") {
-                    agir(.reveilRegler(heure: a.heure, minute: a.minute))
+                    agir(.reveilRegler(heure: a.heure, minute: a.minute, basculer: false))
                 }
                 .padding(.leading, 2)
             }
@@ -627,7 +627,7 @@ struct CaseMinuteur: View {
                     let choisie = r.map { !$0.repousse && $0.heure == h.heure && $0.minute == h.minute } ?? false
                     CapHeure(titre: ReveilIlot.texte(h.heure, h.minute), choisie: choisie,
                              etiquette: choisie ? "Réveil à \(ReveilIlot.texte(h.heure, h.minute)) : l'annuler" : "Réveil à \(ReveilIlot.texte(h.heure, h.minute))") {
-                        agir(.reveilRegler(heure: h.heure, minute: h.minute))
+                        agir(.reveilRegler(heure: h.heure, minute: h.minute, basculer: true))
                     }
                 }
                 // une autre heure choisie (ou repoussée de 10 min) : elle prend la place d'« Autre… », en ambre ; un clic l'annule

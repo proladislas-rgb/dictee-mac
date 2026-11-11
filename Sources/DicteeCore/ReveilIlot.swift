@@ -118,12 +118,15 @@ extension AnalyseCommandeIlot {
     /// « réveille-moi à 9 h », « réveil à 7 h 30 », « réveille-moi demain à 7h30 », « mets un réveil à 8 heures », « réveille-moi à
     /// sept heures et demie ». La phrase ENTIÈRE doit être la commande (rien avant, rien après) : c'est la seule commande qu'on peut dicter
     /// l'îlot fermé (maquette, étape 8), elle ne doit jamais manger une phrase qui la contient.
-    public static func reveil(_ texte: String) -> (heure: Int, minute: Int)? {
-        var t = normaliser(texte).replacingOccurrences(of: "reveil", with: "réveil")
+    /// `ordre` (l'îlot fermé) : seulement un ORDRE donné à Verbe (« réveille-moi », « mets un réveil »…), jamais un début qui décrit
+    /// (« Le réveil à 7 h. », « Réveil à 7 h demain. », écrits à quelqu'un) ; l'accueil ouvert, la liste large.
+    public static let debutsOrdre = ["réveille-moi", "réveille moi", "réveillez-moi", "réveillez moi", "mets-moi un réveil", "mets moi un réveil",
+                                     "mets un réveil", "règle un réveil", "règle-moi un réveil", "programme un réveil", "mets une alarme", "règle une alarme"]
+    public static func reveil(_ texte: String, ordre: Bool = false) -> (heure: Int, minute: Int)? {
+        var t = normaliser(texte).replacingOccurrences(of: "reveil", with: "réveil").replacingOccurrences(of: "regle", with: "règle")
         var prefixe = false
-        for debut in ["réveille-moi", "réveille moi", "réveillez-moi", "réveillez moi", "mets-moi un réveil", "mets moi un réveil", "mets un réveil",
-                      "mets le réveil", "règle le réveil", "règle un réveil", "programme un réveil", "un réveil", "le réveil", "réveil",
-                      "mets une alarme", "une alarme", "alarme"] where t.hasPrefix(debut) {
+        let debuts = ordre ? debutsOrdre : debutsOrdre + ["mets le réveil", "règle le réveil", "un réveil", "le réveil", "réveil", "une alarme", "alarme"]
+        for debut in debuts.sorted(by: { $0.count > $1.count }) where t.hasPrefix(debut) {
             t.removeFirst(debut.count); prefixe = true; break
         }
         guard prefixe else { return nil }
