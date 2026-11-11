@@ -168,3 +168,15 @@ Hugues : « il déconne, c'est horrible », « je retrouve pas du tout l'expéri
 - [ ] Réveils et minuteurs de l'app Horloge d'Apple affichés dans l'îlot (lecture seule, base `group.com.apple.mobiletimerd/local.sqlite`, non officiel).
 - [ ] Commande dictée « réveil / minuteur / réveille-moi à 9 h » (aujourd'hui seules les durées sont comprises) ; idéalement créer le vrai réveil dans Horloge via Raccourcis (à vérifier).
 - Maquette d'abord (tasse + réveil + phrase), puis construction.
+
+## Minuteur pendant une lecture — « La bulle » (11/11, reprise de Hugues = go sur la recommandation)
+Maquette : `design/maquettes/apple-acces/1-controles.html`. Hugues ne trouvait pas les minuteurs : l'accueil ne s'ouvre que sur l'îlot vide.
+- [x] 1. Cœur : écran `lectureMinuteur` (lecture dépliée + 54 pt de rangée Minuteur), même largeur que `lectureEtendu`.
+- [x] 2. Moteur : appui long 0,4 s sur la lecture → rangée ; la lecture déjà dépliée ne s'efface pas (seule la rangée arrive) ; la pochette ne bouge pas.
+- [x] 3. Vue : rangée de l'accueil (5 / 10 / 25 min, « En cours · 4:12 » si un minuteur tourne) ; l'îlot gonfle sous le doigt.
+- [x] 4. Clic sur une durée : l'îlot se replie, le minuteur part dans la pastille (pas de bandeau).
+- [x] 5. « minuteur 10 minutes » dicté pendant que la lecture est dépliée.
+- [x] 6. Titre qui défile : fondu à gauche pendant le défilement (coupé net : « OUPLE FAIT… »).
+- [x] 7. Contrôles + essai + rendus, relecture par un agent (3 défauts corrigés : bond de la pochette au repli, appui resté en plan pendant une dictée, appui long pointeur parti ; + action VoiceOver), installation dans /Applications, push.
+  → 1 369 contrôles, `--ilot-essai` 77/77 (vrais clics : court, appui long, « 25 min »), rendus `ilot-1n*`.
+- [ ] Hugues : essayer en vrai (garder le clic sur l'îlot pendant une vidéo). Non vérifié d'ici : le geste avec un vrai trackpad, le fondu du titre en mouvement.

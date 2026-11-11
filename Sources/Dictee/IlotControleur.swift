@@ -149,9 +149,10 @@ final class IlotControleur {
 
     func dicteeChange(enCours: Bool) {
         if enCours {
-            // la commande dictée n'existe que si l'accueil de l'îlot est ouvert à cet instant
+            // la commande dictée n'existe que si l'accueil de l'îlot (ou la lecture dépliée, qui le remplace pendant une vidéo) est
+            // ouvert à cet instant
             let courante = moteur.courante
-            if moteur.fenetreOuverte, courante == .accueil || courante == .rappelListe {
+            if moteur.fenetreOuverte, [.accueil, .rappelListe, .lectureEtendu, .lectureMinuteur].contains(courante) {
                 armeFormulaire = courante == .rappelListe
                 armeJusqua = maintenant().addingTimeInterval(60)
             }
@@ -214,6 +215,7 @@ final class IlotControleur {
     func agir(_ action: ActionIlot) {
         switch action {
         case .minuteurLancer(let minutes): lancerLeMinuteur(secondes: minutes * 60, bandeau: true)
+        case .minuteurLancerSousLecture(let minutes): lancerLeMinuteur(secondes: minutes * 60, bandeau: false)
         case .minuteurRecommencer(let minutes): moteur.quitterAlerte(); lancerLeMinuteur(secondes: minutes * 60, bandeau: false)
         case .minuteurBasculer:
             minuteur?.basculer(a: maintenant()); mettreAJourLeMinuteur()

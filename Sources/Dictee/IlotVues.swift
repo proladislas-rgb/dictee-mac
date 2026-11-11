@@ -103,6 +103,7 @@ struct IlotCalques: View {
         switch v {
         case .repos, .lectureCompact, .minuteurMinimal, .minuteurCompact: EmptyView()
         case .lectureEtendu: LectureEtendue(m: m, lecture: m.lecture, g: g)
+        case .lectureMinuteur: rangeeMinuteurLecture
         case .minuteurEtendu: minuteurEtendu
         case .minuteurLance, .minuteurFini, .rappelEtendu, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .agendaDebut,
              .notification, .notifications:
@@ -321,6 +322,32 @@ struct IlotCalques: View {
         }
     }
 
+    // MARK: rangée Minuteur sous la lecture (appui long)
+
+    /// La rangée Minuteur de l'accueil, posée sous la lecture dépliée (maquette apple-acces/1-controles.html) : un filet, puis
+    /// [minuteur] Minuteur / Lancer un compte à rebours [5 min] [10 min] [25 min]. Un minuteur qui tourne déjà montre son temps.
+    private var rangeeMinuteurLecture: some View {
+        let v = VueIlot.lectureMinuteur
+        let w = g.corps(v), l = 2 * w - 2 * GrilleIlot.marge
+        let haut = g.barre + CGFloat(GeoIlot.profondeur(.lectureEtendu))
+        return ZStack(alignment: .topLeading) {
+            filet.posee(CGRect(x: -w + GrilleIlot.marge, y: haut - 1, width: l, height: 1), m.aspect(v, rang: 0))
+            tic { d in
+                ligneAccueil(v, 1, glyphe: GlypheIlot(nom: "timer", couleur: CouleursIlot.ambre, taille: 17), titre: "Minuteur",
+                             sous: m.minuteur == nil ? "Lancer un compte à rebours" : "En cours \u{00B7} " + tempsRestant(d),
+                             couleurSous: m.minuteur == nil ? CouleursIlot.encre2 : CouleursIlot.ambre, filet: false) {
+                    HStack(spacing: 6) {
+                        ForEach([5, 10, 25], id: \.self) { n in
+                            CapIlot(titre: "\(n) min", hauteur: 28, etiquette: "Minuteur de \(n) minutes") { m.surAction(.minuteurLancerSousLecture(minutes: Double(n))) }
+                        }
+                    }
+                }
+            }
+            .frame(width: l, height: 42)
+            .offset(x: IlotMoteur.largeur / 2 - w + GrilleIlot.marge, y: haut + 3)
+        }
+    }
+
     // MARK: accueil
 
     /// L'accueil (clic sur l'îlot vide) : une liste à filets fins, une ligne par chose à faire, l'action à droite.
@@ -357,12 +384,12 @@ struct IlotCalques: View {
     }
 
     private func ligneAccueil<G: View, D: View>(_ v: VueIlot, _ rang: Int, glyphe: G, titre: String, police: Font = TexteIlot.ligne, couleurTitre: Color = .white,
-                                                sous: String, filet avecFilet: Bool = true, @ViewBuilder droite: () -> D) -> some View {
+                                                sous: String, couleurSous: Color = CouleursIlot.encre2, filet avecFilet: Bool = true, @ViewBuilder droite: () -> D) -> some View {
         HStack(spacing: 12) {
             glyphe.frame(width: 22, height: 22)
             VStack(alignment: .leading, spacing: 1) {
                 Text(titre).font(police).tracking(-0.1).foregroundStyle(couleurTitre).lineLimit(1).truncationMode(.tail)
-                Text(sous).font(TexteIlot.l2).foregroundStyle(CouleursIlot.encre2).lineLimit(1).truncationMode(.tail)
+                Text(sous).font(TexteIlot.l2.monospacedDigit()).foregroundStyle(couleurSous).lineLimit(1).truncationMode(.tail)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             droite().fixedSize()
@@ -623,10 +650,18 @@ struct IlotVue: View {
             IlotCalques(m: m, g: g)
                 .clipShape(forme)
                 .contentShape(forme)
-                .onTapGesture { m.clicForme() }
+                // clic (épingle ou relâche) et appui long de 0,4 s (sur la lecture : la rangée Minuteur), chronométrés par le moteur ;
+                // l'îlot gonfle un peu sous le doigt pendant l'appui. Les boutons du contenu gardent leurs clics.
+                .gesture(DragGesture(minimumDistance: 0)
+                    .onChanged { v in m.debutAppui(origine: v.startLocation, distance: hypot(v.translation.width, v.translation.height)) }
+                    .onEnded { v in m.finAppui(deplace: hypot(v.translation.width, v.translation.height) > 12) })
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { m.clicForme() }
             PastilleVue(m: m)
         }
         .frame(width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax, alignment: .topLeading)
+        .scaleEffect(m.presse ? 1.015 : 1, anchor: .top)
+        .animation(m.reduire ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: m.presse)
         .offset(x: CGFloat(m.secousse.x))
         .opacity(m.cache && m.courante == .repos && m.geo.allSatisfy(\.fini) ? 0 : 1)
     }

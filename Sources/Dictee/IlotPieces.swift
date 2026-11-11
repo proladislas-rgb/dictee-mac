@@ -353,6 +353,13 @@ struct BarreLecture: View {
 struct TitreDefilant: View {
     /// Tout le défilement tient en 20 s (puis plus rien ne tourne).
     static let budget = 20.0
+    /// Le masque du titre : fondu de 18 pt à droite (la suite du titre), et à gauche de 0 à 18 pt selon `gauche` (0 au repos, le texte
+    /// commence net sur la marge ; 1 dès qu'il glisse : les lettres qui sortent s'effacent au lieu d'être coupées).
+    static func fondu(largeur: CGFloat, gauche: CGFloat) -> LinearGradient {
+        let f = min(0.5, 18 / max(1, largeur))
+        return LinearGradient(stops: [.init(color: .black.opacity(Double(1 - gauche)), location: 0), .init(color: .black, location: f),
+                                      .init(color: .black, location: 1 - f), .init(color: .clear, location: 1)], startPoint: .leading, endPoint: .trailing)
+    }
     var texte: String
     var police: Font
     var largeur: CGFloat
@@ -376,7 +383,11 @@ struct TitreDefilant: View {
                 let d2 = deux ? 1.0 : 0
                 Text(texte).font(police).foregroundStyle(.white).lineLimit(1).fixedSize()
                     .keyframeAnimator(initialValue: 0.0, trigger: lancer) { v, x in
+                        // le bord gauche s'estompe dès que le titre a commencé à glisser (jamais une lettre coupée net)
                         v.offset(x: x)
+                            .frame(width: largeur, alignment: .leading)
+                            .clipped()
+                            .mask(TitreDefilant.fondu(largeur: largeur, gauche: min(1, max(0, -x / 10))))
                     } keyframes: { _ in
                         KeyframeTrack {
                             LinearKeyframe(0, duration: 1.6)
@@ -390,8 +401,6 @@ struct TitreDefilant: View {
                         }
                     }
                     .frame(width: largeur, alignment: .leading)
-                    .clipped()
-                    .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: max(0, 1 - 18 / max(1, largeur))), .init(color: .clear, location: 1)], startPoint: .leading, endPoint: .trailing))
                     .onAppear { lancer.toggle() }
                     .onChange(of: texte) { lancer.toggle() }
             } else {

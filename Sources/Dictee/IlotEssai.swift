@@ -87,6 +87,68 @@ enum IlotEssai {
         m.clicForme(); attendre(0.1)
         verifier(m.courante == .lectureCompact, "second clic : se replie")
 
+        // --- appui long sur la lecture : la rangée Minuteur (maquette apple-acces/1-controles.html)
+        m.clicForme(); attendre(0.9)
+        verifier(m.courante == .lectureEtendu, "lecture dépliée avant l'appui long")
+        verifier(m.appuiLong(minuteurActif: true), "appui long sur la lecture dépliée : accepté")
+        attendre(0.05)
+        verifier(m.courante == .lectureMinuteur && m.visible(.lectureEtendu) && m.aspect(.lectureEtendu, rang: 0).opacite > 0.99,
+                 "la rangée arrive SOUS la lecture, qui ne s'efface pas (titre toujours opaque)")
+        verifier(abs(m.ouverture(.lecture) - 1) < 0.001, "la pochette reste posée pendant que l'îlot s'allonge")
+        attendre(1.5)
+        let hRangee = c.panneau.cadre?.height ?? 0
+        verifier(Double(m.geo[2].x) > Double(g.hauteur) + 175 + 50 && !m.boucleActive, "îlot allongé de la rangée (\(Int(m.geo[2].x)) pt), puis plus de boucle")
+        verifier(Double(hRangee) >= m.geo[2].x, "la fenêtre couvre l'îlot allongé (\(Int(hRangee)) pt)")
+        c.agir(.minuteurLancerSousLecture(minutes: 10)); attendre(0.05)
+        verifier(m.ouverture(.lecture) <= 1.001, "repli depuis la rangée : la pochette part de sa place, sans bond (\(String(format: "%.2f", m.ouverture(.lecture))))")
+        attendre(1.0)
+        verifier(m.bandeau == nil && m.courante == .lectureCompact && m.pastille == .minuteur && abs((c.minuteur?.restant(a: c.maintenant()) ?? 0) - 600) < 2,
+                 "« 10 min » : l'îlot se replie sur la lecture, le minuteur part dans la pastille, sans bandeau")
+        c.agir(.minuteurArreter); attendre(0.5)
+        verifier(m.appuiLong(minuteurActif: false) == false && m.courante == .lectureCompact, "minuteur éteint dans les réglages : l'appui long ne fait rien")
+        // vrais événements souris remis à la fenêtre (gestes SwiftUI) : clic court, appui long, clic sur une durée
+        let milieu = CGPoint(x: 0, y: g.hauteur / 2)
+        c.panneau.envoyerSouris(.leftMouseDown, en: milieu); attendre(0.08); c.panneau.envoyerSouris(.leftMouseUp, en: milieu); attendre(0.9)
+        verifier(m.courante == .lectureEtendu, "vrai clic court sur la lecture : elle se déplie (comme avant)")
+        c.panneau.envoyerSouris(.leftMouseDown, en: CGPoint(x: 0, y: g.hauteur + 10)); attendre(0.2)
+        verifier(m.presse, "pendant l'appui : l'îlot gonfle sous le doigt")
+        attendre(0.4)
+        c.panneau.envoyerSouris(.leftMouseUp, en: CGPoint(x: 0, y: g.hauteur + 10)); attendre(0.9)
+        verifier(m.courante == .lectureMinuteur && !m.presse, "vrai appui long (0,6 s) : la rangée Minuteur s'ouvre")
+        // appui puis glissé hors de l'îlot : pas d'appui long, pas de clic
+        m.fermer(); attendre(0.9)
+        m.debutAppui(origine: CGPoint(x: 1, y: 1)); m.debutAppui(origine: CGPoint(x: 1, y: 1), distance: 30); attendre(0.6)
+        m.finAppui(deplace: true); attendre(0.6)
+        verifier(m.courante == .lectureCompact && !m.presse, "appui puis glissé hors de l'îlot : ni rangée ni dépliage")
+        // appui interrompu par une dictée (le relâchement n'arrive jamais) : le clic suivant marche
+        m.debutAppui(origine: CGPoint(x: 2, y: 2)); attendre(0.1)
+        var occA = OccupationEncoche(); c.occupation = { occA }
+        occA.dictee = true; c.occupationChangee(); attendre(0.6)
+        verifier(!m.presse, "dictée pendant l'appui : l'îlot n'est plus gonflé")
+        occA.dictee = false; c.occupationChangee(); c.occupation = { OccupationEncoche() }; attendre(0.9)
+        m.debutAppui(origine: CGPoint(x: 3, y: 3)); attendre(0.05); m.finAppui(deplace: false); attendre(0.9)
+        verifier(m.courante == .lectureEtendu, "après un appui resté en plan : le clic suivant déplie normalement")
+        c.panneau.envoyerSouris(.leftMouseDown, en: milieu); attendre(0.6); c.panneau.envoyerSouris(.leftMouseUp, en: milieu); attendre(0.9)
+        // « 25 min » : la dernière pilule, calée sur la marge droite
+        let w = m.grille.corps(.lectureMinuteur)
+        let cap = CGPoint(x: w - GrilleIlot.marge - 30, y: g.hauteur + 175 + 3 + 21)
+        c.panneau.envoyerSouris(.leftMouseDown, en: cap); attendre(0.08); c.panneau.envoyerSouris(.leftMouseUp, en: cap); attendre(1.0)
+        verifier(abs((c.minuteur?.restant(a: c.maintenant()) ?? 0) - 1500) < 2 && m.courante == .lectureCompact && m.pastille == .minuteur,
+                 "vrai clic sur « 25 min » : minuteur de 25 min en pastille, la lecture garde l'îlot")
+        c.agir(.minuteurArreter); attendre(0.5)
+        // la commande dictée marche aussi quand la lecture est dépliée (l'accueil n'est pas ouvrable pendant une vidéo)
+        m.clicForme(); attendre(0.6)
+        var occL = OccupationEncoche()
+        c.occupation = { occL }
+        c.dicteeChange(enCours: true); occL.dictee = true; c.occupationChangee(); attendre(0.2)
+        occL.dictee = false; c.dicteeChange(enCours: false); c.occupationChangee(); attendre(0.3)
+        verifier(c.intercepter("Minuteur 3 minutes.") == true && abs((c.minuteur?.restant(a: c.maintenant()) ?? 0) - 180) < 2,
+                 "lecture dépliée + « minuteur 3 minutes » dicté : minuteur lancé, rien n'est collé")
+        verifier(m.bandeau?.vue == .minuteurLance, "dicté : le bandeau « Minuteur lancé » confirme (rien n'a été cliqué)")
+        c.agir(.minuteurArreter); attendre(3.0) { m.bandeau != nil }; attendre(0.6)
+        c.occupation = { OccupationEncoche() }
+        verifier(m.courante == .lectureCompact && c.minuteur == nil, "retour à la lecture seule")
+
         // --- minuteur : bandeau, puis lecture + pastille, puis alerte
         c.lancerLeMinuteur(secondes: 30, bandeau: true)
         attendre(0.15)

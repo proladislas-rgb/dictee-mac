@@ -28,6 +28,11 @@ func controlesIlot() {
     verifier(compact.corps == demi + 48 && compact.hauteur == barre, "compact : pas de corps sous la barre, même largeur en bas")
     let lectureC = GeoIlot.valeurs(.lectureCompact, hauteurBarre: barre), lectureX = GeoIlot.valeurs(.lectureEtendu, hauteurBarre: barre)
     verifier(lectureC[0] == lectureX[0], "lecture : le cou ne bouge pas en se dépliant (l'égaliseur reste dans l'aile)")
+    let lectureM = GeoIlot.valeurs(.lectureMinuteur, hauteurBarre: barre)
+    verifier(lectureM[0] == lectureX[0] && lectureM[1] == lectureX[1] && lectureM[2] == lectureX[2] + 54 && Array(lectureM[3...]) == Array(lectureX[3...]),
+             "lecture + rangée Minuteur : même cou, même corps, 54 pt de plus en bas (maquette : 208 → 262)")
+    verifier(Double(lectureM[2]) + 30 <= 330, "lecture + rangée Minuteur : tient dans la zone de dessin de l'îlot (330 pt, ombre comprise)")
+    verifier(ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .lectureMinuteur) == 4, "lecture + rangée : même étage de priorité que la lecture")
     verifier(PassageIlot.de(hauteur: barre, vers: GeoIlot.valeurs(.accueil, hauteurBarre: barre)[2]) == .ouverture
              && PassageIlot.de(hauteur: GeoIlot.valeurs(.accueil, hauteurBarre: barre)[2], vers: barre) == .fermeture
              && PassageIlot.de(hauteur: barre, vers: barre + 0.5) == .glissement, "ouverture / fermeture / glissement reconnus (ceux du moteur)")
@@ -50,7 +55,7 @@ func controlesIlot() {
     verifier(etendu.commandes.filter { if case .cubique = $0 { return true }; return false }.count == 4, "étendu : quatre coins continus (courbes cubiques)")
     if case let .deplacer(_, y) = etendu.commandes.first { verifier(y <= 0, "la forme part du bord haut de l'écran") }
     // pendant chaque passage (ressorts de la maquette, rebond compris), rien ne dépasse les ailes dans la barre
-    let paires: [(VueIlot, VueIlot)] = [(.lectureCompact, .lectureEtendu), (.lectureEtendu, .lectureCompact), (.repos, .accueil), (.accueil, .repos),
+    let paires: [(VueIlot, VueIlot)] = [(.lectureCompact, .lectureEtendu), (.lectureEtendu, .lectureCompact), (.lectureEtendu, .lectureMinuteur), (.lectureMinuteur, .lectureCompact), (.repos, .accueil), (.accueil, .repos),
                                          (.lectureCompact, .rappelEtendu), (.rappelEtendu, .lectureCompact), (.minuteurCompact, .minuteurEtendu),
                                          (.agendaCompact, .agendaEtendu), (.lectureEtendu, .minuteurFini), (.repos, .notification), (.agendaEtendu, .repos)]
     // les ressorts sont ceux du moteur (`PassageIlot.viser`), y compris interrompus à mi-course vers un troisième écran

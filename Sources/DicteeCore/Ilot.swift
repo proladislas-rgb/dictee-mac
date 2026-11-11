@@ -7,7 +7,7 @@ import Foundation
 public enum VueIlot: String, CaseIterable, Sendable {
     case repos
     case minuteurMinimal, minuteurCompact, minuteurEtendu, minuteurLance, minuteurFini
-    case lectureCompact, lectureEtendu
+    case lectureCompact, lectureEtendu, lectureMinuteur
     case rappelEtendu, rappelCompact, rappelAjoute, rappelFait, rappelReporte, rappelListe
     case agendaAvant, agendaCompact, agendaEtendu, agendaDebut
     case notification, notifications
@@ -34,6 +34,8 @@ public enum VueIlot: String, CaseIterable, Sendable {
 /// Tout est exprimé depuis la vraie caméra et la vraie barre : aucune mesure de la maquette n'est copiée telle quelle.
 public enum GeoIlot {
     public static let aileMax: Double = 66
+    /// Ce que la rangée Minuteur ajoute sous la lecture dépliée (maquette : 208 → 262 pt de haut).
+    public static let rangeeMinuteur: Double = 54
     /// Repos d'une activité : rien sous la barre, le cou serré contre la caméra (la place de la pochette, de l'anneau, de l'heure).
     static func compact(_ cou: Double) -> [Double] { [cou, cou, 0, 6, 10, 0, 0] }
     /// Bandeau passager : cou étroit (les menus restent visibles), deux lignes sous la barre. Le corps s'ajuste à son contenu (comme la
@@ -46,6 +48,8 @@ public enum GeoIlot {
         .minuteurMinimal: compact(36), .minuteurCompact: compact(48), .minuteurEtendu: [48, 112, 91, 6, 30, 16, 10],
         .minuteurLance: bandeau, .minuteurFini: alerte,
         .lectureCompact: compact(44), .lectureEtendu: [44, 144, 175, 6, 34, 18, 10],
+        // la lecture dépliée + la rangée Minuteur de l'accueil (appui long, maquette apple-acces/1-controles.html) : même largeur
+        .lectureMinuteur: [44, 144, 175 + rangeeMinuteur, 6, 34, 18, 10],
         .rappelEtendu: alerte, .rappelCompact: compact(48), .rappelAjoute: bandeau,
         .rappelFait: bandeau, .rappelReporte: bandeau, .rappelListe: [14, 144, 136, 6, 34, 18, 10],
         .agendaAvant: bandeau, .agendaCompact: compact(50), .agendaEtendu: [50, 150, 130, 6, 34, 18, 10], .agendaDebut: bandeau,
@@ -186,7 +190,7 @@ public enum ArbitrageIlot {
         if reunion { return 2 }
         switch ecran {
         case .minuteurFini, .rappelEtendu, .agendaDebut, .agendaAvant, .agendaCompact, .rappelCompact, .rappelAjoute: return 3
-        case .lectureCompact, .lectureEtendu: return 4
+        case .lectureCompact, .lectureEtendu, .lectureMinuteur: return 4
         default: return 5
         }
     }

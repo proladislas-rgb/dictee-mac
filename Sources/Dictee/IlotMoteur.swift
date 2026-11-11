@@ -31,6 +31,8 @@ struct BandeauIlot {
 /// Ce que l'îlot demande aux contrôleurs (le moteur ne sait rien du minuteur, des rappels ni du calendrier : il montre et il relaie).
 enum ActionIlot {
     case minuteurLancer(minutes: Double)
+    /// Depuis la rangée Minuteur sous la lecture : pas de bandeau, le minuteur part directement dans la pastille.
+    case minuteurLancerSousLecture(minutes: Double)
     case minuteurBasculer, minuteurPlusUneMinute, minuteurArreter
     case minuteurRecommencer(minutes: Double)
     case alerteOK
@@ -46,7 +48,7 @@ enum FamilleIlot: CaseIterable {
     case lecture, minuteur, rappel, agenda, autre
     static func de(_ v: VueIlot) -> FamilleIlot {
         switch v {
-        case .lectureCompact, .lectureEtendu: return .lecture
+        case .lectureCompact, .lectureEtendu, .lectureMinuteur: return .lecture
         case .minuteurMinimal, .minuteurCompact, .minuteurEtendu: return .minuteur
         case .rappelCompact, .rappelEtendu: return .rappel
         case .agendaCompact, .agendaEtendu: return .agenda
@@ -213,6 +215,7 @@ final class IlotMoteur: ObservableObject {
     /// Tout a pu changer : on recalcule qui a l'îlot, qui a la pastille, et on déforme la forme vers la nouvelle cible.
     func donneesChangees() {
         if cache {
+            if appuiEnCours { annulerAppui() }
             if resolution.principal != .repos || courante != .repos || pastille != nil {
                 resolution = ResolutionIlot(principal: .repos, survol: nil, verrou: true, pastille: nil)
                 epingle = false; survole = false; sousVue = nil
@@ -228,6 +231,7 @@ final class IlotMoteur: ObservableObject {
         if let e = echange, resolution.pastille != e, ArbitrageIlot.ordre(etat).contains(e) == false { echange = nil }
         if resolution.verrou { epingle = false; survole = false; sousVue = nil }
         if ancien.principal != resolution.principal, !(survole || epingle) { sousVue = nil }
+        if sousVue == .lectureMinuteur, FamilleIlot.de(resolution.principal) != .lecture || resolution.verrou { sousVue = nil }
         let voulu = sousVue ?? ((survole || epingle) && resolution.survol != nil && !resolution.verrou ? resolution.survol! : resolution.principal)
         afficher(voulu)
         majPastille()
@@ -262,15 +266,27 @@ final class IlotMoteur: ObservableObject {
         let ouvre = passage == .ouverture, ferme = passage == .fermeture
         // contenu : la famille (ce qui voyage) et l'écran (ce qui est propre à cet état)
         lien = fa == fv && fv != .autre
+        // la lecture dépliée qui gagne (ou perd) sa rangée Minuteur : la pochette reste où elle est
+        glisseLecture = lien && fa == .lecture && avant != .lectureCompact && v != .lectureCompact
+        repliDepuisRangee = lien && avant == .lectureMinuteur && v == .lectureCompact
         let delai = ferme ? 0.22 : (ouvre ? 0.12 : 0.10)
         if !lien {
             if fa != .autre { dernierMode[fa] = min(1, max(0, modeAvant)); sortir(&apparitionsFamille[fa]) }
             if fv != .autre { entrer(&apparitionsFamille[fv], delai: delai) }
         }
-        if avant != v { sortir(&apparitions[avant]) }
-        entrer(&apparitions[v], delai: delai)
+        // un écran fait de plusieurs couches (la lecture + sa rangée) : seules les couches qui changent partent ou arrivent
+        if avant != v { for c in Self.couches(avant) where !Self.couches(v).contains(c) { sortir(&apparitions[c]) } }
+        for c in Self.couches(v) { entrer(&apparitions[c], delai: delai) }
         if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe { surDepliage() }
     }
+
+    /// Les couches de contenu d'un écran : la rangée Minuteur se pose sous la lecture dépliée, qui ne s'efface pas pour autant.
+    static func couches(_ v: VueIlot) -> [VueIlot] { v == .lectureMinuteur ? [.lectureEtendu, .lectureMinuteur] : [v] }
+    /// La forme passe de la lecture dépliée à la lecture + rangée (ou l'inverse) : la pochette ne bouge pas.
+    private var glisseLecture = false
+    /// La lecture + rangée se replie d'un coup en compact : la pochette se règle sur la hauteur de la rangée (sinon, partie de 262 pt
+    /// pour une référence de 208, elle « rebondirait » de 30 % au premier instant du repli).
+    private var repliDepuisRangee = false
 
     // MARK: horloge du contenu
 
@@ -325,10 +341,14 @@ final class IlotMoteur: ObservableObject {
         return ouvertureCourante(f)
     }
     private func ouvertureCourante(_ f: FamilleIlot) -> Double {
-        guard let (c, x) = f.vues else { return 1 }
+        guard let (c, x0) = f.vues else { return 1 }
+        // la lecture + rangée compte comme dépliée ; entre les deux états dépliés, la pochette reste posée
+        let x = f == .lecture && courante == .lectureMinuteur ? .lectureMinuteur : x0
         let estEtendu: Double = courante == x ? 1 : 0
         guard lien else { return estEtendu }
-        let hc = cible(c)[2], hx = cible(x)[2]
+        if f == .lecture, glisseLecture { return 1 }
+        let ref = f == .lecture && (courante == .lectureMinuteur || repliDepuisRangee) ? VueIlot.lectureMinuteur : x
+        let hc = cible(c)[2], hx = cible(ref)[2]
         guard hx - hc > 1 else { return estEtendu }
         return (geo[2].x - hc) / (hx - hc)
     }
@@ -453,6 +473,64 @@ final class IlotMoteur: ObservableObject {
         epingle = true; survole = true
         donneesChangees(); surDepliageMoniteur()
     }
+    /// L'îlot est enfoncé sous le doigt (il gonfle un peu), en attendant l'appui long.
+    private(set) var presse = false
+    func appuyer(_ oui: Bool) {
+        let voulu = oui && !cache && FamilleIlot.de(courante) == .lecture && courante != .lectureMinuteur
+        guard voulu != presse else { return }
+        presse = voulu; rev += 1
+    }
+    /// Le bouton de la souris s'enfonce sur la forme (hors boutons). Relâché avant 0,4 s : un clic (`clicForme`) ; tenu 0,4 s : l'appui
+    /// long, déclenché pendant que le bouton est encore enfoncé (comme sur l'iPhone). Un seul geste SwiftUI pour les deux : sur le Mac,
+    /// le clic de SwiftUI prenait le dessus sur son appui long, qui ne se déclenchait jamais.
+    private var minuterieAppui: DispatchWorkItem?
+    private var appuiEnCours = false
+    private var appuiLongFait = false
+    private var appuiDeplace = false
+    private var origineAppui: CGPoint?
+    static let dureeAppuiLong: TimeInterval = 0.4
+    /// Appelé à chaque mouvement du bouton enfoncé : `origine` (le point d'appui) distingue un nouvel appui d'un ancien resté en plan
+    /// (relâchement jamais reçu) ; `distance` au-delà de 12 pt annule l'appui long (on ne l'ouvre pas pointeur parti).
+    func debutAppui(origine: CGPoint = .zero, distance: CGFloat = 0) {
+        if appuiEnCours, origine != origineAppui { annulerAppui() }
+        if appuiEnCours {
+            if distance > 12, !appuiDeplace { minuterieAppui?.cancel(); minuterieAppui = nil; appuiDeplace = true; appuyer(false) }
+            return
+        }
+        appuiEnCours = true; appuiLongFait = false; appuiDeplace = false; origineAppui = origine
+        appuyer(true)
+        let item = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { guard let self, self.appuiEnCours else { return }; self.appuiLongFait = self.appuiLong() }
+        }
+        minuterieAppui = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.dureeAppuiLong, execute: item)
+    }
+    /// Le bouton remonte. `deplace` : la souris a glissé de plus de 12 pt (ni clic ni appui long).
+    func finAppui(deplace: Bool) {
+        guard appuiEnCours else { return }
+        let long = appuiLongFait, glisse = deplace || appuiDeplace
+        annulerAppui()
+        if !long, !glisse { clicForme() }
+    }
+    /// Oublie l'appui en cours (la fenêtre a disparu sous le doigt, pendant une dictée : le relâchement n'arrivera jamais).
+    func annulerAppui() {
+        minuterieAppui?.cancel(); minuterieAppui = nil
+        appuiEnCours = false; appuiLongFait = false; appuiDeplace = false; origineAppui = nil
+        appuyer(false)
+    }
+
+    /// Appui long (0,4 s) sur la lecture : sous elle, la rangée Minuteur de l'accueil (comme l'appui long sur la Dynamic Island).
+    /// Faux si rien ne s'est passé (pas de lecture, minuteur éteint dans les réglages, îlot verrouillé).
+    @discardableResult
+    func appuiLong(minuteurActif: Bool = Settings.ilotMinuteur) -> Bool {
+        presse = false; rev += 1
+        guard minuteurActif, !cache, !resolution.verrou, FamilleIlot.de(resolution.principal) == .lecture else { return false }
+        intention?.cancel(); fermeture?.cancel()
+        sousVue = .lectureMinuteur; epingle = true; survole = true
+        donneesChangees(); surDepliageMoniteur()
+        return true
+    }
+
     func fermer() {
         epingle = false; survole = false; sousVue = nil
         intention?.cancel()

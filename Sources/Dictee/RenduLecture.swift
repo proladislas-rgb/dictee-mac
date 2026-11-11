@@ -214,6 +214,9 @@ enum RenduLecture {
         ecrire(bureau(hauteur: grandBureau, clair: false) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1f2-etendu-video-fond-sombre")
         ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: modele(contenus[0], direct: true)) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1g-etendu-direct")
         ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: modele(contenus[2], joue: false)) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1m-etendu-en-pause")
+        // appui long sur la lecture : la rangée Minuteur (maquette apple-acces/1-controles.html), seule puis avec un minuteur qui tourne
+        ecrire(bureau(hauteur: geometrie.hauteur + 300) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.donneesChangees(); $0.appuiLong(minuteurActif: true) }) }, "ilot-1n-lecture-rangee-minuteur")
+        ecrire(bureau(hauteur: geometrie.hauteur + 300, clair: false) { ilot(scene(lecture: musique) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 252); $0.donneesChangees(); $0.appuiLong(minuteurActif: true) }) }, "ilot-1n2-lecture-rangee-minuteur-en-cours")
         for (cam, barre) in [(179.0, 33.0), (200.0, 32.0)] {
             let gg = GeometrieEncoche(largeur: CGFloat(cam), hauteur: CGFloat(barre))
             // une vidéo de plus d'une heure : les temps (« −1:05:12 ») ne sont jamais coupés

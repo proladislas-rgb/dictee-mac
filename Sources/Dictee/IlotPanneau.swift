@@ -218,6 +218,16 @@ final class IlotPanneau {
         if moteur.contient(p) || (moteur.rectPastille()?.contains(p) ?? false) { laisserPasser(false); pointeur(p) }
     }
 
+    /// Pour les essais : un vrai événement souris remis à la fenêtre (il passe par les gestes SwiftUI, comme un clic réel), au point `p`
+    /// (x depuis le centre de l'encoche, y depuis le haut de l'écran). Rien n'est envoyé au système : la fenêtre seule le reçoit.
+    func envoyerSouris(_ type: NSEvent.EventType, en p: CGPoint) {
+        guard let f = fenetre, let ecran else { return }
+        let local = NSPoint(x: centre + p.x - f.frame.minX, y: ecran.frame.maxY - p.y - f.frame.minY)
+        guard let e = NSEvent.mouseEvent(with: type, location: local, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                         windowNumber: f.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1) else { return }
+        f.sendEvent(e)
+    }
+
     /// Pour les essais : simule la souris sur la forme ou ailleurs.
     func simulerPointeur(forme: Bool, pastille: Bool = false) {
         if forme != sousForme { sousForme = forme; moteur.survolForme(forme) }
