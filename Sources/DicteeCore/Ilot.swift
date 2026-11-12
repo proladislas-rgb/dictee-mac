@@ -63,7 +63,7 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// qui est passé par l'étagère, plus les sources qu'on allume (Téléchargés, AirDrop, captures). « ‹ Étagère », la recherche, le tri,
     /// les pastilles, les épinglés en haut, puis par date ; épingler, retirer, choisir plusieurs fichiers et les glisser ensemble.
     case bibliotheque
-    /// Groq (12/11) : un bandeau pour sa limite (« Groq : il reste 12 % », « Groq en pause jusqu'à 15:00 · Dictée sur le Mac »), son détail
+    /// Groq (12/11) : un bandeau pour sa limite (« Plus que 20 min de dictée gratuite aujourd'hui », « Dictée gratuite en pause jusqu'à 15:00 · Le Mac écrit à ta place »), son détail
     /// (clic sur la jauge des Outils) et la première dictée passée par le Mac (« Dicté sur le Mac · Pas de réseau ») ; ensuite, une dictée
     /// passée par le Mac le dit seulement dans les ailes (`dicteeMac` : l'ordinateur à gauche, « Mac » à droite).
     case groq, dicteeMac

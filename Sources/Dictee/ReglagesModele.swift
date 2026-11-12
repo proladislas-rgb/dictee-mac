@@ -80,9 +80,9 @@ final class ReglagesModele: ObservableObject {
     @Published var confirmerEffacement = false
     @Published private(set) var disponibiliteSecours: PrechauffageParole.Disponibilite = .enPreparation
     @Published private(set) var cle: CleGroq.Etat = .absente
-    /// L'usage de Groq (« Groq aujourd'hui : 42 min sur 480 · tout va bien ») : compté sur ce Mac, relu à chaque requête.
+    /// L'usage de Groq (« Il te reste 7 h 18 de dictée gratuite aujourd'hui ») : compté sur ce Mac, relu à chaque requête.
     @Published private(set) var groq: EtatGroq?
-    var ligneGroq: String { groq.map { TexteGroq.ligne($0, a: Date()) } ?? "Groq aujourd\u{2019}hui : 0 min sur 480" }
+    var ligneGroq: String { groq.map { TexteGroq.ligne($0, a: Date()) } ?? "Il te reste 8 h de dictée gratuite aujourd\u{2019}hui" }
     var noteGroq: String {
         guard let groq else { return "Compté sur ce Mac, sur les dernières 24 h." }
         return TexteGroq.note(groq) + (groq.niveau == .ok ? "" : " Si Groq s\u{2019}arrête, la dictée passe par le Mac.")

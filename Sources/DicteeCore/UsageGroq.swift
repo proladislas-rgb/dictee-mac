@@ -190,6 +190,9 @@ public struct BilanGroq: Equatable, Sendable {
     public var limiteMinutesJour: Int { Int(limites.secondesJour / 60) }
     public var minutesHeure: Int { Int((secondesHeure / 60).rounded(.up)) }
     public var limiteMinutesHeure: Int { Int(limites.secondesHeure / 60) }
+    /// Ce qui reste à dicter aujourd'hui et dans l'heure, en minutes entières (arrondi vers le bas : jamais plus que la vérité).
+    public var minutesRestantesJour: Int { pauseJusqua != nil ? 0 : max(0, Int(((limites.secondesJour - secondesJour) / 60).rounded(.down))) }
+    public var minutesRestantesHeure: Int { pauseJusqua != nil ? 0 : max(0, Int(((limites.secondesHeure - secondesHeure) / 60).rounded(.down))) }
 }
 
 public enum NiveauGroq: Equatable, Sendable {
@@ -237,43 +240,52 @@ public enum TexteGroq {
         return calendrier.isDate(d, inSameDayAs: t) ? h : "demain " + h
     }
 
-    /// La ligne des Réglages : « Groq aujourd'hui : 42 min sur 480 · tout va bien ».
+    // Les mots de Hugues (12/11 : « 42 min sur 480 », ce n'est pas clair) : on dit ce qui RESTE, en heures et minutes, « dictée gratuite ».
+
+    /// « 42 min », « 1 h », « 7 h 18 ».
+    public static func duree(_ minutes: Int) -> String {
+        let m = max(0, minutes)
+        guard m >= 60 else { return "\(m) min" }
+        let h = m / 60, r = m % 60
+        return r == 0 ? "\(h) h" : "\(h) h " + (r < 10 ? "0\(r)" : "\(r)")
+    }
+
+    /// La ligne des Réglages (et de VoiceOver) : « Il te reste 7 h 18 de dictée gratuite aujourd'hui ».
     public static func ligne(_ e: EtatGroq, a t: Date, calendrier: Calendar = .current) -> String {
-        let p = e.principal
-        return "Groq aujourd\u{2019}hui : \(p.minutesJour) min sur \(p.limiteMinutesJour) \u{00B7} " + etat(e, a: t, calendrier: calendrier)
+        if let p = e.pauseJusqua { return "Dictée gratuite en pause jusqu\u{2019}à " + quand(p, a: t, calendrier: calendrier) }
+        if e.relaisTurbo { return "Dictée précise en pause, la dictée rapide prend le relais" }
+        let b = e.principal
+        var l = "Il te reste \(duree(b.minutesRestantesJour)) de dictée gratuite aujourd\u{2019}hui"
+        if b.minutesRestantesHeure < b.minutesRestantesJour, e.niveau == .bas { l += " (plus que \(duree(b.minutesRestantesHeure)) cette heure)" }
+        return l
     }
 
-    /// Ce qui suit le compte : « tout va bien », « il reste 12 % », « le turbo prend le relais », « en pause jusqu'à 15:00 ».
-    public static func etat(_ e: EtatGroq, a t: Date, calendrier: Calendar = .current) -> String {
-        if let p = e.pauseJusqua { return "en pause jusqu\u{2019}à " + quand(p, a: t, calendrier: calendrier) }
-        if e.relaisTurbo { return "large-v3 en pause, le turbo prend le relais" }
-        switch e.niveau {
-        case .ok: return "tout va bien"
-        case .bas, .epuise: return "il reste \(pourcent(e.principal.fractionRestante)) %"
-        }
-    }
-
-    /// Sous le rond de la page Outils : « 42 min », « Reste 12 % », « Turbo », « Pause 15:00 ».
+    /// Sous le rond de la page Outils : « Reste 7 h 18 », « Reste 12 min », « Relais », « Pause 15:00 ».
     public static func court(_ e: EtatGroq, a t: Date, calendrier: Calendar = .current) -> String {
         if let p = e.pauseJusqua { return "Pause " + (calendrier.isDate(p, inSameDayAs: t) ? FormatIlot.heure(p, calendrier: calendrier) : "demain") }
-        if e.relaisTurbo { return "Turbo" }
-        if e.niveau == .bas { return "Reste \(pourcent(e.principal.fractionRestante)) %" }
-        return "\(e.principal.minutesJour) min"
+        if e.relaisTurbo { return "Relais" }
+        let b = e.principal
+        // l'heure seulement quand c'est elle qui manque (sinon « Reste 1 h 59 » ferait croire la journée presque finie)
+        let heure = e.niveau == .bas && b.minutesRestantesHeure < b.minutesRestantesJour
+        return "Reste " + duree(heure ? b.minutesRestantesHeure : b.minutesRestantesJour)
     }
 
-    /// Le détail (le clic sur la jauge de l'îlot) : « Groq aujourd'hui : 42 min sur 480 », puis « Tout va bien · cette heure : 3 min sur 120 ».
+    /// Le détail (le clic sur la jauge de l'îlot) : « Il te reste 7 h 18 aujourd'hui » · « De dictée gratuite avec Groq (8 h par jour) ».
     public static func detail(_ e: EtatGroq, a t: Date, calendrier: Calendar = .current) -> (titre: String, sousTitre: String) {
-        let p = e.principal
-        let etat = etat(e, a: t, calendrier: calendrier)
-        return ("Groq aujourd\u{2019}hui : \(p.minutesJour) min sur \(p.limiteMinutesJour)",
-                etat.prefix(1).uppercased() + etat.dropFirst() + " \u{00B7} cette heure : \(p.minutesHeure) min sur \(p.limiteMinutesHeure)")
+        if let p = e.pauseJusqua { return ("Dictée gratuite en pause jusqu\u{2019}à " + quand(p, a: t, calendrier: calendrier), "Le Mac écrit à ta place d\u{2019}ici là") }
+        let b = e.principal
+        if e.relaisTurbo { return ("Dictée précise en pause", "La dictée rapide de Groq prend le relais") }
+        if b.minutesRestantesHeure < b.minutesRestantesJour, e.niveau == .bas {
+            return ("Plus que \(duree(b.minutesRestantesHeure)) cette heure", "Groq : \(duree(b.limiteMinutesHeure)) par heure au plus, ça revient vite")
+        }
+        return ("Il te reste \(duree(b.minutesRestantesJour)) aujourd\u{2019}hui", "De dictée gratuite avec Groq (\(duree(b.limiteMinutesJour)) par jour)")
     }
 
     /// La note sous la ligne des Réglages : ce qui est compté, et la marge des requêtes lue dans la dernière réponse de Groq.
     public static func note(_ e: EtatGroq) -> String {
         let p = e.principal
-        var n = "Compté sur ce Mac, sur les dernières 24 h. Cette heure : \(p.minutesHeure) min sur \(p.limiteMinutesHeure)."
-        if let r = p.requetesRestantes, let l = p.requetesLimite { n += " Requêtes : \(milliers(r)) sur \(milliers(l)) (dit par Groq)." }
+        var n = "Groq écrit ta voix gratuitement : \(duree(p.limiteMinutesJour)) par jour, \(duree(p.limiteMinutesHeure)) par heure au plus. Déjà dicté sur 24 h : \(duree(p.minutesJour))."
+        if let r = p.requetesRestantes { n += " Envois restants aujourd\u{2019}hui : \(milliers(r)) (dit par Groq)." }
         return n
     }
 
@@ -293,9 +305,9 @@ public enum TexteGroq {
 /// Les annonces de l'îlot sur la limite : une seule fois par passage (sous 15 %, puis la limite atteinte), jamais répétées à chaque réponse.
 public struct AlerteGroq: Equatable, Sendable {
     public enum Annonce: Equatable, Sendable {
-        /// « Groq : il reste 12 % » · « 422 min sur 480 aujourd'hui ».
+        /// « Plus que 1 h de dictée gratuite aujourd'hui » · « Ensuite, le Mac écrit à ta place ».
         case bas(titre: String, sousTitre: String)
-        /// « Groq en pause jusqu'à 15:00 » · « Dictée sur le Mac ».
+        /// « Dictée gratuite en pause jusqu'à 15:00 » · « Le Mac écrit à ta place ».
         case epuise(titre: String, sousTitre: String)
         public var titre: String { switch self { case .bas(let t, _), .epuise(let t, _): return t } }
         public var sousTitre: String { switch self { case .bas(_, let s), .epuise(_, let s): return s } }
@@ -318,9 +330,9 @@ public struct AlerteGroq: Equatable, Sendable {
             basDit = true
             if e.relaisTurbo {
                 let fin = e.principal.pauseJusqua.map { " jusqu\u{2019}à " + TexteGroq.quand($0, a: t, calendrier: calendrier) } ?? ""
-                return .bas(titre: "Groq : large-v3 en pause" + fin, sousTitre: "Le turbo prend le relais")
+                return .bas(titre: "Dictée précise en pause" + fin, sousTitre: "La dictée rapide prend le relais")
             }
-            return .bas(titre: "Groq : il reste \(TexteGroq.pourcent(e.principal.fractionRestante)) %", sousTitre: Self.sousTitreBas(e.principal))
+            return .bas(titre: Self.titreBas(e.principal), sousTitre: "Ensuite, le Mac écrit à ta place")
         case .epuise:
             basDit = true
             let p = e.pauseJusqua
@@ -328,16 +340,17 @@ public struct AlerteGroq: Equatable, Sendable {
             if let d = pauseDite, let p, abs(d.timeIntervalSince(p)) < 120 || p < d { return nil }
             if pauseDite != nil, p == nil { return nil }
             pauseDite = p ?? t
-            let titre = "Groq en pause" + (p.map { " jusqu\u{2019}à " + TexteGroq.quand($0, a: t, calendrier: calendrier) } ?? "")
-            return .epuise(titre: titre, sousTitre: "Dictée sur le Mac")
+            let titre = "Dictée gratuite en pause" + (p.map { " jusqu\u{2019}à " + TexteGroq.quand($0, a: t, calendrier: calendrier) } ?? "")
+            return .epuise(titre: titre, sousTitre: "Le Mac écrit à ta place")
         }
     }
 
-    static func sousTitreBas(_ b: BilanGroq) -> String {
+    /// « Plus que 20 min de dictée gratuite aujourd'hui », « … cette heure », « Plus que 120 envois à Groq aujourd'hui ».
+    static func titreBas(_ b: BilanGroq) -> String {
         switch b.limitant {
-        case .jour: return "\(b.minutesJour) min sur \(b.limiteMinutesJour) aujourd\u{2019}hui"
-        case .heure: return "\(b.minutesHeure) min sur \(b.limiteMinutesHeure) cette heure"
-        case .requetes: return "\(TexteGroq.milliers(b.requetesRestantes ?? 0)) requêtes restantes aujourd\u{2019}hui"
+        case .jour: return "Plus que \(TexteGroq.duree(b.minutesRestantesJour)) de dictée gratuite aujourd\u{2019}hui"
+        case .heure: return "Plus que \(TexteGroq.duree(b.minutesRestantesHeure)) de dictée gratuite cette heure"
+        case .requetes: return "Plus que \(TexteGroq.milliers(b.requetesRestantes ?? 0)) envois à Groq aujourd\u{2019}hui"
         }
     }
 }
@@ -370,7 +383,7 @@ public enum RelaisDictee {
     /// Ce que l'îlot dit de la raison (sous « Dicté sur le Mac »).
     public static func raison(_ e: EchecGroq, pauseJusqua: Date?, a t: Date, calendrier: Calendar = .current) -> String {
         switch e {
-        case .limite: return "Groq en pause" + (pauseJusqua.map { " jusqu\u{2019}à " + TexteGroq.quand($0, a: t, calendrier: calendrier) } ?? "")
+        case .limite: return "Dictée gratuite en pause" + (pauseJusqua.map { " jusqu\u{2019}à " + TexteGroq.quand($0, a: t, calendrier: calendrier) } ?? "")
         case .reseau: return "Pas de réseau"
         case .panne: return "Groq ne répond pas"
         case .pasDeCle: return "Clé Groq absente"
@@ -380,7 +393,7 @@ public enum RelaisDictee {
     }
 
     /// Le signe dans l'îlot après une dictée passée par le Mac : la première fois (ou pour une autre raison), un bandeau qui dit pourquoi ;
-    /// ensuite, seulement « Mac » dans les ailes, discret. La limite atteinte a déjà son annonce (« Groq en pause jusqu'à 15:00 ») :
+    /// ensuite, seulement « Mac » dans les ailes, discret. La limite atteinte a déjà son annonce (« Dictée gratuite en pause jusqu'à 15:00 ») :
     /// pour elle, les ailes seules.
     public enum Signe: Equatable, Sendable {
         case bandeau(titre: String, sousTitre: String)

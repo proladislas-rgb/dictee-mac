@@ -492,28 +492,28 @@ extension IlotEssai {
         c.alerteGroq = AlerteGroq(); c.suiviRelais = RelaisDictee.Suivi()
         m.fermer(); pause(0.6)
         m.clicForme(); pause(0.8); m.allerA(.outils); pause(0.9)
-        verifier(m.courante == .outils && m.etatCentre(.groq) == "42 min", "page Outils : la jauge de Groq, « 42 min » sous le rond (\(m.etatCentre(.groq)))")
+        verifier(m.courante == .outils && m.etatCentre(.groq) == "Reste 7 h 18", "page Outils : la jauge de Groq, « Reste 7 h 18 » sous le rond (\(m.etatCentre(.groq)))")
         verifier(abs((m.groq?.utilise ?? 0) - 42.0 / 480) < 0.001, "l'anneau : 42 min sur 480 utilisés (\(String(format: "%.3f", m.groq?.utilise ?? 0)))")
         pose("page Outils avec la jauge de Groq")
         clic(PlanCentre.centreRond(m, .groq), 0.9)
-        verifier(m.courante == .groq && m.bandeauVu?.ligne1 == "Groq aujourd\u{2019}hui : 42 min sur 480" && m.bandeauVu?.ligne2.hasPrefix("Tout va bien") == true,
+        verifier(m.courante == .groq && m.bandeauVu?.ligne1 == "Il te reste 7 h 18 aujourd\u{2019}hui" && m.bandeauVu?.ligne2 == "De dictée gratuite avec Groq (8 h par jour)",
                  "vrai clic sur la jauge : « \(m.bandeauVu?.ligne1 ?? "") · \(m.bandeauVu?.ligne2 ?? "") » (\(m.courante))")
         pose("bandeau détail de Groq")
         attendre(6) { m.bandeau != nil }
         // sous 15 % : annoncé une fois
         usage = etat(minutesJour: 420)
         c.groqChange(); pause(0.9)
-        verifier(m.courante == .groq && m.bandeauVu?.ligne1 == "Groq : il reste 12 %" && m.bandeauVu?.ligne2 == "420 min sur 480 aujourd\u{2019}hui" && m.bandeauVu?.groq == .bas,
+        verifier(m.courante == .groq && m.bandeauVu?.ligne1 == "Plus que 1 h de dictée gratuite aujourd\u{2019}hui" && m.bandeauVu?.ligne2 == "Ensuite, le Mac écrit à ta place" && m.bandeauVu?.groq == .bas,
                  "sous 15 % : « \(m.bandeauVu?.ligne1 ?? "") · \(m.bandeauVu?.ligne2 ?? "") »")
         pose("bandeau Groq bientôt à sa limite")
         attendre(7) { m.bandeau != nil }
         c.groqChange(); pause(0.4)
         verifier(m.bandeau == nil, "toujours sous 15 % : pas redit (\(m.courante))")
-        // la limite atteinte, le turbo aussi : « Groq en pause jusqu'à … · Dictée sur le Mac »
+        // la limite atteinte, le turbo aussi : « Dictée gratuite en pause jusqu'à … · Le Mac écrit à ta place »
         usage = etat(minutesJour: 480, pause: 3600, turboAussi: true)
         c.groqChange(); pause(0.9)
         let heure = TexteGroq.quand(c.maintenant().addingTimeInterval(3600), a: c.maintenant())
-        verifier(m.bandeauVu?.ligne1 == "Groq en pause jusqu\u{2019}à " + heure && m.bandeauVu?.ligne2 == "Dictée sur le Mac" && m.bandeauVu?.groq == .epuise,
+        verifier(m.bandeauVu?.ligne1 == "Dictée gratuite en pause jusqu\u{2019}à " + heure && m.bandeauVu?.ligne2 == "Le Mac écrit à ta place" && m.bandeauVu?.groq == .epuise,
                  "limite atteinte : « \(m.bandeauVu?.ligne1 ?? "") · \(m.bandeauVu?.ligne2 ?? "") »")
         verifier(c.reveilGroq != nil, "un seul réveil à la fin de la pause (aucune minuterie qui tourne)")
         pose("bandeau Groq en pause")

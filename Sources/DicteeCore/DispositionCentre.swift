@@ -71,7 +71,7 @@ extension ElementCentre {
         case .notes: return "Tes notes rapides, gardées ici"
         case .noteRapide: return "Un clic, tu parles, c\u{2019}est noté"
         case .secondBrain: return "Ce qui t\u{2019}attend dans Second Brain"
-        case .groq: return "Ton usage de Groq aujourd\u{2019}hui"
+        case .groq: return "Ta dictée gratuite restante"
         case .concentration: return "Allume Travail, Sommeil, Ne pas déranger"
         }
     }

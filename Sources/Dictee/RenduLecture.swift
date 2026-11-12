@@ -729,9 +729,9 @@ enum RenduLecture {
         let detail = TexteGroq.detail(usageGroq(minutes: 42), a: t0)
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in m.groq = usageGroq(minutes: 42); m.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: detail.titre, ligne2: detail.sousTitre, groq: .detail) }) },
                "ilot-29e-groq-detail")
-        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: "Groq : il reste 12 %", ligne2: "421 min sur 480 aujourd\u{2019}hui", groq: .bas) }) },
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: "Plus que 59 min de dictée gratuite aujourd\u{2019}hui", ligne2: "Ensuite, le Mac écrit à ta place", groq: .bas) }) },
                "ilot-29f-groq-annonce-bientot")
-        ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene { $0.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: "Groq en pause jusqu\u{2019}à 15:00", ligne2: "Dictée sur le Mac", groq: .epuise) }) },
+        ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene { $0.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: "Dictée gratuite en pause jusqu\u{2019}à 15:00", ligne2: "Le Mac écrit à ta place", groq: .epuise) }) },
                "ilot-29g-groq-annonce-en-pause-sombre")
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: "Dicté sur le Mac", ligne2: "Pas de réseau", groq: .relais) }) }, "ilot-29h-groq-dicte-sur-le-mac")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .dicteeMac, jusqua: t0, ligne1: "Mac", ligne2: "") }) }, "ilot-29i-groq-ailes-mac")

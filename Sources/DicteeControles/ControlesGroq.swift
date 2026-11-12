@@ -71,8 +71,8 @@ func controlesGroq() {
         let bas = c.bilan(modele: large, a: t0)
         verifier(bas.niveau == .bas && bas.limitant == .jour, "420 min sur 480 (12 %) : bas, limité par le jour")
         let e = EtatGroq.calculer(c, modele: large, secours: turbo, a: t0)
-        verifier(TexteGroq.ligne(e, a: t0, calendrier: cal) == "Groq aujourd\u{2019}hui : 420 min sur 480 \u{00B7} il reste 12 %", "ligne : « … 420 min sur 480 · il reste 12 % » (\(TexteGroq.ligne(e, a: t0, calendrier: cal)))")
-        verifier(TexteGroq.court(e, a: t0, calendrier: cal) == "Reste 12 %", "sous le rond : « Reste 12 % »")
+        verifier(TexteGroq.ligne(e, a: t0, calendrier: cal) == "Il te reste 1 h de dictée gratuite aujourd\u{2019}hui", "ligne : « Il te reste 1 h de dictée gratuite aujourd'hui » (\(TexteGroq.ligne(e, a: t0, calendrier: cal)))")
+        verifier(TexteGroq.court(e, a: t0, calendrier: cal) == "Reste 1 h", "sous le rond : « Reste 1 h »")
         var h = CompteurGroq()
         for i in 0..<115 { h.noterEnvoi(secondesAudio: 60, modele: large, a: t0.addingTimeInterval(-3000 + Double(i))) }
         let bh = h.bilan(modele: large, a: t0)
@@ -80,7 +80,9 @@ func controlesGroq() {
         verifier(AlerteGroq().basDit == false, "rien de dit au départ")
         var a = AlerteGroq()
         let annonce = a.apres(EtatGroq.calculer(h, modele: large, secours: nil, a: t0), a: t0, calendrier: cal)
-        verifier(annonce?.sousTitre == "115 min sur 120 cette heure", "annonce de l'heure : « 115 min sur 120 cette heure »")
+        verifier(annonce?.titre == "Plus que 5 min de dictée gratuite cette heure" && annonce?.sousTitre == "Ensuite, le Mac écrit à ta place", "annonce de l'heure : « Plus que 5 min de dictée gratuite cette heure »")
+        let eh = EtatGroq.calculer(h, modele: large, secours: nil, a: t0)
+        verifier(TexteGroq.court(eh, a: t0, calendrier: cal) == "Reste 5 min" && TexteGroq.detail(eh, a: t0, calendrier: cal).titre == "Plus que 5 min cette heure", "l'heure qui manque : « Reste 5 min », « Plus que 5 min cette heure »")
         var plein = CompteurGroq()
         for i in 0..<121 { plein.noterEnvoi(secondesAudio: 60, modele: large, a: t0.addingTimeInterval(-3000 + Double(i))) }
         let bp = plein.bilan(modele: large, a: t0)
@@ -92,12 +94,13 @@ func controlesGroq() {
         var c = CompteurGroq()
         c.noterEnvoi(secondesAudio: 30, modele: large, a: t0)
         let ok = EtatGroq.calculer(c, modele: large, secours: turbo, a: t0)
-        verifier(ok.niveau == .ok && TexteGroq.ligne(ok, a: t0, calendrier: cal) == "Groq aujourd\u{2019}hui : 1 min sur 480 \u{00B7} tout va bien", "« Groq aujourd'hui : 1 min sur 480 · tout va bien »")
-        verifier(TexteGroq.court(ok, a: t0, calendrier: cal) == "1 min", "sous le rond : « 1 min »")
+        verifier(ok.niveau == .ok && TexteGroq.ligne(ok, a: t0, calendrier: cal) == "Il te reste 7 h 59 de dictée gratuite aujourd\u{2019}hui", "« Il te reste 7 h 59 de dictée gratuite aujourd'hui »")
+        verifier(TexteGroq.court(ok, a: t0, calendrier: cal) == "Reste 7 h 59", "sous le rond : « Reste 7 h 59 » (la journée, pas l'heure, tant que tout va bien)")
+        verifier(TexteGroq.duree(0) == "0 min" && TexteGroq.duree(42) == "42 min" && TexteGroq.duree(60) == "1 h" && TexteGroq.duree(438) == "7 h 18" && TexteGroq.duree(65) == "1 h 05", "durées : 42 min, 1 h, 7 h 18, 1 h 05")
         c.noterReponse(modele: large, statut: 429, entete: entetes(["retry-after": "3600"]), messageErreur: "(ASD)", a: t0)
         let relais = EtatGroq.calculer(c, modele: large, secours: turbo, a: t0)
         verifier(relais.relaisTurbo && relais.niveau == .bas && relais.pauseJusqua == nil, "large-v3 en pause, le turbo répond : bas, pas en pause")
-        verifier(TexteGroq.court(relais, a: t0, calendrier: cal) == "Turbo", "sous le rond : « Turbo »")
+        verifier(TexteGroq.court(relais, a: t0, calendrier: cal) == "Relais", "sous le rond : « Relais »")
         let seul = EtatGroq.calculer(c, modele: large, secours: nil, a: t0)
         verifier(seul.niveau == .epuise, "sans relais (modèle turbo réglé, ou large-v3 sans secours) : en pause")
         c.noterReponse(modele: turbo, statut: 429, entete: entetes(["retry-after": "1800"]), messageErreur: nil, a: t0)
@@ -108,8 +111,8 @@ func controlesGroq() {
         verifier(TexteGroq.quand(t0.addingTimeInterval(12 * 3600), a: t0, calendrier: cal) == "demain 2:00", "une pause qui finit demain : « demain 2:00 »")
         verifier(TexteGroq.milliers(1940) == "1\u{202F}940" && TexteGroq.milliers(940) == "940", "1 940 avec une espace fine")
         let d = TexteGroq.detail(ok, a: t0, calendrier: cal)
-        verifier(d.titre == "Groq aujourd\u{2019}hui : 1 min sur 480" && d.sousTitre == "Tout va bien \u{00B7} cette heure : 1 min sur 120", "détail : « Groq aujourd'hui : 1 min sur 480 » · « Tout va bien · cette heure : 1 min sur 120 »")
-        verifier(TexteGroq.note(ok) == "Compté sur ce Mac, sur les dernières 24 h. Cette heure : 1 min sur 120.", "note des Réglages")
+        verifier(d.titre == "Il te reste 7 h 59 aujourd\u{2019}hui" && d.sousTitre == "De dictée gratuite avec Groq (8 h par jour)", "détail : « Il te reste 7 h 59 aujourd'hui » · « De dictée gratuite avec Groq (8 h par jour) »")
+        verifier(TexteGroq.note(ok) == "Groq écrit ta voix gratuitement : 8 h par jour, 2 h par heure au plus. Déjà dicté sur 24 h : 1 min.", "note des Réglages")
     }
 
     groupe("Groq : annonces (une fois par passage)")
@@ -119,12 +122,12 @@ func controlesGroq() {
         verifier(a.apres(EtatGroq.calculer(c, modele: large, secours: nil, a: t0), a: t0, calendrier: cal) == nil, "tout va bien : rien")
         for i in 0..<420 { c.noterEnvoi(secondesAudio: 60, modele: large, a: t0.addingTimeInterval(-7 * 3600 + Double(i) * 30)) }
         let bas = a.apres(EtatGroq.calculer(c, modele: large, secours: nil, a: t0), a: t0, calendrier: cal)
-        verifier(bas == .bas(titre: "Groq : il reste 12 %", sousTitre: "420 min sur 480 aujourd\u{2019}hui"), "sous 15 % : « Groq : il reste 12 % · 420 min sur 480 aujourd'hui » (\(String(describing: bas)))")
+        verifier(bas == .bas(titre: "Plus que 1 h de dictée gratuite aujourd\u{2019}hui", sousTitre: "Ensuite, le Mac écrit à ta place"), "sous 15 % : « Plus que 1 h de dictée gratuite aujourd'hui · Ensuite, le Mac écrit à ta place » (\(String(describing: bas)))")
         c.noterEnvoi(secondesAudio: 20, modele: large, a: t0)
         verifier(a.apres(EtatGroq.calculer(c, modele: large, secours: nil, a: t0), a: t0, calendrier: cal) == nil, "toujours bas : pas répété")
         c.noterReponse(modele: large, statut: 429, entete: entetes(["retry-after": "3600"]), messageErreur: nil, a: t0)
         let pause = a.apres(EtatGroq.calculer(c, modele: large, secours: nil, a: t0), a: t0, calendrier: cal)
-        verifier(pause == .epuise(titre: "Groq en pause jusqu\u{2019}à 15:00", sousTitre: "Dictée sur le Mac"), "limite atteinte : « Groq en pause jusqu'à 15:00 · Dictée sur le Mac »")
+        verifier(pause == .epuise(titre: "Dictée gratuite en pause jusqu\u{2019}à 15:00", sousTitre: "Le Mac écrit à ta place"), "limite atteinte : « Dictée gratuite en pause jusqu'à 15:00 · Le Mac écrit à ta place »")
         c.noterReponse(modele: large, statut: 429, entete: entetes(["retry-after": "3570"]), messageErreur: nil, a: t0.addingTimeInterval(30))
         verifier(a.apres(EtatGroq.calculer(c, modele: large, secours: nil, a: t0.addingTimeInterval(30)), a: t0.addingTimeInterval(30), calendrier: cal) == nil,
                  "la même pause redite par une autre 429 : pas d'annonce de plus")
@@ -135,7 +138,7 @@ func controlesGroq() {
         var r = CompteurGroq()
         r.noterReponse(modele: large, statut: 429, entete: entetes(["retry-after": "600"]), messageErreur: nil, a: t0)
         let turboAnnonce = b.apres(EtatGroq.calculer(r, modele: large, secours: turbo, a: t0), a: t0, calendrier: cal)
-        verifier(turboAnnonce == .bas(titre: "Groq : large-v3 en pause jusqu\u{2019}à 14:10", sousTitre: "Le turbo prend le relais"), "large-v3 en pause, turbo en relais : annoncé une fois")
+        verifier(turboAnnonce == .bas(titre: "Dictée précise en pause jusqu\u{2019}à 14:10", sousTitre: "La dictée rapide prend le relais"), "large-v3 en pause, turbo en relais : annoncé une fois")
     }
 
     groupe("Relais de la dictée sur le Mac")
@@ -157,7 +160,7 @@ func controlesGroq() {
         s.apresGroq()
         verifier(s.apresRelais(.panne, pauseJusqua: nil, a: t0, calendrier: cal) != .ailes, "Groq a répondu entre-temps : le relais suivant se redit")
         verifier(s.apresRelais(.limite, pauseJusqua: t0.addingTimeInterval(3600), a: t0, calendrier: cal) == .ailes, "limite : les ailes seules (l'annonce de la limite dit déjà tout)")
-        verifier(RelaisDictee.raison(.limite, pauseJusqua: t0.addingTimeInterval(3600), a: t0, calendrier: cal) == "Groq en pause jusqu\u{2019}à 15:00", "raison de la limite : « Groq en pause jusqu'à 15:00 »")
+        verifier(RelaisDictee.raison(.limite, pauseJusqua: t0.addingTimeInterval(3600), a: t0, calendrier: cal) == "Dictée gratuite en pause jusqu\u{2019}à 15:00", "raison de la limite : « Dictée gratuite en pause jusqu'à 15:00 »")
     }
 
     groupe("Page Outils : la jauge de Groq")

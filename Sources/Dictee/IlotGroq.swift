@@ -3,10 +3,10 @@ import SwiftUI
 import DicteeCore
 
 // Groq dans l'îlot (12/11, Hugues : « j'ai peur un jour d'arriver à mes limites sur Groq ») :
-// - la jauge « Groq » de la page Outils (anneau = la part utilisée de la limite la plus serrée ; sous le rond « 42 min », « Reste 12 % »,
-//   « Turbo », « Pause 15:00 ») ; un clic dit le détail (« Groq aujourd'hui : 42 min sur 480 · tout va bien », l'heure, les requêtes) ;
-// - deux annonces, une fois chacune par passage : sous 15 % de marge, puis la limite atteinte (« Groq en pause jusqu'à 15:00 · Dictée sur
-//   le Mac ») ;
+// - la jauge « Groq » de la page Outils (anneau = la part utilisée de la limite la plus serrée ; sous le rond « Reste 7 h 18 », « Reste 12 min »,
+//   « Relais », « Pause 15:00 ») ; un clic dit le détail (« Il te reste 7 h 18 aujourd'hui · De dictée gratuite avec Groq (8 h par jour) ») ;
+// - deux annonces, une fois chacune par passage : sous 15 % de marge, puis la limite atteinte (« Dictée gratuite en pause jusqu'à 15:00 ·
+//   Le Mac écrit à ta place ») ;
 // - après une dictée passée par la reconnaissance du Mac : la première fois « Dicté sur le Mac · Pas de réseau », ensuite « Mac » dans les
 //   ailes seulement (discret).
 // La logique est dans DicteeCore/UsageGroq.swift ; l'usage est lu par une fermeture injectable (l'essai n'en lit jamais un vrai).
