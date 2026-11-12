@@ -332,15 +332,8 @@ final class DictationController {
         }
         var texte = ""
         if s.secours == nil, let direct = s.direct { s.secours = Task { await direct.terminer() } }
-        if let secours = s.secours {
-            texte = await withTaskGroup(of: String.self) { groupe in
-                groupe.addTask { await secours.value }
-                groupe.addTask { try? await Task.sleep(for: .seconds(1.5)); return "" }
-                let premier = await groupe.next() ?? ""
-                groupe.cancelAll()
-                return premier
-            }
-        }
+        // Le premier arrivé gagne, sans attendre le perdant (jamais `withTaskGroup` : il attendrait `secours.value`, qu'il n'annule pas).
+        if let secours = s.secours { texte = await RelaisDictee.texteDuMac { await secours.value } }
         texte = texte.trimmingCharacters(in: .whitespacesAndNewlines)
         guard RelaisDictee.utiliserLeMac(echec: echec, relaisPermis: true, texteDuMac: texte) else {
             Log.ecrire("dictée \(s.id) : pas de texte du Mac, rien à écrire (\(PrechauffageParole.disponibilite))")

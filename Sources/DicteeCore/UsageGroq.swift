@@ -380,6 +380,15 @@ public enum RelaisDictee {
         echec != nil && relaisPermis && !texteDuMac.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Ce que la dictée attend au plus le texte de la reconnaissance du Mac, une fois Groq en échec.
+    public static let attenteDuMac: Double = 1.5
+
+    /// Le texte de la reconnaissance du Mac, ou "" s'il n'est pas là après `attente` secondes : la dictée rend toujours la main à temps,
+    /// même si la reconnaissance ne finit jamais (elle continue seule, son texte est ignoré).
+    public static func texteDuMac(attente: Double = attenteDuMac, _ terminer: @escaping @Sendable () async -> String) async -> String {
+        await Premiere<String>.avantDelai(attente, parDefaut: "", terminer)
+    }
+
     /// Ce que l'îlot dit de la raison (sous « Dicté sur le Mac »).
     public static func raison(_ e: EchecGroq, pauseJusqua: Date?, a t: Date, calendrier: Calendar = .current) -> String {
         switch e {

@@ -570,3 +570,31 @@ Et le verre : « vraiment beaucoup plus transparent ».
       Noté : « aucun à-coup » (survol des Dictées, molette) oscille autour de 100 M instructions, AUSSI sur main a8a2aad (108,0 M mesuré
       dans la même série) : pas une régression de la branche.
 - [x] Push de la branche (pas de fusion, pas d'installation).
+
+## Ménage rapide, gains rapides de docs/audit-dette-technique.md § 7 (12/11 soir) : branche menage-rapide (worktree ~/dictee-mac-menage)
+Arrêté après l'étape 1 sur demande (nouvelles demandes de Hugues, dont le renommage en Voxile, qui touchent beaucoup de fichiers).
+- [x] 0. Point de départ (main 9fcc1dc, hors git dans le scratchpad `menage-ref/`) : build release à neuf en 175 s, **27 avertissements
+      distincts**, tous dans nos sources (13 `Text + Text`, 9 de concurrence, `NSText?` inutile, `var copie`, `echec` en tuple) ;
+      3972/3972 contrôles ; rendus de référence ilot (286), lucarne (60), encoche, reunion, journee, panneau, filet, fenetre (38),
+      premier-lancement (33, dont des MP4 : 311 s), mise-a-jour, icones ; binaire de référence gardé (`Dictee-ref`).
+      Pas d'étiquette `avant-refactor` (la référence est le commit 9fcc1dc). Essai complet pas chronométré (arrêt demandé avant).
+      Noté : les rendus ne sont pas identiques au bit près d'une passe à l'autre avec LE MÊME binaire (bureau-19 mises à jour,
+      2 lucarne sombres, et parfois quelques pixels d'écart 1/255 sur d'autres) : comparer avec une 2e passe de référence.
+- [x] 1. Bug du secours Apple (692192b) : `Premiere` passe dans DicteeCore, `RelaisDictee.texteDuMac` (1,5 s) remplace le
+      `withTaskGroup` de `DictationController.utiliserLeSecours`. Contrôle avec une reconnaissance factice qui ne rend jamais la main :
+      la dictée rend la main en 1,51 s ; reconnaissance rapide : 0,06 s. Filet : build release sans nouvel avertissement (les mêmes 27) ;
+      3975/3975 contrôles ; rendus ilot et lucarne identiques à la référence (2e passe : 0 écart ; 1re passe : 1 à 2 673 pixels à 1/255,
+      bruit vérifié en relançant le binaire de référence 3 fois) ; les autres rendus identiques ; `defaults read Dictee` vide.
+      Pas d'essai complet (aucune section de l'essai ne passe par le relais ; demandé de s'arrêter). Pas fait non plus : prouver que le
+      contrôle échoue avec l'ancien code (le mécanisme est celui de la leçon du 09/11).
+- [ ] 2. Zéro avertissement (les 27 ci-dessus, dont IlotNotifications:69, Nettoyer:8, ReunionsFenetre:222/300, IlotEtagere:702,
+      IlotVues:617, IlotPieces:397, Transcrire:128), sans `@unchecked` ni `nonisolated(unsafe)` nouveaux.
+- [ ] 3. Vrai code mort (§ 3 de l'audit), vérifié par grep dans tout le dépôt avant chaque suppression ; corriger la doc de
+      `Settings` (secours) et `--lecture-essai` → `--lecture-test` dans ce fichier.
+- [ ] 4. Durées de vie : FSEvents de `SurveillanceClaude` (IlotClaude.swift, `retain: nil` aujourd'hui), `KeyMonitor`
+      (`CFMachPortInvalidate` + `isolated deinit`, `Log.ecrire` hors du rappel du tap), `tolerance` sur les `Timer` de l'app
+      (AppDelegate, MiseAJourControleur ×2, PriseEnMain, IlotLucarne, ReunionController ; pas la minuterie d'animation de l'essai).
+- [ ] 5. `DossierVerbe.url(_:)` (≈ 20 chemins « Library/Application Support/Dictee » écrits en dur) ; `MagasinJSON<T>` dans DicteeCore
+      pour Rappels, Étagère, Notes, Bibliothèque, Concentration, Réveil (même format : chaque type garde ses `depuis`/`donnees`),
+      écriture atomique créée directement en 0600, échec tracé ; journal en 0600 ; contrôle qui relit un fichier au format actuel.
+- [ ] Essai complet `--ilot-essai` (au moins après les étapes 4 et 5), sous le verrou du scratchpad.
