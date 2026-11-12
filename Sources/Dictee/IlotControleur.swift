@@ -105,6 +105,14 @@ final class IlotControleur {
     /// ⌘C vient d'être tapé : un seul réveil, le temps que l'app écrive dans le presse-papiers.
     var reveilCopie: DispatchWorkItem?
 
+    // MARK: Groq (IlotGroq.swift) : l'usage et le téléchargement de la langue du Mac sont lus par des fermetures (l'essai les remplace)
+    var lireEtatGroq: (Date) -> EtatGroq = { UsageGroqStore.partage.etat(a: $0) }
+    var lireProgressionParole: () -> Double? = { PrechauffageParole.progression }
+    var alerteGroq = AlerteGroq()
+    var suiviRelais = RelaisDictee.Suivi()
+    var observateurGroq: NSObjectProtocol?
+    var reveilGroq: DispatchWorkItem?
+
     /// Ce qui occupe l'encoche en dehors de la dictée de ce contrôleur (rempli par l'AppDelegate).
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
     /// Recolle un texte dans la dernière app (rempli par l'AppDelegate).
@@ -243,6 +251,7 @@ final class IlotControleur {
         moteur.disposition = DispositionCentre(identifiants: reglagesCentre.disposition())
         if !reglagesCentre.bulleVue() { moteur.montrerBulle() }
         demarrerLesOutils()
+        demarrerGroq()
     }
 
     func arreter() {
@@ -256,6 +265,7 @@ final class IlotControleur {
         activerClaude(false)
         agenda.arreter()
         arreterLesOutils()
+        arreterGroq()
         panneau.fermer()
         [reveilMinuteur, reveilRappels, reveilAgenda].forEach { $0?.cancel() }
     }
@@ -550,6 +560,8 @@ final class IlotControleur {
         // les Outils : le presse-papiers a-t-il changé (son compteur seulement, le contenu s'il a bougé) ; Reformuler relit son texte
         verifierPressePapiers()
         if moteur.courante == .outilReformuler { relireSourceReformulation() }
+        // la jauge de Groq : la fenêtre des 24 h glisse, l'état se relit à chaque dépliage
+        moteur.groq = lireEtatGroq(maintenant())
         lecture.ilotDeplie()
     }
     private func ageLisible(_ date: Date) -> String {
@@ -583,6 +595,7 @@ final class IlotControleur {
         case .centreMicro, .centreTelechargements, .centreClaude, .etagereAllumer, .centreReunion, .centreAvis: agirCentre(action)
         case .eveil, .copieRecopier, .copieColler, .copiesEffacer, .reformulationSource, .reformuler, .reformulationRemplacer, .reformulationCopier,
              .noteVersNotes, .noteSupprimer: agirOutils(action)
+        case .groqDetail: detailGroq()
         case .alerteOK: moteur.quitterAlerte()
         case .rappelPlusTard(let id):
             rappels.reporter(id, depuis: maintenant()); sauver()

@@ -136,6 +136,8 @@ struct IlotCalques: View {
         case .microCompact: heureAile(v, "Coupé", CouleursIlot.rouge).accessibilityLabel("Micro coupé")
         case .microEtendu, .microFn: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .microOuvert: microOuvert(v)
+        case .groq: if let c = m.contenuAnnonce(v) { annonce(v, c) }
+        case .dicteeMac: dicteeMac(v)
         case .volume, .luminosite: niveauAiles(v)
         case .claudeMinimal: EmptyView()
         case .claudeCompact: ClaudeAiles(m: m, g: g)
@@ -186,6 +188,18 @@ struct IlotCalques: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Micro ouvert")
+    }
+
+    /// La dictée vient de passer par la reconnaissance du Mac (Groq n'a pas répondu) : l'ordinateur dans l'aile gauche, « Mac » à droite.
+    private func dicteeMac(_ v: VueIlot) -> some View {
+        let c = g.centreAile(v, droite: false)
+        return ZStack(alignment: .topLeading) {
+            Image(systemName: "laptopcomputer").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.white.opacity(0.85))
+                .posee(CGRect(x: c - 18, y: 0, width: 36, height: g.barre), m.aspect(v, rang: 0), ancre: .center, .center)
+            heureAile(v, "Mac", CouleursIlot.encre2)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Dicté sur le Mac")
     }
 
     /// Chargeur branché, batterie faible : la pile dans l'aile gauche, le pourcentage dans l'aile droite, en vert ou en rouge.

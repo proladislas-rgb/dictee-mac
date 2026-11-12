@@ -124,6 +124,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.priseEnMain.modele.texteInsere(texte)
         }
         dictee.surEchecInsertion = { [weak self] raison in self?.priseEnMain.modele.insertionImpossible(raison) }
+        // Groq n'a pas répondu, la dictée est passée par le Mac : l'îlot le signale ; Groq de nouveau là : le prochain relais se redira
+        dictee.surRelais = { [weak self] echec in self?.ilot.relaisDictee(echec) }
+        dictee.surGroqReussi = { [weak self] in self?.ilot.groqReussi() }
+        dictee.surRelaisIndisponible = { [weak self] texte in self?.ilot.relaisIndisponible(texte) }
         demarrerPriseEnMainSiBesoin()
         Task { await verifierAutorisations() }
         // Tant qu'il manque quelque chose, on surveille (l'accord se donne dans les Réglages, app ouverte) ; tout accordé, on arrête :
@@ -145,6 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         ilot.arreter()
+        UsageGroqStore.partage.ecrire()
         Log.ecrire("arrêt")
         Log.vider()
     }

@@ -134,7 +134,14 @@ extension IlotControleur {
     /// Au lancement : la page Outils telle qu'elle a été rangée, les notes, et le regard sur le presse-papiers quand une app passe au
     /// premier plan (une notification de macOS, aucune minuterie).
     func demarrerLesOutils() {
-        moteur.dispositionOutils = DispositionCentre(identifiants: reglagesCentre.dispositionOutils(), page: .outils)
+        // une page déjà rangée par « Modifier » reçoit une fois ce qui est arrivé depuis (la jauge de Groq) ; Hugues le garde ou le retire
+        let deja = reglagesCentre.nouveautesProposees()
+        let (ids, proposees) = DispositionCentre.avecNouveautes(reglagesCentre.dispositionOutils(), page: .outils, dejaProposees: deja)
+        if proposees != deja {
+            reglagesCentre.marquerNouveautes(proposees)
+            if let ids, ids != reglagesCentre.dispositionOutils() { reglagesCentre.enregistrerDispositionOutils(ids); Log.ecrire("outils : nouveautés ajoutées (\(ids.joined(separator: ", ")))") }
+        }
+        moteur.dispositionOutils = DispositionCentre(identifiants: ids, page: .outils)
         moteur.notes = listeNotes.notes
         observateurApps = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.verifierPressePapiers() }

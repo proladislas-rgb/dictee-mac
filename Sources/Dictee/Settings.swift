@@ -304,6 +304,11 @@ enum Settings {
         get { defaults.stringArray(forKey: "ilotOutilsBoutons") }
         set { defaults.set(newValue, forKey: "ilotOutilsBoutons") }
     }
+    /// Les nouveautés du Centre et des Outils déjà proposées à une disposition rangée (DispositionCentre.avecNouveautes).
+    static var ilotNouveautesProposees: [String] {
+        get { defaults.stringArray(forKey: "ilotNouveautesProposees") ?? [] }
+        set { defaults.set(newValue, forKey: "ilotNouveautesProposees") }
+    }
     /// Pour un micro sans muet, coupé en mettant son volume d'entrée à 0 : son ancien volume, par micro (UID CoreAudio), pour le rendre.
     static var microVolumesGardes: [String: Double] {
         get { defaults.dictionary(forKey: "microVolumesGardes") as? [String: Double] ?? [:] }

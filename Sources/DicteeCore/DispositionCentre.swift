@@ -22,6 +22,8 @@ public enum ElementCentre: String, CaseIterable, Sendable {
     case pressePapiers = "presse-papiers"
     case reformuler, notes
     case noteRapide = "note-rapide"
+    /// Ce que Groq laisse pour la transcription (jauge en anneau, page Outils ; 12/11 : « j'ai peur d'arriver à mes limites sur Groq »).
+    case groq
 
     public enum Genre: Sendable { case rond, grandeCase, bande }
 
@@ -35,7 +37,7 @@ public enum ElementCentre: String, CaseIterable, Sendable {
     /// La page où il vit.
     public var page: PageCentre {
         switch self {
-        case .eveil, .pressePapiers, .reformuler, .notes, .noteRapide: return .outils
+        case .eveil, .pressePapiers, .reformuler, .notes, .noteRapide, .groq: return .outils
         default: return .centre
         }
     }
@@ -60,6 +62,7 @@ extension ElementCentre {
         case .reformuler: return "Réécrit ta dernière dictée"
         case .notes: return "Tes notes rapides, gardées ici"
         case .noteRapide: return "Ta prochaine dictée devient une note"
+        case .groq: return "Ton usage de Groq aujourd\u{2019}hui"
         }
     }
     /// La plus longue phrase d'aide permise (en caractères) : au-delà, ce n'est plus une aide de survol.
@@ -77,8 +80,24 @@ public struct DispositionCentre: Equatable, Sendable {
     /// AirPods), Téléchargements, Claude Code, le minuteur et l'étagère, la bande « Noter la réunion ». « Modifier » propose d'ajouter
     /// Rappel et Dernière dictée (maquette, étape 9).
     public static let parDefaut: [ElementCentre] = [.micro, .dictee, .telechargements, .claude, .minuteur, .etagere, .reunion]
-    /// La page Outils telle qu'elle est la première fois (maquette, étape 8) : les quatre outils et la bande « Dicter une note ».
-    public static let parDefautOutils: [ElementCentre] = [.eveil, .pressePapiers, .reformuler, .notes, .noteRapide]
+    /// La page Outils telle qu'elle est la première fois (maquette, étape 8) : les quatre outils, la jauge de Groq (12/11) et la bande
+    /// « Dicter une note ».
+    public static let parDefautOutils: [ElementCentre] = [.eveil, .pressePapiers, .reformuler, .notes, .groq, .noteRapide]
+    /// Ce qui est arrivé après coup sur une page : une disposition déjà rangée par « Modifier » le reçoit UNE fois (à la fin de son genre,
+    /// s'il reste de la place), puis c'est à Hugues de le garder ou de le retirer.
+    public static let nouveautes: [ElementCentre] = [.groq]
+
+    /// Ajoute aux identifiants rangés les nouveautés de la page jamais proposées. Rend les identifiants (nil : jamais rangée, la disposition
+    /// par défaut les montre déjà) et la liste des nouveautés désormais proposées.
+    public static func avecNouveautes(_ ids: [String]?, page: PageCentre, dejaProposees: Set<String>) -> (ids: [String]?, proposees: Set<String>) {
+        let aProposer = nouveautes.filter { $0.page == page && !dejaProposees.contains($0.rawValue) }
+        var proposees = dejaProposees
+        aProposer.forEach { proposees.insert($0.rawValue) }
+        guard let ids else { return (nil, proposees) }
+        var d = DispositionCentre(identifiants: ids, page: page)
+        for e in aProposer where !ids.contains(e.rawValue) { d.ajouter(e) }
+        return (d.identifiants, proposees)
+    }
     public static func parDefaut(_ page: PageCentre) -> [ElementCentre] { page == .centre ? parDefaut : parDefautOutils }
 
     /// La page que cette disposition décrit : seuls ses éléments y entrent, « Ajouter : » ne propose qu'eux.

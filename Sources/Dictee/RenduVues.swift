@@ -201,6 +201,16 @@ enum RenduFenetre {
         let sansEncoche = ReglagesModele(reel: false); sansEncoche.iconeToujours = true
         fenetre("fenetre-14-reglages-sans-encoche-toute-la-hauteur", onglet: .reglages, store: exemple, mots: motsExemple(), reglages: sansEncoche, taille: CGSize(width: 1180, height: 2000))
         fenetre("fenetre-15-petite-reglages-toute-la-hauteur", onglet: .reglages, store: exemple, mots: motsExemple(), taille: CGSize(width: 700, height: 3900))
+        // l'usage de Groq (12/11) : la limite atteinte, le Mac prend le relais ; le français en téléchargement pour la dictée sur le Mac
+        let enPause = ReglagesModele(reel: false)
+        var k = CompteurGroq()
+        let t = Date()
+        k.noterEnvoi(secondesAudio: 480 * 60, modele: ModeleWhisper.precis.identifiant, a: t.addingTimeInterval(-6 * 3600))
+        for m in [ModeleWhisper.precis, .rapide] {
+            k.noterReponse(modele: m.identifiant, statut: 429, entete: { $0 == "retry-after" ? "2400" : nil }, messageErreur: "(ASD)", a: t)
+        }
+        enPause.exempleGroq(EtatGroq.calculer(k, modele: ModeleWhisper.precis.identifiant, secours: ModeleWhisper.rapide.identifiant, a: t))
+        fenetre("fenetre-16-reglages-groq-en-pause", onglet: .reglages, store: exemple, mots: motsExemple(), reglages: enPause, taille: CGSize(width: 1180, height: 2000))
         return ok ? 0 : 1
     }
 }

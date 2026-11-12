@@ -181,6 +181,13 @@ struct ReglagesVue: View {
                     BoutonCadre("Modifier", action: surCle)
                 }
             }
+            // l'usage de Groq : « Groq aujourd'hui : 42 min sur 480 · tout va bien » (compté sur ce Mac, rien n'est envoyé)
+            LigneReglage(libelle: r.ligneGroq, note: r.noteGroq) {
+                if let g = r.groq, g.niveau != .ok {
+                    Image(systemName: g.niveau == .epuise ? "pause.circle.fill" : "exclamationmark.circle.fill").foregroundStyle(.orange)
+                        .accessibilityLabel(g.niveau == .epuise ? "En pause" : "Bientôt à la limite")
+                }
+            }
             LigneReglage(libelle: "Autorisations", note: "Micro, accessibilité, saisie au clavier.") {
                 if r.autorisationsAccordees == 3 { Etat(texte: "3 sur 3") } else { Text("\(r.autorisationsAccordees) sur 3") }
                 BoutonCadre("Voir", action: surAutorisations)

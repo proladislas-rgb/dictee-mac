@@ -45,6 +45,11 @@ enum IlotEssai {
             c.envoyerNoteVersNotes = { _, fini in fini(false) }
             c.reglagesCentre.dispositionOutils = { nil }
             c.reglagesCentre.enregistrerDispositionOutils = { _ in }
+            c.reglagesCentre.nouveautesProposees = { Set(DispositionCentre.nouveautes.map(\.rawValue)) }
+            c.reglagesCentre.marquerNouveautes = { _ in }
+            // Groq : jamais le vrai usage ni la vraie reconnaissance du Mac
+            c.lireEtatGroq = { t in EtatGroq.calculer(CompteurGroq(), modele: ModeleWhisper.precis.identifiant, secours: ModeleWhisper.rapide.identifiant, a: t) }
+            c.lireProgressionParole = { nil }
             c.maintenant = { Date().addingTimeInterval(decalage) }
             c.sons = IlotControleur.SonsIlot(minuteurFini: { compteurs.minuteur += 1 }, rappel: { compteurs.rappel += 1 }, doux: { compteurs.doux += 1 }, silencieux: { compteurs.silence += 1 })
             c.ouvrir = { liensOuverts.append($0) }

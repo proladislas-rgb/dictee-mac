@@ -80,6 +80,13 @@ final class ReglagesModele: ObservableObject {
     @Published var confirmerEffacement = false
     @Published private(set) var disponibiliteSecours: PrechauffageParole.Disponibilite = .enPreparation
     @Published private(set) var cle: CleGroq.Etat = .absente
+    /// L'usage de Groq (« Groq aujourd'hui : 42 min sur 480 · tout va bien ») : compté sur ce Mac, relu à chaque requête.
+    @Published private(set) var groq: EtatGroq?
+    var ligneGroq: String { groq.map { TexteGroq.ligne($0, a: Date()) } ?? "Groq aujourd\u{2019}hui : 0 min sur 480" }
+    var noteGroq: String {
+        guard let groq else { return "Compté sur ce Mac, sur les dernières 24 h." }
+        return TexteGroq.note(groq) + (groq.niveau == .ok ? "" : " Si Groq s\u{2019}arrête, la dictée passe par le Mac.")
+    }
     @Published private(set) var autorisationsCompletes = true
     /// Combien des 3 autorisations (micro, accessibilité, saisie au clavier) sont accordées.
     @Published private(set) var autorisationsAccordees = 3
@@ -139,8 +146,27 @@ final class ReglagesModele: ObservableObject {
                     if self.micro != (Settings.micro ?? "") { self.micro = Settings.micro ?? "" } }
             }
         }
-        if reel { rafraichir() } else { micros.append(MicroChoix(id: "exemple", nom: "Micro du MacBook")); disponibiliteSecours = .pret; cle = .trousseau }
+        if reel {
+            // l'usage de Groq et la reconnaissance du Mac (téléchargement de la langue) changent hors de la fenêtre
+            for nom in [Notification.Name.verbeUsageGroq, .verbeParole] {
+                NotificationCenter.default.addObserver(forName: nom, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.groq = UsageGroqStore.partage.etat(); self?.disponibiliteSecours = PrechauffageParole.disponibilite }
+                }
+            }
+        }
+        if reel { rafraichir() } else {
+            micros.append(MicroChoix(id: "exemple", nom: "Micro du MacBook")); disponibiliteSecours = .pret; cle = .trousseau
+            var c = CompteurGroq()
+            let t = Date()
+            c.noterEnvoi(secondesAudio: 30 * 60, modele: ModeleWhisper.precis.identifiant, a: t.addingTimeInterval(-5 * 3600))
+            c.noterEnvoi(secondesAudio: 12 * 60, modele: ModeleWhisper.precis.identifiant, a: t.addingTimeInterval(-600))
+            c.noterReponse(modele: ModeleWhisper.precis.identifiant, statut: 200, entete: { ["x-ratelimit-limit-requests": "2000", "x-ratelimit-remaining-requests": "1814"][$0] },
+                           messageErreur: nil, a: t.addingTimeInterval(-600))
+            groq = EtatGroq.calculer(c, modele: ModeleWhisper.precis.identifiant, secours: ModeleWhisper.rapide.identifiant, a: t)
+        }
     }
+    /// Pour les rendus : un usage d'exemple (bas, en pause).
+    func exempleGroq(_ e: EtatGroq) { guard !reel else { return }; groq = e }
 
     /// Deux commandes de l'ancien menu de l'icône, qui n'avaient pas d'autre chemin (l'icône est éteinte par défaut sur un Mac à encoche).
     /// Le journal s'ouvre sur ce Mac, dans l'app choisie pour les fichiers texte.
@@ -155,6 +181,7 @@ final class ReglagesModele: ObservableObject {
         if !micro.isEmpty, micro != ChoixMicro.systeme, !micros.contains(where: { $0.id == micro }) { micros.append(MicroChoix(id: micro, nom: "Micro absent")) }
         disponibiliteSecours = PrechauffageParole.disponibilite
         cle = CleGroq.etat
+        groq = UsageGroqStore.partage.etat()
         phraseVitesse = Settings.latences.phrase()
         modeleWhisper = Settings.modeleWhisper
         autorisationsCompletes = Permissions.toutesOK
@@ -207,8 +234,9 @@ final class ReglagesModele: ObservableObject {
     var phraseSecours: String {
         guard secoursApple else { return "Sans secours, une dictée échoue si Groq ne répond pas." }
         switch disponibiliteSecours {
-        case .pret: return "Si Groq ne répond pas, la dictée d\u{2019}Apple prend le relais."
-        case .enPreparation: return "La dictée d\u{2019}Apple est en préparation."
+        case .pret: return "Si Groq ne répond pas (limite, réseau, panne), la dictée passe par le Mac. La suivante retente Groq."
+        case .enPreparation: return "La dictée sur le Mac est en préparation."
+        case .telechargement(let p): return "macOS télécharge le français pour la dictée sur le Mac : \(p) %."
         case .indisponible: return "La dictée d\u{2019}Apple est indisponible sur ce Mac."
         }
     }

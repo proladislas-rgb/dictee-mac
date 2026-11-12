@@ -153,6 +153,19 @@ if let i = arguments.firstIndex(of: "--banc-lexique"), i + 1 < arguments.count {
     RunLoop.main.run()
 }
 
+// Dictee --relais-essai fichier.wav ["texte attendu"] [--reserver]  (le relais sur le Mac : reconnaissance de macOS sur un fichier, lexique,
+// mise en forme ; ni réseau, ni micro, aucune autorisation demandée ; --reserver : réserve le français pour l'essai, puis le rend)
+if let i = arguments.firstIndex(of: "--relais-essai") {
+    guard i + 1 < arguments.count, !arguments[i + 1].hasPrefix("--") else {
+        FileHandle.standardError.write(Data("Usage : Dictee --relais-essai fichier.wav [\"texte attendu\"]\n".utf8))
+        exit(2)
+    }
+    let attendu = i + 2 < arguments.count && !arguments[i + 2].hasPrefix("--") ? arguments[i + 2] : nil
+    let reserver = arguments.contains("--reserver")
+    Task { @MainActor in exit(await RelaisEssai.executer(chemin: arguments[i + 1], attendu: attendu, reserver: reserver)) }
+    RunLoop.main.run()
+}
+
 // Une option inconnue ne doit jamais lancer la vraie app depuis un shell.
 let connues: Set<String> = ["--sans-interface"]
 if let inconnue = arguments.dropFirst().first(where: { $0.hasPrefix("--") && !connues.contains($0) && !$0.hasPrefix("--duree=") && !$0.hasPrefix("--verifier-parole=") }) {

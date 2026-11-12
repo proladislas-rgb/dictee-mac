@@ -40,6 +40,8 @@ struct BandeauIlot {
     var partis: PartisEtagere?
     /// Un envoi AirDrop depuis la zone « AirDrop » (bandeau `.etagereEnvoi`).
     var envoi: EnvoiEtagere?
+    /// Ce que dit un bandeau de Groq (`.groq`) : limite proche, atteinte, dictée passée par le Mac, détail de la jauge.
+    var groq: GenreBandeauGroq?
 }
 
 /// « 3 fichiers partis dans Mail · Remettre » : les icônes (une pile), la phrase, et le compte à rebours (l'anneau se vide jusqu'à
@@ -130,6 +132,8 @@ enum ActionIlot {
     case reformulationSource(SourceReformulation), reformuler(StyleReformulation), reformulationRemplacer, reformulationCopier
     /// Note rapide : l'envoyer dans l'app Notes, la supprimer.
     case noteVersNotes(UUID), noteSupprimer(UUID)
+    /// La jauge de Groq (page Outils) : le détail de l'usage.
+    case groqDetail
 }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
@@ -334,6 +338,8 @@ final class IlotMoteur: ObservableObject {
     /// « Garder éveillé » en cours (nil : la veille est normale), et son panneau ouvert (« combien de temps ? »).
     var eveil: EveilIlot? { didSet { if eveil != oldValue { rev += 1 } } }
     var panneauEveil = false { didSet { if panneauEveil != oldValue { rev += 1 } } }
+    /// L'usage de Groq (la jauge de la page Outils) ; nil tant que le contrôleur ne l'a pas lu.
+    var groq: EtatGroq? { didSet { if groq != oldValue { rev += 1 } } }
     /// Le panneau se montre tant qu'on choisit, ou tant que le Mac est gardé éveillé (pour voir jusqu'à quand, et l'éteindre).
     var panneauEveilVisible: Bool { panneauEveil || eveil != nil }
     /// Le presse-papiers : les cinq dernières copies (en mémoire), celle qui vient d'être recopiée ou collée, celle sous le pointeur.

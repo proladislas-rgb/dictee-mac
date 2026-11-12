@@ -267,3 +267,17 @@ Ancienne lecture (gardée si Hugues la confirme) : l'îlot ouvert devient une pi
 - À corriger en construisant : gris translucide au retour, Centre/bannière au-dessus de la ligne du Dock depuis un coin bas.
 - 12/11 01:21 : ouverture vers le haut au-dessus du Dock depuis un coin bas VALIDÉE (« très bien ») ; il veut ENCORE plus Liquid Glass → niveau « Liquide » (variante clear iOS 26, NSGlassEffectView style .clear dans l'app).
 - 12/11 : niveau « Liquide » (65be977) accepté (« si c'est pas possible, c'est très bien ») → dans l'app : NSGlassEffectView style .clear, le plus liquide possible, lisibilité gardée.
+
+## Limites de Groq et relais sur le Mac (12/11, branche groq-relais) — Hugues : « j'ai peur un jour d'arriver à mes limites sur Groq » (pas de Whisper local)
+Limites gratuites relevées sur console.groq.com/docs/rate-limits (12/11) : whisper-large-v3 ET whisper-large-v3-turbo, chacun 20 req/min,
+2 000 req/jour, 7 200 s d'audio/heure (ASH), 28 800 s/jour (ASD = 480 min). En-têtes : x-ratelimit-limit/remaining/reset-requests (= par
+JOUR), -tokens (par minute, rien pour l'audio), retry-after sur 429. Facturé 10 s au moins par requête (docs/speech-to-text).
+- [x] DicteeCore/UsageGroq.swift : compteur (envois audio 24 h, marge lue dans les en-têtes, pause d'une 429 et sa cause lue dans le corps), bilan, niveau (ok / bas < 15 % / épuisé), phrases, annonces (une fois par passage), décision du relais et signe
+- [x] Contrôles DicteeControles (horloge injectée, aucun réseau)
+- [x] App : GroqClient compte chaque requête (durée du son) et lit les en-têtes ; fichier local ~/Library/Application Support/Dictee/groq-usage.json (0600)
+- [x] Réglages : « Groq aujourd'hui : 42 min sur 480 · tout va bien » ; progression du téléchargement de la langue du Mac
+- [x] Îlot : rond « Groq » (jauge en anneau) sur la page Outils, détail au clic ; annonces < 15 % et limite atteinte ; signe « Mac » dans les ailes après une dictée passée par le Mac
+- [x] Relais : texte d'Apple corrigé à l'oreille (lexique) + mots du lexique donnés à SpeechAnalyzer (AnalysisContext) ; la dictée suivante retente Groq
+- [x] Vérif : build release, DicteeControles, --ilot-essai, rendus regardés, essai du relais sur un fichier `say`
+- Relais mesuré sur des fichiers `say` (voix Thomas, `--relais-essai … --reserver`) : 92 % et 95 % de mots justes (le seul écart : « 15h » pour « quinze heures »), 81 % avec trois noms propres (le lexique a corrigé Ladislas et Sillonia, pas « Lucarne » ni « Groq ») ; la voix Jacques ne vaut rien (50 %).
+- [ ] Hugues : essayer en vrai (couper le Wi-Fi, dicter : « Dicté sur le Mac · Pas de réseau », puis « Mac » dans les ailes ; la jauge des Outils ; la ligne des Réglages). Non vérifié d'ici : une vraie 429 de Groq (corps et en-têtes réels), la vraie dictée au micro par le relais, le téléchargement réel de la langue (déjà installée chez Hugues).

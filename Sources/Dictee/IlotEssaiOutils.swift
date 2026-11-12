@@ -94,7 +94,7 @@ extension IlotEssai {
         clic(pOutils, 0.9)
         verifier(m.courante == .outils && m.carteCourante == .outils && m.visible(ExtraIlot.points) && m.cartes == [.centre, .outils, .accueil, .dictees],
                  "vrai clic sur « Outils › » : la 2e page, son point allumé (\(m.courante))")
-        verifier(m.rondsDe(.outils) == [.eveil, .pressePapiers, .reformuler, .notes] && m.dispositionOutils.bande, "quatre ronds et la bande « Dicter une note » (maquette, étape 8)")
+        verifier(m.rondsDe(.outils) == [.eveil, .pressePapiers, .reformuler, .notes, .groq] && m.dispositionOutils.bande, "quatre ronds, la jauge de Groq et la bande « Dicter une note » (maquette, étape 8)")
         verifier(m.copies.count == 1 && pp.lectures == 1, "l'îlot s'est ouvert : le presse-papiers a été regardé une fois (\(pp.lectures) lecture)")
         pose("page Outils")
         // le 1er point (le Centre), le 2e (les Outils), un défilement (une carte), « ‹ Centre »
@@ -372,19 +372,21 @@ extension IlotEssai {
         verifier(m.editionCentre && m.courante == .outils, "vrai clic sur « Modifier » (page Outils) : les outils tremblent")
         let r = PlanCentre.centreRond(m, .reformuler)
         clic(CGPoint(x: r.x - 21, y: r.y - 21), 0.7)
-        verifier(m.rondsDe(.outils) == [.eveil, .pressePapiers, .notes], "vrai clic sur « – » de Reformuler : retiré (\(m.rondsDe(.outils)))")
+        verifier(m.rondsDe(.outils) == [.eveil, .pressePapiers, .notes, .groq], "vrai clic sur « – » de Reformuler : retiré (\(m.rondsDe(.outils)))")
         let pa = CGPoint(x: entO.minX + MesureIlot.texte(EnteteCentre.libelleAjouter, 12, .medium) + 6 + EnteteCentre.pastille(.reformuler) / 2, y: entO.midY)
         clic(pa, 0.7)
-        verifier(m.rondsDe(.outils) == [.eveil, .pressePapiers, .notes, .reformuler], "vrai clic sur « + Reformuler » : revenu au bout (\(m.rondsDe(.outils)))")
+        verifier(m.rondsDe(.outils) == [.eveil, .pressePapiers, .notes, .groq, .reformuler], "vrai clic sur « + Reformuler » : revenu au bout (\(m.rondsDe(.outils)))")
         clic(PlanCentre.centreRond(m, .pressePapiers).applying(.init(translationX: -21, y: -21)), 0.7)
         clic(CGPoint(x: entO.maxX - EnteteCentre.pilule(EnteteCentre.titreOK) / 2, y: entO.midY), 0.7)
-        verifier(!m.editionCentre && memoire == ["eveil", "notes", "reformuler", "note-rapide"], "« OK » : la page Outils enregistrée (\(memoire ?? []))")
+        verifier(!m.editionCentre && memoire == ["eveil", "notes", "groq", "reformuler", "note-rapide"], "« OK » : la page Outils enregistrée (\(memoire ?? []))")
         verifier(m.copies.isEmpty && c.compteurPressePapiers == nil, "Presse-papiers retiré : plus rien n'est gardé")
         let lectures1 = pp.lectures
         pp.copier(ContenuCopie(texte: "après le retrait")); m.fermer(); pause(0.5); m.clicForme(); pause(0.8); c.verifierPressePapiers()
         verifier(pp.lectures == lectures1 && m.copies.isEmpty, "… ni regardé : l'îlot s'ouvre, le presse-papiers n'est pas lu")
         verifier(DispositionCentre(identifiants: memoire, page: .outils) == m.dispositionOutils, "relu au lancement suivant : la même page")
         m.dispositionOutils = DispositionCentre(DispositionCentre.parDefautOutils, page: .outils); memoire = nil
+
+        groq(c, verifier: verifier, attendre: attendre, clic: { clic($0, $1) }, pose: { pose($0) })
 
         // --- Réduire les animations : la page se pose d'un coup
         m.fermer(); pause(0.6)
@@ -398,5 +400,86 @@ extension IlotEssai {
         verifier(eveil.actif, "avant la fermeture : toujours gardé éveillé")
         c.arreterLesOutils()
         verifier(!eveil.actif && m.eveil == nil, "fermeture de Verbe : rendu")
+    }
+
+    /// Groq (12/11) : la jauge de la page Outils (vrai clic : le détail), les annonces (sous 15 %, limite atteinte : une fois chacune), la
+    /// dictée passée par le Mac (bandeau la première fois, puis « Mac » dans les ailes), la langue du Mac en téléchargement. L'usage est
+    /// fabriqué (aucun appel à Groq, aucun fichier lu) ; l'heure est celle de l'essai.
+    @MainActor
+    static func groq(_ c: IlotControleur, verifier: (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void, clic: (CGPoint, Double) -> Void, pose: (String) -> Void) {
+        let m = c.moteur
+        func pause(_ s: Double) { attendre(s) { true } }
+        let large = ModeleWhisper.precis.identifiant, turbo = ModeleWhisper.rapide.identifiant
+        func etat(minutesJour: Double, pause p: Double? = nil, turboAussi: Bool = false) -> EtatGroq {
+            var k = CompteurGroq()
+            let t = c.maintenant()
+            if minutesJour > 0 { k.noterEnvoi(secondesAudio: minutesJour * 60, modele: large, a: t.addingTimeInterval(-3 * 3600)) }
+            if let p {
+                k.noterReponse(modele: large, statut: 429, entete: { $0 == "retry-after" ? "\(Int(p))" : nil }, messageErreur: "(ASD)", a: t)
+                if turboAussi { k.noterReponse(modele: turbo, statut: 429, entete: { $0 == "retry-after" ? "\(Int(p))" : nil }, messageErreur: "(ASD)", a: t) }
+            }
+            return EtatGroq.calculer(k, modele: large, secours: turbo, a: t)
+        }
+        print("Groq : jauge, annonces, relais sur le Mac")
+        var usage = etat(minutesJour: 42)
+        c.lireEtatGroq = { _ in usage }
+        c.lireProgressionParole = { nil }
+        c.alerteGroq = AlerteGroq(); c.suiviRelais = RelaisDictee.Suivi()
+        m.fermer(); pause(0.6)
+        m.clicForme(); pause(0.8); m.allerA(.outils); pause(0.9)
+        verifier(m.courante == .outils && m.etatCentre(.groq) == "42 min", "page Outils : la jauge de Groq, « 42 min » sous le rond (\(m.etatCentre(.groq)))")
+        verifier(abs((m.groq?.utilise ?? 0) - 42.0 / 480) < 0.001, "l'anneau : 42 min sur 480 utilisés (\(String(format: "%.3f", m.groq?.utilise ?? 0)))")
+        pose("page Outils avec la jauge de Groq")
+        clic(PlanCentre.centreRond(m, .groq), 0.9)
+        verifier(m.courante == .groq && m.bandeauVu?.ligne1 == "Groq aujourd\u{2019}hui : 42 min sur 480" && m.bandeauVu?.ligne2.hasPrefix("Tout va bien") == true,
+                 "vrai clic sur la jauge : « \(m.bandeauVu?.ligne1 ?? "") · \(m.bandeauVu?.ligne2 ?? "") » (\(m.courante))")
+        pose("bandeau détail de Groq")
+        attendre(6) { m.bandeau != nil }
+        // sous 15 % : annoncé une fois
+        usage = etat(minutesJour: 420)
+        c.groqChange(); pause(0.9)
+        verifier(m.courante == .groq && m.bandeauVu?.ligne1 == "Groq : il reste 12 %" && m.bandeauVu?.ligne2 == "420 min sur 480 aujourd\u{2019}hui" && m.bandeauVu?.groq == .bas,
+                 "sous 15 % : « \(m.bandeauVu?.ligne1 ?? "") · \(m.bandeauVu?.ligne2 ?? "") »")
+        pose("bandeau Groq bientôt à sa limite")
+        attendre(7) { m.bandeau != nil }
+        c.groqChange(); pause(0.4)
+        verifier(m.bandeau == nil, "toujours sous 15 % : pas redit (\(m.courante))")
+        // la limite atteinte, le turbo aussi : « Groq en pause jusqu'à … · Dictée sur le Mac »
+        usage = etat(minutesJour: 480, pause: 3600, turboAussi: true)
+        c.groqChange(); pause(0.9)
+        let heure = TexteGroq.quand(c.maintenant().addingTimeInterval(3600), a: c.maintenant())
+        verifier(m.bandeauVu?.ligne1 == "Groq en pause jusqu\u{2019}à " + heure && m.bandeauVu?.ligne2 == "Dictée sur le Mac" && m.bandeauVu?.groq == .epuise,
+                 "limite atteinte : « \(m.bandeauVu?.ligne1 ?? "") · \(m.bandeauVu?.ligne2 ?? "") »")
+        verifier(c.reveilGroq != nil, "un seul réveil à la fin de la pause (aucune minuterie qui tourne)")
+        pose("bandeau Groq en pause")
+        attendre(7) { m.bandeau != nil }
+        verifier(m.etatCentre(.groq).hasPrefix("Pause ") && m.groq?.utilise == 1, "sous le rond : « \(m.etatCentre(.groq)) », anneau plein")
+        // la dictée passée par le Mac
+        c.relaisDictee(.reseau); pause(0.9)
+        verifier(m.courante == .groq && m.bandeauVu?.ligne1 == "Dicté sur le Mac" && m.bandeauVu?.ligne2 == "Pas de réseau" && m.bandeauVu?.groq == .relais,
+                 "1re dictée passée par le Mac : « Dicté sur le Mac · Pas de réseau »")
+        pose("bandeau Dicté sur le Mac")
+        attendre(6) { m.bandeau != nil }
+        c.relaisDictee(.reseau); pause(0.5)
+        verifier(m.courante == .dicteeMac, "la suivante : « Mac » dans les ailes seulement (\(m.courante))")
+        // replié dans les ailes : la fenêtre n'a pas un point sous la barre (les onglets des apps), on ne vérifie donc que la largeur
+        attendre(1.4) { m.boucleActive }
+        verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && !m.boucleActive, "ailes Mac : \(String(format: "%.2f", m.trace.bande - Double(m.demiCamera))) pt dans la barre (≤ 66), posé sans boucle")
+        if let f = c.panneau.cadre {
+            verifier(Double(f.width) >= 2 * m.trace.corps && Double(f.height) <= Double(m.geometrie.hauteur) + 0.5,
+                     "ailes Mac : la fenêtre couvre les ailes (\(Int(f.width)) pt pour \(Int(2 * m.trace.corps))) sans descendre sous la barre (\(Int(f.height)) pt, trace \(String(format: "%.1f", m.trace.hauteur)))")
+        }
+        attendre(3) { m.bandeau != nil }
+        verifier(m.bandeau == nil && m.courante == .repos, "les ailes partent seules (\(m.courante))")
+        c.groqReussi()
+        c.relaisDictee(.limite); pause(0.5)
+        verifier(m.courante == .dicteeMac, "pour la limite (déjà annoncée) : les ailes seules")
+        attendre(3) { m.bandeau != nil }
+        // la langue du Mac en téléchargement
+        c.relaisIndisponible("Le Mac télécharge le français \u{00B7} 42 %"); pause(0.9)
+        verifier(m.bandeauVu?.ligne1 == "Dictée sur le Mac pas encore prête" && m.bandeauVu?.ligne2.hasSuffix("42 %") == true, "le Mac n'est pas prêt : la progression du téléchargement")
+        attendre(6) { m.bandeau != nil }
+        c.arreterGroq()
+        verifier(c.reveilGroq == nil && c.observateurGroq == nil, "arrêt : plus de réveil ni d'observateur")
     }
 }

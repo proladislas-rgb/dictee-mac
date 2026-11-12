@@ -158,6 +158,7 @@ extension ElementCentre {
         case .reformuler: return "Reformuler"
         case .notes: return "Notes"
         case .noteRapide: return "Dicter une note"
+        case .groq: return "Groq"
         }
     }
 }
@@ -206,6 +207,7 @@ extension IlotMoteur {
         case .pressePapiers: return copies.isEmpty ? "Vide" : (copies.count == 1 ? "1 récent" : "\(copies.count) récents")
         case .reformuler: return derniereDictee != nil ? "Dernière dictée" : "Texte choisi"
         case .notes: return notes.isEmpty ? "Aucune" : (notes.count == 1 ? "1 note" : "\(notes.count) notes")
+        case .groq: return groq.map { TexteGroq.court($0, a: maintenant()) } ?? "\u{2014}"
         case .reunion, .minuteur, .etagere, .noteRapide: return ""
         }
     }
@@ -437,6 +439,16 @@ struct CentreVue: View {
                        reduire: fige, edition: ed, rang: rang, statique: m.statique, retirer: retirer, etiquette: "Notes rapides") {
                 Image(systemName: "note.text").font(.system(size: 20, weight: .semibold)).foregroundStyle(.white)
             } action: { m.epinglerLeCentre(); m.ouvrirOutil(.outilNote) }
+        case .groq:
+            // la jauge : l'anneau = la part utilisée de la limite la plus serrée (vert, ambre sous 15 %, rouge à la limite)
+            let u = m.groq
+            let niveau = u?.niveau ?? .ok
+            TuileRonde(nom: e.nom, etat: etat, couleurEtat: JaugeGroq.encre(niveau), fond: nil,
+                       declencheur: "\(niveau)", colonne: l, tailleNom: t.nom, tailleEtat: t.etat, reduire: fige, edition: ed, rang: rang,
+                       statique: m.statique, retirer: retirer,
+                       etiquette: u.map { TexteGroq.ligne($0, a: m.maintenant()) + ". Voir le détail" } ?? "Groq : voir le détail") {
+                JaugeGroq(utilise: u?.utilise ?? 0, couleur: JaugeGroq.couleur(niveau))
+            } action: { agir(.groqDetail) }
         case .reunion, .minuteur, .etagere, .noteRapide:
             EmptyView()
         }
@@ -977,6 +989,9 @@ struct ReglagesCentre {
     /// Ce que la page Outils montre (« Modifier ») ; nil = jamais modifiée.
     var dispositionOutils: () -> [String]? = { Settings.ilotOutilsBoutons }
     var enregistrerDispositionOutils: ([String]) -> Void = { Settings.ilotOutilsBoutons = $0 }
+    /// Les nouveautés déjà proposées à une disposition rangée (la jauge de Groq, 12/11) : chacune une seule fois.
+    var nouveautesProposees: () -> Set<String> = { Set(Settings.ilotNouveautesProposees) }
+    var marquerNouveautes: (Set<String>) -> Void = { Settings.ilotNouveautesProposees = $0.sorted() }
     /// Le minuteur (Réglages › Îlot) : éteint, un clic sur « 5 », « 10 » ou « 25 » dans le Centre l'allume, puis lance le minuteur.
     var minuteurActif: () -> Bool = { Settings.ilotMinuteur }
     var allumerMinuteur: () -> Void = { Settings.ilotMinuteur = true }

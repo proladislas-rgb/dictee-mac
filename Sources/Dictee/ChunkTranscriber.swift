@@ -12,11 +12,12 @@ import DicteeCore
 final class ChunkTranscriber: @unchecked Sendable {
     enum Resultat {
         case texte(String)
-        case echec(String)
+        /// Groq n'a pas donné le texte : la raison écrite (journal) et sa nature (relais sur le Mac, signe dans l'îlot).
+        case echec(String, EchecGroq?)
         case delai
     }
 
-    struct Sortie { var texte: String? ; var erreur: String?; var retentable = false }
+    struct Sortie { var texte: String? ; var erreur: String?; var retentable = false; var echec: EchecGroq? = nil }
 
     /// Un morceau envoyé à Groq (ou prêt à l'être, s'il est seulement anticipé).
     final class Morceau: @unchecked Sendable {
@@ -165,7 +166,7 @@ final class ChunkTranscriber: @unchecked Sendable {
                 if let e = error as? GroqErreur {
                     switch e { case .reseau: retentable = true; case .http(let c): retentable = c >= 500; default: break }
                 }
-                return Sortie(texte: nil, erreur: "\(error)", retentable: retentable)
+                return Sortie(texte: nil, erreur: "\(error)", retentable: retentable, echec: (error as? GroqErreur)?.echec ?? .autre)
             }
         }
     }
@@ -271,7 +272,7 @@ final class ChunkTranscriber: @unchecked Sendable {
         }
         var parties: [String?] = []
         for s in sorties {
-            if let e = s.erreur { return .echec(e) }
+            if let e = s.erreur { return .echec(e, s.echec) }
             parties.append(s.texte)
         }
         return .texte(TextAssembler.joindre(parties))

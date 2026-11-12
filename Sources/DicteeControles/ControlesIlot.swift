@@ -1453,12 +1453,12 @@ func controlesOutils() {
     groupe("Îlot : Outils, « Modifier » sur la page Outils")
     typealias D = DispositionCentre
     let o0 = D(identifiants: nil, page: .outils)
-    verifier(o0.page == .outils && o0.elements == [.eveil, .pressePapiers, .reformuler, .notes, .noteRapide] && o0.bande && o0.cases.isEmpty,
-             "jamais modifiée : Garder éveillé, Presse-papiers, Reformuler, Notes, et la bande « Dicter une note » (maquette, étape 8)")
-    verifier(o0.ronds() == [.eveil, .pressePapiers, .reformuler, .notes] && o0.aAjouter().isEmpty, "quatre ronds, rien à ajouter")
+    verifier(o0.page == .outils && o0.elements == [.eveil, .pressePapiers, .reformuler, .notes, .groq, .noteRapide] && o0.bande && o0.cases.isEmpty,
+             "jamais modifiée : Garder éveillé, Presse-papiers, Reformuler, Notes, la jauge de Groq (12/11) et la bande « Dicter une note » (maquette, étape 8)")
+    verifier(o0.ronds() == [.eveil, .pressePapiers, .reformuler, .notes, .groq] && o0.aAjouter().isEmpty, "cinq ronds (la rangée est pleine), rien à ajouter")
     verifier(D(identifiants: nil).aAjouter(disponible: { _ in true }).allSatisfy { $0.page == .centre }, "le Centre ne propose jamais les outils (chacun sa page)")
     var o = o0
-    verifier(o.retirer(.reformuler) && o.aAjouter() == [.reformuler] && o.ronds() == [.eveil, .pressePapiers, .notes], "« – » sur Reformuler : retiré, « + Reformuler » proposé")
+    verifier(o.retirer(.reformuler) && o.aAjouter() == [.reformuler] && o.ronds() == [.eveil, .pressePapiers, .notes, .groq], "« – » sur Reformuler : retiré, « + Reformuler » proposé")
     verifier(!o.ajouter(.micro) && !o.peutAjouter(.rappel) && o.ajouter(.reformuler) && o.ronds().last == .reformuler, "un élément du Centre n'entre pas dans les Outils ; Reformuler revient au bout")
     verifier(o.retirer(.noteRapide) && !o.bande && o.ajouter(.noteRapide) && o.bande, "la bande « Dicter une note » se retire et revient")
     verifier(D(identifiants: o.identifiants, page: .outils) == o && D(identifiants: ["micro", "eveil", "notes"], page: .outils).elements == [.eveil, .notes],

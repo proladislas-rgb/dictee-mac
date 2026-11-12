@@ -46,13 +46,17 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// Ses cartes, ouvertes d'un clic sur un rond : le presse-papiers (les cinq dernières copies), Reformuler (la dernière dictée ou le
     /// texte choisi, réécrit), Note rapide (dicter une note, les notes gardées).
     case outils, outilPressePapiers, outilReformuler, outilNote
+    /// Groq (12/11) : un bandeau pour sa limite (« Groq : il reste 12 % », « Groq en pause jusqu'à 15:00 · Dictée sur le Mac »), son détail
+    /// (clic sur la jauge des Outils) et la première dictée passée par le Mac (« Dicté sur le Mac · Pas de réseau ») ; ensuite, une dictée
+    /// passée par le Mac le dit seulement dans les ailes (`dicteeMac` : l'ordinateur à gauche, « Mac » à droite).
+    case groq, dicteeMac
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
         switch self {
         case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
              .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .microFn, .volume, .luminosite, .claudeAttend, .claudeTermine,
-             .etagereEnvoi, .etagerePartis: return true
+             .etagereEnvoi, .etagerePartis, .groq, .dicteeMac: return true
         default: return false
         }
     }
@@ -126,6 +130,8 @@ public enum GeoIlot {
         // micro coupé : le micro barré (aile gauche) et « Coupé » (41 pt mesurés, aile droite : 60 − 8 − 4 = 48 pt) ; 60 + 6 = 66 ;
         // au survol, un petit déplié qui épouse « Micro coupé », le nom du micro et « Rouvrir » ; rouvert, « Ouvert » (44 pt) en vert
         .microCompact: compact(60), .microEtendu: bandeau, .microOuvert: compact(60), .microFn: bandeau,
+        // Groq : un bandeau ordinaire ; la dictée passée par le Mac, dans les ailes (l'ordinateur, « Mac » : 60 + 6 = 66)
+        .groq: bandeau, .dicteeMac: compact(60),
         // volume et luminosité : le haut-parleur (aile gauche) et une barre fine de 44 pt (aile droite : 8 pt de la caméra, 8 pt du
         // cou) ; 60 + 6 = 66. La maquette dessinait 96 pt : ça déborderait sur les icônes de la barre des menus
         .volume: compact(60), .luminosite: compact(60),
