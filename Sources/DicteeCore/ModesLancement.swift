@@ -9,8 +9,12 @@ public enum ModesLancement {
 
     /// Vrai : un mode de vérification. Son journal va dans un dossier temporaire, jamais dans le vrai journal de Hugues (12/11 : les
     /// « dossier inaccessible (errno 13) » d'un essai, mêlés à son usage réel, avaient été pris pour un vrai refus de Téléchargements).
-    public static func journalAPart(_ arguments: [String]) -> Bool {
-        arguments.dropFirst().contains { a in
+    /// `paquet` : le dossier de l'exécutable lancé (`Bundle.main.bundlePath`). Hors d'un paquet `.app` (le binaire de `.build/`, lancé
+    /// depuis le Terminal : essais, rendus, sondes), le journal est TOUJOURS à part, quelles que soient les options : seule l'app installée
+    /// (ou assemblée par build.sh) écrit dans le vrai journal.
+    public static func journalAPart(_ arguments: [String], paquet: String = Bundle.main.bundlePath) -> Bool {
+        if !paquet.hasSuffix(".app") { return true }
+        return arguments.dropFirst().contains { a in
             a.hasPrefix("--") && !optionsDeLApp.contains(a) && !prefixesDeLApp.contains(where: { a.hasPrefix($0) })
         }
     }

@@ -1921,11 +1921,16 @@ do {
 }
 groupe("Journal : les modes de vérification écrivent à part")
 do {
-    let x = "/Applications/Verbe.app/Contents/MacOS/Verbe"
-    verifier(!ModesLancement.journalAPart([x]), "la vraie app (aucune option) : le vrai journal")
-    verifier(!ModesLancement.journalAPart([x, "--sans-interface", "--duree=4", "--verifier-parole=a.wav"]), "--sans-interface (lancé par open) : le vrai journal")
+    let x = "/Applications/Voxile.app/Contents/MacOS/Voxile", app = "/Applications/Voxile.app"
+    verifier(!ModesLancement.journalAPart([x], paquet: app), "la vraie app (aucune option) : le vrai journal")
+    verifier(!ModesLancement.journalAPart([x, "--sans-interface", "--duree=4", "--verifier-parole=a.wav"], paquet: app), "--sans-interface (lancé par open) : le vrai journal")
     verifier(["--ilot-essai", "--rendu-ilot", "--transcrire", "--lecture-test", "--verifier-collage", "--rendu-icones", "--option-inconnue"]
-                .allSatisfy { ModesLancement.journalAPart([x, $0]) }, "tout autre mode (essais, rendus, réseau, option inconnue) : un journal à part")
+                .allSatisfy { ModesLancement.journalAPart([x, $0], paquet: app) }, "tout autre mode (essais, rendus, réseau, option inconnue) : un journal à part")
+    // le binaire de .build lancé depuis le Terminal : jamais le vrai journal, même sans option ou avec celles de l'app
+    let b = "/Users/x/dictee-mac/.build/arm64-apple-macosx/release"
+    verifier(ModesLancement.journalAPart([b + "/Dictee"], paquet: b) && ModesLancement.journalAPart([b + "/Dictee", "--sans-interface"], paquet: b),
+             "le binaire de .build (hors d'un .app) : toujours un journal à part")
+    verifier(ModesLancement.journalAPart(CommandLine.arguments), "ces contrôles eux-mêmes (hors d'un .app) : un journal à part")
     let j = ModesLancement.journalTemporaire.path
     verifier(!j.contains("/Library/Logs/") && j.hasPrefix(FileManager.default.temporaryDirectory.path), "le journal à part est dans le dossier temporaire (\(j))")
 }
