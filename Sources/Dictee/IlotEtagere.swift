@@ -198,8 +198,12 @@ extension IlotControleur {
             reglagesCentre.reglerCaptures(oui)
             moteur.capturesRefusees = false
             moteur.capturesAttente = oui
+            // l'option éteinte : la vignette de macOS revient si c'est Lucarne qui l'avait coupée (sinon plus rien ne montrerait la capture)
+            if !oui, moteur.vignetteEnHaut, vignetteSysteme.memoire() != nil { reglerVignette(false) }
             activerCaptures(oui)
             moteur.donneesChangees()
+        case .etagereVignette:
+            reglerVignette(!moteur.vignetteEnHaut)
         case .etagereCapturesReglages:
             moteur.capturesRefusees = false
             ouvrir(Self.reglagesFichiers)
@@ -245,6 +249,7 @@ extension IlotControleur {
 
     /// La carte Étagère a été vue, puis quittée : les captures arrivées ne sont plus « Nouveau ».
     func etagereVue() {
+        moteur.vignetteExpliquee = false
         guard !nouveautes.isEmpty else { return }
         nouveautes = []
         montrerEtagere()
@@ -289,11 +294,20 @@ extension IlotControleur {
     /// « Captures d'écran ici » : on surveille le dossier des captures (comme Téléchargements : le noyau prévient, aucun sondage). Au
     /// lancement, seulement si l'option est allumée (l'accès a alors déjà été donné).
     /// Le dossier est relu à chaque fois (réglages appliqués, étagère relue) : s'il a changé dans Capture d'écran, la surveillance passe
-    /// sur le nouveau.
+    /// sur le nouveau. Le dossier temporaire où macOS écrit les captures glissées depuis la vignette est surveillé en même temps : une
+    /// capture lâchée dans une app n'arrive jamais dans le dossier des captures (CapturesGlissees).
     func activerCaptures(_ oui: Bool) {
         moteur.capturesActives = oui
         moteur.capturesIntrouvable = false
         if oui {
+            moteur.vignetteEnHaut = VignetteCaptures.enHaut(vignetteSysteme.lire())
+            if !capturesGlisseesSource.actif, !capturesGlisseesBloquees {
+                // macOS crée « TemporaryItems » à son premier usage : créé d'avance, la toute première capture glissée est vue aussi
+                let t = dossierCapturesGlissees()
+                try? FileManager.default.createDirectory(at: t, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+                capturesGlisseesSource.dossier = t
+                capturesGlisseesSource.demarrer()
+            }
             let d = dossierCaptures()
             if capturesSource.actif {
                 guard capturesSource.dossier.standardizedFileURL != d.standardizedFileURL else { return }
@@ -303,27 +317,87 @@ extension IlotControleur {
             capturesSource.dossier = d
             capturesSource.demarrer()
         } else {
-            capturesSource.arreter()
+            capturesSource.arreter(); capturesGlisseesSource.arreter()
             moteur.capturesAttente = false
         }
     }
     /// Le dossier des captures est absent (disque débranché, dossier supprimé) : l'interrupteur dit ce qui est vrai (rien n'est
     /// surveillé) et la ligne dit pourquoi. Le réglage reste : au prochain lancement, ou au prochain clic, on réessaie.
     func capturesIntrouvables() {
+        capturesGlisseesSource.arreter()
         moteur.capturesAttente = false
         moteur.capturesActives = false
         moteur.capturesIntrouvable = true
         moteur.donneesChangees()
     }
-    /// De nouveaux fichiers finis dans le dossier des captures : les captures (pas les autres fichiers du Bureau) vont sur l'étagère,
-    /// marquées « Nouveau » ; la pile de l'aile compte un fichier de plus.
+    /// De nouveaux fichiers finis dans le dossier des captures, ou glissés depuis la vignette (dossier temporaire de macOS) : les
+    /// captures (pas les autres fichiers du Bureau, ni les dossiers) vont sur l'étagère, marquées « Nouveau » ; la pile de l'aile compte
+    /// un fichier de plus. Une même capture n'y est qu'une fois : sa copie dans le dossier des captures remplace la glissée.
     func capturesArrivees(_ l: [FichierTelecharge]) {
-        let urls = l.map(\.url).filter(estUneCapture)
+        let urls = l.filter { $0.taille != nil }.map(\.url).filter(estUneCapture)
         guard !urls.isEmpty, moteur.etagereActive else { return }
-        ranger(urls, nouveau: true)
+        let tri = CapturesGlissees.tri(arrivees: urls.map(\.path), etagere: etagere.elements)
+        // jamais de nom de fichier au journal
+        Log.ecrire("captures : \(urls.count) arrivée(s), dont \(urls.filter { CapturesGlissees.estGlissee($0.path) }.count) glissée(s) depuis la vignette ; "
+                   + "\(tri.ranger.count) à ranger, \(tri.remplaces.count) glissée(s) remplacée(s) par sa copie du dossier des captures")
+        for id in tri.remplaces { etagere.retirer(id); iconesEtagere[id] = nil; nouveautes.remove(id) }
+        guard !tri.ranger.isEmpty else { if !tri.remplaces.isEmpty { sauverEtagere(); montrerEtagere() }; return }
+        ranger(tri.ranger.map { URL(fileURLWithPath: $0) }, nouveau: true)
+        // celles qui ont trouvé leur place (étagère pleine de fichiers rangés à la main : pas toutes)
+        let ranges = tri.ranger.filter { c in etagere.elements.contains { $0.nom == (c as NSString).lastPathComponent } }
+        if let derniere = ranges.last { annoncerCaptures(ranges.map { ($0 as NSString).lastPathComponent }, vignette: URL(fileURLWithPath: derniere)) }
+    }
+
+    /// « Vignette des captures en haut » : allumé, la vignette flottante de macOS est coupée (la valeur d'avant est retenue) et la
+    /// capture arrive tout de suite, annoncée en haut ; éteint, la valeur retenue revient, exactement. Relu après écriture : l'interrupteur
+    /// dit ce qui est vrai.
+    func reglerVignette(_ oui: Bool) {
+        let r = vignetteSysteme, avant = r.lire()
+        if oui, !VignetteCaptures.enHaut(avant) {
+            r.retenir(VignetteCaptures.memoire(avant)); r.ecrire(false)
+        } else if !oui, VignetteCaptures.enHaut(avant) {
+            r.ecrire(VignetteCaptures.restauration(r.memoire())); r.retenir(nil)
+        }
+        moteur.vignetteEnHaut = VignetteCaptures.enHaut(r.lire())
+        moteur.vignetteExpliquee = oui && moteur.vignetteEnHaut
+        Log.ecrire("captures : vignette de macOS " + (moteur.vignetteEnHaut ? "coupée, les captures s'annoncent en haut" : "rendue"))
+        moteur.donneesChangees()
+    }
+
+    /// « Capture d’écran · Sur l’étagère » (2,5 s, sans son ; « 3 captures » pour une rafale). Pas pendant la dictée ni la réunion (il
+    /// attend, comme tout bandeau), ni par-dessus une autre annonce encore à l'écran, ni quand la carte Étagère est déjà sous les yeux
+    /// (la tuile « Nouveau » suffit). Une capture déjà annoncée (sa copie après un glisser annulé) ne s'annonce pas deux fois.
+    func annoncerCaptures(_ noms: [String], vignette url: URL) {
+        let t = maintenant()
+        guard moteur.capturesActives, rafaleCaptures.ajouter(noms, a: t), moteur.courante != .etagere else { return }
+        if moteur.alerte != nil { return }
+        if let b = moteur.bandeau, b.vue != .etagereCapture, b.jusqua > t { return }
+        moteur.miniatureSurvolee = false
+        moteur.annoncer(bandeau: BandeauIlot(vue: .etagereCapture, jusqua: t.addingTimeInterval(RafaleCaptures.duree), ligne1: rafaleCaptures.titre,
+                                             ligne2: RafaleCaptures.sousTitre, vignette: Self.vignetteCapture(url), capture: url))
+    }
+
+    /// La miniature d'une capture (lue à 96 px, coins arrondis, un filet clair) ; illisible : l'icône du Finder.
+    nonisolated static func vignetteCapture(_ url: URL) -> NSImage {
+        let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceThumbnailMaxPixelSize: 96,
+                                        kCGImageSourceCreateThumbnailWithTransform: true]
+        guard let s = CGImageSourceCreateWithURL(url as CFURL, nil), let cg = CGImageSourceCreateThumbnailAtIndex(s, 0, options as CFDictionary) else {
+            return NSWorkspace.shared.icon(forFile: url.path)
+        }
+        let echelle = ContenuAnnonce.coteIcone / CGFloat(max(cg.width, cg.height))
+        let taille = NSSize(width: CGFloat(cg.width) * echelle, height: CGFloat(cg.height) * echelle)
+        return NSImage(size: taille, flipped: false) { r in
+            let chemin = NSBezierPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), xRadius: 5, yRadius: 5)
+            NSGraphicsContext.saveGraphicsState(); chemin.addClip()
+            NSImage(cgImage: cg, size: taille).draw(in: r)
+            NSGraphicsContext.restoreGraphicsState()
+            NSColor.white.withAlphaComponent(0.25).setStroke(); chemin.lineWidth = 1; chemin.stroke()
+            return true
+        }
     }
     /// macOS a refusé l'accès au dossier des captures : l'interrupteur revient sur éteint, la carte dit où le rendre.
     func capturesRefusees() {
+        capturesGlisseesSource.arreter()
         reglagesCentre.reglerCaptures(false)
         Log.ecrire("captures : accès au dossier refusé, option éteinte")
         moteur.capturesAttente = false
@@ -337,6 +411,13 @@ extension IlotControleur {
         let d = UserDefaults(suiteName: "com.apple.screencapture")
         let chemin = CapturesEcran.dossier(location: d?.string(forKey: "location"), maison: FileManager.default.homeDirectoryForCurrentUser.path)
         return URL(fileURLWithPath: chemin, isDirectory: true)
+    }
+    /// Le dossier temporaire où macOS écrit les captures glissées depuis la vignette : « TemporaryItems » dans le dossier temporaire de
+    /// l'utilisateur, lu chez le système (confstr) et non dans $TMPDIR, qu'un lancement depuis un terminal peut avoir changé.
+    static func dossierCapturesGlisseesParDefaut() -> URL {
+        var tampon = [CChar](repeating: 0, count: Int(PATH_MAX))
+        let tmp = confstr(_CS_DARWIN_USER_TEMP_DIR, &tampon, tampon.count) > 0 ? String(cString: tampon) : NSTemporaryDirectory()
+        return URL(fileURLWithPath: CapturesGlissees.dossier(temporaire: tmp), isDirectory: true)
     }
     /// Une capture : la marque que macOS pose dessus (attribut étendu kMDItemIsScreenCapture), ou son nom (« Capture d’écran … »).
     /// `prefixe` : le début de nom choisi dans Capture d'écran (lu dans ses réglages ; l'essai n'y touche pas et passe nil).
@@ -747,8 +828,14 @@ struct DepotEtagere: View {
 struct CarteEtagere: View {
     @ObservedObject var m: IlotMoteur
     var g: GrilleIlot
-    /// La ligne « Captures d'écran ici », depuis le centre de l'encoche (essais : où cliquer).
-    static func cadreCaptures(_ g: GrilleIlot) -> CGRect {
+    /// La ligne « Captures d'écran ici », depuis le centre de l'encoche (essais : où cliquer). `vignette` : la ligne « Vignette des
+    /// captures en haut » est dessous (l'option allumée).
+    static func cadreCaptures(_ g: GrilleIlot, vignette: Bool = false) -> CGRect {
+        let z = g.zone(.etagere, haut: 10, bas: 12), dessous = vignette ? CGFloat(GeoIlot.ligneVignette) : 0
+        return CGRect(x: z.minX, y: z.maxY - dessous - CGFloat(GeoIlot.ligneCaptures), width: z.width, height: CGFloat(GeoIlot.ligneCaptures))
+    }
+    /// La ligne « Vignette des captures en haut », tout en bas.
+    static func cadreVignette(_ g: GrilleIlot) -> CGRect {
         let z = g.zone(.etagere, haut: 10, bas: 12)
         return CGRect(x: z.minX, y: z.maxY - CGFloat(GeoIlot.ligneCaptures), width: z.width, height: CGFloat(GeoIlot.ligneCaptures))
     }
@@ -795,6 +882,10 @@ struct CarteEtagere: View {
             }
             Spacer(minLength: 0)
             LigneCaptures(m: m).frame(height: CGFloat(GeoIlot.ligneCaptures)).aspectIlot(m.aspect(v, rang: 3), ancre: .top)
+            if m.capturesActives {
+                LigneVignette(m: m).frame(height: CGFloat(GeoIlot.ligneCaptures)).padding(.top, CGFloat(GeoIlot.ligneVignette - GeoIlot.ligneCaptures))
+                    .aspectIlot(m.aspect(v, rang: 3), ancre: .top)
+            }
         }
         .frame(width: z.width, height: z.height, alignment: .top)
         .offset(x: IlotMoteur.largeur / 2 + z.minX, y: z.minY)
@@ -826,6 +917,46 @@ struct LigneCaptures: View {
         .padding(.horizontal, 12)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.08)))
     }
+}
+
+/// « Vignette des captures en haut » (Hugues, 12/11 : la vignette de macOS en bas à droite passait avant l'annonce) : allumé, macOS
+/// n'affiche plus sa vignette, la capture arrive tout de suite et s'annonce en haut, glissable vers une app comme l'était la sienne.
+struct LigneVignette: View {
+    @ObservedObject var m: IlotMoteur
+    static let titre = "Vignette des captures en haut"
+    var body: some View {
+        let sous = m.vignetteExpliquee ? "macOS ne montre plus la sienne : glisse-la depuis l\u{2019}îlot"
+            : (m.vignetteEnHaut ? "La capture s\u{2019}annonce ici aussitôt" : "Celle de macOS attend 5 s en bas à droite")
+        HStack(spacing: 10) {
+            Image(systemName: "rectangle.topthird.inset.filled").font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.white.opacity(0.8)).frame(width: 20)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(Self.titre).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                Text(sous).font(.system(size: 11, weight: .medium)).foregroundStyle(CouleursIlot.encre3).lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            InterrupteurIlot(actif: m.vignetteEnHaut, animer: !m.reduire && !m.statique, etiquette: Self.titre) { m.surAction(.etagereVignette) }
+        }
+        .padding(.horizontal, 12)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.08)))
+    }
+}
+
+/// Le réglage de la vignette flottante de macOS (com.apple.screencapture « show-thumbnail ») et la valeur que Lucarne a retenue
+/// avant de la couper. Injectable : l'essai passe un faux, le vrai réglage n'est jamais lu ni écrit par lui.
+struct ReglageVignette {
+    var lire: () -> Bool?
+    var ecrire: (Bool?) -> Void
+    var memoire: () -> String?
+    var retenir: (String?) -> Void
+    static let domaine = "com.apple.screencapture" as CFString
+    static let systeme = ReglageVignette(
+        lire: { CFPreferencesCopyAppValue(VignetteCaptures.cle as CFString, domaine) as? Bool },
+        ecrire: { v in
+            CFPreferencesSetAppValue(VignetteCaptures.cle as CFString, v.map { NSNumber(value: $0) }, domaine)
+            CFPreferencesAppSynchronize(domaine)
+        },
+        memoire: { UserDefaults.standard.string(forKey: "ilotVignetteAvant") },
+        retenir: { v in if let v { UserDefaults.standard.set(v, forKey: "ilotVignetteAvant") } else { UserDefaults.standard.removeObject(forKey: "ilotVignetteAvant") } })
 }
 
 /// Un interrupteur comme ceux de macOS (38 × 22 pt), vert allumé.

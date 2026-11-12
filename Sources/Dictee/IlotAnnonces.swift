@@ -41,6 +41,8 @@ struct ContenuAnnonce {
     var coupureL1: Text.TruncationMode = .tail
     /// Le fichier qu'on peut glisser hors du bandeau (icône et nom).
     var glisser: URL? = nil
+    /// Le fichier de l'étagère que le symbole laisse reprendre (glisser vers une app, clic : la carte), avec la source AppKit des tuiles.
+    var source: FichierEtagere? = nil
     /// À la place du symbole : l'étoile de Claude (dessinée, en corail).
     var etoile = false
     /// Après les pilules : l'anneau qui se vide jusqu'à `fin` (« Remettre » des fichiers partis), sur `duree` secondes.
@@ -163,6 +165,14 @@ extension IlotMoteur {
                                   droite: .boutons([.init(titre: seul ? "Ouvrir" : "Afficher", etiquette: seul ? "Ouvrir \(premier.nom)" : "Afficher dans le Finder",
                                                           action: .fichiersOuvrir(d.urls))]),
                                   icones: d.icones, coteSymbole: ContenuAnnonce.coteIcone, coupureL1: seul ? .middle : .tail, glisser: seul ? premier.url : nil)
+        case .etagereCapture:
+            guard let b else { return nil }
+            // la miniature se reprend comme une tuile de l'étagère : la capture elle-même, déjà rangée (son image sous le pointeur)
+            let nom = b.capture?.lastPathComponent
+            var f = etagere.last { $0.nom == nom }
+            if let v = b.vignette { f?.icone = v }
+            return ContenuAnnonce(glyphe: GlypheIlot(nom: "camera.viewfinder", couleur: .white, taille: 21), l1: b.ligne1, l2: b.ligne2,
+                                  icones: b.vignette.map { [$0] } ?? [], coteSymbole: ContenuAnnonce.coteIcone, source: f)
         case .claudeAttend:
             // « second-cerveau attend ta réponse », et les premiers mots de sa question (le message de la notification de Claude Code)
             let s = b?.claude

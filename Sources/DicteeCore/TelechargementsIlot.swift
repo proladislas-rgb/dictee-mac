@@ -69,12 +69,15 @@ public struct VeilleTelechargements {
     /// sans que le dossier ne prévienne (seuls les ajouts, retraits et renommages le font). On les relit donc de loin en loin.
     public private(set) var vides: [String: (premier: Date, prochaine: Date)] = [:]
     public static let stabilite: TimeInterval = 1
+    /// La stabilité demandée à cette veille (`stabilite` par défaut ; plus court pour les captures, que macOS écrit d'un coup).
+    public let delai: TimeInterval
     /// Un candidat qui grossit encore au bout d'une demi-heure n'est plus suivi (aucune relecture sans fin).
     public static let abandon: TimeInterval = 1800
     /// Les relectures d'un fichier vide, depuis qu'on l'a vu : de plus en plus espacées, jamais au-delà de `abandon`.
     public static let pasVides: [TimeInterval] = [1, 3, 10, 30, 60, 120, 300, 600, 1200, 1800]
 
-    public init(existants: [EntreeDossier]) {
+    public init(existants: [EntreeDossier], stabilite: TimeInterval = VeilleTelechargements.stabilite) {
+        delai = stabilite
         connus = Dictionary(existants.map { ($0.nom, Self.cle($0)) }, uniquingKeysWith: { a, _ in a })
     }
 
@@ -107,7 +110,7 @@ public struct VeilleTelechargements {
             }
             if let c = candidats[n] {
                 if c.entree == e {
-                    if t.timeIntervalSince(c.depuis) >= Self.stabilite - 0.02 { prets.append(e); connus[n] = Self.cle(e); candidats[n] = nil }
+                    if t.timeIntervalSince(c.depuis) >= delai - 0.02 { prets.append(e); connus[n] = Self.cle(e); candidats[n] = nil }
                 } else if t.timeIntervalSince(c.premier) > Self.abandon {
                     connus[n] = Self.cle(e); candidats[n] = nil
                 } else {
@@ -134,7 +137,7 @@ public struct VeilleTelechargements {
     /// Quand relire le dossier (le premier candidat qui aura été stable assez longtemps, ou le prochain coup d'œil à un fichier vide) ;
     /// nil : rien n'attend, aucun réveil.
     public var prochaineRelecture: Date? {
-        (candidats.values.map { $0.depuis.addingTimeInterval(Self.stabilite) } + vides.values.map(\.prochaine)).min()
+        (candidats.values.map { $0.depuis.addingTimeInterval(delai) } + vides.values.map(\.prochaine)).min()
     }
 }
 

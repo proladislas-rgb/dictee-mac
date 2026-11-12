@@ -42,6 +42,10 @@ struct BandeauIlot {
     var envoi: EnvoiEtagere?
     /// Ce que l'îlot répond à « Lucarne, … » ou dit de l'app Rappels (bandeau `.lucarne`).
     var lucarne: MessageLucarne?
+    /// La miniature de la dernière capture arrivée sur l'étagère (bandeau `.etagereCapture`).
+    var vignette: NSImage?
+    /// La capture elle-même : la miniature se glisse vers une app (comme la vignette de macOS).
+    var capture: URL?
 }
 
 /// Le bandeau `.lucarne` : une commande dite qui n'a pas abouti (rien n'est collé : la phrase est là, avec « Copier »), ou l'app Rappels.
@@ -151,7 +155,7 @@ enum ActionIlot {
     case etagereSortis([UUID], NSPoint)
     case etagereRemettre
     /// L'interrupteur « Captures d'écran ici » de la carte Étagère ; la ligne « Accès refusé » (elle ouvre Réglages Système).
-    case etagereCaptures, etagereCapturesReglages
+    case etagereCaptures, etagereCapturesReglages, etagereVignette
     /// Les Outils (IlotOutils.swift) : garder le Mac éveillé (nil : l'arrêter) ;
     case eveil(DureeEveil?)
     /// le presse-papiers : recopier un élément (clic), le coller dans l'app d'où l'on vient (« Coller »), tout effacer ;
@@ -318,6 +322,12 @@ final class IlotMoteur: ObservableObject {
     var capturesRefusees = false { didSet { if capturesRefusees != oldValue { rev += 1 } } }
     /// Le dossier des captures est absent (disque débranché) : rien n'est surveillé, la ligne le dit.
     var capturesIntrouvable = false { didSet { if capturesIntrouvable != oldValue { rev += 1 } } }
+    /// « Vignette des captures en haut » : la vignette de macOS est coupée, la capture s'annonce dans l'îlot ; `vignetteExpliquee` :
+    /// on vient de l'allumer, la ligne dit ce qui change (jusqu'à la fermeture de la carte).
+    var vignetteEnHaut = false { didSet { if vignetteEnHaut != oldValue { rev += 1 } } }
+    var vignetteExpliquee = false { didSet { if vignetteExpliquee != oldValue { rev += 1 } } }
+    /// Le pointeur est sur la miniature de l'annonce d'une capture : elle grossit un peu (on peut l'attraper).
+    var miniatureSurvolee = false { didSet { if miniatureSurvolee != oldValue { rev += 1 } } }
     /// La carte Étagère vient de se fermer après avoir été vue : les fichiers « Nouveau » ne le sont plus.
     var surEtagereVue: () -> Void = {}
     /// La batterie du Mac (nil : Mac sans batterie, ou réglage éteint) et les écouteurs connectés : les épaules de l'îlot déplié.
@@ -597,6 +607,7 @@ final class IlotMoteur: ObservableObject {
         var d: [VueIlot: CGFloat] = [:]
         if etagereActive, !etagere.isEmpty { d[.lectureMinuteur] = CGFloat(GeoIlot.ligneAccueil) }
         if EtagereIlot.rangees(etagere.count) > 1 { d[.etagere] = CGFloat(GeoIlot.rangeeEtagere) }
+        if capturesActives { d[.etagere, default: 0] += CGFloat(GeoIlot.ligneVignette) }
         // le Centre suit ce qu'il montre (« Modifier ») : les fichiers de l'étagère en haut, ronds, cases et bande de la réunion ; la page
         // Outils aussi (le panneau « Garder éveillé » prend la place des cases), et les cartes des outils suivent leur contenu
         let p = planDe(.centre).profondeur
@@ -949,6 +960,8 @@ final class IlotMoteur: ObservableObject {
 
     /// Clic sur la forme (hors boutons) : épingle ou relâche l'état déplié. L'îlot vide s'ouvre sur le Centre.
     func clicForme() {
+        // « Capture d’écran · Sur l’étagère » : un clic ouvre l'étagère
+        if bandeau?.vue == .etagereCapture, alerte == nil, !cache { bandeau = nil; ouvrirEtagere(); return }
         guard !cache, !resolution.verrou, resolution.survol != nil else { return }
         intention?.cancel(); fermeture?.cancel()
         if epingle { fermer(); return }

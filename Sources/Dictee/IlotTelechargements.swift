@@ -25,9 +25,27 @@ final class SourceTelechargements {
     var dossier: URL = SourceTelechargements.dossierParDefaut
     /// Le nom de la surveillance dans le journal (« téléchargements », « captures » : la même mécanique sert au dossier des captures).
     let etiquette: String
+    /// Les noms à suivre dans le dossier (ses noms, par défaut ; pour les captures glissées, aussi le contenu de certains
+    /// sous-dossiers, en « sous-dossier/fichier »). Appelé sur la file de la surveillance.
+    let lister: @Sendable (URL) throws -> [String]
+    /// Combien de temps un nouveau fichier doit rester tel quel avant d'être annoncé.
+    let stabilite: TimeInterval
     private var travail: SurveillanceDossier?
 
-    init(etiquette: String = "téléchargements") { self.etiquette = etiquette }
+    init(etiquette: String = "téléchargements", lister: @escaping @Sendable (URL) throws -> [String] = SourceTelechargements.listerDossier,
+         stabilite: TimeInterval = VeilleTelechargements.stabilite) {
+        self.etiquette = etiquette; self.lister = lister; self.stabilite = stabilite
+    }
+
+    /// Les noms du dossier.
+    nonisolated static let listerDossier: @Sendable (URL) throws -> [String] = { try FileManager.default.contentsOfDirectory(atPath: $0.path) }
+    /// Le dossier temporaire de macOS (« TemporaryItems ») : les dossiers de Capture d'écran et leurs fichiers, rien d'autre.
+    nonisolated static let listerCapturesGlissees: @Sendable (URL) throws -> [String] = { racine in
+        let fm = FileManager.default
+        return CapturesGlissees.noms(racine: try fm.contentsOfDirectory(atPath: racine.path)) {
+            (try? fm.contentsOfDirectory(atPath: racine.appendingPathComponent($0, isDirectory: true).path)) ?? []
+        }
+    }
 
     var actif: Bool { travail != nil }
 
@@ -38,7 +56,7 @@ final class SourceTelechargements {
 
     func demarrer() {
         guard travail == nil else { return }
-        let t = SurveillanceDossier(dossier: dossier, etiquette: etiquette)
+        let t = SurveillanceDossier(dossier: dossier, etiquette: etiquette, lister: lister, stabilite: stabilite)
         travail = t
         // ce qui arrive après un arrêt (ou d'une ancienne surveillance) est ignoré
         t.surArrivee = { [weak self, weak t] l in
@@ -63,6 +81,8 @@ final class SourceTelechargements {
 private final class SurveillanceDossier: @unchecked Sendable {
     let dossier: URL
     let etiquette: String
+    let lister: @Sendable (URL) throws -> [String]
+    let stabilite: TimeInterval
     private let file = DispatchQueue(label: "verbe.ilot.dossier", qos: .utility)
     var surArrivee: ([FichierTelecharge]) -> Void = { _ in }
     /// L'ouverture a échoué ; vrai : c'est un refus d'accès.
@@ -73,7 +93,9 @@ private final class SurveillanceDossier: @unchecked Sendable {
     private var relecture: DispatchWorkItem?
     private var arrete = false
 
-    init(dossier: URL, etiquette: String) { self.dossier = dossier; self.etiquette = etiquette }
+    init(dossier: URL, etiquette: String, lister: @escaping @Sendable (URL) throws -> [String], stabilite: TimeInterval) {
+        self.dossier = dossier; self.etiquette = etiquette; self.lister = lister; self.stabilite = stabilite
+    }
 
     func demarrer() { file.async { self.ouvrir() } }
 
@@ -102,7 +124,7 @@ private final class SurveillanceDossier: @unchecked Sendable {
             surEchec(e.map(Self.estUnRefus) ?? false); return
         }
         // ce qui est déjà là au lancement n'est jamais annoncé
-        veille = VeilleTelechargements(existants: noms.compactMap(mesurer))
+        veille = VeilleTelechargements(existants: noms.compactMap(mesurer), stabilite: stabilite)
         let s = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename, .delete], queue: file)
         s.setEventHandler { [weak self] in self?.relire() }
         s.setCancelHandler { close(fd) }
@@ -133,7 +155,7 @@ private final class SurveillanceDossier: @unchecked Sendable {
         file.asyncAfter(deadline: .now() + max(0.05, quand.timeIntervalSinceNow), execute: item)
     }
 
-    private func lireNoms() throws -> [String] { try FileManager.default.contentsOfDirectory(atPath: dossier.path) }
+    private func lireNoms() throws -> [String] { try lister(dossier) }
 
     /// Un vrai refus d'accès (la réponse de macOS, ou Réglages Système), pas un dossier absent ou un incident passager.
     static func estUnRefus(_ e: Int32) -> Bool { e == EPERM || e == EACCES }

@@ -298,6 +298,25 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = telecharge([("Rapport-annuel-2026-direction-financière-version-définitive-signée-v3.pdf", 18_734_000, false, .pdf)]) }) }, "ilot-14b-telecharge-nom-long")
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = telecharge([("IMG_2041.HEIC", 3_100_000, true, .heic)]) }) }, "ilot-14c-recu-par-airdrop")
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.bandeau = telecharge([("Photo 1.heic", 900_000, false, .heic), ("Photo 2.heic", 800_000, false, .heic), ("Devis.pdf", 1_400_000, false, .pdf)]) }) }, "ilot-14d-trois-fichiers-pendant-video")
+        // une capture d'écran arrive sur l'étagère (« Captures d'écran ici ») : sa miniature (une fausse capture, écrite dans un dossier
+        // temporaire, lue par le vrai chemin), « Capture d’écran · Sur l’étagère » ; une rafale de trois
+        let fausseCapture = FileManager.default.temporaryDirectory.appendingPathComponent("rendu-ilot-capture.png")
+        let dessin = NSImage(size: NSSize(width: 1600, height: 1000), flipped: false) { r in
+            NSGradient(starting: NSColor(calibratedRed: 0.20, green: 0.36, blue: 0.62, alpha: 1), ending: NSColor(calibratedRed: 0.55, green: 0.32, blue: 0.58, alpha: 1))?.draw(in: r, angle: -35)
+            NSColor.white.setFill(); NSBezierPath(roundedRect: NSRect(x: 240, y: 170, width: 1120, height: 680), xRadius: 24, yRadius: 24).fill()
+            NSColor(white: 0.92, alpha: 1).setFill(); NSRect(x: 240, y: 790, width: 1120, height: 60).fill()
+            NSColor(white: 0.80, alpha: 1).setFill(); for i in 0..<6 { NSRect(x: 300, y: 690 - i * 80, width: 640 - (i % 3) * 120, height: 26).fill() }
+            return true
+        }
+        if let t = dessin.tiffRepresentation, let png = NSBitmapImageRep(data: t)?.representation(using: .png, properties: [:]) { try? png.write(to: fausseCapture) }
+        let vignette = IlotControleur.vignetteCapture(fausseCapture)
+        func captures(_ n: Int) -> BandeauIlot {
+            var r = RafaleCaptures()
+            r.ajouter((1...n).map { "Capture d\u{2019}écran 2026-11-12 à 00.16.\(20 + $0).png" }, a: t0)
+            return BandeauIlot(vue: .etagereCapture, jusqua: t0, ligne1: r.titre, ligne2: RafaleCaptures.sousTitre, vignette: vignette)
+        }
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = captures(1) }) }, "ilot-14e-capture-sur-etagere")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = captures(3) }) }, "ilot-14f-trois-captures-sur-etagere")
         // micro coupé (maquette ilot-apple.html, cinq idées de plus, 5) : seul, pendant une vidéo (la vidéo en bulle), au survol (le
         // Centre, où est le bouton Micro ; pendant une vidéo, la vidéo), rouvert, et la vidéo reprise par un clic sur la bulle
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.microCoupe = true; $0.nomMicro = "Micro MacBook Air" }) }, "ilot-19a-micro-coupe")
@@ -434,7 +453,10 @@ enum RenduLecture {
                                     partis: PartisEtagere(nombre: 3, app: "Mail", icones: trois.suffix(2).reversed().map(\.icone), duree: 5)) }) }, "ilot-24l-etagere-partis-remettre")
         var capture = etagere([("Capture d\u{2019}écran 2026-11-11 à 14.32.10.png", .png)])
         capture[0].nouveau = true
-        ecrire(bureau(hauteur: grandBureau + 20) { ilot(scene { m in m.etagereActive = true; m.etagere = Array(trois.prefix(1)) + capture; m.capturesActives = true; m.energie = batterie; m.ouvrirEtagere() }) }, "ilot-24m-carte-capture-nouveau")
+        // l'option allumée : la ligne « Vignette des captures en haut » s'ajoute dessous (éteinte ; puis allumée, au premier clic, qui explique)
+        ecrire(bureau(hauteur: grandBureau + 66) { ilot(scene { m in m.etagereActive = true; m.etagere = Array(trois.prefix(1)) + capture; m.capturesActives = true; m.energie = batterie; m.ouvrirEtagere() }) }, "ilot-24m-carte-capture-nouveau")
+        ecrire(bureau(hauteur: grandBureau + 66) { ilot(scene { m in m.etagereActive = true; m.etagere = Array(trois.prefix(1)) + capture; m.capturesActives = true
+            m.vignetteEnHaut = true; m.vignetteExpliquee = true; m.energie = batterie; m.ouvrirEtagere() }) }, "ilot-24u-carte-vignette-en-haut")
         ecrire(bureau(hauteur: grandBureau + 20, clair: false) { ilot(scene { m in m.etagereActive = true; m.etagere = trois; m.capturesRefusees = true; m.ouvrirEtagere() }) }, "ilot-24n-carte-captures-acces-refuse")
         ecrire(bureau(hauteur: grandBureau + 20) { ilot(scene { m in m.etagereActive = true; m.etagere = trois; m.capturesIntrouvable = true; m.ouvrirEtagere() }) }, "ilot-24q-carte-captures-dossier-introuvable")
         ecrire(bureau(hauteur: petitBureau + 140) { ilot(miCourse(scene { m in m.etagereActive = true; m.etagere = trois; m.montrerAppel(true) }, 0.16) { $0.montrerDepot(true) }) }, "ilot-24o-etagere-appel-vers-zones-mi-course")

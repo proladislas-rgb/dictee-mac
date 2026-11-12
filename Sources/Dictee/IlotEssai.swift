@@ -21,6 +21,11 @@ enum IlotEssai {
         let dossier = FileManager.default.temporaryDirectory.appendingPathComponent("verbe-ilot-essai-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
         try? FileManager.default.createDirectory(at: dossier, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dossier) }
+        // le journal de l'essai (dossiers refusés, introuvables…) va dans le dossier temporaire, jamais dans ~/Library/Logs/Dictee
+        Log.url = dossier.appendingPathComponent("dictee-essai.log")
+        Log.ecrire("essai : journal temporaire"); Log.vider()
+        verifier(!Log.url.path.contains("/Library/Logs/") && ((try? String(contentsOf: Log.url, encoding: .utf8)) ?? "").contains("essai : journal temporaire"),
+                 "le journal de l'essai va dans un fichier temporaire, jamais dans le vrai journal")
         let fichier = dossier.appendingPathComponent("rappels.json")
 
         var decalage = 0.0
@@ -62,12 +67,15 @@ enum IlotEssai {
             c.envoyerParAirDrop = { urls, fin in EssaiEtagere.envois.append(urls); EssaiEtagere.finEnvoi = fin; return EssaiEtagere.airDropPossible }
             c.appSous = { _ in EssaiEtagere.app }
             c.dossierCaptures = { dossier.appendingPathComponent("Captures", isDirectory: true) }
+            c.dossierCapturesGlissees = { dossier.appendingPathComponent("TemporaryItems", isDirectory: true) }
             c.estUneCapture = { IlotControleur.estUneCapture($0, prefixe: nil) }
             c.reglagesCentre.captures = { EssaiEtagere.captures }
             c.reglagesCentre.reglerCaptures = { EssaiEtagere.captures = $0 }
             // l'app Rappels : jamais EventKit ni une vraie fenêtre d'autorisation ; les réglages des rappels et de la question, simulés
             c.rappelsApple = RappelsAppleFactice()
             IlotEssai.reglagesLucarneDEssai(c)
+            c.vignetteSysteme = ReglageVignette(lire: { EssaiEtagere.vignette }, ecrire: { EssaiEtagere.vignette = $0 },
+                                                memoire: { EssaiEtagere.vignetteAvant }, retenir: { EssaiEtagere.vignetteAvant = $0 })
             return c
         }
         // un glisser qui PART de l'îlot n'est jamais remis au système (il prendrait la vraie souris) : l'essai le reçoit

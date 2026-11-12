@@ -131,7 +131,7 @@ struct IlotCalques: View {
             }
         case .agendaEtendu: agendaEtendu
         case .accueil: accueil
-        case .appareil, .telecharge: if let c = m.contenuAnnonce(v) { annonce(v, c) }
+        case .appareil, .telecharge, .etagereCapture: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .batterieCharge, .batterieFaible: energieAiles(v)
         case .microCompact: heureAile(v, "Coupé", CouleursIlot.rouge).accessibilityLabel("Micro coupé")
         case .microEtendu, .microFn, .lucarne: if let c = m.contenuAnnonce(v) { annonce(v, c) }
@@ -219,7 +219,17 @@ struct IlotCalques: View {
                 else if let glyphe = c.glyphe { glyphe } else { Color.clear }
             }
             .frame(width: c.coteSymbole, height: c.coteSymbole)
+            .scaleEffect(c.source != nil && m.miniatureSurvolee ? 1.15 : 1)
+            .animation(m.reduire ? nil : .spring(response: 0.25, dampingFraction: 0.75), value: m.miniatureSurvolee)
             .glisserFichier(c.glisser, m)
+            // une source AppKit (comme les tuiles de l'étagère) : `onDrag` de SwiftUI ne part jamais ici, le geste de la forme
+            // (DragGesture(minimumDistance: 0), clic et appui long) prend la souris avant lui. Le clic simple, lui, reste au geste de la
+            // forme, qui voit aussi les événements de cette vue (il ouvre l'étagère) : le donner aussi à la vue l'ouvrirait puis la
+            // refermerait. Hors rendu seulement (ImageRenderer ne dessine pas les vues AppKit)
+            .overlay { if let s = c.source, !m.statique {
+                SourceFichiers(fichiers: [s], m: m, clic: nil, survol: { m.miniatureSurvolee = $0 },
+                               etiquette: "Glisser la capture vers une app ; un clic ouvre l\u{2019}étagère")
+            } }
             .aspectIlot(m.aspect(v, rang: 0), ancre: .center)
             VStack(alignment: .leading, spacing: 2) {
                 Text(c.l1).font(TexteIlot.l1).tracking(ContenuAnnonce.interlettreL1).foregroundStyle(.white).lineLimit(1).truncationMode(c.coupureL1)
