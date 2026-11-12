@@ -97,6 +97,19 @@ enum PlanCentre {
     /// `couper` (les noms) : un nom qui devrait descendre sous `seuilDeuxLignes` pour tenir passe sur deux lignes (six ronds :
     /// « Télécharge- / ments » à côté de « Calendrier »), plutôt que d'être écrit trop petit ou serré contre son voisin.
     static func tailles(_ textes: [String], colonne: CGFloat, poids: NSFont.Weight, interlettre: CGFloat = 0, couper: Bool = false) -> [(texte: String, place: CGFloat, taille: CGFloat)] {
+        // mesurées une fois pour les mêmes textes à la même place : la grille de l'îlot les redemande à chaque calcul (chaque événement de
+        // défilement, chaque dessin), et les mesurer coûtait des dizaines de mesures Core Text à chaque fois (12/11 : un quart du travail
+        // d'un pas de molette sur la liste des Dictées)
+        let cle = CleTailles(textes: textes, colonne: colonne, poids: poids.rawValue, interlettre: interlettre, couper: couper)
+        if let r = memoireTailles[cle] { return r }
+        let r = mesurerTailles(textes, colonne: colonne, poids: poids, interlettre: interlettre, couper: couper)
+        if memoireTailles.count >= 64 { memoireTailles.removeAll() }
+        memoireTailles[cle] = r
+        return r
+    }
+    private struct CleTailles: Hashable { var textes: [String]; var colonne: CGFloat; var poids: CGFloat; var interlettre: CGFloat; var couper: Bool }
+    private static var memoireTailles: [CleTailles: [(texte: String, place: CGFloat, taille: CGFloat)]] = [:]
+    private static func mesurerTailles(_ textes: [String], colonne: CGFloat, poids: NSFont.Weight, interlettre: CGFloat, couper: Bool) -> [(texte: String, place: CGFloat, taille: CGFloat)] {
         var t = textes
         func l(_ x: [String]) -> [Double] { x.map { Double(largeur($0, policeNom, poids, interlettre: interlettre)) } }
         var p = DispositionCentre.largeursPermises(l(t), colonne: Double(colonne), ecart: Double(ecartNoms))

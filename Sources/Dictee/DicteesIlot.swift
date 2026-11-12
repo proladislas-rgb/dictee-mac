@@ -228,7 +228,9 @@ enum PlanDictees {
 
 struct DicteesCarte: View {
     @ObservedObject var m: IlotMoteur
-    @ObservedObject var d: DicteesIlot
+    /// Pas observé ici : la carte ne lit rien de `d` ; l'en-tête et la liste observent ce qu'ils dessinent (un survol ou un pas de
+    /// défilement ne réévalue que la liste et les lignes qui changent).
+    let d: DicteesIlot
     var g: GrilleIlot
 
     var body: some View {
@@ -252,7 +254,7 @@ struct DicteesCarte: View {
 /// « ‹ Centre » et le champ « Rechercher ».
 struct EnteteDictees: View {
     @ObservedObject var m: IlotMoteur
-    @ObservedObject var d: DicteesIlot
+    let d: DicteesIlot
 
     var body: some View {
         HStack(spacing: 8) {
@@ -362,31 +364,44 @@ struct ListeDicteesIlot: View {
                 .frame(maxHeight: .infinity, alignment: .topLeading)
                 .accessibilityAddTraits(.isHeader)
         case .ligne(let x):
-            LigneDicteeIlot(e: x, m: m, d: d)
+            // une ligne ne reçoit que SON état : un survol qui passe d'une ligne à l'autre ne réévalue que ces deux-là, un pas de défilement
+            // seulement celles qui entrent (12/11 : toutes les lignes observaient la carte, chaque pas les redessinait toutes, deux fois)
+            LigneDicteeIlot(e: x, survol: d.survol == x.id, deplie: d.deplie == x.id, copie: d.copiee == x.id, requete: d.requete,
+                            animer: !(m.reduire || m.statique), m: m, d: d)
+                .equatable()
         }
     }
 }
 
 /// Une dictée : l'heure, le texte (les mots cherchés en ambre), l'app à droite. Au survol : « Coller » et le chevron (à la place de l'app) ;
 /// un clic copie (« Copié » en vert) ; dépliée, le texte entier.
-struct LigneDicteeIlot: View {
+struct LigneDicteeIlot: View, Equatable {
     let e: EntreeHistorique
-    @ObservedObject var m: IlotMoteur
-    @ObservedObject var d: DicteesIlot
+    let survol: Bool, deplie: Bool, copie: Bool
+    /// Les mots cherchés (surlignés en ambre).
+    let requete: String
+    let animer: Bool
+    /// Pour les gestes seulement (copier, coller, déplier, le survol) : ni le moteur ni la carte ne sont observés ici, la liste passe l'état.
+    let m: IlotMoteur, d: DicteesIlot
+
+    nonisolated static func == (a: Self, b: Self) -> Bool {
+        a.e == b.e && a.survol == b.survol && a.deplie == b.deplie && a.copie == b.copie && a.requete == b.requete && a.animer == b.animer
+            && a.m === b.m && a.d === b.d
+    }
 
     private static let formatHeure: DateFormatter = {
         let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "HH:mm"; return f
     }()
 
     var body: some View {
-        let dep = d.deplie == e.id, survol = d.survol == e.id, copie = d.copiee == e.id
+        let dep = deplie
         let actions = dep || survol
         HStack(alignment: dep ? .top : .center, spacing: PlanDictees.ecart) {
             Text(Self.formatHeure.string(from: e.date))
                 .font(.system(size: 12, weight: .medium).monospacedDigit()).foregroundStyle(Color.white.opacity(0.42))
                 .frame(width: PlanDictees.colonneHeure, alignment: .leading)
                 .padding(.top, dep ? 3 : 0)
-            Text(Self.texte(e.texte, requete: d.requete))
+            Text(Self.texte(e.texte, requete: requete))
                 .font(Polices.texte(PlanDictees.policeTexte))
                 .foregroundStyle(actions ? Color.white : Color.white.opacity(0.78))
                 .lineLimit(dep ? nil : 1)
@@ -428,7 +443,7 @@ struct LigneDicteeIlot: View {
         .onTapGesture { m.surAction(.dicteeCopier(e.id)) }
         // le survol s'allume d'un coup, sans fondu (comme les listes du Mac) : chaque image d'un fondu redessine toute la forme de l'îlot
         // sur le processeur (≈ 10 ms) ; en se promenant sur la liste, les fondus s'enchaînaient et occupaient le fil principal
-        .animation(m.reduire || m.statique ? nil : .easeOut(duration: 0.18), value: copie)
+        .animation(animer ? .easeOut(duration: 0.18) : nil, value: copie)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(Self.formatHeure.string(from: e.date)), \(e.texte)\(e.appNom.map { ", \($0)" } ?? "")")
         .accessibilityHint("Un clic copie la dictée")
