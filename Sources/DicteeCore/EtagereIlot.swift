@@ -231,6 +231,58 @@ public enum CapturesEcran {
     }
 }
 
+/// Les captures GLISSÉES depuis la vignette flottante (réglage par défaut de Capture d'écran) : dès qu'on prend la vignette, macOS
+/// écrit la capture dans un dossier temporaire à lui (« …/T/TemporaryItems/NSIRD_screencaptureui_XXXXXX/Capture d’écran ….png ») ;
+/// lâchée dans une app (Terminal, Mail, Messages…), elle n'est JAMAIS enregistrée dans le dossier des captures. Glisser annulé : elle
+/// reste là-bas ET macOS en enregistre une copie, du même nom, dans le dossier des captures. Constaté dans le journal de macOS le 12/11
+/// (« Writing dragged screenshot/capture to temporary folder », « Drag completed with copy/move ») : Hugues glisse ses captures dans le
+/// Terminal, aucune n'arrivait sur l'étagère.
+public enum CapturesGlissees {
+    /// Le début du nom des dossiers temporaires de Capture d'écran (NSItemReplacementDirectory de screencaptureui).
+    public static let prefixe = "NSIRD_screencaptureui_"
+
+    /// Le dossier où macOS les crée : « TemporaryItems » dans le dossier temporaire de l'utilisateur (« /var/folders/…/T/ »).
+    public static func dossier(temporaire: String) -> String { (temporaire as NSString).appendingPathComponent("TemporaryItems") }
+
+    /// Ce qu'on suit dans ce dossier (`racine` : ses noms ; `contenu` : les noms d'un de ses sous-dossiers) : chaque dossier de
+    /// Capture d'écran (sa date change quand la capture y est écrite, quelques millisecondes après lui : tant qu'elle bouge, la veille
+    /// relit) et ses fichiers, en « NSIRD_screencaptureui_X/Capture d’écran ….png ». Les autres (swift-build, Xcode…) ne sont jamais
+    /// ouverts.
+    public static func noms(racine: [String], contenu: (String) -> [String]) -> [String] {
+        racine.filter { $0.hasPrefix(prefixe) }.flatMap { d in [d] + contenu(d).map { d + "/" + $0 } }
+    }
+
+    /// Le fichier est-il une capture glissée (rangée dans un dossier temporaire de Capture d'écran) ?
+    public static func estGlissee(_ chemin: String) -> Bool {
+        ((chemin as NSString).deletingLastPathComponent as NSString).lastPathComponent.hasPrefix(prefixe)
+    }
+
+    /// Les captures arrivées (chemins, dans l'ordre) face à l'étagère : celles à ranger, et les éléments à retirer d'abord. Une même
+    /// capture (même nom : macOS les nomme à la seconde ; NFD ou NFC, peu importe) n'est gardée qu'une fois, et la copie du dossier des
+    /// captures l'emporte sur la glissée (le dossier temporaire se vide un jour) : une glissée déjà là est remplacée, une glissée qui
+    /// arrive après sa copie n'est pas rangée. Un fichier rangé à la main n'est jamais retiré.
+    public static func tri(arrivees: [String], etagere: [ElementEtagere]) -> (ranger: [String], remplaces: [UUID]) {
+        func nom(_ c: String) -> String { (c as NSString).lastPathComponent }
+        let durables = Set(arrivees.filter { !estGlissee($0) }.map(nom))
+        var ranger: [String] = [], remplaces: [UUID] = [], vus = Set<String>()
+        for c in arrivees {
+            let n = nom(c), glissee = estGlissee(c)
+            if glissee, durables.contains(n) { continue }
+            if vus.contains(n) { continue }
+            vus.insert(n)
+            if glissee {
+                // sa copie (ou un fichier du même nom) est déjà là : la glissée n'ajouterait qu'un double
+                if etagere.contains(where: { $0.nom == n }) { continue }
+            } else {
+                // une copie durable remplace la glissée du même nom ; un autre fichier du même nom, rangé ailleurs, ne bouge pas
+                remplaces += etagere.filter { $0.nom == n && estGlissee($0.chemin) }.map(\.id)
+            }
+            ranger.append(c)
+        }
+        return (ranger, remplaces)
+    }
+}
+
 /// Un glisser de FICHIERS vient-il de commencer ? Le presse-papiers du glisser (NSPasteboard « drag ») garde le dernier contenu glissé :
 /// une sélection de texte qu'on étire ou une fenêtre qu'on déplace le trouveraient encore plein des fichiers d'avant. Un glisser est
 /// nouveau seulement si ce presse-papiers a changé depuis que le bouton s'est enfoncé.

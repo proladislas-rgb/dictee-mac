@@ -263,11 +263,19 @@ extension IlotControleur {
     /// « Captures d'écran ici » : on surveille le dossier des captures (comme Téléchargements : le noyau prévient, aucun sondage). Au
     /// lancement, seulement si l'option est allumée (l'accès a alors déjà été donné).
     /// Le dossier est relu à chaque fois (réglages appliqués, étagère relue) : s'il a changé dans Capture d'écran, la surveillance passe
-    /// sur le nouveau.
+    /// sur le nouveau. Le dossier temporaire où macOS écrit les captures glissées depuis la vignette est surveillé en même temps : une
+    /// capture lâchée dans une app n'arrive jamais dans le dossier des captures (CapturesGlissees).
     func activerCaptures(_ oui: Bool) {
         moteur.capturesActives = oui
         moteur.capturesIntrouvable = false
         if oui {
+            if !capturesGlisseesSource.actif {
+                // macOS crée « TemporaryItems » à son premier usage : créé d'avance, la toute première capture glissée est vue aussi
+                let t = dossierCapturesGlissees()
+                try? FileManager.default.createDirectory(at: t, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+                capturesGlisseesSource.dossier = t
+                capturesGlisseesSource.demarrer()
+            }
             let d = dossierCaptures()
             if capturesSource.actif {
                 guard capturesSource.dossier.standardizedFileURL != d.standardizedFileURL else { return }
@@ -277,27 +285,36 @@ extension IlotControleur {
             capturesSource.dossier = d
             capturesSource.demarrer()
         } else {
-            capturesSource.arreter()
+            capturesSource.arreter(); capturesGlisseesSource.arreter()
             moteur.capturesAttente = false
         }
     }
     /// Le dossier des captures est absent (disque débranché, dossier supprimé) : l'interrupteur dit ce qui est vrai (rien n'est
     /// surveillé) et la ligne dit pourquoi. Le réglage reste : au prochain lancement, ou au prochain clic, on réessaie.
     func capturesIntrouvables() {
+        capturesGlisseesSource.arreter()
         moteur.capturesAttente = false
         moteur.capturesActives = false
         moteur.capturesIntrouvable = true
         moteur.donneesChangees()
     }
-    /// De nouveaux fichiers finis dans le dossier des captures : les captures (pas les autres fichiers du Bureau) vont sur l'étagère,
-    /// marquées « Nouveau » ; la pile de l'aile compte un fichier de plus.
+    /// De nouveaux fichiers finis dans le dossier des captures, ou glissés depuis la vignette (dossier temporaire de macOS) : les
+    /// captures (pas les autres fichiers du Bureau, ni les dossiers) vont sur l'étagère, marquées « Nouveau » ; la pile de l'aile compte
+    /// un fichier de plus. Une même capture n'y est qu'une fois : sa copie dans le dossier des captures remplace la glissée.
     func capturesArrivees(_ l: [FichierTelecharge]) {
-        let urls = l.map(\.url).filter(estUneCapture)
+        let urls = l.filter { $0.taille != nil }.map(\.url).filter(estUneCapture)
         guard !urls.isEmpty, moteur.etagereActive else { return }
-        ranger(urls, nouveau: true)
+        let tri = CapturesGlissees.tri(arrivees: urls.map(\.path), etagere: etagere.elements)
+        // jamais de nom de fichier au journal
+        Log.ecrire("captures : \(urls.count) arrivée(s), dont \(urls.filter { CapturesGlissees.estGlissee($0.path) }.count) glissée(s) depuis la vignette ; "
+                   + "\(tri.ranger.count) à ranger, \(tri.remplaces.count) glissée(s) remplacée(s) par sa copie du dossier des captures")
+        for id in tri.remplaces { etagere.retirer(id); iconesEtagere[id] = nil; nouveautes.remove(id) }
+        guard !tri.ranger.isEmpty else { if !tri.remplaces.isEmpty { sauverEtagere(); montrerEtagere() }; return }
+        ranger(tri.ranger.map { URL(fileURLWithPath: $0) }, nouveau: true)
     }
     /// macOS a refusé l'accès au dossier des captures : l'interrupteur revient sur éteint, la carte dit où le rendre.
     func capturesRefusees() {
+        capturesGlisseesSource.arreter()
         reglagesCentre.reglerCaptures(false)
         Log.ecrire("captures : accès au dossier refusé, option éteinte")
         moteur.capturesAttente = false
@@ -311,6 +328,13 @@ extension IlotControleur {
         let d = UserDefaults(suiteName: "com.apple.screencapture")
         let chemin = CapturesEcran.dossier(location: d?.string(forKey: "location"), maison: FileManager.default.homeDirectoryForCurrentUser.path)
         return URL(fileURLWithPath: chemin, isDirectory: true)
+    }
+    /// Le dossier temporaire où macOS écrit les captures glissées depuis la vignette : « TemporaryItems » dans le dossier temporaire de
+    /// l'utilisateur, lu chez le système (confstr) et non dans $TMPDIR, qu'un lancement depuis un terminal peut avoir changé.
+    static func dossierCapturesGlisseesParDefaut() -> URL {
+        var tampon = [CChar](repeating: 0, count: Int(PATH_MAX))
+        let tmp = confstr(_CS_DARWIN_USER_TEMP_DIR, &tampon, tampon.count) > 0 ? String(cString: tampon) : NSTemporaryDirectory()
+        return URL(fileURLWithPath: CapturesGlissees.dossier(temporaire: tmp), isDirectory: true)
     }
     /// Une capture : la marque que macOS pose dessus (attribut étendu kMDItemIsScreenCapture), ou son nom (« Capture d’écran … »).
     /// `prefixe` : le début de nom choisi dans Capture d'écran (lu dans ses réglages ; l'essai n'y touche pas et passe nil).

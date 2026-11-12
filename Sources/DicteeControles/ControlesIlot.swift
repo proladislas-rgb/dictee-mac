@@ -1118,6 +1118,48 @@ func controlesEtagereRapide(_ t0: Date) {
     verifier(C.estUneCapture(nom: "IMG_0001.png", marquee: true) && !C.estUneCapture(nom: "Devis.pdf", marquee: false), "marquée par macOS : une capture, quel que soit son nom ; un autre fichier du Bureau : non")
     verifier(C.estUneCapture(nom: "Écran 1.png", marquee: false, prefixe: "Écran") && !C.estUneCapture(nom: ".Capture d\u{2019}écran 2026.png", marquee: true),
              "le préfixe choisi dans les réglages ; une capture en cours d'écriture (nom caché) : pas encore")
+    // le nom tel que macOS l'écrit sur le disque (NFD : « e » + accent combinant) reste une capture
+    let nfd = "Capture d\u{2019}e\u{301}cran 2026-11-12 a\u{300} 00.16.25.png", nfc = "Capture d\u{2019}écran 2026-11-12 à 00.16.25.png"
+    verifier(C.estUneCapture(nom: nfd, marquee: false), "un nom décomposé (NFD, comme sur le disque) : une capture")
+
+    // les captures GLISSÉES depuis la vignette flottante (12/11 : aucune n'arrivait) : macOS ne les écrit que dans son dossier temporaire
+    typealias G = CapturesGlissees
+    verifier(G.dossier(temporaire: "/var/folders/1l/x/T/") == "/var/folders/1l/x/T/TemporaryItems", "le dossier temporaire de macOS : …/T/TemporaryItems")
+    let racine = ["NSIRD_screencaptureui_yGr4Gu", "NSIRD_swift-build_3m3IHb", "NSIRD_screencaptureui_Kr2Euk", ".DS_Store"]
+    var ouverts: [String] = []
+    let lus = G.noms(racine: racine) { d in ouverts.append(d); return d.hasSuffix("yGr4Gu") ? [nfd] : [] }
+    verifier(lus == ["NSIRD_screencaptureui_yGr4Gu", "NSIRD_screencaptureui_yGr4Gu/" + nfd, "NSIRD_screencaptureui_Kr2Euk"]
+             && ouverts == ["NSIRD_screencaptureui_yGr4Gu", "NSIRD_screencaptureui_Kr2Euk"],
+             "seuls les dossiers de Capture d'écran sont ouverts (pas swift-build) ; le dossier lui-même est suivi (vide : relu tant qu'il bouge)")
+    let tmp = "/var/folders/1l/x/T/TemporaryItems/NSIRD_screencaptureui_yGr4Gu/" + nfd, doc = "/Users/h/Documents/" + nfc
+    verifier(G.estGlissee(tmp) && !G.estGlissee(doc) && !G.estGlissee("/Users/h/Desktop/NSIRD_screencaptureui_A.png"), "une capture glissée se reconnaît à son dossier")
+    verifier(FiltreTelechargements.estFini("NSIRD_screencaptureui_yGr4Gu/" + nfd) && !FiltreTelechargements.estFini(".NSIRD_x"), "« dossier/fichier » : un fichier fini comme un autre")
+    let elG = ElementEtagere(chemin: tmp, signet: Data(), ajout: t0, seul: true), elM = ElementEtagere(chemin: "/Users/h/Desktop/" + nfc, signet: Data(), ajout: t0)
+    var rt = G.tri(arrivees: [tmp], etagere: [])
+    verifier(rt.ranger == [tmp] && rt.remplaces.isEmpty, "une capture glissée, étagère vide : rangée")
+    rt = G.tri(arrivees: [doc], etagere: [elG])
+    verifier(rt.ranger == [doc] && rt.remplaces == [elG.id], "glisser annulé : la copie du dossier des captures (même nom, NFC contre NFD) remplace la glissée")
+    rt = G.tri(arrivees: [tmp], etagere: [ElementEtagere(chemin: doc, signet: Data(), ajout: t0, seul: true)])
+    verifier(rt.ranger.isEmpty && rt.remplaces.isEmpty, "la glissée qui arrive après sa copie : pas rangée deux fois")
+    rt = G.tri(arrivees: [tmp, doc], etagere: [])
+    verifier(rt.ranger == [doc] && rt.remplaces.isEmpty, "les deux dans la même relecture : seule la copie du dossier des captures")
+    rt = G.tri(arrivees: [doc], etagere: [elM])
+    verifier(rt.ranger == [doc] && rt.remplaces.isEmpty, "le même nom rangé à la main ailleurs : jamais retiré (l'étagère ne garde qu'un des deux chemins)")
+    // la veille du dossier temporaire : le dossier de Capture d'écran apparaît vide, la capture y est écrite quelques ms plus tard
+    let tc = Date(timeIntervalSince1970: 1_000_000)
+    var vg = VeilleTelechargements(existants: [EntreeDossier(nom: "NSIRD_screencaptureui_old", taille: 0, modification: tc, dossier: true),
+                                              EntreeDossier(nom: "NSIRD_screencaptureui_old/Capture.png", taille: 9, modification: tc)])
+    let dossierVide = EntreeDossier(nom: "NSIRD_screencaptureui_new", taille: 0, modification: tc, dossier: true)
+    var pv = vg.lire(noms: ["NSIRD_screencaptureui_old", "NSIRD_screencaptureui_old/Capture.png", "NSIRD_screencaptureui_new"], a: tc) { $0 == dossierVide.nom ? dossierVide : nil }
+    verifier(pv.isEmpty && vg.prochaineRelecture != nil, "le dossier apparaît vide : rien encore, mais une relecture est programmée (\(String(describing: vg.prochaineRelecture)))")
+    let plein = EntreeDossier(nom: "NSIRD_screencaptureui_new", taille: 0, modification: tc.addingTimeInterval(0.01), dossier: true)
+    let png = EntreeDossier(nom: "NSIRD_screencaptureui_new/" + nfd, taille: 1_749_639, modification: tc.addingTimeInterval(0.01))
+    let noms2 = ["NSIRD_screencaptureui_old", "NSIRD_screencaptureui_old/Capture.png", plein.nom, png.nom]
+    let mesure2: (String) -> EntreeDossier? = { $0 == plein.nom ? plein : ($0 == png.nom ? png : nil) }
+    pv = vg.lire(noms: noms2, a: tc.addingTimeInterval(1), mesure: mesure2)
+    verifier(pv.isEmpty, "1 s plus tard : la capture est là, on attend qu'elle soit stable")
+    pv = vg.lire(noms: noms2, a: tc.addingTimeInterval(2), mesure: mesure2)
+    verifier(pv.map(\.nom).contains(png.nom), "2 s : la capture glissée est annoncée (\(pv.map(\.nom))) ; ce qui était là au lancement, jamais")
 
     groupe("Îlot : l'étagère plus rapide, le Centre avec les fichiers en haut")
     let d = DispositionCentre()

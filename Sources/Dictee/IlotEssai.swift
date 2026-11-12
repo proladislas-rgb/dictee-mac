@@ -62,6 +62,7 @@ enum IlotEssai {
             c.envoyerParAirDrop = { urls, fin in EssaiEtagere.envois.append(urls); EssaiEtagere.finEnvoi = fin; return EssaiEtagere.airDropPossible }
             c.appSous = { _ in EssaiEtagere.app }
             c.dossierCaptures = { dossier.appendingPathComponent("Captures", isDirectory: true) }
+            c.dossierCapturesGlissees = { dossier.appendingPathComponent("TemporaryItems", isDirectory: true) }
             c.estUneCapture = { IlotControleur.estUneCapture($0, prefixe: nil) }
             c.reglagesCentre.captures = { EssaiEtagere.captures }
             c.reglagesCentre.reglerCaptures = { EssaiEtagere.captures = $0 }

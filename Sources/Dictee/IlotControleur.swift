@@ -155,6 +155,10 @@ final class IlotControleur {
     /// « Captures d'écran ici » : le dossier des captures, surveillé comme Téléchargements (un dossier temporaire dans l'essai).
     let capturesSource = SourceTelechargements(etiquette: "captures")
     var dossierCaptures: () -> URL = { IlotControleur.dossierCapturesParDefaut() }
+    /// … et les captures GLISSÉES depuis la vignette flottante, que macOS n'écrit que dans son dossier temporaire (« TemporaryItems ») :
+    /// surveillé en même temps, sans autorisation à demander (un dossier temporaire dans l'essai).
+    let capturesGlisseesSource = SourceTelechargements(etiquette: "captures glissées", lister: SourceTelechargements.listerCapturesGlissees)
+    var dossierCapturesGlissees: () -> URL = { IlotControleur.dossierCapturesGlisseesParDefaut() }
     /// Une capture se reconnaît à la marque de macOS (attribut kMDItemIsScreenCapture) ou à son nom (injectable).
     var estUneCapture: (URL) -> Bool = { IlotControleur.estUneCapture($0) }
     private var reveilMinuteur: DispatchWorkItem?
@@ -205,6 +209,8 @@ final class IlotControleur {
         capturesSource.surRefus = { [weak self] in self?.capturesRefusees() }
         capturesSource.surPret = { [weak self] in self?.moteur.capturesAttente = false }
         capturesSource.surArret = { [weak self] in self?.capturesIntrouvables() }
+        // le dossier temporaire de macOS : une erreur n'y est jamais un refus à montrer (le journal la dit), l'interrupteur ne bouge pas
+        capturesGlisseesSource.surArrivee = { [weak self] l in self?.capturesArrivees(l) }
         claudeSource.surLignes = { [weak self] l, relecture in self?.lignesClaude(l, relecture: relecture) }
         micro.surChangement = { [weak self] in self?.microChange() }
         moteur.surBulleVue = { [weak self] in self?.reglagesCentre.marquerBulleVue() }
@@ -244,7 +250,7 @@ final class IlotControleur {
         notificationsSource.arreter()
         energieSource.arreter(); appareilsSource.arreter()
         telechargementsSource.arreter()
-        capturesSource.arreter()
+        capturesSource.arreter(); capturesGlisseesSource.arreter()
         niveaux.arreter()
         activerLeMicro(false)
         activerClaude(false)

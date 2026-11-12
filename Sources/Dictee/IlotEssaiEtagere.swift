@@ -218,9 +218,12 @@ extension IlotEssai {
         let dejaLa = creer("Capture d\u{2019}écran 2026-11-10 à 09.00.00.png", captures)
         EssaiEtagere.captures = false
         m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
-        let cc = CarteEtagere.cadreCaptures(m.grille)
-        let interrupteur = CGPoint(x: cc.maxX - 12 - InterrupteurIlot.largeur / 2, y: cc.midY)
-        verifier(!m.capturesActives && !c.capturesSource.actif, "au départ : éteint, aucun dossier lu")
+        // relu à chaque clic : une rangée de plus sur l'étagère (6 fichiers et plus) descend la ligne « Captures d'écran ici »
+        var interrupteur: CGPoint {
+            let cc = CarteEtagere.cadreCaptures(m.grille)
+            return CGPoint(x: cc.maxX - 12 - InterrupteurIlot.largeur / 2, y: cc.midY)
+        }
+        verifier(!m.capturesActives && !c.capturesSource.actif && !c.capturesGlisseesSource.actif, "au départ : éteint, aucun dossier lu")
         clic(interrupteur, 0.8)
         verifier(m.capturesActives && EssaiEtagere.captures && c.capturesSource.actif && c.capturesSource.dossier == captures && !m.capturesAttente,
                  "vrai clic sur l'interrupteur : allumé, le dossier des captures est surveillé (essai : un dossier temporaire)")
@@ -245,11 +248,50 @@ extension IlotEssai {
         c.dossierCaptures = dossierCapturesAvant
         c.relireEtagere(force: true); pause(0.6)
         verifier(c.capturesSource.dossier == captures, "retour au premier dossier")
+
+        // --- ce que fait vraiment macOS (journal de screencaptureui, 12/11) : la vignette flottante GLISSÉE dans une app (le Terminal)
+        // écrit la capture dans « …/T/TemporaryItems/NSIRD_screencaptureui_X/ », jamais dans le dossier des captures ; nom NFD sur le disque
+        let temporaire = dossier.appendingPathComponent("TemporaryItems", isDirectory: true)
+        verifier(c.capturesGlisseesSource.actif && c.capturesGlisseesSource.dossier == temporaire,
+                 "le dossier temporaire de macOS est surveillé aussi (essai : un dossier temporaire, créé s'il manque)")
+        let nfd = "Capture d\u{2019}e\u{301}cran 2026-11-12 a\u{300} 00.16.25.png"
+        let avantGlisser = c.etagere.elements.count
+        let build = temporaire.appendingPathComponent("NSIRD_swift-build_Ab12Cd", isDirectory: true)
+        try? FileManager.default.createDirectory(at: build, withIntermediateDirectories: true)
+        _ = creer("Capture d\u{2019}écran pas la mienne.png", build)
+        let vignette = temporaire.appendingPathComponent("NSIRD_screencaptureui_yGr4Gu", isDirectory: true)
+        try? FileManager.default.createDirectory(at: vignette, withIntermediateDirectories: true)
+        // la capture est écrite APRÈS le dossier (rien ne prévient pour ça : seul le dossier apparu fait relire)
+        pause(0.3)
+        let glissee = creer(nfd, vignette)
+        _ = "1".withCString { setxattr(glissee.path, "com.apple.metadata:kMDItemIsScreenCapture", $0, 1, 0, 0) }
+        attendre(4) { c.etagere.elements.count == avantGlisser }
+        let g1 = c.etagere.elements.last
+        verifier(c.etagere.elements.count == avantGlisser + 1 && g1?.nom == nfd && g1.map { CapturesGlissees.estGlissee($0.chemin) } == true && m.etagere.last?.nouveau == true,
+                 "capture glissée depuis la vignette : elle arrive sur l'étagère, « Nouveau » (\(c.etagere.elements.map(\.nom)))")
+        verifier(!c.etagere.elements.contains { $0.chemin.contains("NSIRD_swift-build") }, "les autres dossiers temporaires (swift-build) ne sont jamais ouverts")
+        // glisser annulé : macOS garde la glissée ET écrit une copie du même nom dans le dossier des captures (fichier caché, puis renommé)
+        let cache = captures.appendingPathComponent(".capture-en-cours")
+        try? Data("essai".utf8).write(to: cache)
+        try? FileManager.default.moveItem(at: cache, to: captures.appendingPathComponent(nfd))
+        attendre(4) { !c.etagere.elements.contains { $0.nom == nfd && !CapturesGlissees.estGlissee($0.chemin) } }
+        let memes = c.etagere.elements.filter { $0.nom == nfd }
+        verifier(c.etagere.elements.count == avantGlisser + 1 && memes.count == 1 && memes.first.map { !CapturesGlissees.estGlissee($0.chemin) } == true,
+                 "glisser annulé : la copie du dossier des captures remplace la glissée, une seule tuile (\(c.etagere.elements.map(\.chemin)))")
+        // sans glisser : la vignette partie, macOS DÉPLACE la capture dans le dossier des captures (renommage venu d'un autre dossier)
+        let ailleurs = dossier.appendingPathComponent("Vignette", isDirectory: true)
+        try? FileManager.default.createDirectory(at: ailleurs, withIntermediateDirectories: true)
+        let deplacee = creer("Capture d\u{2019}e\u{301}cran 2026-11-12 a\u{300} 00.20.00.png", ailleurs)
+        try? FileManager.default.moveItem(at: deplacee, to: captures.appendingPathComponent(deplacee.lastPathComponent))
+        attendre(4) { c.etagere.elements.count == avantGlisser + 1 }
+        verifier(c.etagere.elements.count == avantGlisser + 2 && c.etagere.elements.last?.nom == deplacee.lastPathComponent,
+                 "vignette partie d'elle-même : la capture déplacée dans le dossier des captures arrive (\(c.etagere.elements.map(\.nom)))")
         m.fermer(); pause(0.8)
         verifier(m.etagere.allSatisfy { !$0.nouveau }, "la carte vue puis fermée : plus « Nouveau »")
         m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
         clic(interrupteur, 0.6)
-        verifier(!m.capturesActives && !EssaiEtagere.captures && !c.capturesSource.actif, "second clic : éteint, le dossier n'est plus surveillé")
+        verifier(!m.capturesActives && !EssaiEtagere.captures && !c.capturesSource.actif && !c.capturesGlisseesSource.actif,
+                 "second clic : éteint, ni le dossier des captures ni le dossier temporaire ne sont plus surveillés")
         // refus de macOS (joué par un dossier fermé) : l'interrupteur revient sur éteint, la ligne dit où rendre l'accès
         let ferme = dossier.appendingPathComponent("Captures fermées", isDirectory: true)
         try? FileManager.default.createDirectory(at: ferme, withIntermediateDirectories: true)
@@ -257,19 +299,19 @@ extension IlotEssai {
         let dossierAvant = c.dossierCaptures
         c.dossierCaptures = { ferme }
         clic(interrupteur, 1.0)
-        verifier(!m.capturesActives && m.capturesRefusees && !EssaiEtagere.captures && !m.capturesAttente && !c.capturesSource.actif,
+        verifier(!m.capturesActives && m.capturesRefusees && !EssaiEtagere.captures && !m.capturesAttente && !c.capturesSource.actif && !c.capturesGlisseesSource.actif,
                  "accès refusé : éteint, « Accès refusé : ouvrir Réglages Système »")
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: ferme.path)
         // dossier absent (disque débranché) : l'interrupteur dit la vérité (éteint), la ligne dit pourquoi ; le réglage reste
         c.dossierCaptures = { dossier.appendingPathComponent("Disque débranché/Captures", isDirectory: true) }
         clic(interrupteur, 1.0)
-        verifier(!m.capturesActives && m.capturesIntrouvable && !m.capturesAttente && !c.capturesSource.actif && EssaiEtagere.captures,
+        verifier(!m.capturesActives && m.capturesIntrouvable && !m.capturesAttente && !c.capturesSource.actif && !c.capturesGlisseesSource.actif && EssaiEtagere.captures,
                  "dossier introuvable : éteint, « Dossier des captures introuvable », réglage gardé pour le prochain lancement")
         c.dossierCaptures = dossierAvant
         clic(interrupteur, 0.8)
-        verifier(m.capturesActives && !m.capturesIntrouvable && c.capturesSource.actif, "le dossier revenu, un clic : allumé de nouveau")
+        verifier(m.capturesActives && !m.capturesIntrouvable && c.capturesSource.actif && c.capturesGlisseesSource.actif, "le dossier revenu, un clic : allumé de nouveau")
         clic(interrupteur, 0.6)
-        verifier(!m.capturesActives && !c.capturesSource.actif && !EssaiEtagere.captures, "puis éteint")
+        verifier(!m.capturesActives && !c.capturesSource.actif && !c.capturesGlisseesSource.actif && !EssaiEtagere.captures, "puis éteint")
 
         // --- « Réduire les animations » : la forme saute à sa place, l'appel ne bouge pas
         m.fermer(); pause(0.8)
