@@ -38,6 +38,12 @@ final class VueHebergeeIlot<Contenu: View>: NSHostingView<Contenu> {
     override func mouseMoved(with event: NSEvent) { super.mouseMoved(with: event); fleche(); surPointeur?(position(event)) }
     override func cursorUpdate(with event: NSEvent) { super.cursorUpdate(with: event); fleche() }
     override func mouseExited(with event: NSEvent) { super.mouseExited(with: event); surPointeur?(nil) }
+    /// Le bouton de la souris (appui long, tenue, lâcher de la Lucarne) : l'événement part au panneau AVANT SwiftUI, qui lit son point
+    /// GLOBAL (`cgEvent.location`) : la fenêtre bouge sous le pointeur pendant la tenue, ses coordonnées locales ne disent plus rien.
+    var surBouton: ((NSEvent) -> Void)?
+    override func mouseDown(with event: NSEvent) { surBouton?(event); super.mouseDown(with: event) }
+    override func mouseDragged(with event: NSEvent) { surBouton?(event); super.mouseDragged(with: event) }
+    override func mouseUp(with event: NSEvent) { surBouton?(event); super.mouseUp(with: event) }
     private func fleche() { CurseurEnArrierePlan.autoriser(); NSCursor.arrow.set() }
 }
 
@@ -70,12 +76,16 @@ final class PanneauIlot: NSPanel {
 @MainActor
 final class IlotPanneau {
     let moteur: IlotMoteur
-    private var fenetre: PanneauIlot?
+    private(set) var fenetre: PanneauIlot?
     private var vue: VueHebergeeIlot<IlotVue>?
     private var conteneur: NSView?
-    private var centre: CGFloat = 0
-    private var ecran: NSScreen?
-    private var cadreVoulu = CGRect.zero
+    private(set) var centre: CGFloat = 0
+    private(set) var ecran: NSScreen?
+    var cadreVoulu = CGRect.zero
+    /// Le cadre appliqué est celui du régime libre de la Lucarne (centré sur sa capsule) : un changement de régime s'applique tout de suite.
+    private(set) var cadreLibre = false
+    /// … et celui de la tenue ou du vol (centré sur la capsule, d'une taille fixe) : posée, la Lucarne a sa fenêtre à elle tout de suite.
+    private(set) var cadreEnMain = false
     private var reduction: DispatchWorkItem?
     private var moniteurClic: Any?
     private var surveilleEcran: NSObjectProtocol?
@@ -92,6 +102,7 @@ final class IlotPanneau {
         self.moteur = moteur
         moteur.surFenetre = { [weak self] in self?.ajuster() }
         moteur.surMoniteur = { [weak self] actif in if actif { self?.installerMoniteur() } else { self?.retirerMoniteur() } }
+        moteur.lucarne.surDeplacement = { [weak self] in self?.deplacerLibre() }
     }
 
     // MARK: vie
@@ -132,6 +143,7 @@ final class IlotPanneau {
         moteur.reduire = reduire
         centre = c
         ecran = e
+        mesurerLucarne(e)
     }
     /// Une encoche réelle (caméra) : l'îlot vide a sa place dans l'encoche. Sans encoche, l'îlot vide n'existe pas.
     private var encocheReelle: Bool { ecran != nil && moteur.geometrie.reelle }
@@ -153,7 +165,8 @@ final class IlotPanneau {
         let v = VueHebergeeIlot(rootView: IlotVue(m: moteur))
         v.frame = NSRect(x: 0, y: 0, width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax)
         v.autoresizingMask = []
-        v.surPointeur = { [weak self] p in self?.pointeur(p) }
+        v.surPointeur = { [weak self] p in guard let self else { return }; self.pointeur(p.map(self.moteur.depuisVue)) }
+        v.surBouton = { [weak self] e in self?.bouton(e) }
         v.surDefilement = { [weak self] e in self?.defilement(e) }
         // le fond de la fenêtre reçoit les fichiers lâchés (l'étagère) ; la vue SwiftUI au-dessus n'en veut pas, ils lui passent dessous
         let c = ConteneurIlot(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
@@ -169,7 +182,7 @@ final class IlotPanneau {
     /// Place la fenêtre sur ce que l'îlot veut couvrir. Elle grandit tout de suite, rétrécit 0,65 s plus tard (le temps que la forme se referme).
     func ajuster() {
         guard let f = fenetre, let ecran else { return }
-        let veut = moteur.cache || (!encocheReelle && moteur.resolution.principal == .repos && moteur.pastille == nil && !moteur.depot && !moteur.appel)
+        let veut = moteur.cache || (!encocheReelle && !moteur.lucarne.libre && moteur.resolution.principal == .repos && moteur.pastille == nil && !moteur.depot && !moteur.appel)
         if veut {
             laisserPasser(false)
             if f.isVisible, moteur.courante == .repos, moteur.geo.allSatisfy(\.fini) { f.orderOut(nil) }
@@ -177,18 +190,27 @@ final class IlotPanneau {
             return
         }
         let r = moteur.fenetreVoulue()
-        let grandit = r.width > cadreVoulu.width + 0.5 || r.height > cadreVoulu.height + 0.5 || !f.isVisible
-        if grandit { appliquer(r) }
-        else if r != cadreVoulu {
-            reduction?.cancel()
-            let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { guard let self else { return }; self.appliquer(self.moteur.fenetreVoulue()) } }
-            reduction = item
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.65, execute: item)
+        if let fusion = cadreLibrePose(r, visible: f.isVisible) {
+            // hors de l'encoche, posée : l'ancienne forme et la nouvelle tiennent toutes deux le temps du passage
+            appliquer(fusion)
+            if fusion != r { programmerReduction() }
+        } else {
+            let grandit = r.width > cadreVoulu.width + 0.5 || r.height > cadreVoulu.height + 0.5 || !f.isVisible || poserToutDeSuite(r)
+            if grandit { appliquer(r) } else if r != cadreVoulu { programmerReduction() }
         }
         f.alphaValue = invisible ? 0 : 1
-        f.ignoresMouseEvents = invisible || moniteurTraversee != nil
+        // en vol, la fenêtre (de la taille de la tenue) ne prend aucun clic : rien n'y est cliquable
+        f.ignoresMouseEvents = invisible || moniteurTraversee != nil || moteur.lucarne.vol
         if !f.isVisible { f.orderFrontRegardless(); reevaluerPointeur() }
         _ = ecran
+    }
+
+    /// Le cadre voulu, 0,65 s plus tard (le temps que la forme se referme).
+    private func programmerReduction() {
+        reduction?.cancel()
+        let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { guard let self else { return }; self.appliquer(self.moteur.fenetreVoulue()) } }
+        reduction = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65, execute: item)
     }
 
     private func retarderMasquage() {
@@ -203,14 +225,19 @@ final class IlotPanneau {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7, execute: item)
     }
 
-    private func appliquer(_ r: CGRect) {
+    /// `r` : repère de la Lucarne (x depuis le centre de l'encoche, y depuis le haut de l'écran) ; la vue y est posée d'après `origineVue`
+    /// (le point dessiné en haut au milieu d'elle).
+    func appliquer(_ r: CGRect) {
         guard let f = fenetre, let ecran else { return }
         reduction?.cancel()
         cadreVoulu = r
-        let cadre = NSRect(x: centre + r.minX, y: ecran.frame.maxY - r.height, width: r.width, height: r.height)
+        cadreLibre = moteur.lucarne.libre
+        cadreEnMain = moteur.lucarneEnMain
+        let o = moteur.origineVue, t = moteur.tailleVue
+        let cadre = NSRect(x: centre + r.minX, y: ecran.frame.maxY - r.maxY, width: r.width, height: r.height)
         f.setFrame(cadre, display: false)
         conteneur?.frame = NSRect(origin: .zero, size: cadre.size)
-        vue?.frame = NSRect(x: -r.minX - IlotMoteur.largeur / 2, y: cadre.height - IlotMoteur.hauteurMax, width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax)
+        vue?.frame = NSRect(x: o.x - r.minX - t.width / 2, y: cadre.height - t.height - (o.y - r.minY), width: t.width, height: t.height)
         reevaluerPointeur()
     }
 
@@ -235,6 +262,8 @@ final class IlotPanneau {
     // MARK: souris
 
     private func pointeur(_ p: CGPoint?) {
+        // un appui ou une tenue de la Lucarne : la fenêtre garde la souris jusqu'au relâchement
+        if moteur.lucarneOccupee { return }
         guard let p else {
             if sousForme { sousForme = false; moteur.survolForme(false) }
             if sousPastille { sousPastille = false; moteur.survolPastille(false) }
@@ -262,7 +291,7 @@ final class IlotPanneau {
         let dy = Double(e.hasPreciseScrollingDeltas ? e.scrollingDeltaY : e.scrollingDeltaY * 10)
         let dx = Double(e.hasPreciseScrollingDeltas ? e.scrollingDeltaX : e.scrollingDeltaX * 10)
         // où est le pointeur (la liste des Dictées défile sous lui) ; un événement sans fenêtre (essais) est placé depuis l'écran
-        let p = vue?.point(e) ?? pointEcran(e.locationInWindow)
+        let p = vue?.point(e).map(moteur.depuisVue) ?? pointEcran(e.locationInWindow)
         moteur.recevoirDefilement(dy: dy, dx: dx, phase: phase, inertie: e.momentumPhase != [], en: p)
     }
 
@@ -531,7 +560,8 @@ final class IlotPanneau {
     }
 
     private func procheEncoche(_ p: CGPoint) -> Bool {
-        ApprocheEtagere.proche(x: Double(p.x), y: Double(p.y), demiCamera: Double(moteur.demiCamera), barre: Double(moteur.geometrie.hauteur), retour: zonesQuittees)
+        if moteur.lucarne.libre { return procheLucarne(p, retour: zonesQuittees) }
+        return ApprocheEtagere.proche(x: Double(p.x), y: Double(p.y), demiCamera: Double(moteur.demiCamera), barre: Double(moteur.geometrie.hauteur), retour: zonesQuittees)
     }
 
     /// Des fichiers glissés sont en `p` : près de l'encoche, l'îlot s'ouvre en « Déposez ici » et la fenêtre les accepte ; ouvert, il le
@@ -540,7 +570,8 @@ final class IlotPanneau {
     func approcher(_ p: CGPoint) {
         // dans la barre des menus, seulement près du cou (à côté, ce sont les icônes des autres apps) ; dessous, près de la forme
         let marge = CGFloat(ApprocheEtagere.marge)
-        let garde = moteur.depot && (p.y < moteur.geometrie.hauteur ? abs(p.x) <= CGFloat(moteur.traceCible.cou) + marge : moteur.contient(p, marge: marge))
+        // (hors de l'encoche, pas de barre des menus autour : la forme et ses 40 pt)
+        let garde = moteur.depot && (p.y < moteur.geometrie.hauteur && !moteur.lucarne.libre ? abs(p.x) <= CGFloat(moteur.traceCible.cou) + marge : moteur.contient(p, marge: marge))
         // le Centre ouvert reçoit les fichiers sur toute sa forme (sa case Étagère s'éclaire) : on y lâche un fichier venu du Finder
         let proche = procheEncoche(p) || garde || (moteur.centreOuvert && moteur.contient(p))
         if proche, !moteur.depot {
@@ -566,7 +597,8 @@ final class IlotPanneau {
     /// L'instant où la zone « AirDrop » s'est éclairée sous le pointeur (nil : elle ne l'est pas).
     private var airDropEclaire: TimeInterval?
     private func zone(_ p: CGPoint) -> ZoneDepotEtagere {
-        ZoneDepotEtagere.sous(x: Double(p.x), y: Double(p.y), barre: Double(moteur.geometrie.hauteur))
+        let q = moteur.versContenu(p)   // les zones sont mises en page comme sous l'encoche
+        return ZoneDepotEtagere.sous(x: Double(q.x), y: Double(q.y), barre: Double(moteur.geometrie.hauteur))
     }
     /// Un lâcher en `p` serait-il accepté ? Seulement sur la forme de « Déposez ici » (pas dans le vide de la fenêtre à côté).
     func peutDeposer(_ p: CGPoint) -> Bool { etagereActive && moteur.depot && !depotLache && moteur.contient(p) }

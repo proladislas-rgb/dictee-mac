@@ -81,25 +81,6 @@ struct ClaudeVoyageur: View {
     }
 }
 
-/// Claude dans la bulle à droite de l'îlot : l'étoile, et « 3 sur 7 » ou « Attend » s'il y a quelque chose à dire.
-struct PastilleClaude: View {
-    @ObservedObject var m: IlotMoteur
-    var body: some View {
-        let s = m.claude ?? m.dernierClaude
-        let t = m.texteClaude(s, taille: 12.5)
-        HStack(spacing: 6) {
-            EtoileClaude(couleur: CouleursIlot.corail).frame(width: 13, height: 13)
-            if !t.isEmpty {
-                Text(t).font(.system(size: 12.5, weight: .semibold).monospacedDigit()).foregroundStyle(CouleursIlot.corail).lineLimit(1).fixedSize()
-            }
-        }
-        .padding(.leading, 10)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(s?.etat == .attend ? "Claude attend ta réponse" : "Claude au travail")
-        .accessibilityValue(t)
-    }
-}
-
 // MARK: - le dossier des sessions
 
 /// Une ligne nouvelle du fichier d'une session.

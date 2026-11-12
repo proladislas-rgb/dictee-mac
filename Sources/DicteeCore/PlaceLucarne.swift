@@ -57,6 +57,12 @@ public struct CapsuleLucarne: Equatable, Sendable {
     public static func boite(x0: Double, y0: Double, largeur: Double, hauteur: Double, rayon: Double) -> CapsuleLucarne {
         CapsuleLucarne(x0: x0, x1: x0 + largeur, y0: y0, y1: y0 + hauteur, s: rayon, r: rayon)
     }
+    /// La forme de l'encoche en capsule : la trace d'un écran (`TraceIlot.calculer`) avec son épaule et son coin du bas (valeurs 3 et 4 de
+    /// `GeoIlot`). Pour une forme repliée (rien sous la barre), `TraceLucarne` redonne exactement le même tracé : la Lucarne quitte
+    /// l'encoche, ou y revient, sans saut.
+    public static func encoche(_ p: TraceIlot.Points, epaule: Double, coin: Double) -> CapsuleLucarne {
+        CapsuleLucarne(x0: -p.corpsGauche, x1: p.corpsDroit, y0: 0, y1: p.hauteur, s: -max(0, epaule), r: max(0, coin))
+    }
     /// Une pilule (couchée ou debout) de cette taille, centrée en (cx, cy).
     public static func pilule(cx: Double, cy: Double, largeur: Double, hauteur: Double) -> CapsuleLucarne {
         let rayon = min(largeur, hauteur) / 2 / TraceIlot.portee
@@ -143,7 +149,7 @@ public struct EcranLucarne: Equatable, Sendable {
         return (milieu - l / 2)...(milieu + l / 2)
     }
     /// Une forme entre x0 et x1 (repère de la Lucarne) se pose-t-elle sur le Dock du bas ? Masqué ou de largeur inconnue : partout.
-    func recouvreDock(x0: Double, x1: Double) -> Bool {
+    public func recouvreDock(x0: Double, x1: Double) -> Bool {
         guard dockCote == .bas, reserveBas > 0 else { return false }
         guard let d = intervalleDock else { return true }
         return x0 < d.upperBound + 8 && x1 > d.lowerBound - 8
@@ -277,8 +283,66 @@ public enum GeoLucarne {
         let demiL = hw * echelleTenue, demiH = hh * echelleTenue
         func lerp(_ a: Double, _ b: Double) -> Double { a + (b - a) * lisse }
         let cx = min(e.xBordDroit - demiL - 4, max(e.xBordGauche + demiL + 4, lerp(p.x + d.x, 0)))
-        let cy = min(e.hauteur - demiH - 4, max(e.barre / 2, lerp(p.y + d.y, e.barre / 2)))
+        // l'encoche attire le centre à la demi-hauteur de la forme tenue (son haut collé au bord de l'écran), pas au milieu de la barre
+        let cy = min(e.hauteur - demiH - 4, max(e.barre / 2, lerp(p.y + d.y, hh)))
         return (cx, cy, m > seuilAimant)
+    }
+}
+
+// MARK: hors de l'encoche : le contenu, la bulle, le verre (mission 3)
+
+extension GeoLucarne {
+    /// Le haut-milieu du contenu d'un déplié (le point (0, barre) de la grille de l'encoche) : le haut-milieu de la forme telle qu'elle est.
+    /// Le contenu la suit comme sous l'encoche (centré dans la forme qui grandit) : quand la forme visée change (repli, une carte plus
+    /// haute, une annonce plus étroite), le contenu qui s'efface glisse avec elle, il ne saute jamais.
+    public static func coinContenu(_ a: CapsuleLucarne) -> PointLucarne { PointLucarne(a.centreX, a.y0) }
+
+    /// L'écart entre la pilule et sa bulle (la deuxième activité), et la hauteur d'une bulle à côté d'une pilule debout.
+    public static let ecartBulle = 8.0
+    public static let hauteurBulleDebout = 64.0
+
+    /// La bulle de la deuxième activité, posée à côté de la pilule `p`, du côté de l'intérieur de l'écran : à droite depuis la gauche
+    /// et le milieu, à gauche depuis la droite ; sous une pilule debout. `largeur` : celle de son contenu (couchée) ; debout, la bulle
+    /// prend la largeur de la pilule. `sortie` : 0 = rentrée au milieu de la pilule (invisible sous elle), 1 = posée.
+    public static func bulle(_ p: CapsuleLucarne, place: PlaceLucarne, largeur: Double, sortie: Double = 1) -> CapsuleLucarne {
+        let posee: CapsuleLucarne
+        if place.debout {
+            posee = .pilule(cx: p.centreX, cy: p.y1 + ecartBulle + hauteurBulleDebout / 2, largeur: p.largeur, hauteur: hauteurBulleDebout)
+        } else if place.ancre.x > 0.5 {
+            posee = .pilule(cx: p.x0 - ecartBulle - largeur / 2, cy: p.centreY, largeur: largeur, hauteur: p.hauteur)
+        } else {
+            posee = .pilule(cx: p.x1 + ecartBulle + largeur / 2, cy: p.centreY, largeur: largeur, hauteur: p.hauteur)
+        }
+        // la goutte part du milieu de la pilule, petite, et grandit en sortant ; le rebond du ressort ne la pousse pas plus loin que sa place
+        let s = min(1, max(0, sortie))
+        let cx = p.centreX + (posee.centreX - p.centreX) * s, cy = p.centreY + (posee.centreY - p.centreY) * s
+        let k = 0.4 + 0.6 * s
+        return .pilule(cx: cx, cy: cy, largeur: posee.largeur * k, hauteur: posee.hauteur * k)
+    }
+}
+
+/// Le verre hors de l'encoche (niveau « Liquide » de la maquette lucarne-position.html) : un verre givré (le fond flouté sous le contenu :
+/// les lettres d'une page derrière ne se mêlent plus au texte) et un voile noir. Le contenu de l'îlot est fait pour le noir
+/// (texte blanc, rouge, ambre, bleu) ; sans lecture du fond (il faudrait l'enregistrement de l'écran), le voile est réglé sur le pire
+/// fond, une page blanche, par le calcul du contraste (WCAG) : blanc ≥ 12, gris à 60 % ≥ 5, rouge et bleu système ≥ 3,4. Le verre se voit
+/// à son bord (liseré, lentille, ombre) ; sur un fond sombre, il est noir comme l'encoche.
+public enum VerreLucarne {
+    public static let voile = 0.8
+    /// L'ombre posée (repliée, dépliée) : opacité, flou, décalage vers le bas.
+    public static let ombrePosee = (opacite: 0.22, flou: 5.0, y: 3.0)
+    public static let ombreDepliee = (opacite: 0.32, flou: 11.0, y: 6.0)
+    /// Luminance relative (WCAG) d'une composante sRGB.
+    public static func luminance(_ c: Double) -> Double {
+        c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+    }
+    /// Le contraste d'un texte de couleur sRGB `lettre` (opacité `opacite`) posé sur le voile noir, lui-même sur un fond gris sRGB `fond`
+    /// (1 = page blanche) vu au travers du verre.
+    public static func contraste(lettre: (r: Double, g: Double, b: Double) = (1, 1, 1), opacite: Double = 1, voile v: Double = voile, fond: Double) -> Double {
+        let dessous = fond * (1 - v)
+        func melange(_ c: Double) -> Double { dessous + (c - dessous) * opacite }
+        let a = 0.2126 * luminance(melange(lettre.r)) + 0.7152 * luminance(melange(lettre.g)) + 0.0722 * luminance(melange(lettre.b))
+        let b = luminance(dessous)
+        return (max(a, b) + 0.05) / (min(a, b) + 0.05)
     }
 }
 
@@ -408,8 +472,9 @@ public struct RessortsCapsule: Equatable, Sendable {
     /// « Réduire les animations » : tout saute à sa place.
     public mutating func viser(_ c: CapsuleLucarne, passage: PassageLucarne, vitesse: PointLucarne? = nil, reduire: Bool = false) {
         if reduire {
-            Self.poser(&cx, c.centreX); Self.poser(&cy, c.centreY); Self.poser(&hw, c.largeur / 2); Self.poser(&hh, c.hauteur / 2)
-            Self.poser(&s, c.s); Self.poser(&r, c.r)
+            // seulement les axes que le passage vise : tenue, le centre reste au doigt
+            func p(_ r: inout RessortIlot, _ v: Double, _ a: PassageLucarne.Axe) { if passage.reglage(a) != nil { Self.poser(&r, v) } }
+            p(&cx, c.centreX, .cx); p(&cy, c.centreY, .cy); p(&hw, c.largeur / 2, .hw); p(&hh, c.hauteur / 2, .hh); p(&s, c.s, .s); p(&r, c.r, .r)
             if let n = passage.noir { Self.poser(&noir, n.cible) }
             return
         }

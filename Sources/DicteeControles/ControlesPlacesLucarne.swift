@@ -125,8 +125,10 @@ func controlesPlacesLucarne() {
         let juste = G.tenue(pointeur: PointLucarne(0, 116.5), decalage: PointLucarne(0, 0), e)   // distance 100 → 0,4545
         let loin = G.tenue(pointeur: PointLucarne(0, 117.5), decalage: PointLucarne(0, 0), e)    // distance 101 → 0,4455
         verifier(juste.pres && !loin.pres, "seuil 0,45 : à 100 pt elle s'aimante, à 101 pt non")
-        let pile = G.tenue(pointeur: PointLucarne(0, 16.5), decalage: PointLucarne(0, 0), e)
-        verifier(pile.pres && abs(pile.cx) < 1e-9 && abs(pile.cy - 16.5) < 1e-9, "sur l'encoche : centrée dans l'encoche")
+        let pile = G.tenue(pointeur: PointLucarne(0, 16.5), decalage: PointLucarne(0, 0), hh: 16.5, e)
+        verifier(pile.pres && abs(pile.cx) < 1e-9 && abs(pile.cy - 16.5) < 1e-9, "sur l'encoche : la forme de l'encoche centrée dans l'encoche")
+        let pilule = G.tenue(pointeur: PointLucarne(0, 16.5), decalage: PointLucarne(0, 0), hh: 18, e)
+        verifier(abs(pilule.cy - 18) < 1e-9, "sur l'encoche : une forme plus haute garde son haut au bord de l'écran (centre à sa demi-hauteur, pas au milieu de la barre)")
         let a = G.tenue(pointeur: PointLucarne(10, 70), decalage: PointLucarne(0, 0), e)
         verifier(a.pres && abs(a.cx) < 10 && a.cy < 70 && a.cy > 16.5, "près de l'encoche : elle est retenue, tirée vers l'encoche")
     }
@@ -268,6 +270,33 @@ func controlesPlacesLucarne() {
         verifier(ok, "de s = −6 à +12 : le tracé n'a pas de saut de boîte")
     }
 
+    groupe("Lucarne : quitter l'encoche et y revenir sans saut")
+    do {
+        // chaque forme repliée de l'encoche (rien sous la barre), sur des barres de 32 à 38 pt : la capsule tirée de sa trace redonne
+        // exactement le même tracé (le passage du régime de l'encoche au régime libre, et retour, ne se voit pas)
+        var pareils = 0, total = 0
+        for barre in [32.0, 33, 37, 38] {
+            for v in VueIlot.allCases where GeoIlot.profondeur(v) == 0 && v != .repos {
+                let g = GeoIlot.valeurs(v, hauteurBarre: barre, demiCamera: 89.5)
+                let p = TraceIlot.calculer(g, demiCamera: 89.5, barre: barre)
+                let q = TraceLucarne.calculer(.encoche(p, epaule: g[3], coin: g[4]))
+                total += 1
+                if q.commandes == p.commandes { pareils += 1 } else { print("    écart : \(v) barre \(barre)") }
+            }
+        }
+        verifier(total > 5 && pareils == total, "formes repliées : la capsule de l'encoche redonne le même tracé (\(pareils)/\(total))")
+        // l'encoche vide (la caméra seule, coins carrés en haut) : même boîte
+        let g = GeoIlot.valeurs(.repos, hauteurBarre: 33, demiCamera: 89.5)
+        let p = TraceIlot.calculer(g, demiCamera: 89.5, barre: 33)
+        let c = CapsuleLucarne.encoche(p, epaule: g[3], coin: g[4])
+        verifier(c.x0 == -89.5 && c.x1 == 89.5 && c.y0 == 0 && c.y1 == 33, "encoche vide : la capsule épouse la caméra (−89,5…89,5 × 0…33)")
+        // une forme dépliée (le Centre) : la capsule prend son corps et sa hauteur (elle se replie ensuite en pilule, tenue)
+        let gc = GeoIlot.valeurs(.centre, hauteurBarre: 33, demiCamera: 89.5)
+        let pc = TraceIlot.calculer(gc, demiCamera: 89.5, barre: 33)
+        let cc = CapsuleLucarne.encoche(pc, epaule: gc[3], coin: gc[4])
+        verifier(cc.x0 == -pc.corps && cc.x1 == pc.corps && cc.y1 == pc.hauteur && cc.s < 0, "Centre ouvert : la capsule part de son corps et de sa hauteur, épaules creuses")
+    }
+
     groupe("Lucarne : les ressorts")
     do {
         let depart = G.replie(.hautGauche, macBook), arrivee = G.replie(.basDroite, macBook)
@@ -340,6 +369,13 @@ func controlesPlacesLucarne() {
         var plac = RessortsCapsule(depart)
         plac.placer(arrivee)
         verifier(plac.fini && plac.valeur == arrivee, "placer : saute sur la forme")
+    }
+
+    groupe("Lucarne : réduire les animations pendant la tenue")
+    do {
+        var r = RessortsCapsule(.pilule(cx: 400, cy: 300, largeur: 120, hauteur: 36))
+        r.viser(G.replie(.encoche, macBook), passage: .tenueEncoche, reduire: true)
+        verifier(r.cx.x == 400 && r.cy.x == 300 && r.hh.x == macBook.barre / 2 && r.fini, "réduire : la forme tenue saute, le centre reste au doigt")
     }
 
     groupe("Lucarne : le geste (appui long, glisser, lancer)")
@@ -456,5 +492,49 @@ func controlesPlacesLucarne() {
         verifier(large.largeur == 200 && abs(large.x1 - macBook.xMax) < 0.001, "pilule plus large : toujours calée sur le bord droit")
         let haute = G.replie(.droite, macBook, taille: TailleLucarne(largeur: 60, hauteur: 112))
         verifier(haute.largeur == 60 && abs(haute.x1 - macBook.xMax) < 0.001, "pilule debout plus large : toujours calée sur le bord")
+    }
+
+    groupe("Lucarne : le contenu hors de l'encoche")
+    do {
+        // le contenu suit le haut-milieu de la forme telle qu'elle est : posé, celui de la cible ; en route, il glisse avec elle
+        for (nom, e) in faux {
+            for p in PlaceLucarne.allCases where !(p == .encoche && e.avecEncoche) {
+                let g = G.grand(p, e, largeur: 467, hauteur: 300, rayon: 34)
+                let k = G.coinContenu(g)
+                verifier(abs(k.x - g.centreX) < 0.001 && abs(k.y - g.y0) < 0.001, "\(nom), \(p.rawValue) : posé, le contenu en haut au milieu de la forme")
+            }
+        }
+        let a = G.replie(.basDroite, macBook), b = G.grand(.basDroite, macBook, largeur: 467, hauteur: 300, rayon: 34)
+        var saut = 0.0, avant = G.coinContenu(a)
+        for i in 1...50 {
+            let u = Double(i) / 50
+            let c = CapsuleLucarne(x0: a.x0 + (b.x0 - a.x0) * u, x1: a.x1 + (b.x1 - a.x1) * u, y0: a.y0 + (b.y0 - a.y0) * u, y1: a.y1 + (b.y1 - a.y1) * u, s: 20, r: 20)
+            let k = G.coinContenu(c); saut = max(saut, hypot(k.x - avant.x, k.y - avant.y)); avant = k
+        }
+        verifier(saut < 12, "de la pilule au déplié en 50 images : le contenu glisse avec la forme, jamais plus de 12 pt d'une image à l'autre (\(Int(saut)) pt)")
+
+        groupe("Lucarne : la bulle de la deuxième activité")
+        for (nom, e) in faux {
+            for p in PlaceLucarne.allCases where !(p == .encoche && e.avecEncoche) {
+                let r = G.replie(p, e), b = G.bulle(r, place: p, largeur: 74)
+                let dedans = b.x0 >= e.xBordGauche && b.x1 <= e.xBordDroit && b.y0 >= e.barre && b.y1 <= e.hauteur
+                let separee = p.debout ? abs(b.y0 - r.y1 - G.ecartBulle) < 0.001 : (abs(b.x0 - r.x1 - G.ecartBulle) < 0.001 || abs(r.x0 - b.x1 - G.ecartBulle) < 0.001)
+                let interieur = p.debout || (p.ancre.x > 0.5 ? b.centreX < r.centreX : b.centreX > r.centreX)
+                verifier(dedans && separee && interieur && !surDock(b, e), "\(nom), \(p.rawValue) : la bulle à côté, vers l'intérieur, dans l'écran, hors du Dock")
+            }
+        }
+        let r = G.replie(.hautDroite, macBook), rentree = G.bulle(r, place: .hautDroite, largeur: 74, sortie: 0)
+        verifier(abs(rentree.centreX - r.centreX) < 0.001 && rentree.largeur < r.largeur && rentree.hauteur < r.hauteur, "bulle rentrée : cachée sous le milieu de la pilule")
+        verifier(G.bulle(r, place: .hautDroite, largeur: 74, sortie: 1.2) == G.bulle(r, place: .hautDroite, largeur: 74), "le rebond de la sortie ne la pousse pas au-delà de sa place (la fenêtre la contient)")
+
+        groupe("Lucarne : le voile du verre (le contenu fait pour le noir reste lisible sur une page blanche)")
+        let V = VerreLucarne.self
+        func ct(_ l: (r: Double, g: Double, b: Double), _ o: Double = 1, fond: Double = 1) -> Double { V.contraste(lettre: l, opacite: o, fond: fond) }
+        func f(_ x: Double) -> String { String(format: "%.1f", x) }
+        verifier(ct((1, 1, 1)) >= 7, "texte blanc sur page blanche ≥ 7 (\(f(ct((1, 1, 1)))))")
+        verifier(ct((1, 1, 1), 0.6) >= 4.5, "texte gris (60 %) ≥ 4,5 (\(f(ct((1, 1, 1), 0.6))))")
+        let rouge = (1.0, 0x45 / 255.0, 0x3A / 255.0), bleu = (0x0A / 255.0, 0x84 / 255.0, 1.0), ambre = (1.0, 0x9F / 255.0, 0x0A / 255.0)
+        verifier(ct(rouge) >= 3 && ct(bleu) >= 3 && ct(ambre) >= 4.5, "rouge, bleu, ambre système ≥ 3 (\(f(ct(rouge))), \(f(ct(bleu))), \(f(ct(ambre))))")
+        verifier(ct((1, 1, 1), fond: 0) >= 20, "sur fond noir : comme l'encoche")
     }
 }
