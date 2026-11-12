@@ -33,9 +33,9 @@ public enum ToucheGlobe {
     /// Ce que fait la touche, en une phrase (titre de l'étape du premier lancement et ligne des Réglages).
     public static func phrase(valeur: Int?) -> String {
         switch valeur {
-        case 1: return "Votre touche 🌐 change de méthode de saisie"
-        case 3: return "Votre touche 🌐 lance la dictée d\u{2019}Apple"
-        default: return "Votre touche 🌐 ouvre les emoji"
+        case 1: return "Ta touche 🌐 change de méthode de saisie"
+        case 3: return "Ta touche 🌐 lance la dictée d\u{2019}Apple"
+        default: return "Ta touche 🌐 ouvre les emoji"
         }
     }
 

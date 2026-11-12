@@ -136,15 +136,14 @@ enum RenduMiseAJour {
         let storeReunions = ReunionStore(dossier: FileManager.default.temporaryDirectory.appendingPathComponent("dictee-rendu-reunions"), lire: false)
         let controleur = ReunionController(store: storeReunions)
         let reunions = ReunionsModele(store: storeReunions)
-        let taille = CGSize(width: 1180, height: 1000)
+        let taille = RenduBureau.taille
         func reglages(_ nom: String, _ maj: MiseAJourModele, taille: CGSize = taille) {
-            let nav = NavigationFenetre(); nav.onglet = .reglages
+            let nav = NavigationBureau(); nav.aller(.reglages)
             let d = ModeleDictees(store: exemple)
             let r = ReglagesModele(reel: false, maj: maj)
-            let vue = RenduFenetre.Cadre(taille: taille) {
-                FenetreVue(nav: nav, dictees: d, store: exemple, mots: MotsModele(persistant: false, mots: [], raccourcis: [], propositions: PropositionsMots()),
-                           reglages: r, reunions: reunions, controleur: controleur, journee: JourneeModele(dictees: d, reunions: reunions), curseurFactice: true)
-            }
+            let vue = RenduBureau.fenetre(nav, sombre: true, taille: taille, store: exemple, dictees: d,
+                                          mots: MotsModele(persistant: false, mots: [], raccourcis: [], propositions: PropositionsMots()),
+                                          reglages: r, reunions: reunions, controleur: controleur, journee: JourneeModele(dictees: d, reunions: reunions))
             ok = RenduVues.ecrire(RenduVues.png(vue, taille: taille), url.appendingPathComponent("\(nom).png")) && ok
         }
         reglages("reglages-1-a-jour", MiseAJourModele.exemple())
@@ -152,7 +151,7 @@ enum RenduMiseAJour {
         reglages("reglages-3-telechargement", MiseAJourModele.exemple(.telechargement(0.42), disponible: "0.3.1"))
         reglages("reglages-4-depuis-image-disque", MiseAJourModele.exemple(disponible: "0.3.1", refus: "Verbe tourne depuis l\u{2019}image disque. Glisse-le dans Applications, puis rouvre-le."))
         reglages("reglages-5-hors-ligne", MiseAJourModele.exemple(message: "Impossible de vérifier : pas de connexion à GitHub.", automatique: false))
-        reglages("reglages-6-petite", MiseAJourModele.exemple(disponible: "0.3.1"), taille: CGSize(width: 700, height: 1500))
+        reglages("reglages-6-petite", MiseAJourModele.exemple(disponible: "0.3.1"), taille: CGSize(width: FenetrePrincipale.tailleMinimale.width + 80, height: FenetrePrincipale.tailleMinimale.height + 80))
 
         // Notes de version
         let m = MiseAJourModele.exemple(disponible: "0.3.1")

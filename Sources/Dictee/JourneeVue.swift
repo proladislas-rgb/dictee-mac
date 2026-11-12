@@ -153,7 +153,7 @@ struct JourneeVue: View {
                     }
                 }
                 .padding(.horizontal, Self.margeH)
-                .padding(.top, 24).padding(.bottom, 24)
+                .padding(.top, 4).padding(.bottom, 24)   // sous le titre de la sous-page « Ta journée »
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .onTapGesture { m.fermerHeure() }   // un clic ailleurs referme l'heure (les boutons et les lignes gardent leurs clics)
@@ -314,7 +314,7 @@ struct JourneeVue: View {
                     HStack(alignment: .bottom, spacing: 8) {
                         ForEach(Array(sept.enumerated()), id: \.offset) { i, j in
                             Button { m.aller(a: j.jour) } label: {
-                                RoundedRectangle(cornerRadius: 3).fill(i == sept.count - 1 ? Palette.texte : Color(hex: 0x4A4A47))
+                                RoundedRectangle(cornerRadius: 3).fill(i == sept.count - 1 ? Palette.texte : Palette.relief)
                                     .frame(height: max(2, 100 * CGFloat(j.mots) / CGFloat(maxMots)))
                                     .frame(maxWidth: .infinity, maxHeight: 100, alignment: .bottom)
                                     .contentShape(Rectangle())

@@ -40,6 +40,11 @@ cp "$BIN" "$ASSEMBLAGE/Contents/MacOS/$NOM_APP"
 # Police du texte dicté (Newsreader, licence OFL) et sa licence
 cp Resources/Polices/Newsreader.ttf Resources/Polices/OFL.txt "$ASSEMBLAGE/Contents/Resources/"
 
+# Illustrations des cartes d'accueil (Resources/Illustrations/1a.png… 5a.png, voir le LISEZ-MOI du dossier) ; absentes, la carte
+# montre un symbole sobre à leur place.
+mkdir -p "$ASSEMBLAGE/Contents/Resources/Illustrations"
+for illustration in Resources/Illustrations/*.png(N); do cp "$illustration" "$ASSEMBLAGE/Contents/Resources/Illustrations/"; done
+
 # Lecture en cours dans l'encoche : un petit module natif (Objective-C) chargé par /usr/bin/perl, qui lit MediaRemote à la place de l'app
 # (macOS ≥ 15.4 ne le permet plus aux apps tierces). arm64e : /usr/bin/perl est arm64e, il ne charge pas un module arm64 seul.
 echo "==> Module de lecture en cours (verbe-lecture.dylib)"

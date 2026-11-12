@@ -74,6 +74,17 @@ enum IconeApp {
         ctx.fillPath()
     }
 
+    /// L'icône en image (Réglages, carte « Bonjour ») : la même que celle de l'app, dessinée ici (aussi dans les rendus, sans paquet).
+    /// Dessinée une fois, gardée (la page Réglages se redessine souvent).
+    static let image128 = image(cote: 128)
+    static let image256 = image(cote: 256)
+
+    static func image(cote: Int = 128) -> NSImage {
+        let i = NSImage(size: NSSize(width: cote / 2, height: cote / 2))
+        if let rep = pixels(cote: cote) { i.addRepresentation(rep) }
+        return i
+    }
+
     static func pixels(cote: Int) -> NSBitmapImageRep? {
         guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: cote, pixelsHigh: cote, bitsPerSample: 8, samplesPerPixel: 4,
                                          hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),

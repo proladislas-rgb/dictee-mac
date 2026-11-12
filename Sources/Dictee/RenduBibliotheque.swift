@@ -64,25 +64,16 @@ enum RenduBibliotheque {
         return m
     }
 
-    /// L'onglet « Bibliothèque » dans un cadre de fenêtre (1100 × 640), avec la barre des onglets.
+    /// La Bibliothèque dans la fenêtre (Aujourd'hui › Bibliothèque), en sombre.
     static func fenetre(_ b: BibliothequeModele, _ t0: Date, _ etat: BibliothequeFenetreEtat? = nil) -> some View {
-        let etat = etat ?? BibliothequeFenetreEtat()
-        let taille = CGSize(width: 1180, height: 720)
-        let barre = HStack(spacing: 4) {
-            ForEach([Onglet.dictees, .journee, .reunions, .mots, .bibliotheque], id: \.self) { o in
-                OngletBarre(titre: o.rawValue, actif: o == .bibliotheque, pastille: o == .mots ? 1 : 0) {}
-            }
-            Spacer()
-            OngletBarre(titre: Onglet.reglages.rawValue, actif: false) {}.padding(.trailing, 16)
-        }
-        .padding(.leading, 88)
-        return RenduFenetre.Cadre(taille: taille, barre: AnyView(barre)) {
-            VStack(spacing: 0) {
-                Rectangle().fill(Palette.filet).frame(height: 1)
-                BibliothequeFenetreVue(b: b, e: etat, statique: true)
-            }
-            .background(Palette.surface)
-        }
-        .environment(\.colorScheme, .dark)
+        let nav = NavigationBureau(); nav.ouvrir(.bibliotheque)
+        let h = HistoriqueStore(enMemoire: [])
+        let d = ModeleDictees(store: h)
+        let store = ReunionStore(dossier: FileManager.default.temporaryDirectory.appendingPathComponent("verbe-rendu-biblio"), lire: false)
+        let r = ReunionsModele(store: store)
+        return RenduBureau.fenetre(nav, sombre: true, taille: RenduBureau.taille, store: h, dictees: d,
+                                   mots: MotsModele(persistant: false, mots: [], raccourcis: [], propositions: PropositionsMots()),
+                                   reglages: ReglagesModele(reel: false), reunions: r, controleur: ReunionController(store: store),
+                                   journee: JourneeModele(dictees: d, reunions: r), bibliotheque: b, etat: etat)
     }
 }

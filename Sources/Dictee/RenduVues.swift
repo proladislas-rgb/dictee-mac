@@ -6,13 +6,13 @@ import DicteeCore
 /// aucune fenêtre visible. Aucune fenêtre n'apparaît, aucun focus n'est pris ; ne touche ni au micro ni au clavier.
 @MainActor
 enum RenduVues {
-    static func png<V: View>(_ vue: V, taille: CGSize, echelle: CGFloat = 2) -> Data? {
+    static func png<V: View>(_ vue: V, taille: CGSize, echelle: CGFloat = 2, apparence: NSAppearance.Name = .darkAqua) -> Data? {
         let hote = NSHostingView(rootView: vue)
-        hote.appearance = NSAppearance(named: .darkAqua)
+        hote.appearance = NSAppearance(named: apparence)
         hote.frame = NSRect(origin: .zero, size: taille)
         // une fenêtre jamais affichée donne à la vue sa taille et son apparence
         let fenetre = NSWindow(contentRect: hote.frame, styleMask: [.borderless], backing: .buffered, defer: true)
-        fenetre.appearance = NSAppearance(named: .darkAqua)
+        fenetre.appearance = NSAppearance(named: apparence)
         fenetre.contentView = hote
         hote.layoutSubtreeIfNeeded()
         guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(taille.width * echelle), pixelsHigh: Int(taille.height * echelle),
@@ -117,109 +117,9 @@ enum RenduPanneau {
     }
 }
 
-/// `Dictee --rendu-fenetre dossier` : la fenêtre principale (3 onglets et états) en PNG, sans fenêtre.
-enum RenduFenetre {
-    struct Cadre<V: View>: View {
-        var taille: CGSize
-        /// La barre du haut de la vraie fenêtre (onglets), quand le rendu doit la montrer.
-        var barre: AnyView? = nil
-        @ViewBuilder var contenu: V
-        var body: some View {
-            ZStack(alignment: .topLeading) {
-                Color(hex: 0x0B0B0B)
-                VStack(spacing: 0) {
-                    if let barre { barre.frame(height: 60).frame(maxWidth: .infinity, alignment: .leading) }
-                    contenu
-                }
-                    .frame(width: taille.width - 80, height: taille.height - 80)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
-                    .overlay(alignment: .topLeading) {
-                        HStack(spacing: 8) { ForEach(0..<3, id: \.self) { _ in Circle().fill(Color(white: 0.4)).frame(width: 12, height: 12) } }.padding(20)
-                    }
-                    .padding(40)
-            }
-            .frame(width: taille.width, height: taille.height)
-        }
-    }
-
-    @MainActor
-    static func executer(dossier: String) -> Int32 {
-        _ = NSApplication.shared
-        Polices.enregistrer()
-        let url = URL(fileURLWithPath: (dossier as NSString).expandingTildeInPath, isDirectory: true)
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        var ok = true
-        // 1180 × 760 = fenêtre de 1100 × 680 (comme la maquette) sur un fond de bureau
-        let taille = CGSize(width: 1180, height: 760)
-
-        let storeReunions = ReunionStore(dossier: FileManager.default.temporaryDirectory.appendingPathComponent("dictee-rendu-reunions"), lire: false)
-        let controleur = ReunionController(store: storeReunions)
-        let reunions = ReunionsModele(store: storeReunions)
-        func fenetre(_ nom: String, onglet: Onglet, store: HistoriqueStore, mots: MotsModele, reglages: ReglagesModele? = nil, requete: String = "",
-                     deplier: Bool = false, taille: CGSize = taille, suppression: Bool = false) {
-            let nav = NavigationFenetre(); nav.onglet = onglet
-            let d = ModeleDictees(store: store)
-            d.requete = requete
-            d.selection = d.affichees.first?.id
-            d.nomDestination = { "Mail" }
-            if deplier, let e = d.affichees.first(where: { $0.texte.hasPrefix("Bonjour") }) {
-                d.developpee = e.id; d.selection = e.id
-                if suppression { d.suppressionEnAttente = e.id }
-            }
-            let vue = Cadre(taille: taille) {
-                FenetreVue(nav: nav, dictees: d, store: store, mots: mots, reglages: reglages ?? ReglagesModele(reel: false), reunions: reunions, controleur: controleur, journee: JourneeModele(dictees: d, reunions: reunions), curseurFactice: true)
-            }
-            ok = RenduVues.ecrire(RenduVues.png(vue, taille: taille), url.appendingPathComponent("\(nom).png")) && ok
-        }
-        let exemple = RenduVues.historiqueExemple()
-        func motsExemple(avecMessage: Bool = false, propositions: Bool = true) -> MotsModele {
-            var p = PropositionsMots(); if propositions { _ = p.proposer("Brume", motsConnus: []) }
-            let m = MotsModele(persistant: false, mots: ["Anaïs Morel", "Brume & Fils", "Villeurbanne", "Marchetti"],
-                               raccourcis: [RaccourciVocal(expression: "ma signature", texte: "Camille Roussel"),
-                                            RaccourciVocal(expression: "mon mail", texte: "camille@exemple.fr"),
-                                            RaccourciVocal(expression: "mes dispos", texte: "Mardi ou jeudi après-midi")], propositions: p,
-                               expressions: [ExpressionPerso(texte: "t\u{2019}inquiète", dictees: 14), ExpressionPerso(texte: "on se capte", dictees: 9),
-                                             ExpressionPerso(texte: "c\u{2019}est lourd", dictees: 6), ExpressionPerso(texte: "du coup", manuelle: true)],
-                               apprisCetteSemaine: 3)
-            if avecMessage { m.ajouterMot("villeurbanne") }
-            return m
-        }
-        let petite = CGSize(width: 700, height: 600)
-        fenetre("fenetre-1-dictees", onglet: .dictees, store: exemple, mots: motsExemple(), deplier: true)
-        fenetre("fenetre-2-mots", onglet: .mots, store: exemple, mots: motsExemple())
-        fenetre("fenetre-3-reglages", onglet: .reglages, store: exemple, mots: motsExemple())
-        fenetre("fenetre-4-mot-deja-enregistre", onglet: .mots, store: exemple, mots: motsExemple(avecMessage: true, propositions: false))
-        fenetre("fenetre-5-historique-vide", onglet: .dictees, store: RenduVues.historiqueExemple(vide: true), mots: motsExemple())
-        fenetre("fenetre-6-aucun-resultat", onglet: .dictees, store: exemple, mots: motsExemple(), requete: "zzz")
-        let confirmation = ReglagesModele(reel: false); confirmation.confirmerEffacement = true
-        fenetre("fenetre-7-reglages-confirmation", onglet: .reglages, store: exemple, mots: motsExemple(), reglages: confirmation)
-        fenetre("fenetre-8-reglages-globe", onglet: .reglages, store: exemple, mots: motsExemple(), reglages: ReglagesModele(reel: false, globe: 2))
-        fenetre("fenetre-9-dictees-liste", onglet: .dictees, store: exemple, mots: motsExemple())
-        fenetre("fenetre-10-suppression", onglet: .dictees, store: exemple, mots: motsExemple(), deplier: true, suppression: true)
-        fenetre("fenetre-11-petite-dictees", onglet: .dictees, store: exemple, mots: motsExemple(), deplier: true, taille: petite)
-        fenetre("fenetre-12-petite-mots", onglet: .mots, store: exemple, mots: motsExemple(), taille: petite)
-        fenetre("fenetre-13-petite-reglages", onglet: .reglages, store: exemple, mots: motsExemple(), taille: petite)
-        // toute la hauteur des Réglages : sans encoche, l'interrupteur de l'icône allumé et grisé ; en bas, « Ouvrir le journal » et
-        // « Quitter Verbe » (l'icône et son menu sont éteints par défaut) ; en deux colonnes et en une
-        let sansEncoche = ReglagesModele(reel: false); sansEncoche.iconeToujours = true
-        fenetre("fenetre-14-reglages-sans-encoche-toute-la-hauteur", onglet: .reglages, store: exemple, mots: motsExemple(), reglages: sansEncoche, taille: CGSize(width: 1180, height: 2000))
-        fenetre("fenetre-15-petite-reglages-toute-la-hauteur", onglet: .reglages, store: exemple, mots: motsExemple(), taille: CGSize(width: 700, height: 3900))
-        // l'usage de Groq (12/11) : la limite atteinte, le Mac prend le relais ; le français en téléchargement pour la dictée sur le Mac
-        let enPause = ReglagesModele(reel: false)
-        var k = CompteurGroq()
-        let t = Date()
-        k.noterEnvoi(secondesAudio: 480 * 60, modele: ModeleWhisper.precis.identifiant, a: t.addingTimeInterval(-6 * 3600))
-        for m in [ModeleWhisper.precis, .rapide] {
-            k.noterReponse(modele: m.identifiant, statut: 429, entete: { $0 == "retry-after" ? "2400" : nil }, messageErreur: "(ASD)", a: t)
-        }
-        enPause.exempleGroq(EtatGroq.calculer(k, modele: ModeleWhisper.precis.identifiant, secours: ModeleWhisper.rapide.identifiant, a: t))
-        fenetre("fenetre-16-reglages-groq-en-pause", onglet: .reglages, store: exemple, mots: motsExemple(), reglages: enPause, taille: CGSize(width: 1180, height: 2000))
-        return ok ? 0 : 1
-    }
-}
-
-/// `Dictee --rendu-premier-lancement dossier` : les étapes et leurs états en PNG, sans fenêtre.
+/// `Dictee --rendu-premier-lancement dossier` : les cartes d'accueil et leurs états en PNG (clair et sombre), puis une vidéo MP4 de
+/// chaque scène animée (60 images par seconde, rendues une à une : la scène est une fonction du temps), sans fenêtre.
+/// `--carte N` : seulement la vidéo de la carte N (pour mettre une scène au point).
 enum RenduPremierLancement {
     @MainActor
     static func executer(dossier: String) -> Int32 {
@@ -228,31 +128,80 @@ enum RenduPremierLancement {
         let url = URL(fileURLWithPath: (dossier as NSString).expandingTildeInPath, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         var ok = true
-        let taille = CGSize(width: 700, height: 560)
+        // les illustrations du dépôt (le rendu se lance depuis sa racine)
+        Illustrations.dossierDesRendus = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources/Illustrations", isDirectory: true)
+        let taille = CGSize(width: 780, height: 420)
 
-        func etape(_ nom: String, _ e: PriseEnMainModele.Etape, micro: Bool = false, refuse: Bool = false, access: Bool = false, surv: Bool = false,
-                   cle: CleGroq.Etat = .absente, essai: String = "", reussie: Bool = false, echec: String? = nil, globe: Int? = 0, doubleAppuiVu: Bool = false) {
+        func modele(_ e: PriseEnMainModele.Etape, micro: Bool = false, refuse: Bool = false, access: Bool = false, surv: Bool = false,
+                    cle: CleGroq.Etat = .absente, essai: String = "", reussie: Bool = false, echec: String? = nil, globe: Int? = 0, doubleAppuiVu: Bool = false) -> PriseEnMainModele {
             let m = PriseEnMainModele(reel: false, micro: micro, accessibilite: access, surveillance: surv, cle: cle, globe: globe)
             m.etape = e
             m.essai = essai
             m.setEtatPourRendu(refuse: refuse, reussie: reussie, echec: echec, doubleAppuiVu: doubleAppuiVu)
-            let app = ApparitionPanneau(); app.visible = true
-            let vue = RenduVues.Bureau(taille: taille, camera: 180) {
-                PriseEnMainVue(m: m, apparition: app, curseurFactice: true).padding(.top, PriseEnMain.ecartHaut - 6)
-            }
-            ok = RenduVues.ecrire(RenduVues.png(vue, taille: taille), url.appendingPathComponent("\(nom).png")) && ok
+            return m
         }
-        etape("premier-1-geste", .geste)
-        etape("premier-2-acces-rien", .acces)
-        etape("premier-2-acces-partiel", .acces, micro: true, access: true)
-        etape("premier-2-micro-refuse", .acces, refuse: true, access: true, surv: true, cle: .fichier)
-        etape("premier-2-acces-complets", .acces, micro: true, access: true, surv: true, cle: .trousseau)
-        etape("premier-3-globe-a-regler", .globe, micro: true, access: true, surv: true, cle: .trousseau, globe: 2)
-        etape("premier-3-globe-essai", .globe, micro: true, access: true, surv: true, cle: .trousseau, globe: 0)
-        etape("premier-3-globe-reconnu", .globe, micro: true, access: true, surv: true, cle: .trousseau, globe: 0, doubleAppuiVu: true)
-        etape("premier-4-attente", .premiere, micro: true, access: true, surv: true, cle: .trousseau)
-        etape("premier-4-reussie", .premiere, micro: true, access: true, surv: true, cle: .trousseau, essai: "On se voit mercredi pour parler du devis.", reussie: true)
-        etape("premier-4-echec", .premiere, micro: true, access: true, surv: true, cle: .trousseau, echec: "Écriture impossible ici, le texte est copié.")
+        /// La carte sous l'encoche, sur un bout de bureau ; `t` : l'instant de la scène (nil : son image posée).
+        func scene(_ m: PriseEnMainModele, sombre: Bool, t: Double? = nil) -> some View {
+            let app = ApparitionPanneau(); app.visible = true
+            return ZStack(alignment: .top) {
+                LinearGradient(colors: sombre ? [Color(hex: 0x1D2733), Color(hex: 0x2E2621)] : [Color(hex: 0xBFD4EC), Color(hex: 0xF2D9C2)], startPoint: .top, endPoint: .bottom)
+                UnevenRoundedRectangle(bottomLeadingRadius: 10, bottomTrailingRadius: 10).fill(Color.black).frame(width: 180, height: 32)
+                PriseEnMainVue(m: m, apparition: app, curseurFactice: true)
+                    .environment(\.renduStatique, true)
+                    .environment(\.tempsScene, t)
+                    .padding(.top, 32 + PriseEnMain.ecartHaut - 30)
+            }
+            .frame(width: taille.width, height: taille.height)
+            .environment(\.colorScheme, sombre ? .dark : .light)
+        }
+        func etape(_ nom: String, _ m: PriseEnMainModele, sombre: Bool) {
+            ok = RenduVues.ecrire(RenduVues.png(scene(m, sombre: sombre), taille: taille, apparence: sombre ? .darkAqua : .aqua),
+                                  url.appendingPathComponent("\(nom)-\(sombre ? "sombre" : "clair").png")) && ok
+        }
+        let tout = (micro: true, access: true, surv: true, cle: CleGroq.Etat.trousseau)
+        let seule = CommandLine.arguments.firstIndex(of: "--carte").flatMap { i in i + 1 < CommandLine.arguments.count ? Int(CommandLine.arguments[i + 1]) : nil }
+        for sombre in [false, true] where seule == nil {
+            etape("accueil-0-bonjour", modele(.bonjour), sombre: sombre)
+            etape("accueil-1-micro", modele(.micro, surv: true), sombre: sombre)
+            etape("accueil-1-micro-refuse", modele(.micro, refuse: true, surv: true), sombre: sombre)
+            etape("accueil-1-micro-pret", modele(.micro, micro: true, surv: true), sombre: sombre)
+            etape("accueil-2-ecrire", modele(.ecrire, micro: true, surv: true), sombre: sombre)
+            etape("accueil-2-ecrire-pret", modele(.ecrire, micro: true, access: true, surv: true), sombre: sombre)
+            etape("accueil-3-touche-a-autoriser", modele(.touche, micro: true, access: true), sombre: sombre)
+            etape("accueil-3-touche-globe-a-regler", modele(.touche, micro: true, access: true, surv: true, globe: 2), sombre: sombre)
+            etape("accueil-3-touche-prete", modele(.touche, micro: true, access: true, surv: true, doubleAppuiVu: true), sombre: sombre)
+            etape("accueil-4-cle", modele(.cle, micro: true, access: true, surv: true), sombre: sombre)
+            etape("accueil-4-cle-enregistree", modele(.cle, micro: tout.micro, access: tout.access, surv: tout.surv, cle: tout.cle), sombre: sombre)
+            etape("accueil-5-essai", modele(.essai, micro: true, access: true, surv: true, cle: tout.cle), sombre: sombre)
+            etape("accueil-5-essai-reussi", modele(.essai, micro: true, access: true, surv: true, cle: tout.cle, essai: "On se voit mercredi pour parler du devis.", reussie: true), sombre: sombre)
+            etape("accueil-5-essai-echec", modele(.essai, micro: true, access: true, surv: true, cle: tout.cle, echec: "Écriture impossible ici, le texte est copié."), sombre: sombre)
+        }
+        // les vidéos : chaque carte en mouvement, une boucle et demie, image par image, en clair
+        let images = 60.0
+        // dans l'ordre des cartes (1 le micro … 5 l'essai)
+        let etats: [PriseEnMainModele] = [modele(.micro, micro: true, surv: true), modele(.ecrire, micro: true, access: true, surv: true),
+                                          modele(.touche, micro: true, access: true, surv: true), modele(.cle, micro: true, access: true, surv: true, cle: tout.cle),
+                                          modele(.essai, micro: true, access: true, surv: true, cle: tout.cle)]
+        for m in etats where seule == nil || seule == m.etape.rawValue {
+            let carte = m.etape.rawValue
+            let dossierImages = FileManager.default.temporaryDirectory.appendingPathComponent("verbe-video-accueil-\(carte)-\(UUID().uuidString)", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dossierImages, withIntermediateDirectories: true)
+            let duree = max(6, SceneAccueil.boucle(m.etape.illustration) * 1.5)
+            let n = Int(duree * images)
+            for k in 0..<n {
+                let donnees = RenduVues.png(scene(m, sombre: false, t: Double(k) / images), taille: taille, echelle: 1.5, apparence: .aqua)
+                guard let donnees, (try? donnees.write(to: dossierImages.appendingPathComponent(String(format: "%04d.png", k)))) != nil else { ok = false; break }
+            }
+            let sortie = url.appendingPathComponent("accueil-\(carte)-anime.mp4")
+            try? FileManager.default.removeItem(at: sortie)
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/ffmpeg")
+            p.arguments = ["-loglevel", "error", "-framerate", "60", "-i", dossierImages.appendingPathComponent("%04d.png").path,
+                           "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-movflags", "+faststart", sortie.path]
+            do { try p.run(); p.waitUntilExit() } catch { print("ffmpeg introuvable : \(error.localizedDescription)"); ok = false }
+            if p.terminationStatus == 0 { print("écrit \(sortie.path) (\(n) images)") } else { ok = false }
+            try? FileManager.default.removeItem(at: dossierImages)
+        }
         return ok ? 0 : 1
     }
 }

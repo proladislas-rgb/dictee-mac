@@ -503,3 +503,22 @@ mission 3 de la Lucarne déplaçable, pas sur main).
 - [x] Dictee/IlotConcentration.swift : contrôleur (raccourci guidé au premier clic, fin de durée = un seul réveil), rond du Centre,
       carte des modes, carte « où en est le mode », aile, bannières ; accroches d'une ligne ailleurs
 - [ ] Essai `--ilot-essai` section Concentration (vrais NSEvent, fausse couche) ; rendus ilot-33* ; relecture opus ; commits, push
+## 12/11 après-midi — App de bureau (fenêtre principale) d'après lucarne-app-final.html — branche app-bureau (~/dictee-mac-bureau)
+- [x] DicteeCore `Bureau.swift` : apparence (clair/sombre/auto, soleil/lune), tuiles d'Aujourd'hui (anneau = part du record, temps gagné,
+      prochain rendez-vous, dernière note, rappels, étagère), catalogue Découvrir, calques des illustrations, ressort en temps, barres de
+      l'onde ; 39 contrôles purs (3600/3600).
+- [x] Palette adaptative (clair/sombre) pour les pages reprises ; interrupteur natif (vert) ; les panneaux de l'encoche restent darkAqua.
+- [x] Fenêtre 900 × 560 (min 820 × 520) : barre d'onglets en verre (Aujourd'hui · Découvrir · Réunions · Réglages) centrée sur les feux
+      (26 pt, vérifié), soleil/lune. Sous-pages : Aujourd'hui › Dictées / Ta journée / Bibliothèque ; Réglages › Dictée / Mots / Ce
+      qu'elle montre / Confidentialité. Les destinations de l'îlot (`Onglet`) y mènent toutes.
+- [x] Cartes d'accueil en verre : Bonjour + 5 cartes (fn, micro, écrire, clé, essai), scènes animées en ressorts depuis les 11 PNG de
+      Hugues (Resources/Illustrations, LISEZ-MOI.md), vidéos de contrôle `--rendu-premier-lancement` (design/rendus-bureau/accueil).
+- [x] Rendus `--rendu-fenetre` : 14 écrans × clair/sombre dans design/rendus-bureau (hors git).
+- [x] Retrait : FenetreVue, ReglagesVue, RenduFenetre, ChoixReglage, LigneReglage.
+- [x] Relecture opus (16 points) : ordre des cartes de la maquette + « Plus tard », contraste du texte en clair, Réglages qui défile
+      jusqu'aux mises à jour, Aujourd'hui recalculé chaque minute et plus du tout fenêtre cachée, un seul accès au calendrier, « Essayer »
+      seulement fonction allumée, minuteries arrêtées fenêtre fermée, bande du haut qui déplace la fenêtre, ménage.
+- [ ] À vérifier par Hugues dans l'app (impossible sans fenêtre visible) : clic sur les 4 onglets et le soleil, déplacer la fenêtre par
+      la bande du haut, le verre réel, les interrupteurs verts.
+- [ ] À trancher : « Essayer » du Centre, des Réunions et de la Lecture ; « Changer sa place » (Lucarne déplaçable pas dans main) ;
+      le doigt 1c (vidéo accueil-3-anime.mp4).

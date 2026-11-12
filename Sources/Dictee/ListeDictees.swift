@@ -286,7 +286,7 @@ struct BoutonIcone: View {
             }
             .foregroundStyle(survol || retour ? Palette.texte : Palette.texte2)
             .frame(width: taille, height: taille)
-            .background(RoundedRectangle(cornerRadius: 6).fill(survol ? Color.white.opacity(0.08) : .clear))
+            .background(RoundedRectangle(cornerRadius: 6).fill(survol ? Palette.voile(0.08) : .clear))
         }
         .buttonStyle(.plain)
         .onHover { survol = $0 }
