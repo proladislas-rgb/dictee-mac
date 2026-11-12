@@ -612,6 +612,51 @@ enum RenduLecture {
                "ilot-27i-lucarne-rappel-ajoute-la-nuit")
         ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene(lucarne(.dansRappelsApple(1)))) }, "ilot-27f-rappels-apple-ajoute")
         ecrire(bureau(hauteur: petitBureau + 20, clair: false) { ilot(scene(lucarne(.rappelsRestentIci(systeme: true)))) }, "ilot-27g-rappels-restent-ici-sombre")
+        // Second Brain (maquette ilot-second-cerveau.html) : un FAUX fichier d'état écrit dans un dossier temporaire, lu par le vrai code de
+        // lecture (FichierSecondCerveau.lire, 64 Ko au plus) ; jamais le vrai ~/.config, aucune donnée de Hugues dans ces images
+        func fauxFichierSecondBrain(_ json: String) -> SecondCerveauIlot? {
+            let dossierTmp = FileManager.default.temporaryDirectory.appendingPathComponent("verbe-rendu-second-brain-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dossierTmp, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: dossierTmp) }
+            let f = dossierTmp.appendingPathComponent(FichierSecondCerveau.nom)
+            try? json.data(using: .utf8)?.write(to: f)
+            return SecondCerveauIlot.decoder(FichierSecondCerveau.lire(f))
+        }
+        // les dates du contrat final : AAAA-MM-JJ pour `echeance` et `depuis`, une ISO avec fuseau pour `heure`
+        func jourSB(_ jours: Int) -> String {
+            let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
+            return f.string(from: cal.date(byAdding: .day, value: jours, to: t0)!)
+        }
+        func heureSB(_ h: Int, _ min: Int) -> String {
+            ISO8601DateFormatter().string(from: cal.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: h, minute: min))!)
+        }
+        func jsonSB(maj: Date, messages: String, taches: String, relances: String, nouveautes: Int, aToi: Int, aRelancer: Int) -> String {
+            "{ \"version\": 1, \"maj\": \"\(ISO8601DateFormatter().string(from: maj))\", \"resume\": \"Pierre t'a écrit · 3 choses demandées\", \"compteurs\": { \"nouveautes\": \(nouveautes), \"aToi\": \(aToi), \"aRelancer\": \(aRelancer) }, \"messages\": [\(messages)], \"taches\": [\(taches)], \"relances\": [\(relances)], \"lien\": \"secondbrain://aujourdhui\" }"
+        }
+        let sbMaquette = fauxFichierSecondBrain(jsonSB(maj: t0.addingTimeInterval(-120),
+            messages: "{\"id\":\"pierre\",\"nom\":\"Pierre\",\"texte\":\"Pour vendredi : le plan, les chiffres et la liste des invités\",\"heure\":\"\(heureSB(9, 12))\"},{\"id\":\"julie\",\"nom\":\"Julie\",\"texte\":\"Merci pour hier ! Je t'envoie les photos ce soir\",\"heure\":\"\(heureSB(8, 47))\"}",
+            taches: "{\"id\":\"t1\",\"texte\":\"Répondre aux 3 questions de Pierre\",\"echeance\":\"\(jourSB(4))\"},{\"id\":\"t2\",\"texte\":\"Relire le bail du local\",\"echeance\":\"\(jourSB(6))\"},{\"id\":\"t3\",\"texte\":\"Réserver le train pour Lyon\",\"echeance\":\"\(jourSB(10))\"}",
+            relances: "{\"id\":\"ladislas\",\"nom\":\"Ladislas\",\"sujet\":\"le partenariat\",\"depuis\":\"\(jourSB(-40))\"},{\"id\":\"marc\",\"nom\":\"Marc\",\"sujet\":\"le devis du site\",\"depuis\":\"\(jourSB(-22))\"}",
+            nouveautes: 2, aToi: 14, aRelancer: 2))
+        // trop de lignes (3 + 3 + 3 devient 3 + 2 + 2), des textes beaucoup trop longs, un nom très long
+        let sbChargee = fauxFichierSecondBrain(jsonSB(maj: t0.addingTimeInterval(-3 * 3600),
+            messages: (1...4).map { "{\"id\":\"m\($0)\",\"nom\":\"\(["Alexandre-Emmanuel de la Tour", "Camille", "Inès", "Sam"][$0 - 1])\",\"texte\":\"On décale le point de jeudi ? Je ne suis pas sûr de pouvoir être là avant dix-sept heures, dis-moi ce qui t'arrange pour la semaine prochaine\",\"heure\":\"\(heureSB(10 + $0, 40 + $0))\"}" }.joined(separator: ","),
+            taches: (1...4).map { "{\"id\":\"t\($0)\",\"texte\":\"Relire et valider le contrat de prestation avec toutes les annexes techniques et financières (\($0))\",\"echeance\":\"\(jourSB($0 * 2))\"}" }.joined(separator: ","),
+            relances: (1...4).map { "{\"id\":\"r\($0)\",\"nom\":\"Relance \($0)\",\"sujet\":\"un sujet vraiment très long qui ne tient pas sur une seule ligne de la carte\",\"depuis\":\"\(jourSB(-$0 * 20))\"}" }.joined(separator: ","),
+            nouveautes: 12, aToi: 31, aRelancer: 4))
+        let sbVideHier = fauxFichierSecondBrain(jsonSB(maj: t0.addingTimeInterval(-30 * 3600), messages: "", taches: "", relances: "", nouveautes: 0, aToi: 0, aRelancer: 0))
+        let sbSeulementDesRelances = fauxFichierSecondBrain(jsonSB(maj: t0.addingTimeInterval(-45 * 60), messages: "", taches: "",
+            relances: "{\"id\":\"marc\",\"nom\":\"Marc\",\"sujet\":\"le devis du site\",\"depuis\":\"\(jourSB(-70))\"}", nouveautes: 0, aToi: 0, aRelancer: 1))
+        let avecSB = DispositionCentre([.micro, .dictee, .telechargements, .claude, .secondBrain, .minuteur, .etagere, .reunion])
+        func carteSB(_ f: SecondCerveauIlot?) -> (IlotMoteur) -> Void {
+            { m in centre()(m); m.secondBrain = f; m.disposition = avecSB; m.donneesChangees(); m.ouvrirSecondBrain(); m.donneesChangees() }
+        }
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.secondBrain = sbMaquette; m.disposition = avecSB; m.epinglerLeCentre() })) }, "ilot-28a-second-brain-le-rond-dans-le-centre")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteSB(sbMaquette))) }, "ilot-28b-second-brain-carte")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(lecture: videoLongue, carteSB(sbChargee))) }, "ilot-28c-second-brain-carte-chargee-sombre")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteSB(sbVideHier))) }, "ilot-28d-second-brain-carte-rien-de-neuf-hier")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, carteSB(sbSeulementDesRelances))) }, "ilot-28e-second-brain-carte-une-seule-ligne")
+        ecrire(bureau(hauteur: hCentre) { ilot(miCourse(scene(lecture: videoLongue, centre { m in m.secondBrain = sbMaquette; m.disposition = avecSB }), 0.2) { $0.ouvrirSecondBrain() }) }, "ilot-28f-second-brain-passage-200ms")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)

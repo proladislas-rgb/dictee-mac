@@ -169,6 +169,8 @@ enum ActionIlot {
     /// « Lucarne, … » qui n'a pas abouti : « Copier » la phrase (rien n'a été collé) ; la réponse à « Aussi dans l'app Rappels ? ».
     case lucarneCopier(String)
     case rappelsApple(Bool)
+    /// Second Brain : ouvrir le lien d'une ligne (ou, sans lien, le lien général, ou l'app) — IlotSecondBrain.swift.
+    case secondBrainOuvrir(String?)
 }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
@@ -347,6 +349,9 @@ final class IlotMoteur: ObservableObject {
     /// Ce que le Centre montre de l'état du Mac (poussé par le contrôleur) : Téléchargements allumé, Claude Code branché.
     var telechargementsActifs = false
     var claudeBranche = false
+    /// Second Brain (IlotSecondBrain.swift) : ce que son fichier d'état dit en ce moment ; nil = pas de fichier (ou illisible) = pas de case.
+    /// Une donnée qui change la hauteur de sa carte passe par `donneesChangees()` (le contrôleur l'appelle).
+    var secondBrain: SecondCerveauIlot?
     /// La bulle « Nouveau : survole l'îlot » (une seule fois, au premier lancement) et l'aide « Fais défiler ou clique ici » sous le
     /// bouton Centre de la lecture (jusqu'au premier passage de la lecture au Centre). Le contrôleur les garde en mémoire.
     private(set) var bulleNouveau = false
@@ -616,6 +621,8 @@ final class IlotMoteur: ObservableObject {
         d[.outilPressePapiers] = PlanPressePapiers.profondeur(self) - CGFloat(GeoIlot.profondeurCentre)
         d[.outilReformuler] = PlanReformuler.profondeur(self) - CGFloat(GeoIlot.profondeurCentre)
         d[.outilNote] = PlanNote.profondeur(self) - CGFloat(GeoIlot.profondeurCentre)
+        // la carte Second Brain épouse ce qu'elle montre (une à trois lignes par partie, sept au plus)
+        d[.secondBrain] = PlanSecondBrain.profondeur(self) - CGFloat(GeoIlot.profondeurCentre)
         // la carte « Claude Code » suit ses sessions, jusqu'à la hauteur du Centre (au-delà, elle défile)
         let pc = PlanCarteClaude.profondeur(self)
         if pc != CGFloat(GeoIlot.profondeurCentre) { d[.claudeCarte] = pc - CGFloat(GeoIlot.profondeurCentre) }
@@ -1123,6 +1130,8 @@ final class IlotMoteur: ObservableObject {
 
     /// Un outil de la page Outils : sa carte (presse-papiers, Reformuler, Note rapide). Elle reste ouverte comme le Centre ; « ‹ Outils »
     /// y ramène.
+    /// Le bouton Second Brain du Centre : sa carte. Elle reste ouverte comme le Centre ; « ‹ Centre » y ramène.
+    func ouvrirSecondBrain() { ouvrirOutil(.secondBrain) }
     func ouvrirOutil(_ v: VueIlot) {
         guard !cache, !resolution.verrou, CartesIlot.parent(v) != nil else { return }
         intention?.cancel(); fermeture?.cancel()

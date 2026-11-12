@@ -22,6 +22,8 @@ public enum ElementCentre: String, CaseIterable, Sendable {
     case pressePapiers = "presse-papiers"
     case reformuler, notes
     case noteRapide = "note-rapide"
+    /// Second Brain (l'autre app de Hugues) : un rond qui ouvre sa carte. Il n'est « disponible » que si son fichier d'état existe.
+    case secondBrain = "second-brain"
 
     public enum Genre: Sendable { case rond, grandeCase, bande }
 
@@ -60,6 +62,7 @@ extension ElementCentre {
         case .reformuler: return "Réécrit ta dernière dictée"
         case .notes: return "Tes notes rapides, gardées ici"
         case .noteRapide: return "Un clic, tu parles, c\u{2019}est noté"
+        case .secondBrain: return "Ce qui t\u{2019}attend dans Second Brain"
         }
     }
     /// La plus longue phrase d'aide permise (en caractères) : au-delà, ce n'est plus une aide de survol.

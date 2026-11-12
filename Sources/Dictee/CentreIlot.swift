@@ -158,6 +158,7 @@ extension ElementCentre {
         case .reformuler: return "Reformuler"
         case .notes: return "Notes"
         case .noteRapide: return "Dicter une note"
+        case .secondBrain: return SecondCerveauIlot.nomApp
         }
     }
 }
@@ -174,7 +175,14 @@ extension IlotMoteur {
         disposition.miseEnPage(fichiers: etagereActive && !etagere.isEmpty && !editionCentre)
     }
     /// Un élément peut-il paraître ? Le choix du micro de la dictée n'existe qu'avec des AirPods (un micro Bluetooth) branchés.
-    func disponibleDansLeCentre(_ e: ElementCentre) -> Bool { e != .dictee || choixMicro != nil }
+    /// Second Brain n'existe que si son fichier d'état existe : aucun vide pour qui n'a pas cette app.
+    func disponibleDansLeCentre(_ e: ElementCentre) -> Bool {
+        switch e {
+        case .dictee: return choixMicro != nil
+        case .secondBrain: return secondBrain != nil
+        default: return true
+        }
+    }
     /// Les ronds montrés, dans l'ordre (cinq au plus).
     var rondsCentre: [ElementCentre] { disposition.ronds(disponible: disponibleDansLeCentre) }
     /// La disposition d'une page (le Centre, ou les Outils) et ses ronds montrés.
@@ -206,6 +214,7 @@ extension IlotMoteur {
         case .pressePapiers: return copies.isEmpty ? "Vide" : (copies.count == 1 ? "1 récent" : "\(copies.count) récents")
         case .reformuler: return derniereDictee != nil ? "Dernière dictée" : "Texte choisi"
         case .notes: return notes.isEmpty ? "Aucune" : (notes.count == 1 ? "1 note" : "\(notes.count) notes")
+        case .secondBrain: return secondBrain?.etat ?? ""
         case .reunion, .minuteur, .etagere, .noteRapide: return ""
         }
     }
@@ -437,6 +446,14 @@ struct CentreVue: View {
                        reduire: fige, edition: ed, rang: rang, statique: m.statique, retirer: retirer, etiquette: "Notes rapides") {
                 Image(systemName: "note.text").font(.system(size: 20, weight: .semibold)).foregroundStyle(.white)
             } action: { m.epinglerLeCentre(); m.ouvrirOutil(.outilNote) }
+        case .secondBrain:
+            let sb = m.secondBrain
+            let neuf = (sb?.nouveautes ?? 0) > 0
+            TuileRonde(nom: e.nom, etat: etat, couleurEtat: neuf ? Color(hex: 0x5EB0FF) : CouleursIlot.encre2, fond: nil, colonne: l, tailleNom: t.nom, tailleEtat: t.etat,
+                       reduire: fige, edition: ed, rang: rang, statique: m.statique, retirer: retirer,
+                       etiquette: "\(SecondCerveauIlot.nomApp) : ouvrir la carte" + (sb?.resume.map { ", " + $0 } ?? "")) {
+                SigneSecondBrain(taille: 24, point: .white, trait: Color.white.opacity(0.5))
+            } action: { m.epinglerLeCentre(); m.ouvrirSecondBrain() }
         case .reunion, .minuteur, .etagere, .noteRapide:
             EmptyView()
         }
@@ -974,6 +991,9 @@ struct ReglagesCentre {
     /// Ce que le Centre montre (« Modifier ») : les identifiants, dans l'ordre ; nil = jamais modifié.
     var disposition: () -> [String]? = { Settings.ilotCentreBoutons }
     var enregistrerDisposition: ([String]) -> Void = { Settings.ilotCentreBoutons = $0 }
+    /// Second Brain : son bouton est ajouté au Centre une seule fois, quand son fichier d'état apparaît (puis « Modifier » décide).
+    var secondBrainPropose: () -> Bool = { Settings.ilotSecondBrainPropose }
+    var marquerSecondBrainPropose: () -> Void = { Settings.ilotSecondBrainPropose = true }
     /// Ce que la page Outils montre (« Modifier ») ; nil = jamais modifiée.
     var dispositionOutils: () -> [String]? = { Settings.ilotOutilsBoutons }
     var enregistrerDispositionOutils: ([String]) -> Void = { Settings.ilotOutilsBoutons = $0 }

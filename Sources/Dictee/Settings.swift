@@ -305,6 +305,11 @@ enum Settings {
     }
     /// Ce que le Centre de l'îlot montre, dans l'ordre (« Modifier ») : des identifiants (`ElementCentre`) ; nil = jamais modifié (la
     /// disposition par défaut). Les identifiants inconnus sont ignorés à la lecture.
+    /// Le bouton Second Brain a déjà été proposé dans le Centre (la première fois que son fichier d'état est apparu) : ensuite, c'est « Modifier » qui décide.
+    static var ilotSecondBrainPropose: Bool {
+        get { defaults.bool(forKey: "ilotSecondBrainPropose") }
+        set { defaults.set(newValue, forKey: "ilotSecondBrainPropose") }
+    }
     static var ilotCentreBoutons: [String]? {
         get { defaults.stringArray(forKey: "ilotCentreBoutons") }
         set { defaults.set(newValue, forKey: "ilotCentreBoutons") }
