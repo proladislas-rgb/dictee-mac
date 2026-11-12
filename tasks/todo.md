@@ -449,3 +449,9 @@ télécharger directement les bouts où les gens parlent, comme WhatsApp, à cô
   - [ ] À trancher (Hugues) : « Lucarne, réveille-moi à 7 h » fait toujours un RAPPEL « Réveil » (simplicité), alors que « réveille-moi à 7 h » îlot fermé règle le vrai RÉVEIL (bibliotheque) ; le cas `.reveil` est prêt dans commandeLucarne.
   - [ ] À trancher (Hugues) : la Bibliothèque s'ouvre d'une pilule dans l'en-tête de la carte Étagère (maquette : ligne en bas) ; voir ilot-22f / ilot-30a.
   - [ ] Essai : « îlot déplié et posé : plus de boucle » échoue depuis la fusion (247,0006 → 247 à 0,8 s, vitesse encore ≥ 0,05) ; cibles stables (sondé), cause non trouvée.
+
+## 12/11 matin — après l'intégration (main 57d66a2)
+- [ ] Essai `--ilot-essai` : 2 échecs relevés pendant que la vidéo se rendait (charge processeur), à refaire Mac au calme :
+  1. « îlot déplié et posé : plus de boucle » : geo[2] encore à 247,0016 → 247 au bout de 0,8 s (dt plafonné à 50 ms ⇒ la charge ralentit le ressort ?) ;
+  2. « le survol suit la souris » : 225/355 (09:19, sous charge), alors que l'intégrateur l'avait vert. Écarts « attendu rien allumé rien » ⇒ `d.survol` pointe une entrée que `d.entree` ne trouve pas (id périmé ?) à creuser si ça se reproduit.
+- [ ] Vidéo : 3 défauts envoyés au correcteur (fondu superposé Centre → Concentration, légendes qui se chevauchent vers 41 s, rectangle blanc bas-gauche) ; prochain rendu complet = avec l'icône choisie par Hugues.
