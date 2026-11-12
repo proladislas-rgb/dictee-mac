@@ -1,0 +1,41 @@
+name: Verbe pour Windows
+
+# Fabrique Verbe.exe et joue le parcours complet sur un vrai Windows (îlot, geste Ctrl + ⊞, collage), avec captures d'écran.
+on:
+  push:
+    paths: ['windows/**', '.github/workflows/windows.yml']
+  workflow_dispatch:
+
+jobs:
+  essai:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Contrôles du cœur
+        run: dotnet run --project windows/controles -c Release
+      - name: Fabrication de Verbe.exe
+        run: dotnet publish windows/src/Verbe/Verbe.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o dist
+      - name: Essai du parcours complet
+        shell: pwsh
+        run: |
+          $dossier = Join-Path $env:RUNNER_TEMP 'essai'
+          $p = Start-Process -FilePath dist\Verbe.exe -ArgumentList '--essai', $dossier -PassThru
+          if (-not $p.WaitForExit(180000)) { $p.Kill(); Write-Host 'essai trop long' }
+          Get-Content (Join-Path $dossier 'rapport.txt') -ErrorAction SilentlyContinue
+          Write-Host '--- journal ---'
+          Get-Content (Join-Path $env:APPDATA 'Verbe\journal.txt') -ErrorAction SilentlyContinue
+          Copy-Item (Join-Path $env:APPDATA 'Verbe\journal.txt') $dossier -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { exit 1 }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: essai-windows
+          path: ${{ runner.temp }}/essai
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Verbe-windows
+          path: dist/Verbe.exe

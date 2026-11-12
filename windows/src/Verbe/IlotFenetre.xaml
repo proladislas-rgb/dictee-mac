@@ -1,0 +1,264 @@
+<Window x:Class="Verbe.IlotFenetre"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Verbe" Width="600" Height="300"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False" ResizeMode="NoResize"
+        Focusable="False" UseLayoutRounding="True" SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13" Foreground="White">
+
+    <Window.Resources>
+        <FontFamily x:Key="Glyphes">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+        <SolidColorBrush x:Key="Gris" Color="#99FFFFFF"/>
+        <SolidColorBrush x:Key="Plaque" Color="#2C2C2E"/>
+        <SolidColorBrush x:Key="PlaqueSurvol" Color="#3A3A3C"/>
+        <SolidColorBrush x:Key="Vert" Color="#30D158"/>
+        <SolidColorBrush x:Key="Orange" Color="#FF9F0A"/>
+
+        <!-- Bouton en pilule, sombre -->
+        <Style x:Key="BoutonPilule" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{StaticResource Plaque}"/>
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="fond" Background="{TemplateBinding Background}" CornerRadius="14" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="fond" Property="Background" Value="{StaticResource PlaqueSurvol}"/></Trigger>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="fond" Property="Opacity" Value="0.7"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Bouton principal, blanc -->
+        <Style x:Key="BoutonBlanc" TargetType="Button" BasedOn="{StaticResource BoutonPilule}">
+            <Setter Property="Foreground" Value="Black"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="fond" Background="{TemplateBinding Background}" CornerRadius="14" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="fond" Property="Background" Value="#E6E6E6"/></Trigger>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="fond" Property="Opacity" Value="0.7"/></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="fond" Property="Opacity" Value="0.45"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Bouton rond (glyphe) -->
+        <Style x:Key="BoutonRond" TargetType="Button">
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{StaticResource Plaque}"/>
+            <Setter Property="FontFamily" Value="{StaticResource Glyphes}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="fond" Background="{TemplateBinding Background}" CornerRadius="14">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="fond" Property="Opacity" Value="0.82"/></Trigger>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="fond" Property="Opacity" Value="0.6"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Choix en pastilles (langue, sons) -->
+        <Style x:Key="Pastille" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="4,0,0,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="fond" Background="{StaticResource Plaque}" CornerRadius="12" Padding="12,4">
+                            <ContentPresenter x:Name="contenu" HorizontalAlignment="Center" VerticalAlignment="Center" TextElement.Foreground="White"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="fond" Property="Background" Value="{StaticResource PlaqueSurvol}"/></Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="fond" Property="Background" Value="White"/>
+                                <Setter TargetName="contenu" Property="TextElement.Foreground" Value="Black"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ChampCle" TargetType="TextBox">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="CaretBrush" Value="White"/>
+            <Setter Property="SelectionBrush" Value="#FF9F0A"/>
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="fond" Background="#1C1C1E" BorderBrush="#3A3A3C" BorderThickness="1" CornerRadius="10" Padding="10,7">
+                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="fond" Property="BorderBrush" Value="#FF9F0A"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Storyboard x:Key="Points" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="point1" Storyboard.TargetProperty="Opacity" From="0.25" To="1" Duration="0:0:0.4" AutoReverse="True" BeginTime="0:0:0"/>
+            <DoubleAnimation Storyboard.TargetName="point2" Storyboard.TargetProperty="Opacity" From="0.25" To="1" Duration="0:0:0.4" AutoReverse="True" BeginTime="0:0:0.15"/>
+            <DoubleAnimation Storyboard.TargetName="point3" Storyboard.TargetProperty="Opacity" From="0.25" To="1" Duration="0:0:0.4" AutoReverse="True" BeginTime="0:0:0.3"/>
+        </Storyboard>
+    </Window.Resources>
+
+    <Grid>
+        <Border x:Name="pilule" Width="110" Height="8" Margin="0,6,0,0" VerticalAlignment="Top" HorizontalAlignment="Center"
+                Background="Black" CornerRadius="4" ClipToBounds="True" BorderBrush="#1FFFFFFF" BorderThickness="0.5">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="22" ShadowDepth="3" Direction="270" Opacity="0.38" Color="Black"/>
+            </Border.Effect>
+            <Grid>
+
+                <!-- Survol : le geste rappelé, micro et réglages à un clic -->
+                <Grid x:Name="panneauSurvol" Opacity="0" Visibility="Collapsed" Margin="6,0,6,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="boutonMicro" Style="{StaticResource BoutonRond}" Background="{StaticResource Orange}" Foreground="Black" Content="&#xE720;" ToolTip="Dicter (mains libres)"/>
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="10,0">
+                        <Run Text="Tenir"/> <Run Text="Ctrl + Windows" FontWeight="SemiBold"/> <Run Text="pour dicter" Foreground="{StaticResource Gris}"/>
+                    </TextBlock>
+                    <Button x:Name="boutonReglages" Grid.Column="2" Style="{StaticResource BoutonRond}" Content="&#xE713;" ToolTip="Réglages"/>
+                </Grid>
+
+                <!-- Écoute : icône de l'app cible, la voix, le chrono ; ✕ / ✓ en mains libres -->
+                <Grid x:Name="panneauEcoute" Opacity="0" Visibility="Collapsed" Margin="8,0,8,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Width="24" Height="24" CornerRadius="6" ClipToBounds="True" VerticalAlignment="Center">
+                        <Grid>
+                            <Ellipse x:Name="pointRouge" Width="10" Height="10" Fill="#FF453A"/>
+                            <Image x:Name="iconeCible" Width="24" Height="24" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Grid>
+                    </Border>
+                    <StackPanel x:Name="onde" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Height="24"/>
+                    <TextBlock x:Name="chrono" Grid.Column="2" Text="0:00" Foreground="{StaticResource Gris}" VerticalAlignment="Center" Margin="4,0,4,0" Typography.NumeralAlignment="Tabular"/>
+                    <StackPanel x:Name="boutonsMainsLibres" Grid.Column="3" Orientation="Horizontal" Visibility="Collapsed" Margin="4,0,0,0">
+                        <Button x:Name="boutonAnnuler" Style="{StaticResource BoutonRond}" Content="&#xE711;" ToolTip="Annuler (Échap)"/>
+                        <Button x:Name="boutonValider" Style="{StaticResource BoutonRond}" Background="White" Foreground="Black" Content="&#xE8FB;" Margin="6,0,0,0" ToolTip="Écrire"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Traitement -->
+                <Grid x:Name="panneauTraitement" Opacity="0" Visibility="Collapsed" Margin="8,0,14,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Image x:Name="iconeTraitement" Width="24" Height="24" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="Écriture" Foreground="{StaticResource Gris}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <Ellipse x:Name="point1" Width="5" Height="5" Fill="White" Margin="0,2,4,0"/>
+                        <Ellipse x:Name="point2" Width="5" Height="5" Fill="White" Margin="0,2,4,0"/>
+                        <Ellipse x:Name="point3" Width="5" Height="5" Fill="White" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Fait -->
+                <StackPanel x:Name="panneauFait" Opacity="0" Visibility="Collapsed" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Width="22" Height="22" CornerRadius="11" Background="{StaticResource Vert}">
+                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource Glyphes}" FontSize="11" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock x:Name="texteFait" Text="Écrit" Margin="9,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                </StackPanel>
+
+                <!-- Message (rien entendu, réseau, limite…) avec une action possible -->
+                <Grid x:Name="panneauMessage" Opacity="0" Visibility="Collapsed" Margin="14,0,8,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TextBlock x:Name="glypheMessage" Text="&#xE7BA;" FontFamily="{StaticResource Glyphes}" FontSize="14" Foreground="{StaticResource Orange}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="texteMessage" Grid.Column="1" Margin="10,0,8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                    <Button x:Name="boutonMessage" Grid.Column="2" Style="{StaticResource BoutonBlanc}" Padding="12,4" VerticalAlignment="Center" Visibility="Collapsed"/>
+                </Grid>
+
+                <!-- Réglages : tout est ici, à un clic -->
+                <Grid x:Name="panneauReglages" Opacity="0" Visibility="Collapsed" Margin="20,16,16,16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Verbe" FontSize="17" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="version" Text="0.1" Foreground="{StaticResource Gris}" Margin="8,0,0,1" VerticalAlignment="Bottom"/>
+                    </StackPanel>
+                    <Button x:Name="boutonFermerReglages" Grid.Column="1" Style="{StaticResource BoutonRond}" Content="&#xE711;" ToolTip="Fermer (Échap)"/>
+
+                    <TextBlock Grid.Row="1" Text="Langue" VerticalAlignment="Center" Margin="0,16,0,0" Foreground="{StaticResource Gris}"/>
+                    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,16,0,0">
+                        <RadioButton x:Name="langueFr" GroupName="langue" Style="{StaticResource Pastille}" Content="Français"/>
+                        <RadioButton x:Name="langueEn" GroupName="langue" Style="{StaticResource Pastille}" Content="English"/>
+                        <RadioButton x:Name="langueAuto" GroupName="langue" Style="{StaticResource Pastille}" Content="Auto"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="2" Text="Sons" VerticalAlignment="Center" Margin="0,10,0,0" Foreground="{StaticResource Gris}"/>
+                    <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,10,0,0">
+                        <RadioButton x:Name="sonsOui" GroupName="sons" Style="{StaticResource Pastille}" Content="Oui"/>
+                        <RadioButton x:Name="sonsNon" GroupName="sons" Style="{StaticResource Pastille}" Content="Non"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="3" Text="Clé Groq" VerticalAlignment="Center" Margin="0,10,0,0" Foreground="{StaticResource Gris}"/>
+                    <Button x:Name="boutonChangerCle" Grid.Row="3" Grid.Column="1" Style="{StaticResource BoutonPilule}" Padding="12,4" Margin="0,10,0,0" HorizontalAlignment="Right" Content="Changer la clé"/>
+
+                    <TextBlock Grid.Row="4" Grid.ColumnSpan="2" Margin="0,16,0,0" Foreground="{StaticResource Gris}" FontSize="12" TextWrapping="Wrap" LineHeight="18">
+                        <Run Text="Tenir Ctrl + Windows" Foreground="White"/><Run Text=" : parler, relâcher pour écrire.  "/>
+                        <Run Text="Toucher Ctrl + Windows" Foreground="White"/><Run Text=" : mains libres.  "/>
+                        <Run Text="Échap" Foreground="White"/><Run Text=" : annuler."/>
+                    </TextBlock>
+
+                    <Button x:Name="boutonQuitter" Grid.Row="5" Grid.ColumnSpan="2" Style="{StaticResource BoutonPilule}" HorizontalAlignment="Left" Padding="12,4" Margin="0,12,0,0">
+                        <TextBlock Text="Quitter Verbe" Foreground="#FF6961"/>
+                    </Button>
+                </Grid>
+
+                <!-- Clé Groq : premier lancement ou clé refusée -->
+                <Grid x:Name="panneauCle" Opacity="0" Visibility="Collapsed" Margin="22,18,18,18">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TextBlock x:Name="titreCle" Text="Bienvenue dans Verbe" FontSize="17" FontWeight="SemiBold"/>
+                    <Button x:Name="boutonFermerCle" Grid.Column="1" Style="{StaticResource BoutonRond}" Content="&#xE711;" ToolTip="Fermer"/>
+                    <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Foreground="{StaticResource Gris}" TextWrapping="Wrap">
+                        Colle ta clé Groq gratuite. Elle reste chiffrée sur ce PC.
+                    </TextBlock>
+                    <TextBox x:Name="champCle" Grid.Row="2" Grid.ColumnSpan="2" Margin="0,12,0,0" Style="{StaticResource ChampCle}"/>
+                    <TextBlock x:Name="etatCle" Grid.Row="3" Grid.ColumnSpan="2" Margin="2,8,0,0" FontSize="12" Foreground="{StaticResource Orange}" TextWrapping="Wrap"/>
+                    <StackPanel Grid.Row="4" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button x:Name="boutonObtenirCle" Style="{StaticResource BoutonPilule}" Padding="12,5" Content="Obtenir une clé gratuite"/>
+                        <Button x:Name="boutonEnregistrerCle" Style="{StaticResource BoutonBlanc}" Padding="16,5" Margin="8,0,0,0" Content="Enregistrer"/>
+                    </StackPanel>
+                </Grid>
+
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
