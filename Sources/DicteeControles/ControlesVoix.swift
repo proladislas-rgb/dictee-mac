@@ -11,38 +11,45 @@ func controlesVoix() {
     func direct(_ s: String, _ a: Date? = nil) -> DirectVoix { AnalyseCommandeIlot.directVoix(s, maintenant: a ?? t, calendrier: cal) }
 
     groupe("Voix : la dictée reconnue en direct")
-    verifier(direct("Lucarne, rappelle-moi") == .pourLucarne(.rappel) && direct("Lucarne rappelle-moi demain") == .pourLucarne(.rappel)
-             && direct("Verbe, mets un rappel") == .pourLucarne(.rappel), "« rappelle-moi », « mets un rappel » (avec ou sans virgule) : un rappel, tout de suite")
-    verifier(direct("Lucarne, note : montrer le prix") == .pourLucarne(.note) && direct("Lucarne prends une note") == .pourLucarne(.note)
-             && direct("Lucarne, note que Paul rappelle") == .pourLucarne(.note), "« note : », « prends une note », « note que » : une note")
-    verifier(direct("Lucarne, note un rappel pour demain") == .pourLucarne(.rappel), "« note un rappel » : un rappel, pas une note")
-    verifier(direct("Lucarne, j'ai demain une livraison vers 13") == .pourLucarne(.rappel), "« j'ai demain une livraison » (Hugues, 11/11) : un rappel dès que le jour est dit")
-    verifier(direct("Lucarne, j'ai une livraison") == .pourLucarne(nil) && direct("Lucarne, minuteur de 5 minutes") == .pourLucarne(nil),
-             "pour Lucarne, sans genre encore (ni jour ni heure) ou un minuteur : l'onde, pas de libellé")
-    verifier(direct("Lucarne") == .autre && direct("Lucarne,") == .autre, "« Lucarne » seul (la suite n'est pas arrivée) : rien n'est pris trop tôt")
-    verifier(direct("Lucarne est prête, je te l'envoie demain") == .autre && direct("Verbe 0.3.3 publiée ce soir") == .autre,
-             "une phrase qui PARLE de Lucarne (sans virgule ni demande) : l'encoche de la dictée reste")
+    verifier(direct("Voxile, rappelle-moi") == .pourLucarne(.rappel) && direct("Voxile rappelle-moi demain") == .pourLucarne(.rappel)
+             && direct("Voxile, mets un rappel") == .pourLucarne(.rappel), "« rappelle-moi », « mets un rappel » (avec ou sans virgule) : un rappel, tout de suite")
+    verifier(direct("Voxile, note : montrer le prix") == .pourLucarne(.note) && direct("Voxile prends une note") == .pourLucarne(.note)
+             && direct("Voxile, note que Paul rappelle") == .pourLucarne(.note), "« note : », « prends une note », « note que » : une note")
+    verifier(direct("Voxile, note un rappel pour demain") == .pourLucarne(.rappel), "« note un rappel » : un rappel, pas une note")
+    verifier(direct("Voxile, j'ai demain une livraison vers 13") == .pourLucarne(.rappel), "« j'ai demain une livraison » (Hugues, 11/11) : un rappel dès que le jour est dit")
+    verifier(direct("Voxile, j'ai une livraison") == .pourLucarne(nil) && direct("Voxile, minuteur de 5 minutes") == .pourLucarne(nil),
+             "pour l'app, sans genre encore (ni jour ni heure) ou un minuteur : l'onde, pas de libellé")
+    verifier(direct("Voxile") == .autre && direct("Voxile,") == .autre, "« Voxile » seul (la suite n'est pas arrivée) : rien n'est pris trop tôt")
+    verifier(direct("Voxile est prête, je te l'envoie demain") == .autre && direct("Voxile 0.3.3 publiée ce soir") == .autre,
+             "une phrase qui PARLE de l'app (sans virgule ni demande) : l'encoche de la dictée reste")
     verifier(direct("Bonjour Paul, rappelle-moi demain") == .autre && direct("Notre réunion de demain") == .autre && direct("") == .autre,
-             "sans le mot d'appel en tête : jamais pour Lucarne")
-    verifier(direct("Verbe noté dans la liste") == .autre && direct("Lucarne notre devis") == .autre, "« noté », « notre » ne sont pas « note »")
+             "sans le mot d'appel en tête : jamais pour l'app")
+    verifier(direct("Lucarne, rappelle-moi") == .autre && direct("Verbe, note : le devis") == .autre,
+             "« Lucarne, … », « Verbe, … » : plus des mots d'appel, l'encoche de la dictée reste")
+    verifier(direct("Voxil, rappelle-moi") == .pourLucarne(.rappel) && direct("Boxile, rappelle-moi") == .pourLucarne(.rappel)
+             && direct("Voxel, minuteur de 5 minutes") == .pourLucarne(nil),
+             "« Voxil » (dit pareil) ou « Boxile » (proche) suivis d'une demande en toutes lettres : pour l'app")
+    verifier(direct("Boxile, j'ai une livraison") == .autre && direct("Voxel, je t'envoie le fichier") == .autre,
+             "un mot seulement proche, sans demande en toutes lettres : l'encoche de la dictée reste")
+    verifier(direct("Voxile noté dans la liste") == .autre && direct("Voxile notre devis") == .autre, "« noté », « notre » ne sont pas « note »")
 
     groupe("Voix : la commande « note »")
     func lu(_ s: String) -> ResultatLucarne { AnalyseCommandeIlot.lucarne(s, maintenant: t, calendrier: cal) }
-    verifier(lu("Lucarne, note : montrer le prix dès la première page, avec trois exemples de clients.")
+    verifier(lu("Voxile, note : montrer le prix dès la première page, avec trois exemples de clients.")
              == .note(texte: "Montrer le prix dès la première page, avec trois exemples de clients."), "la note de la maquette, telle quelle")
-    verifier(lu("Lucarne, prends une note pour dire que le devis est validé") == .note(texte: "Le devis est validé.")
-             && lu("Verbe, note que Paul rappelle lundi s'il te plaît") == .note(texte: "Paul rappelle lundi."),
+    verifier(lu("Voxile, prends une note pour dire que le devis est validé") == .note(texte: "Le devis est validé.")
+             && lu("Voxile, note que Paul rappelle lundi s'il te plaît") == .note(texte: "Paul rappelle lundi."),
              "« pour dire que », « que », « s'il te plaît » tombent ; une majuscule, un point")
-    verifier(lu("Lucarne, note un rappel demain à 9 h pour appeler Paul") == .commande(.rappel(texte: "Appeler Paul", quand: date(13, 9))),
+    verifier(lu("Voxile, note un rappel demain à 9 h pour appeler Paul") == .commande(.rappel(texte: "Appeler Paul", quand: date(13, 9))),
              "« note un rappel… » reste un rappel")
-    verifier(lu("Lucarne, note :") == .incomprise(phrase: "Lucarne, note :"), "« note » sans rien après : « Je n'ai pas compris » (rien de vide n'est gardé)")
-    verifier(lu("Lucarne, notre devis est prêt") == .incomprise(phrase: "Lucarne, notre devis est prêt"), "« notre » n'est pas une note")
-    verifier(lu("Lucarne, note sur le budget : réduire les frais.") == .note(texte: "Sur le budget : réduire les frais.")
-             && lu("Lucarne, une note de 15 sur 20 pour Paul") == .note(texte: "De 15 sur 20 pour Paul."),
+    verifier(lu("Voxile, note :") == .incomprise(phrase: "Voxile, note :"), "« note » sans rien après : « Je n'ai pas compris » (rien de vide n'est gardé)")
+    verifier(lu("Voxile, notre devis est prêt") == .incomprise(phrase: "Voxile, notre devis est prêt"), "« notre » n'est pas une note")
+    verifier(lu("Voxile, note sur le budget : réduire les frais.") == .note(texte: "Sur le budget : réduire les frais.")
+             && lu("Voxile, une note de 15 sur 20 pour Paul") == .note(texte: "De 15 sur 20 pour Paul."),
              "seuls « que » et « pour dire que » tombent : « sur le budget », « de 15 sur 20 » gardent leur sens")
-    verifier(lu("Lucarne une note de 15 sur 20 pour Paul") == .aucune && direct("Verbe note bien les retards") == .autre
-             && lu("Lucarne prends une note : appeler le garage") == .note(texte: "Appeler le garage."),
-             "sans virgule, « note » / « une note » seuls parlent peut-être DE Lucarne : collés ; « prends une note » est une demande")
+    verifier(lu("Voxile une note de 15 sur 20 pour Paul") == .aucune && direct("Voxile note bien les retards") == .autre
+             && lu("Voxile prends une note : appeler le garage") == .note(texte: "Appeler le garage."),
+             "sans virgule, « note » / « une note » seuls parlent peut-être DE l'app : collés ; « prends une note » est une demande")
 
     groupe("Voix : le titre et le résumé")
     verifier(ResumeVoix.titre("La livraison", sansArticle: true) == "Livraison" && ResumeVoix.titre("Le prix sur la première page", sansArticle: true) == "Prix sur la première page",
@@ -58,15 +65,15 @@ func controlesVoix() {
     let long = ResumeVoix.titre("Préparer la présentation complète du budget prévisionnel annuel de la direction")
     verifier(long.count <= ResumeVoix.titreMax + 1 && long.hasSuffix("\u{2026}") && !long.contains(" \u{2026}") && long.hasPrefix("Préparer la présentation"),
              "un titre trop long : coupé entre deux mots, « … » (\(long))")
-    verifier(ResumeVoix.phraseEntendue("Lucarne, rappelle-moi demain à 13 h pour la livraison s'il te plaît") == "Rappelle-moi demain à 13 h pour la livraison.",
+    verifier(ResumeVoix.phraseEntendue("Voxile, rappelle-moi demain à 13 h pour la livraison s'il te plaît") == "Rappelle-moi demain à 13 h pour la livraison.",
              "la phrase entendue : sans le mot d'appel ni la politesse, une majuscule, un point")
 
     groupe("Voix : la carte de fin")
     let id = UUID()
-    let c1 = CarteVoix.rappel(id: id, texte: "La livraison", echeance: date(13, 13), phrase: "Lucarne, rappelle-moi demain à 13 h pour la livraison.", maintenant: t, calendrier: cal)
+    let c1 = CarteVoix.rappel(id: id, texte: "La livraison", echeance: date(13, 13), phrase: "Voxile, rappelle-moi demain à 13 h pour la livraison.", maintenant: t, calendrier: cal)
     verifier(c1.titre == "Livraison" && c1.quand == "demain \u{00B7} 13:00" && c1.resume == "Rappelle-moi demain à 13 h pour la livraison." && c1.genre == .rappel
              && c1.objet == .rappel(id), "le rappel de la maquette : « Livraison », « demain · 13:00 », la phrase entendue (\(c1.titre) / \(c1.quand ?? "-"))")
-    let c2 = CarteVoix.rappel(id: id, texte: "Appeler Paul", echeance: date(12, 18), phrase: "Lucarne, rappelle-moi d'appeler Paul à 18 h", maintenant: t, calendrier: cal)
+    let c2 = CarteVoix.rappel(id: id, texte: "Appeler Paul", echeance: date(12, 18), phrase: "Voxile, rappelle-moi d'appeler Paul à 18 h", maintenant: t, calendrier: cal)
     verifier(c2.quand == "aujourd\u{2019}hui \u{00B7} 18:00", "aujourd'hui · 18:00")
     let nuit = CarteVoix.rappel(id: id, texte: "Livraison", echeance: date(12, 13), phrase: "", maintenant: date(12, 0, 30), calendrier: cal)
     verifier(nuit.quand == "jeudi 12 \u{00B7} 13:00", "dit à 0 h 30 : le jour est nommé, jamais « demain » qui tromperait (\(nuit.quand ?? "-"))")

@@ -57,14 +57,14 @@ extension IlotEssai {
 
         // --- une dictée normale, une phrase SUR Lucarne : l'encoche de la dictée reste, l'îlot ne prend rien
         appuyer()
-        verifier(!direct("Bonjour Paul, je t'envoie le devis demain") && !direct("Lucarne est prête, je te l'envoie demain") && !direct("Lucarne")
+        verifier(!direct("Bonjour Paul, je t'envoie le devis demain") && !direct("Voxile est prête, je te l'envoie demain") && !direct("Voxile")
                  && m.cache && m.courante == .repos && !m.voix.retient,
-                 "une dictée normale, « Lucarne est prête… », « Lucarne » seul : l'encoche de la dictée reste, l'îlot ne prend rien (\(m.courante))")
+                 "une dictée normale, « Voxile est prête… », « Voxile » seul : l'encoche de la dictée reste, l'îlot ne prend rien (\(m.courante))")
         relacher(); c.occupationChangee(); pause(0.4)
 
-        // --- « Lucarne, rappelle-moi… » : l'îlot prend la dictée, l'onde, « Rappel… »
+        // --- « Voxile, rappelle-moi… » : l'îlot prend la dictée, l'onde, « Rappel… »
         appuyer()
-        verifier(direct("Lucarne, rappelle-moi"), "« Lucarne, rappelle-moi » en direct : l'îlot prend la dictée")
+        verifier(direct("Voxile, rappelle-moi"), "« Voxile, rappelle-moi » en direct : l'îlot prend la dictée")
         attendre(1.0) { m.courante != .voixEcoute }
         pause(0.6)
         verifier(!m.cache && m.courante == .voixEcoute && m.voix.phase == .ecoute && m.voix.genre == .rappel && c.panneau.estVisible,
@@ -91,7 +91,7 @@ extension IlotEssai {
         let cal = Calendar.current
         let demain13 = cal.date(bySettingHour: 13, minute: 0, second: 0, of: MomentDicte.demain(c.maintenant()))!
         let jourDit = ListeRappels.jour(de: demain13, maintenant: c.maintenant())
-        verifier(ecrire("Lucarne, rappelle-moi demain à 13 h pour la livraison."), "la commande : un rappel, rien n'est collé")
+        verifier(ecrire("Voxile, rappelle-moi demain à 13 h pour la livraison."), "la commande : un rappel, rien n'est collé")
         let r1 = c.rappels.rappels.last
         verifier(r1?.echeance == demain13 && m.courante == .voixCarte && m.voix.carte?.titre == "Livraison" && m.voix.carte?.quand == jourDit + " \u{00B7} 13:00"
                  && m.voix.carte?.resume == "Rappelle-moi demain à 13 h pour la livraison.",
@@ -114,8 +114,8 @@ extension IlotEssai {
         m.quitterBandeau(); pause(0.5)
 
         // --- le suivant part seul (Hugues l'a voulu une fois) ; « Annuler » le retire de Lucarne ET de l'app Rappels
-        appuyer(); _ = direct("Lucarne, rappelle-moi d'appeler Paul demain à 15 h"); relacher()
-        verifier(ecrire("Lucarne, rappelle-moi d'appeler Paul demain à 15 h.") && m.courante == .voixCarte && m.envoiVoix == .fait && faux.crees.count == 2
+        appuyer(); _ = direct("Voxile, rappelle-moi d'appeler Paul demain à 15 h"); relacher()
+        verifier(ecrire("Voxile, rappelle-moi d'appeler Paul demain à 15 h.") && m.courante == .voixCarte && m.envoiVoix == .fait && faux.crees.count == 2
                  && m.voix.carte?.titre == "Appeler Paul", "le rappel suivant part seul : la carte dit déjà « ✓ Dans Rappels » (\(m.envoiVoix))")
         let r2 = c.rappels.rappels.last, ext2 = r2?.idAppleExterne
         pause(0.6)
@@ -126,10 +126,10 @@ extension IlotEssai {
 
         // --- une note : « Note… », puis « Envoyer dans Notes » et « Copier »
         appuyer()
-        verifier(direct("Lucarne, note") && m.voix.genre == .note, "« Lucarne, note » : « Note… »")
+        verifier(direct("Voxile, note") && m.voix.genre == .note, "« Voxile, note » : « Note… »")
         relacher()
         let texteNote = "Montrer le prix dès la première page, avec trois exemples de clients."
-        verifier(ecrire("Lucarne, note : montrer le prix dès la première page, avec trois exemples de clients.") && m.courante == .voixCarte
+        verifier(ecrire("Voxile, note : montrer le prix dès la première page, avec trois exemples de clients.") && m.courante == .voixCarte
                  && m.notes.first?.texte == texteNote && m.voix.carte?.genre == .note && m.envoiVoix == .aEnvoyer && notesEnvoyees.isEmpty,
                  "la carte de la note : gardée dans Note rapide, rien d'envoyé dans Notes sans clic (\(m.courante))")
         verifier(m.voix.lignesResume == 2 && abs(m.geo[2].cibleFinale - (barre + MesuresVoix.profondeurCarte(quand: false, lignesResume: 2))) < 0.5,
@@ -149,8 +149,8 @@ extension IlotEssai {
 
         // --- les refus : l'app Notes refusée (Automatisation), puis l'app Rappels refusée : « Autoriser dans Réglages », le bon volet
         notesAccepte = false
-        appuyer(); _ = direct("Lucarne, note que le devis est validé"); relacher()
-        _ = ecrire("Lucarne, note que le devis est validé.")
+        appuyer(); _ = direct("Voxile, note que le devis est validé"); relacher()
+        _ = ecrire("Voxile, note que le devis est validé.")
         pause(0.6)
         clic(PlanVoix.cadreEnvoi(m.grille, genre: .note))
         attendre(1.0) { m.envoiVoix != .refuse }
@@ -162,8 +162,8 @@ extension IlotEssai {
                  "vrai clic sur « Autoriser dans Réglages » : le volet Automatisation, sans renvoyer la note")
         m.quitterBandeau(); pause(0.5)
         let faux2 = RappelsAppleFactice(); faux2.acces = .refuse; c.rappelsApple = faux2
-        appuyer(); _ = direct("Lucarne, rappelle-moi de rendre les livres jeudi à 10 h"); relacher()
-        _ = ecrire("Lucarne, rappelle-moi de rendre les livres jeudi à 10 h.")
+        appuyer(); _ = direct("Voxile, rappelle-moi de rendre les livres jeudi à 10 h"); relacher()
+        _ = ecrire("Voxile, rappelle-moi de rendre les livres jeudi à 10 h.")
         verifier(m.envoiVoix == .refuse && faux2.demandes == 0, "l'app Rappels refusée dans Réglages Système : « Autoriser dans Réglages », aucune fenêtre")
         pause(0.6)
         clic(PlanVoix.cadreEnvoi(m.grille, genre: .rappel))
@@ -171,24 +171,24 @@ extension IlotEssai {
         m.quitterBandeau(); pause(0.5)
         c.rappelsApple = faux
 
-        // --- une dictée prise qui finit sans commande (Groq n'a pas lu « Lucarne, » en tête : collée) : l'onde s'en va, sans reste
-        appuyer(); _ = direct("Lucarne, j'ai une question"); relacher()
+        // --- une dictée prise qui finit sans commande (Groq n'a pas lu « Voxile, » en tête : collée) : l'onde s'en va, sans reste
+        appuyer(); _ = direct("Voxile, j'ai une question"); relacher()
         c.finDeVoix(session: session); c.occupationChangee(); pause(0.9)
         verifier(m.courante == .repos && !m.voix.retient && m.bandeau == nil && !m.cache, "la dictée finit sans commande : l'onde s'en va, l'îlot revient (\(m.courante))")
         // --- annulée (fn relâchée trop tôt, Échap) : de même
-        appuyer(); _ = direct("Verbe, rappelle-moi"); occ.dictee = false; c.dicteeChange(enCours: false)
+        appuyer(); _ = direct("Voxile, rappelle-moi"); occ.dictee = false; c.dicteeChange(enCours: false)
         c.finDeVoix(session: session); c.occupationChangee(); pause(0.9)
         verifier(m.courante == .repos && !m.voix.retient, "la dictée annulée : l'onde s'en va")
         // --- une alerte à l'écran : l'îlot ne prend pas la dictée par-dessus (l'encoche de la dictée reste)
         m.annoncer(alerte: AlerteIlot(vue: .minuteurFini, jusqua: nil, libelle: "10 min")); pause(0.5)
         appuyer()
-        verifier(!direct("Lucarne, rappelle-moi demain") && m.cache, "une alerte attend un geste : la dictée garde l'encoche, l'îlot ne la prend pas")
+        verifier(!direct("Voxile, rappelle-moi demain") && m.cache, "une alerte attend un geste : la dictée garde l'encoche, l'îlot ne la prend pas")
         relacher(); m.quitterAlerte(); pause(0.6)
 
         // --- sans texte en direct (la reconnaissance du Mac absente, ou mains libres) : l'encoche garde la dictée ; la commande s'écrit
         // pendant qu'elle est encore ouverte : la carte attend qu'elle se range
         appuyer(); occ.dictee = true; c.dicteeChange(enCours: false)
-        verifier(c.intercepterLucarne("Lucarne, note : rappeler le plombier.") && m.cache && m.bandeau?.vue != .voixCarte,
+        verifier(c.intercepterLucarne("Voxile, note : rappeler le plombier.") && m.cache && m.bandeau?.vue != .voixCarte,
                  "la commande écrite encoche encore ouverte : la carte attend (\(m.courante))")
         occ.dictee = false; c.occupationChangee(); pause(1.0)
         verifier(m.courante == .voixCarte && m.voix.carte?.titre == "Rappeler le plombier", "l'encoche rangée : la carte arrive (\(m.courante))")

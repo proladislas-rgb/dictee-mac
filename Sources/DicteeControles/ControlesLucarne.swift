@@ -1,7 +1,7 @@
 import Foundation
 import DicteeCore
 
-/// « Lucarne, … » partout, les rappels dits naturellement, la note qui ressemble à un rappel, la fin de note au silence, l'app Rappels.
+/// « Voxile, … » partout, les rappels dits naturellement, la note qui ressemble à un rappel, la fin de note au silence, l'app Rappels.
 /// Les phrases sont celles qu'on dicte vraiment (dont celle de Hugues du 11/11 : « j'ai demain une livraison vers 13-14h »).
 func controlesLucarne() {
     var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/Paris")!; cal.locale = Locale(identifier: "fr_FR")
@@ -18,108 +18,144 @@ func controlesLucarne() {
         else { verifier(false, "« \(s) » → rappel attendu, obtenu \(r)") }
     }
 
-    groupe("Lucarne : le mot d'appel")
-    verifier(AnalyseCommandeIlot.sansAppel("Lucarne, rappelle-moi") == "rappelle-moi" && AnalyseCommandeIlot.sansAppel("Lucarne rappelle-moi") == "rappelle-moi",
-             "« Lucarne, » ou « Lucarne » sans virgule")
-    verifier(AnalyseCommandeIlot.sansAppel("Verbe. Minuteur de 10 minutes") == "Minuteur de 10 minutes" && AnalyseCommandeIlot.sansAppel("verbe : minuteur") == "minuteur",
-             "« Verbe. », « verbe : » (la ponctuation de Whisper)")
-    verifier(["Lucarnes, minuteur", "L'ucarne, minuteur", "Lu carne minuteur", "La carne, minuteur", "« Lucarne, minuteur"].allSatisfy { AnalyseCommandeIlot.sansAppel($0) == "minuteur" },
-             "transcriptions ratées du mot d'appel : « Lucarnes », « L'ucarne », « Lu carne », « La carne », guillemet ouvrant")
-    verifier(["Verbes irréguliers à revoir", "La lucarne de la salle de bain est cassée", "Bonjour Lucarne", "Lucarneau est là", "Le verbe être",
+    groupe("Voxile : le mot d'appel")
+    verifier(AnalyseCommandeIlot.sansAppel("Voxile, rappelle-moi") == "rappelle-moi" && AnalyseCommandeIlot.sansAppel("Voxile rappelle-moi") == "rappelle-moi",
+             "« Voxile, » ou « Voxile » sans virgule")
+    verifier(AnalyseCommandeIlot.sansAppel("Voxile. Minuteur de 10 minutes") == "Minuteur de 10 minutes" && AnalyseCommandeIlot.sansAppel("voxile : minuteur") == "minuteur",
+             "« Voxile. », « voxile : » (la ponctuation de Whisper)")
+    // ce que Groq a écrit pour « Voxile » dit par les voix Thomas, Amélie et celle par défaut (12/11 au soir) : « Voxil » ; et les
+    // graphies qui se disent pareil
+    verifier(["Voxil, minuteur", "Voxyle, minuteur", "Vauxile, minuteur", "Vox île, minuteur", "Vox-île, minuteur", "Vocsil, minuteur", "Voxille, minuteur", "« Voxile, minuteur",
+              "VOXILE, minuteur"].allSatisfy { AnalyseCommandeIlot.sansAppel($0) == "minuteur" && AnalyseCommandeIlot.appelDetaille($0)?.proche == false },
+             "« Voxil », « Voxyle », « Vauxile », « Vox île », « Vocsil » se disent comme « Voxile » : le mot d'appel, tel quel")
+    verifier(["Boxile, minuteur", "Voxel, minuteur", "Fox île, minuteur", "Box il, minuteur"].allSatisfy { AnalyseCommandeIlot.appelDetaille($0)?.proche == true },
+             "« Boxile », « Voxel », « Fox île », « Box il » : à une lettre près, PEUT-ÊTRE le mot d'appel (seulement pour une commande complète)")
+    verifier(["Verbes irréguliers à revoir", "Bonjour Voxile", "Voxilerie est là", "Vox populi", "Box, il faut", "Boxe, il faut que je réserve la salle demain",
+              "Fossile, rappelle-moi demain à 9 h", "Vos fils, rappelle-leur demain", "Voxile2, rappelle-moi",
               "Je te rappelle demain à 15 h", "J'ai une livraison demain vers 13-14 h"].allSatisfy { AnalyseCommandeIlot.sansAppel($0) == nil },
-             "sans le mot d'appel EN TÊTE : rien (« Verbes… », « La lucarne… », « Bonjour Lucarne », un mail)")
+             "sans le mot d'appel EN TÊTE : rien (« Bonjour Voxile », « Vox populi », « Boxe, il… » : pas d'un trait par-dessus la virgule, un mail)")
+    // Lucarne et Verbe ne sont plus des mots d'appel (Hugues, 12/11 au soir : « il faut l'appeler par le nom de l'application »)
+    for s in ["Lucarne, rappelle-moi demain à 13 h pour la livraison.", "Lucarne, note : acheter du pain.", "Verbe, minuteur de 10 minutes.",
+              "Lucas, rappelle-moi demain à 13 h pour la livraison.", "Lucarne.", "Verbe, euh…"] {
+        verifier(lucarne(s) == .aucune && AnalyseCommandeIlot.sansAppel(s) == nil, "« \(s) » : plus un mot d'appel, un texte normal (collé)")
+    }
+    // un mot seulement proche : une commande complète, sinon collé comme avant (rien n'est avalé)
+    rappel("Boxile, rappelle-moi demain à 13 h pour la livraison.", "La livraison", le(12, 13))
+    verifier(lucarne("Voxel, minuteur de 10 minutes.") == .commande(.minuteur(secondes: 600)) && lucarne("Fox île, note : acheter du pain.") == .note(texte: "Acheter du pain."),
+             "« Voxel, minuteur… », « Fox île, note : … » : commandes complètes, faites")
+    for s in ["Boxile, ouvre le dossier des factures.", "Voxel, rappelle-moi d'appeler Paul.", "Voxel, je t'envoie le fichier demain.", "Boxile.",
+              "Voxel, rappelle-moi aujourd'hui à 9 h d'appeler Paul."] {
+        verifier(lucarne(s, t1) == .aucune, "« \(s) » : mot seulement proche, pas une commande complète → collé (pas de « Je n'ai pas compris »)")
+    }
+    verifier(lucarne("Voxil, ouvre le dossier des factures.") == .incomprise(phrase: "Voxil, ouvre le dossier des factures."),
+             "« Voxil » se dit comme « Voxile » : une demande inconnue reste « Je n'ai pas compris » (jamais collée)")
+    // les transcriptions de Groq mesurées le 12/11 au soir (voix Thomas, Amélie, par défaut ; sans puis avec « Voxile » dans le prompt)
+    rappel("Voxil, rappelle-moi demain à 13h pour la livraison.", "La livraison", le(12, 13))
+    rappel("Voxile, rappelle-moi demain à 13h pour la livraison.", "La livraison", le(12, 13))
+    verifier(lucarne("Voxile, note, acheter du pain et des œufs.") == .note(texte: "Acheter du pain et des œufs."), "« Voxile, note, acheter… » (Groq) : une note")
+    verifier(lucarne("Vox, il faut que je réserve la salle demain à 18h.") == .aucune,
+             "« Boxe, il faut… » écrit « Vox, il faut… » par Groq (biaisé) : « Vox » seul n'est pas le mot d'appel, collé")
+    groupe("Voxile : le biais de la transcription")
+    verifier(MotAppel.motsDuPrompt(["Groq", "Whisper"], texteDavant: nil) == ["Voxile", "Groq", "Whisper"]
+             && MotAppel.motsDuPrompt(["Groq"], texteDavant: "  ") == ["Voxile", "Groq"],
+             "premier morceau d'une dictée : « Voxile » en tête du prompt de Whisper")
+    verifier(MotAppel.motsDuPrompt(["Groq"], texteDavant: "Bonjour à tous.") == ["Groq"] && MotAppel.motsDuPrompt(["voxile", "Groq"], texteDavant: nil) == ["voxile", "Groq"],
+             "morceaux suivants (une commande ne commence jamais au milieu) ou déjà dans mots.txt : rien d'ajouté")
+    let p = ChoixMotsPrompt.prompt(motsChoisis: MotAppel.motsDuPrompt(["Ladislas"], texteDavant: nil), lexique: [], contexte: ContexteMots(genre: .other),
+                                   texteDavant: nil, ancre: ChoixLangue.phraseAncre(langue: "fr"))
+    verifier(p.hasPrefix("Transcription d'une dictée en français. Voxile, Ladislas."), "le prompt du premier morceau : l'ancre, puis « Voxile » (\(p))")
     for s in ["Bonjour Paul, rappelle-moi demain à 15 h.", "J'ai une livraison demain vers 13-14 h.", "Minuteur de 10 minutes", "Le verbe être au présent"] {
         verifier(lucarne(s) == .aucune, "« \(s) » : dictée normale, collée comme avant")
     }
 
-    groupe("Lucarne : rappels dits naturellement")
-    rappel("Lucarne, rappelle-moi d'appeler Ladislas demain à 15 h.", "Appeler Ladislas", le(12, 15))
-    rappel("Lucarne rappelle-moi d'appeler Ladislas demain à 15h", "Appeler Ladislas", le(12, 15))
-    rappel("Lucarne, crée-moi un rappel pour appeler Ladislas demain à 15 h.", "Appeler Ladislas", le(12, 15))
-    rappel("Lucarne, crée un rappel demain à 15 heures : appelez Ladislas.", "Appeler Ladislas", le(12, 15))
-    rappel("Verbe, mets un rappel demain à 9 h pour sortir les poubelles.", "Sortir les poubelles", le(12, 9))
-    rappel("Lucarne, ajoute un rappel : appelez Ladislas demain à 15 h", "Appeler Ladislas", le(12, 15))
-    rappel("Lucarne, mets-moi un rappel pour demain 10 h, appeler la banque.", "Appeler la banque", le(12, 10))
-    rappel("Lucarne, rappel demain 15 h : appeler Paul", "Appeler Paul", le(12, 15))
-    rappel("Lucarne, n'oublie pas que j'ai une livraison demain à 13 h.", "Livraison", le(12, 13))
-    rappel("Lucarne, j'ai une livraison demain vers 13-14 h.", "Livraison", le(12, 13))
-    rappel("Lucarne, j'ai demain une livraison vers 13-14h.", "Livraison", le(12, 13))
-    rappel("Lucarne, j'ai une livraison demain entre 13 et 14 heures.", "Livraison", le(12, 13))
-    rappel("Lucarne, j'ai une livraison demain de 13 h à 14 h", "Livraison", le(12, 13))
-    rappel("Lucarne, j'ai une livraison demain, 13 h - 14 h.", "Livraison", le(12, 13))
-    rappel("Lucarne j'ai une livraison demain 13h-14h", "Livraison", le(12, 13))
-    rappel("Lucarnes, rappelle-moi de rappeler maman lundi à 18 h.", "Rappeler maman", le(16, 18))
-    rappel("Lucarne, rappelle-moi dans 20 minutes de sortir le gâteau.", "Sortir le gâteau", t0.addingTimeInterval(1200))
-    rappel("Lucarne, rappelle-moi de sortir le gâteau dans vingt minutes s'il te plaît.", "Sortir le gâteau", t0.addingTimeInterval(1200))
-    rappel("Lucarne, rappelle-moi dans une heure de relancer Marc", "Relancer Marc", t0.addingTimeInterval(3600))
-    rappel("Lucarne, rappelle-moi ce soir d'appeler le garage.", "Appeler le garage", le(12, 19), t1)
-    rappel("Lucarne, demain à 8 h du matin, rendez-vous chez le dentiste.", "Rendez-vous chez le dentiste", le(12, 8))
-    rappel("Lucarne, n'oublie pas que j'ai rendez-vous chez le dentiste lundi à 10 h 30.", "Rendez-vous chez le dentiste", le(16, 10, 30))
-    rappel("Lucarne, rappelle-moi à 3 h d'appeler Paul.", "Appeler Paul", le(12, 15), t1)
-    rappel("Lucarne, rappelle-moi à 15h30 de rappeler Marc.", "Rappeler Marc", le(12, 15, 30), t1)
-    rappel("Lucarne, rappelle-moi à midi et demi de déjeuner avec Julie.", "Déjeuner avec Julie", le(13, 12, 30), t1)
-    rappel("Lucarne, rappelle-moi demain matin d'arroser les plantes.", "Arroser les plantes", le(12, 9))
-    rappel("Lucarne, rappelle-moi demain soir à 8 h de préparer la valise", "Préparer la valise", le(12, 20))
-    rappel("Lucarne, rappelle-moi le 20 novembre de payer le loyer.", "Payer le loyer", le(20, 9))
-    rappel("Lucarne, il faut que j'appelle le plombier jeudi.", "Appeler le plombier", le(12, 9))
-    rappel("Lucarne, rappelle-moi jeudi prochain à 14 h de déposer le colis", "Déposer le colis", le(12, 14))
-    rappel("Lucarne, fais-moi penser à acheter du pain à 18 h.", "Acheter du pain", le(12, 18), t1)
-    rappel("Lucarne, rappelle-moi après-demain à 9 h que je dois envoyer le devis", "Envoyer le devis", le(13, 9))
-    rappel("Verbe, réveille-moi à 7 h.", "Réveil", le(12, 7))
+    groupe("Voxile : rappels dits naturellement")
+    rappel("Voxile, rappelle-moi d'appeler Ladislas demain à 15 h.", "Appeler Ladislas", le(12, 15))
+    rappel("Voxile rappelle-moi d'appeler Ladislas demain à 15h", "Appeler Ladislas", le(12, 15))
+    rappel("Voxile, crée-moi un rappel pour appeler Ladislas demain à 15 h.", "Appeler Ladislas", le(12, 15))
+    rappel("Voxile, crée un rappel demain à 15 heures : appelez Ladislas.", "Appeler Ladislas", le(12, 15))
+    rappel("Voxile, mets un rappel demain à 9 h pour sortir les poubelles.", "Sortir les poubelles", le(12, 9))
+    rappel("Voxile, ajoute un rappel : appelez Ladislas demain à 15 h", "Appeler Ladislas", le(12, 15))
+    rappel("Voxile, mets-moi un rappel pour demain 10 h, appeler la banque.", "Appeler la banque", le(12, 10))
+    rappel("Voxile, rappel demain 15 h : appeler Paul", "Appeler Paul", le(12, 15))
+    rappel("Voxile, n'oublie pas que j'ai une livraison demain à 13 h.", "Livraison", le(12, 13))
+    rappel("Voxile, j'ai une livraison demain vers 13-14 h.", "Livraison", le(12, 13))
+    rappel("Voxile, j'ai demain une livraison vers 13-14h.", "Livraison", le(12, 13))
+    rappel("Voxile, j'ai une livraison demain entre 13 et 14 heures.", "Livraison", le(12, 13))
+    rappel("Voxile, j'ai une livraison demain de 13 h à 14 h", "Livraison", le(12, 13))
+    rappel("Voxile, j'ai une livraison demain, 13 h - 14 h.", "Livraison", le(12, 13))
+    rappel("Voxile j'ai une livraison demain 13h-14h", "Livraison", le(12, 13))
+    rappel("Voxil, rappelle-moi de rappeler maman lundi à 18 h.", "Rappeler maman", le(16, 18))
+    rappel("Voxile, rappelle-moi dans 20 minutes de sortir le gâteau.", "Sortir le gâteau", t0.addingTimeInterval(1200))
+    rappel("Voxile, rappelle-moi de sortir le gâteau dans vingt minutes s'il te plaît.", "Sortir le gâteau", t0.addingTimeInterval(1200))
+    rappel("Voxile, rappelle-moi dans une heure de relancer Marc", "Relancer Marc", t0.addingTimeInterval(3600))
+    rappel("Voxile, rappelle-moi ce soir d'appeler le garage.", "Appeler le garage", le(12, 19), t1)
+    rappel("Voxile, demain à 8 h du matin, rendez-vous chez le dentiste.", "Rendez-vous chez le dentiste", le(12, 8))
+    rappel("Voxile, n'oublie pas que j'ai rendez-vous chez le dentiste lundi à 10 h 30.", "Rendez-vous chez le dentiste", le(16, 10, 30))
+    rappel("Voxile, rappelle-moi à 3 h d'appeler Paul.", "Appeler Paul", le(12, 15), t1)
+    rappel("Voxile, rappelle-moi à 15h30 de rappeler Marc.", "Rappeler Marc", le(12, 15, 30), t1)
+    rappel("Voxile, rappelle-moi à midi et demi de déjeuner avec Julie.", "Déjeuner avec Julie", le(13, 12, 30), t1)
+    rappel("Voxile, rappelle-moi demain matin d'arroser les plantes.", "Arroser les plantes", le(12, 9))
+    rappel("Voxile, rappelle-moi demain soir à 8 h de préparer la valise", "Préparer la valise", le(12, 20))
+    rappel("Voxile, rappelle-moi le 20 novembre de payer le loyer.", "Payer le loyer", le(20, 9))
+    rappel("Voxile, il faut que j'appelle le plombier jeudi.", "Appeler le plombier", le(12, 9))
+    rappel("Voxile, rappelle-moi jeudi prochain à 14 h de déposer le colis", "Déposer le colis", le(12, 14))
+    rappel("Voxile, fais-moi penser à acheter du pain à 18 h.", "Acheter du pain", le(12, 18), t1)
+    rappel("Voxile, rappelle-moi après-demain à 9 h que je dois envoyer le devis", "Envoyer le devis", le(13, 9))
+    rappel("Voxile, réveille-moi à 7 h.", "Réveil", le(12, 7))
 
-    groupe("Lucarne : minuteur, et ce qui n'est pas compris")
-    verifier(lucarne("Lucarne, minuteur de 10 minutes.") == .commande(.minuteur(secondes: 600)), "« Lucarne, minuteur de 10 minutes »")
-    verifier(lucarne("Verbe, lance un minuteur de cinq minutes s'il te plaît.") == .commande(.minuteur(secondes: 300)), "« lance un minuteur de cinq minutes s'il te plaît »")
-    verifier(lucarne("Lucarne minuteur d'une demi-heure") == .commande(.minuteur(secondes: 1800)), "minuteur d'une demi-heure, sans virgule")
-    if case .incomprise(let p) = lucarne("Lucarne, ouvre le dossier des factures.") { verifier(p == "Lucarne, ouvre le dossier des factures.", "« Lucarne, ouvre le dossier… » : « Je n'ai pas compris » + la phrase, rien de plus") }
-    else { verifier(false, "« Lucarne, ouvre le dossier… » : incomprise attendue, obtenu \(lucarne("Lucarne, ouvre le dossier des factures."))") }
-    let longue = "Lucarne, " + String(repeating: "un long paragraphe dicté pour le compte rendu de la réunion. ", count: 6)
+    groupe("Voxile : minuteur, et ce qui n'est pas compris")
+    verifier(lucarne("Voxile, minuteur de 10 minutes.") == .commande(.minuteur(secondes: 600)), "« Voxile, minuteur de 10 minutes »")
+    verifier(lucarne("Voxile, lance un minuteur de cinq minutes s'il te plaît.") == .commande(.minuteur(secondes: 300)), "« lance un minuteur de cinq minutes s'il te plaît »")
+    verifier(lucarne("Voxile minuteur d'une demi-heure") == .commande(.minuteur(secondes: 1800)), "minuteur d'une demi-heure, sans virgule")
+    if case .incomprise(let p) = lucarne("Voxile, ouvre le dossier des factures.") { verifier(p == "Voxile, ouvre le dossier des factures.", "« Voxile, ouvre le dossier… » : « Je n'ai pas compris » + la phrase, rien de plus") }
+    else { verifier(false, "« Voxile, ouvre le dossier… » : incomprise attendue, obtenu \(lucarne("Voxile, ouvre le dossier des factures."))") }
+    let longue = "Voxile, " + String(repeating: "un long paragraphe dicté pour le compte rendu de la réunion. ", count: 6)
     if case .incomprise(let p) = lucarne(longue) { verifier(p == longue.trimmingCharacters(in: .whitespaces) && p.count > 300, "une longue phrase incomprise est gardée ENTIÈRE (\(p.count) caractères) : « Copier » ne perd rien") }
     else { verifier(false, "longue phrase : incomprise attendue") }
-    verifier(lucarne("Lucarne.") == .incomprise(phrase: "Lucarne.") && lucarne("Verbe, euh…") != .aucune, "« Lucarne. » seul : incompris (jamais collé)")
-    verifier(lucarne("Lucarne, rappelle-moi d'appeler Paul.") == .sansHeure(phrase: "Lucarne, rappelle-moi d'appeler Paul."), "un rappel sans heure : « Il me manque l'heure »")
-    verifier(lucarne("Lucarne, rappelle-moi un jour de te le dire") == .sansHeure(phrase: "Lucarne, rappelle-moi un jour de te le dire"), "« un jour » n'est pas une date")
-    if case .incomprise = lucarne("Lucarne, ouvre Safari.") { verifier(true, "une demande inconnue (« ouvre Safari ») : incomprise") } else { verifier(false, "« ouvre Safari » : incomprise") }
-    if case .incomprise = lucarne("Lucarne, une heure de sport c'est bien.") { verifier(true, "« une heure de sport » : pas une heure du jour") } else { verifier(false, "« une heure de sport » : \(lucarne("Lucarne, une heure de sport c'est bien."))") }
+    verifier(lucarne("Voxile.") == .incomprise(phrase: "Voxile.") && lucarne("Voxile, euh…") != .aucune, "« Voxile. » seul : incompris (jamais collé)")
+    verifier(lucarne("Voxile, rappelle-moi d'appeler Paul.") == .sansHeure(phrase: "Voxile, rappelle-moi d'appeler Paul."), "un rappel sans heure : « Il me manque l'heure »")
+    verifier(lucarne("Voxile, rappelle-moi un jour de te le dire") == .sansHeure(phrase: "Voxile, rappelle-moi un jour de te le dire"), "« un jour » n'est pas une date")
+    if case .incomprise = lucarne("Voxile, ouvre Safari.") { verifier(true, "une demande inconnue (« ouvre Safari ») : incomprise") } else { verifier(false, "« ouvre Safari » : incomprise") }
+    if case .incomprise = lucarne("Voxile, une heure de sport c'est bien.") { verifier(true, "« une heure de sport » : pas une heure du jour") } else { verifier(false, "« une heure de sport » : \(lucarne("Voxile, une heure de sport c'est bien."))") }
 
-    groupe("Lucarne : une phrase SUR Lucarne n'est pas une commande (relecture du 12/11)")
-    for s in ["Lucarne est prête, je te l'envoie demain.", "Verbe 0.3.3 publiée ce soir", "Lucarne est une fenêtre.", "Verbe être au passé composé demain matin"] {
+    groupe("Voxile : une phrase SUR l'app n'est pas une commande (relecture du 12/11)")
+    for s in ["Voxile est prête, je te l'envoie demain.", "Voxile 0.3.3 publiée ce soir", "Voxile est une fenêtre.", "Voxile être au passé composé demain matin"] {
         verifier(lucarne(s) == .aucune, "« \(s) » (pas de virgule, aucune demande) : dictée normale, collée, aucun rappel")
     }
-    if case .incomprise = lucarne("Lucarne : sortie demain") { verifier(true, "« Lucarne : sortie demain » (une ligne de liste) : un nom et une date ne font pas un rappel") }
-    else { verifier(false, "« Lucarne : sortie demain » : \(lucarne("Lucarne : sortie demain"))") }
-    rappel("Lucarne, demain à 9 h, tester l'AirDrop.", "Tester l'AirDrop", le(12, 9))
+    if case .incomprise = lucarne("Voxile : sortie demain") { verifier(true, "« Voxile : sortie demain » (une ligne de liste) : un nom et une date ne font pas un rappel") }
+    else { verifier(false, "« Voxile : sortie demain » : \(lucarne("Voxile : sortie demain"))") }
+    rappel("Voxile, demain à 9 h, tester l'AirDrop.", "Tester l'AirDrop", le(12, 9))
 
-    groupe("Lucarne : après minuit, « demain » est le jour qui commence")
-    rappel("Lucarne, j'ai demain une livraison vers 13-14h.", "Livraison", le(13, 13), t2)
-    rappel("Lucarne, rappelle-moi demain à 9 h d'appeler Paul.", "Appeler Paul", le(13, 9), t2)
-    rappel("Lucarne, j'ai une réunion de 10 h à 11 h demain.", "Réunion", le(13, 10), t2)
-    rappel("Lucarne, rappelle-moi après-demain de payer le loyer.", "Payer le loyer", le(14, 9), t2)
-    rappel("Lucarne, rappelle-moi vendredi d'appeler le garage.", "Appeler le garage", le(13, 9), t2)
-    rappel("Lucarne, rappelle-moi demain à 9 h d'appeler Paul.", "Appeler Paul", le(13, 9), t1)
+    groupe("Voxile : après minuit, « demain » est le jour qui commence")
+    rappel("Voxile, j'ai demain une livraison vers 13-14h.", "Livraison", le(13, 13), t2)
+    rappel("Voxile, rappelle-moi demain à 9 h d'appeler Paul.", "Appeler Paul", le(13, 9), t2)
+    rappel("Voxile, j'ai une réunion de 10 h à 11 h demain.", "Réunion", le(13, 10), t2)
+    rappel("Voxile, rappelle-moi après-demain de payer le loyer.", "Payer le loyer", le(14, 9), t2)
+    rappel("Voxile, rappelle-moi vendredi d'appeler le garage.", "Appeler le garage", le(13, 9), t2)
+    rappel("Voxile, rappelle-moi demain à 9 h d'appeler Paul.", "Appeler Paul", le(13, 9), t1)
     verifier(ListeRappels.jour(de: le(13, 13), maintenant: t2, calendrier: cal) == "vendredi 13" && ListeRappels.jour(de: le(14, 9), maintenant: t2, calendrier: cal) == "samedi 14",
              "la nuit, la confirmation NOMME le jour (« vendredi 13 ») au lieu de « demain »")
     verifier(ListeRappels.jour(de: le(13, 13), maintenant: t1, calendrier: cal) == "demain", "le jour, « demain » reste « demain »")
 
-    groupe("Lucarne : 5 h, 6 h, c'est le matin ; un réveil n'est jamais l'après-midi")
-    rappel("Lucarne, réveille-moi à 6 h.", "Réveil", le(12, 6))
-    rappel("Lucarne, réveille-moi à 4 h.", "Réveil", le(12, 4))
-    rappel("Lucarne, rappelle-moi demain à 6 h 30 de prendre le train.", "Prendre le train", le(12, 6, 30))
-    rappel("Lucarne, rappelle-moi à 5 h de partir à l'aéroport.", "Partir à l'aéroport", le(12, 5))
-    rappel("Lucarne, rappelle-moi demain à 3 h d'appeler Paul.", "Appeler Paul", le(12, 15))
-    rappel("Lucarne, rappelle-moi cette nuit à 2 h de couper le four.", "Couper le four", le(12, 2))
+    groupe("Voxile : 5 h, 6 h, c'est le matin ; un réveil n'est jamais l'après-midi")
+    rappel("Voxile, réveille-moi à 6 h.", "Réveil", le(12, 6))
+    rappel("Voxile, réveille-moi à 4 h.", "Réveil", le(12, 4))
+    rappel("Voxile, rappelle-moi demain à 6 h 30 de prendre le train.", "Prendre le train", le(12, 6, 30))
+    rappel("Voxile, rappelle-moi à 5 h de partir à l'aéroport.", "Partir à l'aéroport", le(12, 5))
+    rappel("Voxile, rappelle-moi demain à 3 h d'appeler Paul.", "Appeler Paul", le(12, 15))
+    rappel("Voxile, rappelle-moi cette nuit à 2 h de couper le four.", "Couper le four", le(12, 2))
 
-    groupe("Lucarne : dates en chiffres, plages sans tiret")
-    rappel("Lucarne, rappelle-moi d'appeler Paul le 13/11 à 14 h.", "Appeler Paul", le(13, 14))
-    rappel("Lucarne, j'ai une livraison demain vers 13 14 h.", "Livraison", le(12, 13))
-    rappel("Lucarne, rappelle-moi de prendre la ligne 13, 14 h.", "Prendre la ligne 13", le(12, 14))
-    rappel("Lucarne, rappelle-moi le 20/11 de payer le loyer.", "Payer le loyer", le(20, 9))
+    groupe("Voxile : dates en chiffres, plages sans tiret")
+    rappel("Voxile, rappelle-moi d'appeler Paul le 13/11 à 14 h.", "Appeler Paul", le(13, 14))
+    rappel("Voxile, j'ai une livraison demain vers 13 14 h.", "Livraison", le(12, 13))
+    rappel("Voxile, rappelle-moi de prendre la ligne 13, 14 h.", "Prendre la ligne 13", le(12, 14))
+    rappel("Voxile, rappelle-moi le 20/11 de payer le loyer.", "Payer le loyer", le(20, 9))
 
-    groupe("Lucarne : un moment déjà passé n'est pas ajouté")
-    verifier(lucarne("Lucarne, rappelle-moi aujourd'hui à 9 h d'appeler Paul.", t1) == .passe(phrase: "Lucarne, rappelle-moi aujourd'hui à 9 h d'appeler Paul."),
+    groupe("Voxile : un moment déjà passé n'est pas ajouté")
+    verifier(lucarne("Voxile, rappelle-moi aujourd'hui à 9 h d'appeler Paul.", t1) == .passe(phrase: "Voxile, rappelle-moi aujourd'hui à 9 h d'appeler Paul."),
              "« aujourd'hui à 9 h » dit à 14 h : « Cette heure est passée », rien d'ajouté (il sonnerait aussitôt)")
     verifier(AnalyseCommandeIlot.rappel("Rappelle-moi aujourd'hui à 9 h d'appeler Paul.", maintenant: t1, calendrier: cal) == nil, "îlot ouvert : pas de rappel déjà passé non plus")
-    rappel("Lucarne, rappelle-moi aujourd'hui à 18 h d'appeler Paul.", "Appeler Paul", le(12, 18), t1)
+    rappel("Voxile, rappelle-moi aujourd'hui à 18 h d'appeler Paul.", "Appeler Paul", le(12, 18), t1)
 
     groupe("Rappels : texte remis au propre")
     verifier(TexteRappel.propre("Appelez Ladislas") == "Appeler Ladislas" && TexteRappel.propre("appelle Ladislas") == "Appeler Ladislas", "« Appelez / appelle Ladislas » → « Appeler Ladislas »")

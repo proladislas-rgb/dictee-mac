@@ -33,7 +33,7 @@ enum RenduVoix {
         if genre == .rappel {
             let demain13 = Calendar.current.date(bySettingHour: 13, minute: 0, second: 0, of: t0.addingTimeInterval(86_400))!
             m.preparerCarteVoix(CarteVoix.rappel(id: idRappel, texte: "La livraison", echeance: demain13,
-                                                 phrase: "Lucarne, rappelle-moi demain à 13 h pour la livraison.", maintenant: t0))
+                                                 phrase: "Voxile, rappelle-moi demain à 13 h pour la livraison.", maintenant: t0))
             m.voix.envoiRappel = envoi
         } else {
             m.notes = [NoteRapide(id: idNote, texte: noteExemple, date: t0)]

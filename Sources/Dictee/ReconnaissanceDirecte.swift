@@ -1,6 +1,7 @@
 import AVFoundation
 import Speech
 import CoreMedia
+import DicteeCore
 
 extension Notification.Name {
     /// La reconnaissance du Mac a changé d'état (prête, téléchargement de la langue en cours) : les Réglages et l'îlot relisent.
@@ -56,7 +57,8 @@ enum PrechauffageParole {
         if let c = motsEnCache, t - c.lus < 600 { lock.unlock(); return c.mots }
         lock.unlock()
         var vus = Set<String>()
-        let tous = Dictionnaire.mots() + LexiqueStore.partage.entrees().map(\.mot)
+        // le mot d'appel d'abord (« Voxile, rappelle-moi… » doit être reconnu en direct pour que l'îlot prenne la dictée)
+        let tous = [MotAppel.mot] + Dictionnaire.mots() + LexiqueStore.partage.entrees().map(\.mot)
         let mots = Array(tous.filter { !$0.isEmpty && vus.insert($0.lowercased()).inserted }.prefix(100))
         lock.lock(); motsEnCache = (mots, t); lock.unlock()
         return mots

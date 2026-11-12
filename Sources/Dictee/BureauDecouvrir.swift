@@ -254,7 +254,7 @@ struct ScenePetite: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Text("«\u{202F}rappelle-moi demain à 9 h\u{202F}»").font(.system(size: 10.5, design: .serif).italic()).foregroundStyle(TonsBureau.encre2).fixedSize()
+            Text("«\u{202F}Voxile, rappelle-moi demain à 9 h\u{202F}»").font(.system(size: 10.5, design: .serif).italic()).foregroundStyle(TonsBureau.encre2).fixedSize()
                 .offset(y: 22 + 4 * (1 - dit)).opacity(dit)
         }
     }

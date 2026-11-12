@@ -542,3 +542,17 @@ résumé) qui propose de l'envoyer dans Rappels ou dans Notes. Maquette : design
       1er « Envoyer dans Notes » (autorisation Automatisation pour Notes).
 - [ ] À trancher : « Modifier » de la maquette remplacé par « Annuler » (pas d'éditeur de rappel dans l'îlot) ; le titre et le résumé
       sont tirés du texte sur le Mac (sans IA) ; mains libres : l'encoche garde ✕ ✓, seule la carte de fin vient.
+
+## Mot d'appel « Voxile » + verre vraiment transparent (12/11 soir) — branche verre-transparent (worktree ~/dictee-mac-verre2)
+Retours de Hugues (20 h 50, sur a8a2aad installé) : « Lucarne, rappelle-moi demain à 13 h… » collé dans le Terminal (journal : Groq a
+écrit « Lucas, rappelle-moi… ») ; puis décision : « il faut l'appeler par le nom de l'application » → le mot d'appel est VOXILE, et lui seul.
+Et le verre : « vraiment beaucoup plus transparent ».
+- [x] Mot d'appel : « Voxile » seul (Lucarne et Verbe = texte normal) ; graphies qui se disent pareil (clé phonétique) = le mot ;
+      à une lettre de clé (« Boxile », « Voxel », « Fox île ») = seulement pour une commande complète, sinon collé.
+- [x] Biais : « Voxile » en tête du prompt de Whisper (premier morceau) et dans les mots de SpeechAnalyzer (contextualStrings).
+- [x] Mesures `say` → Groq (`--transcrire`) : sans biais « Voxil, … » (3 voix sur 3), avec biais « Voxile, … » (3/3).
+- [x] Textes qui apprennent le mot d'appel : Découvrir (tuile Rappels, scène animée).
+- [x] Essai : section Lucarne (Lucarne n'est plus un mot d'appel, « Voxil » l'est) ; contrôles purs.
+- [ ] Verre : voile 0, verre système atténué/clair selon la sonde, liseré plus marqué, halo plus dense ; faux verres au nouveau niveau
+      (Terre, page blanche, vidéo + Bloc-notes) ; essai « aucune couche opaque sous le contenu, hors encoche » sur chaque écran × place.
+- [ ] Relecture opus, push (pas de fusion).
