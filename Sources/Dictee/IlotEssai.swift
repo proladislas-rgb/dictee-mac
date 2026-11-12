@@ -114,17 +114,20 @@ enum IlotEssai {
         let g = m.geometrie
         print("caméra : \(Int(g.largeur)) × \(Int(g.hauteur)) pt")
 
-        // une section seule (pour la mettre au point sans attendre tout l'essai) : `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`, `places`), ou
+        // une section seule (pour la mettre au point sans attendre tout l'essai) : `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`, `places`, `places-survol`), ou
         // `--ilot-essai --seulement=survol` (le survol des Dictées, pour mesurer vite ; l'essai complet la joue aussi)
         let seul = CommandLine.arguments.contains("--seulement=survol") ? "survol" : ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"]
-        if let seul, ["bibliotheque", "reveil", "survol", "places"].contains(seul) {
+        if let seul, ["bibliotheque", "reveil", "survol", "places", "places-survol"].contains(seul) {
             attendre(0.4)
             if seul == "bibliotheque" {
                 IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
                                        fenetres: { fenetres }, relancer: { fabriquer() })
-            } else if seul == "places" {
+            } else if seul == "places" || seul == "places-survol" {
                 IlotEssai.placesLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
                 IlotEssai.verreLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+                // `places-survol` : le survol des Dictées juste après (comme dans l'essai complet) : la Lucarne revenue dans l'encoche ne
+                // doit rien laisser qui alourdisse l'îlot
+                if seul == "places-survol" { IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) }
             } else if seul == "reveil" {
                 IlotEssai.reveilEtCalendrier(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
             } else {

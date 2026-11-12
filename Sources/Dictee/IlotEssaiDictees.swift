@@ -150,9 +150,14 @@ extension IlotEssai {
         verifier(d.copiee == nil, "« Copié » s'en va de lui-même (un seul réveil)")
 
         // --- déplier (le chevron, au survol) : la carte grandit d'autant, ou la liste
-        d.survol = factices[1].id; pause(0.2)
-        if let p = PlanDictees.pointChevron(factices[1].id, m) { clic(p, 0.3) }
-        verifier(d.deplie == factices[1].id, "vrai clic sur le chevron : la dictée se déplie (texte entier)")
+        // la souris passe sur la deuxième dictée, jusqu'à son chevron (il paraît au survol), puis clique : comme une vraie main. (Le
+        // survol posé à la main ne tenait pas : la liste redessinée relit la souris fabriquée, restée sur la première dictée.)
+        let pc = PlanDictees.pointChevron(factices[1].id, m)
+        if let p = pc { c.panneau.envoyerMouvement(en: p) }
+        pause(0.3)
+        let survolReel = d.survol == factices[1].id
+        if let p = pc { clic(p, 0.3) }
+        verifier(d.deplie == factices[1].id, "vrai survol puis vrai clic sur le chevron : la dictée se déplie (texte entier) [survol \(survolReel ? "par la souris" : "absent"), \(m.courante.rawValue)]")
         let hDep = d.miseEnPage().elements.first { $0.id == factices[1].id.uuidString }?.h ?? 0
         verifier(hDep >= CarteDictees.ligneDepliee(lignesDeTexte: 1), "ligne dépliée : \(Int(hDep)) pt (une ligne de texte de plus au moins)")
         d.deplie = nil; d.survol = nil; pause(0.4)
