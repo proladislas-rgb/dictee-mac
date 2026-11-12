@@ -47,6 +47,8 @@ final class ReunionController: ObservableObject {
     /// La séparation des voix de la piste « Eux » (sur ce Mac, FluidAudio ; factice dans les essais, nil : pas de séparation).
     var separation: SeparationVoixAudio? = .surLeMac
     private var finPoint: DispatchWorkItem?
+    /// Ce qui a servi au dernier calcul du direct (`majDirect`).
+    private var entreesDirect: EntreesDirect?
     private var rattrapage: Task<Void, Never>?
 
     private final class Session: @unchecked Sendable {
@@ -151,6 +153,7 @@ final class ReunionController: ObservableObject {
             Task { @MainActor in self?.segmentRecu(s) }
         }
 
+        entreesDirect = nil
         var e = ReunionIlot()
         e.depuis = maintenant()
         e.app = appProposee
@@ -358,7 +361,7 @@ final class ReunionController: ObservableObject {
         guard let separation, let fichier, FileManager.default.fileExists(atPath: fichier.path), passages.map({ !$0.isEmpty }) ?? true else { return nil }
         return Task.detached(priority: .utility) {
             do {
-                return (try await separation.separer(fichier, avance), nil)
+                return (try await separation.separer(fichier, passages, avance), nil)
             } catch {
                 Log.ecrire("voix : séparation impossible (\(error)) -> « Eux »")
                 let raison = SeparationVoixLocale.modelePresent(SeparationVoixLocale.dossierParDefaut)
@@ -604,8 +607,12 @@ final class ReunionController: ObservableObject {
     /// Le direct : passages transcrits, ce qui s'entend encore, les points marqués (DirectReunion décide de l'ordre, des tours, des échos).
     private func majDirect(_ s: Session) {
         guard etatIlot != nil else { return }
-        let (moi, eux) = s.copies()
         let attentes = s.transcripteur.attentes() + [s.moi.parole(), s.eux.parole()].compactMap { $0 }
+        // rien de neuf depuis la dernière seconde (le cas le plus courant) : le direct ne se recalcule pas
+        let entrees = EntreesDirect(version: s.versionActuelle(), attentes: attentes, points: s.points.count)
+        guard entrees != entreesDirect else { return }
+        entreesDirect = entrees
+        let (moi, eux) = s.copies()
         let lignes = DirectReunion.lignes(moi: moi, eux: eux, attentes: attentes, points: s.points)
         guard lignes != etatIlot?.lignes else { return }
         etatIlot?.lignes = lignes

@@ -1,7 +1,7 @@
 import DicteeCore
 import Foundation
 
-/// `Verbe --voix-mesure piste-eux.wav [--verite tours.tsv] [--modeles DOSSIER]` : la vraie séparation des voix (FluidAudio, sur ce Mac)
+/// `Verbe --voix-mesure piste-eux.wav [--verite tours.tsv] [--passages] [--modeles DOSSIER]` : la vraie séparation des voix (FluidAudio, sur ce Mac)
 /// sur un fichier son 16 kHz mono 16 bits, avec ses mesures : téléchargement et taille du modèle, temps, mémoire maximale du processus.
 /// Avec `--verite` (une ligne par tour : début, fin, voix, texte, séparés par des tabulations — un son fabriqué dont on connaît les
 /// voix), la justesse : part du temps de parole donné à la bonne voix, et part des passages de la transcription qui reçoivent le bon
@@ -13,10 +13,17 @@ enum MesureVoix {
         func option(_ nom: String) -> String? { arguments.firstIndex(of: nom).flatMap { $0 + 1 < arguments.count ? arguments[$0 + 1] : nil } }
         let modeles = option("--modeles").map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath, isDirectory: true) } ?? SeparationVoixLocale.dossierParDefaut
         let verite = option("--verite")
+        // `--passages` : comme dans l'app, seuls les passages de parole sont analysés (ceux de la vérité, comme les verrait le découpage)
+        let passages = arguments.contains("--passages") ? verite.flatMap { try? String(contentsOfFile: $0, encoding: .utf8) }.map { t in
+            t.split(separator: "\n").compactMap { l -> PassageParole? in
+                let c = l.split(separator: "\t"); guard c.count >= 2, let d = Double(c[0]), let f = Double(c[1]) else { return nil }
+                return PassageParole(debut: d, fin: f)
+            }
+        } : nil
         var sortie: Int32 = 0
         let fini = DispatchSemaphore(value: 0)
         Task.detached {
-            sortie = await lancer(URL(fileURLWithPath: chemin), modeles: modeles, verite: verite)
+            sortie = await lancer(URL(fileURLWithPath: chemin), modeles: modeles, verite: verite, passages: passages)
             fini.signal()
         }
         fini.wait()
@@ -37,12 +44,13 @@ enum MesureVoix {
 
     private static func mo(_ octets: UInt64) -> String { String(format: "%.0f Mo", Double(octets) / 1_048_576) }
 
-    private static func lancer(_ url: URL, modeles: URL, verite: String?) async -> Int32 {
+    private static func lancer(_ url: URL, modeles: URL, verite: String?, passages: [PassageParole]?) async -> Int32 {
         let avant = MemoireProcessus.empreinte()
         print("modèles : \(modeles.path)\(SeparationVoixLocale.modelePresent(modeles) ? "" : " (absents : téléchargement)")")
         let dernier = Verrouille<Int>(-1)
         do {
-            let (voix, m) = try await SeparationVoixLocale.separer(url, modeles: modeles) { a in
+            if let passages { print("seulement les passages de parole : \(passages.count)") }
+            let (voix, m) = try await SeparationVoixLocale.separer(url, passages: passages, modeles: modeles) { a in
                 if case .telechargement(let p) = a {
                     let pc = Int(p * 100) / 10 * 10
                     if dernier.remplacer(pc) != pc { print("  téléchargement \(pc) %") }

@@ -293,3 +293,33 @@ Son de test fabriqué (`say` : Thomas, Amélie, Jacques ; tours de 1 à 4 phrase
 - [ ] Reconnaître une voix déjà nommée d'une réunion à l'autre (empreintes gardées, `SeparationVoix.reconnaitre` prêt, rien de branché).
 - [ ] Renommer d'un clic sur le nom dans une ligne de la transcription (aujourd'hui : clic sur « Personne 1 » dans l'en-tête de la note).
 - [ ] La transcription du direct pendant l'appel reste « Moi / Eux » (la séparation se fait après l'appel).
+
+## Bulles audio (« vocaux ») + réunion optimisée (12/11) — branche voix-reunions
+Demande de Hugues : « optimise à fond la réunion. Et pour les vocaux, dans la transcription, comme sur la maquette : la possibilité de
+télécharger directement les bouts où les gens parlent, comme WhatsApp, à côté de ce qui a été transcrit. »
+- [x] Une bulle par passage sous le texte : ▶︎/❚❚ dans la couleur de l'orateur, onde du vrai son (36 barres, la part jouée en
+      couleur, un clic s'y place), durée (temps écoulé pendant la lecture), vitesse ×1 / ×1,5 / ×2, « Télécharger l'extrait ».
+      L'extrait exact : la bonne piste (micro pour « Moi », son du Mac pour les autres), 0,15 s avant / 0,35 s après les heures de
+      Whisper sans mordre sur la voix voisine de la même piste ; la lecture enchaîne sur le passage suivant. Un clic sur le texte joue.
+- [x] Télécharger : .m4a AAC 16 kHz 32 kbit/s, « Réunion – Personne 2 – 14h05.m4a », panneau d'enregistrement du Mac ; la bulle se
+      glisse vers Finder / Mail / WhatsApp comme un fichier ; bouton « Audio » : toute la réunion, Moi + Eux mélangés, encodée par blocs.
+- [x] Rétention : bulles seulement si le son est gardé (réglage « Garder le son des réunions », ou les 7 jours d'attente) ; sinon
+      bulle grise « audio effacé ». Extraits de glisser-déposer dans Reunions/.extraits (0700/0600), effacés avec le son, avec la
+      réunion et à chaque lancement. Fichiers exportés en 0600. Aucun réseau.
+- [x] Optimisations : relecture 3 lots à la fois (audio réservé d'un seul geste), séparation des voix sur les seuls passages de
+      parole + fenêtres tous les 3,5 s, direct de l'îlot recalculé seulement s'il change.
+
+### Mesures avant / après (MacBook Air M5 ; d'autres équipes compilaient : charge 4 à 25, voir chaque ligne)
+- Arrêter → note prête (`--reunion-test`, appel fabriqué de 8 min, 3 voix + Moi, vrai Groq) : avant 23 s = relecture 10,3 s
+  (6 lots l'un après l'autre) en parallèle de la séparation (7,4 s de chargement sous charge + 4,6 s), puis note 11 s.
+  Après relecture en parallèle : relecture 5,0 s, mais la séparation devenait le goulet (charge 25). Voir la ligne « après tout ».
+- Séparation des voix, appel fabriqué de 20 min où « Eux » parle environ 60 % du temps (charge 8) : avant 10,4 à 13,9 s (tout le
+  fichier, fenêtres tous les 2 s) ; après 3,5 à 4,4 s (seulement les passages de parole, fenêtres tous les 3,5 s). Justesse : 98,6 %
+  → 96,7 % des passages au bon orateur (le fait de n'analyser que les passages coûte 2 points ; le pas de 3,5 s ne coûte rien).
+  Mémoire de pointe pendant la séparation inchangée (≈ 490-500 Mo quelques secondes, puis ≈ 40 Mo).
+- Pendant l'appel (`--reunion-mesure`, 20 min, deux pistes, sans micro ni réseau) : pistes (conversion, niveaux, découpe, écriture
+  du son) 39 ms de processeur par minute = 0,06 % d'un cœur (rien à gagner) ; direct de l'îlot recalculé chaque seconde : 0,83 %
+  d'un cœur, et ça grandit avec la longueur de l'appel (il relit toute la transcription) → seulement quand il change : 0,14 %
+  (1 205 calculs → 204). Mémoire ajoutée par l'enregistrement : ≈ 8 Mo (pointe 113 Mo dont 51 Mo de son d'essai chargé).
+- Déjà en place, vérifié : envoi Groq au fil de l'eau pendant l'appel, morceaux pas encore partis abandonnés à l'arrêt, séparation
+  lancée dès l'arrêt en parallèle de la relecture, une seule minuterie (1 s) pendant l'enregistrement, aucune au repos.

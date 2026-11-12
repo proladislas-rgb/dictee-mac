@@ -40,9 +40,22 @@ public final class BudgetAudio: @unchecked Sendable {
         max(0, limiteHeure - reserveDictee - utilise(a: maintenant))
     }
 
+    /// Réserve `duree` secondes d'audio d'un seul geste (plusieurs envois en parallèle ne dépassent jamais le plafond) : 0 si c'est
+    /// fait, sinon les secondes à attendre (rien n'est réservé).
+    public func reserver(duree: Double, a maintenant: Double = BudgetRequetes.maintenant()) -> Double {
+        verrou.lock(); defer { verrou.unlock() }
+        let attente = delaiSansVerrou(duree: duree, a: maintenant)
+        if attente == 0 { envois.append((maintenant, Self.facture(duree: duree))) }
+        return attente
+    }
+
     /// Secondes à attendre avant de pouvoir envoyer `duree` secondes d'audio : 0 si c'est possible tout de suite.
     public func delaiAvant(duree: Double, a maintenant: Double = BudgetRequetes.maintenant()) -> Double {
         verrou.lock(); defer { verrou.unlock() }
+        return delaiSansVerrou(duree: duree, a: maintenant)
+    }
+
+    private func delaiSansVerrou(duree: Double, a maintenant: Double) -> Double {
         elaguer(maintenant)
         let besoin = Self.facture(duree: duree)
         let plafond = limiteHeure - reserveDictee

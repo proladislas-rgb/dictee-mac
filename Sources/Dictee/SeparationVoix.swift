@@ -18,12 +18,13 @@ struct SeparationVoixAudio: Sendable {
         case separation(Double)
     }
 
-    /// Fichier son de la piste « Eux » → voix séparées. `avance` peut être appelé de n'importe quel fil.
-    var separer: @Sendable (URL, @escaping @Sendable (Avance) -> Void) async throws -> VoixSeparees
+    /// Fichier son de la piste « Eux » (et ses passages de parole, nil : inconnus) → voix séparées. `avance` peut être appelé de
+    /// n'importe quel fil.
+    var separer: @Sendable (URL, [PassageParole]?, @escaping @Sendable (Avance) -> Void) async throws -> VoixSeparees
 
     /// La vraie, sur ce Mac.
-    static let surLeMac = SeparationVoixAudio { url, avance in
-        try await SeparationVoixLocale.separer(url, modeles: SeparationVoixLocale.dossierParDefaut, avance: avance).voix
+    static let surLeMac = SeparationVoixAudio { url, passages, avance in
+        try await SeparationVoixLocale.separer(url, passages: passages, modeles: SeparationVoixLocale.dossierParDefaut, avance: avance).voix
     }
 }
 
@@ -53,6 +54,9 @@ enum SeparationVoixLocale {
     static func configuration() -> OfflineDiarizerConfig {
         var c = OfflineDiarizerConfig()
         c.postProcessing.exclusiveSegments = true
+        // fenêtres de 10 s posées tous les 3,5 s au lieu de 2 s : deux fois plus rapide, mêmes orateurs (20 min, 3 voix, seulement les
+        // passages de parole : 96,7 % des passages au bon orateur au lieu de 96,2 % ; à 5 s, la justesse baisse de 3 points)
+        c.segmentation.stepRatio = 0.35
         return c
     }
 
@@ -74,10 +78,14 @@ enum SeparationVoixLocale {
     private static let file = FileUnique()
 
     /// Sépare les voix d'un fichier son écrit par `EcrivainWAV` (16 kHz mono 16 bits, calé sur l'heure de la réunion : les heures des
-    /// tours sont des heures de réunion). Télécharge le modèle s'il manque.
-    static func separer(_ url: URL, modeles: URL, avance: @escaping @Sendable (SeparationVoixAudio.Avance) -> Void) async throws -> (voix: VoixSeparees, mesure: Mesure) {
+    /// tours sont des heures de réunion). Télécharge le modèle s'il manque. Avec les passages de parole vus pendant l'appel, seuls
+    /// eux sont analysés, mis bout à bout (les silences de la piste, et le temps où seul « Moi » parle, ne coûtent rien) ; les heures
+    /// des tours sont ramenées à celles de la réunion.
+    static func separer(_ url: URL, passages: [PassageParole]? = nil, modeles: URL,
+                        avance: @escaping @Sendable (SeparationVoixAudio.Avance) -> Void) async throws -> (voix: VoixSeparees, mesure: Mesure) {
         try await file.unParUn {
-            guard let source = SourceWAV(url: url) else { throw Erreur.sonIllisible }
+            let lot = passages.flatMap { SeparationVoix.lotDeParole($0, dureeSon: LectureWAV.duree(url)) }
+            guard let source = SourceWAV(url: url, morceaux: lot?.passages) else { throw Erreur.sonIllisible }
             let telecharge = !modelePresent(modeles)
             let t0 = ProcessInfo.processInfo.systemUptime
             if telecharge { Log.ecrire("voix : premier usage, téléchargement du modèle de séparation des voix") }
@@ -93,7 +101,8 @@ enum SeparationVoixLocale {
                 avance(.separation(total > 0 ? Double(fait) / Double(total) : 0))
             }
             let t2 = ProcessInfo.processInfo.systemUptime
-            let tours = resultat.segments.map { TourDeParole(voix: $0.speakerId, debut: Double($0.startTimeSeconds), fin: Double($0.endTimeSeconds)) }
+            let bruts = resultat.segments.map { TourDeParole(voix: $0.speakerId, debut: Double($0.startTimeSeconds), fin: Double($0.endTimeSeconds)) }
+            let tours = lot.map { SeparationVoix.ramener(bruts, de: $0) } ?? bruts
             let voix = VoixSeparees(tours: tours, empreintes: resultat.speakerDatabase ?? [:])
             let duree = Double(source.sampleCount) / 16_000
             Log.ecrire("voix : \(Set(tours.map(\.voix)).count) voix, \(tours.count) tours, \(Int(duree)) s de son séparés en \(Int((t2 - t1) * 1000)) ms")
@@ -104,26 +113,53 @@ enum SeparationVoixLocale {
 
 /// Le son d'un fichier `EcrivainWAV` lu pour FluidAudio sans le charger en mémoire (fichier projeté, converti morceau par morceau en
 /// Float). La taille du fichier fait foi, comme pour `LectureWAV` : un fichier resté sans en-tête complet (arrêt brutal) se lit aussi.
+/// Avec `morceaux` : seuls ces passages, mis bout à bout avec `LotRelecture.silence` secondes de silence entre deux (la même
+/// disposition que `LotRelecture`, dont `versReunion` ramène les heures).
 struct SourceWAV: AudioSampleSource {
     private let donnees: Data
+    /// Les tranches lues dans le fichier : (premier échantillon du fichier, nombre) ; un « trou » (-1) est du silence.
+    private let tranches: [(debut: Int, compte: Int)]
     let sampleCount: Int
 
-    init?(url: URL) {
+    init?(url: URL, morceaux: [PassageParole]? = nil) {
         guard let d = try? Data(contentsOf: url, options: .alwaysMapped), d.count >= LectureWAV.entete else { return nil }
         donnees = d
-        sampleCount = (d.count - LectureWAV.entete) / 2
+        let total = (d.count - LectureWAV.entete) / 2
+        if let morceaux, !morceaux.isEmpty {
+            var t: [(Int, Int)] = []
+            for (i, p) in morceaux.enumerated() {
+                if i > 0 { t.append((-1, Int(LotRelecture.silence * 16_000))) }
+                let a = min(total, max(0, Int((p.debut * 16_000).rounded()))), z = min(total, max(a, Int((p.fin * 16_000).rounded())))
+                t.append((a, z - a))
+            }
+            tranches = t
+        } else {
+            tranches = [(0, total)]
+        }
+        sampleCount = tranches.reduce(0) { $0 + $1.compte }
     }
 
     func copySamples(into destination: UnsafeMutablePointer<Float>, offset: Int, count: Int) throws {
-        let n = max(0, min(count, sampleCount - offset))
-        if n < count { destination.advanced(by: max(0, n)).update(repeating: 0, count: count - max(0, n)) }
-        guard n > 0 else { return }
-        donnees.withUnsafeBytes { brut in
-            let entiers = brut.baseAddress!.advanced(by: LectureWAV.entete + offset * 2).assumingMemoryBound(to: Int16.self)
-            vDSP_vflt16(entiers, 1, destination, 1, vDSP_Length(n))
-            var echelle: Float = 1 / 32_768
-            vDSP_vsmul(destination, 1, &echelle, destination, 1, vDSP_Length(n))
+        var ecrit = 0, position = 0
+        for (debut, compte) in tranches where ecrit < count {
+            let fin = position + compte
+            defer { position = fin }
+            let a = max(offset + ecrit, position)
+            guard a < fin, a < offset + count else { continue }
+            let n = min(fin, offset + count) - a
+            let cible = destination.advanced(by: a - offset)
+            if debut < 0 { cible.update(repeating: 0, count: n) }
+            else {
+                donnees.withUnsafeBytes { brut in
+                    let entiers = brut.baseAddress!.advanced(by: LectureWAV.entete + (debut + a - position) * 2).assumingMemoryBound(to: Int16.self)
+                    vDSP_vflt16(entiers, 1, cible, 1, vDSP_Length(n))
+                    var echelle: Float = 1 / 32_768
+                    vDSP_vsmul(cible, 1, &echelle, cible, 1, vDSP_Length(n))
+                }
+            }
+            ecrit = a + n - offset
         }
+        if ecrit < count { destination.advanced(by: ecrit).update(repeating: 0, count: count - ecrit) }
     }
 }
 

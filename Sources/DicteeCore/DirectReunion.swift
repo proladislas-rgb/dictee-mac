@@ -47,6 +47,16 @@ public struct LigneDirect: Equatable, Sendable, Identifiable {
     public var enAttente: Bool { !estPoint && morceaux.allSatisfy { !$0.sur } }
 }
 
+/// Ce dont dépend le direct de l'îlot : s'il n'a pas changé depuis la dernière seconde, le direct non plus (on ne le recalcule pas :
+/// sur un appel d'une heure, il relit toute la transcription à chaque calcul).
+public struct EntreesDirect: Equatable, Sendable {
+    /// Change à chaque passage entendu ou transcrit.
+    public var version: Int
+    public var attentes: [AttenteDirect]
+    public var points: Int
+    public init(version: Int, attentes: [AttenteDirect], points: Int) { self.version = version; self.attentes = attentes; self.points = points }
+}
+
 public enum DirectReunion {
     /// Deux passages d'une même voix séparés de moins que ça (secondes) forment un seul tour.
     public static let ecartTour: Double = 3

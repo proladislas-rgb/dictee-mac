@@ -37,6 +37,16 @@ if let i = arguments.firstIndex(of: "--reunion-test") {
     exit(ReunionTest.executer(moi: arguments[i + 1], eux: arguments[i + 2], arguments: arguments))
 }
 
+// Dictee --reunion-mesure moi.wav eux.wav [--sortie DOSSIER]  (ce que coûte une réunion pendant l'appel : processeur des pistes,
+// direct de l'îlot, mémoire ; ni micro, ni son du Mac, ni réseau)
+if let i = arguments.firstIndex(of: "--reunion-mesure") {
+    guard i + 2 < arguments.count, !arguments[i + 1].hasPrefix("--"), !arguments[i + 2].hasPrefix("--") else {
+        FileHandle.standardError.write(Data("Usage : Dictee --reunion-mesure moi.wav eux.wav [--sortie DOSSIER]\n".utf8))
+        exit(2)
+    }
+    exit(MesureReunion.executer(moi: arguments[i + 1], eux: arguments[i + 2], arguments: arguments))
+}
+
 // Dictee --voix-mesure piste-eux.wav [--verite tours.tsv] [--modeles DOSSIER]  (séparation des voix sur le Mac : temps, mémoire,
 // taille du modèle, justesse ; ni micro, ni son du Mac, ni Groq ; réseau seulement pour le premier téléchargement du modèle)
 if let i = arguments.firstIndex(of: "--voix-mesure") {

@@ -21,6 +21,8 @@ final class ReunionStore: ObservableObject {
         self.dossier = dossier ?? Self.dossierParDefaut
         guard lire else { return }
         try? FileManager.default.createDirectory(at: self.dossier, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        // les extraits d'un glisser-déposer ne survivent pas à la session
+        effacerTousLesExtraits()
         var trouvees: [Reunion] = []
         for url in (try? FileManager.default.contentsOfDirectory(at: self.dossier, includingPropertiesForKeys: nil)) ?? [] where url.pathExtension == "json" {
             guard let donnees = try? Data(contentsOf: url), let r = ArchiveReunions.decoder(donnees) else {
@@ -33,6 +35,7 @@ final class ReunionStore: ObservableObject {
         reunions = trouvees.sorted { $0.debut > $1.debut }
         for r in reunions where ArchiveReunions.sonPerime(r, maintenant: maintenant) && (sonPresent(r, .moi) || sonPresent(r, .eux)) {
             for u in [fichierSon(r, .moi), fichierSon(r, .eux)] { try? FileManager.default.removeItem(at: u) }
+            effacerExtraits(r)
             Log.ecrire("réunions : son gardé pour réessayer effacé (plus de \(ArchiveReunions.joursSonEnAttente) jours)")
         }
     }
@@ -53,6 +56,7 @@ final class ReunionStore: ObservableObject {
     func supprimer(id: UUID) {
         guard let r = reunion(id: id) else { return }
         reunions.removeAll { $0.id == id }
+        effacerExtraits(r)
         let base = ArchiveReunions.nomDeBase(r), dossier = dossier
         file.async {
             let fm = FileManager.default
@@ -73,6 +77,7 @@ final class ReunionStore: ObservableObject {
     /// Efface le son d'une réunion (la note est faite, le réglage ne demande pas de le garder).
     func effacerSon(_ r: Reunion) {
         let urls = [fichierSon(r, .moi), fichierSon(r, .eux)]
+        effacerExtraits(r)   // les extraits n'existent que tant que le son de la réunion est gardé
         file.async { for u in urls { try? FileManager.default.removeItem(at: u) } }
         Log.ecrire("réunions : son de la réunion effacé (note prête, tout l'appel relu)")
     }

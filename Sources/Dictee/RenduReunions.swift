@@ -125,6 +125,30 @@ enum RenduReunions {
                 ancienne]
     }
 
+    /// Un son fabriqué pour les rendus : sur chaque passage de sa piste, un bruit modulé comme une voix (syllabes, intensité qui
+    /// varie), le silence ailleurs. Écrit comme pendant un appel (calé sur l'heure de la réunion).
+    @MainActor
+    static func sonFabrique(_ r: Reunion, store: ReunionStore) {
+        var graine: UInt32 = 12_345
+        func hasard() -> Float { graine = graine &* 1_664_525 &+ 1_013_904_223; return Float(graine >> 8) / Float(1 << 24) * 2 - 1 }
+        for l in [Locuteur.moi, .eux] {
+            guard let w = EcrivainWAV(url: store.fichierSon(r, l)) else { continue }
+            for s in r.segments where s.locuteur == l {
+                w.caler(sur: s.debut)
+                let n = Int((s.fin - s.debut) * 16_000)
+                var son = [Int16](repeating: 0, count: n)
+                for i in 0..<n {
+                    let t = Float(i) / 16_000
+                    let syllabe = max(0, sin(t * 2 * .pi * 3.7 + Float(s.debut)))
+                    let phrase = 0.55 + 0.45 * sin(t * 2 * .pi * 0.31 + Float(s.debut) * 0.7)
+                    son[i] = Int16(hasard() * 9_000 * syllabe * phrase)
+                }
+                w.ajouter(son)
+            }
+            w.fermer()
+        }
+    }
+
     @MainActor
     static func executer(dossier: String) -> Int32 {
         _ = NSApplication.shared
@@ -142,9 +166,10 @@ enum RenduReunions {
         let store = ReunionStore(dossier: dossierRendu, lire: false)
         for r in exemples { store.enregistrer(r) }
         let vide = ReunionStore(dossier: FileManager.default.temporaryDirectory.appendingPathComponent("dictee-rendu-reunions-vide"), lire: false)
-        // le son gardé : des fichiers vides suffisent au rendu (jamais lus), pour montrer « Écouter »
+        // le son gardé : un son fabriqué (un bruit modulé comme une voix, sur les heures des passages de chaque piste), pour que les
+        // bulles aient une vraie onde ; jamais le son de l'utilisateur
         try? FileManager.default.createDirectory(at: store.dossier, withIntermediateDirectories: true)
-        for l in [Locuteur.moi, .eux] { FileManager.default.createFile(atPath: store.fichierSon(boutique, l).path, contents: Data()) }
+        Self.sonFabrique(boutique, store: store)
         defer { try? FileManager.default.removeItem(at: dossierRendu) }
         let historique = RenduVues.historiqueExemple()
         let maquette = CGSize(width: 1190, height: 760)   // la taille de la capture de la maquette, pour comparer
@@ -157,6 +182,7 @@ enum RenduReunions {
             let r = ReunionsModele(store: store)
             r.aujourdhui = { aujourdhui }
             r.ouverte = ouverte
+            for x in store.reunions { r.chargerOndesMaintenant(x) }
             regler(r)
             let controleur = ReunionController(store: store)
             let d = ModeleDictees(store: historique)
@@ -172,7 +198,7 @@ enum RenduReunions {
         fenetre("reunions-1-note", store: store)
         fenetre("reunions-2-note-entiere", store: store, taille: haute)
         fenetre("reunions-3-ecoute-et-demander", store: store, taille: haute) { m in
-            m.simulerEcoute(photo, depuis: 2.4)
+            m.simulerEcoute(photo, fraction: 0.35)
             m.reponse = .prete(question: "Qui s\u{2019}occupe des photos ?", QuestionReunion.Reponse(texte: "Inès. Elle réserve une seule séance photo à l\u{2019}atelier avant le 20 novembre et donne le jour demain.", passage: photo))
         }
         fenetre("reunions-3b-reponse-en-attente", store: store) { m in m.reponse = .attente(question: "Quand le site sort-il ?") }
@@ -204,6 +230,26 @@ enum RenduReunions {
         for l in [Locuteur.moi, .eux] { FileManager.default.createFile(atPath: storePartielle.fichierSon(partielle, l).path, contents: Data()) }
         fenetre("reunions-14-pas-entierement-relue", store: storePartielle)
         try? FileManager.default.removeItem(at: dossierPartielle)
+
+        // MARK: les bulles audio de la transcription, de près (son gardé, en lecture, son effacé)
+        do {
+            let mb = ReunionsModele(store: store)
+            mb.chargerOndesMaintenant(boutique)
+            let premiers = Array(boutique.segments.indices.prefix(4))
+            mb.simulerEcoute(premiers[1], fraction: 0.42)
+            let me = ReunionsModele(store: storeRenomme)
+            let tailleB = CGSize(width: 820, height: 620)
+            let vue = ZStack(alignment: .topLeading) {
+                Palette.surface
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(premiers, id: \.self) { i in LigneTranscriptionVue(m: mb, r: boutique, index: i, heure: i == 0 ? "14:13" : nil, son: true) }
+                    Text("Son effacé (réglage « Garder le son des réunions » éteint) :").font(Polices.commande(12)).foregroundStyle(Palette.texte3).padding(.top, 18)
+                    LigneTranscriptionVue(m: me, r: renommee, index: 1, heure: nil, son: false)
+                }
+                .padding(.horizontal, 36).padding(.vertical, 24)
+            }
+            ok = RenduVues.ecrire(RenduVues.png(vue, taille: tailleB), url.appendingPathComponent("reunions-15-bulles-audio.png")) && ok
+        }
 
         // MARK: panneau compact avec l'entrée « Noter la réunion »
         for (nom, enCours) in [("panneau-reunion-1", false), ("panneau-reunion-2-en-cours", true)] {

@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import DicteeCore
 
 extension IlotEssai {
@@ -457,7 +458,7 @@ extension IlotEssai {
             }
         }
         let fichiersRecus = Verrouille<[URL]>([])
-        let separee = SeparationVoixAudio { url, avance in
+        let separee = SeparationVoixAudio { url, _, avance in
             _ = fichiersRecus.remplacer(fichiersRecus.valeur + [url])
             avance(.telechargement(0.5)); avance(.telechargement(1)); avance(.separation(0.5)); avance(.separation(1))
             return VoixSeparees(tours: [TourDeParole(voix: "S4", debut: 5, fin: 15), TourDeParole(voix: "S1", debut: 15, fin: 25),
@@ -506,7 +507,7 @@ extension IlotEssai {
 
         // 2. séparation impossible (pas de réseau pour le modèle) : repli « Eux », la note se fait quand même
         let r2 = reunion(2)
-        finir(controleur(SeparationVoixAudio { _, _ in throw URLError(.notConnectedToInternet) }), r2)
+        finir(controleur(SeparationVoixAudio { _, _, _ in throw URLError(.notConnectedToInternet) }), r2)
         let v2 = store.reunion(id: r2.id)
         verifier(v2?.etat == .prete && v2?.orateursEntendus.map(\.nom) == ["Moi", "Eux"], "séparation impossible : « Moi / Eux », note prête (\(v2?.orateursEntendus.map(\.nom) ?? []))")
         verifier(v2?.avertissements.contains { $0.hasPrefix(ReunionController.avertissementVoix) } == true, "la note dit que les voix n'ont pas été séparées")
@@ -520,7 +521,7 @@ extension IlotEssai {
         // 4. la progression (premier usage : le téléchargement du modèle se voit), et une seule voix : « Eux »
         let r4 = reunion(4)
         let avances = Verrouille<[(Double, String)]>([])
-        let uneVoix = SeparationVoixAudio { _, avance in
+        let uneVoix = SeparationVoixAudio { _, _, avance in
             avance(.telechargement(0.3)); avance(.telechargement(1)); avance(.separation(1))
             return VoixSeparees(tours: [TourDeParole(voix: "S0", debut: 5, fin: 48)])
         }
@@ -537,4 +538,127 @@ extension IlotEssai {
         verifier(prepare?.orateursEntendus.map(\.nom) == ["Moi", "Eux"] && prepare?.orateurs == nil, "une seule voix trouvée : « Eux », comme avant")
         try? FileManager.default.removeItem(at: d)
     }
+
+    /// Les bulles audio de la transcription (les « vocaux ») : lecture de l'extrait exact sur la bonne piste, enchaînement, vitesse,
+    /// pause, clic dans l'onde, ondes du vrai son, extrait .m4a (nom, 0600, durée), glisser vers une app, toute la réunion mélangée,
+    /// puis le son effacé (réglage de rétention) : bulles grises, extraits effacés. Un lecteur muet remplace AVAudioPlayer : aucun
+    /// son ne sort ; les pistes sont des fichiers fabriqués dans un dossier à part (ni micro, ni son du Mac, ni réseau).
+    @MainActor
+    static func bullesAudio(dossier: URL, verifier: @escaping (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void) {
+        print("Réunions : les bulles audio de la transcription (lecteur muet)")
+        let d = dossier.appendingPathComponent("reunions-bulles", isDirectory: true)
+        try? FileManager.default.removeItem(at: d)
+        let store = ReunionStore(dossier: d, lire: false)
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = .current
+        let debut = cal.date(from: DateComponents(year: 2026, month: 11, day: 12, hour: 14, minute: 2))!
+        var r = Reunion(debut: debut, duree: 10, titre: "Point devis", etat: .prete, sonGarde: true)
+        r.segments = [SegmentReunion(debut: 1, fin: 3, locuteur: .eux, texte: "Bonjour à tous.", orateur: "p1"),
+                      SegmentReunion(debut: 3.5, fin: 5, locuteur: .moi, texte: "Salut.", orateur: nil),
+                      SegmentReunion(debut: 6, fin: 8, locuteur: .eux, texte: "Je vous envoie le devis.", orateur: "p2")]
+        r.orateurs = [OrateurReunion(id: "p1", nom: "Personne 1", piste: .eux), OrateurReunion(id: "p2", nom: "Personne 2", piste: .eux)]
+        // le son : un bruit sur les passages de chaque piste, le silence ailleurs (10 s chacune)
+        for l in [Locuteur.moi, .eux] {
+            guard let w = EcrivainWAV(url: store.fichierSon(r, l)) else { verifier(false, "son fabriqué"); return }
+            var son = [Int16](repeating: 0, count: 16_000 * 10)
+            for s in r.segments where s.locuteur == l { for i in Int(s.debut * 16_000)..<Int(s.fin * 16_000) { son[i] = Int16(i % 7 == 0 ? 9_000 : -6_000) } }
+            w.ajouter(son); w.fermer()
+        }
+        store.enregistrer(r)
+        let m = ReunionsModele(store: store)
+        let ouverts = Verrouille<[URL]>([])
+        m.ouvrirLecteur = { url in _ = ouverts.remplacer(ouverts.valeur + [url]); return LecteurMuet() }
+
+        // lecture : l'extrait exact, la bonne piste, puis l'enchaînement sur la piste « Moi »
+        m.jouer(r, passage: 0)
+        let e0 = ExtraitsReunion.extrait(r, passage: 0, dureeSon: 10)!
+        verifier(m.ecoute == 0 && ouverts.valeur == [store.fichierSon(r, .eux)] && m.progression(0) < 0.1, "▶︎ : le passage de Personne 1 joue sur la piste « Eux », depuis son début")
+        attendre(4) { m.ecoute == 0 }
+        verifier(m.ecoute == 1 && ouverts.valeur.last == store.fichierSon(r, .moi), "fin de l'extrait (\(String(format: "%.2f", e0.duree)) s) : la lecture enchaîne sur « Moi », sur la piste du micro")
+        // pause, reprise, vitesse
+        m.basculerPause()
+        let enPause = m.progression(1)
+        attendre(0.4) { true }
+        verifier(m.enPause && abs(m.progression(1) - enPause) < 0.001, "pause : la bulle ne bouge plus (\(String(format: "%.2f", enPause)))")
+        m.ecouter(r, passage: 1)
+        verifier(!m.enPause && m.ecoute == 1, "un clic sur le même passage : reprise")
+        m.changerVitesse()
+        verifier(m.vitesse == 1.5, "vitesse : ×1,5")
+        m.changerVitesse(); verifier(m.vitesse == 2, "vitesse : ×2")
+        // un clic dans l'onde d'un autre passage : il joue depuis cet endroit
+        m.placer(r, passage: 2, fraction: 0.5)
+        verifier(m.ecoute == 2 && abs(m.progression(2) - 0.5) < 0.05, "un clic au milieu de l'onde : la lecture part du milieu (\(String(format: "%.2f", m.progression(2))))")
+        attendre(3) { m.ecoute != nil }
+        verifier(m.ecoute == nil, "le dernier passage fini (à ×2) : la lecture s'arrête")
+        m.changerVitesse(); verifier(m.vitesse == 1, "vitesse : retour à ×1")
+
+        // les ondes : le vrai niveau du son de chaque passage
+        m.chargerOndesMaintenant(r)
+        verifier(m.ondes.count == 3 && m.ondes.values.allSatisfy { $0.count == ExtraitsReunion.barres && ($0.max() ?? 0) > 0.9 }, "une onde de 36 barres par passage, tirée du son")
+
+        // l'extrait en .m4a
+        do {
+            let url = try store.fichierExtrait(r, passage: 2)
+            let droits = (try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int) ?? 0
+            let f = try AVAudioFile(forReading: url)
+            let duree = Double(f.length) / f.fileFormat.sampleRate
+            let e2 = ExtraitsReunion.extrait(r, passage: 2, dureeSon: 10)!
+            verifier(url.lastPathComponent == "Réunion \u{2013} Personne 2 \u{2013} 14h02.m4a", "le fichier s'appelle « \(url.lastPathComponent) »")
+            verifier(droits == 0o600 && url.path.hasPrefix(store.dossierExtraits.path), "extrait en 0600, rangé à côté des réunions (\(String(droits, radix: 8)))")
+            verifier(f.fileFormat.settings[AVFormatIDKey] as? UInt32 == kAudioFormatMPEG4AAC && abs(duree - e2.duree) < 0.15,
+                     "AAC, la durée de l'extrait (\(String(format: "%.2f", duree)) s pour \(String(format: "%.2f", e2.duree)) s)")
+        } catch { verifier(false, "extrait .m4a fabriqué (\(error))") }
+        let fourni = m.fournisseurGlisser(r, passage: 0)
+        verifier(fourni.hasItemConformingToTypeIdentifier("public.file-url") || fourni.hasItemConformingToTypeIdentifier("public.mpeg-4-audio"),
+                 "glisser la bulle : un fichier .m4a pour Finder, Mail, WhatsApp (\(fourni.registeredTypeIdentifiers))")
+
+        // toute la réunion, les deux pistes mélangées
+        let tout = d.appendingPathComponent("tout.m4a")
+        do {
+            var avances: [Double] = []
+            try ExportAudio.reunion(moi: store.fichierSon(r, .moi), eux: store.fichierSon(r, .eux), vers: tout) { avances.append($0) }
+            let f = try AVAudioFile(forReading: tout)
+            let duree = Double(f.length) / f.fileFormat.sampleRate
+            let droits = (try? FileManager.default.attributesOfItem(atPath: tout.path)[.posixPermissions] as? Int) ?? 0
+            verifier(abs(duree - 10) < 0.2 && droits == 0o600 && avances.last == 1, "toute la réunion en un .m4a : \(String(format: "%.1f", duree)) s, 0600")
+            let b = AVAudioPCMBuffer(pcmFormat: f.processingFormat, frameCapacity: AVAudioFrameCount(f.length))!
+            try f.read(into: b)
+            func niveau(_ a: Double, _ z: Double) -> Float {
+                let p = b.floatChannelData![0]; var m: Float = 0
+                for i in Int(a * f.fileFormat.sampleRate)..<Int(z * f.fileFormat.sampleRate) { m = max(m, abs(p[i])) }
+                return m
+            }
+            verifier(niveau(1.5, 2.5) > 0.1 && niveau(3.8, 4.7) > 0.1 && niveau(8.6, 9.6) < 0.02, "le mélange a la voix des autres ET la mienne, le silence reste silencieux")
+        } catch { verifier(false, "toute la réunion exportée (\(error))") }
+        let caches = ((try? FileManager.default.contentsOfDirectory(atPath: d.path)) ?? []).filter { $0.hasPrefix(".") && $0.hasSuffix(".m4a") }
+        verifier(caches.isEmpty, "aucun fichier à moitié écrit ne reste (\(caches))")
+
+        // le son effacé (rétention) : bulles grises, extraits effacés, rien ne joue
+        store.effacerSon(r)
+        store.attendreEcritures(); attendre(1) { store.sonPresent(r, .eux) }
+        verifier(!m.sonDisponible(r) && !FileManager.default.fileExists(atPath: store.dossierExtraits(r).path), "son effacé : plus de son, et les extraits fabriqués partent avec lui")
+        m.jouer(r, passage: 0)
+        verifier(m.ecoute == nil && m.repere == 0, "son effacé : la bulle ne joue plus (« audio effacé »)")
+        // au lancement, les extraits d'un glisser-déposer de la veille sont effacés
+        try? FileManager.default.createDirectory(at: store.dossierExtraits(r), withIntermediateDirectories: true)
+        _ = ReunionStore(dossier: d)
+        verifier(!FileManager.default.fileExists(atPath: store.dossierExtraits.path), "au lancement : aucun extrait ne reste")
+        try? FileManager.default.removeItem(at: d)
+    }
+}
+
+/// Un lecteur muet pour l'essai : le temps avance comme une vraie lecture (vitesse comprise), aucun son ne sort.
+final class LecteurMuet: LecteurSon {
+    private var depart: Double?
+    private var position: TimeInterval = 0
+    private static func horloge() -> Double { ProcessInfo.processInfo.systemUptime }
+    var rate: Float = 1 { willSet { if depart != nil { position = currentTime; depart = Self.horloge() } } }
+    var currentTime: TimeInterval {
+        get { depart.map { position + (Self.horloge() - $0) * Double(rate) } ?? position }
+        set { position = newValue; if depart != nil { depart = Self.horloge() } }
+    }
+    var isPlaying: Bool { depart != nil }
+    func play() -> Bool { if depart == nil { depart = Self.horloge() }; return true }
+    func pause() { position = currentTime; depart = nil }
+    func stop() { pause() }
 }

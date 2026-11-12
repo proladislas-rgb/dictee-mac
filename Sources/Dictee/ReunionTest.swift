@@ -64,7 +64,7 @@ enum ReunionTest {
             let rediger: ReunionController.RedigerNote = { segments, duree, debut, avance in
                 try await GenerationNote().rediger(segments: segments, duree: duree, debut: debut, surEtape: { print("  \($0)") }, avance: avance)
             }
-            let separation = SeparationVoixAudio { url, avance in try await SeparationVoixLocale.separer(url, modeles: modeles, avance: avance).voix }
+            let separation = SeparationVoixAudio { url, passages, avance in try await SeparationVoixLocale.separer(url, passages: passages, modeles: modeles, avance: avance).voix }
             guard let prepare = await ReunionController.preparer(depart, passages: passages.valeur, direct: brut, fichiers: fichiers, relecture: RelectureAudio(),
                                                                  rediger: rediger, separation: separation,
                                                                  avance: { p, etape in print("  \(PreparationNote.pourcent(p)) \(etape)") }) else {

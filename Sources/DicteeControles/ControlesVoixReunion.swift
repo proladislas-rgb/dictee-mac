@@ -44,6 +44,19 @@ func controlesVoixReunion() {
         verifier(!moiSeul.separees && moiSeul.segments.allSatisfy { $0.orateur == nil }, "la piste « Moi » n'est jamais séparée")
     }
 
+    groupe("Voix séparées : seulement les passages de parole (les silences ne coûtent rien)")
+    do {
+        let lot = SeparationVoix.lotDeParole([PassageParole(debut: 10, fin: 20), PassageParole(debut: 21, fin: 25), PassageParole(debut: 100, fin: 110)], dureeSon: 200)
+        verifier(lot?.passages == [PassageParole(debut: 9.5, fin: 25.5), PassageParole(debut: 99.5, fin: 110.5)], "passages élargis d'une demi-seconde, les proches réunis (\(lot?.passages ?? []))")
+        verifier(abs((lot?.duree ?? 0) - (16 + LotRelecture.silence + 11)) < 1e-9, "27,6 s analysées au lieu de 200 s de piste")
+        let tours = SeparationVoix.ramener([TourDeParole(voix: "A", debut: 0.5, fin: 15), TourDeParole(voix: "B", debut: 16.2, fin: 20), TourDeParole(voix: "C", debut: 16.05, fin: 16.3)], de: lot!)
+        verifier(tours.count == 2 && abs(tours[0].debut - 10) < 1e-9 && abs(tours[0].fin - 24.5) < 1e-9,
+                 "les tours ramenés aux heures de la réunion (A : 10 → 24,5 s) ; un tour qui n'était que du silence ajouté disparaît (\(tours.map { "\($0.voix) \($0.debut)-\($0.fin)" }))")
+        verifier(tours.count == 2 && abs(tours[1].debut - 99.5) < 1e-9 && abs(tours[1].fin - 102.9) < 1e-9,
+                 "B commence dans le silence ajouté : il part du passage suivant (99,5 → 102,9 s), jamais du temps non analysé")
+        verifier(SeparationVoix.lotDeParole([], dureeSon: 100) == nil, "aucun passage : rien à analyser")
+    }
+
     groupe("Voix séparées : noms, renommage dans toute la note")
     do {
         verifier(SeparationVoix.rang(id: "p3") == 3 && SeparationVoix.rang(id: "eux") == nil && SeparationVoix.rang(id: "p") == nil && SeparationVoix.rang(id: "p0") == nil, "« p3 » est la 3e voix ; « eux », « p », « p0 » n'en sont pas")

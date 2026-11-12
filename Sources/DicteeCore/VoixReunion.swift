@@ -126,6 +126,32 @@ public enum SeparationVoix {
         return Attribution(segments: sortie, orateurs: orateurs)
     }
 
+    /// Les passages de parole de la piste « Eux » à analyser : élargis d'une demi-seconde, rapprochés (moins de 1,5 s d'écart : un
+    /// seul), mis bout à bout dans un seul lot (la disposition de `LotRelecture`). nil : rien à analyser.
+    public static func lotDeParole(_ passages: [PassageParole], dureeSon: Double) -> LotRelecture? {
+        RelectureReunion.lots(passages, locuteur: .eux, duree: dureeSon, marge: 0.5, ecartFusion: 1.5, dureeMax: .infinity).first
+    }
+
+    /// Les tours trouvés dans le son mis bout à bout, ramenés aux heures de la réunion. Un début tombé dans un silence ajouté va au
+    /// passage suivant, une fin au passage d'avant : un tour ne couvre jamais le temps qui n'a pas été analysé ; un tour qui n'était
+    /// que du silence ajouté disparaît.
+    public static func ramener(_ tours: [TourDeParole], de lot: LotRelecture) -> [TourDeParole] {
+        func debut(_ t: Double) -> Double {
+            var x = 0.0
+            for (i, p) in lot.passages.enumerated() {
+                if t <= x + p.duree { return p.debut + max(0, t - x) }
+                x += p.duree
+                if t < x + LotRelecture.silence { return i + 1 < lot.passages.count ? lot.passages[i + 1].debut : p.fin }
+                x += LotRelecture.silence
+            }
+            return lot.fin
+        }
+        return tours.compactMap { t in
+            let d = debut(t.debut), f = lot.versReunion(t.fin)
+            return f > d ? TourDeParole(voix: t.voix, debut: d, fin: f) : nil
+        }
+    }
+
     /// Ressemblance de deux empreintes de voix (cosinus, de -1 à 1) ; 0 si elles ne sont pas comparables.
     public static func ressemblance(_ a: [Float], _ b: [Float]) -> Double {
         guard a.count == b.count, !a.isEmpty else { return 0 }

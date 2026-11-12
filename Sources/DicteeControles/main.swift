@@ -1917,6 +1917,7 @@ controlesIlot()
 controlesReunionIlot()
 controlesReunionNote()
 controlesVoixReunion()
+controlesExtraitsReunion()
 
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)

@@ -23,9 +23,14 @@ final class ReunionsModele: ObservableObject {
     @Published var requete = "" { didSet { if requete != oldValue, let id = affichees.first?.id, !affichees.contains(where: { $0.id == ouverte }) { ouvrir(id) } } }
     /// La page « Demander à mes réunions » à la place de la note.
     @Published var demandeToutes = false
-    /// Le passage qu'on réécoute (rang dans `segments`), et le moment où la lecture a commencé (la barre de lecture en part).
+    /// Le passage dont la bulle joue (ou est en pause), rang dans `segments` ; la vitesse (×1, ×1,5, ×2) ; les ondes des bulles
+    /// (par passage) ; « Enregistré » sur la bulle d'un extrait téléchargé ; l'export de toute la réunion (0 à 1, nil : aucun).
     @Published private(set) var ecoute: Int?
-    @Published private(set) var debutEcoute: Date?
+    @Published private(set) var enPause = false
+    @Published private(set) var vitesse: Double = 1
+    @Published private(set) var ondes: [UUID: [Float]] = [:]
+    @Published private(set) var extraitEnregistre: UUID?
+    @Published private(set) var exportAudio: Double?
     /// Le passage montré par une réponse (« Voir à 14:16 ») quand le son n'est pas gardé.
     @Published var repere: Int?
     /// Le défilement vers un passage (un jeton qui change à chaque demande).
@@ -41,7 +46,14 @@ final class ReunionsModele: ObservableObject {
     @Published var exportee = false
     @Published var jetonFocus = 0
     @Published var jetonQuestion = 0
-    private var lecteur: AVAudioPlayer?
+    private var lecteur: LecteurSon?
+    private var lecteurReunion: UUID?
+    private var lecteurPiste: Locuteur?
+    private var extrait: ExtraitReunion?
+    private var progressionSimulee: Double?
+    private var ondesChargees: Set<UUID> = []
+    /// Le lecteur d'un fichier son (AVAudioPlayer ; un lecteur muet dans l'essai).
+    var ouvrirLecteur: (URL) -> LecteurSon? = { AVAudioPlayer.pourBulle($0) }
     private var finEcoute: DispatchWorkItem?
     private var tache: Task<Void, Never>?
     let store: ReunionStore
@@ -100,39 +112,197 @@ final class ReunionsModele: ObservableObject {
         return true
     }
 
-    // MARK: réécouter un moment (le son n'existe que si « Garder le son des réunions » est actif, ou le temps de la note)
+    // MARK: les bulles audio (le son n'existe que si « Garder le son des réunions » est actif, ou le temps de la note)
 
     func sonDisponible(_ r: Reunion) -> Bool { store.sonPresent(r, .moi) || store.sonPresent(r, .eux) }
     func sonDisponible(_ r: Reunion, _ s: SegmentReunion) -> Bool { store.sonPresent(r, s.locuteur) }
 
-    /// Un clic sur une ligne : elle se rejoue (de son début à sa fin) ; un second clic l'arrête.
+    /// Un clic sur une ligne ou sur ▶︎ : le passage se joue ; sur le passage en cours : pause, puis reprise.
     func ecouter(_ r: Reunion, passage i: Int) {
-        if ecoute == i { arreterEcoute(); return }
-        arreterEcoute()
-        guard r.segments.indices.contains(i) else { return }
-        let s = r.segments[i]
-        guard sonDisponible(r, s), let p = try? AVAudioPlayer(contentsOf: store.fichierSon(r, s.locuteur)) else { repere = i; return }
-        p.currentTime = s.debut
-        guard p.play() else { return }
-        lecteur = p; ecoute = i; repere = nil; debutEcoute = Date()
-        let item = DispatchWorkItem { [weak self] in
-            guard let self, self.lecteur === p else { return }
-            self.arreterEcoute()
-        }
-        finEcoute = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + max(1, s.fin - s.debut) + 0.3, execute: item)
+        if ecoute == i, lecteur != nil { basculerPause(); return }
+        jouer(r, passage: i)
     }
 
-    /// Pour les rendus : une ligne en cours d'écoute depuis `depuis` secondes (aucun son joué).
-    func simulerEcoute(_ i: Int, depuis: Double) { ecoute = i; debutEcoute = Date().addingTimeInterval(-depuis) }
+    /// Joue l'extrait du passage `i` (sa piste, ses bornes), depuis `fraction` de la bulle (un clic dans l'onde). Le son absent :
+    /// rien ne joue, la ligne est montrée.
+    func jouer(_ r: Reunion, passage i: Int, fraction: Double = 0) {
+        guard r.segments.indices.contains(i) else { return }
+        let s = r.segments[i]
+        let url = store.fichierSon(r, s.locuteur)
+        guard sonDisponible(r, s), let e = ExtraitsReunion.extrait(r, passage: i, dureeSon: LectureWAV.duree(url)) else { arreterEcoute(); repere = i; return }
+        // la même piste : le même lecteur (aucun fichier rouvert d'un passage à l'autre)
+        let p: LecteurSon
+        if let l = lecteur, lecteurReunion == r.id, lecteurPiste == s.locuteur { p = l; p.pause() }
+        else {
+            lecteur?.stop()
+            guard let n = ouvrirLecteur(url) else { arreterEcoute(); repere = i; return }
+            p = n
+        }
+        p.rate = Float(vitesse)
+        p.currentTime = e.position(fraction)
+        guard p.play() else { arreterEcoute(); return }
+        lecteur = p; lecteurReunion = r.id; lecteurPiste = s.locuteur
+        extrait = e; ecoute = i; enPause = false; repere = nil
+        programmerFin()
+    }
 
-    func arreterEcoute() { finEcoute?.cancel(); finEcoute = nil; lecteur?.stop(); lecteur = nil; ecoute = nil; debutEcoute = nil }
+    func basculerPause() {
+        guard let p = lecteur, ecoute != nil else { return }
+        if enPause { p.rate = Float(vitesse); if p.play() { enPause = false; programmerFin() } }
+        else { p.pause(); enPause = true; finEcoute?.cancel(); finEcoute = nil }
+    }
+
+    /// Un clic dans l'onde : on se place à cet endroit (la lecture part si le passage ne jouait pas).
+    func placer(_ r: Reunion, passage i: Int, fraction: Double) {
+        guard ecoute == i, let p = lecteur, let e = extrait else { jouer(r, passage: i, fraction: fraction); return }
+        p.currentTime = e.position(fraction)
+        if enPause { basculerPause() } else { programmerFin() }
+    }
+
+    /// ×1 → ×1,5 → ×2 : la vitesse est gardée pour les passages suivants.
+    func changerVitesse() {
+        vitesse = ExtraitsReunion.vitesseSuivante(vitesse)
+        lecteur?.rate = Float(vitesse)
+        if !enPause { programmerFin() }
+    }
+
+    /// La part jouée de la bulle `i` (0 à 1).
+    func progression(_ i: Int) -> Double {
+        guard ecoute == i else { return 0 }
+        if let x = progressionSimulee { return x }
+        guard let p = lecteur, let e = extrait else { return 0 }
+        return e.fraction(p.currentTime)
+    }
+
+    /// La fin du passage : un seul réveil, calculé sur le temps restant et la vitesse (aucune minuterie qui tourne pendant la lecture).
+    private func programmerFin() {
+        finEcoute?.cancel()
+        guard let p = lecteur, let e = extrait else { return }
+        let reste = max(0.03, (e.fin - p.currentTime) / max(0.5, Double(p.rate)))
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, self.lecteur === p, !self.enPause else { return }
+            // le lecteur a pris du retard (disque, réveil) : on attend la vraie fin
+            if p.isPlaying, p.currentTime < e.fin - 0.05 { self.programmerFin(); return }
+            self.passageFini()
+        }
+        finEcoute = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + reste, execute: item)
+    }
+
+    /// Le passage est fini : on enchaîne sur le suivant dont le son est là, comme les vocaux ; sinon on s'arrête.
+    private func passageFini() {
+        guard let i = ecoute, let id = lecteurReunion, let r = store.reunion(id: id),
+              let n = ExtraitsReunion.suivant(apres: i, dans: r, disponible: { self.store.sonPresent(r, $0) }) else { arreterEcoute(); return }
+        jouer(r, passage: n)
+    }
+
+    /// Pour les rendus : une bulle en cours de lecture, à `fraction` (aucun son joué).
+    func simulerEcoute(_ i: Int, fraction: Double) { ecoute = i; enPause = false; progressionSimulee = fraction }
+
+    func arreterEcoute() {
+        finEcoute?.cancel(); finEcoute = nil
+        lecteur?.stop(); lecteur = nil; lecteurReunion = nil; lecteurPiste = nil
+        extrait = nil; ecoute = nil; enPause = false; progressionSimulee = nil
+    }
 
     /// La réponse renvoie à un passage : on y va, et on le rejoue si le son est là.
     func allerAuPassage(_ r: Reunion, _ i: Int) {
         allerA = (i, (allerA?.jeton ?? 0) + 1)
-        if r.segments.indices.contains(i), sonDisponible(r, r.segments[i]) { if ecoute != i { ecouter(r, passage: i) } }
+        if r.segments.indices.contains(i), sonDisponible(r, r.segments[i]) { if ecoute != i { jouer(r, passage: i) } }
         else { repere = i }
+    }
+
+    /// Les ondes des bulles d'une réunion, calculées une fois hors du fil principal (le vrai niveau du son de chaque passage).
+    func chargerOndes(_ r: Reunion) {
+        guard sonDisponible(r), !ondesChargees.contains(r.id) else { return }
+        ondesChargees.insert(r.id)
+        let fichiers = [Locuteur.moi: store.fichierSon(r, .moi), .eux: store.fichierSon(r, .eux)]
+        Task.detached(priority: .utility) { [weak self] in
+            let o = Self.ondes(r, fichiers: fichiers)
+            await MainActor.run { self?.ondes.merge(o) { $1 } }
+        }
+    }
+
+    /// Pour les rendus : les ondes tout de suite.
+    func chargerOndesMaintenant(_ r: Reunion) {
+        ondesChargees.insert(r.id)
+        ondes.merge(Self.ondes(r, fichiers: [.moi: store.fichierSon(r, .moi), .eux: store.fichierSon(r, .eux)])) { $1 }
+    }
+
+    nonisolated static func ondes(_ r: Reunion, fichiers: [Locuteur: URL]) -> [UUID: [Float]] {
+        var sortie: [UUID: [Float]] = [:]
+        var durees: [Locuteur: Double] = [:]
+        for (l, u) in fichiers where FileManager.default.fileExists(atPath: u.path) { durees[l] = LectureWAV.duree(u) }
+        for i in r.segments.indices {
+            let s = r.segments[i]
+            guard let u = fichiers[s.locuteur], let d = durees[s.locuteur], let e = ExtraitsReunion.extrait(r, passage: i, dureeSon: d),
+                  let son = LectureWAV.echantillons(u, de: e.debut, a: e.fin) else { continue }
+            sortie[s.id] = ExtraitsReunion.onde(son)
+        }
+        return sortie
+    }
+
+    // MARK: télécharger, glisser, exporter toute la réunion (tout reste sur ce Mac)
+
+    /// « Télécharger l'extrait » : le .m4a à l'endroit choisi (panneau d'enregistrement du Mac : aucune autorisation de dossier).
+    func telechargerExtrait(_ r: Reunion, passage i: Int) {
+        guard r.segments.indices.contains(i), sonDisponible(r, r.segments[i]) else { return }
+        let panneau = NSSavePanel()
+        panneau.allowedContentTypes = [.mpeg4Audio]
+        panneau.nameFieldStringValue = ExtraitsReunion.nomFichier(r, passage: i)
+        panneau.title = "Télécharger l\u{2019}extrait"
+        let id = r.segments[i].id
+        panneau.begin { [weak self] reponse in
+            guard reponse == .OK, let url = panneau.url, let self else { return }
+            MainActor.assumeIsolated {
+                do {
+                    let source = try self.store.fichierExtrait(r, passage: i)
+                    if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+                    try FileManager.default.copyItem(at: source, to: url)
+                    try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+                    self.extraitEnregistre = id
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in if self?.extraitEnregistre == id { self?.extraitEnregistre = nil } }
+                } catch { Log.ecrire("réunions : extrait non enregistré (\(error))") }
+            }
+        }
+    }
+
+    /// Glisser la bulle vers une app (Finder, Mail, WhatsApp) : le .m4a, fabriqué à ce moment (quelques millisecondes).
+    func fournisseurGlisser(_ r: Reunion, passage i: Int) -> NSItemProvider {
+        guard r.segments.indices.contains(i), sonDisponible(r, r.segments[i]), let url = try? store.fichierExtrait(r, passage: i),
+              let p = NSItemProvider(contentsOf: url) else { return NSItemProvider() }
+        p.suggestedName = url.deletingPathExtension().lastPathComponent
+        return p
+    }
+
+    /// « Exporter l'audio » : toute la réunion en un .m4a, la piste Moi et la piste Eux mélangées, encodé hors du fil principal.
+    func exporterAudioReunion(_ r: Reunion) {
+        guard sonDisponible(r), exportAudio == nil else { return }
+        let panneau = NSSavePanel()
+        panneau.allowedContentTypes = [.mpeg4Audio]
+        panneau.nameFieldStringValue = ExtraitsReunion.nomFichierReunion(r)
+        panneau.title = "Exporter l\u{2019}audio de la réunion"
+        let moi = store.fichierSon(r, .moi), eux = store.fichierSon(r, .eux)
+        panneau.begin { [weak self] reponse in
+            guard reponse == .OK, let url = panneau.url else { return }
+            MainActor.assumeIsolated {
+                self?.exportAudio = 0
+                Task.detached(priority: .userInitiated) { [weak self] in
+                    let t0 = ProcessInfo.processInfo.systemUptime
+                    var ok = true
+                    do {
+                        try ExportAudio.reunion(moi: moi, eux: eux, vers: url) { p in
+                            Task { @MainActor [weak self] in if let a = self?.exportAudio, a < 1 { self?.exportAudio = max(a, p * 0.99) } }
+                        }
+                        Log.ecrire("réunions : audio de la réunion exporté en \(Int((ProcessInfo.processInfo.systemUptime - t0) * 1000)) ms")
+                    } catch { ok = false; Log.ecrire("réunions : audio de la réunion non exporté (\(error))") }
+                    await MainActor.run { [weak self] in
+                        self?.exportAudio = ok ? 1 : nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in if self?.exportAudio == 1 { self?.exportAudio = nil } }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: « Demander »
@@ -560,6 +730,12 @@ struct NoteReunionVue: View {
             } else {
                 BoutonNote(titre: m.copiee ? "Copiée" : "Copier", icone: m.copiee ? "checkmark" : nil, fait: m.copiee) { m.copier(r) }
                 BoutonNote(titre: m.exportee ? "Enregistrée" : "Exporter", icone: m.exportee ? "checkmark" : "arrow.down.circle", fait: m.exportee) { m.exporterMarkdown(r) }
+                if m.sonDisponible(r) {
+                    let a = m.exportAudio
+                    BoutonNote(titre: a == 1 ? "Audio enregistré" : (a != nil ? "Audio \(PreparationNote.pourcent(a ?? 0))" : "Audio"),
+                               icone: a == 1 ? "checkmark" : "waveform", fait: a == 1) { m.exporterAudioReunion(r) }
+                        .help("Exporter toute la réunion en un fichier audio (.m4a), ta voix et celle des autres mélangées")
+                }
                 BoutonNote(titre: "Effacer", discret: true) { m.suppressionEnAttente = true }
             }
         }
@@ -777,7 +953,7 @@ struct NoteReunionVue: View {
             HStack(alignment: .firstTextBaseline) {
                 Entete(texte: "Transcription").padding(.bottom, 0)
                 Spacer()
-                Text(son ? "Un clic sur une phrase la fait réécouter" : "Pour réécouter : Réglages \u{203A} Garder le son des réunions")
+                Text(son ? "Chaque passage se réécoute, se télécharge, se glisse vers une app" : "Audio effacé \u{00B7} pour le garder : Réglages \u{203A} Garder le son des réunions")
                     .font(Polices.commande(12)).foregroundStyle(Palette.texte3).lineLimit(1)
             }
             ForEach(Array(LignesTranscription.elements(r).enumerated()), id: \.offset) { _, e in
@@ -798,6 +974,8 @@ struct NoteReunionVue: View {
         }
         .padding(.top, 20)
         .overlay(alignment: .top) { Rectangle().fill(Palette.filet).frame(height: 1) }
+        .onAppear { m.chargerOndes(r) }
+        .onChange(of: r.id) { _, _ in m.chargerOndes(r) }
     }
 
     // MARK: la réponse renvoie au moment
@@ -819,8 +997,8 @@ struct NoteReunionVue: View {
     }
 }
 
-/// Une ligne de la transcription : l'orateur (et l'heure sur la première ligne de chaque minute), puis le texte. Survolée :
-/// « Écouter » ; un clic la rejoue (fond ambre, petite barre de lecture) ; un autre l'arrête.
+/// Une ligne de la transcription : l'orateur (et l'heure sur la première ligne de chaque minute), le texte, puis sa bulle audio
+/// (comme un vocal). Un clic sur le texte joue la bulle (ou la met en pause).
 struct LigneTranscriptionVue: View {
     @ObservedObject var m: ReunionsModele
     var r: Reunion
@@ -832,59 +1010,135 @@ struct LigneTranscriptionVue: View {
     var body: some View {
         let s = r.segments[index]
         let o = r.orateur(de: s)
-        let joue = m.ecoute == index
+        let actif = m.ecoute == index
         let repere = m.repere == index
-        Button { m.ecouter(r, passage: index) } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(o.nom).font(Polices.commande(12.5, .semibold)).foregroundStyle(CouleursOrateur.couleur(o, dans: r))
-                    if let heure { Text(heure).font(Polices.commande(12.5, .medium).monospacedDigit()).foregroundStyle(Palette.texte3) }
-                    Spacer(minLength: 0)
-                    if son && survol && !joue {
-                        HStack(spacing: 5) { Image(systemName: "play.fill").font(.system(size: 9, weight: .bold)); Text("Écouter").font(Polices.commande(12, .semibold)) }
-                            .foregroundStyle(Palette.accent)
+        VStack(alignment: .leading, spacing: 7) {
+            Button { m.ecouter(r, passage: index) } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(o.nom).font(Polices.commande(12.5, .semibold)).foregroundStyle(CouleursOrateur.couleur(o, dans: r))
+                        if let heure { Text(heure).font(Polices.commande(12.5, .medium).monospacedDigit()).foregroundStyle(Palette.texte3) }
+                        Spacer(minLength: 0)
                     }
+                    Text(s.texte).font(Polices.texte(15)).lineSpacing(4).foregroundStyle(Palette.texte).multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Text(s.texte).font(Polices.texte(15)).lineSpacing(4).foregroundStyle(Palette.texte).multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
-                if joue { BarreEcoute(m: m, duree: max(1, s.fin - s.debut)).padding(.top, 7) }
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 10).padding(.top, 7).padding(.bottom, 8)
-            .background(RoundedRectangle(cornerRadius: 10).fill(joue || repere ? Palette.accent.opacity(0.12) : Color.white.opacity(survol && son ? 0.04 : 0)))
-            .contentShape(RoundedRectangle(cornerRadius: 10))
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityHint(son ? (actif ? "Met en pause" : "Réécoute ce moment") : "")
+            BulleAudio(m: m, r: r, index: index, son: son, couleur: CouleursOrateur.couleur(o, dans: r))
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 10).padding(.top, 7).padding(.bottom, 9)
+        .background(RoundedRectangle(cornerRadius: 10).fill(actif || repere ? Palette.accent.opacity(0.10) : Color.white.opacity(survol && son ? 0.035 : 0)))
         .padding(.horizontal, -10).padding(.top, 4)
         .onHover { survol = $0 }
-        .accessibilityElement(children: .combine)
-        .accessibilityHint(son ? (joue ? "Arrête l\u{2019}écoute" : "Réécoute ce moment") : "")
     }
 }
 
-/// La petite barre de lecture d'une ligne qu'on réécoute : seulement pendant la lecture (rafraîchie 4 fois par seconde, puis rien).
-struct BarreEcoute: View {
+/// La bulle audio d'un passage, façon vocal : ▶︎ / ❚❚, l'onde du vrai son (la part jouée en couleur, un clic s'y place), la durée
+/// (le temps écoulé pendant la lecture), la vitesse, « Télécharger l'extrait ». La bulle entière se glisse vers une app comme un
+/// fichier .m4a. Le son effacé (réglage « Garder le son des réunions » éteint, ou délai passé) : la bulle est grise, « audio effacé ».
+struct BulleAudio: View {
     @ObservedObject var m: ReunionsModele
-    var duree: Double
+    var r: Reunion
+    var index: Int
+    var son: Bool
+    var couleur: Color
+    static let largeurOnde: CGFloat = 150
+
     var body: some View {
-        TimelineView(.periodic(from: m.debutEcoute ?? Date(), by: 0.25)) { ctx in
-            let t = min(duree, max(0, ctx.date.timeIntervalSince(m.debutEcoute ?? ctx.date)))
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle().fill(Palette.accent)
-                    Image(systemName: "pause.fill").font(.system(size: 9, weight: .bold)).foregroundStyle(Palette.surface)
+        let s = r.segments[index]
+        let actif = m.ecoute == index
+        let joue = actif && !m.enPause
+        let e = ExtraitsReunion.extrait(r, passage: index)
+        let duree = e?.duree ?? max(0, s.fin - s.debut)
+        HStack(spacing: 9) {
+            if son {
+                Button { m.ecouter(r, passage: index) } label: {
+                    ZStack {
+                        Circle().fill(couleur)
+                        Image(systemName: joue ? "pause.fill" : "play.fill").font(.system(size: 10, weight: .bold)).foregroundStyle(Palette.surface)
+                            .offset(x: joue ? 0 : 1)
+                    }
+                    .frame(width: 26, height: 26).contentShape(Circle())
                 }
-                .frame(width: 22, height: 22)
-                GeometryReader { g in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.white.opacity(0.14))
-                        Capsule().fill(Palette.accent).frame(width: g.size.width * t / duree)
+                .buttonStyle(.plain)
+                .accessibilityLabel(joue ? "Pause" : "Lire l\u{2019}extrait")
+                Group {
+                    if joue {
+                        TimelineView(.periodic(from: .now, by: 0.1)) { _ in onde(progression: m.progression(index)) }
+                    } else {
+                        onde(progression: actif ? m.progression(index) : 0)
                     }
                 }
-                .frame(width: 220, height: 4)
-                Text("\(FormatIlot.chrono(t)) / \(FormatIlot.chrono(duree))").font(Polices.commande(12, .medium).monospacedDigit()).foregroundStyle(Palette.texte3)
+                .frame(width: Self.largeurOnde, height: 22)
+                .contentShape(Rectangle())
+                .gesture(SpatialTapGesture().onEnded { v in m.placer(r, passage: index, fraction: Double(v.location.x / Self.largeurOnde)) })
+                .accessibilityLabel("Onde de l\u{2019}extrait, cliquer pour se placer")
+                Group {
+                    if joue {
+                        TimelineView(.periodic(from: .now, by: 0.5)) { _ in temps(duree * m.progression(index)) }
+                    } else { temps(actif ? duree * m.progression(index) : duree) }
+                }
+                if actif {
+                    Button { m.changerVitesse() } label: {
+                        Text(ExtraitsReunion.libelleVitesse(m.vitesse)).font(Polices.commande(11.5, .semibold).monospacedDigit())
+                            .foregroundStyle(Palette.texte).padding(.horizontal, 7).frame(height: 20)
+                            .background(Capsule().fill(Color.white.opacity(0.12)))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Vitesse de lecture")
+                    .accessibilityLabel("Vitesse \(ExtraitsReunion.libelleVitesse(m.vitesse))")
+                }
+                Button { m.telechargerExtrait(r, passage: index) } label: {
+                    Image(systemName: m.extraitEnregistre == s.id ? "checkmark" : "arrow.down.to.line")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(m.extraitEnregistre == s.id ? Color(hex: 0x8FCF9A) : Palette.texte2)
+                        .frame(width: 22, height: 22).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Télécharger l\u{2019}extrait (.m4a)")
+                .accessibilityLabel("Télécharger l\u{2019}extrait")
+            } else {
+                ZStack {
+                    Circle().fill(Color.white.opacity(0.08))
+                    Image(systemName: "play.slash.fill").font(.system(size: 9.5, weight: .bold)).foregroundStyle(Palette.texte3)
+                }
+                .frame(width: 26, height: 26)
+                Canvas { ctx, taille in Self.barres(ctx, taille, Array(repeating: 0.16, count: ExtraitsReunion.barres), joue: 0, couleur: Palette.texte3.opacity(0.5), reste: Palette.texte3.opacity(0.5)) }
+                    .frame(width: Self.largeurOnde, height: 22)
+                Text("audio effacé").font(Polices.commande(11.5)).foregroundStyle(Palette.texte3)
             }
         }
-        .accessibilityHidden(true)
+        .padding(.leading, 4).padding(.trailing, 8).frame(height: 34)
+        .background(Capsule().fill(Color.white.opacity(son ? 0.06 : 0.03)))
+        .onDrag { son ? m.fournisseurGlisser(r, passage: index) : NSItemProvider() }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(son ? "Extrait audio, \(ExtraitsReunion.duree(duree))" : "Audio effacé")
+    }
+
+    private func temps(_ t: Double) -> some View {
+        Text(ExtraitsReunion.duree(t)).font(Polices.commande(11.5, .medium).monospacedDigit()).foregroundStyle(Palette.texte2).frame(minWidth: 30, alignment: .leading)
+    }
+
+    private func onde(progression: Double) -> some View {
+        let hauteurs = m.ondes[r.segments[index].id] ?? Array(repeating: 0.16, count: ExtraitsReunion.barres)
+        return Canvas { ctx, taille in Self.barres(ctx, taille, hauteurs, joue: progression, couleur: couleur, reste: Color.white.opacity(0.32)) }
+    }
+
+    /// Les barres de l'onde : la part jouée dans la couleur de l'orateur.
+    static func barres(_ ctx: GraphicsContext, _ taille: CGSize, _ h: [Float], joue: Double, couleur: Color, reste: Color) {
+        let n = max(1, h.count)
+        let pas = taille.width / CGFloat(n), l = max(1.5, pas * 0.55)
+        for (i, v) in h.enumerated() {
+            let hauteur = max(2.5, CGFloat(v) * taille.height)
+            let x = CGFloat(i) * pas + (pas - l) / 2
+            let rect = CGRect(x: x, y: (taille.height - hauteur) / 2, width: l, height: hauteur)
+            let fait = (CGFloat(i) + 0.5) / CGFloat(n) <= CGFloat(joue)
+            ctx.fill(Path(roundedRect: rect, cornerRadius: l / 2), with: .color(fait ? couleur : reste))
+        }
     }
 }
 
