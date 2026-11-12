@@ -194,6 +194,8 @@ enum ActionIlot {
     case reunionNoter, reunionRefuser, reunionPause, reunionReprendre, reunionArreter, reunionPoint, reunionRattrapage, reunionDirect, reunionOuvrirNote
     /// Les modes de Concentration (IlotConcentration.swift).
     case concentration(ActionConcentration)
+    /// La carte de fin d'un rappel ou d'une note dits à Lucarne (IlotVoix.swift).
+    case voix(ActionVoix)
 }
 
 /// La case Minuteur du Centre a deux onglets (maquette ilot-bibliotheque.html, étape 7) : le minuteur (5 · 10 · 25 min) et le réveil
@@ -330,7 +332,7 @@ final class IlotMoteur: ObservableObject {
     } }
     /// Change à chaque réveil qui sonne : le réveil de l'alerte se secoue (deux fois, puis plus rien ne tourne).
     private(set) var sonnerieReveil: UUID?
-    var bandeau: BandeauIlot? { didSet { if let bandeau { bandeauVu = bandeau } } }
+    var bandeau: BandeauIlot? { didSet { if let bandeau { bandeauVu = bandeau }; carteVoixChange(avant: oldValue) } }
     /// Rendus PNG : pas d'animation Core Animation (ImageRenderer ne sait pas les dessiner).
     var statique = false
     var notifications: [NotificationRecue] = []
@@ -452,6 +454,8 @@ final class IlotMoteur: ObservableObject {
     var survolNote: UUID? { didSet { if survolNote != oldValue { rev += 1 } } }
     /// La note dictée d'un clic (« J'écoute… », le niveau, le texte en direct, puis « J'écris la note… »).
     let ecouteNote = EcouteNote()
+    /// La voix d'un rappel ou d'une note dits à Lucarne (IlotVoix.swift) : l'onde, puis la carte de fin.
+    let voix = EcouteVoix()
     /// Sous la note qui vient d'arriver, quand elle dit un jour ou une heure : « En faire un rappel · demain 13:00 ».
     var suggestionRappel: (note: UUID, texte: String, quand: Date)? {
         didSet { if suggestionRappel?.note != oldValue?.note || suggestionRappel?.quand != oldValue?.quand { rev += 1 } }
@@ -717,6 +721,7 @@ final class IlotMoteur: ObservableObject {
         // la Bibliothèque épouse sa liste de même (« Aucun fichier », trois lignes…), jusqu'à 164 pt ; elle défile au-delà
         let pb = CarteBibliotheque.profondeur(liste: bibliotheque.miseEnPage().hauteur)
         if pb != CarteBibliotheque.profondeurMax { d[.bibliotheque] = CGFloat(pb - CarteBibliotheque.profondeurMax) }
+        d.merge(hauteursVoix) { $1 }
         return d
     }
 
@@ -886,13 +891,13 @@ final class IlotMoteur: ObservableObject {
 
     // MARK: alertes et bandeaux
 
-    /// Une alerte ou un bandeau arrive. Pendant la dictée, il attend la fin (aucun son qui pourrait gêner ou être capté) ; pendant une
-    /// réunion il s'affiche, sans son (le contrôleur n'en joue aucun).
+    /// Une alerte ou un bandeau arrive. Pendant la dictée (et la voix dite à Lucarne, jusqu'à sa carte de fin), il attend la fin (aucun
+    /// son qui pourrait gêner ou être capté) ; pendant une réunion il s'affiche, sans son (le contrôleur n'en joue aucun).
     /// Pendant que le Centre est épinglé (une suite de réglages : Téléchargements puis un fichier qui arrive, les AirPods qu'on branche
     /// pour choisir leur micro), un bandeau attend aussi qu'il se range : il ne le referme pas sous le pointeur. Une alerte (minuteur
     /// fini, rappel, rendez-vous qui commence) passe, elle : elle attend un geste.
     func annoncer(alerte a: AlerteIlot? = nil, bandeau b: BandeauIlot? = nil) {
-        if cache { enAttente.append((a, b)); return }
+        if cache || voix.retient { enAttente.append((a, b)); return }
         if a == nil, b != nil, centreRetientLesBandeaux { enAttente.append((nil, b)); attenteDuCentre = true; return }
         afficherMaintenant(alerte: a, bandeau: b)
     }
@@ -909,9 +914,9 @@ final class IlotMoteur: ObservableObject {
         if let b { if alerte == nil { bandeau = b; if b.sonore { surArrivee(b.vue) } } }
         donneesChangees()
     }
-    /// Après la dictée : ce qui attendait s'affiche.
+    /// Après la dictée (ou la carte de la voix) : ce qui attendait s'affiche.
     func vidangerAttente() {
-        guard !cache, !enAttente.isEmpty else { return }
+        guard !cache, !voix.retient, !enAttente.isEmpty else { return }
         let l = enAttente; enAttente = []
         // l'alerte la plus récente gagne, le dernier bandeau aussi
         if let a = l.last(where: { $0.alerte != nil })?.alerte { afficherMaintenant(alerte: a, bandeau: nil) }

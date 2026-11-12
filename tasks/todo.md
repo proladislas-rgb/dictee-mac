@@ -522,3 +522,14 @@ mission 3 de la Lucarne déplaçable, pas sur main).
       la bande du haut, le verre réel, les interrupteurs verts.
 - [ ] À trancher : « Essayer » du Centre, des Réunions et de la Lecture ; « Changer sa place » (Lucarne déplaçable pas dans main) ;
       le doigt 1c (vidéo accueil-3-anime.mp4).
+
+## Voix et rappel dans l'îlot (12/11 soir) — branche voix-rappel (worktree ~/dictee-mac-voix)
+Demande de Hugues : quand il dicte une note ou un rappel, une onde de voix vivante ; à la fin une carte (coché, date, titre, petit
+résumé) qui propose de l'envoyer dans Rappels ou dans Notes. Maquette : design/maquettes/ilot-voix-rappel.html (9 étapes).
+- [ ] DicteeCore/VoixIlot.swift : genre en direct (« Lucarne, rappelle-moi… » / « Lucarne, note… »), commande note, titre, résumé,
+      date, état d'envoi, onde (niveaux réels du micro sur les ressorts de NiveauxVoix), mesures ; contrôles purs
+- [ ] Dictee/IlotVoix.swift : l'écoute (onde + libellé), la carte de fin, Envoyer / Annuler / Copier ; accroches d'une ligne ailleurs
+- [ ] Rappels : la carte remplace « Rappel ajouté » pour « Lucarne, … » ; « ✓ Dans Rappels » si déjà parti, sinon le bouton (un clic =
+      la réponse « Oui » d'avant) ; Notes : l'AppleScript existant (« Vers Notes » des Outils), autorisation au premier clic
+- [ ] Essai `--ilot-essai` (section voix, vrais clics, faux Rappels et fausses Notes), rendus ilot-34* et lucarne-ecran-voix-*
+- [ ] Relecture opus, commits, push (pas de fusion)

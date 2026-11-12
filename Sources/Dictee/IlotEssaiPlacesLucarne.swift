@@ -297,7 +297,7 @@ enum CatalogueLucarne {
             Ecran(nom: "onde de la note dictée", vue: .outilNote) { m in
                 m.ouvrirOutil(.outilNote); m.ecouteNote.phase = .ecoute; m.ecouteNote.niveau = 0.6; m.ecouteNote.texte = "J\u{2019}ai demain une livraison"
             },
-        ]
+        ] + CatalogueVoix.ecrans(t0: t0)
     }
 }
 

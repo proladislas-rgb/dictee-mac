@@ -6,8 +6,10 @@ import DicteeCore
 // Note rapide (11/11 au soir, Hugues : « c'est pas simple à utiliser… pas clair »).
 // - Une dictée qui COMMENCE par « Lucarne » ou « Verbe » est une commande, jamais collée ; rien de reconnu → « Je n'ai pas compris » et la
 //   phrase (« Copier »), jamais un échec silencieux. Sans le mot d'appel, rien ne change.
-// - Chaque rappel créé par Lucarne va aussi dans l'app Rappels (liste par défaut, alarme à l'heure) pour arriver sur l'iPhone ; la
-//   question se pose UNE fois, depuis l'îlot, au premier rappel ; un refus est dit une fois. « Fait » le coche là-bas aussi.
+// - Chaque rappel créé par Lucarne peut aller aussi dans l'app Rappels (liste par défaut, alarme à l'heure) pour arriver sur l'iPhone.
+//   Dit à Lucarne (« Lucarne, rappelle-moi… »), la carte de fin (IlotVoix.swift) le montre et propose « Envoyer dans Rappels » ; ajouté
+//   autrement (« En faire un rappel » sous une note), la question se pose UNE fois, depuis l'îlot ; un refus est dit une fois. « Fait » le
+//   coche là-bas aussi.
 // - « Dicter une note » : un clic, l'écoute commence dans la carte (« J'écoute… », le niveau, le texte en direct), « Terminé » ou 2 s de
 //   silence l'arrêtent ; une note qui dit un jour ou une heure propose « En faire un rappel · demain 13:00 ».
 // Tout ce qui touche au système (EventKit, la dictée) passe par des fermetures ou un pilote injectables : l'essai n'y touche jamais.
@@ -123,7 +125,7 @@ extension IlotControleur {
                 NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
                 Log.ecrire("lucarne : rappels allumés (demandés en toutes lettres)")
             }
-            if ajouterUnRappel(texte: t, quand: quand) != nil { Log.ecrire("lucarne : rappel ajouté (\(ListeRappels.jour(de: quand, maintenant: maintenant())) \(FormatIlot.heure(quand)))") }
+            if ajouterUnRappel(texte: t, quand: quand, phraseDite: texte) != nil { Log.ecrire("lucarne : rappel ajouté (\(ListeRappels.jour(de: quand, maintenant: maintenant())) \(FormatIlot.heure(quand)))") }
             else { direLucarne(.incomprise(texte.trimmingCharacters(in: .whitespacesAndNewlines))) }
         case .commande(.reveil(let heure, let minute)):
             // le réveil (case Minuteur, onglet Réveil) : demandé en toutes lettres, « Minuteur et réveil » éteint se rallume
@@ -142,6 +144,8 @@ extension IlotControleur {
         case .passe(let phrase):
             direLucarne(.passe(phrase))
             Log.ecrire("lucarne : rappel pour une heure déjà passée, pas ajouté, rien n'est collé")
+        case .note(let t):
+            if let n = enregistrerNote(t) { montrerCarteNote(n) } else { direLucarne(.incomprise(texte.trimmingCharacters(in: .whitespacesAndNewlines))) }
         }
         return true
     }

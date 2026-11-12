@@ -94,7 +94,7 @@ enum RenduLucarne {
         for (nom, fichier, p) in [("Dictées", "dictees", PlaceLucarne.basDroite), ("carte Claude", "claude", .hautGauche), ("Étagère", "etagere", .basGauche),
                                   ("Réunion", "reunion", .hautDroite), ("annonce téléchargé", "telecharge", .droite), ("annonce capture", "capture", .gauche),
                                   ("alerte rappel", "alerte-rappel", .basGauche), ("alerte minuteur", "alerte-minuteur", .hautDroite),
-                                  ("onde de la note dictée", "note-onde", .basDroite), ("annonce AirDrop", "airdrop", .hautGauche)] {
+                                  ("onde de la note dictée", "note-onde", .basDroite), ("annonce AirDrop", "airdrop", .hautGauche)] + RenduVoix.lucarne {
             ecrire(scene(p, nom), p, clair: true, "lucarne-ecran-\(fichier)")
         }
         return ok ? 0 : 1

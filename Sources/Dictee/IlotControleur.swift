@@ -611,11 +611,12 @@ final class IlotControleur {
         appliquerLesMasques()
         // la note d'un clic finie autrement que par « Terminé » ou le silence (fn relâchée, annulée) : elle s'écrit
         if !enCours { noteParClic = false; if moteur.ecouteNote.phase == .ecoute { noteEnEcriture() } }
+        if !enCours { relacherVoix() }
     }
 
     private func appliquerLesMasques() {
         let o = occupation()
-        let dictee = o.dictee || (lecture.dicteeConfirmee && !noteParClic)
+        let dictee = o.dictee || (lecture.dicteeConfirmee && !noteParClic && !moteur.voix.retient)
         let masque = o.filet || o.miseAJour || o.autreAnnonce
         // la réunion n'efface plus l'îlot : elle y est une activité (`reunionChangee`)
         guard dictee != moteur.dictee || masque != moteur.masque else { return }
@@ -720,6 +721,7 @@ final class IlotControleur {
         case .reveilRegler, .reveilAnnuler, .reveilEncore, .reveilOK: agirReveil(action)
         case .groqDetail: detailGroq()
         case .concentration(let a): concentration.agir(a)
+        case .voix(let a): agirVoix(a)
         case .alerteOK: moteur.quitterAlerte()
         case .rappelPlusTard(let id):
             rappels.reporter(id, depuis: maintenant()); sauver()
@@ -861,10 +863,12 @@ final class IlotControleur {
     // MARK: rappels
 
     @discardableResult
-    func ajouterUnRappel(texte: String, quand: Date) -> Rappel? {
+    func ajouterUnRappel(texte: String, quand: Date, phraseDite: String? = nil) -> Rappel? {
         guard reglagesCentre.rappelsActifs(), let r = rappels.ajouter(texte: texte, echeance: quand, maintenant: maintenant()) else { return nil }
         sauver()
         dernierRappelAjoute = r.id
+        // dit à Lucarne (« Lucarne, rappelle-moi… ») : la carte de fin remplace « Rappel ajouté » et la question de l'app Rappels
+        if let phraseDite { montrerCarteRappel(r, phrase: phraseDite); return r }
         moteur.fermer()
         moteur.annoncer(bandeau: BandeauIlot(vue: .rappelAjoute, jusqua: maintenant().addingTimeInterval(Self.dureeRappelAjoute), ligne1: "Rappel ajouté",
                                              ligne2: r.texte + " \u{00B7} " + ListeRappels.jour(de: quand, maintenant: maintenant()), meta: FormatIlot.heure(quand), rappelId: r.id))

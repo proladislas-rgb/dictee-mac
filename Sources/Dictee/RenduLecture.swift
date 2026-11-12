@@ -830,6 +830,8 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in m.concentration = AffichageConcentration(dernier: .init(mode: .travail, duree: .uneHeure))
             m.bandeau = BandeauIlot(vue: .concentrationFin, jusqua: t0, ligne1: "Raccourcis n\u{2019}a pas allumé Travail", ligne2: "Réessaie dans un instant") }) },
                "ilot-33n-concentration-echec")
+        // 34 · la voix d'un rappel ou d'une note (maquette ilot-voix-rappel.html, étapes 1 à 7 ; RenduVoix.swift)
+        for s in RenduVoix.scenes(t0: t0) { ecrire(bureau(hauteur: geometrie.hauteur + s.hauteur, clair: s.clair) { ilot(s.ensuite.map { e in miCourse(scene(s.poser), e.t, e.changer) } ?? scene(s.poser)) }, s.nom) }
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)
