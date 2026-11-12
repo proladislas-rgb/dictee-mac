@@ -55,12 +55,12 @@ enum BancLexique {
         let base = URL(fileURLWithPath: (dossier as NSString).expandingTildeInPath)
         guard let donnees = try? Data(contentsOf: base.appendingPathComponent("phrases.json")),
               let cas = try? JSONDecoder().decode([Cas].self, from: donnees) else {
-            FileHandle.standardError.write(Data("Usage : Verbe --banc-lexique DOSSIER (phrases.json et NN.wav attendus)\n".utf8)); return 2
+            FileHandle.standardError.write(Data("Usage : Voxile --banc-lexique DOSSIER (phrases.json et NN.wav attendus)\n".utf8)); return 2
         }
         guard GroqClient.shared.cleDisponible else { FileHandle.standardError.write(Data("Clé Groq introuvable (~/.config/groq/.env)\n".utf8)); return 2 }
         let motsChoisis = Dictionnaire.mots()
         let lexique = LexiqueStore.partage.entrees()
-        guard !lexique.isEmpty else { FileHandle.standardError.write(Data("Pas de lexique : lancer d\u{2019}abord Verbe --construire-lexique\n".utf8)); return 2 }
+        guard !lexique.isEmpty else { FileHandle.standardError.write(Data("Pas de lexique : lancer d\u{2019}abord Voxile --construire-lexique\n".utf8)); return 2 }
         let index = IndexCorrection(motsChoisis: motsChoisis, lexique: lexique)
         print("Banc d\u{2019}essai : \(cas.count) phrases, lexique de \(lexique.count) mots, \(motsChoisis.count) mots choisis. \(reutiliserAvant ? "Une requête" : "Deux requêtes") par phrase, une toutes les 3,4 s.")
 
@@ -138,7 +138,7 @@ enum BancLexique {
         let base = URL(fileURLWithPath: (dossier as NSString).expandingTildeInPath)
         guard let d1 = try? Data(contentsOf: base.appendingPathComponent("phrases.json")), let cas = try? JSONDecoder().decode([Cas].self, from: d1),
               let d2 = try? Data(contentsOf: base.appendingPathComponent("resultats.json")), let anciens = try? JSONDecoder().decode([Ligne].self, from: d2) else {
-            FileHandle.standardError.write(Data("Usage : Verbe --banc-lexique-rejouer DOSSIER (phrases.json et resultats.json attendus)\n".utf8)); return 2
+            FileHandle.standardError.write(Data("Usage : Voxile --banc-lexique-rejouer DOSSIER (phrases.json et resultats.json attendus)\n".utf8)); return 2
         }
         let index = IndexCorrection(motsChoisis: Dictionnaire.mots(), lexique: LexiqueStore.partage.entrees())
         var lignes: [Ligne] = []

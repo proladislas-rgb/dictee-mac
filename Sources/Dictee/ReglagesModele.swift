@@ -45,8 +45,8 @@ final class ReglagesModele: ObservableObject {
     @Published private(set) var avisClaude: String?
     var phraseClaude: String {
         if let avisClaude { return avisClaude }
-        if claudeBranche { return "Branché : les sessions de Claude Code ouvertes dès maintenant s\u{2019}affichent dans l\u{2019}îlot. « Débrancher » retire seulement les crochets de Verbe." }
-        return "Où en est Claude Code : « 3 sur 7 », ta réponse attendue, la fin. Ajoute les crochets de Verbe à ~/.claude/settings.json, sans rien toucher d\u{2019}autre."
+        if claudeBranche { return "Branché : les sessions de Claude Code ouvertes dès maintenant s\u{2019}affichent dans l\u{2019}îlot. « Débrancher » retire seulement les crochets de Voxile." }
+        return "Où en est Claude Code : « 3 sur 7 », ta réponse attendue, la fin. Ajoute les crochets de Voxile à ~/.claude/settings.json, sans rien toucher d\u{2019}autre."
     }
     func brancherClaude() { changerClaude { try $0.brancher() } }
     func debrancherClaude() { changerClaude { try $0.debrancher() } }

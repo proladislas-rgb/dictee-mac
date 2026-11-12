@@ -224,7 +224,7 @@ struct TuileRendezVousVue: View {
                     Text(r.quand).font(.system(size: 12.5)).foregroundStyle(TonsBureau.encre2).lineLimit(1)
                 } else {
                     Text("Rien au calendrier").font(.system(size: 15, weight: .semibold)).foregroundStyle(TonsBureau.encre).padding(.top, 10)
-                    Text("Un appel imprévu\u{202F}? Verbe le note aussi.").font(.system(size: 12.5)).foregroundStyle(TonsBureau.encre2)
+                    Text("Un appel imprévu\u{202F}? Voxile le note aussi.").font(.system(size: 12.5)).foregroundStyle(TonsBureau.encre2)
                         .fixedSize(horizontal: false, vertical: true).padding(.top, 2)
                 }
                 Spacer(minLength: 6)

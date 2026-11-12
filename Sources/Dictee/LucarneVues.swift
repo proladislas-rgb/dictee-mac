@@ -137,7 +137,7 @@ struct ContenuCompactLucarne: View {
         case .logo:
             FormeGuillemets().fill(Color.white.opacity(0.92))
                 .frame(width: Self.hauteurLogo * Guillemets.rapport, height: Self.hauteurLogo)
-                .accessibilityLabel("Lucarne")
+                .accessibilityLabel(NomApp.nom)
         }
     }
 

@@ -1,10 +1,11 @@
 #!/bin/zsh
-# Fabrique Verbe.app : compile, assemble, signe, installe dans ~/Applications.
+# Fabrique Voxile.app : compile, assemble, signe, installe dans ~/Applications.
 #   ./build.sh                     compile + assemble + signe + installe dans ~/Applications
-#   ./build.sh --sans-installer    s'arrête après l'assemblage (dans .build/Verbe.app)
-#   ./build.sh --sortie DOSSIER    assemble dans DOSSIER/Verbe.app, sans rien installer (utilisé par release.sh)
-# Nom : l'app s'appelle Verbe (paquet Verbe.app, exécutable Verbe). Le produit Swift et les dossiers internes gardent
-# le nom Dictee, et l'identifiant reste com.hugues.dictee : les autorisations, l'historique et le dictionnaire sont conservés.
+#   ./build.sh --sans-installer    s'arrête après l'assemblage (dans .build/Voxile.app)
+#   ./build.sh --sortie DOSSIER    assemble dans DOSSIER/Voxile.app, sans rien installer (utilisé par release.sh)
+# Nom : l'app s'appelle Voxile depuis le 13/11 (paquet Voxile.app, exécutable Voxile ; avant : Verbe, et Dictée au tout début). Le
+# produit Swift et les dossiers internes gardent le nom Dictee, et l'identifiant reste com.hugues.dictee : les autorisations,
+# l'historique et le dictionnaire sont conservés. Une Verbe.app installée se renomme seule en Voxile.app au lancement (MigrationNom).
 # La version vient du fichier VERSION, seul endroit où elle s'écrit (seule exception : VERBE_VERSION=x.y.z, posée par release.sh --version
 # pour fabriquer une fausse version de test ; le binaire ne change pas, seule l'Info.plist porte ce numéro).
 set -euo pipefail
@@ -12,7 +13,7 @@ cd "$(dirname "$0")"
 
 VERSION="${VERBE_VERSION:-$(tr -d '[:space:]' < VERSION)}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION illisible : « $VERSION »"; exit 1; }
-NOM_APP="Verbe"
+NOM_APP="Voxile"
 PRODUIT_SWIFT="Dictee"   # nom interne du produit SwiftPM (voir Package.swift)
 BUNDLE_ID="com.hugues.dictee"
 DEST="$HOME/Applications/$NOM_APP.app"
@@ -54,11 +55,17 @@ clang -arch arm64e -arch arm64 -mmacosx-version-min=26.0 -dynamiclib -fobjc-arc 
 cp Resources/lecture/lanceur.pl "$ASSEMBLAGE/Contents/Resources/lecture/"
 codesign --force --sign - "$ASSEMBLAGE/Contents/Resources/lecture/verbe-lecture.dylib"
 
-# Icône d'app : dessinée en vectoriel par l'app elle-même (--rendu-icones : PNG seulement, ni micro ni clavier), puis iconutil.
+# Icône d'app : « L'onde dans une île » (n° 6, choisie par Hugues le 12/11), Resources/Icone/voxile.svg rendu une fois en
+# voxile-1024.png (Aperçu rapide de macOS : qlmanage -t -s 1024 voxile.svg) ; les tailles du jeu viennent de ce PNG, puis iconutil.
 echo "==> Icône (AppIcon.icns)"
 rm -rf .build/icones
-"$BIN" --rendu-icones .build/icones >/dev/null
-iconutil -c icns .build/icones/AppIcon.iconset -o "$ASSEMBLAGE/Contents/Resources/AppIcon.icns"
+JEU=".build/icones/AppIcon.iconset"
+mkdir -p "$JEU"
+for t in 16 32 128 256 512; do
+  sips -z $t $t Resources/Icone/voxile-1024.png --out "$JEU/icon_${t}x${t}.png" >/dev/null
+  sips -z $((t * 2)) $((t * 2)) Resources/Icone/voxile-1024.png --out "$JEU/icon_${t}x${t}@2x.png" >/dev/null
+done
+iconutil -c icns "$JEU" -o "$ASSEMBLAGE/Contents/Resources/AppIcon.icns"
 
 cat > "$ASSEMBLAGE/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -78,21 +85,21 @@ cat > "$ASSEMBLAGE/Contents/Info.plist" <<PLIST
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Verbe écoute ta voix quand tu tiens la touche fn pour dicter, et pendant que tu notes une réunion.</string>
+  <string>Voxile écoute ta voix quand tu tiens la touche fn pour dicter, et pendant que tu notes une réunion.</string>
   <key>NSAudioCaptureUsageDescription</key>
-  <string>Verbe écoute le son de ton Mac (la voix des autres pendant un appel) seulement quand tu notes une réunion.</string>
+  <string>Voxile écoute le son de ton Mac (la voix des autres pendant un appel) seulement quand tu notes une réunion.</string>
   <key>NSCalendarsFullAccessUsageDescription</key>
-  <string>Verbe lit tes rendez-vous (10 minutes avant, au début) pour les montrer dans l'encoche. Rien n'est enregistré ni envoyé : il relit seulement les prochaines heures.</string>
+  <string>Voxile lit tes rendez-vous (10 minutes avant, au début) pour les montrer dans l'encoche. Rien n'est enregistré ni envoyé : il relit seulement les prochaines heures.</string>
   <key>NSRemindersFullAccessUsageDescription</key>
-  <string>Verbe met aussi dans l'app Rappels les rappels que tu lui dictes (« Lucarne, rappelle-moi… »), pour qu'ils arrivent sur ton iPhone. Il ne lit ni ne change tes autres rappels.</string>
+  <string>Voxile met aussi dans l'app Rappels les rappels que tu lui dictes (« Voxile, rappelle-moi… »), pour qu'ils arrivent sur ton iPhone. Il ne lit ni ne change tes autres rappels.</string>
   <key>NSBluetoothAlwaysUsageDescription</key>
-  <string>Verbe montre dans l'encoche la batterie de tes AirPods et de tes appareils Bluetooth quand ils se connectent. Rien n'est enregistré ni envoyé.</string>
+  <string>Voxile montre dans l'encoche la batterie de tes AirPods et de tes appareils Bluetooth quand ils se connectent. Rien n'est enregistré ni envoyé.</string>
   <key>NSDownloadsFolderUsageDescription</key>
-  <string>Verbe montre dans l'encoche le fichier qui vient d'arriver dans Téléchargements (AirDrop compris), avec « Ouvrir ». Rien n'est lu dans les fichiers, rien n'est envoyé.</string>
+  <string>Voxile montre dans l'encoche le fichier qui vient d'arriver dans Téléchargements (AirDrop compris), avec « Ouvrir ». Rien n'est lu dans les fichiers, rien n'est envoyé.</string>
   <key>NSAppleEventsUsageDescription</key>
-  <string>Verbe crée dans l'app Notes la note rapide que tu envoies avec « Vers Notes ». Il ne lit rien d'autre dans Notes.</string>
+  <string>Voxile crée dans l'app Notes la note rapide que tu envoies avec « Vers Notes ». Il ne lit rien d'autre dans Notes.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
-  <string>Verbe utilise la reconnaissance vocale du Mac, sur l'appareil, pour afficher ton texte en direct et en secours.</string>
+  <string>Voxile utilise la reconnaissance vocale du Mac, sur l'appareil, pour afficher ton texte en direct et en secours.</string>
 </dict>
 </plist>
 PLIST
@@ -122,7 +129,7 @@ rm -rf "$DEST"
 cp -R "$ASSEMBLAGE" "$DEST"
 codesign --verify --strict "$DEST"
 echo "==> Prête : $DEST"
-for ancienne in "$HOME/Applications/Dictee.app" "/Applications/Dictee.app"; do
-  [[ -d "$ancienne" ]] && echo "    Ancienne app trouvée (nom d'avant Verbe) : $ancienne — à jeter une fois Verbe essayée (elle a le même identifiant)."
+for ancienne in "$HOME/Applications/Dictee.app" "/Applications/Dictee.app" "$HOME/Applications/Verbe.app"; do
+  [[ -d "$ancienne" ]] && echo "    Ancienne app trouvée (ancien nom) : $ancienne — Voxile la met à la corbeille à son lancement (même identifiant)."
 done
 echo "    Lancer : open \"$DEST\""

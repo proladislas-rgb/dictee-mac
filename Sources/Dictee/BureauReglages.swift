@@ -148,7 +148,7 @@ struct ReglagesBureauVue: View {
         HStack(spacing: 10) {
             Image(nsImage: IconeApp.image128).resizable().frame(width: 44, height: 44)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Verbe \(r.maj.versionActuelle)").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(TonsBureau.encre)
+                Text("Voxile \(r.maj.versionActuelle)").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(TonsBureau.encre)
                 Text(r.maj.disponible == nil ? "Tout reste sur ce Mac" : "Une mise à jour est prête").font(.system(size: 12)).foregroundStyle(TonsBureau.encre3)
             }
         }
@@ -223,10 +223,10 @@ struct ReglagesBureauVue: View {
                 }
                 HStack(spacing: 10) {
                     Text("Discret").font(.system(size: 11.5)).foregroundStyle(TonsBureau.encre2)
-                    Slider(value: $r.intensiteVerre, in: 0...1, step: 0.05).accessibilityLabel("Intensité du verre de la Lucarne")
+                    Slider(value: $r.intensiteVerre, in: 0...1, step: 0.05).accessibilityLabel("Intensité du verre de l\u{2019}îlot")
                     Text("Très appuyé").font(.system(size: 11.5)).foregroundStyle(TonsBureau.encre2)
                 }
-                Text("La teinte et les reflets du verre de la Lucarne. Le changement se voit tout de suite.")
+                Text("La teinte et les reflets du verre de l\u{2019}îlot. Le changement se voit tout de suite.")
                     .font(.system(size: 11.5)).foregroundStyle(TonsBureau.encre2)
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
@@ -267,8 +267,8 @@ struct ReglagesBureauVue: View {
             LienBleu(titre: "Revoir la prise en main", action: actions.revoirPriseEnMain)
             LienBleu(titre: "Ouvrir le journal") { r.ouvrirJournal() }
             Spacer()
-            LienBleu(titre: "Désinstaller Verbe", action: actions.desinstaller)
-            LienBleu(titre: "Quitter Verbe") { r.quitter() }
+            LienBleu(titre: "Désinstaller Voxile", action: actions.desinstaller)
+            LienBleu(titre: "Quitter Voxile") { r.quitter() }
         }
         .padding(.horizontal, 12)
     }
@@ -404,7 +404,7 @@ struct ReglagesDetailVue: View {
             LigneGroupe(libelle: "Afficher la lecture", note: "Musique et vidéos : pochette, titre, commandes.", premiere: true) {
                 Interrupteur(actif: $r.afficherLaLecture, etiquette: "Afficher la lecture en cours")
             }
-            LigneGroupe(libelle: "Pause pendant la dictée", note: r.afficherLaLecture ? "Elle reprend à la fin, seulement si Verbe l\u{2019}a mise en pause." : "Demande d\u{2019}afficher la lecture.") {
+            LigneGroupe(libelle: "Pause pendant la dictée", note: r.afficherLaLecture ? "Elle reprend à la fin, seulement si Voxile l\u{2019}a mise en pause." : "Demande d\u{2019}afficher la lecture.") {
                 Interrupteur(actif: $r.pauseLecturePendantDictee, etiquette: "Mettre en pause pendant la dictée").disabled(!r.afficherLaLecture)
             }
             .opacity(r.afficherLaLecture ? 1 : 0.5)
@@ -412,7 +412,7 @@ struct ReglagesDetailVue: View {
     }
     private var fichiers: some View {
         GroupeReglages(titre: "Fichiers et appareils") {
-            LigneGroupe(libelle: "Étagère", note: "Glisse des fichiers sur l\u{2019}encoche : ils y restent. Verbe garde un lien vers chaque fichier, jamais une copie.", premiere: true) {
+            LigneGroupe(libelle: "Étagère", note: "Glisse des fichiers sur l\u{2019}encoche : ils y restent. Voxile garde un lien vers chaque fichier, jamais une copie.", premiere: true) {
                 Interrupteur(actif: $r.ilotEtagere, etiquette: "Étagère")
             }
             LigneGroupe(libelle: "Téléchargements", note: "Un fichier qui arrive, AirDrop compris, avec «\u{202F}Ouvrir\u{202F}». macOS demande l\u{2019}accès au dossier en l\u{2019}allumant.") {
@@ -432,7 +432,7 @@ struct ReglagesDetailVue: View {
     private var barre: some View {
         GroupeReglages(titre: "Barre des menus") {
             LigneGroupe(libelle: "Icône dans la barre des menus",
-                        note: r.iconeToujours ? "Toujours là sans encoche : c\u{2019}est le chemin vers Verbe sur cet écran."
+                        note: r.iconeToujours ? "Toujours là sans encoche : c\u{2019}est le chemin vers Voxile sur cet écran."
                                               : "Éteinte, tout se fait depuis l\u{2019}encoche. Sans encoche (écran externe), l\u{2019}icône reste.",
                         premiere: true) {
                 if r.iconeToujours {

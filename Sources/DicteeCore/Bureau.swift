@@ -236,7 +236,7 @@ public enum Decouverte: String, CaseIterable, Sendable {
         case .etagere: return "Glisse un fichier vers l\u{2019}encoche\u{202F}: il t\u{2019}attend là."
         case .minuteur: return "5, 10 ou 25 min, d\u{2019}un clic, puis dans l\u{2019}encoche."
         case .rappels: return "À la voix\u{202F}: «\u{202F}Voxile, rappelle-moi demain à 9 h\u{202F}»."
-        case .reunions: return "Un clic\u{202F}: Verbe écoute et écrit la note."
+        case .reunions: return "Un clic\u{202F}: Voxile écoute et écrit la note."
         case .claude: return "Où en sont tes sessions, et qui attend ta réponse."
         case .lecture: return "La musique ou la vidéo qui joue, avec ses commandes."
         }

@@ -604,11 +604,11 @@ do {
 
 groupe("Installation")
 do {
-    verifier(Installation.doitProposerDeplacement(chemin: "/Volumes/Verbe/Verbe.app", volumeEnLectureSeule: true), "lancée depuis l'image disque : proposer")
-    verifier(Installation.doitProposerDeplacement(chemin: "/private/var/folders/ab/T/AppTranslocation/ABC/d/Verbe.app", volumeEnLectureSeule: true), "app translocalisée : proposer")
-    verifier(!Installation.doitProposerDeplacement(chemin: "/Applications/Verbe.app", volumeEnLectureSeule: false), "dans /Applications : rien à proposer")
-    verifier(!Installation.doitProposerDeplacement(chemin: "/tmp/maison-exemple/Applications/Verbe.app", volumeEnLectureSeule: false), "dans ~/Applications : rien à proposer")
-    verifier(!Installation.doitProposerDeplacement(chemin: "/Volumes/DisqueExterne/Verbe.app", volumeEnLectureSeule: false), "disque externe inscriptible : on ne dérange pas")
+    verifier(Installation.doitProposerDeplacement(chemin: "/Volumes/Voxile/Voxile.app", volumeEnLectureSeule: true), "lancée depuis l'image disque : proposer")
+    verifier(Installation.doitProposerDeplacement(chemin: "/private/var/folders/ab/T/AppTranslocation/ABC/d/Voxile.app", volumeEnLectureSeule: true), "app translocalisée : proposer")
+    verifier(!Installation.doitProposerDeplacement(chemin: "/Applications/Voxile.app", volumeEnLectureSeule: false), "dans /Applications : rien à proposer")
+    verifier(!Installation.doitProposerDeplacement(chemin: "/tmp/maison-exemple/Applications/Voxile.app", volumeEnLectureSeule: false), "dans ~/Applications : rien à proposer")
+    verifier(!Installation.doitProposerDeplacement(chemin: "/Volumes/DisqueExterne/Voxile.app", volumeEnLectureSeule: false), "disque externe inscriptible : on ne dérange pas")
     let maison = URL(fileURLWithPath: "/tmp/maison-exemple", isDirectory: true)
     verifier(Installation.dossierDestination(maison: maison, applicationsEcrivable: true).path == "/Applications", "destination : /Applications si possible")
     verifier(Installation.dossierDestination(maison: maison, applicationsEcrivable: false).path == "/tmp/maison-exemple/Applications", "destination : ~/Applications sinon")
@@ -616,18 +616,18 @@ do {
     let fm = FileManager.default
     let racine = fm.temporaryDirectory.appendingPathComponent("dictee-install-\(UUID().uuidString)", isDirectory: true)
     defer { try? fm.removeItem(at: racine) }
-    let source = racine.appendingPathComponent("dmg/Verbe.app/Contents", isDirectory: true)
+    let source = racine.appendingPathComponent("dmg/Voxile.app/Contents", isDirectory: true)
     try? fm.createDirectory(at: source, withIntermediateDirectories: true)
     try? Data("v2".utf8).write(to: source.appendingPathComponent("version.txt"))
-    let app = racine.appendingPathComponent("dmg/Verbe.app")
+    let app = racine.appendingPathComponent("dmg/Voxile.app")
     let dest = racine.appendingPathComponent("Applications", isDirectory: true)
     let copie = try? Installation.copier(app: app, dansDossier: dest)
-    verifier(copie?.path == dest.appendingPathComponent("Verbe.app").path && fm.fileExists(atPath: dest.appendingPathComponent("Verbe.app/Contents/version.txt").path), "copie dans un dossier créé au besoin")
+    verifier(copie?.path == dest.appendingPathComponent("Voxile.app").path && fm.fileExists(atPath: dest.appendingPathComponent("Voxile.app/Contents/version.txt").path), "copie dans un dossier créé au besoin")
     // une ancienne version déjà installée est remplacée, sans reste
-    try? Data("v1".utf8).write(to: dest.appendingPathComponent("Verbe.app/Contents/version.txt"))
+    try? Data("v1".utf8).write(to: dest.appendingPathComponent("Voxile.app/Contents/version.txt"))
     try? Data("v3".utf8).write(to: source.appendingPathComponent("version.txt"))
     _ = try? Installation.copier(app: app, dansDossier: dest)
-    verifier((try? String(contentsOf: dest.appendingPathComponent("Verbe.app/Contents/version.txt"), encoding: .utf8)) == "v3", "remplace l'ancienne version")
+    verifier((try? String(contentsOf: dest.appendingPathComponent("Voxile.app/Contents/version.txt"), encoding: .utf8)) == "v3", "remplace l'ancienne version")
     verifier((try? fm.contentsOfDirectory(atPath: dest.path))?.filter { $0.contains("installation") }.isEmpty == true, "aucun fichier temporaire laissé")
     verifier((try? Installation.copier(app: racine.appendingPathComponent("absente.app"), dansDossier: dest)) == nil, "source absente : erreur, pas de plantage")
 }
@@ -640,12 +640,18 @@ do {
     let a1 = racine.appendingPathComponent("A", isDirectory: true), a2 = racine.appendingPathComponent("B", isDirectory: true)
     for d in [a1, a2] { try? fm.createDirectory(at: d, withIntermediateDirectories: true) }
     try? fm.createDirectory(at: a1.appendingPathComponent("Dictee.app/Contents"), withIntermediateDirectories: true)
-    try? fm.createDirectory(at: a1.appendingPathComponent("Verbe.app/Contents"), withIntermediateDirectories: true)
+    try? fm.createDirectory(at: a1.appendingPathComponent("Voxile.app/Contents"), withIntermediateDirectories: true)
+    try? fm.createDirectory(at: a2.appendingPathComponent("Verbe.app/Contents"), withIntermediateDirectories: true)
     try? fm.createDirectory(at: a2.appendingPathComponent("Autre.app"), withIntermediateDirectories: true)
-    let trouvees = Desinstallation.anciennesApps(dossiers: [a1, a2], exclure: a1.appendingPathComponent("Verbe.app"), fm: fm)
-    verifier(trouvees.map(\.lastPathComponent) == ["Dictee.app"] && trouvees.first?.deletingLastPathComponent().path == a1.path, "trouve seulement l'ancienne Dictee.app, jamais Verbe.app ni une autre app")
-    verifier(Desinstallation.anciennesApps(dossiers: [a1, a2], exclure: a1.appendingPathComponent("Dictee.app"), fm: fm).isEmpty, "l'app qui tourne n'est jamais comptée comme ancienne copie")
-    verifier(Desinstallation.anciennesApps(dossiers: [a2], exclure: a1.appendingPathComponent("Verbe.app"), fm: fm).isEmpty, "aucune ancienne copie : liste vide")
+    let trouvees = Desinstallation.anciennesApps(dossiers: [a1, a2], exclure: a1.appendingPathComponent("Voxile.app"), fm: fm)
+    verifier(trouvees.map(\.lastPathComponent) == ["Dictee.app", "Verbe.app"] && trouvees.first?.deletingLastPathComponent().path == a1.path,
+             "trouve les anciennes Dictee.app et Verbe.app, jamais Voxile.app (celle qui tourne) ni une autre app")
+    verifier(Desinstallation.anciennesApps(dossiers: [a1], exclure: a1.appendingPathComponent("Dictee.app"), fm: fm).isEmpty, "l'app qui tourne n'est jamais comptée comme ancienne copie")
+    verifier(Desinstallation.anciennesApps(dossiers: [racine.appendingPathComponent("C")], exclure: a1.appendingPathComponent("Voxile.app"), fm: fm).isEmpty, "aucune ancienne copie : liste vide")
+    // le passage de nom au lancement
+    verifier(PassageNom.decision(nomPaquet: "Verbe.app") == .renommer(en: "Voxile.app"), "lancée depuis Verbe.app : se renommer en Voxile.app")
+    verifier(PassageNom.decision(nomPaquet: "Voxile.app") == .rangerLesAnciennes(["Verbe.app"]), "lancée depuis Voxile.app : l'ancienne Verbe.app à la corbeille")
+    verifier(PassageNom.decision(nomPaquet: "release") == .rien && PassageNom.decision(nomPaquet: "Mon Voxile.app") == .rien, "binaire de .build ou nom choisi à la main : rien")
     let maison = URL(fileURLWithPath: "/tmp/maison-exemple")
     verifier(Desinstallation.dossiersApplications(maison: maison).map(\.path) == ["/Applications", "/tmp/maison-exemple/Applications"], "dossiers visés : /Applications et ~/Applications")
     verifier(Desinstallation.cheminsRelatifs.contains("Library/Application Support/Dictee") && Desinstallation.identifiant == "com.hugues.dictee", "dossiers internes et identifiant gardés (autorisations, historique, dictionnaire)")
@@ -1347,8 +1353,8 @@ do {
     verifier(DetectionAppel.reconnaitre(bundleID: "com.anthropic.claudefordesktop") == nil && DetectionAppel.reconnaitre(bundleID: "com.apple.Siri") == nil && DetectionAppel.reconnaitre(bundleID: "com.apple.Terminal") == nil && DetectionAppel.reconnaitre(bundleID: "com.apple.corespeechd_system") == nil, "Claude, Siri, Terminal, reconnaissance vocale du système : jamais de proposition")
     verifier(DetectionAppel.reconnaitre(bundleID: "com.apple.Notes") == nil, "une app inconnue ne propose rien")
     verifier(DetectionAppel.reconnaitre(bundleID: "com.electron.wispr-flow") == nil && DetectionAppel.reconnaitre(bundleID: "com.apple.assistant_service") == nil, "dictée et assistant vocal ne proposent rien")
-    verifier(DetectionAppel.appEnAppel(bundleIDs: ["com.hugues.dictee", "com.apple.FaceTime"])?.nom == "FaceTime", "Verbe lui-même est ignoré")
-    verifier(DetectionAppel.appEnAppel(bundleIDs: ["com.hugues.dictee"]) == nil, "Verbe seul : rien")
+    verifier(DetectionAppel.appEnAppel(bundleIDs: ["com.hugues.dictee", "com.apple.FaceTime"])?.nom == "FaceTime", "Voxile lui-même est ignoré")
+    verifier(DetectionAppel.appEnAppel(bundleIDs: ["com.hugues.dictee"]) == nil, "Voxile seul : rien")
     verifier(DetectionAppel.appEnAppel(bundleIDs: ["com.google.Chrome.helper", "us.zoom.xos"])?.nom == "Zoom", "l'app d'appel passe avant le navigateur")
     var s = SuiveurAppel()
     let zoom = DetectionAppel.reconnaitre(bundleID: "us.zoom.xos")
@@ -1381,9 +1387,9 @@ do {
     verifier(v("v0.3.0").description == "0.3.0", "affichage sans le v")
 }
 
-func releaseJSON(tag: String = "v0.3.0", brouillon: Bool = false, prerelease: Bool = false, assets: [(String, Int?, String?, String)]? = nil, corps: String = "# Verbe 0.3.0\n- une chose") -> Data {
-    let a = assets ?? [("Verbe-0.3.0.dmg", 1_500_000, "sha256:" + String(repeating: "ab", count: 32), "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.3.0.dmg"),
-                       ("Verbe-0.3.0.dmg.sha256", 90, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.3.0.dmg.sha256")]
+func releaseJSON(tag: String = "v0.3.0", brouillon: Bool = false, prerelease: Bool = false, assets: [(String, Int?, String?, String)]? = nil, corps: String = "# Voxile 0.3.0\n- une chose") -> Data {
+    let a = assets ?? [("Voxile-0.3.0.dmg", 1_500_000, "sha256:" + String(repeating: "ab", count: 32), "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Voxile-0.3.0.dmg"),
+                       ("Voxile-0.3.0.dmg.sha256", 90, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Voxile-0.3.0.dmg.sha256")]
     let liste = a.map { (nom, taille, digest, url) -> [String: Any] in
         var d: [String: Any] = ["name": nom, "browser_download_url": url]
         if let taille { d["size"] = taille }
@@ -1399,10 +1405,10 @@ groupe("Mise à jour : choix de la release et de l'asset")
 do {
     let actuelle = VersionApp("0.2.2")!
     if case .proposition(let p) = ChoixMiseAJour.analyser(json: releaseJSON(), versionActuelle: actuelle) {
-        verifier(p.version == VersionApp("0.3.0")! && p.nomDMG == "Verbe-0.3.0.dmg", "release plus récente : proposition de 0.3.0")
-        verifier(p.taille == 1_500_000 && p.dmgURL.lastPathComponent == "Verbe-0.3.0.dmg", "asset Verbe-<version>.dmg choisi")
+        verifier(p.version == VersionApp("0.3.0")! && p.nomDMG == "Voxile-0.3.0.dmg", "release plus récente : proposition de 0.3.0")
+        verifier(p.taille == 1_500_000 && p.dmgURL.lastPathComponent == "Voxile-0.3.0.dmg", "asset Voxile-<version>.dmg choisi")
         verifier(p.empreinteJSON == String(repeating: "ab", count: 32), "empreinte du champ digest lue")
-        verifier(p.empreinteURL?.lastPathComponent == "Verbe-0.3.0.dmg.sha256", "fichier .sha256 repéré")
+        verifier(p.empreinteURL?.lastPathComponent == "Voxile-0.3.0.dmg.sha256", "fichier .sha256 repéré")
         verifier(p.notes.contains("une chose") && p.pageURL != nil, "notes et page de la release gardées")
     } else { verifier(false, "release plus récente : proposition de 0.3.0") }
     verifier(ChoixMiseAJour.analyser(json: releaseJSON(), versionActuelle: VersionApp("0.3.0")!) == .aJour, "même version : à jour")
@@ -1413,27 +1419,27 @@ do {
     verifier(ChoixMiseAJour.analyser(json: Data("pas du json".utf8), versionActuelle: actuelle) == .illisible, "JSON abîmé : illisible, pas de plantage")
     verifier(ChoixMiseAJour.analyser(json: releaseJSON(tag: "nightly"), versionActuelle: actuelle) == .illisible, "tag illisible : rien proposé")
     verifier(ChoixMiseAJour.analyser(json: Data("{}".utf8), versionActuelle: actuelle) == .illisible, "JSON vide : illisible")
-    let autre = [("Verbe-0.2.9.dmg", 1_000_000, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.2.9.dmg"),
-                 ("Verbe.dmg", 1_000_000, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe.dmg")] as [(String, Int?, String?, String)]
+    let autre = [("Voxile-0.2.9.dmg", 1_000_000, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Voxile-0.2.9.dmg"),
+                 ("Voxile.dmg", 1_000_000, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Voxile.dmg")] as [(String, Int?, String?, String)]
     if case .inutilisable = ChoixMiseAJour.analyser(json: releaseJSON(assets: autre), versionActuelle: actuelle) { verifier(true, "aucun asset au bon nom : jamais un autre fichier") }
     else { verifier(false, "aucun asset au bon nom : jamais un autre fichier") }
-    let ailleurs = [("Verbe-0.3.0.dmg", 1_000_000, nil, "https://evil.example.com/proladislas-rgb/dictee-mac/Verbe-0.3.0.dmg")] as [(String, Int?, String?, String)]
+    let ailleurs = [("Voxile-0.3.0.dmg", 1_000_000, nil, "https://evil.example.com/proladislas-rgb/dictee-mac/Voxile-0.3.0.dmg")] as [(String, Int?, String?, String)]
     if case .inutilisable = ChoixMiseAJour.analyser(json: releaseJSON(assets: ailleurs), versionActuelle: actuelle) { verifier(true, "adresse hors GitHub refusée") } else { verifier(false, "adresse hors GitHub refusée") }
-    let http = [("Verbe-0.3.0.dmg", 1_000_000, nil, "http://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.3.0.dmg")] as [(String, Int?, String?, String)]
+    let http = [("Voxile-0.3.0.dmg", 1_000_000, nil, "http://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Voxile-0.3.0.dmg")] as [(String, Int?, String?, String)]
     if case .inutilisable = ChoixMiseAJour.analyser(json: releaseJSON(assets: http), versionActuelle: actuelle) { verifier(true, "adresse en http refusée") } else { verifier(false, "adresse en http refusée") }
-    let autreDepot = [("Verbe-0.3.0.dmg", 1_000_000, nil, "https://github.com/quelquun/autre/releases/download/v0.3.0/Verbe-0.3.0.dmg")] as [(String, Int?, String?, String)]
+    let autreDepot = [("Voxile-0.3.0.dmg", 1_000_000, nil, "https://github.com/quelquun/autre/releases/download/v0.3.0/Voxile-0.3.0.dmg")] as [(String, Int?, String?, String)]
     if case .inutilisable = ChoixMiseAJour.analyser(json: releaseJSON(assets: autreDepot), versionActuelle: actuelle) { verifier(true, "autre dépôt GitHub refusé") } else { verifier(false, "autre dépôt GitHub refusé") }
-    let grosse = [("Verbe-0.3.0.dmg", 900_000_000, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.3.0.dmg")] as [(String, Int?, String?, String)]
+    let grosse = [("Voxile-0.3.0.dmg", 900_000_000, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Voxile-0.3.0.dmg")] as [(String, Int?, String?, String)]
     if case .inutilisable = ChoixMiseAJour.analyser(json: releaseJSON(assets: grosse), versionActuelle: actuelle) { verifier(true, "fichier trop gros refusé") } else { verifier(false, "fichier trop gros refusé") }
-    let sansTaille = [("Verbe-0.3.0.dmg", nil, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.3.0.dmg")] as [(String, Int?, String?, String)]
+    let sansTaille = [("Voxile-0.3.0.dmg", nil, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Voxile-0.3.0.dmg")] as [(String, Int?, String?, String)]
     if case .inutilisable = ChoixMiseAJour.analyser(json: releaseJSON(assets: sansTaille), versionActuelle: actuelle) { verifier(true, "taille absente : refusé") } else { verifier(false, "taille absente : refusé") }
-    let sansEmpreinte = [("Verbe-0.3.0.dmg", 1_000_000, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Verbe-0.3.0.dmg")] as [(String, Int?, String?, String)]
+    let sansEmpreinte = [("Voxile-0.3.0.dmg", 1_000_000, nil, "https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.3.0/Voxile-0.3.0.dmg")] as [(String, Int?, String?, String)]
     if case .proposition(let p) = ChoixMiseAJour.analyser(json: releaseJSON(assets: sansEmpreinte), versionActuelle: actuelle) { verifier(p.empreinteJSON == nil && p.empreinteURL == nil, "ancienne release sans empreinte : proposée, sans empreinte") }
     else { verifier(false, "ancienne release sans empreinte : proposée, sans empreinte") }
     verifier(PolitiqueAdresses.production.accepteRedirection(URL(string: "https://objects.githubusercontent.com/github-production-release-asset/abc")!), "redirection vers objects.githubusercontent.com permise")
     verifier(!PolitiqueAdresses.production.accepteRedirection(URL(string: "https://githubusercontent.com.evil.fr/x")!), "faux sous-domaine refusé")
     verifier(!PolitiqueAdresses.production.accepte(URL(string: "https://user:mdp@github.com/proladislas-rgb/dictee-mac/x")!), "adresse avec identifiants refusée")
-    verifier(PolitiqueAdresses.local.accepte(URL(string: "http://127.0.0.1:8123/Verbe-9.9.9.dmg")!) && !PolitiqueAdresses.production.accepte(URL(string: "http://127.0.0.1:8123/x")!), "http local permis seulement en mode de test")
+    verifier(PolitiqueAdresses.local.accepte(URL(string: "http://127.0.0.1:8123/Voxile-9.9.9.dmg")!) && !PolitiqueAdresses.production.accepte(URL(string: "http://127.0.0.1:8123/x")!), "http local permis seulement en mode de test")
 }
 
 groupe("Mise à jour : empreinte SHA-256")
@@ -1441,12 +1447,12 @@ do {
     let h = String(repeating: "0123456789abcdef", count: 4)
     verifier(EmpreinteSHA256.depuisDigest("sha256:" + h) == h, "digest GitHub lu")
     verifier(EmpreinteSHA256.depuisDigest("sha1:" + h) == nil && EmpreinteSHA256.depuisDigest("sha256:zz") == nil && EmpreinteSHA256.depuisDigest("sha256:" + h.uppercased()) == h, "digest : mauvais algorithme ou longueur refusés, majuscules acceptées")
-    verifier(EmpreinteSHA256.depuisFichier("\(h)  Verbe-0.3.0.dmg\n", nomFichier: "Verbe-0.3.0.dmg") == h, "fichier .sha256 de shasum")
-    verifier(EmpreinteSHA256.depuisFichier("\(h) *Verbe-0.3.0.dmg", nomFichier: "Verbe-0.3.0.dmg") == h, "variante binaire (*nom)")
-    verifier(EmpreinteSHA256.depuisFichier(h + "\n", nomFichier: "Verbe-0.3.0.dmg") == h, "empreinte seule")
-    verifier(EmpreinteSHA256.depuisFichier("\(h)  Verbe-0.2.0.dmg", nomFichier: "Verbe-0.3.0.dmg") == nil, "fichier .sha256 d'une autre version refusé")
-    verifier(EmpreinteSHA256.depuisFichier("<html>404</html>", nomFichier: "Verbe-0.3.0.dmg") == nil && EmpreinteSHA256.depuisFichier("", nomFichier: "x") == nil, "page d'erreur ou fichier vide refusés")
-    verifier(EmpreinteSHA256.depuisFichier("\(h)  Verbe-0.3.0.dmg\n\(h)  autre.dmg", nomFichier: "Verbe-0.3.0.dmg") == nil, "plusieurs lignes : refusé")
+    verifier(EmpreinteSHA256.depuisFichier("\(h)  Voxile-0.3.0.dmg\n", nomFichier: "Voxile-0.3.0.dmg") == h, "fichier .sha256 de shasum")
+    verifier(EmpreinteSHA256.depuisFichier("\(h) *Voxile-0.3.0.dmg", nomFichier: "Voxile-0.3.0.dmg") == h, "variante binaire (*nom)")
+    verifier(EmpreinteSHA256.depuisFichier(h + "\n", nomFichier: "Voxile-0.3.0.dmg") == h, "empreinte seule")
+    verifier(EmpreinteSHA256.depuisFichier("\(h)  Voxile-0.2.0.dmg", nomFichier: "Voxile-0.3.0.dmg") == nil, "fichier .sha256 d'une autre version refusé")
+    verifier(EmpreinteSHA256.depuisFichier("<html>404</html>", nomFichier: "Voxile-0.3.0.dmg") == nil && EmpreinteSHA256.depuisFichier("", nomFichier: "x") == nil, "page d'erreur ou fichier vide refusés")
+    verifier(EmpreinteSHA256.depuisFichier("\(h)  Voxile-0.3.0.dmg\n\(h)  autre.dmg", nomFichier: "Voxile-0.3.0.dmg") == nil, "plusieurs lignes : refusé")
     verifier(EmpreinteSHA256.correspond(calculee: h, attendues: [h, h.uppercased()]), "empreintes identiques")
     verifier(!EmpreinteSHA256.correspond(calculee: h, attendues: [h, String(repeating: "f", count: 64)]), "une seule empreinte différente suffit à refuser")
     verifier(EmpreinteSHA256.correspond(calculee: h, attendues: []), "aucune empreinte publiée : rien à comparer")
@@ -1506,14 +1512,14 @@ do {
 groupe("Mise à jour : emplacement et contrôle de l'app")
 do {
     typealias E = EmplacementApp
-    verifier(E.evaluer(chemin: "/Applications/Verbe.app", volumeEnLectureSeule: false, dossierEcrivable: true) == .possible, "/Applications modifiable : possible")
-    verifier(E.evaluer(chemin: "/Users/x/Applications/Verbe.app", volumeEnLectureSeule: false, dossierEcrivable: true) == .possible, "~/Applications : possible")
-    verifier(E.evaluer(chemin: "/Volumes/Verbe/Verbe.app", volumeEnLectureSeule: true, dossierEcrivable: false) != .possible, "depuis l'image disque : refusé")
-    verifier(E.evaluer(chemin: "/private/var/folders/x/AppTranslocation/ABC/d/Verbe.app", volumeEnLectureSeule: false, dossierEcrivable: true) != .possible, "dossier translocalisé : refusé")
-    verifier(E.evaluer(chemin: "/Applications/Verbe.app", volumeEnLectureSeule: true, dossierEcrivable: true) != .possible, "volume en lecture seule : refusé")
-    verifier(E.evaluer(chemin: "/Applications/Verbe.app", volumeEnLectureSeule: false, dossierEcrivable: false) != .possible, "dossier non modifiable : refusé")
+    verifier(E.evaluer(chemin: "/Applications/Voxile.app", volumeEnLectureSeule: false, dossierEcrivable: true) == .possible, "/Applications modifiable : possible")
+    verifier(E.evaluer(chemin: "/Users/x/Applications/Voxile.app", volumeEnLectureSeule: false, dossierEcrivable: true) == .possible, "~/Applications : possible")
+    verifier(E.evaluer(chemin: "/Volumes/Voxile/Voxile.app", volumeEnLectureSeule: true, dossierEcrivable: false) != .possible, "depuis l'image disque : refusé")
+    verifier(E.evaluer(chemin: "/private/var/folders/x/AppTranslocation/ABC/d/Voxile.app", volumeEnLectureSeule: false, dossierEcrivable: true) != .possible, "dossier translocalisé : refusé")
+    verifier(E.evaluer(chemin: "/Applications/Voxile.app", volumeEnLectureSeule: true, dossierEcrivable: true) != .possible, "volume en lecture seule : refusé")
+    verifier(E.evaluer(chemin: "/Applications/Voxile.app", volumeEnLectureSeule: false, dossierEcrivable: false) != .possible, "dossier non modifiable : refusé")
     verifier(E.evaluer(chemin: "/Users/x/dictee-mac/.build/release/Dictee", volumeEnLectureSeule: false, dossierEcrivable: true) != .possible, "binaire nu (hors app) : refusé")
-    let sortie = "Executable=/x/Verbe\nIdentifier=com.hugues.dictee\nFormat=app bundle with Mach-O thin (arm64)\nSignature=adhoc\n"
+    let sortie = "Executable=/x/Voxile\nIdentifier=com.hugues.dictee\nFormat=app bundle with Mach-O thin (arm64)\nSignature=adhoc\n"
     verifier(ControleApp.identifiant(sortieCodesign: sortie) == "com.hugues.dictee" && ControleApp.identifiant(sortieCodesign: "rien") == nil, "identifiant lu dans la sortie de codesign")
     let v = VersionApp("0.3.1")!
     verifier(ControleApp.refus(identifiantAttendu: "com.hugues.dictee", identifiantSignature: "com.hugues.dictee", identifiantPlist: "com.hugues.dictee", versionAttendue: v, versionPlist: "0.3.1") == nil, "app conforme : acceptée")
@@ -1525,8 +1531,8 @@ do {
 
 groupe("Mise à jour : notes de version")
 do {
-    let b = NotesDeVersion.blocs("# Verbe 0.3.0\n\nIntro avec **gras** et [un lien](https://x.fr).\n\n## Ce qui change\n- **Mise à jour** automatique\n* Une autre `chose`\n<script>alert(1)</script>\n![img](http://x/y.png)\nFin")
-    verifier(!b.contains(.titre("Verbe 0.3.0")), "le premier titre (le nom de la version) n'est pas répété")
+    let b = NotesDeVersion.blocs("# Voxile 0.3.0\n\nIntro avec **gras** et [un lien](https://x.fr).\n\n## Ce qui change\n- **Mise à jour** automatique\n* Une autre `chose`\n<script>alert(1)</script>\n![img](http://x/y.png)\nFin")
+    verifier(!b.contains(.titre("Voxile 0.3.0")), "le premier titre (le nom de la version) n'est pas répété")
     verifier(b.first == .paragraphe("Intro avec gras et un lien."), "gras et liens réduits au texte")
     verifier(b.contains(.titre("Ce qui change")) && b.contains(.puce("Mise à jour automatique")) && b.contains(.puce("Une autre chose")), "titres et puces")
     verifier(!b.contains { if case .paragraphe(let t) = $0 { return t.contains("<") || t.contains("http") } else { return false } }, "ni HTML ni adresse dans le texte montré")
@@ -1675,7 +1681,7 @@ do {
     // premier jour
     let premier = p(r(lundi, mots: 420, gagne: 400, apps: [("Mail", 300), ("Notes", 120)]), nil)
     verifier(premier.cas == .premierJour && !premier.texte.contains("moyenne ") && !premier.texte.contains("% de"), "premier jour : aucune comparaison")
-    verifier(premier.texte.hasPrefix("Première journée avec Verbe : 420\u{00A0}mots dictés.") && premier.texte.contains("arriveront"), "premier jour : phrase d'accueil")
+    verifier(premier.texte.hasPrefix("Première journée avec Voxile : 420\u{00A0}mots dictés.") && premier.texte.contains("arriveront"), "premier jour : phrase d'accueil")
     print("    premier jour : \(premier.texte)")
     // peu de recul (1 ou 2 jours avant) : pas de comparaison non plus
     let peu = p(r(lundi, mots: 420, gagne: 400, apps: [("Mail", 420)]), moy(100, jours: 2))

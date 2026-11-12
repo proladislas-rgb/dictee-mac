@@ -407,7 +407,7 @@ public enum ArchiveReunions {
         var s = r
         s.etat = .sansNote
         if s.segments.isEmpty == false || s.duree > 0 {
-            s.avertissements.append("Cette réunion s'est arrêtée avant la fin (Verbe a été fermé). La transcription est celle des morceaux déjà reçus.")
+            s.avertissements.append("Cette réunion s'est arrêtée avant la fin (Voxile a été fermé). La transcription est celle des morceaux déjà reçus.")
         }
         return s
     }

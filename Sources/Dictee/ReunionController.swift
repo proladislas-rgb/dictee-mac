@@ -198,7 +198,7 @@ final class ReunionController: ObservableObject {
 
     private func sonSystemeRefuse(_ s: Session) {
         guard session === s else { return }
-        s.reunion.avertissements.append("Le son du Mac n'a pas pu être capté : seul ton micro est dans cette note. Vérifie, dans Réglages Système › Confidentialité et sécurité, l'autorisation d'enregistrer le son du système pour Verbe.")
+        s.reunion.avertissements.append("Le son du Mac n'a pas pu être capté : seul ton micro est dans cette note. Vérifie, dans Réglages Système › Confidentialité et sécurité, l'autorisation d'enregistrer le son du système pour Voxile.")
         etatIlot?.microSeul = true
         guard sauver(s) else { return }
         rafraichirEncoche()
@@ -271,7 +271,7 @@ final class ReunionController: ObservableObject {
             if let actuelle = store.reunion(id: s.reunion.id) {
                 s.reunion = Self.photo(s, actuelle: actuelle)
                 store.enregistrer(s.reunion)
-                Log.ecrire("réunion : Verbe se ferme pendant l'appel, réunion et son gardés (\(FormatReunion.horloge(s.reunion.duree)))")
+                Log.ecrire("réunion : Voxile se ferme pendant l'appel, réunion et son gardés (\(FormatReunion.horloge(s.reunion.duree)))")
             }
         }
         store.attendreEcritures()

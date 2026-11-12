@@ -511,7 +511,7 @@ struct ReunionsVue: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(store.reunions.isEmpty ? "Aucune réunion pour l\u{2019}instant." : "Choisis une réunion.").font(Polices.texte(22)).foregroundStyle(Palette.texte2)
             if store.reunions.isEmpty {
-                Text("Pendant un appel, Verbe propose « Noter cet appel ? » dans l\u{2019}îlot. Il écoute ton micro et le son du Mac, puis écrit la note.")
+                Text("Pendant un appel, Voxile propose « Noter cet appel ? » dans l\u{2019}îlot. Il écoute ton micro et le son du Mac, puis écrit la note.")
                     .font(Polices.commande(13.5)).foregroundStyle(Palette.texte3).fixedSize(horizontal: false, vertical: true)
             }
         }

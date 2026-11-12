@@ -61,7 +61,7 @@ func controlesVoixReunion() {
     do {
         verifier(SeparationVoix.rang(id: "p3") == 3 && SeparationVoix.rang(id: "eux") == nil && SeparationVoix.rang(id: "p") == nil && SeparationVoix.rang(id: "p0") == nil, "« p3 » est la 3e voix ; « eux », « p », « p0 » n'en sont pas")
         verifier(SeparationVoix.estNomParDefaut("Personne 2") && SeparationVoix.estNomParDefaut("Eux") && !SeparationVoix.estNomParDefaut("Claire") && !SeparationVoix.estNomParDefaut("Personne"),
-                 "« Personne 2 » et « Eux » sont des noms donnés par Verbe, pas « Claire »")
+                 "« Personne 2 » et « Eux » sont des noms donnés par Voxile, pas « Claire »")
         var r = Reunion(duree: 60)
         r.segments = [s(0, 5, .moi, "On commence ?"), SegmentReunion(debut: 5, fin: 9, locuteur: .eux, texte: "Oui.", orateur: "p1"),
                       SegmentReunion(debut: 9, fin: 14, locuteur: .eux, texte: "Je vous envoie le devis.", orateur: "p2"),

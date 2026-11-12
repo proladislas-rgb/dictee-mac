@@ -74,7 +74,9 @@ struct InstallateurMiseAJour {
     /// Réservé aux essais en ligne de commande (`--simuler-echec-apres-echange`) : le contrôle de l'app remplacée échoue, pour prouver le retour en arrière.
     var echecSimuleApresEchange = false
     /// Marque des dossiers de préparation laissés à côté de l'app (supprimés au début de chaque installation).
-    static let prefixePreparation = ".Verbe.app.maj-"
+    static let prefixePreparation = ".Voxile.app.maj-"
+    /// Ceux des versions d'avant le changement de nom (nettoyés aussi).
+    static let prefixesAnciens = [".Verbe.app.maj-"]
 
     func verdictEmplacement(_ app: URL) -> EmplacementApp.Verdict {
         let dossier = app.deletingLastPathComponent()
@@ -86,14 +88,14 @@ struct InstallateurMiseAJour {
         let fm = FileManager.default
         if case .refuse(let raison) = verdictEmplacement(appActuelle) { throw ErreurMiseAJour(message: raison, detail: "emplacement refusé : \(appActuelle.path)") }
         let parent = appActuelle.deletingLastPathComponent()
-        for reste in (try? fm.contentsOfDirectory(atPath: parent.path)) ?? [] where reste.hasPrefix(Self.prefixePreparation) {
+        for reste in (try? fm.contentsOfDirectory(atPath: parent.path)) ?? [] where ([Self.prefixePreparation] + Self.prefixesAnciens).contains(where: { reste.hasPrefix($0) }) {
             try? fm.removeItem(at: parent.appendingPathComponent(reste))
         }
 
         // Dossier de travail privé (0700), supprimé quoi qu'il arrive.
-        let travail = fm.temporaryDirectory.appendingPathComponent("Verbe-MiseAJour-\(UUID().uuidString)", isDirectory: true)
+        let travail = fm.temporaryDirectory.appendingPathComponent("Voxile-MiseAJour-\(UUID().uuidString)", isDirectory: true)
         do { try fm.createDirectory(at: travail, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700]) } catch {
-            throw ErreurMiseAJour(message: "Verbe n\u{2019}a pas pu préparer un dossier de travail.", detail: error.localizedDescription)
+            throw ErreurMiseAJour(message: "Voxile n\u{2019}a pas pu préparer un dossier de travail.", detail: error.localizedDescription)
         }
         defer { try? fm.removeItem(at: travail) }
         if let libre = try? travail.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage,
@@ -121,7 +123,7 @@ struct InstallateurMiseAJour {
         let montage = travail.appendingPathComponent("montage", isDirectory: true)
         try fm.createDirectory(at: montage, withIntermediateDirectories: false)
         let attache = await Commande.executer("/usr/bin/hdiutil", ["attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint", montage.path, dmg.path])
-        guard attache.reussie else { throw ErreurMiseAJour(message: "Verbe n\u{2019}a pas pu ouvrir le fichier téléchargé.", detail: "hdiutil attach : \(attache.texte)") }
+        guard attache.reussie else { throw ErreurMiseAJour(message: "Voxile n\u{2019}a pas pu ouvrir le fichier téléchargé.", detail: "hdiutil attach : \(attache.texte)") }
         do {
             try await installerDepuis(montage: montage, proposition: p, appActuelle: appActuelle, parent: parent, progression: progression)
         } catch {
@@ -143,11 +145,11 @@ struct InstallateurMiseAJour {
     private func installerDepuis(montage: URL, proposition p: PropositionMiseAJour, appActuelle: URL, parent: URL,
                                  progression: @Sendable (EtapeInstallation) -> Void) async throws {
         let fm = FileManager.default
-        let source = montage.appendingPathComponent("Verbe.app")
+        let source = montage.appendingPathComponent(NomApp.paquet)
         var estDossier: ObjCBool = false
         let attributs = try? fm.attributesOfItem(atPath: source.path)
         guard fm.fileExists(atPath: source.path, isDirectory: &estDossier), estDossier.boolValue, attributs?[.type] as? FileAttributeType == .typeDirectory else {
-            throw ErreurMiseAJour(message: "Le fichier téléchargé ne contient pas Verbe.", detail: "Verbe.app absent ou lien dans l\u{2019}image disque")
+            throw ErreurMiseAJour(message: "Le fichier téléchargé ne contient pas Voxile.", detail: "\(NomApp.paquet) absent ou lien dans l\u{2019}image disque")
         }
         try await controler(source, version: p.version, etape: "image disque")
 
@@ -189,7 +191,8 @@ struct InstallateurMiseAJour {
                                           versionPlist: plist?["CFBundleShortVersionString"] as? String) {
             throw ErreurMiseAJour(message: "La nouvelle version n\u{2019}est pas celle attendue.", detail: "\(etape) : \(raison)")
         }
-        let executable = app.appendingPathComponent("Contents/MacOS/Verbe").path
+        // l'exécutable que l'Info.plist désigne (Voxile ; le paquet de passage garde aussi un lien « Verbe » pour les anciennes versions)
+        let executable = app.appendingPathComponent("Contents/MacOS/\(plist?["CFBundleExecutable"] as? String ?? NomApp.nom)").path
         guard FileManager.default.isExecutableFile(atPath: executable) else {
             throw ErreurMiseAJour(message: "La nouvelle version est incomplète.", detail: "\(etape) : exécutable absent")
         }
@@ -200,10 +203,10 @@ struct InstallateurMiseAJour {
         if renamex_np(a.path, b.path, UInt32(RENAME_SWAP)) == 0 { return }
         let code = errno
         guard code == ENOTSUP || code == EINVAL else {
-            throw ErreurMiseAJour(message: "Verbe n\u{2019}a pas pu remplacer l\u{2019}ancienne version.", detail: "renamex_np : \(String(cString: strerror(code)))")
+            throw ErreurMiseAJour(message: "Voxile n\u{2019}a pas pu remplacer l\u{2019}ancienne version.", detail: "renamex_np : \(String(cString: strerror(code)))")
         }
         do { _ = try FileManager.default.replaceItemAt(b, withItemAt: a) } catch {
-            throw ErreurMiseAJour(message: "Verbe n\u{2019}a pas pu remplacer l\u{2019}ancienne version.", detail: "replaceItemAt : \(error.localizedDescription)")
+            throw ErreurMiseAJour(message: "Voxile n\u{2019}a pas pu remplacer l\u{2019}ancienne version.", detail: "replaceItemAt : \(error.localizedDescription)")
         }
     }
 }

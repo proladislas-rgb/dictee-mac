@@ -82,7 +82,7 @@ struct MiseAJourBandeVue: View {
     @ViewBuilder private var texte: some View {
         switch m.presentation {
         case .proposition(let v)?:
-            Text("Verbe \(v) est disponible").font(.system(size: 12)).foregroundStyle(Palette.texte).lineLimit(1)
+            Text("Voxile \(v) est disponible").font(.system(size: 12)).foregroundStyle(Palette.texte).lineLimit(1)
         case .progression(let t)?:
             Text(t).font(.system(size: 12).monospacedDigit()).foregroundStyle(Palette.texte).lineLimit(1)
         case .echec(let t)?:
@@ -274,7 +274,7 @@ struct NotesDeVersionVue: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Verbe \(version)").font(Polices.commande(20, .medium)).foregroundStyle(Palette.texte).padding(.bottom, 14)
+            Text("Voxile \(version)").font(Polices.commande(20, .medium)).foregroundStyle(Palette.texte).padding(.bottom, 14)
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 10) {
                     if blocs.isEmpty {
@@ -338,7 +338,7 @@ struct LignesMiseAJour: View {
                 .opacity(m.peutRechercher ? 1 : 0.4).disabled(!m.peutRechercher)
         }
         if let d = m.disponible {
-            LigneGroupe(libelle: "Verbe \(d.version) est disponible", note: m.refusInstallation ?? "Verbe se remplace puis se relance, en quelques secondes.") {
+            LigneGroupe(libelle: "Voxile \(d.version) est disponible", note: m.refusInstallation ?? "Voxile se remplace puis se relance, en quelques secondes.") {
                 if m.activite == .repos {
                     LienBleu(titre: "Nouveautés", action: m.surNouveautes)
                     if m.refusInstallation == nil { BoutonCapsule(titre: "Installer", action: m.surInstaller) }
@@ -347,7 +347,7 @@ struct LignesMiseAJour: View {
                 }
             }
         }
-        LigneGroupe(libelle: "Vérifier automatiquement", note: "Une fois par jour, Verbe demande à GitHub s\u{2019}il existe une nouvelle version.") {
+        LigneGroupe(libelle: "Vérifier automatiquement", note: "Une fois par jour, Voxile demande à GitHub s\u{2019}il existe une nouvelle version.") {
             Interrupteur(actif: $m.automatique, etiquette: "Vérifier automatiquement")
         }
     }

@@ -79,7 +79,7 @@ final class SonSysteme: @unchecked Sendable {
         let moi = Self.objet(pid: ProcessInfo.processInfo.processIdentifier)
         let description = CATapDescription(monoGlobalTapButExcludeProcesses: moi.map { [$0] } ?? [])
         description.uuid = UUID()
-        description.name = "Verbe — réunion"
+        description.name = "Voxile — réunion"
         description.muteBehavior = .unmuted
         description.isPrivate = true
         var statut = AudioHardwareCreateProcessTap(description, &tapID)
@@ -87,7 +87,7 @@ final class SonSysteme: @unchecked Sendable {
 
         // 2. l'appareil agrégé privé qui porte le tap
         var dict: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "Verbe — son de la réunion",
+            kAudioAggregateDeviceNameKey: "Voxile — son de la réunion",
             kAudioAggregateDeviceUIDKey: "com.hugues.dictee.reunion.\(UUID().uuidString)",
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceIsStackedKey: false,

@@ -80,7 +80,7 @@ extension IlotEssai {
         m.claude = nil; m.sessionsClaude = []; m.claudeAuTravail = 0; m.claudeBranche = false; m.donneesChangees(); pause(0.6)
 
         // --- le menu de Verbe (barre des menus) : couper / rouvrir le micro, le chemin quand l'îlot n'a pas d'encoche où s'ouvrir
-        verifier(c.titreMenuMicro == "Couper le micro", "menu de Verbe, micro ouvert : « Couper le micro »")
+        verifier(c.titreMenuMicro == "Couper le micro", "menu de Voxile, micro ouvert : « Couper le micro »")
         c.couperOuRouvrirLeMicro(depuis: "l'essai"); pause(0.5)
         verifier(faux.coupe && m.microCoupe && c.titreMenuMicro == "Rouvrir le micro", "l'entrée du menu coupe le micro ; elle dit ensuite « Rouvrir le micro »")
         c.couperOuRouvrirLeMicro(depuis: "l'essai"); pause(0.5)

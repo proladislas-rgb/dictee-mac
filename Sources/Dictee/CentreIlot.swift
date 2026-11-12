@@ -786,7 +786,7 @@ struct CaseReunion: View {
         }
         .buttonStyle(AppuiIlot(echelle: 0.97))
         .onHover { survol = $0 }
-        .accessibilityLabel(r == nil ? "Noter la réunion : Verbe écrit tout ce qui se dit" : "Réunion en cours : voir le direct")
+        .accessibilityLabel(r == nil ? "Noter la réunion : Voxile écrit tout ce qui se dit" : "Réunion en cours : voir le direct")
     }
 }
 

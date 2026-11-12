@@ -238,7 +238,7 @@ extension IlotEssai {
         // --- « En grand » : l'onglet Bibliothèque de la fenêtre, l'îlot se range
         poseeSurLaCible(); attendre(1.0) { m.boucleActive }
         clic(PlanBibliotheque.pointLienPied("En grand", symbole: true, m.grille), 0.6)
-        verifier(fenetres().last == .bibliotheque && m.courante != .bibliotheque, "vrai clic sur « En grand » : la fenêtre de Verbe sur l'onglet Bibliothèque, l'îlot se range (\(fenetres().last.map(\.rawValue) ?? "rien"), \(m.courante))")
+        verifier(fenetres().last == .bibliotheque && m.courante != .bibliotheque, "vrai clic sur « En grand » : la fenêtre de Voxile sur l'onglet Bibliothèque, l'îlot se range (\(fenetres().last.map(\.rawValue) ?? "rien"), \(m.courante))")
         refermer()
 
         // --- l'étagère vide, la bibliothèque pleine : la case du Centre ouvre quand même la carte (et sa ligne)

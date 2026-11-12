@@ -260,7 +260,7 @@ struct TitreEtagereCentre: View {
 struct BandeReunion: View {
     @ObservedObject var m: IlotMoteur
     @State private var survol = false
-    static let titre = "Noter la réunion", sousTitre = "Verbe écrit tout ce qui se dit"
+    static let titre = "Noter la réunion", sousTitre = "Voxile écrit tout ce qui se dit"
     static let titreEnCours = "Réunion en cours", suiteEnCours = " \u{00B7} voir le direct"
     /// Le point (16), 10, le titre, au moins 12, le sous-titre ; 14 et 16 de marge (la plus longue des deux formes).
     static var largeurUtile: CGFloat {
@@ -308,7 +308,7 @@ struct BandeReunion: View {
         .overlay(alignment: .topLeading) {
             if ed { BadgeRetirer(nom: "Noter la réunion") { m.retirerDuCentre(.reunion) }.offset(x: -6, y: -6) }
         }
-        .accessibilityLabel(r != nil ? "Réunion en cours : voir le direct" : "Noter la réunion : Verbe écrit tout ce qui se dit")
+        .accessibilityLabel(r != nil ? "Réunion en cours : voir le direct" : "Noter la réunion : Voxile écrit tout ce qui se dit")
     }
 }
 

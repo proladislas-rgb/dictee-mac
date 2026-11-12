@@ -60,7 +60,7 @@ struct ClientMiseAJour {
 
     private func requete(_ url: URL, accept: String) -> URLRequest {
         var r = URLRequest(url: url)
-        r.setValue("Verbe-\(versionActuelle)", forHTTPHeaderField: "User-Agent")
+        r.setValue("Voxile-\(versionActuelle)", forHTTPHeaderField: "User-Agent")
         r.setValue(accept, forHTTPHeaderField: "Accept")
         r.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
         return r
@@ -126,7 +126,7 @@ struct ClientMiseAJour {
         }
         guard FileManager.default.createFile(atPath: destination.path, contents: nil, attributes: [.posixPermissions: 0o600]),
               let sortie = try? FileHandle(forWritingTo: destination) else {
-            throw ErreurMiseAJour(message: "Verbe n\u{2019}a pas pu écrire le fichier téléchargé.", detail: "création de \(destination.path)")
+            throw ErreurMiseAJour(message: "Voxile n\u{2019}a pas pu écrire le fichier téléchargé.", detail: "création de \(destination.path)")
         }
         defer { try? sortie.close() }
         var calcul = EmpreinteSHA256.Calcul()

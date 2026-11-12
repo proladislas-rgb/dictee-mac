@@ -12,7 +12,7 @@ struct ReunionsPageVue: View {
         let n = store.reunions.filter { $0.etat == .prete }.count
         VStack(alignment: .leading, spacing: 0) {
             EntetePage(petit: n == 0 ? "Toutes gardées sur ce Mac" : "\(n) note\(n > 1 ? "s" : ""), toutes sur ce Mac", titre: "Réunions") {
-                PhraseEntete(texte: "Un clic sur «\u{202F}Noter la réunion\u{202F}» dans l\u{2019}encoche\u{202F}: Verbe écrit la note pour toi.")
+                PhraseEntete(texte: "Un clic sur «\u{202F}Noter la réunion\u{202F}» dans l\u{2019}encoche\u{202F}: Voxile écrit la note pour toi.")
             }
             ReunionsVue(m: m, store: store, controleur: controleur)
         }

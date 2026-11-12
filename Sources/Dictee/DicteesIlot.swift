@@ -529,7 +529,7 @@ struct PiedDictees: View {
                 ForEach(Array(PlanDictees.liens.enumerated()), id: \.element) { i, o in
                     if i > 0 { Text("\u{00B7}").font(.system(size: 12)).foregroundStyle(Color.white.opacity(0.25)).accessibilityHidden(true) }
                     LienDictees(titre: o.rawValue) { m.surAction(.ouvrirFenetre(o)) }
-                        .accessibilityLabel("Ouvrir la fenêtre de Verbe : \(o.rawValue)")
+                        .accessibilityLabel("Ouvrir la fenêtre de Voxile : \(o.rawValue)")
                 }
                 Spacer(minLength: 12)
                 Text(PlanDictees.noteLiens).font(.system(size: 11.5, weight: .medium)).foregroundStyle(Color.white.opacity(0.32)).lineLimit(1).fixedSize()

@@ -139,7 +139,7 @@ extension IlotEssai {
         m.clicForme(); pause(0.8); m.allerA(.outils); pause(0.8)
         verifier(m.panneauEveil || m.panneauEveilVisible, "rouverte, la page montre le panneau (jusqu'à quand, « Éteindre »)")
         // l'îlot replié n'en montre rien (maquette) : le menu de Verbe le dit et l'éteint ; sur batterie, à 10 %, la veille redevient normale
-        verifier(c.titreMenuEveil?.hasPrefix("Rendre la veille au Mac (gardé éveillé : encore ") == true, "le menu de Verbe : « \(c.titreMenuEveil ?? "-") »")
+        verifier(c.titreMenuEveil?.hasPrefix("Rendre la veille au Mac (gardé éveillé : encore ") == true, "le menu de Voxile : « \(c.titreMenuEveil ?? "-") »")
         c.eveilSelonEnergie(EnergieIlot(pourcent: 35, secteur: false, enCharge: false))
         c.eveilSelonEnergie(EnergieIlot(pourcent: 6, secteur: true, enCharge: true))
         verifier(eveil.actif && m.eveil != nil, "batterie à 35 %, ou branché à 6 % : toujours gardé éveillé")
@@ -191,7 +191,7 @@ extension IlotEssai {
         verifier(pp.ecrits.count == ecrits0 + 1 && m.copieFaite?.id == id2 && m.copieFaite?.mot == "Copié" && m.courante == .outilPressePapiers,
                  "vrai clic sur « \(t2) » : recopiée, « Copié », la carte reste ouverte")
         c.verifierPressePapiers(); pause(0.2)
-        verifier(m.copies[1].id == id2 && m.copies.count == 5, "c'est Verbe qui a écrit : pas une nouvelle copie, la ligne garde sa place")
+        verifier(m.copies[1].id == id2 && m.copies.count == 5, "c'est Voxile qui a écrit : pas une nouvelle copie, la ligne garde sa place")
         pause(1.3)
         verifier(m.copieFaite == nil, "« Copié » s'efface (un seul réveil)")
         // « Coller » au survol : un vrai déplacement de la souris sur la 3e ligne, puis un vrai clic sur « Coller »
@@ -237,7 +237,7 @@ extension IlotEssai {
                  "vrai clic sur Reformuler : la dernière dictée (« \(m.reformulation.etiquette) »)")
         pose("carte Reformuler")
         clic(PlanReformuler.pointStyle(.pro, m), 0.1)
-        verifier(m.reformulation.phase == .calcul && m.reformulation.style == .pro, "vrai clic sur « Plus pro » : « Verbe réécrit… »")
+        verifier(m.reformulation.phase == .calcul && m.reformulation.style == .pro, "vrai clic sur « Plus pro » : « Voxile réécrit… »")
         attendre(2) { m.reformulation.phase == .calcul }; pause(0.7)
         verifier(demandes.count == 1 && demandes[0].0 == dictee && demandes[0].1 == .pro, "une seule demande au service de texte (simulé, aucun réseau), avec la dictée et « Plus pro »")
         verifier(m.reformulation.resultat?.hasPrefix("Bonjour, je vous confirme") == true && m.reformulation.resultat?.hasSuffix("Cordialement.") == true,
@@ -464,7 +464,7 @@ extension IlotEssai {
         // --- Verbe se ferme : le Mac n'est plus gardé éveillé
         verifier(eveil.actif, "avant la fermeture : toujours gardé éveillé")
         c.arreterLesOutils()
-        verifier(!eveil.actif && m.eveil == nil, "fermeture de Verbe : rendu")
+        verifier(!eveil.actif && m.eveil == nil, "fermeture de Voxile : rendu")
     }
 
     /// Groq (12/11) : la jauge de la page Outils (vrai clic : le détail), les annonces (sous 15 %, limite atteinte : une fois chacune), la

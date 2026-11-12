@@ -150,7 +150,7 @@ extension IlotControleur {
         moteur.reveil = nil
         echeanceReveil?.cancel(); echeanceReveil = nil
         if r.perime(a: t) {
-            Log.ecrire("réveil : \(r.libelle()) passé depuis plus de 2 h (Mac endormi ou Verbe fermé), oublié")
+            Log.ecrire("réveil : \(r.libelle()) passé depuis plus de 2 h (Mac endormi ou Voxile fermé), oublié")
             moteur.donneesChangees()
             return
         }
@@ -165,7 +165,7 @@ extension IlotControleur {
     /// Rallume l'écran (une activité déclarée, comme un geste de l'utilisateur) : aucun droit particulier. Le Mac, lui, doit être éveillé.
     static func declarerActivite() {
         var id: IOPMAssertionID = 0
-        let r = IOPMAssertionDeclareUserActivity("Verbe : réveil" as CFString, kIOPMUserActiveLocal, &id)
+        let r = IOPMAssertionDeclareUserActivity("Voxile : réveil" as CFString, kIOPMUserActiveLocal, &id)
         if r != kIOReturnSuccess { Log.ecrire("réveil : écran non rallumé (\(r))") }
     }
 }

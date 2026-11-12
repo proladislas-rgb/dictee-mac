@@ -167,6 +167,6 @@ public enum MicroIlot {
     /// « Verbe dicte avec le micro du Mac ».
     public static func autreMicro(coupe: String?, dictee: String?) -> (titre: String, sousTitre: String) {
         let c = designation(nom: coupe)
-        return (c.prefix(1).uppercased() + c.dropFirst() + " est coupé", "Verbe dicte avec " + designation(nom: dictee))
+        return (c.prefix(1).uppercased() + c.dropFirst() + " est coupé", "Voxile dicte avec " + designation(nom: dictee))
     }
 }

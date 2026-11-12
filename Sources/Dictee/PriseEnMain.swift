@@ -179,7 +179,7 @@ struct PriseEnMainVue: View {
         VStack(spacing: 0) {
             Image(nsImage: IconeApp.image256).resizable().frame(width: 96, height: 96).shadow(color: .black.opacity(0.15), radius: 8, y: 4)
             Text("Bonjour").font(.system(size: 30, weight: .bold)).tracking(-0.6).foregroundStyle(TonsBureau.encre).padding(.top, 12)
-            Text("Verbe vit dans l\u{2019}encoche de ton Mac.\nTiens fn, parle\u{202F}: le texte s\u{2019}écrit là où tu es.")
+            Text("Voxile vit dans l\u{2019}encoche de ton Mac.\nTiens fn, parle\u{202F}: le texte s\u{2019}écrit là où tu es.")
                 .font(.system(size: 14.5)).lineSpacing(3).multilineTextAlignment(.center).foregroundStyle(TonsBureau.encre2).padding(.top, 8)
             Button { m.suivant() } label: {
                 Text("Commencer").font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
@@ -243,12 +243,12 @@ struct PriseEnMainVue: View {
         case .bonjour: return ""
         case .touche:
             if !m.surveillanceOK { return "Tiens fn, parle, relâche\u{202F}: le texte s\u{2019}écrit au curseur. Pour reconnaître fn, macOS demande «\u{202F}Surveillance de l\u{2019}entrée\u{202F}»." }
-            if m.globeAReglerEncore { return "\(ToucheGlobe.phrase(valeur: m.globeValeur)). Pour la laisser à Verbe, choisis «\u{202F}\(ToucheGlobe.consigne)\u{202F}» dans le volet Clavier." }
+            if m.globeAReglerEncore { return "\(ToucheGlobe.phrase(valeur: m.globeValeur)). Pour la laisser à Voxile, choisis «\u{202F}\(ToucheGlobe.consigne)\u{202F}» dans le volet Clavier." }
             return "Tiens fn, parle, relâche\u{202F}: le texte s\u{2019}écrit au curseur. Deux appuis rapides lancent le mode mains libres."
         case .micro:
             return m.microRefuse ? "Le micro est refusé\u{202F}: à rouvrir dans Réglages Système, Confidentialité et sécurité, Micro."
                                  : "Pour t\u{2019}entendre quand tu dictes. Il n\u{2019}écoute que pendant que tu tiens fn, jamais le reste du temps."
-        case .ecrire: return "macOS appelle ça «\u{202F}Accessibilité\u{202F}». Verbe s\u{2019}en sert pour poser le texte là où est ton curseur, dans n\u{2019}importe quelle app."
+        case .ecrire: return "macOS appelle ça «\u{202F}Accessibilité\u{202F}». Voxile s\u{2019}en sert pour poser le texte là où est ton curseur, dans n\u{2019}importe quelle app."
         case .cle: return "Groq écrit ta voix en moins d\u{2019}une seconde. Colle ta clé\u{202F}: elle est rangée dans le Trousseau du Mac."
         case .essai: return "Clique dans le champ, tiens fn, dis une phrase, relâche."
         }
@@ -272,7 +272,7 @@ struct PriseEnMainVue: View {
             if m.microOK { PastilleFaite(texte: "Le micro est prêt") }
             else { BoutonCapsule(titre: m.microRefuse ? "Ouvrir les Réglages" : "Autoriser le micro", hauteur: 32) { m.demander(.micro) } }
         case .ecrire:
-            if m.accessibiliteOK { PastilleFaite(texte: "Verbe peut écrire") }
+            if m.accessibiliteOK { PastilleFaite(texte: "Voxile peut écrire") }
             else { BoutonCapsule(titre: "Autoriser", hauteur: 32) { m.demander(.accessibilite) } }
         case .cle:
             if m.fait(.cle) { PastilleFaite(texte: "Clé enregistrée") } else { champCle }

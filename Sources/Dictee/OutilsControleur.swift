@@ -152,7 +152,7 @@ extension IlotControleur {
     func arreterLesOutils() {
         if let o = observateurApps { NSWorkspace.shared.notificationCenter.removeObserver(o) }
         observateurApps = nil
-        arreterEveil(journal: "arrêt de Verbe")
+        arreterEveil(journal: "arrêt de Voxile")
         historiqueCopies.vider(); contenusCopies = [:]
     }
 
@@ -190,7 +190,7 @@ extension IlotControleur {
 
     func garderEveille(_ d: DureeEveil) {
         let t = maintenant()
-        guard eveilPilote.actif || eveilPilote.garder(raison: "Verbe : garder le Mac éveillé (\(d.titre))") else {
+        guard eveilPilote.actif || eveilPilote.garder(raison: "Voxile : garder le Mac éveillé (\(d.titre))") else {
             moteur.eveil = nil; moteur.donneesChangees(); return
         }
         let e = EveilIlot(duree: d, depuis: t)

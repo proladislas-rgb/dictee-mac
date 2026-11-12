@@ -394,7 +394,7 @@ public enum Journee {
 
         if weekend { return PhraseJournee(texte: "Week-end : \(dictes).\(suite)", cas: .weekend) }
         guard let m = moyenne else {
-            return PhraseJournee(texte: "Première journée avec Verbe : \(dictes).\(suite) Les comparaisons arriveront avec les jours suivants.", cas: .premierJour)
+            return PhraseJournee(texte: "Première journée avec Voxile : \(dictes).\(suite) Les comparaisons arriveront avec les jours suivants.", cas: .premierJour)
         }
         guard m.jours >= joursMinimumPourComparer, m.mots > 0 else {
             return PhraseJournee(texte: "\(dictes).\(suite)", cas: .peuDeRecul)

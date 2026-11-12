@@ -322,7 +322,7 @@ struct CartePressePapiers: View {
                             .padding(.vertical, 6).contentShape(Rectangle())
                     }
                     .buttonStyle(AppuiIlot(echelle: 0.95))
-                    .accessibilityLabel("Tout effacer : oublier les copies gardées par Verbe")
+                    .accessibilityLabel("Tout effacer : oublier les copies gardées par Voxile")
                 }
             }
             .foregroundStyle(Color.white.opacity(0.4))
@@ -598,7 +598,7 @@ struct CarteReformuler: View {
             case .calcul:
                 HStack(spacing: 8) {
                     TroisPoints(anime: !(m.reduire || m.statique))
-                    Text("Verbe réécrit\u{2026}").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.white.opacity(0.6))
+                    Text("Voxile réécrit\u{2026}").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.white.opacity(0.6))
                 }
                 .padding(.horizontal, 12).frame(maxHeight: .infinity)
                 .allowsHitTesting(false)
@@ -921,7 +921,7 @@ struct LigneNote: View {
                     Text("Notes refuse").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color(hex: 0xFFB340))
                         .padding(.horizontal, 9).frame(height: 24).background(Capsule().fill(CouleursIlot.ambre.opacity(0.18)))
                         .allowsHitTesting(false)
-                        .accessibilityLabel("L\u{2019}app Notes a refusé : autorise Verbe dans Réglages Système, Confidentialité, Automatisation")
+                        .accessibilityLabel("L\u{2019}app Notes a refusé : autorise Voxile dans Réglages Système, Confidentialité, Automatisation")
                 } else if envoi == .echec {
                     // Notes n'a pas répondu (trop lent, fermé…) sans refuser : on peut réessayer
                     PiluleOutil(titre: "Réessayer", icone: "arrow.clockwise", hauteur: 24, taille: 12, padding: 10, etiquette: "Notes n\u{2019}a pas répondu : réessayer") {

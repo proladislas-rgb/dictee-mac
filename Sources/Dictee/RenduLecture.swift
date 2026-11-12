@@ -358,7 +358,7 @@ enum RenduLecture {
         let sc = claude(faites: 1, total: 3, projet: "second-cerveau", noms: ["Lire LIS-MOI.md", "Ranger les fiches projets", "Mettre à jour OU-J-EN-SUIS"],
                         titre: "Second cerveau", depuis: 12 * 60, id: "sc")
         let scAttend = claude(.attend, faites: 1, total: 3, projet: "second-cerveau", noms: ["Lire LIS-MOI.md", "Ranger les fiches projets", "Mettre à jour OU-J-EN-SUIS"],
-                              titre: "Second cerveau", question: "Je range la fiche Verbe dans projets/ ou dans docs/ ?", depuis: 12 * 60, id: "sc")
+                              titre: "Second cerveau", question: "Je range la fiche Voxile dans projets/ ou dans docs/ ?", depuis: 12 * 60, id: "sc")
         func sessions(_ l: [SessionClaude]) -> (IlotMoteur) -> Void {
             { m in m.sessionsClaude = l; m.claude = l.first { $0.etat != .termine }; m.claudeAuTravail = l.filter { $0.etat != .termine }.count; m.claudeBranche = true }
         }
