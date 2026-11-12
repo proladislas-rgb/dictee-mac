@@ -155,7 +155,8 @@ extension IlotMoteur {
     /// elle le commencera en le recevant, dans le même événement. Un appui sur une vue AppKit de l'îlot (la miniature d'une capture) ne
     /// passe pas par la vue d'hébergement : rien ne commence, la marque est oubliée à la fin de l'événement.
     func formeAppuyee() {
-        guard lucarne.geste.phase == .repos else { return }
+        // `.annulee` : l'appui d'avant n'a jamais reçu son relâchement (un glisser de fichier l'a gardé) ; le nouveau le remplace
+        guard lucarne.geste.phase == .repos || lucarne.geste.phase == .annulee else { return }
         if lucarne.bouton != nil { commencerAppui(); return }
         lucarne.surForme = true
         DispatchQueue.main.async { [weak self] in MainActor.assumeIsolated { self?.lucarne.surForme = false } }
@@ -164,6 +165,8 @@ extension IlotMoteur {
     /// L'appui est sur la forme : l'anneau se remplit sous le pointeur, l'îlot gonfle un peu, un seul réveil à 0,4 s.
     func commencerAppui() {
         guard let b = lucarne.bouton else { return }
+        // le bouton ne sert qu'une fois : un appui resté en plan ne relance jamais un geste avec son vieux point
+        lucarne.bouton = nil
         lucarne.geste.appuyer(b.p, t: b.t)
         appuyer(true)
         let echeance = b.t + GeoLucarne.dureeAppui
@@ -283,6 +286,7 @@ extension IlotMoteur {
             MainActor.assumeIsolated {
                 guard let self, self.lucarne.geste.phase == .decollee else { return }
                 if self.boutonEnfonce() { self.surveillerTenue(); return }
+                self.lucarne.bouton = nil; self.lucarne.dernier = nil
                 self.traiter(self.lucarne.geste.relacher(self.lucarne.geste.pointeur, t: ProcessInfo.processInfo.systemUptime))
             }
         }

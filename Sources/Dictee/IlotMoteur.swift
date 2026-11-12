@@ -996,6 +996,7 @@ final class IlotMoteur: ObservableObject {
     private var suiviSortant: DispatchWorkItem?
     func glisserSortantCommence() {
         glisserSortant = true
+        interrompreLucarne()   // AppKit garde le relâchement pour la session de glisser : l'appui de la Lucarne s'oublie
         intention?.cancel(); fermeture?.cancel()
         surveillerSortant()
     }

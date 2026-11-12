@@ -369,6 +369,13 @@ func controlesPlacesLucarne() {
         verifier(plac.fini && plac.valeur == arrivee, "placer : saute sur la forme")
     }
 
+    groupe("Lucarne : réduire les animations pendant la tenue")
+    do {
+        var r = RessortsCapsule(.pilule(cx: 400, cy: 300, largeur: 120, hauteur: 36))
+        r.viser(G.replie(.encoche, macBook), passage: .tenueEncoche, reduire: true)
+        verifier(r.cx.x == 400 && r.cy.x == 300 && r.hh.x == macBook.barre / 2 && r.fini, "réduire : la forme tenue saute, le centre reste au doigt")
+    }
+
     groupe("Lucarne : le geste (appui long, glisser, lancer)")
     do {
         let o = PointLucarne(100, 200)

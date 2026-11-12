@@ -414,8 +414,9 @@ public struct RessortsCapsule: Equatable, Sendable {
     /// « Réduire les animations » : tout saute à sa place.
     public mutating func viser(_ c: CapsuleLucarne, passage: PassageLucarne, vitesse: PointLucarne? = nil, reduire: Bool = false) {
         if reduire {
-            Self.poser(&cx, c.centreX); Self.poser(&cy, c.centreY); Self.poser(&hw, c.largeur / 2); Self.poser(&hh, c.hauteur / 2)
-            Self.poser(&s, c.s); Self.poser(&r, c.r)
+            // seulement les axes que le passage vise : tenue, le centre reste au doigt
+            func p(_ r: inout RessortIlot, _ v: Double, _ a: PassageLucarne.Axe) { if passage.reglage(a) != nil { Self.poser(&r, v) } }
+            p(&cx, c.centreX, .cx); p(&cy, c.centreY, .cy); p(&hw, c.largeur / 2, .hw); p(&hh, c.hauteur / 2, .hh); p(&s, c.s, .s); p(&r, c.r, .r)
             if let n = passage.noir { Self.poser(&noir, n.cible) }
             return
         }
