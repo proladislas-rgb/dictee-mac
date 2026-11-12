@@ -261,12 +261,19 @@ struct IlotCalques: View {
         let z = g.zoneAnnonce(v, haut: v.estAlerte ? 20 : 16, bas: v.estAlerte ? 20 : 16)
         return HStack(spacing: ContenuAnnonce.espace) {
             Group {
-                if !c.icones.isEmpty { IconesFichiers(icones: c.icones, cote: c.coteSymbole) }
+                if c.largeurSymbole != nil, let i = c.icones.first {
+                    // la miniature d'une capture : à ses proportions, coins arrondis, un filet clair (elle remplit sa place)
+                    Image(nsImage: i).resizable().interpolation(.high).aspectRatio(contentMode: .fill)
+                        .frame(width: c.largeurIcone, height: MiniatureCapture.taille(largeur: i.size.width, hauteur: i.size.height).height)
+                        .clipShape(RoundedRectangle(cornerRadius: MiniatureCapture.rayon, style: .continuous))
+                        .overlay { RoundedRectangle(cornerRadius: MiniatureCapture.rayon, style: .continuous).strokeBorder(Color.white.opacity(0.25), lineWidth: 1) }
+                        .accessibilityHidden(true)
+                } else if !c.icones.isEmpty { IconesFichiers(icones: c.icones, cote: c.coteSymbole) }
                 else if c.etoile { EtoileClaude(couleur: CouleursIlot.corail).frame(width: 21, height: 21) }
                 else if c.reveil { ClocheSecouee(taille: 23, sonnerie: m.reduire || m.statique ? nil : m.sonnerieReveil, symbole: "alarm", couleur: CouleursIlot.ambre) }
                 else if let glyphe = c.glyphe { glyphe } else { Color.clear }
             }
-            .frame(width: c.coteSymbole, height: c.coteSymbole)
+            .frame(width: c.largeurIcone, height: c.coteSymbole)
             .scaleEffect(c.source != nil && m.miniatureSurvolee ? 1.15 : 1)
             .animation(m.reduire ? nil : .spring(response: 0.25, dampingFraction: 0.75), value: m.miniatureSurvolee)
             .glisserFichier(c.glisser, m)

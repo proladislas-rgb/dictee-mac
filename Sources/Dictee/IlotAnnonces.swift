@@ -37,6 +37,9 @@ struct ContenuAnnonce {
     /// À la place du symbole : des icônes du Finder (le fichier arrivé ; deux en pile pour une rafale), sur `coteSymbole` pt.
     var icones: [NSImage] = []
     var coteSymbole: CGFloat = ContenuAnnonce.cote
+    /// La largeur de la place du symbole quand elle n'est pas carrée (la miniature d'une capture d'écran, à ses proportions) ; nil : carrée.
+    var largeurSymbole: CGFloat? = nil
+    var largeurIcone: CGFloat { largeurSymbole ?? coteSymbole }
     /// Un nom de fichier se coupe au milieu (« Rapport-annuel…-v3.pdf » : on garde l'extension).
     var coupureL1: Text.TruncationMode = .tail
     /// Le fichier qu'on peut glisser hors du bandeau (icône et nom).
@@ -207,8 +210,10 @@ extension IlotMoteur {
             let nom = b.capture?.lastPathComponent
             var f = etagere.last { $0.nom == nom }
             if let v = b.vignette { f?.icone = v }
+            // la miniature à ses proportions (une capture est large : 16:10), pas tassée dans un carré
             return ContenuAnnonce(glyphe: GlypheIlot(nom: "camera.viewfinder", couleur: .white, taille: 21), l1: b.ligne1, l2: b.ligne2,
-                                  icones: b.vignette.map { [$0] } ?? [], coteSymbole: ContenuAnnonce.coteIcone, source: f)
+                                  icones: b.vignette.map { [$0] } ?? [], coteSymbole: ContenuAnnonce.coteIcone,
+                                  largeurSymbole: b.vignette.map { MiniatureCapture.taille(largeur: $0.size.width, hauteur: $0.size.height).width }, source: f)
         case .claudeAttend:
             // « second-cerveau attend ta réponse », et les premiers mots de sa question (le message de la notification de Claude Code)
             let s = b?.claude
@@ -333,7 +338,7 @@ extension IlotMoteur {
         // le rendez-vous qui commence : la ligne du haut, ou les deux boutons de même largeur dessous (le plus large des deux)
         if v == .agendaDebut, let e = rdvVu {
             let bs = ContenuAgenda.boutonsDebut(e)
-            let haut = c.coteSymbole + ContenuAnnonce.espace + max(MesureIlot.texte(c.l1, 17, .semibold, interlettre: ContenuAnnonce.interlettreL1), MesureIlot.texte(c.l2, 12.5, .medium))
+            let haut = c.largeurIcone + ContenuAnnonce.espace + max(MesureIlot.texte(c.l1, 17, .semibold, interlettre: ContenuAnnonce.interlettreL1), MesureIlot.texte(c.l2, 12.5, .medium))
                 + ContenuAnnonce.espace + MesureIlot.texte(FormatIlot.heure(e.debut), 13, .semibold, chiffres: true)
             return max(haut, MesureIlot.boutons(bs, memeLargeur: true))
         }
@@ -341,7 +346,7 @@ extension IlotMoteur {
         let l2 = v == .reunionPrepare ? PreparationNote.etapes.max { MesureIlot.texte($0, 12.5, .medium) < MesureIlot.texte($1, 12.5, .medium) } ?? c.l2 : c.l2
         let textes = max(MesureIlot.texte(c.l1, 17, .semibold, interlettre: ContenuAnnonce.interlettreL1), MesureIlot.texte(l2, 12.5, .medium))
         // sans symbole, « Note en préparation… » commence au bord (le pourcentage est sur la ligne du titre)
-        var l = c.progres == nil ? c.coteSymbole + ContenuAnnonce.espace + textes : textes
+        var l = c.progres == nil ? c.largeurIcone + ContenuAnnonce.espace + textes : textes
         switch c.droite {
         case .rien: break
         case .meta(let t): l += ContenuAnnonce.espace + MesureIlot.texte(v == .reunionPrepare ? PreparationNote.pourcent(1) : t, 13, .semibold, chiffres: true)

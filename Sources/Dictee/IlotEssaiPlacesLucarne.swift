@@ -307,7 +307,15 @@ enum CatalogueLucarne {
                 var r = ReunionIlot(); r.depuis = t0.addingTimeInterval(-754); m.reunion = r; m.donneesChangees(); m.clicForme()
             },
             Ecran(nom: "annonce capture", vue: .etagereCapture) { m in
-                m.annoncer(bandeau: BandeauIlot(vue: .etagereCapture, jusqua: t0.addingTimeInterval(60), ligne1: "Capture d\u{2019}écran", ligne2: RafaleCaptures.sousTitre))
+                // une fausse capture 16:10 (dessinée, aucun fichier) : sa miniature à ses proportions, comme une vraie
+                let t = MiniatureCapture.taille(largeur: 1600, hauteur: 1000)
+                let vignette = NSImage(size: t, flipped: false) { r in
+                    NSGradient(starting: NSColor(calibratedRed: 0.20, green: 0.36, blue: 0.62, alpha: 1), ending: NSColor(calibratedRed: 0.55, green: 0.32, blue: 0.58, alpha: 1))?.draw(in: r, angle: -35)
+                    NSColor.white.setFill(); NSBezierPath(roundedRect: r.insetBy(dx: r.width * 0.15, dy: r.height * 0.17), xRadius: 2, yRadius: 2).fill()
+                    return true
+                }
+                m.annoncer(bandeau: BandeauIlot(vue: .etagereCapture, jusqua: t0.addingTimeInterval(60), ligne1: "Capture d\u{2019}écran", ligne2: RafaleCaptures.sousTitre,
+                                                vignette: vignette))
             },
             Ecran(nom: "annonce rappel (Rappels d'Apple ?)", vue: .lucarne) { m in
                 m.annoncer(bandeau: BandeauIlot(vue: .lucarne, jusqua: t0.addingTimeInterval(60), ligne1: "", ligne2: "", lucarne: .questionRappelsApple))

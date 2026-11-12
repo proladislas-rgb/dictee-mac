@@ -385,23 +385,16 @@ extension IlotControleur {
                                              ligne2: RafaleCaptures.sousTitre, vignette: Self.vignetteCapture(url), capture: url))
     }
 
-    /// La miniature d'une capture (lue à 96 px, coins arrondis, un filet clair) ; illisible : l'icône du Finder.
+    /// La miniature d'une capture : à ses proportions dans la place de l'annonce (`MiniatureCapture`), lue assez grande pour un écran
+    /// Retina (3 × sa largeur en pixels) ; illisible : l'icône du Finder. Les coins et le filet sont dessinés par la vue.
     nonisolated static func vignetteCapture(_ url: URL) -> NSImage {
-        let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceThumbnailMaxPixelSize: 96,
+        let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceThumbnailMaxPixelSize: Int(3 * MiniatureCapture.largeurMax),
                                         kCGImageSourceCreateThumbnailWithTransform: true]
         guard let s = CGImageSourceCreateWithURL(url as CFURL, nil), let cg = CGImageSourceCreateThumbnailAtIndex(s, 0, options as CFDictionary) else {
             return NSWorkspace.shared.icon(forFile: url.path)
         }
-        let echelle = ContenuAnnonce.coteIcone / CGFloat(max(cg.width, cg.height))
-        let taille = NSSize(width: CGFloat(cg.width) * echelle, height: CGFloat(cg.height) * echelle)
-        return NSImage(size: taille, flipped: false) { r in
-            let chemin = NSBezierPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), xRadius: 5, yRadius: 5)
-            NSGraphicsContext.saveGraphicsState(); chemin.addClip()
-            NSImage(cgImage: cg, size: taille).draw(in: r)
-            NSGraphicsContext.restoreGraphicsState()
-            NSColor.white.withAlphaComponent(0.25).setStroke(); chemin.lineWidth = 1; chemin.stroke()
-            return true
-        }
+        let t = MiniatureCapture.taille(largeur: CGFloat(cg.width), hauteur: CGFloat(cg.height))
+        return NSImage(cgImage: cg, size: t)
     }
     /// macOS a refusé l'accès au dossier des captures : l'interrupteur revient sur éteint, la carte dit où le rendre.
     func capturesRefusees() {
@@ -1072,5 +1065,19 @@ struct RangeeEtagere: View {
         .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(depot ? CouleursIlot.bleu.opacity(0.22) : Color.white.opacity(0.08)))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.white.opacity(depot ? 0.85 : 0), lineWidth: 1.5))
         .animation(m.reduire || m.statique ? nil : .easeOut(duration: 0.2), value: depot)
+    }
+}
+
+/// La place de la miniature d'une capture dans l'annonce « Capture d'écran · Sur l'étagère » (Hugues 12/11 : « minuscule et mal
+/// cadrée » quand elle tenait dans un carré de 38 pt, soit 38 × 24 pour une capture 16:10) : la hauteur des deux lignes de texte (38 pt),
+/// la largeur selon ses proportions, au plus 64 pt (une capture très large garde ses proportions en perdant de la hauteur), au moins 26 pt
+/// (une capture très haute).
+enum MiniatureCapture {
+    static let hauteur: CGFloat = 38, largeurMax: CGFloat = 64, largeurMin: CGFloat = 26, rayon: CGFloat = 6
+    static func taille(largeur l: CGFloat, hauteur h: CGFloat) -> CGSize {
+        guard l > 0, h > 0 else { return CGSize(width: hauteur, height: hauteur) }
+        let r = l / h
+        let largeur = min(largeurMax, max(largeurMin, (hauteur * r).rounded()))
+        return CGSize(width: largeur, height: min(hauteur, (largeur / r).rounded()))
     }
 }
