@@ -174,7 +174,7 @@ func controlesGroq() {
                  "déjà rangée : Groq ajouté une fois, à la fin des ronds (\(rangee.disposition.identifiants))")
         let retiree = DispositionCentre.relire(identifiants: ["notes", "eveil"], dejaProposees: ["groq"], page: .outils)
         verifier(retiree.disposition.identifiants == ["notes", "eveil"] && retiree.aRetenir == nil, "déjà proposé puis retiré par Hugues : on ne le remet pas")
-        let centre = DispositionCentre.relire(identifiants: ["micro"], dejaProposees: ["calendrier"], page: .centre)
+        let centre = DispositionCentre.relire(identifiants: ["micro"], dejaProposees: ["calendrier", "concentration"], page: .centre)
         verifier(centre.disposition.identifiants == ["micro"] && centre.aRetenir == nil, "le Centre n'est pas touché par Groq")
         let outilsSansCalendrier = DispositionCentre.relire(identifiants: ["notes"], dejaProposees: ["groq"], page: .outils)
         verifier(outilsSansCalendrier.aRetenir == nil && !outilsSansCalendrier.disposition.elements.contains(.calendrier), "les Outils ne reçoivent pas le calendrier")
