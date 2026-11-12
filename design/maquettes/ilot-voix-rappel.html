@@ -1,0 +1,1191 @@
+<!doctype html>
+<!--
+Voxile — « Voix et rappel » : pendant qu'on dicte une note ou un rappel, une onde de voix vivante dans l'îlot ;
+à la fin, une carte qui résume ce que Voxile a compris et propose de l'envoyer directement dans Rappels ou dans Notes.
+1. Pendant la dictée : des barres rondes (façon Apple) qui suivent la voix, du milieu vers les bords. Dès que la commande
+   est reconnue (« rappelle-moi… », « note… »), l'îlot grandit d'une ligne et un libellé arrive : « Rappel… » (orange) ou « Note… » (jaune).
+2. Fin d'un rappel : case ronde cochée, titre, date et heure, une ligne de résumé, « Envoyer dans Rappels » (puis « ✓ Dans Rappels »), « Modifier ».
+   Même rendu que la carte « Livraison » de la vidéo promo.
+3. Fin d'une note : titre, résumé sur deux lignes, « Envoyer dans Notes » (puis « ✓ Dans Notes »), « Copier ».
+4. Le même parcours dans Lucarne détachée, en verre « Liquide » : depuis le coin haut droit (la carte s'ouvre vers le bas et la gauche)
+   puis depuis le coin bas droit, à côté du Dock (la carte monte au-dessus du Dock).
+Règle de la maquette : aucune transition ne superpose deux contenus ; l'ancien s'efface, puis le nouveau apparaît.
+Base : ilot-concentration.html (forme `chemin`/`cote`, ressorts, faux écran, régie, verre « Liquide ») et lucarne-position.html (Dock, places, coin bas).
+Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt. Exemples génériques.
+Paramètres d'URL : ?etape=N (pose la fin de l'étape N, tout figé ; 0 = avant la première)
+                   ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)
+                   ?fond=sombre (fond d'écran et fenêtre sombres : vérifier le verre)   ·   ?moment=onde|carte (étapes 8 et 9 : s'arrêter à l'onde ou à la carte avant le clic)
+                   ?t=0.97 (l'instant de l'onde posée)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voxile · Voix et rappel</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --serif:"Newsreader","New York",ui-serif,Charter,Georgia,serif;
+  --ambre:#ff9f0a; --vert:#30d158; --rouge:#ff453a; --corail:#e8835c; --bleu:#0a84ff; --jaune:#ffd60a;
+  --regie:#0f0f11;
+  --clair:#f5f5f7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--regie)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--clair);min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block;overflow:visible}
+html.fige *,html.fige *::before,html.fige *::after{animation-play-state:paused!important}
+
+/* =====================================================================
+   Le faux écran : haut d'un MacBook, macOS 26, apparence claire (repris de 3-spotlight.html)
+   ===================================================================== */
+#ecran{position:relative;height:clamp(500px,calc(100vh - 236px),740px);overflow:hidden;isolation:isolate;
+  user-select:none;-webkit-user-select:none;background:#dbe4ee;transition:opacity calc(.26s*var(--k)) ease}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(70% 90% at 90% 4%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 60%),
+  radial-gradient(60% 80% at 4% 100%,rgba(248,228,210,.95) 0,rgba(248,228,210,0) 62%),
+  linear-gradient(168deg,#c6d6ea 0%,#d9e4f0 40%,#ebe8e6 74%,#f0e2d6 100%)}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ---- barre des menus ---- */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;z-index:4;
+  font-size:13.5px;color:#1d1d1f;white-space:nowrap;pointer-events:none}
+.menus,.etats{display:flex;flex-wrap:wrap;align-content:flex-start;height:33px;overflow:hidden;max-width:calc(50% - 172px)}
+.menus{column-gap:19px;padding-left:18px}
+.menus>*{height:33px;line-height:33px;font-weight:500}
+.menus>svg{height:17px;margin-top:7px;flex:none}
+.menus>b{font-weight:700}
+.etats{flex-direction:row-reverse;column-gap:15px;padding-right:15px}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats svg{width:17px;height:17px;color:#1d1d1f}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* ---- fenêtres ---- */
+.fen{position:absolute;color:#1d1d1f;border-radius:13px;overflow:hidden;z-index:1;background:#fff;display:flex;flex-direction:column;pointer-events:none;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.26),0 36px 80px -20px rgba(24,36,60,.42),0 12px 26px -10px rgba(24,36,60,.22);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.fen.chrome{left:max(18px,5.2%);right:max(18px,5.2%);top:41px;bottom:20px}
+.fen.cache{opacity:0;transform:scale(.965)}
+.fen.arriere{box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 18px 40px -16px rgba(24,36,60,.3)}
+.feux{position:absolute;left:15px;top:15px;display:flex;gap:8px;z-index:1}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.fen.arriere .feux i{background:#d3d3d7}
+.tabs{height:42px;flex:none;background:#dde3ec;display:flex;align-items:flex-end;padding-left:84px;position:relative}
+.fen.arriere .tabs{background:#e6e9ee}
+.tab{position:relative;height:34px;width:222px;flex:none;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:8px;padding:0 9px 0 12px;font-size:12px;color:#454a52}
+.tab.act{background:#fff;color:#1f1f1f}
+.tab.act::before,.tab.act::after{content:"";position:absolute;bottom:0;width:10px;height:10px}
+.tab.act::before{left:-10px;background:radial-gradient(circle at 0 0,transparent 9.5px,#fff 10px)}
+.tab.act::after{right:-10px;background:radial-gradient(circle at 100% 0,transparent 9.5px,#fff 10px)}
+.tab .tt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent)}
+.tab svg{flex:none}
+.tab-plus{width:28px;height:28px;margin:0 0 4px 6px;display:grid;place-items:center;color:#454a52;flex:none}
+.outils{height:46px;flex:none;display:flex;align-items:center;gap:4px;padding:0 10px;border-bottom:1px solid #e7e9ee;color:#5b6069}
+.outils .ib{width:30px;height:30px;display:grid;place-items:center;flex:none}
+.omni{flex:1;min-width:0;height:34px;border-radius:17px;background:#edf1f8;display:flex;align-items:center;gap:9px;padding:0 12px 0 4px;margin:0 6px;font-size:13.5px;color:#1f1f1f;white-space:nowrap;overflow:hidden}
+.omni .rg{width:26px;height:26px;border-radius:13px;background:#fff;display:grid;place-items:center;flex:none}
+.omni .u{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.omni .u span{color:#6b7078}
+.profil{width:24px;height:24px;border-radius:50%;background:linear-gradient(160deg,#c7ccd6,#8d95a3);flex:none;margin:0 4px}
+
+/* la page : YouTube, thème clair */
+.page{flex:1;min-height:0;overflow:hidden;color:#0f0f0f;background:#fff}
+.yt-h{height:56px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 18px 0 20px}
+.yt-g{display:flex;align-items:center;gap:20px}
+.yt-logo{display:flex;align-items:center;gap:4px;font-size:19.5px;font-weight:700;letter-spacing:-1.1px}
+.yt-logo sup{font-size:9.5px;font-weight:500;color:#606060;letter-spacing:0;align-self:flex-start;margin:1px 0 0 3px}
+.yt-rech{display:flex;align-items:center;gap:12px}
+.yt-champ{width:min(436px,32vw);height:40px;border:1px solid #d5d5d5;border-radius:20px;display:flex;align-items:center;overflow:hidden}
+.yt-champ span{flex:1;padding-left:18px;font-size:15px;color:#8c8c8c}
+.yt-champ i{width:62px;height:100%;background:#f7f7f7;border-left:1px solid #d5d5d5;display:grid;place-items:center}
+.yt-rond{width:40px;height:40px;border-radius:20px;background:#f2f2f2;display:grid;place-items:center;flex:none}
+.yt-d{display:flex;align-items:center;gap:18px;justify-content:flex-end}
+.yt-creer{height:36px;border-radius:18px;background:#f2f2f2;display:flex;align-items:center;gap:6px;padding:0 15px 0 10px;font-size:14px;font-weight:500}
+.yt-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(150deg,#e8b48a,#b9764c)}
+.yt-c{display:grid;grid-template-columns:minmax(0,700px) minmax(260px,372px);justify-content:center;gap:24px;padding:24px 24px 0}
+.lecteur{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#111}
+.lecteur>svg{position:absolute;left:-1px;top:-1px;width:calc(100% + 2px);height:calc(100% + 2px)}
+.lecteur::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 140px rgba(70,26,0,.28);pointer-events:none}
+.flotte{transform-box:view-box;transform-origin:200px 90px;animation:flotte 7s ease-in-out infinite alternate}
+@keyframes flotte{0%{transform:translate(0,0) rotate(-1.2deg)}100%{transform:translate(-3px,-2px) rotate(1.1deg)}}
+.ctl{position:absolute;left:0;right:0;bottom:0;height:96px;background:linear-gradient(0deg,rgba(0,0,0,.5),rgba(0,0,0,0));z-index:1}
+.ctl .barre{position:absolute;left:14px;right:14px;bottom:54px;height:4px;border-radius:2px;background:rgba(255,255,255,.3)}
+.ctl .barre b{position:absolute;left:0;top:0;bottom:0;width:41%;border-radius:2px;background:rgba(255,255,255,.34)}
+.ctl .barre i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#ff0033}
+.ctl .barre i::after{content:"";position:absolute;right:-6px;top:-4px;width:12px;height:12px;border-radius:50%;background:#ff0033}
+.ctl .bas{position:absolute;left:12px;right:12px;bottom:9px;display:flex;justify-content:space-between;color:#fff}
+.ctl .grp{height:36px;border-radius:18px;background:rgba(0,0,0,.36);display:flex;align-items:center;gap:15px;padding:0 15px;font-size:13px;font-weight:500;font-variant-numeric:tabular-nums}
+.vt{font-size:20px;line-height:28px;font-weight:700;letter-spacing:-.2px;margin-top:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chaine{display:flex;align-items:center;gap:12px;margin-top:12px}
+.chaine .av{width:40px;height:40px;border-radius:50%;background:linear-gradient(150deg,#ffcf70,#f08a2a);flex:none}
+.chaine .nom{font-size:15.5px;line-height:20px;font-weight:600}
+.chaine .ab{font-size:12px;line-height:16px;color:#606060}
+.chaine .sab{height:36px;border-radius:18px;background:#0f0f0f;color:#fff;font-size:14px;font-weight:500;display:grid;place-items:center;padding:0 16px;margin-left:12px}
+.chaine .pil{height:36px;border-radius:18px;background:#f2f2f2;font-size:14px;font-weight:500;display:flex;align-items:center;gap:7px;padding:0 15px;margin-left:auto}
+.chaine .pil+.pil{margin-left:0}
+.puces{display:flex;gap:8px;overflow:hidden;white-space:nowrap}
+.puces span{height:32px;border-radius:8px;background:#f2f2f2;font-size:14px;font-weight:500;display:grid;place-items:center;padding:0 12px;flex:none}
+.puces span.on{background:#0f0f0f;color:#fff}
+.sug{display:grid;grid-template-columns:168px minmax(0,1fr);gap:8px;margin-top:10px}
+.sug .vg{position:relative;height:94px;border-radius:8px;overflow:hidden}
+.sug .vg svg{width:100%;height:100%}
+.sug .vg b{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.78);color:#fff;font-size:12px;font-weight:500;line-height:16px;padding:0 4px;border-radius:4px;font-variant-numeric:tabular-nums}
+.sug p{font-size:14px;line-height:20px;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:3px}
+.sug span{display:block;font-size:12px;line-height:18px;color:#606060;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+
+/* ---- le Dock ---- */
+.dock{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);height:62px;z-index:3;display:flex;align-items:center;gap:6px;padding:0 8px;border-radius:20px;pointer-events:none;
+  background:rgba(255,255,255,.34);-webkit-backdrop-filter:blur(24px) saturate(1.7);backdrop-filter:blur(24px) saturate(1.7);
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.7),0 0 0 .5px rgba(0,0,0,.12),0 10px 30px -10px rgba(24,36,60,.35)}
+.dock .ic{position:relative;width:48px;height:48px;flex:none}
+.dock .ic svg,.dock .ic img{width:48px;height:48px;display:block}
+.dock .ic.vu::after{content:"";position:absolute;left:50%;bottom:-6px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:rgba(0,0,0,.55)}
+.dock .sep{width:1px;height:42px;background:rgba(0,0,0,.14);margin:0 3px}
+
+/* =====================================================================
+   L'îlot (noir, opaque) et ce qu'il affiche
+   ===================================================================== */
+.calque{position:absolute;left:calc(50% - 500px);top:0;width:1000px;height:360px;pointer-events:none}
+#forme-svg{z-index:5}
+#contenu{z-index:6}
+#encoche-svg{z-index:7}
+.c{position:absolute;color:#fff;white-space:nowrap;text-align:left;font-family:var(--sans)}
+/* le contenu arrive après la forme : fondu, flou, léger zoom (et glissé quand on change de carte) */
+.e{opacity:0;filter:blur(7px);transform:translateY(var(--sy,0px)) scale(.965);
+  transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
+.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+  transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+.t15{font-size:15px;line-height:19px;font-weight:600;letter-spacing:-.2px}
+.t125{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(255,255,255,.55);margin-top:3px}
+.t135{font-size:13.5px;line-height:17px;font-weight:600;letter-spacing:-.1px;font-variant-numeric:tabular-nums}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.art{position:relative;overflow:hidden;background:#111;border-radius:4px;width:28px;height:16px}
+.art::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16)}
+.eq{display:flex;align-items:center;justify-content:space-between;width:18.4px;height:14px}
+.eq i{display:block;width:2.6px;height:14px;border-radius:1.3px;background:#ffab3d;transform:scaleY(.3);animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(1){animation-duration:.82s;animation-delay:-.3s}
+.eq i:nth-child(2){animation-duration:1.06s;animation-delay:-.7s}
+.eq i:nth-child(3){animation-duration:.74s;animation-delay:-.1s}
+.eq i:nth-child(4){animation-duration:.95s;animation-delay:-.5s}
+.eq i:nth-child(5){animation-duration:1.18s;animation-delay:-.2s}
+@keyframes eq{0%{transform:scaleY(.28)}22%{transform:scaleY(.95)}41%{transform:scaleY(.5)}63%{transform:scaleY(1)}82%{transform:scaleY(.36)}100%{transform:scaleY(.28)}}
+.epaule{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;height:17px}
+.coach{width:268px;text-align:center;font-size:14px;line-height:20px;font-weight:500;color:rgba(255,255,255,.8)}
+.coach b{color:#fff;font-weight:700}
+
+/* faux pointeur (et le fichier qu'il porte) */
+.pointeur{position:absolute;left:0;top:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .22s}
+.pointeur.vu{opacity:1}
+.pointeur .fleche{position:relative;width:18px;height:26px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));transform-origin:2px 2px;transition:transform .12s ease}
+.pointeur.appui .fleche{transform:scale(.86)}
+.fantome{position:absolute;left:-46px;top:-12px;width:110px;display:flex;flex-direction:column;align-items:center;gap:3px;opacity:0;transform:scale(.6);
+  transition:opacity .16s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.fantome.vu{opacity:.9;transform:none}
+.fantome.aspire{opacity:0;transform:translateY(-6px) scale(.3);transition:opacity calc(.26s*var(--k)) ease,transform calc(.3s*var(--k)) ease}
+.fantome span{white-space:nowrap;font-size:11px;font-weight:600;color:#fff;background:#2e7cf6;border-radius:4px;padding:0 5px;line-height:15px}
+
+/* =====================================================================
+   La régie, sous la scène (reprise de 3-spotlight.html)
+   ===================================================================== */
+.regie{max-width:1340px;margin:0 auto;padding:14px 28px 18px}
+.r-haut{display:grid;grid-template-columns:minmax(0,1fr) 250px auto;gap:36px;align-items:center;min-height:96px}
+.r-num{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(245,245,247,.46);font-variant-numeric:tabular-nums}
+.r-titre{font-size:21px;line-height:27px;font-weight:600;letter-spacing:-.3px;margin-top:2px}
+.r-phrase{font-size:14px;line-height:20px;color:rgba(245,245,247,.64);margin-top:4px;max-width:660px;min-height:40px}
+.r-mains{display:flex;align-items:center;gap:14px}
+.pad{position:relative;width:96px;height:62px;border-radius:12px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);flex:none}
+.pad i{position:absolute;top:30px;left:32px;width:14px;height:14px;border-radius:50%;background:var(--clair);opacity:0;transform:translateY(var(--t,0px));transition:opacity .15s}
+.pad i+i{left:52px;top:26px}
+.pad.un i:first-child,.pad.deux i{opacity:1}
+.pad i::after{content:"";position:absolute;left:4.5px;top:8px;width:5px;height:calc(-1 * var(--t,0px));border-radius:3px;background:linear-gradient(180deg,rgba(245,245,247,.5),rgba(245,245,247,0))}
+.r-geste{font-size:12.5px;line-height:16px;color:rgba(245,245,247,.55);min-height:32px;max-width:140px}
+.r-cmd{display:grid;grid-template-columns:auto auto;gap:10px 8px;align-items:center}
+.bouton{height:34px;padding:0 17px;border-radius:17px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s ease}
+.bouton:active{transform:scale(.95)}
+.bouton.creux{background:rgba(255,255,255,.1)}
+.bouton.creux:hover{background:rgba(255,255,255,.16)}
+.bouton.plein{background:var(--clair);color:var(--regie)}
+.bouton.plein:hover{background:#fff}
+.r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:var(--clair)}
+.r-pas{display:flex;flex-wrap:wrap;gap:2px 4px;list-style:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.r-pas button{height:30px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:8px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+.r-pas button span{font-variant-numeric:tabular-nums;opacity:.7}
+.r-pas button:hover{color:rgba(245,245,247,.8)}
+.r-pas button.ici{color:var(--clair);background:rgba(255,255,255,.09)}
+.notes{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 32px;font-size:12.5px;line-height:18px;color:rgba(245,245,247,.42)}
+.notes b{color:rgba(245,245,247,.7);font-weight:600}
+@media (max-width:900px){.r-haut{grid-template-columns:1fr;gap:16px}.yt-c{grid-template-columns:minmax(0,1fr)}.col2{display:none}}
+
+/* =====================================================================
+   Lucarne dans un coin : verre « Liquide » (code repris de lucarne-position.html)
+   ===================================================================== */
+.lu{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:5}
+#verre,#givre,#vitre,#ombreLu{transition:opacity calc(.3s*var(--k)) ease}
+.lu>*{position:absolute}
+#verre{left:0;top:0;opacity:0;background:rgba(255,255,255,.06)}
+#givre{left:0;top:0;opacity:0}
+#luSvg{left:0;top:0;width:100%;height:100%}
+#luContenu{left:0;top:0;width:100%;height:100%;--fg:22 22 24;--bg:255 255 255;--sec:.72}
+#luContenu .c{color:rgb(var(--fg))}
+#luContenu .e.on{pointer-events:auto;filter:none}
+#luContenu .t15,#luContenu .t135,#luContenu .cn-cap,#luContenu .mb-b,#luContenu .du,#luContenu .pil{text-shadow:0 0 6px rgba(255,255,255,.75),0 0 1px rgba(255,255,255,.6)}
+#luContenu svg{filter:drop-shadow(0 0 3px rgba(255,255,255,.7))}
+#luContenu .ico svg,#luContenu .ban-ic svg{filter:none}
+#luContenu .goutte{position:relative;isolation:isolate;background:rgba(255,255,255,.16);
+  box-shadow:inset 1.4px 1.6px 0 -.4px rgba(255,255,255,.95),inset -1.2px -1.4px 0 -.4px rgba(255,255,255,.5),inset 0 0 12px rgba(255,255,255,.28),0 0 0 .5px rgba(0,0,0,.16),0 4px 12px -3px rgba(0,0,0,.22)}
+#luContenu .goutte::before{content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;pointer-events:none;
+  background:radial-gradient(85% 60% at var(--rx,30%) 0%,rgba(255,255,255,.62),rgba(255,255,255,0) 62%),radial-gradient(60% 45% at calc(100% - var(--rx,30%)) 100%,rgba(255,255,255,.28),rgba(255,255,255,0) 70%)}
+#luContenu .mb-b.choisi{box-shadow:inset 0 0 0 1.5px var(--mc),0 0 0 .5px rgba(0,0,0,.16)}
+#luContenu .mb-b.allume{background:var(--mc);color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+#luContenu .du.choisi{background:rgb(22 22 24);color:#fff;text-shadow:none}
+.lu-pil{display:flex;align-items:center;gap:7px;height:36px;font-size:12.5px;font-weight:600;letter-spacing:-.1px}
+
+
+/* =====================================================================
+   Voxile : onde de voix, libellé, carte de fin (rappel ou note)
+   ===================================================================== */
+.fen.chrome{bottom:78px}
+.pad.fn::after{content:"fn";position:absolute;left:50%;top:50%;width:38px;height:28px;margin:-14px 0 0 -19px;border-radius:7px;display:grid;place-items:center;font-size:13px;font-weight:700;color:#1b1b1a;background:#ffcf8a;box-shadow:0 2px 0 #c9975a}
+#contenu{--fg:255 255 255;--bg:0 0 0;--sec:.55;--ora:255 159 10;--jau:255 214 10;--vt:95 224 138}
+
+/* l'onde : des barres rondes, façon Apple ; la hauteur suit la voix (calculée en JS) */
+.onde{display:flex;align-items:center;justify-content:space-between;width:189px;height:30px;color:rgb(var(--fg));
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 16%,#000 84%,transparent);mask-image:linear-gradient(90deg,transparent,#000 16%,#000 84%,transparent)}
+.onde i{display:block;width:3px;height:3.5px;border-radius:1.5px;background:currentColor;flex:none}
+.lib{display:flex;align-items:center;justify-content:center;gap:6px;height:17px;font-size:13px;line-height:17px;font-weight:600;letter-spacing:-.1px;color:rgb(var(--fg))}
+.aile{display:block;width:18px;height:18px}
+
+/* la carte de fin */
+.rc{width:420px;color:rgb(var(--fg))}
+.rc-l{display:flex;gap:12px;align-items:flex-start}
+.rc-ck{width:24px;height:24px;border-radius:50%;flex:none;display:grid;place-items:center;background:#30d158;margin-top:-1px}
+.rc-ck.jau{background:#ffd60a}
+.rc-ck path{stroke-dasharray:16;stroke-dashoffset:16;transition:stroke-dashoffset calc(.34s*var(--k)) ease calc(.34s*var(--k))}
+.e.on .rc-ck path{stroke-dashoffset:0}
+.rc-tx{min-width:0;flex:1}
+.rc-date{font-size:13.5px;line-height:17px;font-weight:600;color:rgb(var(--ora));margin-top:1px;font-variant-numeric:tabular-nums}
+.rc-res{font-size:13px;line-height:17px;font-weight:500;color:rgb(var(--fg) / var(--sec));margin-top:3px;white-space:normal;max-width:372px}
+.rc-bas{display:flex;align-items:center;gap:10px;margin:12px 0 0 36px;height:30px}
+.pri{position:relative;display:grid;place-items:center;height:30px;min-width:var(--mw,168px);padding:0 14px;border-radius:15px;background:rgb(var(--fg));color:rgb(var(--bg));font-size:13px;font-weight:600;cursor:pointer;
+  transition:background-color calc(.22s*var(--k)) ease calc(.1s*var(--k)),color calc(.22s*var(--k)) ease calc(.1s*var(--k)),transform calc(.3s*var(--k)) var(--ressort)}
+.pri>span{grid-area:1/1;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:opacity calc(.1s*var(--k)) ease}
+.pri .apres{opacity:0}
+.pri.ok{background:rgb(48 209 88 / .2);color:rgb(var(--vt))}
+.pri.ok .avant{opacity:0}
+.pri.ok .apres{opacity:1;transition:opacity calc(.2s*var(--k)) ease calc(.14s*var(--k))}
+.pri:active{transform:scale(.96)}
+.mod{margin-left:auto;height:30px;padding:0 2px;font-size:12.5px;font-weight:600;color:rgb(var(--fg) / var(--sec));cursor:pointer;transition:color .15s ease}
+.mod:hover{color:rgb(var(--fg))}
+
+/* la Dock (réduite à ce qu'il faut) et le fond sombre */
+.dock .ic.vu::after{bottom:-5px}
+#ecran.sombre .papier{background:radial-gradient(70% 90% at 90% 4%,rgba(120,140,190,.28) 0,rgba(0,0,0,0) 60%),linear-gradient(168deg,#161a26 0%,#1d2233 45%,#26243a 100%)}
+#ecran.sombre .papier svg{opacity:.35}
+#ecran.sombre .mb,#ecran.sombre .etats svg{color:#f5f5f7}
+#ecran.sombre .fen.chrome{filter:invert(.93) hue-rotate(180deg)}
+#ecran.sombre :is(.lecteur,.sug .vg,.yt-av,.chaine .av,.profil){filter:invert(1) hue-rotate(180deg)}
+#ecran.sombre .dock{background:rgba(255,255,255,.14)}
+#ecran.sombre #verre{background:rgba(0,0,0,.1)}
+#givre{background:rgba(255,255,255,.26)}
+#ecran.sombre #givre{background:rgba(0,0,0,.32)}
+
+/* verre : couleurs de texte et d'accent selon le fond (clair par défaut) */
+#luContenu{--ora:176 88 0;--jau:255 214 10;--vt:18 124 52}
+#luContenu .rc-date,#luContenu .rc-res,#luContenu .lib,#luContenu .mod,#luContenu .lu-pil,#luContenu .pri .apres{text-shadow:0 0 6px rgba(255,255,255,.75),0 0 1px rgba(255,255,255,.6)}
+#luContenu .onde i{box-shadow:0 0 5px rgba(255,255,255,.8)}
+#luContenu .rc-ck,#luContenu .rc-ck svg{filter:none}
+#luContenu .pri{background:rgb(var(--fg));color:rgb(var(--bg));text-shadow:none}
+#luContenu .pri.ok{background:rgb(48 209 88 / .34);color:rgb(var(--vt));box-shadow:inset 0 0 0 1px rgb(48 209 88 / .55),0 0 0 .5px rgba(0,0,0,.16)}
+#luContenu .pri.ok .apres{text-shadow:0 0 6px rgba(255,255,255,.8)}
+#luContenu.sombre{--fg:255 255 255;--bg:0 0 0;--sec:.82;--ora:255 176 64;--vt:112 234 142}
+#luContenu.sombre .t15,#luContenu.sombre .rc-date,#luContenu.sombre .rc-res,#luContenu.sombre .lib,#luContenu.sombre .mod,#luContenu.sombre .lu-pil{text-shadow:0 1px 3px rgba(0,0,0,.55),0 0 1px rgba(0,0,0,.4)}
+#luContenu.sombre svg{filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+#luContenu.sombre .rc-ck,#luContenu.sombre .rc-ck svg{filter:none}
+#luContenu.sombre .onde i{box-shadow:0 1px 3px rgba(0,0,0,.55)}
+#luContenu.sombre .pri.ok .apres{text-shadow:none}
+#luContenu .lu-pil .mini{display:flex;align-items:center;gap:2px;height:14px}
+#luContenu .lu-pil .mini i{display:block;width:2.6px;border-radius:1.3px;background:currentColor}
+.lu-pil{display:flex;align-items:center;gap:8px;height:36px;font-size:12.5px;font-weight:600;letter-spacing:-.1px;color:rgb(var(--fg))}
+
+</style>
+</head>
+<body>
+<section id="ecran" aria-label="Faux écran de MacBook, taille réelle">
+  <div class="papier" aria-hidden="true">
+    <svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMid slice">
+      <path d="M0 0H1440V190C1190 290 930 180 660 240S210 350 0 280Z" fill="#b7cbe4" opacity=".28"/>
+      <path d="M0 560C260 470 540 520 780 600S1250 720 1440 620V760H0Z" fill="#fff" opacity=".2"/>
+    </svg>
+  </div>
+
+  <!-- ===== fenêtre Chrome (YouTube) ===== -->
+  <div class="fen chrome" data-f="chrome" aria-hidden="true">
+    <div class="tabs">
+      <div class="feux"><i></i><i></i><i></i></div>
+      <div class="tab act">
+        <svg width="16" height="12" viewBox="0 0 16 12"><rect width="16" height="12" rx="3.4" fill="#ff0033"/><path d="M6.4 3.4v5.2L10.9 6z" fill="#fff"/></svg>
+        <span class="tt">Je détestais la mode des iPods, donc j’en ai racheté un en 2026 - YouTube</span>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.3v3.4h2.3l3 2.5V3.8l-3 2.5z" fill="#5b6069"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.5 4a5.6 5.6 0 0 1 0 8"/></svg>
+        <svg width="14" height="14" viewBox="0 0 14 14" stroke="#5b6069" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l6 6M10 4l-6 6"/></svg>
+      </div>
+      <div class="tab">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.2 2 2.2 10 0 12M8 2c-2.2 2-2.2 10 0 12"/></svg>
+        <span class="tt">Nouvel onglet</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" stroke="#5b6069" stroke-width="1.4" stroke-linecap="round"><path d="M4 4l6 6M10 4l-6 6"/></svg>
+      </div>
+      <div class="tab-plus"><svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 2v10M2 7h10"/></svg></div>
+    </div>
+    <div class="outils">
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 9h-11M8 4.2 3.2 9 8 13.8"/></svg></span>
+      <span class="ib" style="opacity:.42"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9h11M10 4.2 14.8 9 10 13.8"/></svg></span>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 9a5.6 5.6 0 1 1-1.7-4"/><path d="M14.8 2.6v3.2h-3.2"/></svg></span>
+      <div class="omni">
+        <span class="rg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.5" stroke-linecap="round"><path d="M2 5h6M12 5h2M2 11h2M8 11h6"/><circle cx="10" cy="5" r="1.9"/><circle cx="6" cy="11" r="1.9"/></svg></span>
+        <span class="u">youtube.com<span>/watch?v=k7Rm2NnIpod</span></span>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#5b6069" stroke-width="1.4" stroke-linejoin="round"><path d="M8 2.2l1.7 3.7 4 .5-3 2.7.8 4L8 11.1 4.5 13l.8-4-3-2.7 4-.5z"/></svg>
+      </div>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M7 3.2h1.2a1.6 1.6 0 1 1 3.1 0h2.5v3a1.6 1.6 0 1 0 0 3.1v4.5h-3.7a1.6 1.6 0 1 0-3.1 0H3.2v-3.9a1.6 1.6 0 1 0 0-3.1V3.2z"/></svg></span>
+      <span class="profil"></span>
+      <span class="ib"><svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><circle cx="9" cy="4" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="9" cy="14" r="1.5"/></svg></span>
+    </div>
+    <div class="page">
+      <div class="yt-h">
+        <div class="yt-g">
+          <svg width="20" height="20" viewBox="0 0 20 20" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 5h15M2.5 10h15M2.5 15h15"/></svg>
+          <div class="yt-logo"><svg width="29" height="20" viewBox="0 0 29 20"><rect width="29" height="20" rx="6.2" fill="#ff0033"/><path d="M11.7 5.7v8.6l7.5-4.3z" fill="#fff"/></svg><span>YouTube</span><sup>FR</sup></div>
+        </div>
+        <div class="yt-rech">
+          <div class="yt-champ"><span>Rechercher</span><i><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><circle cx="8.6" cy="8.6" r="5.9"/><path d="M13 13l4.4 4.4"/></svg></i></div>
+          <div class="yt-rond"><svg width="20" height="20" viewBox="0 0 24 24" fill="#0f0f0f"><rect x="8.8" y="2.6" width="6.4" height="11.6" rx="3.2"/><path d="M5.8 11.4a6.2 6.2 0 0 0 12.4 0M12 17.8v3.4" fill="none" stroke="#0f0f0f" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        </div>
+        <div class="yt-d">
+          <div class="yt-creer"><svg width="20" height="20" viewBox="0 0 20 20" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"><path d="M10 3.5v13M3.5 10h13"/></svg>Créer</div>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3.2c-3.2 0-5.6 2.5-5.6 5.8v3.6L4.6 16h14.8l-1.8-3.4V9c0-3.3-2.4-5.8-5.6-5.8zM9.6 19a2.5 2.5 0 0 0 4.8 0"/></svg>
+          <div class="yt-av"></div>
+        </div>
+      </div>
+      <div class="yt-c">
+        <div class="col1">
+          <div class="lecteur" id="lecteur">
+            <div class="ctl">
+              <div class="barre"><b></b><i id="vprog"></i></div>
+              <div class="bas">
+                <span class="grp">
+                  <svg width="15" height="16" viewBox="0 0 15 16" fill="#fff"><rect x="1.5" y="1" width="4" height="14" rx="1.2"/><rect x="9.5" y="1" width="4" height="14" rx="1.2"/></svg>
+                  <svg width="17" height="16" viewBox="0 0 17 16" fill="#fff"><path d="M1.5 2.2c0-.8.9-1.3 1.6-.8l8 5.6c.6.4.6 1.2 0 1.6l-8 5.6c-.7.5-1.6 0-1.6-.8z"/><rect x="13" y="1.4" width="2.6" height="13.2" rx="1"/></svg>
+                  <svg width="20" height="16" viewBox="0 0 20 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5.6v4.8h3l4 3.3V2.3l-4 3.3z" fill="#fff"/><path d="M12.6 5a4.2 4.2 0 0 1 0 6M15 2.8a7.4 7.4 0 0 1 0 10.4"/></svg>
+                  <span id="vtps">3:22 / 12:54</span>
+                </span>
+                <span class="grp">
+                  <svg width="20" height="16" viewBox="0 0 20 16" fill="none" stroke="#fff" stroke-width="1.5"><rect x="1.5" y="1.5" width="17" height="13" rx="3"/><path d="M8.2 6.4a2 2 0 1 0 0 3.2M14.4 6.4a2 2 0 1 0 0 3.2" stroke-linecap="round"/></svg>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#fff" stroke-width="1.5"><circle cx="9" cy="9" r="2.6"/><path d="M9 1.6v2.2M9 14.2v2.2M1.6 9h2.2M14.2 9h2.2M3.8 3.8l1.5 1.5M12.7 12.7l1.5 1.5M3.8 14.2l1.5-1.5M12.7 5.3l1.5-1.5" stroke-linecap="round"/></svg>
+                  <svg width="18" height="16" viewBox="0 0 18 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.6 5.6V2h4.2M16.4 5.6V2h-4.2M1.6 10.4V14h4.2M16.4 10.4V14h-4.2"/></svg>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="vt">Je détestais la mode des iPods, donc j’en ai racheté un en 2026</div>
+          <div class="chaine">
+            <span class="av"></span>
+            <div><div class="nom">Le Coin Tech</div><div class="ab">1,24 M d’abonnés</div></div>
+            <span class="sab">S’abonner</span>
+            <span class="pil"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="#0f0f0f" stroke-width="1.5" stroke-linejoin="round"><path d="M6.2 8.8 9.6 2.6c1.1 0 1.9.9 1.7 2L10.8 8h4.6c1 0 1.7.9 1.5 1.9l-1.2 5.6c-.2.8-.9 1.3-1.6 1.3H6.2zM2.8 8.8h3.4v8H2.8z"/></svg>18 k</span>
+            <span class="pil">Partager</span>
+          </div>
+        </div>
+        <div class="col2">
+          <div class="puces"><span class="on">Tous</span><span>Le Coin Tech</span><span>Baladeurs</span><span>Récemment ajoutées</span></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#cdbd9e"/><rect x="50" y="16" width="68" height="52" rx="6" fill="#5a5145"/><rect x="57" y="22" width="54" height="36" rx="3" fill="#1d2a22"/><rect x="62" y="28" width="30" height="3" fill="#79d37c"/><rect x="62" y="35" width="40" height="3" fill="#79d37c" opacity=".7"/><rect x="62" y="42" width="24" height="3" fill="#79d37c" opacity=".7"/><rect x="42" y="70" width="84" height="12" rx="3" fill="#70675a"/></svg><b>18:42</b></div><div><p>J’ai utilisé un Minitel pendant une semaine</p><span>Le Coin Tech</span><span>412 k vues · il y a 2 semaines</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#27364d"/><rect x="48" y="28" width="72" height="46" rx="7" fill="#e8593a"/><rect x="58" y="37" width="52" height="19" rx="4" fill="#27364d"/><circle cx="72" cy="46.5" r="5.5" fill="#f3efe6"/><circle cx="96" cy="46.5" r="5.5" fill="#f3efe6"/><rect x="64" y="62" width="40" height="5" rx="2.5" fill="#b9432b"/></svg><b>12:08</b></div><div><p>Pourquoi les baladeurs reviennent à la mode</p><span>Tech &amp; Rétro</span><span>96 k vues · il y a 5 jours</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#e7e2da"/><rect x="34" y="14" width="42" height="68" rx="6" fill="#fff" stroke="#c8ccd3"/><rect x="39" y="20" width="32" height="24" rx="2" fill="#5b93dc"/><circle cx="55" cy="62" r="12" fill="#eceef1" stroke="#d3d6dc"/><rect x="92" y="24" width="46" height="30" rx="3" fill="#2c8a5b"/><rect x="98" y="30" width="14" height="8" fill="#1c5a3b"/><rect x="92" y="62" width="50" height="5" rx="2.5" fill="#9aa3ad"/><rect x="92" y="72" width="34" height="5" rx="2.5" fill="#9aa3ad"/></svg><b>24:31</b></div><div><p>Restaurer un iPod Classic : batterie, mémoire, coque</p><span>L’Atelier du son</span><span>1,1 M de vues · il y a 3 mois</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#1f6c75"/><rect x="44" y="18" width="62" height="58" rx="5" fill="#dfe3e6"/><circle cx="75" cy="47" r="21" fill="#f4f5f6" stroke="#b8bec4"/><circle cx="75" cy="47" r="5" fill="#1f6c75"/><rect x="114" y="30" width="28" height="34" rx="4" fill="#12474d"/></svg><b>9:57</b></div><div><p>Le son du MiniDisc en 2026, ça vaut quoi ?</p><span>Hi-Fi Magazine</span><span>58 k vues · il y a 1 jour</span></div></div>
+          <div class="sug"><div class="vg"><svg viewBox="0 0 168 94" preserveAspectRatio="xMidYMid slice"><rect width="168" height="94" fill="#f0c64a"/><text x="16" y="66" font-size="56" font-weight="800" fill="#161616" font-family="-apple-system,Helvetica,Arial,sans-serif" letter-spacing="-3">10</text><rect x="92" y="22" width="56" height="50" rx="6" fill="#161616"/><rect x="99" y="29" width="42" height="26" rx="2" fill="#7fb4e8"/><rect x="99" y="60" width="20" height="5" rx="2.5" fill="#f0c64a"/></svg><b>21:15</b></div><div><p>10 objets des années 2000 qu’on regrette vraiment</p><span>Rewind</span><span>733 k vues · il y a 1 mois</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ===== barre des menus ===== -->
+  <div class="mb" aria-hidden="true"><div class="menus" id="menus"></div><div class="etats" id="etats"></div></div>
+  <!-- ===== le Dock ===== -->
+  <div class="dock" id="dock" aria-hidden="true"></div>
+
+  <!-- ===== Lucarne posée dans un coin : verre « Liquide » (lentille, reflet, lisière, bord fin foncé, ombre) ===== -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="lentille" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" x="0" y="0" width="100" height="100" color-interpolation-filters="sRGB">
+    <feImage id="carteLentille" x="0" y="0" width="100" height="100" preserveAspectRatio="none" result="carte"/>
+    <feDisplacementMap class="dep" in="SourceGraphic" in2="carte" scale="0" xChannelSelector="R" yChannelSelector="G" result="dr"/>
+    <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/>
+    <feDisplacementMap class="dep" in="SourceGraphic" in2="carte" scale="0" xChannelSelector="R" yChannelSelector="G" result="dg"/>
+    <feColorMatrix in="dg" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"/>
+    <feDisplacementMap class="dep" in="SourceGraphic" in2="carte" scale="0" xChannelSelector="R" yChannelSelector="G" result="db"/>
+    <feColorMatrix in="db" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"/>
+    <feBlend in="r" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="b" mode="screen"/></filter></svg>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" id="gouttes"></svg>
+  <div class="lu" id="lu">
+    <div id="verre" aria-hidden="true"></div>
+    <div id="givre" aria-hidden="true"></div>
+    <svg id="luSvg" aria-hidden="true">
+      <defs>
+        <mask id="hors" maskUnits="userSpaceOnUse" x="-6000" y="-6000" width="12000" height="12000">
+          <rect x="-6000" y="-6000" width="12000" height="12000" fill="#fff"/><path id="masque" fill="#000"/></mask>
+        <linearGradient id="vFond" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff" stop-opacity=".07"/><stop offset=".55" stop-color="#fbfbfd" stop-opacity=".03"/><stop offset="1" stop-color="#f3f4f7" stop-opacity=".06"/></linearGradient>
+        <linearGradient id="vLisiere" x1="0" y1="0" x2=".35" y2="1">
+          <stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset=".45" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity=".12"/></linearGradient>
+        <linearGradient id="vLisiere2" x1="1" y1="1" x2=".55" y2=".2">
+          <stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        <radialGradient id="vCentre" cx=".5" cy=".5" r=".62">
+          <stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset=".7" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+        <linearGradient id="vEpais" x1="0" y1="0" x2=".5" y2="1">
+          <stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".5" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity=".55"/></linearGradient>
+        <radialGradient id="vReflet" cx=".3" cy="-.15" r=".7" fx=".3" fy="-.15">
+          <stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".55" stop-color="#fff" stop-opacity=".28"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+        <clipPath id="dansForme"><path id="clipForme"/></clipPath>
+        <filter id="flouBord" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.6"/></filter>
+      </defs>
+      <g mask="url(#hors)"><path id="ombreLu" fill="rgb(10,20,40)" opacity="0"/></g>
+      <g id="vitre" opacity="1">
+        <path id="vitreFond" fill="url(#vFond)"/>
+        <path id="vitreCentre" fill="url(#vCentre)" opacity="0"/>
+        <g clip-path="url(#dansForme)" id="vitreEffets">
+          <path id="vitreEpais" fill="none" stroke="url(#vEpais)" stroke-width="7" filter="url(#flouBord)"/>
+          <path id="vitreReflet" fill="url(#vReflet)"/>
+        </g>
+        <path id="vitreTrait" fill="none" stroke="rgba(0,0,0,.24)" stroke-width="1.6"/>
+        <path id="vitreBord" fill="none" stroke="rgba(255,255,255,.95)" stroke-width="1.7"/>
+        <path id="vitreBas" fill="none" stroke="url(#vLisiere2)" stroke-width="1.5"/>
+      </g>
+    </svg>
+    <div id="luContenu"></div>
+  </div>
+
+
+  <!-- ===== l'îlot ===== -->
+  <svg id="forme-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true"><g id="ombre"><path id="forme" fill="#000" d=""/></g></svg>
+  <div id="contenu" class="calque"></div>
+  <svg id="encoche-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/>
+    <circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+
+  <div class="pointeur" id="pointeur" aria-hidden="true"><div class="fantome" id="fantome"></div><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+</section>
+
+</section>
+
+<!-- ===== régie ===== -->
+<section class="regie">
+  <div class="r-haut">
+    <div aria-live="polite">
+      <div class="r-num" id="num"></div>
+      <h1 class="r-titre" id="titre"></h1>
+      <p class="r-phrase" id="phrase"></p>
+    </div>
+    <div class="r-mains" aria-hidden="true"><div class="pad" id="pad"><i></i><i></i></div><div class="r-geste" id="geste"></div></div>
+    <div class="r-cmd">
+      <button class="bouton creux" id="rejouer">Rejouer</button>
+      <button class="bouton plein" id="suivant">Étape suivante</button>
+      <div class="r-opts">
+        <label><input type="checkbox" id="autoCase" checked> Lecture automatique</label>
+        <label><input type="checkbox" id="lentCase"> Ralenti ×4</label>
+        <label><input type="checkbox" id="sombreCase"> Fond sombre</label>
+      </div>
+    </div>
+  </div>
+  <ol class="r-pas" id="pas"></ol>
+  <div class="notes">
+    <div style="grid-column:1/-1"><b>Comment ça marche.</b> Tu maintiens fn et tu parles. Voxile reconnaît « rappelle-moi… » ou « note… » au début de la phrase : l’onde vient du micro en direct, le libellé arrive dès que la commande est comprise. Quand tu lâches fn, la carte montre ce que Voxile a compris et propose de l’envoyer dans Rappels ou dans Notes. Rien n’est envoyé sans ton clic.</div>
+    <div><b>À essayer ici.</b> Décochez Lecture automatique, puis cliquez sur une étape. Les boutons « Envoyer dans Rappels » et « Envoyer dans Notes » se cliquent. « Fond sombre » vérifie que le verre reste lisible sur un fond sombre.</div>
+    <div><b>Ce qui ne bouge pas.</b> Dans l’encoche : noir et opaque, au plus 66 pt de chaque côté de la caméra. Ailleurs : du verre « Liquide ». Depuis un coin du haut, la carte s’ouvre vers le bas et la gauche ; depuis un coin du bas, elle monte, et passe au-dessus du Dock si elle le recouvre.</div>
+  </div>
+</section>
+
+<script>
+'use strict';
+/* =========================================================
+   Constantes — 1 px CSS = 1 pt
+   ========================================================= */
+const B = 33;                 // hauteur de la barre des menus
+const HC = 90;                // demi-caméra (encoche de 180 pt)
+const NO = 154;               // îlot ouvert : épaules de 64 pt dans la barre (limite 66)
+const BW = 232;               // îlot ouvert : demi-largeur du corps (464 pt)
+const GX = -BW + 16;          // bord gauche des cartes
+const DOCK = 68;              // Dock 62 pt + 6 pt de marge
+const MARGE = 12;             // écart de Lucarne aux bords de l'écran
+const Q = new URLSearchParams(location.search);
+const racine = document.documentElement;
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const f2 = v => Math.round(v * 100) / 100;
+const mid = t => (B - t) / 2;
+let K = 1;
+const FIGE = Q.has('fige') || (Q.has('etape') && !Q.has('joue'));   // ?etape=N tout seul : l'étape N posée, tout figé
+const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+let REDUIT = mq.matches;
+mq.addEventListener && mq.addEventListener('change', e => { REDUIT = e.matches; });
+if (FIGE) racine.classList.add('fige');
+
+
+/* =========================================================
+   Forme de l'îlot (reprise de ilot-cinq.html)
+   ng / nd = cou à gauche / à droite dans la barre, bw / bd = corps sous la barre, h = hauteur,
+   rs = épaule creuse en haut, rb = coin bas, rt = coin haut du corps, f = congé du cou
+   ========================================================= */
+const PORTEE = 1.6, POIGNEE = 0.18;
+function cote(g, n, bw){
+  const corps = Math.max(0, g.h - B), u = Math.min(corps, 40) / 40, e = 1 - Math.pow(1 - u, 2.5);
+  const d = Math.max(0, bw - n) * e, W = n + d, serre = 1 - clamp((n - HC) / 24, 0, 1);
+  const rs = g.rs + (4 - g.rs) * serre, rbv = lerp(g.rb + (8 - g.rb) * serre, g.rb, clamp(corps / 12, 0, 1));
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6), dispo = (1 - lam) * (g.h - rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(rbv, dispo / PORTEE, W / PORTEE));
+  return {n, W, d, fe, rte, rbe, rs};
+}
+function chemin(g){
+  const h = g.h, L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd), X = f2, Y = f2;
+  const a1 = PORTEE * L.rte, c1 = POIGNEE * a1, a2 = PORTEE * L.rbe, c2 = POIGNEE * a2;
+  const b1 = PORTEE * D.rte, d1 = POIGNEE * b1, b2 = PORTEE * D.rbe, d2 = POIGNEE * b2;
+  let p = `M${X(-L.n - L.rs)} ${Y(-1)}L${X(-L.n - L.rs)} 0Q${X(-L.n)} 0 ${X(-L.n)} ${Y(L.rs)}`;
+  if (L.d > 0.5) p += `L${X(-L.n)} ${Y(B - L.fe)}Q${X(-L.n)} ${B} ${X(-L.n - L.fe)} ${B}L${X(-L.W + a1)} ${B}C${X(-L.W + c1)} ${B} ${X(-L.W)} ${Y(B + c1)} ${X(-L.W)} ${Y(B + a1)}`;
+  p += `L${X(-L.W)} ${Y(h - a2)}C${X(-L.W)} ${Y(h - c2)} ${X(-L.W + c2)} ${Y(h)} ${X(-L.W + a2)} ${Y(h)}`;
+  p += `L${X(D.W - b2)} ${Y(h)}C${X(D.W - d2)} ${Y(h)} ${X(D.W)} ${Y(h - d2)} ${X(D.W)} ${Y(h - b2)}`;
+  if (D.d > 0.5) p += `L${X(D.W)} ${Y(B + b1)}C${X(D.W)} ${Y(B + d1)} ${X(D.W - d1)} ${B} ${X(D.W - b1)} ${B}L${X(D.n + D.fe)} ${B}Q${X(D.n)} ${B} ${X(D.n)} ${Y(B - D.fe)}`;
+  p += `L${X(D.n)} ${Y(D.rs)}Q${X(D.n)} 0 ${X(D.n + D.rs)} 0L${X(D.n + D.rs)} ${Y(-1)}Z`;
+  return p;
+}
+const CLES = ['ng', 'nd', 'bw', 'bd', 'h', 'rs', 'rb', 'rt', 'f'];
+const REPOS = {ng:HC, nd:HC, bw:HC, bd:HC, h:B, rs:4, rb:8, rt:0, f:0};                  // l'encoche seule
+const compact = (g, d) => ({ng:g, nd:d, bw:g, bd:d, h:B, rs:6, rb:10, rt:0, f:0});       // des ailes dans la barre
+const bandeau = (w, h, n) => ({ng:n, nd:n, bw:w, bd:w, h, rs:6, rb:30, rt:16, f:10});    // il descend sous la barre
+$('#encoche').setAttribute('d', chemin(REPOS));
+
+/* =========================================================
+   Ressorts (réponse en s, amortissement) — interruptibles
+   ========================================================= */
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = .8; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){
+      this.attente -= dt;
+      if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; }
+    }
+    const w = 2 * Math.PI / this.rep, a = w * w * (this.cible - this.x) - 2 * this.z * w * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+(function(){   // courbe CSS « ressort » (même formule), pour les zooms d'entrée
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){
+    pts.push(x);
+    for (let s = 0, n = Math.round((T / N) / dt); s < n; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; }
+  }
+  pts[pts.length - 1] = 1;
+  racine.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+
+/* =========================================================
+   Glyphes (dessinés à la main, façon symboles SF)
+   ========================================================= */
+const micro = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const airpods = (t, c = '#fff') => { const b = 'M5.6 3a3.1 3.1 0 0 0-3.1 3.1v.9a3.1 3.1 0 0 0 3.1 3.1h.3v6.4a1.2 1.2 0 0 0 2.4 0V5.9A3 3 0 0 0 5.6 3z';
+  return `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><path d="${b}"/><path d="${b}" transform="matrix(-1 0 0 1 20 0)"/></svg>`; };
+const batterie = n => `<svg width="28" height="13" viewBox="0 0 28 13"><rect width="24" height="13" rx="4" fill="#fff"/><text x="12" y="10" font-size="9.6" font-weight="700" text-anchor="middle" fill="#000" font-family="-apple-system,Helvetica,sans-serif">${n}</text><path d="M26 4.6v3.8" stroke="rgba(255,255,255,.5)" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const rappelsG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="color:${c}"><circle cx="10" cy="10" r="7.6"/><path d="M6.4 10.2l2.5 2.5 4.8-5.2"/></svg>`;
+const noteG = (t, c, trait = '#000') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="3.4" y="2.4" width="13.2" height="15.2" rx="3.2" fill="${c}" stroke="rgba(0,0,0,.28)" stroke-width=".7"/><path d="M6.6 7.2h6.8M6.6 10.2h6.8M6.6 13.2h4" stroke="${trait}" stroke-opacity=".5" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+const cocheCk = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 8.4 6.6 11.4 12.6 4.8"/></svg>';
+const petiteCoche = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.6 12.8 4.6"/></svg>';
+const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
+const MENUS = ['Fichier', 'Modifier', 'Afficher', 'Historique', 'Favoris', 'Profils', 'Onglet', 'Fenêtre', 'Aide'];
+const LECT = () => ({...REPOS});
+
+/* Icônes de la barre des menus, de la droite vers la gauche */
+(function(){
+  const s = d => `<span><svg viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg></span>`;
+  $('#etats').innerHTML = '<span class="heure">Jeu. 12 nov.&nbsp; 14:30</span>' +
+    s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
+    s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
+    s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.4v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>';
+})();
+$('#menus').innerHTML = POMME + '<b>Chrome</b>' + MENUS.map(m => `<span>${m}</span>`).join('');
+
+/* La Dock : icônes dessinées, sobres (Voxile est la dernière avant le séparateur) */
+(function(){
+  const sq = (fond, dedans, id) => `<svg viewBox="0 0 48 48"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">${fond}</linearGradient></defs><rect x="1" y="1" width="46" height="46" rx="11" fill="url(#${id})"/>${dedans}</svg>`;
+  const st2 = (a, b) => `<stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/>`;
+  const barres = [[13, 8], [18.5, 16], [24, 24], [29.5, 14], [35, 8]].map(([x, h]) => `<rect x="${x - 1.7}" y="${24 - h / 2}" width="3.4" height="${h}" rx="1.7" fill="${x === 24 ? '#ffab3d' : '#fff'}"/>`).join('');
+  const ics = [
+    ['vu', sq(st2('#6cc4ff', '#1f78f0'), '<path d="M24 1h12a11 11 0 0 1 11 11v24a11 11 0 0 1-11 11H24z" fill="#eaf4ff" opacity=".95"/><path d="M15 17v5M33 17v5M14 31c6 4 14 4 20 0" stroke="#123" stroke-width="2.4" stroke-linecap="round" fill="none"/>', 'd1')],
+    ['vu', sq(st2('#ffffff', '#e9ebef'), '<circle cx="24" cy="24" r="14" fill="#e8453c"/><path d="M24 24l12.1-7A14 14 0 0 1 24 38z" fill="#f4bf26"/><path d="M24 24v14a14 14 0 0 1-12.1-21z" fill="#34a853"/><circle cx="24" cy="24" r="6.4" fill="#fff"/><circle cx="24" cy="24" r="4.8" fill="#4a8af4"/>', 'd2')],
+    ['', sq(st2('#5fb4ff', '#1b6fe6'), '<rect x="10" y="15" width="28" height="19" rx="3" fill="#fff"/><path d="M11 17l13 9 13-9" fill="none" stroke="#1b6fe6" stroke-width="2"/>', 'd3')],
+    ['', sq(st2('#7ee07f', '#26b33c'), '<path d="M24 12c-8.3 0-14 5-14 11 0 3.6 2 6.6 5.2 8.6-.3 2-1.4 3.6-3 4.8 3.4 0 5.8-1.2 7.4-2.6 1.4.3 2.9.4 4.4.4 8.3 0 14-5 14-11.2S32.3 12 24 12z" fill="#fff"/>', 'd4')],
+    ['', sq(st2('#fff6d4', '#ffffff'), '<rect x="1" y="1" width="46" height="12" fill="#ffd64a" opacity=".9"/><path d="M10 22h28M10 29h28M10 36h20" stroke="#c9c9cf" stroke-width="1.6"/>', 'd5')],
+    ['', sq(st2('#ffffff', '#f2f2f4'), '<text x="24" y="15" font-size="8" font-weight="700" text-anchor="middle" fill="#ff3b30" font-family="-apple-system,Helvetica,sans-serif">JEU.</text><text x="24" y="38" font-size="22" text-anchor="middle" fill="#1d1d1f" font-family="-apple-system,Helvetica,sans-serif">12</text>', 'd6')],
+    ['', sq(st2('#b8bcc4', '#7e838c'), '<circle cx="24" cy="24" r="11" fill="none" stroke="#3b3e44" stroke-width="5" stroke-dasharray="4 3.2"/><circle cx="24" cy="24" r="7.5" fill="#d9dce1" stroke="#3b3e44" stroke-width="1.6"/><circle cx="24" cy="24" r="2.4" fill="#3b3e44"/>', 'd7')],
+    ['vu', sq(st2('#3e3f44', '#1b1c1f'), barres, 'd9')],
+    ['sep', ''],
+    ['', sq(st2('#eef0f3', '#cfd3d9'), '<path d="M15 16h18l-1.6 22a2 2 0 0 1-2 1.8H18.6a2 2 0 0 1-2-1.8z" fill="none" stroke="#8a8f98" stroke-width="1.6"/><path d="M13 16h22M20 16v-2.4h8V16" stroke="#8a8f98" stroke-width="1.6" fill="none"/>', 'd8')]
+  ];
+  $('#dock').innerHTML = ics.map(([c, h]) => c === 'sep' ? '<i class="sep"></i>' : `<span class="ic ${c}">${h}</span>`).join('');
+})();
+
+/* L'image de la vidéo (dessinée, reprise de 3-spotlight.html) */
+function affiche(p){
+  return `<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
+  <defs>
+    <linearGradient id="${p}mur" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9d282"/><stop offset="1" stop-color="#f0a146"/></linearGradient>
+    <radialGradient id="${p}lum" cx="72%" cy="28%" r="62%"><stop offset="0" stop-color="#fff2c9" stop-opacity=".95"/><stop offset="1" stop-color="#fff2c9" stop-opacity="0"/></radialGradient>
+    <linearGradient id="${p}tab" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a95b27"/><stop offset="1" stop-color="#743612"/></linearGradient>
+    <linearGradient id="${p}coq" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dcdfe5"/></linearGradient>
+    <linearGradient id="${p}ecr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9ddff"/><stop offset="1" stop-color="#3b7edb"/></linearGradient>
+  </defs>
+  <rect width="320" height="180" fill="url(#${p}mur)"/><rect width="320" height="180" fill="url(#${p}lum)"/>
+  <circle cx="44" cy="54" r="31" fill="#fff" opacity=".09"/><circle cx="102" cy="30" r="17" fill="#fff" opacity=".08"/><circle cx="286" cy="92" r="23" fill="#fff" opacity=".07"/>
+  <rect y="136" width="320" height="44" fill="url(#${p}tab)"/><rect y="136" width="320" height="1.2" fill="#fff" opacity=".24"/>
+  <ellipse cx="205" cy="143" rx="46" ry="5.2" fill="#3a1804" opacity=".42"/>
+  <g class="flotte"><g transform="rotate(-6 200 88)">
+    <rect x="168" y="31" width="64" height="110" rx="9.5" fill="url(#${p}coq)" stroke="#c7cad1" stroke-width=".8"/>
+    <rect x="175" y="39" width="50" height="38" rx="3" fill="url(#${p}ecr)"/>
+    <rect x="179" y="44" width="22" height="3" rx="1.5" fill="#fff" opacity=".95"/><rect x="179" y="51" width="33" height="3" rx="1.5" fill="#fff" opacity=".6"/><rect x="179" y="58" width="26" height="3" rx="1.5" fill="#fff" opacity=".6"/><rect x="179" y="65" width="30" height="3" rx="1.5" fill="#fff" opacity=".6"/>
+    <circle cx="200" cy="109" r="21.5" fill="#eceef1" stroke="#d2d5db" stroke-width=".8"/><circle cx="200" cy="109" r="7.6" fill="#fbfbfc" stroke="#d8dae0" stroke-width=".6"/>
+  </g></g></svg>`;
+}
+
+let jeton = 0, instant = false, enCoursN = 0, cibleN = 0, auto = false;
+const minuteries = new Set();
+function apres(t, fn){ const id = setTimeout(() => { minuteries.delete(id); fn(); }, t * 1000 * K); minuteries.add(id); return id; }
+function annuler(){ minuteries.forEach(clearTimeout); minuteries.clear(); }
+function suite(){ const j = jeton; return Promise.resolve().then(() => { if (j !== jeton) throw 'stop'; }); }
+function attendre(t){
+  if (instant) return suite();
+  const j = jeton;
+  return new Promise((ok, ko) => apres(t, () => (j === jeton ? ok() : ko('stop'))));
+}
+function tween(duree, fn){
+  if (instant){ fn(1); return suite(); }
+  const j = jeton, t0 = performance.now();
+  return new Promise((ok, ko) => {
+    const pas = () => {
+      if (j !== jeton) return ko('stop');
+      const u = clamp((performance.now() - t0) / (duree * 1000 * K), 0, 1);
+      fn(u);
+      if (u < 1) requestAnimationFrame(pas); else ok();
+    };
+    pas();
+  });
+}
+const fin = () => instant && enCoursN === cibleN;   // dans un état posé, le retour au calme de la dernière étape n'est pas joué
+const facile = u => 1 - Math.pow(1 - u, 3);
+
+const forme = $('#forme'), ombre = $('#ombre');
+const R = {}; CLES.forEach(k => R[k] = new Ressort(LECT()[k]));
+const TOUS = CLES.map(k => R[k]);
+let cible = LECT(), enCours = false, tPrec = 0;
+function ilot(g, o = {}){
+  const grand = (g.bw + g.bd) * g.h >= (cible.bw + cible.bd) * cible.h - .5;
+  const rep = o.rep ?? (grand ? .46 : .38), z = o.z ?? (grand ? .78 : 1), att = o.attente ?? (grand ? 0 : .06);
+  cible = {...g};
+  for (const k of CLES){
+    if (instant) R[k].poser(g[k]);
+    else { const haut = k === 'h' && grand; R[k].viser(g[k], haut ? rep * 1.06 : rep, z, att + (haut ? .02 : 0)); }
+  }
+  demarrer();
+}
+function montre(noms, d = .14){
+  const vus = new Set(noms);
+  for (const nom in c){
+    const n = c[nom], on = vus.has(nom);
+    if (on && !n.classList.contains('on')) n.style.setProperty('--d', d + 's');
+    n.classList.toggle('on', on);
+  }
+}
+function demarrer(){
+  if (FIGE || instant){ rendu(); return; }
+  if (!enCours){ enCours = true; tPrec = performance.now(); requestAnimationFrame(boucle); }
+}
+function boucle(){
+  const t = performance.now(), dt = clamp((t - tPrec) / 1000, 0, .05) / K; tPrec = t;
+  const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+  for (let i = 0; i < n; i++) for (const r of TOUS) r.pas(h);
+  let bouge = false;
+  for (const r of TOUS) if (!r.pose()) bouge = true;
+  rendu();
+  if (bouge) requestAnimationFrame(boucle); else enCours = false;
+}
+function rendu(){
+  const g = {}; for (const k of CLES) g[k] = R[k].x;
+  forme.setAttribute('d', chemin(g));
+  const a = clamp((g.h - B - 6) / 40, 0, 1);
+  ombre.style.filter = a > .01 ? `drop-shadow(0 ${(9 * a).toFixed(1)}px ${(18 * a).toFixed(1)}px rgba(10,20,40,${(.32 * a).toFixed(3)}))` : 'none';
+}
+
+function capsule(g){
+  const X = f2, Y = f2;
+  const x0 = g.x0, x1 = Math.max(g.x1, g.x0), y0 = g.y0, y1 = Math.max(g.y1, g.y0), w = x1 - x0, h = y1 - y0;
+  if (w < .5 || h < .5) return '';
+  const lim = Math.min(w, h) / 2, rb = clamp(g.r, 0, lim / PORTEE), a = PORTEE * rb, cc = POIGNEE * a;
+  const t = PORTEE * Math.min(g.s, lim / PORTEE), u = POIGNEE * t;
+  let p = `M${X(x0 + t)} ${Y(y0)}C${X(x0 + u)} ${Y(y0)} ${X(x0)} ${Y(y0 + u)} ${X(x0)} ${Y(y0 + t)}`;
+  p += `L${X(x0)} ${Y(y1 - a)}C${X(x0)} ${Y(y1 - cc)} ${X(x0 + cc)} ${Y(y1)} ${X(x0 + a)} ${Y(y1)}`;
+  p += `L${X(x1 - a)} ${Y(y1)}C${X(x1 - cc)} ${Y(y1)} ${X(x1)} ${Y(y1 - cc)} ${X(x1)} ${Y(y1 - a)}`;
+  return p + `L${X(x1)} ${Y(y0 + t)}C${X(x1)} ${Y(y0 + u)} ${X(x1 - u)} ${Y(y0)} ${X(x1 - t)} ${Y(y0)}Z`;
+}
+/* la carte de la lentille : pour chaque point de la forme, on va chercher le fond plus vers l'intérieur,
+   de plus en plus fort près du bord (profil d'une goutte) : le bord grossit et tord ce qui est derrière. */
+const cartes = new Map();
+function carte(w, h, rr, bande){
+  const qw = Math.max(16, Math.round(w / 8) * 8), qh = Math.max(16, Math.round(h / 8) * 8);
+  const qr = Math.min(Math.round(rr), qw / 2, qh / 2), qb = Math.max(4, Math.round(bande)), cle = `${qw}x${qh}x${qr}x${qb}`;
+  if (cartes.has(cle)) return cartes.get(cle);
+  const cv = document.createElement('canvas'); cv.width = qw; cv.height = qh;
+  const cx = cv.getContext('2d'), im = cx.createImageData(qw, qh), dd = im.data;
+  for (let j = 0; j < qh; j++) for (let i = 0; i < qw; i++){
+    const px = i + .5 - qw / 2, py = j + .5 - qh / 2, ax = Math.abs(px) - (qw / 2 - qr), ay = Math.abs(py) - (qh / 2 - qr);
+    let dist, nx, ny;
+    if (ax > 0 && ay > 0){ const L2 = Math.hypot(ax, ay); dist = qr - L2; nx = ax / L2; ny = ay / L2; }
+    else if (ax > ay){ dist = qr - ax; nx = 1; ny = 0; } else { dist = qr - ay; nx = 0; ny = 1; }
+    nx *= px < 0 ? -1 : 1; ny *= py < 0 ? -1 : 1;
+    const u = clamp(1 - dist / qb, 0, 1), m = .45 * u * u + .55 * (1 - Math.sqrt(Math.max(0, 1 - u * u)));
+    const k = (j * qw + i) * 4;
+    dd[k] = 128 - nx * m * 127; dd[k + 1] = 128 - ny * m * 127; dd[k + 2] = 128; dd[k + 3] = 255;
+  }
+  cx.putImageData(im, 0, 0);
+  const url = cv.toDataURL();
+  cartes.set(cle, url); return url;
+}
+
+
+/* =========================================================
+   Ce que l'îlot affiche
+   ========================================================= */
+const NBSP = ' ';
+const carteRappel = () => `<div class="rc">
+  <div class="rc-l"><span class="rc-ck">${cocheCk}</span>
+    <div class="rc-tx"><div class="t15">Livraison</div><div class="rc-date">demain · 13:00</div><div class="rc-res">Être là pour le colis, vers 13${NBSP}h.</div></div></div>
+  <div class="rc-bas"><button class="pri" data-envoi="rappel" style="--mw:172px"><span class="avant">Envoyer dans Rappels</span><span class="apres">${petiteCoche}Dans Rappels</span></button><button class="mod">Modifier</button></div>
+</div>`;
+const carteNote = () => `<div class="rc">
+  <div class="rc-l"><span class="rc-ck jau">${noteG(15, '#2b2200', '#ffd60a')}</span>
+    <div class="rc-tx"><div class="t15">Prix sur la première page</div><div class="rc-res">Montrer le prix dès la première page. Ajouter trois exemples de clients.</div></div></div>
+  <div class="rc-bas"><button class="pri" data-envoi="note" style="--mw:150px"><span class="avant">Envoyer dans Notes</span><span class="apres">${petiteCoche}Dans Notes</span></button><button class="mod">Copier</button></div>
+</div>`;
+const libRap = (w) => `<div class="lib"${w ? ` style="width:${w}px"` : ''}>${rappelsG(15, 'rgb(var(--ora))')}<span>Rappel…</span></div>`;
+const libNote = (w) => `<div class="lib"${w ? ` style="width:${w}px"` : ''}>${noteG(15, '#ffd60a')}<span>Note…</span></div>`;
+const CONTENUS = [
+  ['aileMic', -(HC + 28), mid(18), `<span class="aile">${micro(18, '#ff9f0a')}</span>`],
+  ['aileRap', -(HC + 28), mid(18), `<span class="aile">${rappelsG(18, '#ff9f0a')}</span>`],
+  ['aileNote', -(HC + 28), mid(18), `<span class="aile">${noteG(18, '#ffd60a')}</span>`],
+  ['onde', -94.5, B + 10, '<div class="onde" data-onde></div>'],
+  ['libRap', -60, B + 46, libRap(120)],
+  ['libNote', -60, B + 46, libNote(120)],
+  ['batt', -NO + 13, mid(13), `<span class="epaule">${batterie(64)}</span>`],
+  ['airp', HC + 8, mid(17), `<span class="epaule">${airpods(15)}78 %</span>`],
+  ['carteRap', GX, B + 14, carteRappel()],
+  ['carteNote', GX, B + 14, carteNote()]
+];
+const contenu = $('#contenu');
+contenu.innerHTML = CONTENUS.map(([nom, x, y, html]) => `<div class="c e" data-c="${nom}" style="left:${f2(500 + x)}px;top:${f2(y)}px">${html}</div>`).join('');
+const c = {}; contenu.querySelectorAll('[data-c]').forEach(n => c[n.dataset.c] = n);
+$('#lecteur').insertAdjacentHTML('afterbegin', affiche('g'));
+
+/* =========================================================
+   L'état de Voxile
+   ========================================================= */
+const st = {};
+function remettre(){ Object.assign(st, {carte:null, onde:'calme', envoye:{rappel:false, note:false}}); }
+function majEnvoi(){ document.querySelectorAll('[data-envoi]').forEach(b => b.classList.toggle('ok', !!st.envoye[b.dataset.envoi])); }
+
+/* =========================================================
+   L'onde : des barres qui suivent la voix.
+   Une enveloppe de voix (syllabes, mots plus ou moins forts, petites pauses) part du milieu et se propage vers les bords :
+   chaque barre lit la voix un peu plus tôt que sa voisine du centre. Monte vite, redescend plus doucement.
+   ========================================================= */
+const NB = 31, MINH = 3.5, MAXH = 30, T_POSE = +(Q.get('t') || .97);
+const ondes = [];
+function creerOndes(){
+  document.querySelectorAll('[data-onde]').forEach(h => {
+    if (h.children.length) return;
+    h.innerHTML = '<i></i>'.repeat(NB);
+    ondes.push({bars:[...h.children], h:Array(NB).fill(MINH)});
+  });
+}
+function voix(t){
+  const syl = Math.abs(Math.sin(t * 9.6 + 1.7 * Math.sin(t * 2.3)));
+  const mot = .62 + .38 * Math.sin(t * 2.1 + .4) * Math.sin(t * .9 + 1);
+  const pause = clamp(.12 + 8 * (Math.sin(t * .75 + 1.2) + .93), .12, 1);
+  return clamp((.18 + .82 * Math.pow(syl, .75)) * mot * pause * 1.5, 0, 1);
+}
+function hauteurs(t, mode){
+  return Array.from({length:NB}, (_, i) => {
+    const d = Math.abs(i - (NB - 1) / 2);
+    if (mode === 'ecoute'){
+      const prof = .3 + .7 * Math.exp(-d * d / (2 * 6.5 * 6.5)), a = voix(t - d * .055), vie = .82 + .18 * Math.sin(t * 13 + i * 2.3);
+      return MINH + (MAXH - MINH) * clamp(a * prof * vie * 1.3, 0, 1);
+    }
+    if (mode === 'attente') return MINH + 9 * Math.pow(Math.max(0, Math.sin(t * 7 - i * .5)), 2);
+    return MINH;
+  });
+}
+function ondesDessiner(fixe){
+  const t = fixe ? T_POSE : performance.now() / 1000 / K, cibles = hauteurs(t, st.onde);
+  for (const o of ondes) for (let i = 0; i < NB; i++){
+    o.h[i] = fixe ? cibles[i] : o.h[i] + (cibles[i] - o.h[i]) * (cibles[i] > o.h[i] ? .55 : .22);
+    o.bars[i].style.height = f2(o.h[i]) + 'px';
+  }
+}
+function boucleOnde(){ ondesDessiner(false); requestAnimationFrame(boucleOnde); }
+
+/* =========================================================
+   L'îlot dans l'encoche : écoute, libellé, carte
+   ========================================================= */
+const ECOUTE = bandeau(165, B + 48, HC + 40), ECOUTE_L = bandeau(165, B + 72, HC + 40);
+const HAUT = {carteRap:() => B + 14 + c.carteRap.firstElementChild.offsetHeight + 14, carteNote:() => B + 14 + c.carteNote.firstElementChild.offsetHeight + 14};
+const FORME = carte => bandeau(BW, HAUT[carte](), NO);
+function ecouter(){                   // l'îlot s'ouvre sous l'encoche : l'onde seule
+  st.carte = 'ecoute'; st.onde = 'ecoute';
+  montre([], 0); ilot(ECOUTE); montre(['aileMic', 'onde'], .14);
+}
+function libeller(type){              // la commande est reconnue : l'îlot grandit d'une ligne, le libellé arrive
+  st.carte = 'ecoute+';
+  const lib = type === 'rappel' ? 'libRap' : 'libNote', aile = type === 'rappel' ? 'aileRap' : 'aileNote';
+  ilot(ECOUTE_L); montre(['onde', aile, lib], .14);
+  c[lib].style.setProperty('--d', '.3s');
+}
+function carteFin(carte){             // fn relâché : la carte
+  st.carte = carte; st.onde = 'calme';
+  montre([], 0); ilot(FORME(carte)); montre(['batt', 'airp', carte], .16);
+}
+function replier(){ st.carte = null; st.onde = 'calme'; montre([], 0); ilot(LECT()); }
+async function envoyer(type){ st.envoye[type] = true; majEnvoi(); await attendre(.7); }
+
+/* =========================================================
+   Lucarne dans un coin : verre « Liquide » (code repris de ilot-concentration.html / lucarne-position.html)
+   Elle s'ouvre vers l'intérieur de l'écran ; depuis un coin du bas, elle monte, et passe au-dessus du Dock.
+   ========================================================= */
+const ecran = $('#ecran'), pointeur = $('#pointeur'), pad = $('#pad');
+const luEl = $('#lu'), verre = $('#verre'), givre = $('#givre'), luC = $('#luContenu'), vitre = $('#vitre');
+const lentImg = $('#carteLentille'), lentDeps = [...document.querySelectorAll('#lentille .dep')], lentF = $('#lentille');
+const NVL = {flou:.8, sat:1.1, lum:1, lentille:140, bord:42, givre:9, rentre:.4, ombre:1.35, aberration:.03};
+const miniBarres = [5, 9, 14, 8, 5].map(h => `<i style="height:${h}px"></i>`).join('');
+luC.innerHTML = `<div class="c e" data-c="pil"><div class="lu-pil"><span class="mini">${miniBarres}</span><span>Voxile</span></div></div>
+  <div class="c e" data-c="onde"><div class="onde" data-onde></div></div>
+  <div class="c e" data-c="libRap">${libRap()}</div>
+  <div class="c e" data-c="libNote">${libNote()}</div>
+  <div class="c e" data-c="rap">${carteRappel()}</div>
+  <div class="c e" data-c="note">${carteNote()}</div>`;
+const lc = {}; luC.querySelectorAll('[data-c]').forEach(n => lc[n.dataset.c] = n);
+creerOndes();
+function lcMontre(noms, d = .14){
+  const vus = new Set(noms);
+  for (const nom in lc){
+    const n = lc[nom], on = vus.has(nom);
+    if (on && !n.classList.contains('on')) n.style.setProperty('--d', d + 's');
+    n.classList.toggle('on', on);
+  }
+}
+/* la carte de la lentille, les gouttes : voir plus haut (capsule, carte) ; ici, les gouttes de Voxile = les boutons « Envoyer » */
+function gouttes(){
+  const svg = $('#gouttes');
+  luC.querySelectorAll('.pri').forEach(el => {
+    el.classList.add('goutte');
+    const w = el.offsetWidth, h = el.offsetHeight; if (!w || !h) return;
+    const rr = Math.min(w, h) / 2, id = `goutte-${w}-${h}-${Math.round(rr)}`;
+    if (!document.getElementById(id)){
+      const p = Math.min(w, h);
+      svg.insertAdjacentHTML('beforeend', `<filter id="${id}" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" x="0" y="0" width="${w}" height="${h}" color-interpolation-filters="sRGB"><feImage x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none" href="${carte(w, h, rr, p * .38)}" result="c"/><feDisplacementMap in="SourceGraphic" in2="c" scale="${f2(p * .6)}" xChannelSelector="R" yChannelSelector="G"/></filter>`);
+    }
+    el.style.backdropFilter = el.style.webkitBackdropFilter = `blur(1.5px) url(#${id}) saturate(1.3) brightness(1.05)`;
+  });
+}
+const lu = {vu:false, etat:'pil', coin:'hd', box:null, tw:124, th:36};
+const hCarte = n => lc[n].firstElementChild.offsetHeight + 28;
+const TAILLE = () => ({pil:[124, 36], onde:[214, 46], ondeLib:[214, 72], rap:[452, hCarte('rap')], note:[452, hCarte('note')]});
+/* la boîte d'une étape dans un coin : en haut, sous la barre des menus, elle grandit vers le bas ; en bas, à côté du Dock,
+   elle grandit vers le haut, et passe au-dessus du Dock si elle le recouvre */
+function luBoite(coin, etat){
+  const W = ecran.clientWidth, H = ecran.clientHeight, [w, h] = TAILLE()[etat], x1 = W - MARGE, x0 = x1 - w;
+  if (coin === 'hd'){ const y0 = B + 8; return {x0, x1, y0, y1:y0 + h}; }
+  const DW = $('#dock').offsetWidth / 2;
+  let y1 = H - 19;
+  if (y1 > H - DOCK - 10 && x0 < W / 2 + DW + 8 && x1 > W / 2 - DW - 8) y1 = H - DOCK - 10;
+  return {x0, x1, y0:y1 - h, y1};
+}
+function luPlacer(b, etat){
+  const w = b.x1 - b.x0, set = (n, x, y, wd) => { n.style.left = f2(x) + 'px'; n.style.top = f2(y) + 'px'; if (wd) n.style.width = f2(wd) + 'px'; };
+  if (etat === 'pil') set(lc.pil, b.x0 + 14, b.y0);
+  else if (etat === 'onde' || etat === 'ondeLib'){ set(lc.onde, b.x0 + (w - 189) / 2, b.y0 + 8); set(lc.libRap, b.x0, b.y0 + 45, w); set(lc.libNote, b.x0, b.y0 + 45, w); }
+  else set(etat === 'rap' ? lc.rap : lc.note, b.x0 + 16, b.y0 + 14);
+}
+function luRendre(b){
+  const W = ecran.clientWidth, {x0, x1, y0, y1} = b, w = x1 - x0, h = y1 - y0, petit = Math.min(w, h), texte = clamp((h - 32) / 20, 0, 1);
+  lu.box = {...b};
+  const g = {x0, x1, y0, y1, s:22, r:22}, d = capsule(g);
+  const M = 10, bx = Math.floor(x0) - M, by = Math.floor(y0) - M, bw = Math.ceil(w) + 2 * M, bh = Math.ceil(h) + 2 * M;
+  const loc = q => ({...q, x0:q.x0 - bx, x1:q.x1 - bx, y0:q.y0 - by, y1:q.y1 - by});
+  for (const n of [verre, givre]) Object.assign(n.style, {left:bx + 'px', top:by + 'px', width:bw + 'px', height:bh + 'px'});
+  verre.style.clipPath = `path('${capsule(loc(g))}')`;
+  // le fond : flou léger, puis la lentille (carte calculée à la taille d'arrivée, étirée pendant le mouvement)
+  const bande = Math.min(NVL.bord, petit * .5), rrF = Math.min(PORTEE * 22, Math.min(lu.tw, lu.th) / 2), bandeF = Math.min(NVL.bord, Math.min(lu.tw, lu.th) * .5);
+  lentImg.setAttribute('href', carte(lu.tw, lu.th, rrF, bandeF));
+  lentF.setAttribute('width', bw); lentF.setAttribute('height', bh);
+  lentImg.setAttribute('x', f2(x0 - bx)); lentImg.setAttribute('y', f2(y0 - by)); lentImg.setAttribute('width', f2(w)); lentImg.setAttribute('height', f2(h));
+  const echelle = Math.min(NVL.lentille, bande * 3.2);
+  lentDeps.forEach((n, i) => n.setAttribute('scale', f2(echelle * (1 + NVL.aberration * i))));
+  verre.style.backdropFilter = verre.style.webkitBackdropFilter = `blur(${NVL.flou}px) saturate(${NVL.sat}) brightness(${NVL.lum}) url(#lentille)`;
+  // le givre : seulement sous le texte, au centre (les bords restent de la lentille)
+  if (texte > 0){
+    const e = Math.min(NVL.bord, petit * .5) * NVL.rentre, k = v => Math.max(1, (PORTEE * v - e) / PORTEE);
+    const gr = {x0:x0 + e, x1:x1 - e, y0:y0 + e, y1:y1 - e, s:k(22), r:k(22)};
+    givre.style.clipPath = `path('${capsule(loc(gr))}')`;
+    givre.style.backdropFilter = givre.style.webkitBackdropFilter = `blur(${NVL.givre}px) saturate(1.15)`;
+    givre.style.opacity = f2(texte);
+    $('#vitreCentre').setAttribute('d', d); $('#vitreCentre').setAttribute('opacity', f2(texte));
+  } else { givre.style.opacity = 0; $('#vitreCentre').setAttribute('opacity', 0); }
+  for (const id of ['vitreFond', 'vitreTrait', 'vitreBord', 'vitreBas', 'clipForme', 'vitreEpais', 'vitreReflet']) $('#' + id).setAttribute('d', d);
+  $('#vitreEpais').setAttribute('stroke-width', f2(clamp(petit * .3, 7, 18)));
+  $('#vitreEpais').setAttribute('opacity', 1.25);
+  const dx = -((x0 + w / 2) / W) * .2;                                  // le reflet glisse avec la position
+  luC.style.setProperty('--rx', f2(clamp(30 + dx * 120, 5, 95)) + '%');
+  const rf = $('#vReflet'); rf.setAttribute('cx', f2(.3 + dx)); rf.setAttribute('fx', f2(.3 + dx));
+  $('#vitreReflet').setAttribute('opacity', f2(lerp(1, .55, texte)));
+  // l'ombre : douce, seulement autour (un masque la retire sous le verre)
+  const om = $('#ombreLu');
+  $('#masque').setAttribute('d', d); om.setAttribute('d', d);
+  om.setAttribute('opacity', (NVL.ombre * .24).toFixed(3));
+  om.style.filter = `blur(${f2(NVL.ombre * 8)}px)`; om.style.transform = 'translateY(6px)';
+}
+function luMontre(vu){ lu.vu = vu; const o = vu ? 1 : 0; verre.style.opacity = o; vitre.style.opacity = o; $('#ombreLu').style.opacity = o; if (!vu) givre.style.opacity = 0; }
+function luCacher(){ luMontre(false); lcMontre([], 0); lu.box = null; lu.etat = 'pil'; }
+function luViser(coin, etat){ const b = luBoite(coin, etat); lu.coin = coin; lu.etat = etat; lu.tw = b.x1 - b.x0; lu.th = b.y1 - b.y0; return b; }
+function luAfficher(coin){            // la pilule de verre apparaît dans son coin
+  const b = luViser(coin, 'pil'); luPlacer(b, 'pil'); luRendre(b); luMontre(true); lcMontre(['pil'], .12);
+}
+async function luAller(etat, coin = lu.coin, dur = .5){   // le verre passe d'une taille (ou d'un coin) à l'autre
+  const b0 = lu.box, b1 = luViser(coin, etat);
+  luPlacer(b1, etat);
+  await tween(dur, u => {
+    const e = 1 - Math.pow(1 - u, 3) * Math.cos(u * 5.2), m = k => lerp(b0[k], b1[k], e);
+    luRendre({x0:m('x0'), x1:m('x1'), y0:m('y0'), y1:m('y1')});
+  });
+  luRendre(b1);
+}
+function fond(sombre){ ecran.classList.toggle('sombre', sombre); luC.classList.toggle('sombre', sombre); $('#sombreCase').checked = sombre; }
+
+/* =========================================================
+   L'écran : pointeur, mains
+   ========================================================= */
+const XR = dx => ecran.clientWidth / 2 + dx;
+function ou(el){ const r = el.getBoundingClientRect(), e = ecran.getBoundingClientRect(); return [r.left + r.width / 2 - e.left, r.top + r.height / 2 - e.top]; }
+function cur(x, y, o = {}){
+  const saute = instant || o.saute;
+  pointeur.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
+  pointeur.style.transform = `translate(${f2(x)}px,${f2(y)}px)`;
+  if (saute){ void pointeur.offsetWidth; pointeur.style.transition = ''; }
+  pointeur.classList.toggle('vu', o.vu !== false);
+}
+async function va(x, y, d = .75){ cur(x, y, {duree:d}); await attendre(d); }
+async function vers(el, d = .75, dx = 0, dy = 0){ const [x, y] = ou(el); await va(x + dx, y + dy, d); }
+function doigts(t, mode){ pad.className = 'pad' + (mode ? ' ' + mode : ''); pad.style.setProperty('--t', f2(t) + 'px'); }
+async function clic(){
+  if (instant) return suite();
+  doigts(0, 'un'); pointeur.classList.add('appui');
+  await attendre(.13);
+  pointeur.classList.remove('appui'); doigts(0, '');
+}
+const bt = (racineEl, type) => racineEl.querySelector(`[data-envoi="${type}"]`);
+
+/* =========================================================
+   Les étapes
+   ========================================================= */
+function init(){
+  remettre(); luCacher(); majEnvoi();
+  ilot(LECT()); montre([]);
+  cur(XR(250), 380, {vu:false, saute:true});
+  pointeur.classList.remove('appui');
+  doigts(0, '');
+}
+const sortir = () => cur(XR(300), 400, {vu:false, duree:.8});
+const ARRET = () => (instant && enCoursN === cibleN) ? Q.get('moment') : null;   // ?moment=onde|carte : s'arrêter en route dans les deux dernières étapes
+async function clicEnvoi(racineEl, type){
+  cur(XR(300), 330, {saute:true}); await attendre(.05);
+  await vers(bt(racineEl, type), .8, -24, 1); await attendre(.2);
+  await clic(); await envoyer(type); sortir(); await attendre(.4);
+}
+async function luDictee(type){        // la même dictée, dans le verre : l'onde, le libellé, puis la carte
+  const lib = type === 'rappel' ? 'libRap' : 'libNote', carteN = type === 'rappel' ? 'rap' : 'note';
+  doigts(0, 'fn'); await attendre(.4);
+  st.onde = 'ecoute'; lcMontre([], 0); lcMontre(['onde'], .16); await luAller('onde', undefined, .45); await attendre(1.0);
+  lcMontre(['onde', lib], .2); await luAller('ondeLib', undefined, .45); await attendre(1.2);
+  if (ARRET() === 'onde') return false;
+  doigts(0, ''); st.onde = 'attente'; await attendre(.8);
+  lcMontre([], 0); st.onde = 'calme'; lcMontre([carteN], .2); await luAller(carteN, undefined, .55); await attendre(.9);
+  return ARRET() !== 'carte';
+}
+const ETAPES = [
+  {t:'Tu parles : l’onde suit ta voix', g:'fn maintenu',
+   p:'Tu maintiens fn et tu dis : « Voxile, rappelle-moi demain à 13 h pour la livraison. » L’îlot s’ouvre sous l’encoche. Les barres montent et descendent avec ta voix, du milieu vers les bords.',
+   async jeu(){ doigts(0, 'fn'); await attendre(.5); ecouter(); await attendre(1.4); }},
+  {t:'« Rappel… » : la commande est reconnue', g:'fn maintenu',
+   p:'Dès que Voxile comprend « rappelle-moi », l’îlot grandit d’une ligne et le libellé « Rappel… » arrive sous l’onde, avec l’orange de Rappels. L’onde continue pendant que tu finis ta phrase.',
+   async jeu(){ libeller('rappel'); await attendre(1.5); }},
+  {t:'Tu lâches fn : la carte du rappel', g:'fn relâché',
+   p:'L’onde se calme, puis la carte s’ouvre : case cochée, titre, date et heure, et une ligne de résumé. En bas, « Envoyer dans Rappels » et un « Modifier » discret.',
+   async jeu(){ doigts(0, ''); st.onde = 'attente'; await attendre(.8); carteFin('carteRap'); await attendre(1.2); }},
+  {t:'Un clic : « Dans Rappels »', g:'Un clic sur le bouton',
+   p:'Un clic sur « Envoyer dans Rappels » : le bouton devient « ✓ Dans Rappels ». Le rappel est dans l’app Rappels, demain à 13 h.',
+   async jeu(){ await clicEnvoi(contenu, 'rappel'); }},
+  {t:'Une note : « Note… »', g:'fn maintenu',
+   p:'Même geste pour une note : « Voxile, note : montrer le prix dès la première page, avec trois exemples de clients. » L’onde, puis le libellé « Note… » avec le jaune de Notes.',
+   async jeu(){
+     replier(); await attendre(.9);
+     doigts(0, 'fn'); await attendre(.4); ecouter(); await attendre(1.0);
+     libeller('note'); await attendre(1.4);
+   }},
+  {t:'Tu lâches fn : la carte de la note', g:'fn relâché',
+   p:'La carte montre un titre court et un résumé sur deux lignes. En bas, « Envoyer dans Notes » et « Copier ».',
+   async jeu(){ doigts(0, ''); st.onde = 'attente'; await attendre(.8); carteFin('carteNote'); await attendre(1.2); }},
+  {t:'Un clic : « Dans Notes »', g:'Un clic sur le bouton',
+   p:'Un clic sur « Envoyer dans Notes » : le bouton devient « ✓ Dans Notes ». « Copier » met le résumé dans le presse-papiers, sans ouvrir Notes.',
+   async jeu(){ await clicEnvoi(contenu, 'note'); }},
+  {t:'Lucarne en haut à droite : le même parcours', g:'fn, puis un clic',
+   p:'Lucarne a été déplacée dans le coin haut droit : du verre clair (« Liquide »). Même onde, même libellé « Rappel… », même carte. Elle s’ouvre vers l’intérieur de l’écran : vers le bas et vers la gauche.',
+   async jeu(){
+     replier(); await attendre(.7);
+     st.envoye = {rappel:false, note:false}; majEnvoi();
+     luAfficher('hd'); await attendre(.9);
+     if (!await luDictee('rappel')) return;
+     await clicEnvoi(luC, 'rappel');
+   }},
+  {t:'Lucarne en bas à droite : au-dessus du Dock', g:'fn, puis un clic',
+   p:'Dans le coin bas droit, à côté du Dock, c’est une note. L’onde et le libellé « Note… » se font dans la petite pilule ; la carte, trop large pour tenir à côté du Dock, monte au-dessus de lui.',
+   async jeu(){
+     st.envoye.note = false; majEnvoi();
+     lcMontre([], 0); await attendre(.2); await luAller('pil', 'hd', .45);
+     await attendre(.2); await luAller('pil', 'bd', .8); lcMontre(['pil'], .05); await attendre(.8);
+     if (!await luDictee('note')) return;
+     await clicEnvoi(luC, 'note');
+   }}
+];
+const N = ETAPES.length;
+const PAUSES = [1.6, 1.8, 2.2, 2.0, 1.8, 2.2, 2.0, 3.0, 3.4];
+
+/* =========================================================
+   Régie (reprise de ilot-concentration.html)
+   ========================================================= */
+let etape = 0;
+$('#pas').innerHTML = ETAPES.map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${e.t}</button></li>`).join('');
+function majRegie(n){
+  etape = n;
+  const m = Math.max(1, n), e = ETAPES[m - 1];
+  $('#num').textContent = `Voxile · rappels et notes · étape ${m} sur ${N}`;
+  $('#titre').textContent = e.t; $('#phrase').textContent = e.p; $('#geste').textContent = e.g;
+  document.querySelectorAll('#pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === m));
+}
+async function poser(n){
+  annuler();
+  instant = true; racine.classList.add('snap');
+  try {
+    cibleN = n; enCoursN = 0;
+    init();
+    for (let i = 1; i <= n; i++){ enCoursN = i; await ETAPES[i - 1].jeu(); }
+  } finally { instant = false; }
+  majRegie(n); rendu(); ondesDessiner(FIGE);
+  void ecran.offsetWidth;
+  requestAnimationFrame(() => requestAnimationFrame(() => racine.classList.remove('snap')));
+}
+async function jouer(n){
+  majRegie(n);
+  if (REDUIT) return poser(n);
+  racine.classList.remove('snap'); void ecran.offsetWidth;
+  cibleN = 0; enCoursN = n;
+  await ETAPES[n - 1].jeu();
+}
+function arreter(){ jeton++; auto = false; annuler(); doigts(0, ''); }
+const autoCase = $('#autoCase');
+async function tourner(){
+  arreter(); const j = jeton; auto = true;
+  try {
+    await poser(0); await attendre(.9);
+    for (;;){
+      for (let n = 1; n <= N; n++){ await jouer(n); await attendre(PAUSES[n - 1]); }
+      if (!autoCase.checked) break;
+      ecran.style.opacity = 0; await attendre(.3);
+      await poser(0); ecran.style.opacity = 1; await attendre(1.0);
+    }
+  } catch (e){ if (e !== 'stop') console.error(e); }
+  ecran.style.opacity = 1;
+  if (j === jeton) auto = false;
+}
+function lance(n){
+  arreter(); ecran.style.opacity = 1;
+  poser(n - 1).then(() => jouer(n)).catch(e => { if (e !== 'stop') console.error(e); });
+}
+$('#rejouer').addEventListener('click', () => { if (autoCase.checked) tourner(); else lance(Math.max(1, etape)); });
+$('#suivant').addEventListener('click', () => { autoCase.checked = false; lance(etape >= N ? 1 : etape + 1); });
+$('#pas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; autoCase.checked = false; lance(+b.dataset.e); });
+autoCase.addEventListener('change', () => { if (autoCase.checked) tourner(); else arreter(); });
+function ralenti(oui){ K = oui ? 4 : 1; racine.style.setProperty('--k', K); $('#lentCase').checked = oui; }
+$('#lentCase').addEventListener('change', e => ralenti(e.target.checked));
+$('#sombreCase').addEventListener('change', e => fond(e.target.checked));
+
+/* À la main : les boutons « Envoyer » se cliquent aussi à la vraie souris */
+function clicMain(e){
+  if (FIGE) return;
+  const b = e.target.closest('[data-envoi]'); if (!b) return;
+  if (auto || autoCase.checked){ autoCase.checked = false; arreter(); }
+  pointeur.classList.remove('vu');
+  st.envoye[b.dataset.envoi] = true; majEnvoi();
+}
+contenu.addEventListener('click', clicMain);
+luC.addEventListener('click', clicMain);
+
+/* =========================================================
+   Démarrage
+   ========================================================= */
+if (Q.has('lent')) ralenti(true);
+if (Q.get('fond') === 'sombre') fond(true);
+gouttes();
+const e0 = clamp(+(Q.get('etape') || 0), 0, N);
+if (!FIGE) requestAnimationFrame(boucleOnde);
+if (FIGE){ autoCase.checked = false; poser(e0).catch(() => {}); }
+else if (Q.has('joue') && e0 >= 1){ autoCase.checked = false; poser(e0 - 1).then(() => setTimeout(() => jouer(e0).catch(() => {}), 400)); }
+else setTimeout(() => tourner(), 300);
+/* la fenêtre change de taille : le verre se replace (le coin bas dépend de la hauteur de l'écran) */
+let tRed = 0;
+window.addEventListener('resize', () => {
+  clearTimeout(tRed);
+  tRed = setTimeout(() => {
+    if (FIGE) poser(etape).catch(() => {});
+    else if (lu.vu && lu.box){ const b = luViser(lu.coin, lu.etat); luPlacer(b, lu.etat); luRendre(b); }
+  }, 120);
+});
+window.voxile = {poser, jouer, st, R, ralenti, fond};
+
+</script>
+</body>
+</html>
