@@ -85,3 +85,6 @@ ZStack {
 - D. Plein écran : elle reste à sa place.
 - E. Texte sur le verre : blanc + voile léger (v1).
 - F. Pilule debout : largeur mesurée 40…66 pt.
+
+## Exigence transversale (Hugues, 12/11 nuit)
+TOUT ce qui existe dans l'îlot doit marcher en verre « Liquide » depuis les 4 coins (et les autres places) : Centre, cartes (Claude, Outils, Second Brain, Concentration, Dictées, Étagère), annonces (captures, rappel avec carte de confirmation, téléchargé, AirDrop), alertes (minuteur, rappel), réunion en cours, onde de voix de la dictée/note. Chaque essai de mission 3-4 parcourt ces écrans depuis hautGauche, hautDroite, basGauche, basDroite (+ gauche/droite) : rien de coupé, ouverture vers l'intérieur, lisible sur fond clair et sombre.
