@@ -16,11 +16,12 @@ enum EssaiPlaces {
 
     /// Le faux écran principal : le cadre et l'encoche du vrai (les événements fabriqués passent par la conversion d'AppKit, qui suit le
     /// vrai écran principal : son cadre doit être le même), avec la zone visible d'un Dock de 70 pt en bas. Sans écran (essai sans
-    /// affichage) : un MacBook de 1470 × 956.
+    /// affichage) : un MacBook de 1470 × 956 ; sans encoche : une caméra de MacBook.
     static func principal(dock bas: CGFloat = 70) -> EcranIlot {
         let vrai = NSScreen.screens.first
         let f = vrai?.frame ?? CGRect(x: 0, y: 0, width: 1470, height: 956)
-        let (g, c) = vrai.map(GeometrieEncoche.mesurer) ?? (GeometrieEncoche(largeur: 179, hauteur: 33), f.midX)
+        // sans encoche (capot fermé, écran externe) : une caméra fictive de MacBook, pour que les essais de la Lucarne ne soient jamais sautés
+        let (g, c) = vrai.map(GeometrieEncoche.mesurer).flatMap { $0.0.reelle ? $0 : nil } ?? (GeometrieEncoche(largeur: 179, hauteur: 33), f.midX)
         return EcranIlot(id: ecran, frame: f, zoneVisible: CGRect(x: f.minX, y: f.minY + bas, width: f.width, height: f.height - g.hauteur - bas),
                          geometrie: g, centre: c)
     }
@@ -56,7 +57,7 @@ extension IlotEssai {
         let m = c.moteur
         print("— la Lucarne déplaçable : appui long, tenue, lâcher, lancer, retour dans l'encoche")
         guard let e = m.lucarne.ecran else { verifier(false, "Lucarne : l'écran est mesuré au démarrage"); return }
-        guard e.avecEncoche else { print("  (écran sans encoche : essai des places sauté)"); return }
+        guard e.avecEncoche else { verifier(false, "Lucarne : le faux écran principal a une encoche (essai des places)"); return }
         m.fermer(); pause(0.8)
         EssaiPlaces.memoire = MemoirePlaces()
         var tenu = false
@@ -343,7 +344,7 @@ extension IlotEssai {
         let m = c.moteur
         func etat() -> String { IlotEssai.etatLucarne(m) }
         print("— la Lucarne hors de l'encoche : verre, contenu, depuis chaque place")
-        guard let e = m.lucarne.ecran, e.avecEncoche else { print("  (écran sans encoche : essai du verre sauté)"); return }
+        guard let e = m.lucarne.ecran, e.avecEncoche else { verifier(false, "Lucarne : le faux écran principal a une encoche (essai du verre)"); return }
         // les réglages du Centre en mémoire (jamais les vrais : ouvrir le Centre marque l'aide vue, le Centre utilisé…)
         var memoire = (bulle: true, utilise: true, telechargements: false, micro: nil as String?)
         c.reglagesCentre.telechargements = { memoire.telechargements }; c.reglagesCentre.reglerTelechargements = { memoire.telechargements = $0 }
@@ -518,7 +519,7 @@ extension IlotEssai {
         func pause(_ s: Double) { attendre(s) { true } }
         let m = c.moteur
         print("— la Lucarne aux bords : Dock, deux écrans, sans encoche, VoiceOver")
-        guard let principal = EssaiPlaces.ecrans.first, principal.geometrie.reelle else { print("  (écran sans encoche : essai des bords sauté)"); return }
+        guard let principal = EssaiPlaces.ecrans.first, principal.geometrie.reelle else { verifier(false, "Lucarne : le faux écran principal a une encoche (essai des bords)"); return }
         func etat() -> String { IlotEssai.etatLucarne(m) }
         let ecrans0 = EssaiPlaces.ecrans, dock0 = EssaiPlaces.dock
         var tenu = false
@@ -624,10 +625,12 @@ extension IlotEssai {
         // --- lâchée au milieu de l'écran : la place la plus proche parmi les sept autres, jamais l'encoche
         reposer(.encoche)
         guard let e = m.lucarne.ecran else { return }
-        let milieu = global(CGPoint(x: 0, y: e.hauteur / 2), sur: principal)
-        deplacer(vers: milieu)
+        let milieu = global(CGPoint(x: 0, y: e.hauteur / 2), sur: principal), a0 = centreG()
+        bas(a0); pause(0.5); trainer(a0, milieu); pause(0.25)
+        // la place attendue, d'après où elle est lâchée (pas d'après où elle s'est posée)
         let attendue = GeoLucarne.plusProche(x: m.lucarne.capsule.cx.x, y: m.lucarne.capsule.cy.x, e)
-        verifier(m.lucarne.libre && m.lucarne.place != .encoche && m.lucarne.place == attendue && !m.boucleActive,
+        haut(milieu); pause(1.2); attendre(1.5) { m.boucleActive }
+        verifier(attendue != .encoche && m.lucarne.libre && m.lucarne.place == attendue && !m.boucleActive,
                  "lâchée au milieu de l'écran : \(m.lucarne.place.rawValue), pas l'encoche \(etat())")
 
         // --- deux écrans : glissée de l'un à l'autre, une place par écran
@@ -788,10 +791,10 @@ extension IlotEssai {
         func pause(_ s: Double) { attendre(s) { true } }
         let m = c.moteur
         print("— la dictée à la place de la Lucarne (en verre), l'encoche vide")
-        guard let principal = EssaiPlaces.ecrans.first, principal.geometrie.reelle else { print("  (écran sans encoche : essai de la dictée sauté)"); return }
+        guard let principal = EssaiPlaces.ecrans.first, principal.geometrie.reelle else { verifier(false, "Lucarne : le faux écran principal a une encoche (essai de la dictée)"); return }
         let d = EnclochePanneau()
         d.invisible = true
-        d.placementLibre = { [weak c] in c?.panneau.placementDictee }
+        d.placementLibre = { [weak c] in c?.panneau.placementDictee() }
         var valide = 0, annule = 0
         d.modele.surValider = { valide += 1 }
         d.modele.surAnnuler = { annule += 1 }
@@ -814,7 +817,7 @@ extension IlotEssai {
         var bilan: [String] = []
         for p in [PlaceLucarne.hautGauche, .hautDroite, .basGauche, .basDroite] {
             reposer(p)
-            guard let e = m.lucarne.ecran, c.panneau.placementDictee?.place == p else { bilan.append("\(p.rawValue) : pas de placement"); continue }
+            guard let e = m.lucarne.ecran, c.panneau.placementDictee()?.place == p else { bilan.append("\(p.rawValue) : pas de placement"); continue }
             let lucarne = m.lucarne.capsule.valeur
             d.ouvrir(app: nil, mainsLibres: false); dicter(true); pause(0.9)
             let compacte = GeoLucarne.dictee(p, e, ruban: false, mainsLibres: false)
@@ -831,13 +834,18 @@ extension IlotEssai {
             d.mettreAJourTexte("Je te rappelle demain pour le devis"); pause(0.4)
             let ruban = GeoLucarne.dictee(p, e, ruban: true, mainsLibres: false)
             let fixe = p.ancre.x == 0 ? abs(ruban.x0 - compacte.x0) < 0.01 : abs(ruban.x1 - compacte.x1) < 0.01
-            if !d.modele.ruban || !fixe || !f.contains(globale(ruban)) { bilan.append("\(p.rawValue) : le ruban ne s'ouvre pas vers l'intérieur") }
+            let fr = d.cadre ?? .zero
+            if !d.modele.ruban || !fixe || !fr.contains(globale(ruban)) { bilan.append("\(p.rawValue) : le ruban ne s'ouvre pas vers l'intérieur") }
+            // la fenêtre n'est que la pilule (et son ombre) : son vide ne prend rien aux apps voisines
+            if fr.width > CGFloat(ruban.largeur) + 2 * DicteeVerreVue.marge + 0.5 { bilan.append("\(p.rawValue) : fenêtre de \(Int(fr.width)) pt pour une pilule de \(Int(ruban.largeur))") }
             // mains libres : ✓ au bout, côté intérieur ou extérieur, prend le clic (un vrai clic remis à la fenêtre)
             d.passerEnMainsLibres(); pause(0.5)
             let r = d.placementLibre()?.pilule(ruban: true, mainsLibres: true) ?? .zero
             let v0 = valide, a0 = annule
-            d.cliquerEssai(en: NSPoint(x: f.minX + r.maxX - 24, y: f.maxY - r.midY)); pause(0.2)
-            d.cliquerEssai(en: NSPoint(x: f.minX + r.minX + 24, y: f.maxY - r.midY)); pause(0.2)
+            // `r` est dans la boîte la plus large (`cadreFenetre`) : ses points globaux ne dépendent pas du cadre du moment
+            let boite = d.placementLibre()?.cadreFenetre ?? .zero
+            d.cliquerEssai(en: NSPoint(x: boite.minX + r.maxX - 24, y: boite.maxY - r.midY)); pause(0.2)
+            d.cliquerEssai(en: NSPoint(x: boite.minX + r.minX + 24, y: boite.maxY - r.midY)); pause(0.2)
             if valide != v0 + 1 || annule != a0 + 1 { bilan.append("\(p.rawValue) : ✕ / ✓ ne prennent pas le clic (✓ \(valide - v0), ✕ \(annule - a0))") }
             d.figer(); d.fermer(); dicter(false); pause(1.0)
             if d.cadre != nil || !c.panneau.estVisible || m.lucarne.place != p || m.boucleActive {
@@ -861,7 +869,7 @@ extension IlotEssai {
         reposer(.encoche)
         d.ouvrir(app: nil, mainsLibres: false); dicter(true); pause(0.5)
         if let f = d.cadre {
-            verifier(!d.horsEncoche && c.panneau.placementDictee == nil && abs(f.midX - principal.centre) < 1 && abs(f.maxY - principal.frame.maxY) < 1,
+            verifier(!d.horsEncoche && c.panneau.placementDictee() == nil && abs(f.midX - principal.centre) < 1 && abs(f.maxY - principal.frame.maxY) < 1,
                      "la Lucarne dans l'encoche : la dictée s'y montre, comme avant")
         } else { verifier(false, "la Lucarne dans l'encoche : la fenêtre de dictée est là") }
         d.fermer(); dicter(false); pause(1.0)

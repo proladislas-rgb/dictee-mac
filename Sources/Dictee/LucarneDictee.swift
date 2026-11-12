@@ -31,9 +31,12 @@ struct PlacementDictee: Equatable {
 }
 
 extension IlotPanneau {
-    /// La dictée doit-elle se montrer hors de l'encoche ? Oui quand la Lucarne est ailleurs (ou sur un écran sans caméra) : sa place.
-    var placementDictee: PlacementDictee? {
-        guard moteur.lucarne.libre, let e = moteur.lucarne.ecran, let ecran else { return nil }
+    /// Où se montre la dictée qui commence : nil dans l'encoche (la Lucarne y est, ou y est aspirée), sinon la place de la Lucarne
+    /// (ailleurs, ou la pilule du haut au milieu d'un écran sans caméra). Une tenue en cours s'arrête d'abord (la dictée l'interromprait
+    /// de toute façon) : sa place est décidée avant d'y poser la dictée.
+    func placementDictee() -> PlacementDictee? {
+        if moteur.lucarneOccupee { moteur.interrompreLucarne() }
+        guard let e = moteur.lucarne.ecran, let ecran, moteur.lucarne.place != .encoche || !e.avecEncoche else { return nil }
         return PlacementDictee(ecran: e, place: moteur.lucarne.place, centre: centre, haut: ecran.frame.maxY)
     }
 }

@@ -63,10 +63,11 @@ struct PrefsDock: Equatable {
     static let domaine = "com.apple.dock"
     static let cles = ["orientation", "autohide", "tilesize"]
 
+    /// Lues par le même accès que celui qu'on observe (`SuiviDock`) : jamais un cache en retard sur la notification.
     static func lire() -> PrefsDock {
-        func valeur(_ cle: String) -> Any? { CFPreferencesCopyAppValue(cle as CFString, domaine as CFString) }
-        return PrefsDock(cote: CoteDock.depuis(orientation: valeur("orientation") as? String), masque: valeur("autohide") as? Bool ?? false,
-                         tailleIcone: (valeur("tilesize") as? NSNumber)?.doubleValue ?? 48)
+        let r = UserDefaults(suiteName: domaine)
+        return PrefsDock(cote: CoteDock.depuis(orientation: r?.string(forKey: "orientation")), masque: r?.bool(forKey: "autohide") ?? false,
+                         tailleIcone: (r?.object(forKey: "tilesize") as? NSNumber)?.doubleValue ?? 48)
     }
 }
 
@@ -115,8 +116,10 @@ extension Settings {
 extension IlotPanneau {
     /// L'écran où la Lucarne doit vivre : celui où on l'a posée s'il est branché, sinon le principal (un écran débranché la renvoie sur
     /// le principal ; rebranché, elle y revient).
+    /// Tenue ou en vol sur un autre écran (pas encore lâchée : la mémoire ne le sait pas), elle reste sur celui-là.
     func ecranVoulu() -> EcranIlot? {
         let s = moteur.lucarne.systeme, liste = s.ecrans()
+        if moteur.lucarneEnMain, let ici = liste.first(where: { $0.id == moteur.lucarne.uuid }) { return ici }
         let choisi = s.lireMemoire().ecranChoisi(parmi: liste.map(\.id))
         return liste.first { $0.id == choisi } ?? liste.first
     }
@@ -151,7 +154,9 @@ extension IlotPanneau {
     /// VoiceOver « Déplacer vers… » : ce qui est ouvert se range, la Lucarne est posée à cette place sans geste ni animation (une action
     /// d'accessibilité est un saut), retenue pour cet écran ; VoiceOver annonce où elle est.
     func deplacerLucarne(vers place: PlaceLucarne) {
-        guard let e = ecran, let el = moteur.lucarne.ecran, place != moteur.lucarne.place, !moteur.lucarneOccupee, !moteur.lucarne.vol else { return }
+        // une alerte ou un bandeau (que « fermer » ne range pas) ne se déplace pas, comme pour le geste
+        guard let e = ecran, let el = moteur.lucarne.ecran, place != moteur.lucarne.place, !moteur.lucarneOccupee, !moteur.lucarne.vol,
+              !moteur.resolution.verrou else { return }
         if moteur.fenetreOuverte { moteur.fermer() }
         var memoire = moteur.lucarne.systeme.lireMemoire()
         memoire.poser(place, sur: e.id)
@@ -170,8 +175,9 @@ extension IlotPanneau {
         guard let g = e.cgEvent?.location, var ecran else { return }
         // la conversion qu'AppKit a faite pour donner ce point : celle du vrai écran principal
         let global = CGPoint(x: g.x, y: (NSScreen.screens.first?.frame.maxY ?? ecran.frame.maxY) - g.y)
-        if e.type == .leftMouseDragged, moteur.lucarneEnMain, !moteur.lucarne.vol, !ecran.frame.contains(global),
-           let autre = moteur.lucarne.systeme.ecrans().first(where: { $0.id != ecran.id && $0.frame.contains(global) }) {
+        // `NSMouseInRect` (repère d'AppKit, y vers le haut) : la rangée tout en haut d'un écran est à lui, pas à l'écran posé dessus
+        if e.type == .leftMouseDragged, moteur.lucarneEnMain, !moteur.lucarne.vol, !NSMouseInRect(global, ecran.frame, false),
+           let autre = moteur.lucarne.systeme.ecrans().first(where: { $0.id != ecran.id && NSMouseInRect(global, $0.frame, false) }) {
             passerSur(autre)
             ecran = autre
         }

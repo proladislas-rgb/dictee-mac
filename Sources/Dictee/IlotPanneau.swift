@@ -140,7 +140,7 @@ final class IlotPanneau {
         surveilleEcran = nil
         if let surveilleReduire { NSWorkspace.shared.notificationCenter.removeObserver(surveilleReduire) }
         surveilleReduire = nil
-        suiviDock = nil
+        suiviDock = nil; prefsDock = nil
         fenetre?.orderOut(nil)
     }
 
@@ -158,7 +158,7 @@ final class IlotPanneau {
     }
     /// Tenue, la Lucarne passe sur l'écran `e` : l'îlot y vit désormais, la forme reste sous le doigt (repère du nouvel écran).
     func passerSur(_ e: EcranIlot) {
-        guard let avant = ecran, e.id != avant.id else { return }
+        guard let avant = ecran, e.id != avant.id, moteur.lucarneEnMain, !moteur.lucarne.vol else { return }
         let dx = Double(centre - e.centre), dy = Double(e.frame.maxY - avant.frame.maxY)
         prendre(e)
         moteur.changerEcranLucarne(decrire(e), uuid: e.id, dx: dx, dy: dy)

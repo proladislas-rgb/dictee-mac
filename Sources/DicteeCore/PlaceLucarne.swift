@@ -398,6 +398,8 @@ public enum VerreLucarne {
     }
     /// Le contraste d'un texte de couleur sRGB `lettre` (opacité `opacite`) sur le verre : la page grise sRGB `fond` (1 = page blanche) vue
     /// au travers, sous le voile `voile`, assombrie au plus près des lettres par le halo (`halo.pres`, 0 sans halo).
+    /// Un modèle, pas une mesure : le fond est supposé uni et le halo couvrir tout le bord des lettres (son rayon n'y entre pas) ; une page
+    /// de texte derrière le verre gêne bien plus (à juger sur les rendus `lucarne-*-clair`).
     public static func contraste(lettre: (r: Double, g: Double, b: Double) = (1, 1, 1), opacite: Double = 1, voile v: Double, halo h: Double = halo.pres,
                                  fond: Double) -> Double {
         let dessous = fond * (1 - v) * (1 - h)

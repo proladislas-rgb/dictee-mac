@@ -23,6 +23,12 @@ final class EnclochePanneau {
     /// Où est la Lucarne : nil, dans l'encoche (la dictée s'y montre, noire) ; sinon sa place hors de l'encoche, où la dictée se montre en
     /// verre (LucarneDictee.swift) et l'encoche reste vide. Lu à chaque ouverture.
     var placementLibre: () -> PlacementDictee? = { nil }
+    /// L'écran dont l'encoche montre la dictée (celui de la Lucarne : elle peut vivre dans l'encoche d'un écran qui n'est pas le principal).
+    var ecranEncoche: () -> NSScreen? = { NSScreen.screens.first }
+    /// Hors de l'encoche : la place de la dictée (la fenêtre suit la pilule visée, rien de plus : son vide ne prend aucun clic aux apps
+    /// voisines en mains libres).
+    private var placement: PlacementDictee?
+    private var vueVerre: NSView?
     /// La dictée en cours se montre hors de l'encoche (la mini-miniature de la lecture, qui se loge au bout du ruban de l'encoche, n'a
     /// alors pas lieu d'être).
     private(set) var horsEncoche = false
@@ -49,7 +55,7 @@ final class EnclochePanneau {
 
     func ouvrir(app: NSRunningApplication?, mainsLibres: Bool) {
         fermeture?.cancel()
-        guard let ecran = NSScreen.screens.first else { return }
+        guard let ecran = ecranEncoche() else { return }
         let (g, centre) = mesurer(ecran)
         let dejaAffichee = fenetre?.isVisible == true
         modele.geometrie = g
@@ -61,6 +67,7 @@ final class EnclochePanneau {
         if !dejaAffichee { modele.calmerLesBarres(); modele.ruban = false }
 
         let placement = placementLibre()
+        self.placement = placement
         horsEncoche = placement != nil
         let taille = placement?.cadreFenetre.size ?? Self.tailleFenetre(pour: g)
         let cadre = placement?.cadreFenetre
@@ -80,10 +87,21 @@ final class EnclochePanneau {
         }
         guard let f = fenetre else { return }
         f.setFrame(cadre, display: false)
-        let vue: NSView = placement.map { VueHebergeePremierClic(rootView: DicteeVerreVue(m: modele, placement: $0)) }
-            ?? VueHebergeePremierClic(rootView: EncocheVue(m: modele, tailleFenetre: taille))
-        vue.frame = NSRect(origin: .zero, size: taille)
-        f.contentView = vue
+        if let placement {
+            // la vue garde la taille de la plus grande pilule ; la fenêtre, elle, n'en montre que la pilule visée (`recadrerVerre`)
+            let v = VueHebergeePremierClic(rootView: DicteeVerreVue(m: modele, placement: placement))
+            v.frame = NSRect(origin: .zero, size: taille)
+            let conteneur = NSView(frame: NSRect(origin: .zero, size: taille))
+            conteneur.addSubview(v)
+            f.contentView = conteneur
+            vueVerre = v
+            recadrerVerre(ruban: false, mainsLibres: mainsLibres)
+        } else {
+            let vue = VueHebergeePremierClic(rootView: EncocheVue(m: modele, tailleFenetre: taille))
+            vue.frame = NSRect(origin: .zero, size: taille)
+            f.contentView = vue
+            vueVerre = nil
+        }
         f.ignoresMouseEvents = !mainsLibres || invisible
         f.alphaValue = invisible ? 0 : 1
         f.orderFrontRegardless()
@@ -95,8 +113,20 @@ final class EnclochePanneau {
         // Le ruban sort avec les premiers mots (voir `mettreAJourTexte`) : pas de ruban vide.
     }
 
+    /// Hors de l'encoche : la fenêtre se cale sur la pilule visée (avec la place de son ombre) ; elle grandit tout de suite, avant la
+    /// pilule qui s'allonge dedans ; la vue ne bouge pas à l'écran.
+    private func recadrerVerre(ruban: Bool, mainsLibres: Bool) {
+        guard let p = placement, let f = fenetre, let v = vueVerre else { return }
+        let boite = p.cadreFenetre, r = p.pilule(ruban: ruban, mainsLibres: mainsLibres), m = DicteeVerreVue.marge
+        let cadre = NSRect(x: boite.minX + r.minX - m, y: boite.maxY - r.maxY - m, width: r.width + 2 * m, height: r.height + 2 * m)
+        f.setFrame(cadre, display: false)
+        f.contentView?.frame = NSRect(origin: .zero, size: cadre.size)
+        v.frame = NSRect(x: boite.minX - cadre.minX, y: boite.minY - cadre.minY, width: boite.width, height: boite.height)
+    }
+
     func passerEnMainsLibres() {
         guard modele.ouverte else { return }
+        recadrerVerre(ruban: modele.ruban || modele.message != nil, mainsLibres: true)
         fenetre?.ignoresMouseEvents = invisible
         withAnimation(ressort(rebond: 0.12)) { modele.mainsLibres = true }
     }
@@ -104,6 +134,7 @@ final class EnclochePanneau {
     func mettreAJourTexte(_ texte: String) {
         modele.texte = texte
         if !texte.isEmpty, modele.ouverte, !modele.ruban, modele.message == nil {
+            recadrerVerre(ruban: true, mainsLibres: modele.mainsLibres)
             withAnimation(ressort(rebond: 0.1)) { modele.ruban = true }
         }
     }
@@ -150,6 +181,7 @@ final class EnclochePanneau {
         ouvrir(app: app, mainsLibres: false)
         modele.message = texte
         modele.calmerLesBarres()
+        recadrerVerre(ruban: true, mainsLibres: false)
         withAnimation(ressort(rebond: 0.1)) { modele.ruban = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + duree) { [weak self] in
             guard let self, self.modele.message == texte else { return }

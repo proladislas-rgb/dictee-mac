@@ -326,8 +326,9 @@ struct DeplacerLucarneVoiceOver: ViewModifier {
     let actions: [(place: PlaceLucarne, nom: String)]
     let deplacer: (PlaceLucarne) -> Void
 
+    /// Une alerte ou un bandeau ne se déplace pas (comme pour le geste) : aucune action.
     init(m: IlotMoteur) {
-        actions = PlaceLucarne.actionsDeplacer(depuis: m.lucarne.place, avecEncoche: m.lucarne.ecran?.avecEncoche ?? true)
+        actions = m.resolution.verrou ? [] : PlaceLucarne.actionsDeplacer(depuis: m.lucarne.place, avecEncoche: m.lucarne.ecran?.avecEncoche ?? true)
         deplacer = m.lucarne.deplacer
     }
     func body(content: Content) -> some View {
