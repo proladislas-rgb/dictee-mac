@@ -32,6 +32,7 @@ enum GenreCompact: Equatable {
         case .microCompact: return .activite(.micro)
         case .claudeMinimal, .claudeCompact: return .activite(.claude)
         case .reunionCompact: return .activite(.reunion)
+        case .concentrationCompact: return .activite(.concentration)
         case .volume: return .niveau(.volume)
         case .luminosite: return .niveau(.luminosite)
         case .batterieCharge: return .energie(charge: true)
