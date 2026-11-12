@@ -269,3 +269,8 @@ Ancienne lecture (gardée si Hugues la confirme) : l'îlot ouvert devient une pi
 - À corriger en construisant : gris translucide au retour, Centre/bannière au-dessus de la ligne du Dock depuis un coin bas.
 - 12/11 01:21 : ouverture vers le haut au-dessus du Dock depuis un coin bas VALIDÉE (« très bien ») ; il veut ENCORE plus Liquid Glass → niveau « Liquide » (variante clear iOS 26, NSGlassEffectView style .clear dans l'app).
 - 12/11 : niveau « Liquide » (65be977) accepté (« si c'est pas possible, c'est très bien ») → dans l'app : NSGlassEffectView style .clear, le plus liquide possible, lisibilité gardée.
+
+## Retours de Hugues du 12/11 03:52 (branche installe-12nov)
+- [x] « Ça plante de temps en temps quand je me balade dessus » (carte Dictées) : survols SwiftUI coupés par la vue d'hébergement (zones de suivi retirées, `super` jamais appelé), puis fondus de survol coûteux ; corrigé, essai `--ilot-essai --seulement=survol` (vrais mouvements, 960 dictées). À regarder en vrai par Hugues : « Coller » et le fond de la ligne suivent la souris.
+- [x] Téléchargements « dossier inaccessible (errno 13) » à 03:52:34 : c'était l'essai d'une autre équipe (l'app installée a l'accès, TCC autorisé, signature à exigence fixe déjà stable) ; tous les modes de vérification écrivent leur journal à part.
+- [x] « Remettre » après un glisser : une croix (✕) qui ferme tout de suite, l'anneau discret autour.
