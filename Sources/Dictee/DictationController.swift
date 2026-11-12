@@ -96,6 +96,8 @@ final class DictationController {
     var surVoixEnDirect: ((Int, String) -> Bool)?
     var surVoixNiveau: ((Float) -> Void)?
     var surVoixFin: ((Int) -> Void)?
+    /// Cette dictée prise par l'îlot n'était pas une commande (texte de Groq) : il la garde (« Je n'ai pas compris », « Copier »).
+    var surVoixIncomprise: ((Int, String) -> Void)?
     /// À appeler quand le micro vient d'être autorisé : prépare le moteur pour un départ instantané.
     func microAutorise() { audio.preparer() }
     /// Appelé quand la capture commence (`true`) ou finit (`false`) : l'icône de la barre des menus montre un trait ambre.
@@ -383,8 +385,16 @@ final class DictationController {
             Retours.fin()
             return
         }
-        // pas une commande (« Lucarne est prête… ») : l'onde s'en va avant la remise au propre et le collage
-        if s.voix { surVoixFin?(s.id) }
+        // l'îlot avait pris la dictée (l'onde, « Rappel… ») mais Groq n'y lit pas de commande : jamais collée en silence, la phrase reste
+        // dans l'îlot avec « Copier » (comme « Je n'ai pas compris ») ; une dictée normale continue vers le collage
+        if IssueVoix.sansCommande(priseParLIlot: s.voix) == .garderDansLIlot {
+            s.unites?.annulerTout(); s.nettoyageAnticipe?.tache.cancel()
+            Log.ecrire("dictée \(s.id) : prise par l\u{2019}îlot sans commande lue, rien n\u{2019}est collé")
+            surVoixIncomprise?(s.id, brut)
+            fermerSiLibre()
+            Retours.fin()
+            return
+        }
         let kind = TextFormatter.kind(bundleID: s.appCible?.bundleIdentifier)
         let (champ, sourceChamp) = await s.champ.contexte()
         let contexte = Settings.adapterLeTon ? RemiseAuPropre.contexte(bundleID: s.appCible?.bundleIdentifier, role: champ?.role, titreFenetre: champ?.titreFenetre) : .general

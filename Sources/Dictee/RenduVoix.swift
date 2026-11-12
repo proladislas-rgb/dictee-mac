@@ -41,6 +41,7 @@ enum RenduVoix {
             case .enCours: m.envoisNotes[idNote] = .enCours
             case .fait: m.envoisNotes[idNote] = .fait
             case .refuse: m.envoisNotes[idNote] = .refuse
+            case .echec: m.envoisNotes[idNote] = .echec
             case .aEnvoyer: m.envoisNotes[idNote] = nil
             }
             m.preparerCarteVoix(CarteVoix.note(id: idNote, texte: noteExemple))
@@ -82,6 +83,7 @@ enum RenduVoix {
             Scene(nom: "ilot-34l-voix-envoi-en-cours", hauteur: 160) { poserCarte($0, .note, t0: t0, envoi: .enCours) },
             Scene(nom: "ilot-34m-voix-carte-du-rappel-sombre", hauteur: 160, clair: false) { epaules($0); poserCarte($0, .rappel, t0: t0) },
             Scene(nom: "ilot-34n-voix-rappel-compris-sombre", hauteur: 95, clair: false) { poserEcoute($0, genre: .rappel) },
+            Scene(nom: "ilot-34o-voix-notes-n-a-pas-repondu-reessayer", hauteur: 160) { epaules($0); poserCarte($0, .note, t0: t0, envoi: .echec) },
         ]
     }
 

@@ -28,9 +28,9 @@ extension IlotEssai {
         let faux = RappelsAppleFactice(); c.rappelsApple = faux
         EssaiLucarne.choix = nil; EssaiLucarne.refusDit = false; c.questionRappelsPosee = false
         var notesEnvoyees: [String] = []
-        var notesAccepte = true
+        var reponseNotes = ResultatVersNotes.fait
         c.envoyerNoteVersNotes = { html, fini in
-            notesEnvoyees.append(html); let ok = notesAccepte
+            notesEnvoyees.append(html); let ok = reponseNotes
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { fini(ok) }
         }
         // ce que fait le contrôleur de la dictée : fn appuyée (l'encoche s'ouvre), le texte en direct (l'îlot prend la dictée : l'encoche se
@@ -148,7 +148,26 @@ extension IlotEssai {
         m.quitterBandeau(); pause(0.5)
 
         // --- les refus : l'app Notes refusée (Automatisation), puis l'app Rappels refusée : « Autoriser dans Réglages », le bon volet
-        notesAccepte = false
+        // --- Notes qui ne répond pas (trop lent, fermé) sans refuser : « Réessayer » et un message court, jamais « Autoriser dans Réglages »
+        reponseNotes = .echec
+        appuyer(); _ = direct("Lucarne, note : appeler le comptable"); relacher()
+        _ = ecrire("Lucarne, note : appeler le comptable.")
+        pause(0.6)
+        let liensAvantEchec = liens().count
+        clic(PlanVoix.cadreEnvoi(m.grille, genre: .note))
+        attendre(1.0) { m.envoiVoix != .echec }
+        verifier(m.envoiVoix == .echec && m.envoiVoix.libelle(.note) == "Réessayer" && m.envoiVoix.message(.note) == "Notes n\u{2019}a pas répondu"
+                 && liens().count == liensAvantEchec && m.notes.first?.versNotes == false,
+                 "Notes n'a pas répondu (sans refus) : « Réessayer » et « Notes n'a pas répondu », aucun volet des Réglages (\(m.envoiVoix))")
+        let envoisAvant = notesEnvoyees.count
+        reponseNotes = .fait
+        clic(PlanVoix.cadreEnvoi(m.grille, genre: .note))
+        attendre(1.0) { m.envoiVoix != .fait }
+        verifier(notesEnvoyees.count == envoisAvant + 1 && m.envoiVoix == .fait && m.notes.first?.versNotes == true,
+                 "vrai clic sur « Réessayer » : la note repart, « ✓ Dans Notes »")
+        m.quitterBandeau(); pause(0.5)
+
+        reponseNotes = .refuse
         appuyer(); _ = direct("Lucarne, note que le devis est validé"); relacher()
         _ = ecrire("Lucarne, note que le devis est validé.")
         pause(0.6)
@@ -156,9 +175,9 @@ extension IlotEssai {
         attendre(1.0) { m.envoiVoix != .refuse }
         verifier(m.envoiVoix == .refuse && m.voix.carte?.resume.isEmpty == true && m.voix.lignesResume == 0,
                  "l'app Notes refusée : « Autoriser dans Réglages » ; une note qui tient dans son titre n'a pas de résumé")
-        let liens0 = liens().count
+        let liens0 = liens().count, envois0 = notesEnvoyees.count
         clic(PlanVoix.cadreEnvoi(m.grille, genre: .note))
-        verifier(liens().count == liens0 + 1 && liens().last == IlotControleur.reglagesAutomatisation && notesEnvoyees.count == 2,
+        verifier(liens().count == liens0 + 1 && liens().last == IlotControleur.reglagesAutomatisation && notesEnvoyees.count == envois0,
                  "vrai clic sur « Autoriser dans Réglages » : le volet Automatisation, sans renvoyer la note")
         m.quitterBandeau(); pause(0.5)
         let faux2 = RappelsAppleFactice(); faux2.acces = .refuse; c.rappelsApple = faux2
@@ -172,9 +191,27 @@ extension IlotEssai {
         c.rappelsApple = faux
 
         // --- une dictée prise qui finit sans commande (Groq n'a pas lu « Lucarne, » en tête : collée) : l'onde s'en va, sans reste
+        // (le contrôleur de la dictée appelle `voixIncomprise` au lieu de coller : `IssueVoix.sansCommande`)
+        appuyer(); _ = direct("Lucarne, j'ai une question"); relacher()
+        let phrase = "Lucarnes de toit à commander pour le chantier"
+        c.voixIncomprise(session: session, texte: phrase); c.finDeVoix(session: session); c.occupationChangee(); pause(0.9)
+        verifier(m.courante == .lucarne && m.bandeauVu?.lucarne == .incomprise(phrase) && !m.voix.retient && !m.cache,
+                 "prise par l'îlot, pas une commande : rien n'est collé, « Je n'ai pas compris » et la phrase dans l'îlot (\(m.courante))")
+        let za = m.grille.zoneAnnonce(.lucarne), lc = MesureIlot.bouton(ContenuAnnonce.Bouton(titre: "Copier"))
+        let copiesAvant = pressePapiers().count
+        clic(CGRect(x: za.maxX - lc, y: za.minY, width: lc, height: za.height))
+        verifier(pressePapiers().count == copiesAvant + 1 && pressePapiers().last == phrase && m.bandeau == nil,
+                 "vrai clic sur « Copier » : la phrase entière dans le presse-papiers")
+        // le texte arrive après le filet (Groq très lent) : l'onde est déjà partie, la phrase est gardée quand même
+        appuyer(); _ = direct("Lucarne, j'ai une question"); relacher()
+        c.finDeVoix(session: session); pause(0.5)
+        c.voixIncomprise(session: session, texte: phrase); pause(0.8)
+        verifier(m.courante == .lucarne && m.bandeauVu?.lucarne == .incomprise(phrase), "arrivé tard, la phrase reste dans l'îlot, jamais perdue (\(m.courante))")
+        m.quitterBandeau(); pause(0.5)
+        // rien entendu : l'onde s'en va, l'îlot revient
         appuyer(); _ = direct("Lucarne, j'ai une question"); relacher()
         c.finDeVoix(session: session); c.occupationChangee(); pause(0.9)
-        verifier(m.courante == .repos && !m.voix.retient && m.bandeau == nil && !m.cache, "la dictée finit sans commande : l'onde s'en va, l'îlot revient (\(m.courante))")
+        verifier(m.courante == .repos && !m.voix.retient && m.bandeau == nil && !m.cache, "rien entendu : l'onde s'en va, l'îlot revient (\(m.courante))")
         // --- annulée (fn relâchée trop tôt, Échap) : de même
         appuyer(); _ = direct("Verbe, rappelle-moi"); occ.dictee = false; c.dicteeChange(enCours: false)
         c.finDeVoix(session: session); c.occupationChangee(); pause(0.9)
@@ -200,7 +237,7 @@ extension IlotEssai {
         // --- au repos : plus rien ne tourne
         for r in c.rappels.rappels { c.agir(.rappelAnnuler(r.id)) }
         c.occupation = { OccupationEncoche() }
-        c.envoyerNoteVersNotes = { _, fini in fini(false) }
+        c.envoyerNoteVersNotes = { _, fini in fini(.refuse) }
         EssaiLucarne.choix = .non; EssaiLucarne.refusDit = true
         m.quitterBandeau(); m.fermer(); pause(1.2)
         verifier(!m.voix.retient && !m.boucleActive && m.courante == .repos, "fin : l'îlot au repos, aucune boucle d'animation")

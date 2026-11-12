@@ -59,7 +59,7 @@ enum IlotEssai {
             c.lireSelection = { nil }
             c.selectionnerDansLApp = { _ in false }
             c.lireAppDerniereDictee = { nil }
-            c.envoyerNoteVersNotes = { _, fini in fini(false) }
+            c.envoyerNoteVersNotes = { _, fini in fini(.refuse) }
             c.reglagesCentre.dispositionOutils = { nil }
             c.reglagesCentre.enregistrerDispositionOutils = { _ in }
             c.allumerEcran = { ecransRallumes += 1 }

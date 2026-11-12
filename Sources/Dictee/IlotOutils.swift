@@ -39,7 +39,7 @@ struct EtatReformulation {
 }
 
 /// Où en est l'envoi d'une note vers l'app Notes.
-enum EnvoiNote: Equatable { case enCours, fait, refuse }
+enum EnvoiNote: Equatable { case enCours, fait, refuse, echec }
 
 // MARK: - pièces communes
 
@@ -922,6 +922,11 @@ struct LigneNote: View {
                         .padding(.horizontal, 9).frame(height: 24).background(Capsule().fill(CouleursIlot.ambre.opacity(0.18)))
                         .allowsHitTesting(false)
                         .accessibilityLabel("L\u{2019}app Notes a refusé : autorise Verbe dans Réglages Système, Confidentialité, Automatisation")
+                } else if envoi == .echec {
+                    // Notes n'a pas répondu (trop lent, fermé…) sans refuser : on peut réessayer
+                    PiluleOutil(titre: "Réessayer", icone: "arrow.clockwise", hauteur: 24, taille: 12, padding: 10, etiquette: "Notes n\u{2019}a pas répondu : réessayer") {
+                        m.epinglerLeCentre(); m.surAction(.noteVersNotes(n.id))
+                    }
                 } else if envoi == .enCours {
                     Text("Envoi\u{2026}").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.white.opacity(0.6)).padding(.horizontal, 9)
                         .allowsHitTesting(false)
