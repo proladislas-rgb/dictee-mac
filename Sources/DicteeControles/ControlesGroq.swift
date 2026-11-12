@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import DicteeCore
 
 // Contrôles de l'usage de Groq et du relais sur le Mac (DicteeCore/UsageGroq.swift) : l'heure est fabriquée, aucun réseau, aucun micro.
@@ -138,6 +139,17 @@ func controlesGroq() {
         verifier(turboAnnonce == .bas(titre: "Groq : large-v3 en pause jusqu\u{2019}à 14:10", sousTitre: "Le turbo prend le relais"), "large-v3 en pause, turbo en relais : annoncé une fois")
     }
 
+    groupe("Relais : le texte du Mac attendu 1,5 s au plus")
+    do {
+        verifier(RelaisDictee.attenteDuMac == 1.5, "la dictée attend le Mac 1,5 s au plus")
+        // une reconnaissance factice qui ne rend jamais la main (ni texte, ni réponse à l'annulation)
+        let bloquee = attendreTexteDuMac(attente: RelaisDictee.attenteDuMac) { await withUnsafeContinuation { (_: UnsafeContinuation<String, Never>) in } }
+        verifier(bloquee.texte == "" && bloquee.secondes >= 1.4 && bloquee.secondes < 2.5,
+                 "reconnaissance qui ne rend jamais la main : la dictée rend la main en ~1,5 s, sans texte (\(String(format: "%.2f", bloquee.secondes)) s)")
+        let rapide = attendreTexteDuMac(attente: RelaisDictee.attenteDuMac) { try? await Task.sleep(for: .milliseconds(50)); return "Bonjour" }
+        verifier(rapide.texte == "Bonjour" && rapide.secondes < 1, "reconnaissance rapide : son texte, sans attendre le délai (\(String(format: "%.2f", rapide.secondes)) s)")
+    }
+
     groupe("Relais de la dictée sur le Mac")
     do {
         verifier(RelaisDictee.essayerGroq(cleDisponible: true), "chaque dictée commence par Groq (la suivante retente Groq après un relais)")
@@ -180,3 +192,20 @@ func controlesGroq() {
         verifier(outilsSansCalendrier.aRetenir == nil && !outilsSansCalendrier.disposition.elements.contains(.calendrier), "les Outils ne reçoivent pas le calendrier")
     }
 }
+
+/// Comme la dictée : la reconnaissance du Mac tourne dans sa propre tâche (`s.secours`), la dictée attend son texte au plus `attente`
+/// secondes. Rend le texte (nil si la dictée n'a pas rendu la main 3 s après le délai) et la durée de l'attente.
+private func attendreTexteDuMac(attente: Double, _ terminer: @escaping @Sendable () async -> String) -> (texte: String?, secondes: Double) {
+    let boite = BoiteTexte(), fin = DispatchSemaphore(value: 0)
+    let t0 = Date()
+    Task.detached {
+        let secours = Task { await terminer() }
+        let t = await RelaisDictee.texteDuMac(attente: attente) { await secours.value }
+        boite.texte.withLock { $0 = t }
+        fin.signal()
+    }
+    let aTemps = fin.wait(timeout: .now() + attente + 3) == .success
+    return (aTemps ? boite.texte.withLock { $0 } : nil, Date().timeIntervalSince(t0))
+}
+
+private final class BoiteTexte: Sendable { let texte = Mutex<String?>(nil) }
