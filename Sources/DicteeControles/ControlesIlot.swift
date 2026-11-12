@@ -1367,8 +1367,9 @@ func controlesDictees() {
 func controlesDispositionCentre() {
     groupe("Îlot : le Centre, « Modifier » (ajouter, retirer, ranger)")
     typealias D = DispositionCentre
-    let tout: (ElementCentre) -> Bool = { _ in true }
-    let sansAirPods: (ElementCentre) -> Bool = { $0 != .dictee }
+    // Second Brain n'existe que si son fichier d'état existe (ControlesSecondBrain.swift) : ici, le catalogue sans lui
+    let tout: (ElementCentre) -> Bool = { $0 != .secondBrain }
+    let sansAirPods: (ElementCentre) -> Bool = { $0 != .dictee && $0 != .secondBrain }
     // la valeur par défaut, et ce qui est rangé dans les réglages
     let d0 = D(identifiants: nil)
     verifier(d0.elements == [.micro, .dictee, .telechargements, .claude, .minuteur, .etagere, .reunion], "jamais modifié : micro, dictée, Téléchargements, Claude Code, minuteur, étagère, réunion (maquette, étape 3)")

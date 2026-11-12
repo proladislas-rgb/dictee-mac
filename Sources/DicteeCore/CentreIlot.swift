@@ -20,8 +20,10 @@ public enum CartesIlot {
 
     /// Les cartes des outils (presse-papiers, Reformuler, Note rapide) sont rangées sous la page Outils : ses points de page restent, celui
     /// des Outils allumé, et un défilement y ramène.
+    /// La carte Second Brain est rangée sous le Centre (son bouton y est) : même chose, le point du Centre reste allumé.
     public static func parent(_ v: VueIlot) -> VueIlot? {
-        [.outilPressePapiers, .outilReformuler, .outilNote].contains(v) ? .outils : nil
+        if v == .secondBrain { return .centre }
+        return [.outilPressePapiers, .outilReformuler, .outilNote].contains(v) ? .outils : nil
     }
 
     /// Ce que l'îlot prend au survol, une fois le Centre là. Le micro coupé n'a plus de déplié à lui (son bouton, rouge, « Coupé », est

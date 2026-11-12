@@ -22,6 +22,8 @@ public enum ElementCentre: String, CaseIterable, Sendable {
     case pressePapiers = "presse-papiers"
     case reformuler, notes
     case noteRapide = "note-rapide"
+    /// Second Brain (l'autre app de Hugues) : un rond qui ouvre sa carte. Il n'est « disponible » que si son fichier d'état existe.
+    case secondBrain = "second-brain"
 
     public enum Genre: Sendable { case rond, grandeCase, bande }
 
