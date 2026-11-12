@@ -9,7 +9,9 @@ Les huit places : en haut au milieu (l'encoche, noire), en haut à gauche, en ha
 au milieu des bords gauche et droit (pilule debout), en bas à gauche et en bas à droite (à côté du Dock, jamais dessus),
 en bas au milieu (au-dessus du Dock).
 Près de l'encoche, elle est aimantée : elle reprend la forme de l'encoche, redevient noire et s'y fond.
-Dans l'encoche elle est noire ; ailleurs, du verre clair (« Liquid Glass » de macOS 26), texte foncé.
+Dans l'encoche elle est noire ; ailleurs, du verre clair (« Liquid Glass » d'iOS 26 / macOS 26), texte foncé.
+Verre à trois niveaux (sélecteur dans la régie) : Actuel (flou fort, voile dense), Marqué (par défaut : peu de flou, lentille
+sur les bords qui tord et grossit ce qui est derrière, givre seulement sous le texte, reflet et lisière), Très marqué (lentille au maximum).
 Survolée ailleurs, elle s'ouvre vers l'intérieur de l'écran : depuis un coin, en diagonale ; depuis un bord, à l'opposé du bord.
 Plus aucun réglage « Position ». L'appui long ne sert plus au minuteur (il est dans le Centre). Aucun raccourci ; fn pour dicter.
 Format repris de ilot-centre.html (forme `chemin`/`cote` pour l'encoche, mêmes ressorts, faux écran, régie).
@@ -19,6 +21,7 @@ Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt. 
 Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
                    ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)
                    ?horloge=1 (animations cadencées par minuterie, pour les captures automatiques)
+                   ?verre=actuel|marque|tres (niveau du verre, Marqué par défaut)   ·   ?tenue=x,y (avec fige : tenue au point x, y)
 -->
 <html lang="fr">
 <head>
@@ -162,6 +165,8 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 #places{opacity:0;transition:opacity calc(.22s*var(--k)) ease}
 #places.vu{opacity:1}
 #verre{z-index:5;opacity:0;background:rgba(255,255,255,.06);-webkit-backdrop-filter:blur(20px) saturate(1.9) brightness(1.05);backdrop-filter:blur(20px) saturate(1.9) brightness(1.05)}
+#givre{z-index:5;opacity:0}
+#verre.boite,#givre.boite{right:auto;bottom:auto}   /* posé au cadre de la forme : le filtre ne travaille que là */
 #forme-svg{z-index:5}
 #contenu{z-index:6;--fg:255 255 255;--amb:255 171 61;--jau:255 214 10}
 #encoche-svg{z-index:7}
@@ -172,7 +177,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
   transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
 .t15{font-size:15px;line-height:19px;font-weight:600;letter-spacing:-.2px}
-.t125{font-size:12.5px;line-height:16px;font-weight:500;color:rgb(var(--fg) / .55);margin-top:3px}
+.t125{font-size:12.5px;line-height:16px;font-weight:500;color:rgb(var(--fg) / var(--sec,.55));margin-top:3px}
 .art{position:relative;overflow:hidden;background:#111;border-radius:4px;width:28px;height:16px}
 .art::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16)}
 .eq{display:flex;align-items:center;justify-content:space-between;width:18.4px;height:14px}
@@ -192,13 +197,13 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .pil{height:26px;border-radius:13px;padding:0 11px;display:flex;align-items:center;gap:5px;background:rgb(var(--fg) / .12);font-size:12.5px;font-weight:600;cursor:pointer;flex:none;
   transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
 .pil:hover{background:rgb(var(--fg) / .2)}
-.cc-ronds{display:flex;justify-content:space-around;margin-top:12px;height:96px}
-.tg{width:84px;display:flex;flex-direction:column;align-items:center;cursor:pointer;color:rgb(var(--fg));flex:none}
+.cc-ronds{display:flex;justify-content:space-between;margin-top:12px;height:96px;padding:0 6px}
+.tg{width:auto;min-width:58px;display:flex;flex-direction:column;align-items:center;cursor:pointer;color:rgb(var(--fg));flex:none}
 .tg .rd{position:relative;width:52px;height:52px;border-radius:50%;background:rgb(var(--fg) / .12);display:grid;place-items:center;
   transition:background-color .2s ease,box-shadow .2s ease,transform calc(.3s*var(--k)) var(--ressort)}
 .tg:hover .rd{filter:brightness(1.08)}
 .tg b{font-size:11.5px;line-height:15px;font-weight:600;margin-top:7px;letter-spacing:-.25px}
-.tg i{font-style:normal;font-size:11.5px;line-height:14px;color:rgb(var(--fg) / .55);font-weight:500;margin-top:1px}
+.tg i{font-style:normal;font-size:11.5px;line-height:14px;color:rgb(var(--fg) / var(--sec,.55));font-weight:500;margin-top:1px}
 .tg.rouge .rd{background:var(--rouge);color:#fff}
 .tg.rouge i{color:#ff5a4f}
 .tg.bleu .rd{background:var(--bleu);color:#fff}
@@ -217,14 +222,14 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
   transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
 .cap:hover{background:rgb(var(--fg) / .2)}
 .cap.choisi{background:var(--ambre);color:#000}
-.tl-u{font-size:12px;font-weight:500;color:rgb(var(--fg) / .5);margin-left:3px}
+.tl-u{font-size:12px;font-weight:500;color:rgb(var(--fg) / var(--sec,.5));margin-left:3px}
 .tl-eta{background:transparent;border:1.5px dashed rgb(var(--fg) / .3);padding:9.5px 12.5px}
-.eta-vide{font-size:12.5px;line-height:16px;color:rgb(var(--fg) / .55);margin-top:12px;font-weight:500}
+.eta-vide{font-size:12.5px;line-height:16px;color:rgb(var(--fg) / var(--sec,.55));margin-top:12px;font-weight:500}
 .tr{position:relative;display:flex;align-items:center;gap:10px;width:100%;height:40px;margin-top:10px;border-radius:20px;padding:0 16px 0 14px;
   background:rgb(var(--fg) / .09);font-size:13.5px;font-weight:600;cursor:pointer;text-align:left;transition:background-color .2s ease}
 .tr:hover{background:rgb(var(--fg) / .14)}
 .tr-pt{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1.8px var(--rouge);background:radial-gradient(circle,var(--rouge) 0 3.6px,transparent 4.2px)}
-.tr-s{margin-left:auto;font-size:12px;font-weight:500;color:rgb(var(--fg) / .5)}
+.tr-s{margin-left:auto;font-size:12px;font-weight:500;color:rgb(var(--fg) / var(--sec,.5))}
 .tr.on{background:rgba(255,69,58,.24)}
 .tr.on .tr-pt{background:radial-gradient(circle,var(--rouge) 0 5px,transparent 5.6px);animation:pouls 1.2s ease-in-out infinite}
 @keyframes pouls{50%{opacity:.45}}
@@ -276,6 +281,11 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
 .r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
 .r-opts input{accent-color:var(--clair)}
+.r-verre{grid-column:1 / -1;display:flex;align-items:center;gap:8px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-seg{display:flex;gap:2px;padding:2px;border-radius:8px;background:rgba(255,255,255,.08)}
+.r-seg button{height:22px;border-radius:6px;padding:0 9px;font-size:12px;font-weight:500;color:rgba(245,245,247,.62);cursor:pointer;white-space:nowrap}
+.r-seg button:hover{color:rgba(245,245,247,.9)}
+.r-seg button.on{background:rgba(255,255,255,.18);color:#fff;font-weight:600}
 .r-pas{display:flex;flex-wrap:wrap;gap:2px 4px;list-style:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
 .r-pas button{height:30px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:8px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
 .r-pas button span{font-variant-numeric:tabular-nums;opacity:.7}
@@ -391,20 +401,43 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
   <svg id="places-svg" class="calque" aria-hidden="true"><g id="places"></g></svg>
 
   <!-- ===== la Lucarne ===== -->
+  <!-- la lentille du verre : déplacement des bords (carte calculée pour la forme), appliqué au fond déjà flouté -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="lentille" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" x="0" y="0" width="100" height="100" color-interpolation-filters="sRGB">
+    <feImage id="carteLentille" x="0" y="0" width="100" height="100" preserveAspectRatio="none" result="carte"/>
+    <feDisplacementMap in="SourceGraphic" in2="carte" scale="0" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
   <div id="verre" class="calque" aria-hidden="true"></div>
+  <div id="givre" class="calque" aria-hidden="true"></div>
   <svg id="forme-svg" class="calque" aria-hidden="true">
     <defs>
       <mask id="hors" maskUnits="userSpaceOnUse" x="-6000" y="-6000" width="12000" height="12000">
         <rect x="-6000" y="-6000" width="12000" height="12000" fill="#fff"/><path id="masque" fill="#000"/></mask>
       <linearGradient id="vFond" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".55" stop-color="#fbfbfd" stop-opacity=".76"/><stop offset="1" stop-color="#f3f4f7" stop-opacity=".82"/></linearGradient>
+      <!-- lisière : claire en haut à gauche, sombre en bas -->
+      <linearGradient id="vLisiere" x1="0" y1="0" x2=".35" y2="1">
+        <stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset=".45" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity=".12"/></linearGradient>
+      <linearGradient id="vLisiereBas" x1="0" y1="0" x2="0" y2="1">
+        <stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".22"/></linearGradient>
+      <!-- l'épaisseur du verre : une lueur le long du bord, plus forte en haut à gauche -->
+      <linearGradient id="vEpais" x1="0" y1="0" x2=".5" y2="1">
+        <stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".5" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity=".55"/></linearGradient>
+      <!-- le reflet spéculaire du haut (il glisse un peu quand on la tient ou la déplace) -->
+      <radialGradient id="vReflet" cx=".3" cy="-.15" r=".7" fx=".3" fy="-.15">
+        <stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".55" stop-color="#fff" stop-opacity=".28"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+      <clipPath id="dansForme"><path id="clipForme"/></clipPath>
+      <filter id="flouBord" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.6"/></filter>
     </defs>
     <g mask="url(#hors)"><path id="ombre" fill="rgb(10,20,40)" opacity="0"/></g>
     <path id="forme" fill="#000" d=""/>
     <g id="vitre" opacity="0">
       <path id="vitreFond" fill="url(#vFond)"/>
+      <g clip-path="url(#dansForme)" id="vitreEffets">
+        <path id="vitreEpais" fill="none" stroke="url(#vEpais)" stroke-width="7" filter="url(#flouBord)"/>
+        <path id="vitreReflet" fill="url(#vReflet)"/>
+      </g>
       <path id="vitreTrait" fill="none" stroke="rgba(0,0,0,.24)" stroke-width="1.6"/>
       <path id="vitreBord" fill="none" stroke="rgba(255,255,255,.95)" stroke-width=".9"/>
+      <path id="vitreBas" fill="none" stroke="url(#vLisiereBas)" stroke-width="1.2" opacity="0"/>
     </g>
   </svg>
   <div id="contenu" class="calque"></div>
@@ -433,13 +466,14 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
         <label><input type="checkbox" id="autoCase" checked> Lecture automatique</label>
         <label><input type="checkbox" id="lentCase"> Ralenti ×4</label>
       </div>
+      <div class="r-verre"><span>Verre</span><div class="r-seg" id="verreChoix"><button data-v="actuel">Actuel</button><button data-v="marque">Marqué</button><button data-v="tres">Très marqué</button></div></div>
     </div>
   </div>
   <ol class="r-pas" id="pas"></ol>
   <div class="notes">
     <div><b>À essayer ici.</b> Décochez Lecture automatique. Restez appuyé sur Lucarne, dans l’encoche ou ailleurs : l’anneau se remplit, elle se décolle. Glissez-la et lâchez près d’une place, ou lancez-la d’un coup sec. Remontez-la au milieu en haut pour la remettre dans l’encoche. Survolez-la : le Centre s’ouvre.</div>
     <div><b>La règle de l’appui long.</b> Appui long sur Lucarne = la déplacer, toujours, où qu’elle soit. Bouger avant que l’anneau soit plein ne fait rien. Le simple survol ouvre le Centre ; le minuteur se lance depuis le Centre. Aucun réglage, aucun raccourci.</div>
-    <div><b>Noir ou verre.</b> Dans l’encoche, toujours noire : elle se fond avec la caméra. Ailleurs, du verre clair avec le même contenu. Huit places : l’encoche, les deux coins du haut, le milieu des deux côtés, en bas au milieu (au-dessus du Dock), et les deux coins du bas, à côté du Dock.</div>
+    <div><b>Noir ou verre.</b> Dans l’encoche, toujours noire : elle se fond avec la caméra. Ailleurs, du verre clair avec le même contenu ; le sélecteur « Verre » compare trois niveaux, la lentille tord ce qui passe dessous. Huit places : l’encoche, les deux coins du haut, le milieu des deux côtés, en bas au milieu (au-dessus du Dock), et les deux coins du bas, à côté du Dock.</div>
   </div>
 </section>
 
@@ -851,6 +885,112 @@ function arrive(){
 const mix = (a, b, t) => a.map((v, i) => Math.round(lerp(v, b[i], t))).join(' ');
 function centrer(n, x, y){ n.style.left = f2(W / 2 + x - n.offsetWidth / 2) + 'px'; n.style.top = f2(y - n.offsetHeight / 2) + 'px'; }
 function placer(nom, x, y){ c[nom].style.left = f2(W / 2 + x) + 'px'; c[nom].style.top = f2(y) + 'px'; }
+/* =========================================================
+   Le verre (hors de l'encoche) : trois niveaux à comparer.
+   Actuel = la version d'avant (flou fort, voile dense). Marqué / Très marqué = façon iOS 26 : peu de flou, et une
+   lentille sur les bords (feDisplacementMap en backdrop-filter, carte calculée pour la forme) qui tord et grossit ce qui
+   est derrière ; un givre au centre seulement sous le texte (Centre, bannière) ; reflet du haut, lisière, épaisseur.
+   ========================================================= */
+const NIVEAUX = {
+  actuel:{flou:20, sat:1.9, lum:1.05, lentille:0, bord:0, voile:[.9, .76, .82], voileTexte:[.9, .76, .82], givre:0, voileGivre:0, reflet:0, epais:0, lisiere:false, ombre:1},
+  marque:{flou:3, sat:1.7, lum:1.05, lentille:56, bord:28, voile:[.2, .1, .16], voileTexte:[.5, .38, .44], givre:16, voileGivre:.6, reflet:.75, epais:.65, lisiere:true, ombre:1.25},
+  tres:  {flou:1.2, sat:2, lum:1.06, lentille:110, bord:40, voile:[.1, .03, .08], voileTexte:[.44, .3, .38], givre:14, voileGivre:.56, reflet:1, epais:.95, lisiere:true, ombre:1.4}
+};
+let niveau = ({actuel:'actuel', marque:'marque', tres:'tres'})[PARAMS.get('verre')] || 'marque', NV = NIVEAUX[niveau];
+const givre = $('#givre'), lentImg = $('#carteLentille'), lentDep = $('#lentille feDisplacementMap'), lentF = $('#lentille'),
+  vitreE = $('#vitreEffets'), vitreEp = $('#vitreEpais'), vitreR = $('#vitreReflet'), vitreBa = $('#vitreBas'), clipF = $('#clipForme'),
+  reflet = $('#vReflet'), stopsFond = [...document.querySelectorAll('#vFond stop')];
+/* la carte de la lentille : pour chaque point de la forme (rectangle aux coins ronds), on va chercher le fond plus vers
+   l'intérieur, de plus en plus fort près du bord (profil d'une goutte) : le bord grossit et tord ce qui est derrière. */
+const cartes = new Map(); let carteVue = '';
+function carte(w, h, rr, bande){
+  const qw = Math.max(16, Math.round(w / 8) * 8), qh = Math.max(16, Math.round(h / 8) * 8);
+  const qr = Math.min(Math.round(rr), qw / 2, qh / 2), qb = Math.max(4, Math.round(bande)), cle = `${qw}x${qh}x${qr}x${qb}`;
+  if (cartes.has(cle)) return cartes.get(cle);
+  const cv = document.createElement('canvas'); cv.width = qw; cv.height = qh;
+  const cx = cv.getContext('2d'), im = cx.createImageData(qw, qh), dd = im.data;
+  for (let j = 0; j < qh; j++) for (let i = 0; i < qw; i++){
+    const px = i + .5 - qw / 2, py = j + .5 - qh / 2, ax = Math.abs(px) - (qw / 2 - qr), ay = Math.abs(py) - (qh / 2 - qr);
+    let dist, nx, ny;
+    if (ax > 0 && ay > 0){ const L2 = Math.hypot(ax, ay); dist = qr - L2; nx = ax / L2; ny = ay / L2; }
+    else if (ax > ay){ dist = qr - ax; nx = 1; ny = 0; } else { dist = qr - ay; nx = 0; ny = 1; }
+    nx *= px < 0 ? -1 : 1; ny *= py < 0 ? -1 : 1;
+    const u = clamp(1 - dist / qb, 0, 1), m = .45 * u * u + .55 * (1 - Math.sqrt(Math.max(0, 1 - u * u)));
+    const k = (j * qw + i) * 4;
+    dd[k] = 128 - nx * m * 127; dd[k + 1] = 128 - ny * m * 127; dd[k + 2] = 128; dd[k + 3] = 255;
+  }
+  cx.putImageData(im, 0, 0);
+  const url = cv.toDataURL();
+  if (cartes.size > 60) cartes.delete(cartes.keys().next().value);
+  cartes.set(cle, url); return url;
+}
+/* la même capsule, rentrée de `e` pt (pour le givre sous le texte) */
+function rentree(g, e){
+  const k = v => Math.max(1, (PORTEE * v - e) / PORTEE);
+  return {x0:g.x0 + e, x1:g.x1 - e, y0:g.y0 + e, y1:g.y1 - e, s:g.s > 0 ? k(g.s) : g.s, r:k(g.r)};
+}
+let elan = 0, cxPrec = null, tPrecV = 0;
+function dessinerVerre(gc, d, tv, l){
+  const N = NV, w = gc.x1 - gc.x0, h = gc.y1 - gc.y0, petit = Math.min(w, h);
+  const texte = clamp((h - 40) / 26, 0, 1);                       // 0 pour la pilule, 1 pour le Centre et la bannière
+  // le reflet suit le mouvement : vitesse lissée du centre
+  const now = performance.now(), cxs = (gc.x0 + gc.x1) / 2;
+  if (cxPrec !== null && now > tPrecV) elan = lerp(elan, (cxs - cxPrec) / ((now - tPrecV) / 1000), .25);
+  if (instant || FIGE) elan = 0;
+  cxPrec = cxs; tPrecV = now;
+  // le fond : flou, saturation, puis la lentille (posée au cadre de la forme : le filtre ne travaille que là)
+  const M = 10, bx = Math.floor(gc.x0 + W / 2) - M, by = Math.floor(gc.y0) - M, bw = Math.ceil(w) + 2 * M, bh = Math.ceil(h) + 2 * M;
+  const loc = g => ({...g, x0:g.x0 + W / 2 - bx, x1:g.x1 + W / 2 - bx, y0:g.y0 - by, y1:g.y1 - by});
+  for (const n of [verre, givre]){ n.classList.add('boite'); Object.assign(n.style, {left:bx + 'px', top:by + 'px', width:bw + 'px', height:bh + 'px'}); }
+  verre.style.clipPath = `path('${capsule(loc(gc))}')`;
+  let filtre = `blur(${N.flou}px) saturate(${f2(lerp(N.sat, Math.min(N.sat, 1.5), texte))}) brightness(${N.lum})`;
+  if (N.lentille){
+    const bande = Math.min(N.bord, petit * lerp(.5, .3, texte)), rr = Math.min(PORTEE * Math.max(gc.r, 0), petit / 2);
+    const echelle = Math.min(N.lentille, bande * 2.6) * (1 + .3 * l);
+    const bouge = Math.abs(P.hw.v) + Math.abs(P.hh.v) > 40 && !instant;     // pendant qu'elle grandit : la dernière carte, étirée
+    if (!bouge || !carteVue){ const u = carte(w, h, rr, bande); if (u !== carteVue){ lentImg.setAttribute('href', u); carteVue = u; } }
+    for (const [k, v] of [['width', bw], ['height', bh]]) lentF.setAttribute(k, v);
+    lentImg.setAttribute('x', f2(gc.x0 + W / 2 - bx)); lentImg.setAttribute('y', f2(gc.y0 - by));
+    lentImg.setAttribute('width', f2(w)); lentImg.setAttribute('height', f2(h));
+    lentDep.setAttribute('scale', f2(echelle));
+    filtre += ' url(#lentille)';
+  }
+  verre.style.backdropFilter = verre.style.webkitBackdropFilter = filtre;
+  verre.style.opacity = f2(tv);
+  // le givre : seulement sous le texte, au centre (les bords restent de la lentille)
+  if (N.givre && texte > 0){
+    const e = Math.min(N.bord, petit * .3) * .8;
+    givre.style.clipPath = `path('${capsule(loc(rentree(gc, e)))}')`;
+    givre.style.backdropFilter = givre.style.webkitBackdropFilter = `blur(${N.givre}px) saturate(1.6)`;
+    givre.style.background = `rgba(255,255,255,${f2(N.voileGivre)})`;
+    givre.style.opacity = f2(tv * texte);
+  } else givre.style.opacity = 0;
+  // le voile, plus dense quand il y a du texte dessus
+  stopsFond.forEach((s, i) => s.setAttribute('stop-opacity', f2(lerp(N.voile[i], N.voileTexte[i], texte))));
+  vitreF.setAttribute('d', d); vitreT.setAttribute('d', d); vitreB.setAttribute('d', d); vitreBa.setAttribute('d', d);
+  // lisière : claire en haut à gauche, sombre en bas (Actuel : un trait blanc régulier)
+  vitreB.setAttribute('stroke', N.lisiere ? 'url(#vLisiere)' : 'rgba(255,255,255,.95)');
+  vitreB.setAttribute('stroke-width', N.lisiere ? 1.3 : .9);
+  vitreBa.setAttribute('opacity', N.lisiere ? 1 : 0);
+  // épaisseur et reflet spéculaire (ils glissent un peu avec le mouvement et quand on la tient)
+  if (N.reflet){
+    clipF.setAttribute('d', d); vitreEp.setAttribute('d', d); vitreR.setAttribute('d', d);
+    vitreEp.setAttribute('stroke-width', f2(clamp(petit * .22, 5, 12)));
+    vitreEp.setAttribute('opacity', f2(N.epais));
+    const dx = clamp(-elan / 2200, -.22, .22) - (cxs / W) * .2;
+    reflet.setAttribute('cx', f2(.3 + dx)); reflet.setAttribute('fx', f2(.3 + dx));
+    reflet.setAttribute('r', f2(.7 + .12 * l));
+    vitreR.setAttribute('opacity', f2(N.reflet * (.8 + .2 * l) * lerp(1, .55, texte)));
+    vitreE.setAttribute('opacity', 1);
+  } else vitreE.setAttribute('opacity', 0);
+  vitre.setAttribute('opacity', f2(tv));
+}
+function choisirVerre(n){
+  niveau = n; NV = NIVEAUX[n];
+  document.querySelectorAll('#verreChoix button').forEach(b => b.classList.toggle('on', b.dataset.v === n));
+  try { const u = new URL(location.href); u.searchParams.set('verre', n); history.replaceState(null, '', u); } catch (_){}
+  rendu();
+}
 function rendu(){
   arrive();
   const t = clamp(V.x, 0, 1), l = Math.max(0, L.x);
@@ -865,20 +1005,20 @@ function rendu(){
     gc = deC(o); formeN.setAttribute('d', capsule(gc)); a = clamp(gc.y0 / 10, 0, 1);
   }
   const d = formeN.getAttribute('d');
-  formeN.style.opacity = f2(t);
+  // du verre au noir : le noir arrive vite, le verre part tard (pas de gris translucide entre les deux)
+  const tn = clamp(2 * t, 0, 1), tv = 1 - clamp(2 * t - 1, 0, 1);
+  formeN.style.opacity = f2(tn);
   // l'ombre : douce, seulement autour (un masque la retire sous le verre) ; plus forte quand on la tient
+  const ov = mode === 'libre' ? lerp(1, NV.ombre, tv) : 1;
   masque.setAttribute('d', d); ombreP.setAttribute('d', d);
-  ombreP.setAttribute('opacity', (a * (.24 + .1 * t) + .2 * l).toFixed(3));
-  ombreP.style.filter = `blur(${f2(8 * a + 8 * l)}px)`;
+  ombreP.setAttribute('opacity', (ov * (a * (.24 + .1 * t) + .2 * l)).toFixed(3));
+  ombreP.style.filter = `blur(${f2(ov * (8 * a + 8 * l))}px)`;
   ombreP.style.transform = `translateY(${f2(6 * a + 8 * l)}px)`;
-  // le verre : flou de ce qui est derrière (découpé à la forme), voile clair, bord fin foncé puis lumineux
-  if (t < .999 && mode === 'libre'){
-    vitreF.setAttribute('d', d); vitreT.setAttribute('d', d); vitreB.setAttribute('d', d);
-    vitre.setAttribute('opacity', f2(1 - t));
-    verre.style.clipPath = `path('${capsule(gc, W / 2)}')`; verre.style.opacity = f2(1 - t);
-  } else { vitre.setAttribute('opacity', 0); verre.style.opacity = 0; }
+  if (tv > .001 && mode === 'libre') dessinerVerre(gc, d, tv, l);
+  else { vitre.setAttribute('opacity', 0); verre.style.opacity = 0; givre.style.opacity = 0; }
   // le texte suit : blanc sur le noir, foncé sur le verre (jaune et ambre assombris pour rester lisibles)
   contenu.style.setProperty('--fg', mix([29, 29, 31], [255, 255, 255], t));
+  contenu.style.setProperty('--sec', f2(lerp(.72, .55, t)));     // texte secondaire : plus foncé sur le verre
   contenu.style.setProperty('--amb', mix([178, 88, 0], [255, 171, 61], t));
   contenu.style.setProperty('--jau', mix([138, 92, 0], [255, 214, 10], t));
   // le contenu replié suit la forme (vignette au début, onde à la fin ; debout : en haut et en bas)
@@ -935,7 +1075,7 @@ function haptique(){ if (instant) return; pad.classList.remove('vibre'); void pa
 function formeTenue(){
   const g = pres ? {hw:N0, hh:B / 2, s:-6, r:10} : {hw:PW / 2, hh:PH / 2, s:PILL, r:PILL};
   for (const k in g) viser1(P[k], g[k], .28, .86);
-  noir(pres ? 1 : 0, .22);
+  noir(pres ? 1 : 0, .14);
 }
 /* elle suit le pointeur 1:1 (le point tenu glisse doucement vers le milieu de la pilule) ; l'encoche la retient un peu */
 function colle(){
@@ -1002,7 +1142,7 @@ function allerA(pose, v){
   const taille = [.3, .9, 0];
   if (pose === 'haut'){                                  // aspirée par l'encoche : elle redevient noire et s'y fond
     viserP(PLACES.haut.i(), .36, .9, 0, {hw:taille, hh:taille, s:[.26, 1, 0], r:[.26, 1, 0]});
-    noir(1, .2);
+    noir(1, .14);
   } else {
     viserP(PLACES[pose].i(), .5, .8, 0, {hw:taille, hh:taille, s:taille, r:taille});
     noir(0, .3);
@@ -1308,8 +1448,17 @@ setInterval(() => { if (FIGE) return; video.pos = (video.pos + 1) % video.duree;
    Démarrage
    ========================================================= */
 if (PARAMS.has('lent')) ralenti(true);
+$('#verreChoix').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) choisirVerre(b.dataset.v); });
+choisirVerre(niveau);
 const e0 = clamp(+(PARAMS.get('etape') || 0), 0, N);
-if (FIGE){ autoCase.checked = false; poser(e0).catch(() => {}); }
+/* ?tenue=x,y (avec fige) : Lucarne tenue au doigt au point x, y de l'écran (pour juger la lentille au-dessus du Dock ou de la vidéo) */
+function tenueURL(){
+  const v = (PARAMS.get('tenue') || '').split(',').map(Number); if (v.length !== 2 || v.some(isNaN)) return;
+  instant = true;
+  try { const [x, y] = centreLucarne(); decrocher(x - W / 2, y); suivre(v[0], v[1]); } finally { instant = false; }
+  rendu();
+}
+if (FIGE){ autoCase.checked = false; poser(e0).then(tenueURL).catch(() => {}); }
 else if (PARAMS.has('joue') && e0 >= 1){ autoCase.checked = false; poser(e0 - 1).then(() => setTimeout(() => jouer(e0).catch(() => {}), 400)); }
 else setTimeout(() => tourner(), 300);
 window.lucarne = {poser, jouer, st, P, V, L, ralenti};
