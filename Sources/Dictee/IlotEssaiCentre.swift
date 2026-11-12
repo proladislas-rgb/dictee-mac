@@ -159,6 +159,69 @@ extension IlotEssai {
         c.lireMicros = { [] }; c.relireChoixMicro(); m.donneesChangees(); pause(0.5)
         verifier(m.rondsCentre.count == 3, "AirPods partis : trois boutons")
 
+        // --- l'aide au survol (11/11 au soir : « pas clair ») : une phrase sous le bouton survolé, après un court instant ; elle ne
+        // prend aucun clic, part au clic, ne paraît pas pendant « Modifier »
+        let zc = PlanCentre.zone(m.grille)
+        let tropLongues = ElementCentre.allCases.filter { $0.aide.count > ElementCentre.aideMax || MesureIlot.texte($0.aide, PlanCentre.policeAide, .medium) + 2 * PlanCentre.margeAide > zc.width }
+        verifier(tropLongues.isEmpty, "chaque phrase d'aide est courte et tient sur une ligne dans le Centre (\(Int(zc.width)) pt) \(tropLongues.map(\.aide))")
+        m.oublierAide()
+        c.panneau.envoyerSouris(.mouseMoved, en: rond(.telechargements)); pause(0.2)
+        verifier(m.bulleAide == nil, "pointeur arrivé sur Téléchargements : pas tout de suite (un pointeur qui ne fait que passer ne fait rien paraître)")
+        pause(0.6)
+        let survolReel = m.bulleAide == .telechargements
+        if !survolReel { m.survolAide(.telechargements, true); pause(0.2); verifier(m.bulleAide == nil, "0,2 s de survol : pas encore"); pause(0.5) }
+        verifier(true, "survol de Téléchargements : \(survolReel ? "vrai déplacement de souris reçu par SwiftUI" : "le déplacement fabriqué n'atteint pas le survol de SwiftUI, survol posé à la main (même fonction que onHover)")")
+        verifier(m.bulleAide == .telechargements && m.courante == .centre, "après une demi-seconde : « \(ElementCentre.telechargements.aide) »")
+        if let r = PlanCentre.cadreElement(m, .telechargements, page: .centre) {
+            let b = PlanCentre.cadreAide(ElementCentre.telechargements.aide, sur: r, rond: true, m.grille, page: .centre)
+            let cercles = m.rondsCentre.map { e -> CGRect in let p = rond(e); return CGRect(x: p.x - PlanCentre.rond / 2, y: p.y - PlanCentre.rond / 2, width: PlanCentre.rond, height: PlanCentre.rond) }
+            verifier(b.minX >= zc.minX - 0.5 && b.maxX <= zc.maxX + 0.5 && b.minY >= r.minY + PlanCentre.rond + 30 && b.maxY <= PlanCentre.fond(m.grille).maxY,
+                     "la bulle est sous le nom et l'état de Téléchargements, dans le Centre (\(Int(b.minX)), \(Int(b.minY)), \(Int(b.width)) × \(Int(b.height)))")
+            verifier(!cercles.contains { $0.intersects(b) }, "elle ne couvre aucun bouton rond")
+        }
+        if let rc = PlanCentre.cadreElement(m, .minuteur, page: .centre), let rr = PlanCentre.cadreElement(m, .micro, page: .centre) {
+            let b = PlanCentre.cadreAide(ElementCentre.minuteur.aide, sur: rc, rond: false, m.grille, page: .centre)
+            let finNoms = rr.minY + PlanCentre.rond + 37
+            verifier(b.maxY <= rc.minY + 4.5 && b.minY >= finNoms - 0.5,
+                     "la case Minuteur : sa bulle dans l'écart au-dessus d'elle, sans toucher les noms des ronds (\(Int(b.minY))–\(Int(b.maxY)), noms jusqu'à \(Int(finNoms)))")
+        }
+        m.oublierAide(); pause(0.5)
+        m.survolAide(.reunion, true); pause(0.7)
+        verifier(m.bulleAide == nil, "« Noter la réunion » le dit déjà en toutes lettres : pas de bulle par-dessus")
+        if let rm = PlanCentre.cadreElement(m, .micro, page: .centre) {
+            let b = PlanCentre.cadreAide(ElementCentre.micro.aide, sur: rm, rond: true, m.grille, page: .centre)
+            verifier(b.minX >= zc.minX - 0.5, "Micro, au bord gauche : sa bulle reste dans le contenu (calée au bord)")
+        }
+        // d'un bouton à son voisin : la bulle suit tout de suite (comme sur le Mac)
+        m.survolAide(.reunion, false); m.survolAide(.telechargements, true); pause(0.8)
+        m.survolAide(.telechargements, false); m.survolAide(.claude, true); pause(0.1)
+        verifier(m.bulleAide == .claude, "glissé sur Claude Code : sa bulle tout de suite (« \(ElementCentre.claude.aide) »)")
+        // un vrai clic sur un bouton pendant qu'une bulle est là : le clic passe, la bulle part
+        let coupeAvant = faux.coupe
+        m.survolAide(.claude, false); m.survolAide(.micro, true); pause(0.1)
+        clic(rond(.micro), 0.5)
+        verifier(faux.coupe != coupeAvant && m.bulleAide == nil && m.courante == .centre, "vrai clic sur Micro, bulle affichée : le clic passe, la bulle part")
+        clic(rond(.micro), 0.5)
+        verifier(faux.coupe == coupeAvant, "(micro remis comme avant)")
+        m.survolAide(.micro, false); pause(0.5)
+        m.commencerEditionCentre(); pause(0.4)
+        m.survolAide(.claude, true); pause(0.8)
+        verifier(m.bulleAide == nil, "« Modifier » : aucune bulle (on range les boutons)")
+        m.finirEditionCentre(); pause(0.4)
+        m.allerA(.outils); pause(0.9)
+        m.survolAide(.eveil, true); pause(0.8)
+        if let r = PlanCentre.cadreElement(m, .eveil, page: .outils) {
+            let b = PlanCentre.cadreAide(ElementCentre.eveil.aide, sur: r, rond: true, m.grille, page: .outils)
+            verifier(m.bulleAide == .eveil && m.courante == .outils && b.minX >= PlanCentre.zone(m.grille, .outils).minX - 0.5,
+                     "page Outils, Garder éveillé : « \(ElementCentre.eveil.aide) »")
+        } else { verifier(false, "page Outils : Garder éveillé introuvable") }
+        m.survolAide(.eveil, false)
+        if let rn = PlanCentre.cadreElement(m, .noteRapide, page: .outils), let re = PlanCentre.cadreElement(m, .eveil, page: .outils) {
+            let b = PlanCentre.cadreAide(ElementCentre.noteRapide.aide, sur: rn, rond: false, m.grille, page: .outils)
+            verifier(b.maxY <= rn.minY + 4.5 && b.minY >= re.minY + PlanCentre.rond + 37 - 0.5, "« Dicter une note » : « \(ElementCentre.noteRapide.aide) », au-dessus de la bande, sans cacher les états des ronds")
+        }
+        m.allerA(.centre); pause(0.9)
+
         // --- un fichier glissé sur le Centre ouvert : la case Étagère s'éclaire, la forme ne bouge pas, le Centre reste ouvert
         let rayon = dossier.appendingPathComponent("Centre-étagère", isDirectory: true)
         try? FileManager.default.createDirectory(at: rayon, withIntermediateDirectories: true)

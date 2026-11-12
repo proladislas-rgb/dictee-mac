@@ -179,6 +179,14 @@ extension IlotMoteur {
             // le micro barré voyage depuis l'aile gauche (sa place est gardée) ; le nom du micro peut être long : coupé au bout
             return ContenuAnnonce(glyphe: nil, l1: "Micro coupé", l2: nomMicro ?? "Micro du Mac",
                                   droite: .boutons([.init(titre: "Rouvrir", icone: "mic.fill", etiquette: "Rouvrir le micro", action: .microRouvrir)]))
+        case .microFn:
+            // fn sur un micro coupé : rien n'a été enregistré, « Rouvrir et dicter » ; ou la dictée est passée par un autre micro (sans bouton)
+            guard let b else { return nil }
+            let bloque = b.ligne1 == "Micro coupé"
+            return ContenuAnnonce(glyphe: GlypheIlot(nom: bloque ? "mic.slash.fill" : "mic.fill", couleur: bloque ? CouleursIlot.rouge : .white, taille: 20),
+                                  l1: b.ligne1, l2: b.ligne2,
+                                  droite: bloque ? .boutons([.init(titre: "Rouvrir et dicter", icone: "mic.fill", etiquette: "Rouvrir le micro, puis dicter avec fn",
+                                                                   action: .microRouvrirEtDicter)]) : .rien)
         case .etagerePartis:
             // « 3 fichiers partis dans Mail », « Remettre » et l'anneau qui se vide (maquette ilot-etagere-rapide.html, étapes 7 et 8)
             guard let b, let p = b.partis else { return nil }
@@ -190,20 +198,18 @@ extension IlotMoteur {
             // l'envoi AirDrop (étapes 4 et 5) : c'est le panneau de macOS qui choisit l'appareil ; l'îlot dit ce que le service répond
             guard let e = b?.envoi else { return nil }
             let quoi = e.noms.count == 1 ? e.noms[0] : "\(e.noms.count) fichiers"
+            let l1 = e.etat.titre, l2 = e.etat.sousTitre(quoi: quoi, surEtagere: e.surEtagere)
             switch e.etat {
             case .enCours:
-                return ContenuAnnonce(glyphe: GlypheIlot(nom: "doc.fill", couleur: .white, taille: 20), l1: "Envoi AirDrop\u{2026}",
-                                      l2: quoi + " \u{00B7} choisis l\u{2019}appareil", icones: e.icone.map { [$0] } ?? [], coteSymbole: ContenuAnnonce.coteIcone,
-                                      attente: true)
-            case .envoye:
-                return ContenuAnnonce(glyphe: GlypheIlot(nom: "checkmark.circle.fill", couleur: CouleursIlot.vert, taille: 22), l1: "Envoyé",
-                                      l2: quoi + " \u{00B7} AirDrop")
+                return ContenuAnnonce(glyphe: GlypheIlot(nom: "doc.fill", couleur: .white, taille: 20), l1: l1, l2: l2,
+                                      icones: e.icone.map { [$0] } ?? [], coteSymbole: ContenuAnnonce.coteIcone, attente: true)
+            case .lance:
+                // pas la coche verte « fait » : le transfert est lancé, rien ne dit qu'il est fini
+                return ContenuAnnonce(glyphe: GlypheIlot(nom: "arrow.up.circle.fill", couleur: Color(hex: 0x5EB0FF), taille: 22), l1: l1, l2: l2)
             case .annule:
-                return ContenuAnnonce(glyphe: GlypheIlot(nom: "xmark.circle.fill", couleur: Color.white.opacity(0.55), taille: 22), l1: "Annulé",
-                                      l2: "Rien n\u{2019}a été envoyé")
+                return ContenuAnnonce(glyphe: GlypheIlot(nom: "xmark.circle.fill", couleur: Color.white.opacity(0.55), taille: 22), l1: l1, l2: l2)
             case .indisponible:
-                return ContenuAnnonce(glyphe: GlypheIlot(nom: "exclamationmark.circle.fill", couleur: CouleursIlot.ambre, taille: 22), l1: "AirDrop indisponible",
-                                      l2: "Allume le Wi-Fi et le Bluetooth")
+                return ContenuAnnonce(glyphe: GlypheIlot(nom: "exclamationmark.circle.fill", couleur: CouleursIlot.ambre, taille: 22), l1: l1, l2: l2)
             }
         default:
             return nil

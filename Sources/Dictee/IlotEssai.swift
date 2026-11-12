@@ -389,47 +389,77 @@ enum IlotEssai {
             faux.depuisLeSysteme(coupe: false); attendre(0.3)
             verifier(!m.microCoupe && m.courante == .microOuvert, "rouvert dans Réglages Système : « Micro ouvert »")
             attendre(1.6)
-            // la dictée rouvre le micro le temps de dicter, puis le recoupe ; aucun bandeau pour ça
+            // coupé veut dire coupé (Hugues, 11/11 au soir : « micro coupé : rouvert (dictée) » à chaque fn) : fn ne rouvre rien, la dictée
+            // ne part pas, l'îlot le dit et propose « Rouvrir et dicter »
             c.basculerLeMicro(); attendre(0.6)
             let n1 = faux.commandes.count
-            occ.dictee = true; c.dicteeChange(enCours: true)
-            verifier(Array(faux.commandes.dropFirst(n1)) == ["rouvrir integre"] && !faux.coupe, "fn tenue pendant que c'est coupé : le micro est rouvert tout de suite, avant la capture")
-            c.occupationChangee(); attendre(0.6)
-            verifier(m.cache && m.bandeau == nil, "pendant la dictée : l'îlot est effacé, aucun « Micro ouvert » (l'écho est ignoré)")
-            occ.dictee = false; c.dicteeChange(enCours: false)
-            verifier(Array(faux.commandes.dropFirst(n1)) == ["rouvrir integre", "couper integre"] && faux.coupe, "fn relâchée : le micro est recoupé")
-            c.occupationChangee(); attendre(0.9)
-            verifier(m.microCoupe && m.resolution.principal == .microCompact && m.bandeau == nil, "après la dictée : « Coupé » de nouveau, aucun bandeau")
-            // dictée éclair : les deux notifications arrivent après coup, relues telles qu'est le micro (coupé) : rien ne bouge
-            c.dicteeChange(enCours: true); c.dicteeChange(enCours: false); attendre(0.4)
-            verifier(faux.coupe && m.microCoupe && m.bandeau == nil, "dictée éclair (notifications en retard) : toujours coupé, pas de faux « Micro ouvert »")
-            // la dictée écoute un autre micro (ouvert) : on ne rouvre pas celui que l'appel entend
-            faux.coupes["airpods"] = false; faux.microDictee = "airpods"
+            verifier(!c.autoriserDictee() && faux.commandes.count == n1 && faux.coupe, "fn pendant que c'est coupé : la dictée ne part pas, aucune commande (rien de rouvert, rien d'enregistré)")
+            attendre(0.9)
+            verifier(m.courante == .microFn && m.bandeauVu?.ligne1 == "Micro coupé" && m.contenuAnnonce(.microFn)?.l2 == "Rien n\u{2019}a été enregistré",
+                     "l'îlot le dit : « Micro coupé · Rien n'a été enregistré » (\(m.courante))")
+            verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01, "le bandeau : \(Int(m.trace.bande - Double(m.demiCamera))) pt dans la barre (≤ 66)")
+            do {
+                let za = m.grille.zoneAnnonce(.microFn), lc = m.contenus[.microFn] ?? 0
+                let bw = MesureIlot.bouton(ContenuAnnonce.Bouton(titre: "Rouvrir et dicter", icone: "mic.fill"))
+                verifier(lc > bw && lc <= m.grille.zone(.microFn).width + 0.5,
+                         "symbole, texte et « Rouvrir et dicter » mesurés (\(Int(lc)) pt) tiennent dans le bandeau (\(Int(m.grille.zone(.microFn).width)) pt) : rien de tronqué")
+                // un deuxième appui : toujours bloqué, rien de rouvert
+                verifier(!c.autoriserDictee() && faux.commandes.count == n1, "un deuxième appui sur fn : toujours rien")
+                attendre(0.5)
+                // vrai clic sur « Rouvrir et dicter » (calé à droite du bandeau)
+                let pb = CGPoint(x: za.maxX - bw / 2, y: za.midY)
+                c.panneau.envoyerSouris(.leftMouseDown, en: pb); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pb); attendre(0.6)
+                verifier(Array(faux.commandes.dropFirst(n1)) == ["rouvrir integre"] && !faux.coupe && !m.microCoupe,
+                         "vrai clic sur « Rouvrir et dicter » : le micro est rouvert (\(Array(faux.commandes.dropFirst(n1))))")
+                verifier(m.courante == .microOuvert, "« Micro ouvert » (\(m.courante))")
+            }
+            attendre(1.8)
             let n2 = faux.commandes.count
-            c.dicteeChange(enCours: true); c.dicteeChange(enCours: false); attendre(0.3)
-            verifier(faux.commandes.count == n2 && faux.coupe, "dictée sur un autre micro : celui-ci reste coupé")
-            faux.microDictee = nil; faux.coupes["airpods"] = nil
-            // micro du Mac coupé, puis les AirPods arrivent (micro par défaut) : la dictée, qui garde le micro du Mac, le rouvre LUI
+            verifier(c.autoriserDictee(), "puis fn : la dictée part")
+            occ.dictee = true; c.dicteeChange(enCours: true); c.occupationChangee(); attendre(0.4)
+            occ.dictee = false; c.dicteeChange(enCours: false); c.occupationChangee(); attendre(0.6)
+            verifier(faux.commandes.count == n2 && !faux.coupe && m.bandeau == nil, "la dictée sur un micro ouvert ne touche à rien, aucun bandeau")
+            // le Centre épinglé retient les bandeaux, mais pas la réponse à fn : sinon l'appui ne dirait rien
+            c.basculerLeMicro(); attendre(0.6)
+            m.survole = true; m.donneesChangees(); attendre(0.6); m.allerA(.centre); attendre(0.6); m.epinglerLeCentre(); attendre(0.3)
+            verifier(m.courante == .centre && m.centreRetientLesBandeaux, "le Centre épinglé (\(m.courante))")
+            verifier(!c.autoriserDictee(), "fn sur le Centre épinglé, micro coupé : refusé")
+            attendre(0.8)
+            verifier(m.courante == .microFn, "… et l'îlot le dit quand même (\(m.courante))")
+            m.survole = false; c.agir(.microRouvrirEtDicter); attendre(0.6)
+            verifier(!faux.coupe, "« Rouvrir et dicter » (action) : rouvert")
+            attendre(1.8)
+            // micro du Mac ouvert, les AirPods arrivent (micro par défaut) puis sont coupés ; la dictée écoute le micro du Mac : elle part,
+            // et l'îlot le dit à la fin, une fois
             faux.brancher("airpods"); attendre(0.4)
-            verifier(!m.microCoupe && m.bandeau == nil && faux.coupes["integre"] == true,
-                     "AirPods connectés : l'îlot montre leur micro (ouvert), sans faux « Micro ouvert » ; celui du Mac reste coupé")
+            verifier(!m.microCoupe && m.bandeau == nil, "AirPods connectés : l'îlot montre leur micro (ouvert), sans faux « Micro ouvert »")
+            c.basculerLeMicro(); attendre(0.6)
+            verifier(faux.coupes["airpods"] == true && faux.coupes["integre"] == false && m.microCoupe, "le bouton Micro coupe les AirPods (le micro par défaut)")
             faux.microDictee = "integre"
             let n4 = faux.commandes.count
-            occ.dictee = true; c.dicteeChange(enCours: true)
-            verifier(Array(faux.commandes.dropFirst(n4)) == ["rouvrir integre"] && faux.coupes["integre"] == false, "dictée sur le micro du Mac : c'est lui qui est rouvert (sinon : du silence)")
-            // pendant la dictée, les AirPods partent : le micro par défaut redevient celui du Mac
-            faux.debrancher("airpods"); attendre(0.3)
+            verifier(c.autoriserDictee(), "fn : la dictée écoute le micro du Mac, ouvert : elle part")
+            occ.dictee = true; c.dicteeChange(enCours: true); c.occupationChangee(); attendre(0.5)
+            verifier(m.cache && m.bandeau == nil, "pendant la dictée : l'îlot effacé, rien d'affiché")
             occ.dictee = false; c.dicteeChange(enCours: false); c.occupationChangee(); attendre(0.6)
-            verifier(Array(faux.commandes.dropFirst(n4)) == ["rouvrir integre", "couper integre"] && faux.coupe && m.microCoupe && m.bandeau == nil,
-                     "fin de la dictée : le micro du Mac est recoupé (celui qu'on avait rouvert), l'îlot le montre, aucun bandeau")
-            // l'inverse : pendant une dictée qui a rouvert le micro du Mac, les AirPods arrivent ; à la fin, seul le Mac est recoupé
+            verifier(faux.commandes.count == n4 && faux.coupes["airpods"] == true, "les AirPods restent coupés (un appel ne les entendrait pas)")
+            verifier(m.courante == .microFn && m.bandeauVu?.ligne1 == "Le micro des AirPods est coupé" && m.bandeauVu?.ligne2 == "Verbe dicte avec le micro du Mac"
+                     && m.contenuAnnonce(.microFn).map { if case .rien = $0.droite { return true } else { return false } } == true,
+                     "à la fin : « Le micro des AirPods est coupé · Verbe dicte avec le micro du Mac », sans bouton (\(m.courante))")
+            attendre(4.5)
+            verifier(c.autoriserDictee() && m.bandeau == nil, "le deuxième appui : la dictée part, on ne le redit pas")
+            occ.dictee = true; c.dicteeChange(enCours: true); occ.dictee = false; c.dicteeChange(enCours: false); c.occupationChangee(); attendre(0.6)
+            verifier(m.bandeau == nil, "… ni à la fin")
+            // les AirPods coupés et le micro du Mac coupé aussi : la dictée ne part pas, et c'est le micro du Mac qui sera rouvert
+            faux.coupes["integre"] = true
             let n5 = faux.commandes.count
-            occ.dictee = true; c.dicteeChange(enCours: true); faux.brancher("airpods"); attendre(0.3)
-            occ.dictee = false; c.dicteeChange(enCours: false); c.occupationChangee(); attendre(0.6)
-            verifier(Array(faux.commandes.dropFirst(n5)) == ["rouvrir integre", "couper integre"] && faux.coupes["airpods"] == false,
-                     "les AirPods arrivés pendant la dictée ne sont jamais coupés ; le micro du Mac l'est de nouveau")
+            verifier(!c.autoriserDictee() && faux.commandes.count == n5, "le micro du Mac (celui de la dictée) coupé aussi : refusé, rien de rouvert")
+            attendre(0.6)
+            c.agir(.microRouvrirEtDicter); attendre(0.5)
+            verifier(Array(faux.commandes.dropFirst(n5)) == ["rouvrir integre"] && faux.coupes["airpods"] == true,
+                     "« Rouvrir et dicter » rouvre le micro du Mac (celui de la dictée), pas les AirPods")
             faux.debrancher("airpods"); faux.microDictee = nil; attendre(0.4)
-            verifier(m.microCoupe && m.bandeau == nil, "AirPods rangés : le micro du Mac, coupé, revient dans l'îlot")
+            c.basculerLeMicro(); attendre(0.6)
+            verifier(m.microCoupe, "AirPods rangés, le micro du Mac coupé : l'îlot le montre")
             // réglage éteint : plus d'écoute ; le micro reste comme il est (le micro rouvert d'abord, le bandeau « Micro ouvert » parti)
             c.basculerLeMicro(); attendre(2.2) { m.bandeau != nil }
             c.activerLeMicro(false); attendre(0.6)

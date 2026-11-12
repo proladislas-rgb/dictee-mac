@@ -55,6 +55,9 @@ final class DictationController {
     /// Appelé quand une dictée finit sans passer par la touche fn (boutons ✕ / ✓, micro impossible) :
     /// la machine de la touche fn doit alors être remise à zéro.
     var surFinIndependante: (() -> Void)?
+    /// Consulté à l'appui sur fn, AVANT tout (aucun son capté, aucun son joué) : faux = la dictée ne part pas (le micro qu'elle
+    /// écouterait est coupé dans l'îlot, qui le dit lui-même).
+    var peutCommencer: () -> Bool = { true }
     /// Appelé au début d'une dictée : le panneau compact se ferme (les deux ne se superposent jamais).
     var surDebut: (() -> Void)?
     var enCours: Bool { etat != .repos }
@@ -110,6 +113,8 @@ final class DictationController {
             if Settings.premierLancementFait { Task { await Permissions.demanderLePremierManquant() } }
             return
         }
+        // coupé veut dire coupé : rien ne rouvre le micro en douce ; la touche fn repart de zéro (mains libres compris)
+        guard peutCommencer() else { surFinIndependante?(); return }
         compteur += 1
         let appCible = NSWorkspace.shared.frontmostApplication
         let champ = LectureChamp()

@@ -5,7 +5,8 @@ import DicteeCore
 // « Micro coupé » (maquette design/maquettes/ilot-apple.html, « Cinq idées de plus », 5) : le micro d'entrée par défaut du Mac,
 // coupé et rouvert par CoreAudio. Aucun sondage : CoreAudio prévient quand le micro par défaut change et quand son « muet » (ou son
 // volume) change, quelle que soit l'app qui l'a fait (Réglages Système, une app d'appel). Aucun flux audio n'est ouvert : couper ou
-// rouvrir un micro n'écoute rien, macOS ne demande aucune autorisation et le point orange ne s'allume pas.
+// rouvrir un micro n'écoute rien, macOS ne demande aucune autorisation et le point orange ne s'allume pas. Coupé veut dire coupé : fn
+// ne rouvre rien (IlotControleur.autoriserDictee).
 
 /// Ce que l'îlot demande aux micros du Mac : les vrais (`MicroSysteme`) ou des faux pour les essais, qui ne touchent jamais à un vrai
 /// micro. Chaque commande vise un micro précis, par son UID (le micro par défaut peut changer entre la coupure et la réouverture).
@@ -20,6 +21,8 @@ protocol PiloteMicro: AnyObject {
     var defaut: String? { get }
     /// Le nom du micro par défaut : « Micro MacBook Air », « AirPods Pro de Hugues ».
     var nom: String? { get }
+    /// Le nom d'un micro, par son UID (nil : débranché).
+    func nom(de uid: String) -> String?
     /// Ce micro est-il coupé ? nil : il n'existe pas (débranché).
     func estCoupe(_ uid: String) -> Bool?
     /// Faux si ce micro ne se coupe pas (ni muet ni volume réglable) : le bouton Micro du Centre n'a alors aucun effet.
@@ -96,6 +99,7 @@ final class MicroSysteme: PiloteMicro {
 
     var defaut: String? { appareil == 0 ? nil : Self.texte(appareil, kAudioDevicePropertyDeviceUID) }
     var nom: String? { appareil == 0 ? nil : Self.texte(appareil, kAudioObjectPropertyName) }
+    func nom(de uid: String) -> String? { Self.texte(Self.appareil(uid: uid), kAudioObjectPropertyName) }
 
     func estCoupe(_ uid: String) -> Bool? {
         let id = Self.appareil(uid: uid)
@@ -222,6 +226,7 @@ final class MicroFactice: PiloteMicro {
     /// Le micro par défaut est coupé.
     var coupe: Bool { defaut.flatMap { coupes[$0] } ?? false }
     var nom: String? { defaut.flatMap { noms[$0] } }
+    func nom(de uid: String) -> String? { coupes[uid] == nil ? nil : noms[uid] }
     /// Les commandes reçues, dans l'ordre (« couper integre », « rouvrir airpods »).
     private(set) var commandes: [String] = []
     func demarrer() { actif = true }

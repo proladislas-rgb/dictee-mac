@@ -213,9 +213,20 @@ extension IlotControleur {
     /// quittent l'étagère ; l'îlot se range et dit « 3 fichiers partis dans Mail · Remettre » quelques secondes (un seul réveil, celui du
     /// bandeau ; l'anneau se vide pendant ce temps). Les fichiers eux-mêmes n'ont pas bougé : l'app en a fait une copie ou une pièce jointe.
     func sortis(_ ids: [UUID], en point: NSPoint) {
+        let app = appSous(point)
+        // lâchés sur le panneau AirDrop : l'envoi part, les fichiers restent sur l'étagère (rien ne dit qu'ils sont arrivés)
+        if app == EnvoiAirDropEtat.nom {
+            let l = etagere.elements.filter { ids.contains($0.id) }
+            guard !l.isEmpty else { return }
+            Log.ecrire("étagère : \(l.count) fichier(s) glissé(s) vers AirDrop, gardé(s) sur l'étagère")
+            moteur.fermer()
+            let b = BandeauIlot(vue: .etagereEnvoi, jusqua: maintenant().addingTimeInterval(EnvoiAirDropEtat.lance.duree), ligne1: "", ligne2: "",
+                                envoi: EnvoiEtagere(etat: .lance, noms: l.map(\.nom), icone: iconesEtagere[l[0].id], surEtagere: true))
+            moteur.annoncer(bandeau: b)
+            return
+        }
         let partis = etagere.retirer(ids: ids)
         guard !partis.isEmpty else { return }
-        let app = appSous(point)
         for e in partis { nouveautes.remove(e.id) }
         partisEnAttente = partis
         sauverEtagere(); montrerEtagere()
@@ -239,25 +250,39 @@ extension IlotControleur {
     }
 
     /// Des fichiers lâchés sur « AirDrop » : le panneau AirDrop de macOS s'ouvre et choisit l'appareil (Verbe ne peut pas viser un
-    /// appareil lui-même : aucune interface publique pour ça). L'îlot dit « Envoi… », puis ce que le service répond : « Envoyé »,
-    /// « Annulé » ; « AirDrop indisponible » s'il ne peut pas envoyer (Wi-Fi ou Bluetooth éteint). Rien n'est rangé sur l'étagère.
+    /// appareil lui-même : aucune interface publique pour ça). L'îlot dit « Envoi… », puis ce que le service répond, sans jamais mentir
+    /// (`EnvoiAirDropEtat`) : « Envoi lancé vers AirDrop » quand l'appareil est choisi (rien ne confirme la fin du transfert), « Annulé »
+    /// si le panneau (ou l'envoi, même après le choix) est annulé, « AirDrop indisponible » s'il ne peut pas envoyer (Wi-Fi ou Bluetooth
+    /// éteint). L'étagère n'est jamais touchée : rien n'y est rangé, et un fichier qui y est déjà y reste.
     func envoyerAirDrop(_ urls: [URL]) {
         let noms = urls.map(\.lastPathComponent)
         let icone = urls.first.map { NSWorkspace.shared.icon(forFile: $0.path) }
-        func montrer(_ e: EnvoiEtagere.Etat, pendant duree: TimeInterval) {
-            let b = BandeauIlot(vue: .etagereEnvoi, jusqua: maintenant().addingTimeInterval(duree), ligne1: "", ligne2: "", envoi: EnvoiEtagere(etat: e, noms: noms, icone: icone))
+        let chemins = Set(etagere.elements.map(\.chemin))
+        let surEtagere = !urls.isEmpty && urls.allSatisfy { chemins.contains(SignetsEtagere.cheminReel($0)) }
+        var dernier = EnvoiEtagere.Etat.enCours
+        func montrer(_ e: EnvoiEtagere.Etat) {
+            let b = BandeauIlot(vue: .etagereEnvoi, jusqua: maintenant().addingTimeInterval(e.duree), ligne1: "", ligne2: "",
+                                envoi: EnvoiEtagere(etat: e, noms: noms, icone: icone, surEtagere: surEtagere))
             if moteur.bandeau?.vue == .etagereEnvoi { moteur.bandeau = b; moteur.donneesChangees() } else { moteur.annoncer(bandeau: b) }
         }
         Log.ecrire("étagère : \(urls.count) fichier(s) vers AirDrop")
         // le temps de choisir l'appareil dans le panneau de macOS ; la réponse du service remplace ce bandeau
-        montrer(.enCours, pendant: 300)
+        montrer(.enCours)
         let ok = envoyerParAirDrop(urls) { [weak self] etat in
-            guard let self else { return }
-            Log.ecrire("étagère : AirDrop \(etat == .envoye ? "envoyé" : (etat == .annule ? "annulé" : "en échec"))")
-            guard self.moteur.bandeau?.vue == .etagereEnvoi else { return }
-            montrer(etat, pendant: 2.2)
+            guard let self, dernier.peutDevenir(etat) else { return }
+            let avant = dernier
+            dernier = etat
+            switch etat {
+            case .lance: Log.ecrire("étagère : AirDrop, appareil choisi, envoi lancé (la fin du transfert n'est pas connue)")
+            case .annule: Log.ecrire("étagère : AirDrop annulé\(avant == .lance ? " après le choix de l'appareil" : "")")
+            default: Log.ecrire("étagère : AirDrop en échec")
+            }
+            // la réponse remplace « Envoi… » ; une annulation après « lancé » se dit même si le bandeau est parti (l'îlot s'était trompé
+            // de bonne foi : il le corrige)
+            guard self.moteur.bandeau?.vue == .etagereEnvoi || (avant == .lance && etat == .annule) else { return }
+            montrer(etat)
         }
-        if !ok { Log.ecrire("étagère : AirDrop indisponible"); montrer(.indisponible, pendant: 3) }
+        if !ok { Log.ecrire("étagère : AirDrop indisponible"); dernier = .indisponible; montrer(.indisponible) }
     }
 
     /// « Captures d'écran ici » : on surveille le dossier des captures (comme Téléchargements : le noyau prévient, aucun sondage). Au
@@ -339,12 +364,16 @@ extension IlotControleur {
 }
 
 /// AirDrop par le service de partage de macOS (NSSharingService « sendViaAirDrop ») : c'est le panneau AirDrop de macOS qui montre les
-/// appareils proches et en choisit un ; Verbe ne voit ni la liste ni le choix. Le délégué dit la fin : partagé (« Envoyé »), annulé, ou
-/// en échec. Rien ne passe par Internet ni par un serveur de Verbe : AirDrop va d'appareil à appareil.
+/// appareils proches et en choisit un ; Verbe ne voit ni la liste ni le choix. Le délégué répond : appareil choisi (`didShareItems` :
+/// l'envoi est LANCÉ, pas forcément fini), annulé, ou en échec (`EnvoiAirDropEtat.depuisLeService`). Après « lancé », le délégué reste
+/// à l'écoute quelques minutes : une annulation de l'envoi dans le panneau se dit encore. Rien ne passe par Internet ni par un serveur
+/// de Verbe : AirDrop va d'appareil à appareil.
 @MainActor
 final class EnvoiAirDrop: NSObject, NSSharingServiceDelegate {
     /// Les envois en cours (le service ne garde pas son délégué).
     private static var enCours: [EnvoiAirDrop] = []
+    /// Combien de temps on écoute encore après « lancé » (une annulation dans le panneau).
+    static let ecouteApresLancement: TimeInterval = 600
     private let fin: (EnvoiEtagere.Etat) -> Void
     private init(fin: @escaping (EnvoiEtagere.Etat) -> Void) { self.fin = fin }
 
@@ -359,14 +388,15 @@ final class EnvoiAirDrop: NSObject, NSSharingServiceDelegate {
         s.perform(withItems: urls)
         return true
     }
-    private func terminer(_ e: EnvoiEtagere.Etat) {
-        Self.enCours.removeAll { $0 === self }
-        fin(e)
+    private func liberer() { Self.enCours.removeAll { $0 === self } }
+    func sharingService(_ sharingService: NSSharingService, didShareItems items: [Any]) {
+        fin(.lance)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.ecouteApresLancement) { [weak self] in MainActor.assumeIsolated { self?.liberer() } }
     }
-    func sharingService(_ sharingService: NSSharingService, didShareItems items: [Any]) { terminer(.envoye) }
     func sharingService(_ sharingService: NSSharingService, didFailToShareItems items: [Any], error: Error) {
         let n = error as NSError
-        terminer(n.domain == NSCocoaErrorDomain && n.code == NSUserCancelledError ? .annule : .indisponible)
+        liberer()
+        fin(EnvoiAirDropEtat.depuisLeService(partage: false, domaine: n.domain, code: n.code))
     }
 }
 

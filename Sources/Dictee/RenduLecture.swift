@@ -305,6 +305,10 @@ enum RenduLecture {
         ecrire(bureau(hauteur: geometrie.hauteur + 300) { ilot(scene { $0.microCoupe = true; $0.nomMicro = "Micro MacBook Air"; $0.survole = true }) }, "ilot-19c-micro-coupe-survol")
         ecrire(bureau(hauteur: grandBureau, clair: false) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.microCoupe = true; $0.nomMicro = "AirPods Pro de Hugues"; $0.survole = true }) }, "ilot-19d-micro-coupe-survol-airpods")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .microOuvert, jusqua: t0, ligne1: "Micro ouvert", ligne2: "") }) }, "ilot-19e-micro-ouvert")
+        // fn sur un micro coupé (11/11 au soir) : la dictée ne part pas, « Rouvrir et dicter » ; ou elle passe par un autre micro, ouvert
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.microCoupe = true; $0.bandeau = BandeauIlot(vue: .microFn, jusqua: t0, ligne1: "Micro coupé", ligne2: "Rien n\u{2019}a été enregistré") }) }, "ilot-19h-fn-micro-coupe")
+        let autre = MicroIlot.autreMicro(coupe: "AirPods Pro de Hugues", dictee: "Micro MacBook Air")
+        ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene { $0.microCoupe = true; $0.bandeau = BandeauIlot(vue: .microFn, jusqua: t0, ligne1: autre.titre, ligne2: autre.sousTitre) }) }, "ilot-19i-fn-autre-micro")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.microCoupe = true; m.donneesChangees(); m.poser(); m.cliquerPastille(); m.poser() }) }, "ilot-19f-video-et-bulle-micro-coupe")
         ecrire(bureau(hauteur: geometrie.hauteur + 300) { ilot(miCourse(scene { $0.microCoupe = true; $0.nomMicro = "Micro MacBook Air" }, 0.16) { $0.survole = true }) }, "ilot-19g-micro-coupe-survol-mi-course")
         // volume et luminosité (maquette ilot-apple.html, cinq idées de plus, 4) : le haut-parleur et la barre dans les ailes (66 pt de
@@ -408,12 +412,14 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { m in m.etagereActive = true; m.etagere = trois }) }, "ilot-24e-etagere-pile-repliee")
         ecrire(bureau(hauteur: petitBureau, clair: false) { ilot(scene { m in m.etagereActive = true; m.etagere = huit + Array(trois.prefix(2)) }) }, "ilot-24f-etagere-pile-dix-sombre")
         let plan = NSWorkspace.shared.icon(for: .jpeg)
-        func envoi(_ e: EnvoiEtagere.Etat) -> (IlotMoteur) -> Void {
+        func envoi(_ e: EnvoiEtagere.Etat, surEtagere: Bool = false) -> (IlotMoteur) -> Void {
             { m in m.etagereActive = true; m.etagere = trois
-                m.bandeau = BandeauIlot(vue: .etagereEnvoi, jusqua: t0, ligne1: "", ligne2: "", envoi: EnvoiEtagere(etat: e, noms: ["Plan-salon.jpg"], icone: plan)) }
+                m.bandeau = BandeauIlot(vue: .etagereEnvoi, jusqua: t0, ligne1: "", ligne2: "", envoi: EnvoiEtagere(etat: e, noms: ["Plan-salon.jpg"], icone: plan, surEtagere: surEtagere)) }
         }
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene(envoi(.enCours))) }, "ilot-24g-etagere-airdrop-envoi")
-        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene(envoi(.envoye))) }, "ilot-24h-etagere-airdrop-envoye")
+        // jamais « Envoyé » : aucune interface ne confirme la fin du transfert (11/11 au soir, Hugues avait annulé, l'îlot disait « Envoyé »)
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene(envoi(.lance))) }, "ilot-24h-etagere-airdrop-lance")
+        ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene(envoi(.lance, surEtagere: true))) }, "ilot-24s-etagere-airdrop-lance-reste-sur-etagere")
         ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene(envoi(.annule))) }, "ilot-24i-etagere-airdrop-annule")
         ecrire(bureau(hauteur: geometrie.hauteur + 345) { ilot(scene { m in m.etagereActive = true; m.etagere = trois; m.energie = batterie; m.survole = true }) }, "ilot-24j-centre-fichiers-en-haut")
         ecrire(bureau(hauteur: geometrie.hauteur + 345, clair: false) { ilot(scene(lecture: videoLongue) { m in m.etagereActive = true; m.etagere = cinq; m.lecturePresente = true
@@ -544,6 +550,15 @@ enum RenduLecture {
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.reformulation.source = .selection; m.reformulation.etiquette = "Texte choisi"; m.ouvrirOutil(.outilReformuler) })) },
                "ilot-25j-outils-reformuler-rien-de-choisi")
         ecrire(bureau(hauteur: hCentre) { ilot(miCourse(scene(lecture: videoLongue, centre()), 0.2) { $0.allerA(.outils) }) }, "ilot-25k-outils-passage-200ms")
+        // l'aide au survol (11/11 au soir, « pas clair ») : une phrase sous le bouton ou la case survolés, ou au-dessus quand elle ne
+        // tiendrait pas dessous ; calée dans le contenu au bord (Micro, à gauche)
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.epinglerLeCentre(); m.bulleAide = .telechargements })) }, "ilot-26a-aide-centre-telechargements")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(lecture: videoLongue, centre { m in m.epinglerLeCentre(); m.bulleAide = .micro })) }, "ilot-26b-aide-centre-micro-au-bord")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.epinglerLeCentre(); m.etagere = Array(deux.prefix(2)); m.bulleAide = .etagere })) }, "ilot-26c-aide-centre-etagere-en-haut")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, centre { m in m.epinglerLeCentre(); m.bulleAide = .minuteur })) }, "ilot-26d-aide-centre-case-minuteur")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.epinglerLeCentre(); m.bulleAide = .eveil })) }, "ilot-26e-aide-outils-garder-eveille")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(lecture: videoLongue, outils { m in m.epinglerLeCentre(); m.bulleAide = .pressePapiers })) }, "ilot-26f-aide-outils-presse-papiers-sombre")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.epinglerLeCentre(); m.bulleAide = .noteRapide })) }, "ilot-26g-aide-outils-dicter-une-note")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)

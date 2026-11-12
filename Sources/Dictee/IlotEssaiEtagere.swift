@@ -167,6 +167,19 @@ extension IlotEssai {
         verifier(m.bandeau == nil && m.courante == .etagerePile && c.etagere.elements.count == 2, "\(Int(IlotControleur.dureeRemettre)) s plus tard, sans geste : « Remettre » s'en va, le fichier reste parti")
         attendre(1.0) { m.boucleActive }
         verifier(!m.boucleActive, "au repos : aucune boucle (bouge encore : \(m.ceQuiBouge))")
+        // glissé sur le panneau AirDrop de macOS (l'extension « AirDrop ») : l'envoi part, le fichier RESTE sur l'étagère
+        verifier(EtagereIlot.appDuLacher(bundle: EnvoiAirDropEtat.extensionAirDrop, nom: "AirDrop") == "AirDrop", "le panneau AirDrop se reconnaît à son extension")
+        m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
+        verifier(m.courante == .etagere, "la carte Étagère rouverte (\(m.courante))")
+        glisserDepuis(tuile2)
+        EssaiEtagere.app = "AirDrop"
+        EssaiEtagere.finGlisser?(.copy, NSPoint(x: 600, y: 300)); pause(0.6)
+        verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Devis-cuisine.pdf"] && m.bandeau?.envoi?.etat == .lance && m.bandeau?.envoi?.surEtagere == true
+                 && m.contenuAnnonce(.etagereEnvoi)?.l2 == "Devis-cuisine.pdf \u{00B7} reste sur l\u{2019}étagère",
+                 "glissé vers AirDrop : « Envoi lancé vers AirDrop · reste sur l'étagère », rien n'est retiré (\(c.etagere.elements.map(\.nom)))")
+        EssaiEtagere.app = "Mail"
+        pause(EnvoiAirDropEtat.lance.duree + 0.4)
+        verifier(m.bandeau == nil && c.etagere.elements.count == 2, "puis le bandeau s'en va, les fichiers sont toujours là")
 
         // --- 1 · les zones quittées pendant un glisser ne se rouvrent qu'à 60 pt (il visait un onglet, une barre d'outils sous l'encoche)
         c.panneau.glisser(CGPoint(x: 200, y: 520)) { true }; pause(0.3)
@@ -184,33 +197,68 @@ extension IlotEssai {
         c.panneau.finDuGlisser(); pause(1.0)
         verifier(!m.depot && !m.appel && m.courante == .etagerePile, "glisser fini : la pile (\(m.courante))")
 
+        /// Un glisser qui vise « AirDrop » : la forme s'ouvre, le mouvement est rejoué sur la forme ouverte (elle juge le pointeur sur la
+        /// forme affichée), puis on s'y arrête un instant (un lâcher en passant irait sur l'étagère).
+        func viserAirDrop() {
+            c.panneau.glisser(CGPoint(x: 90, y: barre + 60)) { true }; pause(0.5)
+            c.panneau.glisser(CGPoint(x: 90, y: barre + 60)) { true }; pause(ZoneDepotEtagere.attenteAirDrop + 0.1)
+        }
         // --- 2, 4, 5 · AirDrop : les zones, le lâcher à droite, « Envoi… » puis la réponse du service (jamais de vrai AirDrop)
         EssaiEtagere.envois = []
         c.panneau.glisser(CGPoint(x: 200, y: 520)) { true }; pause(0.3)
         c.panneau.glisser(CGPoint(x: 90, y: barre + 60)) { true }; pause(0.7)
         c.panneau.glisser(CGPoint(x: 90, y: barre + 60)) { true }; pause(0.1)
         verifier(m.depot && m.depotZone == .airdrop, "plus près, à droite : les zones, « AirDrop » s'éclaire")
+        // on s'y arrête un instant (un lâcher en passant irait sur l'étagère, essayé plus bas)
+        pause(ZoneDepotEtagere.attenteAirDrop + 0.1)
         verifier(c.panneau.deposer([plan], en: CGPoint(x: 90, y: barre + 60)), "lâché sur « AirDrop » : accepté")
         pause(0.4)
         verifier(EssaiEtagere.envois.last == [plan] && m.courante == .etagereEnvoi && m.bandeau?.envoi?.etat == .enCours && c.etagere.elements.count == 2,
                  "AirDrop : le service reçoit le fichier, l'îlot dit « Envoi… » ; rien n'est rangé (\(m.courante))")
         c.panneau.finDuGlisser(); pause(0.3)
         verifier(m.courante == .etagereEnvoi, "le relâchement du bouton ne coupe pas « Envoi… »")
-        EssaiEtagere.finEnvoi?(.envoye); pause(0.5)
-        verifier(m.bandeau?.envoi?.etat == .envoye, "le service répond : « Envoyé »")
-        pause(2.3)
+        EssaiEtagere.finEnvoi?(.lance); pause(0.5)
+        verifier(m.bandeau?.envoi?.etat == .lance && m.contenuAnnonce(.etagereEnvoi)?.l1 == "Envoi lancé vers AirDrop" && m.contenuAnnonce(.etagereEnvoi)?.l2 == "Plan-salon.jpg",
+                 "appareil choisi : « Envoi lancé vers AirDrop », jamais « Envoyé » (rien ne confirme la fin du transfert)")
+        verifier(c.etagere.elements.count == 2, "l'étagère n'a pas bougé")
+        pause(EnvoiAirDropEtat.lance.duree + 0.3)
         verifier(m.bandeau == nil && m.courante == .etagerePile, "puis l'îlot se range seul")
-        c.panneau.glisser(CGPoint(x: 90, y: barre + 60)) { true }; pause(0.5)
+        // l'envoi annulé APRÈS le choix de l'appareil (dans le panneau) : l'îlot se corrige
+        EssaiEtagere.finEnvoi?(.annule); pause(0.5)
+        verifier(m.bandeau?.envoi?.etat == .annule && m.contenuAnnonce(.etagereEnvoi)?.l1 == "Annulé", "annulé après « lancé » : l'îlot le dit, « Annulé »")
+        pause(2.6)
+        EssaiEtagere.finEnvoi?(.lance); pause(0.4)
+        verifier(m.bandeau == nil, "une réponse tardive après « Annulé » ne dit plus rien")
+        viserAirDrop()
         c.panneau.deposer([plan], en: CGPoint(x: 90, y: barre + 60)); pause(0.3); c.panneau.finDuGlisser()
         EssaiEtagere.finEnvoi?(.annule); pause(0.4)
-        verifier(m.bandeau?.envoi?.etat == .annule, "fenêtre AirDrop fermée sans choisir : « Annulé »")
+        verifier(m.bandeau?.envoi?.etat == .annule && m.contenuAnnonce(.etagereEnvoi)?.l2 == "Rien n\u{2019}a été envoyé", "panneau AirDrop annulé : « Annulé · Rien n'a été envoyé »")
         pause(2.4)
+        // un fichier déjà sur l'étagère, lâché (depuis le Finder) sur « AirDrop » : il reste sur l'étagère, et le bandeau le dit
+        let surEtagere = URL(fileURLWithPath: c.etagere.elements[0].chemin)
+        viserAirDrop()
+        c.panneau.deposer([surEtagere], en: CGPoint(x: 90, y: barre + 60)); pause(0.3); c.panneau.finDuGlisser()
+        EssaiEtagere.finEnvoi?(.lance); pause(0.4)
+        verifier(m.bandeau?.envoi?.etat == .lance && m.bandeau?.envoi?.surEtagere == true && c.etagere.elements.count == 2,
+                 "un fichier de l'étagère envoyé par AirDrop : « reste sur l'étagère », rien n'est retiré")
+        pause(EnvoiAirDropEtat.lance.duree + 0.3)
         EssaiEtagere.airDropPossible = false
-        c.panneau.glisser(CGPoint(x: 90, y: barre + 60)) { true }; pause(0.5)
+        viserAirDrop()
         c.panneau.deposer([plan], en: CGPoint(x: 90, y: barre + 60)); pause(0.3); c.panneau.finDuGlisser()
         verifier(m.bandeau?.envoi?.etat == .indisponible, "AirDrop ne peut pas envoyer (Wi-Fi ou Bluetooth éteint) : « AirDrop indisponible »")
         EssaiEtagere.airDropPossible = true
         pause(3.3)
+        // un lâcher EN PASSANT sur « AirDrop » (12/11 : une capture d'écran glissée vers le haut est partie par AirDrop) : il va sur
+        // l'étagère, rien n'est envoyé
+        let envoisAvant = EssaiEtagere.envois.count, rangesAvant = c.etagere.elements.count
+        c.panneau.glisser(CGPoint(x: -90, y: barre + 60)) { true }; pause(0.6)
+        c.panneau.glisser(CGPoint(x: -90, y: barre + 60)) { true }; pause(0.2)
+        verifier(m.depot && m.depotZone == .etagere, "le glisser arrive par la gauche : « Étagère » éclairée")
+        c.panneau.deposer([plan], en: CGPoint(x: 90, y: barre + 60)); pause(0.3); c.panneau.finDuGlisser()
+        verifier(EssaiEtagere.envois.count == envoisAvant && c.etagere.elements.count == rangesAvant + 1 && m.bandeau?.vue != .etagereEnvoi,
+                 "lâché sur « AirDrop » sans s'y arrêter : rangé sur l'étagère, rien n'est parti par AirDrop")
+        if let e = c.etagere.elements.last, e.nom == "Plan-salon.jpg" { c.agir(.etagereRetirer(e.id)) }
+        pause(1.6)
 
         // --- 9 · « Captures d'écran ici » : vrai clic sur l'interrupteur, une capture arrive « Nouveau » ; un autre fichier, non
         let captures = dossier.appendingPathComponent("Captures", isDirectory: true)

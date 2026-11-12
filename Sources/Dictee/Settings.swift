@@ -245,8 +245,8 @@ enum Settings {
         get { defaults.object(forKey: "ilotTelechargements") as? Bool ?? false }
         set { defaults.set(newValue, forKey: "ilotTelechargements") }
     }
-    /// « Micro coupé » : le raccourci coupe le micro du Mac et le rouvre, l'îlot le rappelle tant qu'il est coupé. ALLUMÉ par défaut :
-    /// rien n'est demandé à macOS (couper un micro n'écoute rien).
+    /// « Micro coupé » : le bouton Micro du Centre coupe le micro du Mac et le rouvre, l'îlot le rappelle tant qu'il est coupé, et fn ne
+    /// dicte pas sur un micro coupé (« Rouvrir et dicter »). ALLUMÉ par défaut : rien n'est demandé à macOS (couper un micro n'écoute rien).
     static var ilotMicro: Bool {
         get { defaults.object(forKey: "ilotMicro") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotMicro") }

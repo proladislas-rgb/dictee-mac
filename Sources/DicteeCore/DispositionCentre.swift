@@ -41,6 +41,34 @@ public enum ElementCentre: String, CaseIterable, Sendable {
     }
 }
 
+extension ElementCentre {
+    /// Au survol d'un bouton ou d'une case du Centre (et de la page Outils) : à quoi il sert, en quelques mots (Hugues, 11/11 au soir :
+    /// « c'est pas simple à utiliser… pas clair »). Une ligne courte, tutoiement, verbe d'action : jamais le nom du bouton répété.
+    public var aide: String {
+        switch self {
+        case .micro: return "Coupe ou rouvre le micro du Mac"
+        case .dictee: return "Le micro qu\u{2019}écoute la dictée"
+        case .telechargements: return "Te prévient quand un fichier arrive"
+        case .claude: return "Suit Claude Code au travail"
+        case .rappel: return "Dis un rappel, il sonne à l\u{2019}heure"
+        case .derniereDictee: return "Recolle ta dernière dictée"
+        case .reunion: return "Écrit la réunion, puis la résume"
+        case .minuteur: return "Un minuteur en un clic"
+        case .etagere: return "Garde des fichiers sous la main"
+        case .eveil: return "Le Mac ne se met pas en veille"
+        case .pressePapiers: return "Les 5 dernières choses copiées"
+        case .reformuler: return "Réécrit ta dernière dictée"
+        case .notes: return "Tes notes rapides, gardées ici"
+        case .noteRapide: return "Ta prochaine dictée devient une note"
+        }
+    }
+    /// La plus longue phrase d'aide permise (en caractères) : au-delà, ce n'est plus une aide de survol.
+    public static let aideMax = 40
+    /// La bulle paraît-elle au survol ? « Noter la réunion » dit déjà ce qu'elle fait, en toutes lettres (« Verbe écrit tout ce qui se
+    /// dit ») : une bulle la répéterait par-dessus la case voisine. Sa phrase reste pour VoiceOver.
+    public var aideEnBulle: Bool { self != .reunion }
+}
+
 /// Ce que le Centre montre, dans l'ordre. Les ronds se rangent entre eux, les cases entre elles ; la bande est toujours en bas.
 public struct DispositionCentre: Equatable, Sendable {
     /// La rangée des ronds en tient cinq (maquette : colonnes de 84 pt) : au-delà, les noms ne tiendraient plus.
