@@ -77,10 +77,15 @@ extension IlotEssai {
         func nom(_ id: UUID?) -> String { id.map { d.entree($0).map { String($0.texte.prefix(4)) } ?? "inconnue" } ?? "rien" }
         var juges = 0, justes = 0, ecarts: [String] = []
         var temps: [Double] = []
+        // le même travail en instructions : le temps d'horloge dépend du cœur que macOS choisit (12/11 : le même mouvement, 90 millions
+        // d'instructions, prend 7 ms sur un cœur performance, 26 ms sur un cœur économe, au gré de l'ordonnanceur, de jour comme de nuit)
+        var travail: [Double] = []
+        var cyclesTotal = 0.0, cyclesPerf = 0.0
         var cartes = Set<String>(), cadres = Set<String>(), fermetures = 0
         var defilements = 0
         let cpu0 = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID), mur0 = CACurrentMediaTime()
         for (i, p) in chemin.enumerated() {
+            let u0 = TravailProcessus.lire()
             let t0 = CACurrentMediaTime()
             c.panneau.envoyerMouvement(en: p)
             // la molette en passant sur la liste (deux doigts) : la liste défile sous le pointeur
@@ -91,6 +96,9 @@ extension IlotEssai {
             // le travail que ce mouvement donne au fil principal : la mise en page et le dessin de la fenêtre, jusqu'au bout
             vue.layoutSubtreeIfNeeded(); vue.window?.displayIfNeeded(); CATransaction.flush()
             temps.append((CACurrentMediaTime() - t0) * 1000)
+            let u1 = TravailProcessus.lire()
+            travail.append(Double(u1.instructions &- u0.instructions) / 1e6)
+            cyclesTotal += Double(u1.cycles &- u0.cycles); cyclesPerf += Double(u1.cyclesPerf &- u0.cyclesPerf)
             cartes.insert("\(m.courante)")
             if let f = c.panneau.cadre { cadres.insert("\(Int(f.minX)),\(Int(f.minY)),\(Int(f.width)),\(Int(f.height))") }
             if !m.fenetreOuverte { fermetures += 1 }
@@ -108,16 +116,26 @@ extension IlotEssai {
         let occupation = Double(clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - cpu0) / 1e9 / (CACurrentMediaTime() - mur0)
         let tri = temps.sorted(), moyenne = temps.reduce(0, +) / Double(max(1, temps.count))
         let p95 = tri[min(tri.count - 1, Int(Double(tri.count) * 0.95))], pire = tri.last ?? 0
+        let triT = travail.sorted(), moyenneT = travail.reduce(0, +) / Double(max(1, travail.count))
+        let p95T = triT[min(triT.count - 1, Int(Double(triT.count) * 0.95))], pireT = triT.last ?? 0
         for (i, t) in temps.enumerated().sorted(by: { $0.element > $1.element }).prefix(6) {
-            print(String(format: "    lent : mouvement %d en (%.0f, %.0f) : %.2f ms%@", i, chemin[i].x, chemin[i].y, t, i % 40 == 20 ? " (avec molette)" : ""))
+            print(String(format: "    lent : mouvement %d en (%.0f, %.0f) : %.2f ms, %.1f M instructions%@", i, chemin[i].x, chemin[i].y, t, travail[i], i % 40 == 20 ? " (avec molette)" : ""))
         }
         print(String(format: "  mesure : %d mouvements, %d gestes de molette, fil principal occupé %.0f %% ; travail par mouvement : moyenne %.2f ms, 95 %% sous %.2f ms, pire %.2f ms",
                      chemin.count, defilements, occupation * 100, moyenne, p95, pire))
+        print(String(format: "  en instructions : moyenne %.1f M, 95 %% sous %.1f M, pire %.1f M ; %.0f %% des cycles sur les cœurs performance",
+                     moyenneT, p95T, pireT, cyclesTotal > 0 ? cyclesPerf / cyclesTotal * 100 : 0))
         verifier(cartes == ["dictees"] && fermetures == 0, "toute la promenade : la carte Dictées reste ouverte, jamais refermée ni rouverte (\(cartes.sorted()), \(fermetures) fermeture(s))")
         verifier(cadres.count == 1 && c.panneau.cadre == cadre0, "la fenêtre ne change pas de cadre sous la souris (\(cadres.count) cadre(s))")
-        verifier(moyenne < 4 && p95 < 12, String(format: "le fil principal reste libre : %.2f ms en moyenne, %.2f ms pour 95 %% des mouvements (au plus une image et demie)", moyenne, p95))
+        // Le travail se juge en instructions (le même sur tous les cœurs ; un cœur économe en fait ≈ 3,4 M par ms, un cœur performance
+        // ≈ 12 M) ; l'horloge, avec la marge d'un cœur économe, n'attrape plus que ce qui ATTEND (disque, verrou, réponse d'un autre
+        // processus), que les instructions ne voient pas. Mesuré le 12/11 (macOS 26, M5) : avant l'allègement, molette 112 M (pire 133 M),
+        // survol d'une ligne à l'autre 45 M, moyenne 6,0 M, 95 % sous 42,6 M ; après : 64 M (pire 91 M), 33 M, 4,6 M, 32,7 M.
+        verifier(moyenneT < 8 && p95T < 40, String(format: "le fil principal reste libre : %.1f M instructions en moyenne, %.1f M pour 95 %% des mouvements (moins de 12 ms même sur un cœur économe)", moyenneT, p95T))
+        verifier(moyenne < 4, String(format: "le fil principal reste libre à l'horloge : %.2f ms en moyenne (95 %% sous %.2f ms)", moyenne, p95))
         verifier(occupation < 0.35, String(format: "pendant la promenade, le fil principal travaille %.0f %% du temps (le reste libre pour le système et les autres apps)", occupation * 100))
-        verifier(pire < 25, String(format: "aucun à-coup : le pire mouvement prend %.2f ms (moins de 3 images)", pire))
+        verifier(pireT < 100, String(format: "aucun à-coup : le pire mouvement demande %.1f M instructions (moins de 100 M : 8 ms sur un cœur performance, 29 sur un économe)", pireT))
+        verifier(pire < 40, String(format: "aucune attente : le pire mouvement prend %.2f ms à l'horloge (moins de 5 images, même sur un cœur économe)", pire))
         verifier(survolsVus.count >= 8 && juges > 200 && Double(justes) >= 0.97 * Double(juges),
                  "le survol suit la souris : \(justes) mouvements sur \(juges) allument la bonne ligne (ou aucune hors de la liste), \(survolsVus.count) lignes allumées tour à tour\(ecarts.isEmpty ? "" : ", écarts en " + ecarts.joined(separator: " "))")
         c.panneau.envoyerMouvement(en: CGPoint(x: fond.maxX + 80, y: fond.midY)); pause(0.1)
@@ -127,5 +145,16 @@ extension IlotEssai {
 
         d.source = sourceAvant
         c.panneau.simulerPointeur(forme: false); m.fermer(); pause(0.8)
+    }
+}
+
+/// Le travail du processus depuis son lancement, en instructions et en cycles (`proc_pid_rusage`) : une mesure qui ne dépend pas du cœur
+/// (performance ou économe) ni de sa fréquence, contrairement au temps d'horloge.
+enum TravailProcessus {
+    static func lire() -> (instructions: UInt64, cycles: UInt64, cyclesPerf: UInt64) {
+        var r = rusage_info_v6()
+        let ok = withUnsafeMutablePointer(to: &r) { $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(getpid(), RUSAGE_INFO_V6, $0) } }
+        guard ok == 0 else { return (0, 0, 0) }
+        return (r.ri_instructions, r.ri_cycles, r.ri_pcycles)
     }
 }

@@ -468,11 +468,14 @@ télécharger directement les bouts où les gens parlent, comme WhatsApp, à cô
       34-44 ms Mac occupé) ; le contrôle tombait à ≈ 1,08 s : 10 ms de marge (déjà raté à 3 h 34, avant les fusions). L'essai attend la
       fin de la boucle, 0,25 s au plus (posé 9 et 14 ms plus tard). Écarté par mesure : `sizingOptions` de NSHostingView (19 ms aussi
       par défaut une fois le Mac calme), le setFrame lui-même (0,3 ms seul).
-- [ ] RESTE (bloque le push) : « aucun à-coup » (pire mouvement < 25 ms) échoue de jour : 20-28 ms sur les mouvements avec molette,
-      Mac au calme, souris lue loin OU qui suit (24,1 / 26,8 ms), contre 13 ms à 8 h 24 avec le même code. Hypothèse non testée :
-      écran éteint à 8 h (Hugues dormait) → le serveur d'affichage ne compose pas, chaque `displayIfNeeded` + `CATransaction.flush`
-      coûte moins. À vérifier sans toucher l'écran de Hugues (ex. mesurer la part du flush seul), puis décider : seuil mesuré sur
-      écran allumé, ou alléger le rendu d'un défilement (toutes les lignes observent `d` : un changement de survol les redessine).
+- [x] « aucun à-coup » : CAUSE PROUVÉE (12/11 après-midi). Ni l'écran (vert et rouge écran éteint comme allumé), ni la souris :
+      le même mouvement fait TOUJOURS le même travail (90 M d'instructions ±1 %, `proc_pid_rusage`), mais macOS le place tantôt
+      sur un cœur performance (4,2 GHz : 7 ms), tantôt sur un cœur économe (1,7 GHz : 26 ms). Deux vrais coûts trouvés en chemin
+      (profil `sample`) et allégés : chaque événement de molette recalculait `grille` → `hauteursEnPlus` → ~80 mesures Core Text des
+      noms du Centre (mémoire dans `PlanCentre.tailles`) ; toutes les lignes observaient la carte (lignes Equatable, état en valeurs).
+      Pas de molette 112 → 64 M d'instructions (−42 %), survol d'une ligne à l'autre 45 → 33 M. Le contrôle juge maintenant le travail
+      en instructions (pire < 100 M, moyenne < 8 M, 95 % < 40 M : avant l'allègement 133 / 6,0 / 42,6 auraient échoué) et l'horloge
+      seulement pour l'attente (pire < 40 ms, moyenne < 4 ms) ; l'essai affiche la part des cycles sur les cœurs performance.
 - Contrôles 3561/3561. Essai complet (avec le correctif du survol, avant celui du ressort) : 1 échec (le ressort), survol 355/355,
   pire 24,67 ms. Les deux essais complets verts restent à faire avant `git push origin main`.
 
