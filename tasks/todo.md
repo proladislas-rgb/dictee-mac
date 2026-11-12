@@ -482,3 +482,5 @@ télécharger directement les bouts où les gens parlent, comme WhatsApp, à cô
 - [ ] Ne PAS livrer la branche seule : hors de l'encoche, la capsule est noire et muette (pas d'alerte visible) jusqu'à la mission 3 (verre, contenu, bannières depuis la place).
 - [ ] Fusion : conflits attendus dans IlotMoteur (tousLesRessorts → ilotPose + lucarnePosee, appuiSurForme) avec les correctifs de l'essai.
 - [ ] À montrer à Hugues : lâchée au milieu de l'écran (jusqu'à ~450 pt sous l'encoche), la Lucarne retourne dans l'encoche (place la plus proche).
+
+- [x] (12/11 11 h 45) Nom VOXILE confirmé par Hugues. À faire : renommage (app, textes, manuel, README, dépôt) en gardant l identifiant com.hugues.dictee (autorisations macOS).
