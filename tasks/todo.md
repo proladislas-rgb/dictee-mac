@@ -487,3 +487,18 @@ télécharger directement les bouts où les gens parlent, comme WhatsApp, à cô
 - [ ] À montrer à Hugues : lâchée au milieu de l'écran (jusqu'à ~450 pt sous l'encoche), la Lucarne retourne dans l'encoche (place la plus proche).
 
 - [x] (12/11 11 h 45) Nom VOXILE confirmé par Hugues. À faire : renommage (app, textes, manuel, README, dépôt) en gardant l identifiant com.hugues.dictee (autorisations macOS).
+
+## 12/11 après-midi — App de bureau (fenêtre principale) d'après lucarne-app-final.html — branche app-bureau (~/dictee-mac-bureau)
+- [x] DicteeCore `Bureau.swift` : apparence (clair/sombre/auto, soleil/lune), tuiles d'Aujourd'hui (anneau = part du record, temps gagné,
+      prochain rendez-vous, dernière note, rappels, étagère), catalogue Découvrir, calques des illustrations, ressort en temps, barres de
+      l'onde ; 39 contrôles purs (3600/3600).
+- [x] Palette adaptative (clair/sombre) pour les pages reprises ; interrupteur natif (vert) ; les panneaux de l'encoche restent darkAqua.
+- [x] Fenêtre 900 × 560 (min 820 × 520) : barre d'onglets en verre (Aujourd'hui · Découvrir · Réunions · Réglages) centrée sur les feux
+      (26 pt, vérifié), soleil/lune. Sous-pages : Aujourd'hui › Dictées / Ta journée / Bibliothèque ; Réglages › Dictée / Mots / Ce
+      qu'elle montre / Confidentialité. Les destinations de l'îlot (`Onglet`) y mènent toutes.
+- [x] Cartes d'accueil en verre : Bonjour + 5 cartes (fn, micro, écrire, clé, essai), scènes animées en ressorts depuis les 11 PNG de
+      Hugues (Resources/Illustrations, LISEZ-MOI.md), vidéos de contrôle `--rendu-premier-lancement` (design/rendus-bureau/accueil).
+- [x] Rendus `--rendu-fenetre` : 14 écrans × clair/sombre dans design/rendus-bureau (hors git).
+- [x] Retrait : FenetreVue, ReglagesVue, RenduFenetre, ChoixReglage, LigneReglage.
+- [ ] Relecture opus, push. À trancher : « Essayer » du Centre, des Réunions et de la Lecture (rien de sûr à faire faire à l'encoche) ;
+      « Changer sa place » (Lucarne déplaçable pas encore dans main) ; doigt 1c (à voir par Hugues sur la vidéo).

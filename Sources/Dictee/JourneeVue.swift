@@ -314,7 +314,7 @@ struct JourneeVue: View {
                     HStack(alignment: .bottom, spacing: 8) {
                         ForEach(Array(sept.enumerated()), id: \.offset) { i, j in
                             Button { m.aller(a: j.jour) } label: {
-                                RoundedRectangle(cornerRadius: 3).fill(i == sept.count - 1 ? Palette.texte : Color(hex: 0x4A4A47))
+                                RoundedRectangle(cornerRadius: 3).fill(i == sept.count - 1 ? Palette.texte : Palette.relief)
                                     .frame(height: max(2, 100 * CGFloat(j.mots) / CGFloat(maxMots)))
                                     .frame(maxWidth: .infinity, maxHeight: 100, alignment: .bottom)
                                     .contentShape(Rectangle())

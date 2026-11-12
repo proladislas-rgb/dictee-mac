@@ -332,22 +332,22 @@ struct LignesMiseAJour: View {
     }
 
     var body: some View {
-        LigneReglage(libelle: "Mises à jour", note: note) {
+        LigneGroupe(libelle: "Mises à jour", note: note) {
             etat
-            BoutonCadre(m.activite == .verification ? "Recherche…" : "Rechercher", action: m.surRechercher)
+            LienBleu(titre: m.activite == .verification ? "Recherche…" : "Rechercher", action: m.surRechercher)
                 .opacity(m.peutRechercher ? 1 : 0.4).disabled(!m.peutRechercher)
         }
         if let d = m.disponible {
-            LigneReglage(libelle: "Verbe \(d.version) est disponible", note: m.refusInstallation ?? "Verbe se remplace puis se relance, en quelques secondes.") {
+            LigneGroupe(libelle: "Verbe \(d.version) est disponible", note: m.refusInstallation ?? "Verbe se remplace puis se relance, en quelques secondes.") {
                 if m.activite == .repos {
-                    LienTexte(titre: "Nouveautés", action: m.surNouveautes)
-                    if m.refusInstallation == nil { BoutonCadre("Installer", action: m.surInstaller) }
+                    LienBleu(titre: "Nouveautés", action: m.surNouveautes)
+                    if m.refusInstallation == nil { BoutonCapsule(titre: "Installer", action: m.surInstaller) }
                 } else {
                     Text(progression)
                 }
             }
         }
-        LigneReglage(libelle: "Vérifier automatiquement", note: "Une fois par jour, Verbe demande à GitHub s\u{2019}il existe une nouvelle version.") {
+        LigneGroupe(libelle: "Vérifier automatiquement", note: "Une fois par jour, Verbe demande à GitHub s\u{2019}il existe une nouvelle version.") {
             Interrupteur(actif: $m.automatique, etiquette: "Vérifier automatiquement")
         }
     }
@@ -358,7 +358,7 @@ struct LignesMiseAJour: View {
         case .telechargement, .controle, .installation, .attenteRedemarrage: EmptyView()   // la ligne « Verbe X est disponible » dessous montre la progression
         case .repos:
             // Quand une version attend, la ligne juste dessous le dit (avec Installer) : pas de répétition ici.
-            if m.disponible == nil, m.verifieeLe != nil { Etat(texte: "À jour") }
+            if m.disponible == nil, m.verifieeLe != nil { EtatVert(texte: "À jour") }
         }
     }
 

@@ -141,13 +141,10 @@ enum RenduJournee {
             if let jour { m.jour = m.calendrier.startOfDay(for: jour) }
             if let heure { m.heureOuverte = heure }
             if let depliee { let l = m.dicteesOuvertes; if l.indices.contains(depliee) { m.depliee = l[depliee].id } }
-            let nav = NavigationFenetre(); nav.onglet = .journee
+            let nav = NavigationBureau(); nav.ouvrir(.journee)
             let mots = MotsModele(persistant: false, mots: [], raccourcis: [], propositions: { var p = PropositionsMots(); _ = p.proposer("Brume", motsConnus: []); return p }())
-            let barre = AnyView(HStack(spacing: 0) { BarreOngletsVue(nav: nav, mots: mots).padding(.leading, 68); Spacer(); BarreReglagesVue(nav: nav).padding(.trailing, 20) })
-            let vue = RenduFenetre.Cadre(taille: taille, barre: barre) {
-                FenetreVue(nav: nav, dictees: d, store: h, mots: mots, reglages: ReglagesModele(reel: false), reunions: rm,
-                           controleur: ReunionController(store: r), journee: m, curseurFactice: true)
-            }
+            let vue = RenduBureau.fenetre(nav, sombre: true, taille: taille, store: h, dictees: d, mots: mots, reglages: ReglagesModele(reel: false), reunions: rm,
+                                          controleur: ReunionController(store: r), journee: m)
             print("\(nom) : \(m.vue.phrase.cas.rawValue) — \(m.vue.phrase.texte)")
             ok = RenduVues.ecrire(RenduVues.png(vue, taille: taille), url.appendingPathComponent("\(nom).png")) && ok
         }

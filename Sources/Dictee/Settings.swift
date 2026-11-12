@@ -391,6 +391,13 @@ enum Settings {
     }
 
     /// Le premier lancement (3 étapes) a été fait : il ne s'affiche plus tout seul.
+    /// L'apparence de la fenêtre principale : `clair`, `sombre` ou `automatique` (par défaut : celle du Mac). Le bouton soleil/lune
+    /// et Réglages › Apparence l'écrivent ; l'encoche et ses panneaux restent sombres quoi qu'il arrive.
+    static var apparenceFenetre: String? {
+        get { defaults.string(forKey: "apparenceFenetre") }
+        set { defaults.set(newValue, forKey: "apparenceFenetre") }
+    }
+
     static var premierLancementFait: Bool {
         get { defaults.bool(forKey: "premierLancementFait") }
         set { defaults.set(newValue, forKey: "premierLancementFait") }

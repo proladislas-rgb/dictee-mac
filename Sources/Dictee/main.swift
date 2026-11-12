@@ -130,9 +130,9 @@ if let i = arguments.firstIndex(of: "--rendu-filet"), i + 1 < arguments.count {
     exit(MainActor.assumeIsolated { RenduFilet.executer(dossier: arguments[i + 1]) })
 }
 
-// Dictee --rendu-fenetre dossier  (fenêtre principale et ses états en PNG, sans fenêtre)
+// Dictee --rendu-fenetre dossier  (chaque écran de la fenêtre principale en PNG, clair et sombre, sans fenêtre)
 if let i = arguments.firstIndex(of: "--rendu-fenetre"), i + 1 < arguments.count {
-    exit(MainActor.assumeIsolated { RenduFenetre.executer(dossier: arguments[i + 1]) })
+    exit(MainActor.assumeIsolated { RenduBureau.executer(dossier: arguments[i + 1]) })
 }
 
 // Dictee --rendu-premier-lancement dossier  (les trois étapes en PNG, sans fenêtre)

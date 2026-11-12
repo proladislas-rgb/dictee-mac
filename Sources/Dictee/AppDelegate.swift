@@ -23,7 +23,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var lecture: LectureControleur { ilot.lecture }
     private var microDejaPrepare = false
     private lazy var reunionControleur = ReunionController()
-    private lazy var fenetrePrincipale = FenetrePrincipale(dictees: ModeleDictees(), controleurReunions: reunionControleur, bibliotheque: ilot.bibliotheque)
+    private lazy var fenetrePrincipale = FenetrePrincipale(dictees: ModeleDictees(), controleurReunions: reunionControleur, bibliotheque: ilot.bibliotheque,
+                                                           sources: sourcesAujourdhui)
+    /// Les rendez-vous d'« Aujourd'hui » : lus seulement si le calendrier est allumé (et déjà autorisé), jamais demandés d'ici.
+    private let agendaBureau = AgendaSysteme()
+    private var sourcesAujourdhui: SourcesAujourdhui {
+        SourcesAujourdhui(rappels: { [weak self] in self?.ilot.rappels.rappels ?? [] },
+                          etagere: { [weak self] in self?.ilot.etagere.elements ?? [] },
+                          rendezVous: { [weak self] in Settings.ilotCalendrier ? (self?.agendaBureau.prochains(heures: 12, depuis: Date()) ?? []) : [] })
+    }
     private var survolStatus: SurvolStatus?
     private var derniereAppExterne: NSRunningApplication?
     private var abonnements = Set<AnyCancellable>()
@@ -96,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         clavier.onAction = { [weak self] action in
             guard let self else { return }
-            // Étape 🌐 du premier lancement : le double appui sert d'essai, il ne lance pas de vraie dictée.
+            // Carte de la touche fn du premier lancement : le double appui sert d'essai, il ne lance pas de vraie dictée.
             if self.priseEnMain.estOuvert, self.priseEnMain.modele.attendDoubleAppui {
                 self.priseEnMain.modele.noterGeste(action)
                 if action == .begin(handsFree: true) { self.clavier.reinitialiserGeste() }
@@ -175,7 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         priseEnMain.ouvrir()
     }
 
-    func ouvrirPriseEnMain(etape: PriseEnMainModele.Etape = .geste, forcerCle: Bool = false) {
+    func ouvrirPriseEnMain(etape: PriseEnMainModele.Etape = .bonjour, forcerCle: Bool = false) {
         panneauCompact.fermer(animee: false, rendreLeFocus: false)
         priseEnMain.ouvrir(etape: etape, forcerCle: forcerCle)
     }
@@ -288,7 +296,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Verbe relancé alors qu'il tourne déjà (clic sur son icône dans le Dock, Applications, Launchpad ou Spotlight) :
     /// on ouvre la fenêtre principale au lieu de ne rien faire.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        ouvrirFenetre(.dictees)
+        fenetrePrincipale.afficherAccueil()
         return true
     }
 
@@ -312,8 +320,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         m.surEchap = {}
         fenetrePrincipale.surAutorisations = { [weak self] in self?.ouvrirAutorisations() }
         fenetrePrincipale.surRevoirPriseEnMain = { [weak self] in self?.ouvrirPriseEnMain() }
-        fenetrePrincipale.surCle = { [weak self] in self?.ouvrirPriseEnMain(etape: .acces, forcerCle: true) }
+        fenetrePrincipale.surCle = { [weak self] in self?.ouvrirPriseEnMain(etape: .cle, forcerCle: true) }
         fenetrePrincipale.surDesinstaller = { InstallationApp.desinstaller() }
+        // Découvrir › « Essayer » : seulement ce que l'encoche sait montrer d'elle-même (une carte qu'on ouvre, un minuteur d'une minute)
+        fenetrePrincipale.essais = [.etagere, .minuteur, .rappels, .claude]
+        fenetrePrincipale.surEssayer = { [weak self] d in
+            guard let self else { return }
+            switch d {
+            case .etagere: self.ilot.moteur.ouvrirEtagere()
+            case .minuteur: self.ilot.agir(.minuteurLancer(minutes: 1))
+            case .rappels: self.ilot.agir(.rappelFormulaire)
+            case .claude: self.ilot.moteur.ouvrirCarteClaude()
+            case .centre, .reunions, .lecture: break
+            }
+        }
     }
 
     /// Notes de réunion : ⌥⌘N, entrée du panneau compact, note prête qui ouvre l'onglet Réunions, proposition « Noter cet appel ? ».
@@ -430,7 +450,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func rendreLaVeille() { ilot.arreterEveil(journal: "éteint depuis le menu") }
 
     /// Menu de l'app (invisible tant qu'elle n'a pas de Dock, mais ses raccourcis servent la fenêtre) :
-    /// ⌘, ouvre la fenêtre, ⌘1-3 changent d'onglet, ⌘W ferme, Édition rend ⌘C ⌘V aux champs de texte.
+    /// ⌘, ouvre la fenêtre, ⌘1-4 changent de page, ⌘W ferme, Édition rend ⌘C ⌘V aux champs de texte.
     private func installerMenuPrincipal() {
         let principal = NSMenu()
         func sousMenu(_ titre: String, _ construire: (NSMenu) -> Void) {
@@ -454,8 +474,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             m.addItem(withTitle: "Tout sélectionner", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         }
         sousMenu("Aller") { m in
-            for (i, o) in Onglet.allCases.enumerated() {
-                let it = m.addItem(withTitle: o.rawValue, action: #selector(allerA(_:)), keyEquivalent: "\(i + 1)")
+            for (i, p) in PageBureau.allCases.enumerated() {
+                let it = m.addItem(withTitle: p.rawValue, action: #selector(allerA(_:)), keyEquivalent: "\(i + 1)")
                 it.target = self; it.tag = i
             }
         }
@@ -466,7 +486,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.mainMenu = principal
     }
 
-    @objc private func allerA(_ sender: NSMenuItem) { ouvrirFenetre(Onglet.allCases[sender.tag]) }
+    @objc private func allerA(_ sender: NSMenuItem) { fenetrePrincipale.afficher(page: PageBureau.allCases[sender.tag]) }
 
     func menuNeedsUpdate(_ menu: NSMenu) { reconstruireMenu(menu) }
 
@@ -530,7 +550,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func revoirPriseEnMain() { ouvrirPriseEnMain() }
-    @objc private func ouvrirVerbe() { ouvrirFenetre(.dictees) }
+    @objc private func ouvrirVerbe() { fenetrePrincipale.afficherAccueil() }
     @objc private func ouvrirJournal() { NSWorkspace.shared.open(Log.url) }
     @objc private func desinstaller() { InstallationApp.desinstaller() }
     @objc private func quitter() { NSApp.terminate(nil) }

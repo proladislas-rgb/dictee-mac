@@ -172,13 +172,13 @@ enum RenduReunions {
         Self.sonFabrique(boutique, store: store)
         defer { try? FileManager.default.removeItem(at: dossierRendu) }
         let historique = RenduVues.historiqueExemple()
-        let maquette = CGSize(width: 1190, height: 760)   // la taille de la capture de la maquette, pour comparer
+        let maquette = RenduBureau.taille
         let haute = CGSize(width: 1190, height: 1400)
-        let petite = CGSize(width: 700, height: 640)
+        let petite = CGSize(width: FenetrePrincipale.tailleMinimale.width + 80, height: FenetrePrincipale.tailleMinimale.height + 80)
         let aujourdhui = boutique.debut.addingTimeInterval(40 * 60)
 
         func fenetre(_ nom: String, store: ReunionStore, ouverte: UUID? = nil, taille: CGSize = maquette, regler: (ReunionsModele) -> Void = { _ in }) {
-            let nav = NavigationFenetre(); nav.onglet = .reunions
+            let nav = NavigationBureau(); nav.aller(.reunions)
             let r = ReunionsModele(store: store)
             r.aujourdhui = { aujourdhui }
             r.ouverte = ouverte
@@ -187,11 +187,8 @@ enum RenduReunions {
             let controleur = ReunionController(store: store)
             let d = ModeleDictees(store: historique)
             let mots = MotsModele(persistant: false, mots: [], raccourcis: [], propositions: PropositionsMots())
-            let barre = AnyView(HStack(spacing: 0) { BarreOngletsVue(nav: nav, mots: mots).padding(.leading, 68); Spacer(); BarreReglagesVue(nav: nav).padding(.trailing, 20) })
-            let vue = RenduFenetre.Cadre(taille: taille, barre: barre) {
-                FenetreVue(nav: nav, dictees: d, store: historique, mots: mots,
-                           reglages: ReglagesModele(reel: false), reunions: r, controleur: controleur, journee: JourneeModele(dictees: d, reunions: r), curseurFactice: true)
-            }
+            let vue = RenduBureau.fenetre(nav, sombre: true, taille: taille, store: historique, dictees: d, mots: mots,
+                                          reglages: ReglagesModele(reel: false), reunions: r, controleur: controleur, journee: JourneeModele(dictees: d, reunions: r))
             ok = RenduVues.ecrire(RenduVues.png(vue, taille: taille), url.appendingPathComponent("\(nom).png")) && ok
         }
         let photo = boutique.segments.firstIndex { $0.texte.hasPrefix("Je réserve la séance") }!

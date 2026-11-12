@@ -4,13 +4,13 @@ import Combine
 import SwiftUI
 import DicteeCore
 
-/// L'état du premier lancement : le geste, les accès, la touche 🌐 (seulement si elle fait autre chose que « Ne rien faire »)
-/// et une première dictée réussie.
+/// L'état du premier lancement (maquette lucarne-app-final.html, étapes 1 à 6) : « Bonjour », puis cinq cartes, une question à la
+/// fois. La touche fn (et ce que fait la touche 🌐), le micro, l'écriture dans les apps (Accessibilité), la clé Groq, un essai.
 @MainActor
 final class PriseEnMainModele: ObservableObject {
-    enum Etape: Int { case geste = 1, acces, globe, premiere }
+    enum Etape: Int, CaseIterable { case bonjour = 0, touche, micro, ecrire, cle, essai }
 
-    @Published var etape: Etape = .geste
+    @Published var etape: Etape = .bonjour
     @Published private(set) var microOK = false
     @Published private(set) var microRefuse = false
     @Published private(set) var accessibiliteOK = false
@@ -36,21 +36,19 @@ final class PriseEnMainModele: ObservableObject {
     var surPasser: () -> Void = {}
 
     var globeAReglerEncore: Bool { ToucheGlobe.doitEtreReglee(valeur: globeValeur) }
-    /// Pendant l'étape 🌐, une fois la touche réglée : le double appui sert à l'essai, il ne lance pas de dictée.
-    var attendDoubleAppui: Bool { etape == .globe && !globeAReglerEncore }
+    /// Carte de la touche fn, une fois la touche reconnue et réglée : le double appui sert à l'essai, il ne lance pas de dictée.
+    var attendDoubleAppui: Bool { etape == .touche && surveillanceOK && !globeAReglerEncore }
 
-    /// Les étapes montrées : celle de la touche 🌐 n'existe que si elle est à régler (ou si on y est déjà).
-    var etapesMontrees: [Etape] {
-        [.geste, .acces] + (etape == .globe || globeAReglerEncore ? [.globe] : []) + [.premiere]
-    }
-
-    var accesCompletsOK: Bool { microOK && accessibiliteOK && surveillanceOK }
-    var accesManquants: String {
-        var m: [String] = []
-        if !microOK { m.append("le micro") }
-        if !accessibiliteOK { m.append("l\u{2019}accessibilité") }
-        if !surveillanceOK { m.append("la surveillance de l\u{2019}entrée") }
-        return m.isEmpty ? "" : "Il manque " + m.joined(separator: ", ") + "."
+    /// La carte est-elle faite (sa pastille verte) ?
+    func fait(_ e: Etape) -> Bool {
+        switch e {
+        case .bonjour: return true
+        case .touche: return surveillanceOK && !globeAReglerEncore
+        case .micro: return microOK
+        case .ecrire: return accessibiliteOK
+        case .cle: return cle != .absente && !forcerCle
+        case .essai: return reussie
+        }
     }
 
     /// `reel = false` : valeurs d'exemple, aucun accès au système (rendus PNG).
@@ -91,9 +89,9 @@ final class PriseEnMainModele: ObservableObject {
     }
 
     func suivant() {
-        var n = etape.rawValue + 1
-        if Etape(rawValue: n) == .globe, !globeAReglerEncore { n += 1 }   // déjà sur « Ne rien faire » : rien à guider
-        if let e = Etape(rawValue: n) { etape = e; if e == .premiere { jetonFocus += 1 } }
+        guard let e = Etape(rawValue: etape.rawValue + 1) else { return }
+        etape = e
+        if e == .essai { jetonFocus += 1 }
     }
 
     /// Ouvre le volet Clavier des Réglages Système : c'est le seul endroit où le réglage prend effet.
@@ -102,14 +100,14 @@ final class PriseEnMainModele: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
-    /// Un geste reconnu pendant l'étape 🌐 : seul le double appui compte. Aucune dictée ne démarre pendant cette étape (voir l'aiguillage dans `AppDelegate`).
+    /// Un geste reconnu pendant la carte de la touche fn : seul le double appui compte. Aucune dictée ne démarre pendant cette étape (voir l'aiguillage dans `AppDelegate`).
     func noterGeste(_ action: GestureAction) {
         if action == .begin(handsFree: true) { doubleAppuiVu = true }
     }
 
     /// Appelé quand une dictée vient d'être collée dans notre propre champ d'essai : la réussite est vérifiée dans le champ.
     func texteInsere(_ texte: String) {
-        guard etape == .premiere else { return }
+        guard etape == .essai else { return }
         // le collage est asynchrone côté champ : on laisse un instant avant de lire ce qu'il contient
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
             guard let self else { return }
@@ -127,164 +125,182 @@ final class PriseEnMainModele: ObservableObject {
         microRefuse = refuse; self.reussie = reussie; echecInsertion = echec; self.doubleAppuiVu = doubleAppuiVu
     }
 
-    func insertionImpossible(_ raison: String) { if etape == .premiere { echecInsertion = raison } }
+    func insertionImpossible(_ raison: String) { if etape == .essai { echecInsertion = raison } }
 }
 
+/// La carte d'accueil en verre, sous l'encoche (maquette, étapes 1 à 6). « Bonjour » d'abord, puis une carte par question : à gauche
+/// une petite scène en mouvement (DicteeCore `IllustrationsAccueil`, `AccueilScenes.swift`), à droite l'étape, le titre, une phrase,
+/// et l'action ou la pastille verte quand c'est fait.
 struct PriseEnMainVue: View {
     @ObservedObject var m: PriseEnMainModele
     @ObservedObject var apparition: ApparitionPanneau
     var curseurFactice = false
-    static let taille = CGSize(width: 440, height: 440)
+    static let taille = CGSize(width: 680, height: 300)
+    static let tailleBonjour = CGSize(width: 420, height: 300)
+    @Environment(\.colorScheme) private var schema
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("\((m.etapesMontrees.firstIndex(of: m.etape) ?? 0) + 1) sur \(m.etapesMontrees.count)").font(Polices.commande(12)).foregroundStyle(Palette.texte3).padding(.bottom, 14)
-            Group {
-                switch m.etape {
-                case .geste: geste
-                case .acces: acces
-                case .globe: globe
-                case .premiere: premiere
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            pied
+        let bonjour = m.etape == .bonjour
+        let t = bonjour ? Self.tailleBonjour : Self.taille
+        Group {
+            if bonjour { accueil } else { carte }
         }
-        .padding(24)
-        .frame(width: Self.taille.width, height: Self.taille.height)
-        .background(Palette.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+        .frame(width: t.width, height: t.height)
+        .background {
+            // un voile coloré très doux sous le verre, comme sur la maquette (bleu en haut, vert et sable en bas)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(LinearGradient(colors: schema == .dark ? [Color(hex: 0x1E2A3A).opacity(0.5), Color(hex: 0x1F2E26).opacity(0.4)]
+                                                             : [Color(hex: 0xD9E8FB).opacity(0.55), Color(hex: 0xE4F3E9).opacity(0.45)],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+        }
+        .verre(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .animation(.spring(duration: 0.5, bounce: 0.15), value: m.etape)
         .offset(y: apparition.visible || apparition.reduire ? 0 : -44)
-        .scaleEffect(apparition.visible || apparition.reduire ? 1 : 0.97, anchor: .top)
+        .scaleEffect(apparition.visible || apparition.reduire ? 1 : 0.94, anchor: .top)
         .opacity(apparition.visible ? 1 : 0)
         .frame(width: Self.taille.width, height: Self.taille.height + PriseEnMain.ecartHaut, alignment: .bottom)
     }
 
-    // MARK: étape 1
+    // MARK: Bonjour
 
-    private var geste: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 10) { Text("Maintenez"); ToucheFn().scaleEffect(1.25).padding(.leading, 4); Text(".") .padding(.leading, -8) }
-                Text("Parlez.")
-                HStack(spacing: 4) {
-                    Text("Relâchez.")
-                    RoundedRectangle(cornerRadius: 1).fill(Palette.accent).frame(width: 2, height: 26).opacity(curseurFactice ? 1 : 1)
+    private var accueil: some View {
+        VStack(spacing: 0) {
+            Image(nsImage: IconeApp.image(cote: 256)).resizable().frame(width: 96, height: 96).shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+            Text("Bonjour").font(.system(size: 30, weight: .bold)).tracking(-0.6).foregroundStyle(TonsBureau.encre).padding(.top, 12)
+            Text("Verbe vit dans l\u{2019}encoche de ton Mac.\nTiens fn, parle\u{202F}: le texte s\u{2019}écrit là où tu es.")
+                .font(.system(size: 14.5)).lineSpacing(3).multilineTextAlignment(.center).foregroundStyle(TonsBureau.encre2).padding(.top, 8)
+            Button { m.suivant() } label: {
+                Text("Commencer").font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+                    .frame(width: 230, height: 42).background(Capsule().fill(TonsBureau.bleu)).contentShape(Capsule())
+            }
+            .buttonStyle(Enfonce()).padding(.top, 20)
+            Text("Cinq petites étapes, deux minutes.").font(.system(size: 12.5)).foregroundStyle(TonsBureau.encre3).padding(.top, 12)
+        }
+        .padding(.top, 8)
+    }
+
+    // MARK: une carte
+
+    private var carte: some View {
+        let n = m.etape.rawValue
+        return HStack(alignment: .top, spacing: 26) {
+            IllustrationAccueil(carte: n, actif: apparition.visible)
+                .frame(width: 300, height: 256)
+                .background(LinearGradient(colors: Self.teinte(n, sombre: schema == .dark), startPoint: .top, endPoint: .bottom))
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .id(n)
+            VStack(alignment: .leading, spacing: 0) {
+                points
+                Text("Étape \(n) sur 5").font(.system(size: 13, weight: .semibold)).foregroundStyle(TonsBureau.orange).padding(.top, 14)
+                Text(titre).font(.system(size: 26, weight: .bold)).tracking(-0.5).foregroundStyle(TonsBureau.encre).padding(.top, 2)
+                Text(phrase).font(.system(size: 14.5)).lineSpacing(3).foregroundStyle(TonsBureau.encre2)
+                    .fixedSize(horizontal: false, vertical: true).padding(.top, 8)
+                action.padding(.top, 16)
+                Spacer(minLength: 0)
+                pied
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(20)
+    }
+
+    /// La teinte douce du fond de chaque scène.
+    static func teinte(_ n: Int, sombre: Bool) -> [Color] {
+        let clair: [[UInt32]] = [[0xF6EBDD, 0xEBDCC8], [0xFCE9DA, 0xF7DCC7], [0xE3ECF8, 0xD5E2F3], [0xE6F2E3, 0xD6E9D2], [0xFBEEDC, 0xF4E2CB]]
+        let fonce: [[UInt32]] = [[0x3A332B, 0x2C2722], [0x3B2F27, 0x2D2520], [0x27303D, 0x1F2631], [0x26332A, 0x1E2922], [0x3A3127, 0x2C2620]]
+        return (sombre ? fonce : clair)[max(0, min(4, n - 1))].map { Color(hex: $0) }
+    }
+
+    private var points: some View {
+        HStack(spacing: 6) {
+            ForEach(1...5, id: \.self) { i in
+                Capsule().fill(i == m.etape.rawValue ? TonsBureau.encre.opacity(0.62) : (i < m.etape.rawValue ? TonsBureau.vert : TonsBureau.encre.opacity(0.16)))
+                    .frame(width: i == m.etape.rawValue ? 20 : 6, height: 6)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Étape \(m.etape.rawValue) sur 5")
+    }
+
+    private var titre: String {
+        switch m.etape {
+        case .bonjour: return "Bonjour"
+        case .touche: return "La touche fn"
+        case .micro: return "Le micro"
+        case .ecrire: return "Écrire dans tes apps"
+        case .cle: return "La clé Groq"
+        case .essai: return "Essaie"
+        }
+    }
+
+    private var phrase: String {
+        switch m.etape {
+        case .bonjour: return ""
+        case .touche:
+            if !m.surveillanceOK { return "Tiens fn, parle, relâche\u{202F}: le texte s\u{2019}écrit au curseur. Pour reconnaître fn, macOS demande «\u{202F}Surveillance de l\u{2019}entrée\u{202F}»." }
+            if m.globeAReglerEncore { return "\(ToucheGlobe.phrase(valeur: m.globeValeur)). Pour la laisser à Verbe, choisis «\u{202F}\(ToucheGlobe.consigne)\u{202F}» dans le volet Clavier." }
+            return "Tiens fn, parle, relâche\u{202F}: le texte s\u{2019}écrit au curseur. Deux appuis rapides lancent le mode mains libres."
+        case .micro:
+            return m.microRefuse ? "Le micro est refusé\u{202F}: à rouvrir dans Réglages Système, Confidentialité et sécurité, Micro."
+                                 : "Pour t\u{2019}entendre quand tu dictes. Il n\u{2019}écoute que pendant que tu tiens fn, jamais le reste du temps."
+        case .ecrire: return "macOS appelle ça «\u{202F}Accessibilité\u{202F}». Verbe s\u{2019}en sert pour poser le texte là où est ton curseur, dans n\u{2019}importe quelle app."
+        case .cle: return "Groq écrit ta voix en moins d\u{2019}une seconde. Colle ta clé\u{202F}: elle est rangée dans le Trousseau du Mac."
+        case .essai: return "Clique dans le champ, tiens fn, dis une phrase, relâche."
+        }
+    }
+
+    /// L'action de la carte, ou sa pastille verte quand c'est fait.
+    @ViewBuilder private var action: some View {
+        switch m.etape {
+        case .bonjour: EmptyView()
+        case .touche:
+            if !m.surveillanceOK { BoutonCapsule(titre: "Autoriser", hauteur: 32) { m.demander(.surveillance) } }
+            else if m.globeAReglerEncore { BoutonCapsule(titre: "Ouvrir le volet Clavier", hauteur: 32) { m.ouvrirVoletClavier() } }
+            else {
+                VStack(alignment: .leading, spacing: 8) {
+                    PastilleFaite(texte: "fn est à toi")
+                    Text(m.doubleAppuiVu ? "Double appui reconnu, rien d\u{2019}autre ne s\u{2019}est ouvert." : "Essaie\u{202F}: deux appuis rapides sur fn.")
+                        .font(.system(size: 12.5)).foregroundStyle(TonsBureau.encre3)
                 }
             }
-            .font(Polices.texte(30)).foregroundStyle(Palette.texte)
-            .accessibilityElement(children: .ignore).accessibilityLabel("Maintenez fn. Parlez. Relâchez.")
-            Text("Le texte s\u{2019}écrit là où se trouve le curseur, dans n\u{2019}importe quelle app. Deux appuis sur fn lancent le mode mains libres.")
-                .font(Polices.commande(13)).foregroundStyle(Palette.texte2).fixedSize(horizontal: false, vertical: true)
+        case .micro:
+            if m.microOK { PastilleFaite(texte: "Le micro est prêt") }
+            else { BoutonCapsule(titre: m.microRefuse ? "Ouvrir les Réglages" : "Autoriser le micro", hauteur: 32) { m.demander(.micro) } }
+        case .ecrire:
+            if m.accessibiliteOK { PastilleFaite(texte: "Verbe peut écrire") }
+            else { BoutonCapsule(titre: "Autoriser", hauteur: 32) { m.demander(.accessibilite) } }
+        case .cle:
+            if m.fait(.cle) { PastilleFaite(texte: "Clé enregistrée") } else { champCle }
+        case .essai: essai
         }
     }
 
-    // MARK: étape 2
-
-    private var acces: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Trois accès à accorder").font(Polices.texte(22)).foregroundStyle(Palette.texte).padding(.bottom, 6)
-            Text("Le micro n\u{2019}écoute que pendant que fn est tenue.").font(Polices.commande(13)).foregroundStyle(Palette.texte2).padding(.bottom, 10)
-            ligneAcces("Micro", "Pour entendre la voix.", ok: m.microOK, refuse: m.microRefuse, volet: .micro)
-            ligneAcces("Accessibilité", "Pour écrire le texte là où est le curseur.", ok: m.accessibiliteOK, refuse: false, volet: .accessibilite)
-            ligneAcces("Surveillance de l\u{2019}entrée", "Pour reconnaître la touche fn.", ok: m.surveillanceOK, refuse: false, volet: .surveillance)
-            if m.cle == .absente || m.forcerCle { cle.padding(.top, 10) }
-            Spacer(minLength: 0)
-        }
-    }
-
-    private func ligneAcces(_ titre: String, _ detail: String, ok: Bool, refuse: Bool, volet: Permissions.Volet) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(titre).font(Polices.commande(14)).foregroundStyle(Palette.texte)
-                Text(refuse ? "Refusé : à rouvrir dans les Réglages Système." : detail).font(Polices.commande(12)).foregroundStyle(Palette.texte3)
-            }
-            Spacer(minLength: 8)
-            if ok {
-                HStack(spacing: 6) { Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold)); Text("Accordé") }
-                    .font(Polices.commande(13)).foregroundStyle(Palette.texte2)
-            } else {
-                LienTexte(titre: refuse ? "Ouvrir les Réglages" : "Autoriser", fort: true) { m.demander(volet) }
-            }
-        }
-          .frame(minHeight: 44)
-        .accessibilityElement(children: .combine)
-        .accessibilityValue(ok ? "accordé" : "non accordé")
-    }
-
-    private var cle: some View {
+    private var champCle: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Clé Groq").font(Polices.commande(14)).foregroundStyle(Palette.texte)
-            HStack(spacing: 12) {
-                CleSecrete(texte: $m.saisieCle, invite: "Collez la clé ici") { m.enregistrerCle() }
-                    .frame(height: 24)
-                    .overlay(alignment: .bottom) { Rectangle().fill(Palette.filet).frame(height: 1).offset(y: 3) }
-                LienTexte(titre: "Enregistrer", fort: !m.saisieCle.isEmpty) { m.enregistrerCle() }
+            HStack(spacing: 10) {
+                CleSecrete(texte: $m.saisieCle, invite: "gsk_…") { m.enregistrerCle() }
+                    .frame(height: 22)
+                    .padding(.horizontal, 12).frame(height: 36)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(TonsBureau.carte))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
+                BoutonCapsule(titre: "Enregistrer", hauteur: 32) { m.enregistrerCle() }.opacity(m.saisieCle.isEmpty ? 0.5 : 1)
             }
-            Text(m.avisCle ?? "Rangée dans le Trousseau. Sans clé, seule la dictée d\u{2019}Apple écrit.")
-                .font(Polices.commande(12)).foregroundStyle(Palette.texte3).fixedSize(horizontal: false, vertical: true)
+            Text(m.avisCle ?? "Sans clé, seule la dictée du Mac écrit.").font(.system(size: 12)).foregroundStyle(m.avisCle == nil ? TonsBureau.encre3 : TonsBureau.orange)
         }
     }
 
-    // MARK: étape 🌐
-
-    private var globe: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if m.globeAReglerEncore {
-                Text(ToucheGlobe.phrase(valeur: m.globeValeur)).font(Polices.texte(22)).foregroundStyle(Palette.texte)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("Elle se déclenche en même temps que fn : le double appui de Verbe ouvrirait aussi cette action.")
-                    .font(Polices.commande(13)).foregroundStyle(Palette.texte2).fixedSize(horizontal: false, vertical: true)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Dans le volet Clavier, choisissez :").font(Polices.commande(13)).foregroundStyle(Palette.texte2)
-                    Text("\u{00AB}\u{202F}\(ToucheGlobe.consigne)\u{202F}\u{00BB}").font(Polices.texte(16)).foregroundStyle(Palette.texte)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.top, 4)
-                LienTexte(titre: "Ouvrir le volet Clavier", fort: true) { m.ouvrirVoletClavier() }.padding(.top, 4)
-                Text("Cette étape se termine toute seule dès que le réglage est changé.").font(Polices.commande(12)).foregroundStyle(Palette.texte3)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text("Votre touche 🌐 est réglée").font(Polices.texte(22)).foregroundStyle(Palette.texte)
-                Text("Essayez : appuyez deux fois, vite, sur fn. Rien d\u{2019}autre ne doit s\u{2019}ouvrir.")
-                    .font(Polices.commande(13)).foregroundStyle(Palette.texte2).fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 10) {
-                    ToucheFn()
-                    ToucheFn()
-                }
-                .padding(.vertical, 8)
-                if m.doubleAppuiVu {
-                    HStack(spacing: 6) { Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold)); Text("Double appui reconnu.") }
-                        .font(Polices.commande(13)).foregroundStyle(Palette.texte)
-                } else {
-                    Text("En attente du double appui.").font(Polices.commande(13)).foregroundStyle(Palette.texte3)
-                }
-            }
-        }
-    }
-
-    // MARK: dernière étape
-
-    private var premiere: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Une première dictée").font(Polices.texte(22)).foregroundStyle(Palette.texte)
-            Text("Cliquez dans le champ, maintenez fn, dites une phrase, relâchez.").font(Polices.commande(13)).foregroundStyle(Palette.texte2)
-                .fixedSize(horizontal: false, vertical: true)
+    private var essai: some View {
+        VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 8).fill(Palette.selection.opacity(0.55))
-                ChampRecherche(texte: $m.essai, invite: "La phrase apparaîtra ici", taille: 15, jetonFocus: m.jetonFocus) { _ in false }
-                    .padding(.horizontal, 12).frame(height: 56)
-                if curseurFactice && m.essai.isEmpty { RoundedRectangle(cornerRadius: 1).fill(Palette.accent).frame(width: 2, height: 17).offset(x: 10, y: 19) }
+                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(TonsBureau.carte)
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
+                ChampRecherche(texte: $m.essai, invite: "La phrase apparaîtra ici", taille: 14.5, jetonFocus: m.jetonFocus) { _ in false }
+                    .padding(.horizontal, 12).frame(height: 44)
+                if curseurFactice && m.essai.isEmpty { RoundedRectangle(cornerRadius: 1).fill(TonsBureau.bleu).frame(width: 2, height: 17).offset(x: 12, y: 13) }
             }
-            .frame(height: 56)
-            if m.reussie {
-                Text("Le texte est écrit. Verbe est prêt.").font(Polices.commande(13)).foregroundStyle(Palette.texte)
-            } else if let echec = m.echecInsertion {
-                Text(echec).font(Polices.commande(13)).foregroundStyle(Palette.texte2)
-            } else {
-                Text("En attente de la dictée.").font(Polices.commande(13)).foregroundStyle(Palette.texte3)
-            }
+            .frame(height: 44)
+            if m.reussie { PastilleFaite(texte: "Le texte est écrit. Tout est prêt.") }
+            else if let echec = m.echecInsertion { Text(echec).font(.system(size: 12.5)).foregroundStyle(TonsBureau.orange) }
         }
     }
 
@@ -292,20 +308,33 @@ struct PriseEnMainVue: View {
 
     private var pied: some View {
         HStack {
-            if m.etape != .premiere || !m.reussie { LienTexte(titre: "Passer", action: m.surPasser) }
+            if !(m.etape == .essai && m.reussie) {
+                Button("Passer", action: m.surPasser).buttonStyle(.plain).font(.system(size: 13, weight: .medium)).foregroundStyle(TonsBureau.encre3)
+            }
             Spacer()
             switch m.etape {
-            case .geste: LienTexte(titre: "Continuer", fort: true) { m.suivant() }
-            case .acces:
-                if !m.accesCompletsOK { Text(m.accesManquants).font(Polices.commande(12)).foregroundStyle(Palette.texte3).padding(.trailing, 12) }
-                LienTexte(titre: "Continuer", fort: m.accesCompletsOK) { if m.accesCompletsOK { m.suivant() } }.opacity(m.accesCompletsOK ? 1 : 0.35)
-            case .globe:
-                if m.globeAReglerEncore { LienTexte(titre: "Plus tard") { m.suivant() } }
-                else { LienTexte(titre: "Continuer", fort: m.doubleAppuiVu) { m.suivant() } }
-            case .premiere: LienTexte(titre: "Terminer", fort: m.reussie) { if m.reussie { m.surTerminer() } }.opacity(m.reussie ? 1 : 0.35)
+            case .essai: BoutonCapsule(titre: "Terminer", hauteur: 32) { if m.reussie { m.surTerminer() } }.opacity(m.reussie ? 1 : 0.4)
+            case .cle where !m.fait(.cle): Button("Plus tard") { m.suivant() }.buttonStyle(.plain).font(.system(size: 13, weight: .medium)).foregroundStyle(TonsBureau.bleu)
+            default:
+                BoutonCapsule(titre: "Continuer", style: m.fait(m.etape) ? .plein : .doux, hauteur: 32) { m.suivant() }
             }
         }
-        .frame(height: 28)
+        .frame(height: 32)
+    }
+}
+
+/// « ✓ Le micro est prêt » : la pastille verte d'une carte faite.
+struct PastilleFaite: View {
+    var texte: String
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark").font(.system(size: 11, weight: .heavy)).foregroundStyle(.white)
+                .frame(width: 22, height: 22).background(Circle().fill(TonsBureau.vert))
+            Text(texte).font(.system(size: 14.5, weight: .semibold)).foregroundStyle(Color(clair: 0x1F7A3A, sombre: 0x5BE584))
+        }
+        .padding(.leading, 6).padding(.trailing, 14).frame(height: 36)
+        .background(Capsule().fill(TonsBureau.vert.opacity(0.16)))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -339,7 +368,7 @@ struct CleSecrete: NSViewRepresentable {
     }
 }
 
-/// Le premier lancement : un panneau sous l'encoche, même surface sombre que le panneau compact.
+/// Le premier lancement : une carte en verre sous l'encoche (comme celle des AirPods sur l'iPhone).
 @MainActor
 final class PriseEnMain {
     static let ecartHaut: CGFloat = 36
@@ -354,8 +383,8 @@ final class PriseEnMain {
 
     var estOuvert: Bool { fenetre?.isVisible == true }
 
-    /// `etape` : 2 pour « Modifier la clé » depuis les Réglages.
-    func ouvrir(etape: PriseEnMainModele.Etape = .geste, forcerCle: Bool = false) {
+    /// `etape` : `.cle` pour « Modifier la clé » depuis les Réglages.
+    func ouvrir(etape: PriseEnMainModele.Etape = .bonjour, forcerCle: Bool = false) {
         guard let ecran = NSScreen.screens.first else { return }
         modele.etape = etape
         modele.forcerCle = forcerCle
@@ -373,7 +402,7 @@ final class PriseEnMain {
             f.level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 2)
             f.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
             f.hidesOnDeactivate = false; f.isMovable = false; f.animationBehavior = .none
-            f.appearance = NSAppearance(named: .darkAqua)
+            // le verre suit l'apparence du Mac (clair ou sombre), comme les cartes du système
             let vue = NSHostingView(rootView: PriseEnMainVue(m: modele, apparition: apparition))
             vue.frame = NSRect(origin: .zero, size: taille)
             f.contentView = vue
@@ -386,7 +415,7 @@ final class PriseEnMain {
         f.orderFrontRegardless()
         f.makeKey()
         withAnimation(apparition.reduire ? .easeOut(duration: GeometrieEncoche.dureeFondu) : .spring(duration: GeometrieEncoche.dureeMouvement, bounce: 0.1)) { apparition.visible = true }
-        abonnement = modele.$etape.dropFirst().sink { [weak self] e in if e == .premiere { self?.reactiver() } }
+        abonnement = modele.$etape.dropFirst().sink { [weak self] e in if e == .essai { self?.reactiver() } }
         minuteur?.invalidate()
         minuteur = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.modele.rafraichir() }

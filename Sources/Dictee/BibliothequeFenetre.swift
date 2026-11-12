@@ -42,7 +42,11 @@ struct BibliothequeFenetreVue: View {
         HStack(spacing: 0) {
             principal
             Rectangle().fill(Palette.filet).frame(width: 1)
-            CoteBibliotheque(b: b).frame(width: Self.largeurCote)
+            // la colonne des sources défile si la fenêtre est basse (fenêtre de 520 pt au plus petit)
+            Group {
+                if statique { CoteBibliotheque(b: b) } else { ScrollView(.vertical, showsIndicators: false) { CoteBibliotheque(b: b) } }
+            }
+            .frame(width: Self.largeurCote)
         }
         .onAppear { b.rafraichir(force: true) }
     }
@@ -55,7 +59,6 @@ struct BibliothequeFenetreVue: View {
         let groupes = BibliothequeIlot.groupes(vus, recents: e.recents, maintenant: b.maintenant())
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                Text("Bibliothèque").font(Polices.texte(22)).foregroundStyle(Palette.texte).lineLimit(1).fixedSize()
                 Text(BibliothequeIlot.compte(tout.count, etagere: b.surEtagere)).font(Polices.commande(12.5)).foregroundStyle(Palette.texte3).lineLimit(1)
                 Spacer(minLength: 8)
                 champ
@@ -131,7 +134,7 @@ struct BibliothequeFenetreVue: View {
                 Text(e.recents ? "Plus récents d\u{2019}abord" : "Plus anciens d\u{2019}abord").font(Polices.commande(12.5)).lineLimit(1).fixedSize()
                 Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(Palette.texte3)
             }
-            .foregroundStyle(Color(hex: 0xCFCCC5))
+            .foregroundStyle(Palette.texte2)
             .padding(.horizontal, 10).frame(height: 30)
             .background(RoundedRectangle(cornerRadius: 8).fill(Palette.selection))
         }
@@ -151,7 +154,7 @@ struct BibliothequeFenetreVue: View {
                 .foregroundStyle(Palette.texte)
                 .padding(.horizontal, 12).frame(height: 30)
                 .background(Capsule().fill(CouleursIlot.bleu.opacity(0.26)))
-                .overlay(Capsule().strokeBorder(Color(hex: 0x5EB0FF).opacity(0.6), lineWidth: 1.5))
+                .overlay(Capsule().strokeBorder(Palette.bleuVif.opacity(0.6), lineWidth: 1.5))
                 .overlay { if !statique { SourceGlisserFichiers(fichiers: { choisis.map { (URL(fileURLWithPath: $0.chemin), b.icone($0)) } }, surDebut: {}, surFin: { if $0 { e.choisis = [] } }) } }
                 .accessibilityLabel("Glisser les fichiers choisis vers une app")
                 Text(BibliothequeIlot.choisis(choisis.count)).font(Polices.commande(12.5)).foregroundStyle(Palette.texte2)
@@ -162,7 +165,7 @@ struct BibliothequeFenetreVue: View {
             .frame(height: 48)
         } else if let r = e.retrait {
             HStack(spacing: 8) {
-                Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Color(hex: 0x5FE08A))
+                Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Palette.vertDoux)
                 Text(BibliothequeIlot.messageRetrait(dossier: b.dossier(r.entree))).font(Polices.commande(12.5)).foregroundStyle(Palette.texte2).lineLimit(1)
                 Spacer()
                 LienTexte(titre: "Annuler") { b.annuler(r); e.retrait = nil }
@@ -197,7 +200,7 @@ private struct PuceFenetre: View {
             }
             .foregroundStyle(choisie ? Palette.surface : Palette.texte2)
             .padding(.horizontal, 12).frame(height: 28)
-            .background(Capsule().fill(choisie ? Palette.texte : (survol ? Palette.relief : Color(hex: 0x232321))))
+            .background(Capsule().fill(choisie ? Palette.texte : (survol ? Palette.relief : Palette.selection)))
             .overlay(Capsule().strokeBorder(choisie ? Color.clear : Palette.filet, lineWidth: 1))
             .contentShape(Capsule())
             .fixedSize()
@@ -232,7 +235,7 @@ struct TuileBibliotheque: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(choisie ? Color(hex: 0x5EB0FF) : .clear, lineWidth: 2))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(choisie ? Palette.bleuVif : .clear, lineWidth: 2))
                 .overlay(alignment: .topTrailing) {
                     if survol {
                         HStack(spacing: 4) {
@@ -307,18 +310,18 @@ struct CoteBibliotheque: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 12).padding(.vertical, 11)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color(hex: 0x222220)))
+            .background(RoundedRectangle(cornerRadius: 12).fill(Palette.selection))
             .padding(.top, 16)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 18).padding(.vertical, 20)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(Color(hex: 0x161615))
+        .background(Palette.voile(0.03))
     }
 
     private func ligne(_ s: SourceBibliotheque) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: LigneBibliothequeIlot.symbole(s)).font(.system(size: 15)).foregroundStyle(Color(hex: 0xCFCCC5)).frame(width: 20)
+            Image(systemName: LigneBibliothequeIlot.symbole(s)).font(.system(size: 15)).foregroundStyle(Palette.texte2).frame(width: 20)
             VStack(alignment: .leading, spacing: 0) {
                 Text(s.titreReglage).font(Polices.commande(13, .semibold)).foregroundStyle(Palette.texte).lineLimit(1)
                 Text(s.detailReglage).font(Polices.commande(11.5)).foregroundStyle(Palette.texte3).lineLimit(2).fixedSize(horizontal: false, vertical: true)

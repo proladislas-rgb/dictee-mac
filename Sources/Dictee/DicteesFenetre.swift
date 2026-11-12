@@ -9,7 +9,8 @@ struct DicteesFenetreVue: View {
     @ObservedObject var store: HistoriqueStore
     @ObservedObject var reglages: ReglagesModele
     var curseurFactice = false
-    static let margeH: CGFloat = 40
+    /// La marge des pages de la fenêtre (alignée sur les titres).
+    static let margeH: CGFloat = TonsBureau.margeH
 
     var body: some View {
         let liste = m.affichees

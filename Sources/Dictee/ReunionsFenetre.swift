@@ -420,7 +420,7 @@ final class ReunionsModele: ObservableObject {
 
 enum CouleursOrateur {
     static let moi = Palette.accent
-    static let autres: [Color] = [Color(hex: 0x86B6E6), Color(hex: 0x8FCF9A), Color(hex: 0xE3A6B3), Color(hex: 0xC6B0EA)]
+    static let autres: [Color] = [Color(clair: 0x2F7BC4, sombre: 0x86B6E6), Palette.vertDoux, Color(clair: 0xC2456A, sombre: 0xE3A6B3), Color(clair: 0x7E57C2, sombre: 0xC6B0EA)]
 
     static func couleur(_ o: OrateurReunion, dans r: Reunion) -> Color {
         if o.id == Locuteur.moi.rawValue { return moi }
@@ -474,7 +474,7 @@ struct ReunionsVue: View {
     @ObservedObject var store: ReunionStore
     @ObservedObject var controleur: ReunionController
     var curseurFactice = false
-    static let largeurColonne: CGFloat = 236
+    static let largeurColonne: CGFloat = 262
     /// Sous cette largeur, la colonne et la note ne tiennent plus côte à côte : l'une ou l'autre.
     static let largeurEtroite: CGFloat = 720
     /// 0 au départ : la vue étroite d'abord, la large dès que la largeur est connue (elle seule ouvre d'office la première note).
@@ -487,10 +487,11 @@ struct ReunionsVue: View {
                 else if let r = m.reunionOuverte { NoteReunionVue(m: m, r: r.echeancesCalculees(), retour: true) }
                 else { colonne.frame(maxWidth: .infinity) }
             } else {
-                HStack(spacing: 0) {
+                // maquette lucarne-app-final.html (étape 10) : la liste à gauche, la note dans une carte à droite
+                HStack(spacing: 16) {
                     colonne.frame(width: Self.largeurColonne)
-                    Rectangle().fill(Palette.filet).frame(width: 1)
-                    principal.frame(maxWidth: .infinity, maxHeight: .infinity)
+                    CarteBureau { principal.frame(maxWidth: .infinity, maxHeight: .infinity) }
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 }
                 .onAppear { if m.reunionOuverte == nil { m.ouverte = store.reunions.first?.id } }
             }
@@ -547,7 +548,7 @@ struct ColonneReunions: View {
             RangeeColonne(icone: "bubble.left", titre: "Demander à mes réunions", choisie: m.demandeToutes) { m.ouvrirDemandeToutes() }
                 .padding(.top, 8)
             RangeeColonne(icone: controleur.enregistre ? "stop.circle" : "record.circle", titre: controleur.enregistre ? "Arrêter la réunion" : "Noter la réunion",
-                          teinte: controleur.enregistre ? Color(hex: 0xFF6961) : nil, choisie: false) { m.surNoter() }
+                          teinte: controleur.enregistre ? Color(clair: 0xD70015, sombre: 0xFF6961) : nil, choisie: false) { m.surNoter() }
             if let libelle = controleur.libelleEnCours {
                 HStack(spacing: 7) {
                     Circle().fill(Palette.accent).frame(width: 6, height: 6)
@@ -581,9 +582,9 @@ struct ColonneReunions: View {
             Spacer(minLength: 0)
             MentionLocale(taille: 12).padding(.horizontal, 9).frame(height: 36)
         }
-        .padding(.horizontal, 10).padding(.top, 12)
+        .padding(.top, 2)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(Color(hex: 0x171716))
+        
     }
 
     private var groupes: [(titre: String, reunions: [Reunion])] {
@@ -607,7 +608,7 @@ struct ColonneReunions: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 30)
-        .background(RoundedRectangle(cornerRadius: 9).fill(Color.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: 9).fill(Palette.voile(0.06)))
     }
 }
 
@@ -628,7 +629,7 @@ struct RangeeColonne: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 8).frame(height: 32)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(choisie ? 0.08 : (survol ? 0.04 : 0))))
+            .background(RoundedRectangle(cornerRadius: 8).fill(Palette.voile(choisie ? 0.08 : (survol ? 0.04 : 0))))
             .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
@@ -645,13 +646,16 @@ struct LigneColonne: View {
     @State private var survol = false
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(r.titreAffiche).font(Polices.commande(13, .semibold)).foregroundStyle(Palette.texte).lineLimit(1).truncationMode(.tail)
-            Text(sousTitre).font(Polices.commande(11.5)).foregroundStyle(Palette.texte3).lineLimit(1)
+            Text(r.titreAffiche).font(Polices.commande(13.5, .semibold)).foregroundStyle(Palette.texte).lineLimit(1).truncationMode(.tail)
+            Text(sousTitre).font(Polices.commande(12)).foregroundStyle(Palette.texte3).lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 9).padding(.vertical, 7)
-        .background(RoundedRectangle(cornerRadius: 9).fill(Color.white.opacity(choisie ? 0.08 : (survol ? 0.04 : 0))))
-        .contentShape(RoundedRectangle(cornerRadius: 9))
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        .background {
+            // la réunion ouverte : une petite carte, comme sur la maquette ; le survol, un voile léger
+            if choisie { CarteBureau(rayon: 14) { Color.clear } } else { RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Palette.voile(survol ? 0.04 : 0)) }
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 14))
         .onHover { survol = $0 }
         .onTapGesture(perform: ouvrir)
         .accessibilityElement(children: .combine)
@@ -762,7 +766,7 @@ struct NoteReunionVue: View {
     private var gauche: some View {
         VStack(alignment: .leading, spacing: 0) {
             TextField(r.titreAffiche, text: $titre, axis: .vertical)
-                .textFieldStyle(.plain).font(Polices.texte(29)).foregroundStyle(.white).tint(Palette.accent)
+                .textFieldStyle(.plain).font(Polices.texte(29)).foregroundStyle(Palette.texte).tint(Palette.accent)
                 .focused($titreFocus)
                 .onSubmit { m.titre(r.id, devient: titre); titreFocus = false }
                 .onChange(of: titreFocus) { _, f in if !f { m.titre(r.id, devient: titre) } }
@@ -841,7 +845,7 @@ struct NoteReunionVue: View {
                 ForEach(Array(sujets.enumerated()), id: \.offset) { _, s in
                     VStack(alignment: .leading, spacing: 0) {
                         if !s.titre.isEmpty {
-                            Text(s.titre).font(Polices.commande(14.5, .semibold)).foregroundStyle(.white).accessibilityAddTraits(.isHeader)
+                            Text(s.titre).font(Polices.commande(14.5, .semibold)).foregroundStyle(Palette.texte).accessibilityAddTraits(.isHeader)
                         }
                         VStack(alignment: .leading, spacing: 3) {
                             ForEach(Array(s.puces.enumerated()), id: \.offset) { _, p in
@@ -854,7 +858,7 @@ struct NoteReunionVue: View {
                 }
                 if !points.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Point\(points.count > 1 ? "s" : "") marqué\(points.count > 1 ? "s" : "") pendant l\u{2019}appel").font(Polices.commande(14.5, .semibold)).foregroundStyle(.white)
+                        Text("Point\(points.count > 1 ? "s" : "") marqué\(points.count > 1 ? "s" : "") pendant l\u{2019}appel").font(Polices.commande(14.5, .semibold)).foregroundStyle(Palette.texte)
                         ForEach(points, id: \.self) { t in
                             Button { allerAuPoint(t) } label: {
                                 HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -862,7 +866,7 @@ struct NoteReunionVue: View {
                                     Text(FormatReunion.heure(r.debut.addingTimeInterval(t)) + " \u{00B7} " + String(ReunionMarkdown.avant(t, dans: r.segments).dropFirst(2)))
                                         .font(Polices.commande(12.5, .semibold)).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                                 }
-                                .foregroundStyle(Color(hex: 0xFFB340)).contentShape(Rectangle())
+                                .foregroundStyle(Palette.orangeVif).contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
@@ -885,7 +889,7 @@ struct NoteReunionVue: View {
                 Boite(titre: "Décisions") {
                     ForEach(Array(r.decisions.enumerated()), id: \.offset) { i, d in
                         HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Color(hex: 0x8FCF9A)).frame(width: 14, height: 18)
+                            Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Palette.vertDoux).frame(width: 14, height: 18)
                             Text("\(Text(d).foregroundColor(Palette.texte))\(Text(r.echeance(decision: i).map { " \u{00B7} \($0.quand)" } ?? "").foregroundColor(Palette.texte3))")
                                 .font(Polices.commande(13)).lineSpacing(2).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                         }
@@ -914,7 +918,7 @@ struct NoteReunionVue: View {
                     Spacer(minLength: 0)
                     if !e.sansDate {
                         Text(e.texte).font(Polices.commande(11.5, .semibold)).foregroundStyle(Palette.texte2).lineLimit(1)
-                            .padding(.horizontal, 7).padding(.vertical, 1).background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.07)))
+                            .padding(.horizontal, 7).padding(.vertical, 1).background(RoundedRectangle(cornerRadius: 6).fill(Palette.voile(0.07)))
                     }
                 }
                 HStack(alignment: .top, spacing: 8) {
@@ -962,9 +966,9 @@ struct NoteReunionVue: View {
                     HStack(spacing: 7) {
                         Image(systemName: "flag.fill").font(.system(size: 10, weight: .semibold))
                         Text("Point marqué \u{00B7} " + FormatReunion.heure(r.debut.addingTimeInterval(t))).font(Polices.commande(12, .semibold)).fixedSize()
-                        Rectangle().fill(Color(hex: 0xFFB340).opacity(0.3)).frame(height: 1)
+                        Rectangle().fill(Palette.orangeVif.opacity(0.3)).frame(height: 1)
                     }
-                    .foregroundStyle(Color(hex: 0xFFB340))
+                    .foregroundStyle(Palette.orangeVif)
                     .padding(.top, 10).padding(.bottom, 4)
                     .accessibilityElement(children: .combine)
                 case .passage(let i, let heure):
@@ -1031,7 +1035,7 @@ struct LigneTranscriptionVue: View {
             BulleAudio(m: m, r: r, index: index, son: son, couleur: CouleursOrateur.couleur(o, dans: r))
         }
         .padding(.horizontal, 10).padding(.top, 7).padding(.bottom, 9)
-        .background(RoundedRectangle(cornerRadius: 10).fill(actif || repere ? Palette.accent.opacity(0.10) : Color.white.opacity(survol && son ? 0.035 : 0)))
+        .background(RoundedRectangle(cornerRadius: 10).fill(actif || repere ? Palette.accent.opacity(0.10) : Palette.voile(survol && son ? 0.035 : 0)))
         .padding(.horizontal, -10).padding(.top, 4)
         .onHover { survol = $0 }
     }
@@ -1086,7 +1090,7 @@ struct BulleAudio: View {
                     Button { m.changerVitesse() } label: {
                         Text(ExtraitsReunion.libelleVitesse(m.vitesse)).font(Polices.commande(11.5, .semibold).monospacedDigit())
                             .foregroundStyle(Palette.texte).padding(.horizontal, 7).frame(height: 20)
-                            .background(Capsule().fill(Color.white.opacity(0.12)))
+                            .background(Capsule().fill(Palette.voile(0.12)))
                     }
                     .buttonStyle(.plain)
                     .help("Vitesse de lecture")
@@ -1095,7 +1099,7 @@ struct BulleAudio: View {
                 Button { m.telechargerExtrait(r, passage: index) } label: {
                     Image(systemName: m.extraitEnregistre == s.id ? "checkmark" : "arrow.down.to.line")
                         .font(.system(size: 11.5, weight: .semibold))
-                        .foregroundStyle(m.extraitEnregistre == s.id ? Color(hex: 0x8FCF9A) : Palette.texte2)
+                        .foregroundStyle(m.extraitEnregistre == s.id ? Palette.vertDoux : Palette.texte2)
                         .frame(width: 22, height: 22).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -1103,7 +1107,7 @@ struct BulleAudio: View {
                 .accessibilityLabel("Télécharger l\u{2019}extrait")
             } else {
                 ZStack {
-                    Circle().fill(Color.white.opacity(0.08))
+                    Circle().fill(Palette.voile(0.08))
                     Image(systemName: "play.slash.fill").font(.system(size: 9.5, weight: .bold)).foregroundStyle(Palette.texte3)
                 }
                 .frame(width: 26, height: 26)
@@ -1113,7 +1117,7 @@ struct BulleAudio: View {
             }
         }
         .padding(.leading, 4).padding(.trailing, 8).frame(height: 34)
-        .background(Capsule().fill(Color.white.opacity(son ? 0.06 : 0.03)))
+        .background(Capsule().fill(Palette.voile(son ? 0.06 : 0.03)))
         .onDrag { son ? m.fournisseurGlisser(r, passage: index) : NSItemProvider() }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(son ? "Extrait audio, \(ExtraitsReunion.duree(duree))" : "Audio effacé")
@@ -1125,7 +1129,7 @@ struct BulleAudio: View {
 
     private func onde(progression: Double) -> some View {
         let hauteurs = m.ondes[r.segments[index].id] ?? Array(repeating: 0.16, count: ExtraitsReunion.barres)
-        return Canvas { ctx, taille in Self.barres(ctx, taille, hauteurs, joue: progression, couleur: couleur, reste: Color.white.opacity(0.32)) }
+        return Canvas { ctx, taille in Self.barres(ctx, taille, hauteurs, joue: progression, couleur: couleur, reste: Palette.voile(0.32)) }
     }
 
     /// Les barres de l'onde : la part jouée dans la couleur de l'orateur.
@@ -1166,7 +1170,7 @@ struct ChampDemander<Lien: View>: View {
                 }, focusAuMontage: false, surFocus: { f in actif = f })
                 Button(action: surEnvoyer) {
                     ZStack {
-                        Circle().fill(texte.isEmpty ? Color.white.opacity(0.1) : Palette.texte)
+                        Circle().fill(texte.isEmpty ? Palette.voile(0.1) : Palette.texte)
                         Image(systemName: "arrow.up").font(.system(size: 13, weight: .bold)).foregroundStyle(texte.isEmpty ? Palette.texte3 : Palette.surface)
                     }
                     .frame(width: 32, height: 32)
@@ -1177,11 +1181,11 @@ struct ChampDemander<Lien: View>: View {
             .padding(.leading, 15).padding(.trailing, 6)
             .frame(height: 44)
             .background(Capsule().fill(Palette.selection))
-            .overlay(Capsule().strokeBorder(actif ? Palette.accent.opacity(0.6) : Color.white.opacity(0.1), lineWidth: actif ? 1.5 : 0.5))
-            .shadow(color: .black.opacity(0.55), radius: 17, y: 12)
+            .overlay(Capsule().strokeBorder(actif ? Palette.accent.opacity(0.6) : Palette.voile(0.1), lineWidth: actif ? 1.5 : 0.5))
+            .shadow(color: Palette.ombre, radius: 17, y: 12)
         }
         .padding(.horizontal, marge).padding(.top, 30).padding(.bottom, 14)
-        .background(LinearGradient(stops: [.init(color: Palette.surface.opacity(0), location: 0), .init(color: Palette.surface, location: 0.32)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
+        .background(LinearGradient(stops: [.init(color: TonsBureau.carte.opacity(0), location: 0), .init(color: TonsBureau.carte, location: 0.32)], startPoint: .top, endPoint: .bottom).allowsHitTesting(false))
     }
 
     private func carte(_ e: EtatReponse) -> some View {
@@ -1202,8 +1206,8 @@ struct ChampDemander<Lien: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 15).padding(.vertical, 12)
         .background(RoundedRectangle(cornerRadius: 16).fill(Palette.relief))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.5), radius: 15, y: 10)
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Palette.voile(0.08), lineWidth: 0.5))
+        .shadow(color: Palette.ombre, radius: 15, y: 10)
     }
 }
 
@@ -1227,7 +1231,7 @@ struct DemandeToutesVue: View {
             .padding(.horizontal, 16).frame(height: 44)
             ZStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Demander à mes réunions").font(Polices.texte(29)).foregroundStyle(.white)
+                    Text("Demander à mes réunions").font(Polices.texte(29)).foregroundStyle(Palette.texte)
                     Text("Une question sur toutes tes notes : qui a promis quoi, une date, un chiffre. Seules les notes partent au service de Groq, pas le son.")
                         .font(Polices.commande(13)).foregroundStyle(Palette.texte3).fixedSize(horizontal: false, vertical: true)
                 }
@@ -1288,7 +1292,7 @@ struct Boite<Contenu: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14).padding(.top, 13).padding(.bottom, 12)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color(hex: 0x242422)))
+        .background(RoundedRectangle(cornerRadius: 14).fill(Palette.selection))
     }
 }
 
@@ -1306,9 +1310,9 @@ struct BoutonNote: View {
                 if let icone { Image(systemName: icone).font(.system(size: 11.5, weight: .semibold)) }
                 Text(titre).font(Polices.commande(12.5, .semibold)).lineLimit(1)
             }
-            .foregroundStyle(fait ? Color(hex: 0x8FCF9A) : (discret && !survol ? Palette.texte3 : Palette.texte))
+            .foregroundStyle(fait ? Palette.vertDoux : (discret && !survol ? Palette.texte3 : Palette.texte))
             .padding(.leading, icone == nil ? 12 : 10).padding(.trailing, 12).frame(height: 28)
-            .background(Capsule().fill(Color.white.opacity(discret ? (survol ? 0.07 : 0) : (survol ? 0.12 : 0.07))))
+            .background(Capsule().fill(Palette.voile(discret ? (survol ? 0.07 : 0) : (survol ? 0.12 : 0.07))))
             .contentShape(Capsule())
             .fixedSize()
         }
