@@ -295,12 +295,13 @@ public struct SuiviGlisser: Equatable, Sendable {
     public func nouveau(compte: Int) -> Bool { compteAuClic.map { $0 != compte } ?? false }
 }
 
-/// L'annonce de l'îlot quand des captures arrivent sur l'étagère (« Capture d’écran · Sur l’étagère », 2,5 s, sans son). Plusieurs en
+/// L'annonce de l'îlot quand des captures arrivent sur l'étagère (« Capture d’écran · Sur l’étagère », 4 s, sans son). Plusieurs en
 /// moins de `fenetre` secondes : une seule annonce, « 3 captures ». Une capture déjà annoncée (même nom : sa copie qui remplace la
 /// glissée après un glisser annulé) ne s'annonce pas deux fois.
 public struct RafaleCaptures: Equatable, Sendable {
     public static let fenetre: TimeInterval = 2
-    public static let duree: TimeInterval = 2.5
+    /// 4 s (2,5 s ne laissaient pas le temps de la reprendre) ; la souris dessus, elle reste.
+    public static let duree: TimeInterval = 4
     public static let sousTitre = "Sur l\u{2019}étagère"
     /// Les noms déjà annoncés gardés en mémoire (les plus récents).
     static let memoire = 50

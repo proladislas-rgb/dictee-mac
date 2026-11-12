@@ -21,6 +21,11 @@ enum IlotEssai {
         let dossier = FileManager.default.temporaryDirectory.appendingPathComponent("verbe-ilot-essai-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
         try? FileManager.default.createDirectory(at: dossier, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dossier) }
+        // le journal de l'essai (dossiers refusés, introuvables…) va dans le dossier temporaire, jamais dans ~/Library/Logs/Dictee
+        Log.url = dossier.appendingPathComponent("dictee-essai.log")
+        Log.ecrire("essai : journal temporaire"); Log.vider()
+        verifier(!Log.url.path.contains("/Library/Logs/") && ((try? String(contentsOf: Log.url, encoding: .utf8)) ?? "").contains("essai : journal temporaire"),
+                 "le journal de l'essai va dans un fichier temporaire, jamais dans le vrai journal")
         let fichier = dossier.appendingPathComponent("rappels.json")
 
         var decalage = 0.0

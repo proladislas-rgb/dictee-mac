@@ -346,6 +346,7 @@ extension IlotControleur {
         guard moteur.capturesActives, rafaleCaptures.ajouter(noms, a: t), moteur.courante != .etagere else { return }
         if moteur.alerte != nil { return }
         if let b = moteur.bandeau, b.vue != .etagereCapture, b.jusqua > t { return }
+        moteur.miniatureSurvolee = false
         moteur.annoncer(bandeau: BandeauIlot(vue: .etagereCapture, jusqua: t.addingTimeInterval(RafaleCaptures.duree), ligne1: rafaleCaptures.titre,
                                              ligne2: RafaleCaptures.sousTitre, vignette: Self.vignetteCapture(url), capture: url))
     }

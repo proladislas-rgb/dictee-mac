@@ -302,7 +302,7 @@ extension IlotEssai {
         let ba = m.bandeau
         verifier(m.courante == .etagereCapture && ba?.ligne1 == "Capture d\u{2019}écran" && ba?.ligne2 == "Sur l\u{2019}étagère" && ba?.vignette != nil && ba?.sonore == false,
                  "une capture arrive : l'îlot l'annonce, sa miniature, « Capture d’écran », « Sur l’étagère », sans son (\(m.courante.rawValue), \(ba?.ligne1 ?? "rien"))")
-        verifier((ba?.jusqua.timeIntervalSince(c.maintenant()) ?? 0) <= 2.5, "annonce courte : 2,5 s au plus")
+        verifier((ba?.jusqua.timeIntervalSince(c.maintenant()) ?? 0) <= 4, "annonce : 4 s au plus (le temps de la reprendre)")
         verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && m.trace.hauteur > Double(g.hauteur) + 40,
                  "l'annonce : sous la barre, rien de plus de 66 pt dans la barre des menus (\(String(format: "%.1f", m.trace.bande - Double(m.demiCamera))) pt)")
         let zoneCapture = m.grille.zoneAnnonce(.etagereCapture)
@@ -320,7 +320,7 @@ extension IlotEssai {
         attendre(4) { m.bandeau?.ligne1 != "3 captures" }
         verifier(m.courante == .etagereCapture && m.bandeau?.ligne1 == "3 captures" && m.bandeau?.ligne2 == "Sur l\u{2019}étagère",
                  "une rafale de trois : une seule annonce, « 3 captures · Sur l’étagère » (\(m.bandeau?.ligne1 ?? "rien"))")
-        attendre(3.5) { m.bandeau != nil }
+        attendre(5) { m.bandeau != nil }
         verifier(m.bandeau == nil, "puis elle se retire d'elle-même")
         m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
 
@@ -348,16 +348,39 @@ extension IlotEssai {
         attendre(3) { m.bandeau?.vue != .etagereCapture }
         let delaiB = Date().timeIntervalSince(t0B)
         verifier(m.courante == .etagereCapture && delaiB < 1.2, "la capture enregistrée : annoncée en \(String(format: "%.2f", delaiB)) s (0,3 s de stabilité au lieu de 1 s)")
-        verifier(m.contenuAnnonce(.etagereCapture)?.glisser?.lastPathComponent == nomB && m.bandeau?.capture?.lastPathComponent == nomB,
-                 "la miniature de l'annonce se glisse vers une app : c'est le fichier de la capture (même mécanique que « Téléchargé »)")
+        verifier(m.contenuAnnonce(.etagereCapture)?.source?.nom == nomB && m.contenuAnnonce(.etagereCapture)?.glisser == nil,
+                 "la miniature reprend la capture de l'étagère, par la source AppKit des tuiles (plus par onDrag de SwiftUI)")
+        // la miniature, trouvée par le vrai test de position d'AppKit : c'est la vue de glisser, rien ne la couvre
+        pause(0.8)   // l'annonce posée (elle arrive en glissant)
+        let za2 = m.grille.zoneAnnonce(.etagereCapture)
+        let mini = CGPoint(x: za2.minX + ContenuAnnonce.coteIcone / 2, y: za2.midY)
+        verifier(c.panneau.sourceFichiers(en: mini) != nil, "sous la miniature : la vue AppKit de glisser (test de position d'AppKit)")
+        c.panneau.survolerSourceFichiers(en: mini); pause(0.3)
+        verifier(m.miniatureSurvolee, "survolée : la miniature grossit (on voit qu'elle s'attrape)")
+        // un VRAI glisser AppKit : appui, mouvements, relâchement remis à la fenêtre ; mouseDown → mouseDragged → beginDraggingSession
+        // (intercepté au seuil du système : la vraie souris ne bouge pas)
         var tenu = true
         m.boutonEnfonce = { tenu }
-        m.glisserSortantCommence(); pause(3.2)
-        verifier(m.bandeau?.vue == .etagereCapture && m.glisserSortant, "glissée vers le Terminal : l'annonce reste tant que le bouton est tenu (elle est la source du glisser)")
-        tenu = false; pause(0.5)
+        let nGl = EssaiEtagere.glisses.count
+        glisserDepuis(mini)
+        verifier(EssaiEtagere.glisses.count == nGl + 1 && EssaiEtagere.glisses.last?.map(\.lastPathComponent) == [nomB] && m.glisserSortant,
+                 "vrai glisser depuis la miniature : la session de glisser part, avec le fichier de la capture (\(EssaiEtagere.glisses.last?.map(\.lastPathComponent) ?? []))")
+        pause(4.5)
+        verifier(m.bandeau?.vue == .etagereCapture, "pendant le glisser (4,5 s) : l'annonce reste, elle est la source du glisser")
+        tenu = false
+        EssaiEtagere.finGlisser?(.link, NSPoint(x: 600, y: 300)); pause(0.5)
         m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 }
-        attendre(2) { m.bandeau != nil }
-        verifier(m.bandeau == nil && c.etagere.elements.contains { $0.nom == nomB }, "relâchée : l'annonce se retire, la capture reste sur l'étagère")
+        verifier(!m.glisserSortant && c.etagere.elements.contains { $0.nom == nomB }, "lâchée dans le Terminal (un lien, le chemin collé) : la capture reste sur l'étagère")
+        attendre(5) { m.bandeau != nil }
+        verifier(m.bandeau == nil, "puis l'annonce se retire")
+        // une autre capture : un simple clic sur sa miniature ouvre l'étagère (le clic passe par la vue AppKit, pas par le geste)
+        let cacheC = captures.appendingPathComponent(".capture-en-cours")
+        try? Data("essai".utf8).write(to: cacheC)
+        try? FileManager.default.moveItem(at: cacheC, to: captures.appendingPathComponent("Capture d\u{2019}écran 2026-11-12 à 00.41.00.png"))
+        attendre(3) { m.bandeau?.vue != .etagereCapture }; pause(0.8)
+        clic(mini, 0.9)
+        verifier(m.courante == .etagere && m.bandeau == nil, "clic simple sur la miniature : l'étagère s'ouvre (\(m.courante.rawValue))")
+        m.fermer(); pause(0.8)
         // éteint : la valeur d'avant revient, exactement (« absente » : la clé retirée)
         m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
         clic(interrupteurVignette, 0.8)

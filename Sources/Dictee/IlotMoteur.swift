@@ -285,6 +285,8 @@ final class IlotMoteur: ObservableObject {
     /// on vient de l'allumer, la ligne dit ce qui change (jusqu'à la fermeture de la carte).
     var vignetteEnHaut = false { didSet { if vignetteEnHaut != oldValue { rev += 1 } } }
     var vignetteExpliquee = false { didSet { if vignetteExpliquee != oldValue { rev += 1 } } }
+    /// Le pointeur est sur la miniature de l'annonce d'une capture : elle grossit un peu (on peut l'attraper).
+    var miniatureSurvolee = false { didSet { if miniatureSurvolee != oldValue { rev += 1 } } }
     /// La carte Étagère vient de se fermer après avoir été vue : les fichiers « Nouveau » ne le sont plus.
     var surEtagereVue: () -> Void = {}
     /// La batterie du Mac (nil : Mac sans batterie, ou réglage éteint) et les écouteurs connectés : les épaules de l'îlot déplié.
