@@ -135,6 +135,38 @@ enum RenduLucarne {
                 enregistrer(vue, "lucarne-dictee-\(n)-\(fond.rawValue)")
             }
         }
+        // la vidéo mise en pause par la dictée reste dans la pilule (sa miniature et le signe pause), au début (sans texte) et avec le texte
+        let video = LectureModele()
+        video.morceau = MorceauEnCours(titre: "Finale · les meilleurs moments", app: "com.google.Chrome", joue: false, duree: 754, position: 202)
+        video.image = NSImage(size: NSSize(width: 160, height: 90), flipped: false) { r in
+            NSGradient(starting: NSColor(calibratedRed: 0.95, green: 0.55, blue: 0.2, alpha: 1), ending: NSColor(calibratedRed: 0.35, green: 0.2, blue: 0.6, alpha: 1))?.draw(in: r, angle: -30)
+            return true
+        }
+        video.imageMini = video.image
+        for (ruban, suffixe) in [(false, "debut"), (true, "texte")] {
+            let p = PlaceLucarne.hautDroite
+            let d = EncocheModele()
+            d.ouverte = true; d.ruban = ruban
+            d.texte = ruban ? "Je te rappelle demain pour confirmer le devis" : ""
+            d.niveaux = [0.3, 0.7, 1, 0.6, 0.35]
+            d.icone = NSWorkspace.shared.icon(forFile: "/System/Applications/Utilities/Terminal.app")
+            d.bulleLecture = video
+            let pl = PlacementDictee(ecran: ecran, place: p, centre: CGFloat(ecran.centreX), haut: taille.height)
+            let k = GeoLucarne.dictee(p, ecran, ruban: ruban, mainsLibres: false)
+            let f = pl.cadreFenetre, r = cadrage(p)
+            let vue = ZStack(alignment: .topLeading) {
+                FauxEcran(fond: .video)
+                FauxVerre(forme: k.decale(dx: ecran.centreX), fond: .video)
+                DicteeVerreVue(m: d, placement: pl, statique: true)
+                    .frame(width: f.width, height: f.height)
+                    .offset(x: f.minX, y: taille.height - f.maxY)
+            }
+            .frame(width: taille.width, height: taille.height, alignment: .topLeading)
+            .offset(x: -r.minX, y: -r.minY)
+            .frame(width: r.width, height: r.height, alignment: .topLeading)
+            .clipped()
+            enregistrer(vue, "lucarne-dictee-haut-droite-video-pause-\(suffixe)")
+        }
         return ok ? 0 : 1
     }
 }

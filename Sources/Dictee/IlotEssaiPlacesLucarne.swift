@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import DicteeCore
 
@@ -920,5 +921,45 @@ extension IlotEssai {
         } else { verifier(false, "la Lucarne dans l'encoche : la fenêtre de dictée est là") }
         d.fermer(); dicter(false); pause(1.0)
         verifier(!m.lucarne.libre && c.panneau.estVisible && !m.boucleActive, "fin de la dictée : la Lucarne dans l'encoche, plus rien ne tourne")
+    }
+}
+
+extension IlotEssai {
+    /// La dictée à la place de la Lucarne, câblée comme dans l'app (AppDelegate.configurerLecture) : l'occupation lit la vraie fenêtre de
+    /// la dictée, son `ouverte` relit les masques, une vidéo joue. Pendant fn tenue, la pilule de la dictée reste à l'écran.
+    @MainActor
+    static func dicteeLucarneCablee(_ c: IlotControleur, verifier: (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void) {
+        func pause(_ s: Double) { attendre(s) { true } }
+        let m = c.moteur
+        print("— la dictée à la place de la Lucarne, câblée comme dans l'app, avec une vidéo")
+        let d = EnclochePanneau()
+        d.invisible = true
+        d.placementLibre = { [weak c] in c?.panneau.placementDictee() }
+        c.occupation = { OccupationEncoche(dictee: d.modele.ouverte) }
+        var jetons = Set<AnyCancellable>()
+        d.modele.$ouverte.dropFirst().sink { [weak c] _ in c?.occupationChangee() }.store(in: &jetons)
+        d.modele.$ruban.dropFirst().sink { [weak c] _ in c?.occupationChangee() }.store(in: &jetons)
+        let morceauAvant = c.lecture.modele.morceau
+        defer {
+            d.fermer(); c.occupation = { OccupationEncoche() }
+            c.lecture.modele.morceau = morceauAvant; c.lecture.surIlot(morceauAvant != nil); c.occupationChangee()
+        }
+        c.lecture.modele.morceau = MorceauEnCours(titre: "Vidéo · Titre", app: "essai.lecture", joue: true, duree: 214, position: 97)
+        c.lecture.surIlot(true)
+        for p in [PlaceLucarne.hautDroite, .hautGauche, .basGauche, .basDroite] {
+            CatalogueLucarne.vider(m)
+            EssaiPlaces.memoire.poser(p, sur: EssaiPlaces.ecran)
+            c.panneau.recaler(); m.poser(); pause(0.4)
+            var trace: [String] = []
+            c.dicteeChange(enCours: true)
+            pause(0.12); d.ouvrir(app: nil, mainsLibres: false)
+            for i in 0..<10 {
+                pause(0.15)
+                if i == 3 { d.mettreAJourTexte("Je te rappelle demain pour le devis") }
+                if d.cadre == nil || !d.modele.ouverte { trace.append("t\(i): fenêtre \(d.cadre == nil ? "absente" : "là"), ouverte \(d.modele.ouverte)") }
+            }
+            verifier(trace.isEmpty && d.horsEncoche, "\(p.rawValue), vidéo en cours : la pilule de la dictée reste affichée pendant fn\(trace.isEmpty ? "" : " — " + trace.joined(separator: " ; "))")
+            d.figer(); d.fermer(); c.dicteeChange(enCours: false); pause(1.0)
+        }
     }
 }

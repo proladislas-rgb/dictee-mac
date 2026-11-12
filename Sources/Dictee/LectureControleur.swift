@@ -286,6 +286,8 @@ final class LectureControleur {
         // Pendant la dictée, la mini-miniature n'existe que si c'est Verbe qui a mis la lecture en pause (c'est le geste pour la reprendre),
         // qu'elle est bien en pause, et que le ruban de texte de la dictée est sorti (c'est dedans qu'elle se loge).
         if voulu == .miniature, !(pause.pauseParNous && !modele.joue && rubanDictee()) { voulu = .aucun }
+        // la pilule de verre (hors de l'encoche) garde la vidéo mise en pause par la dictée, avec le signe pause : elle ne part pas
+        bulleDictee(PrioriteLecture.bulleDansLaPilule(dictee: o.dictee, pauseParNous: pause.pauseParNous, joue: modele.joue, morceau: modele.morceau != nil) ? modele : nil)
         defer { surRecalcul() }
         guard voulu != affichage else { return }
         let avant = affichage
@@ -304,6 +306,8 @@ final class LectureControleur {
     /// Rempli par l'AppDelegate : le ruban de texte de la dictée est-il sorti ? et réserve à droite du texte du ruban (la mini-miniature s'y loge).
     var rubanDictee: () -> Bool = { false }
     var reserveRuban: (CGFloat) -> Void = { _ in }
+    /// Rempli par l'AppDelegate : la lecture à montrer dans la pilule de verre de la dictée (nil : aucune).
+    var bulleDictee: (LectureModele?) -> Void = { _ in }
 
     /// Clic sur la mini-miniature : la lecture reprend tout de suite (la dictée continue). `PauseDictee` voit alors une lecture relancée par
     /// Hugues : elle ne fera rien de plus à la fin de la dictée.
@@ -336,7 +340,7 @@ final class LectureControleur {
                 Log.ecrire("lecture : reprise après la dictée")
             case .rien, .pause: break
             }
-            if etaitConfirmee { recalculer() }
+            if etaitConfirmee { recalculer() } else { bulleDictee(nil) }
         }
     }
 

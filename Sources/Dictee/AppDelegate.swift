@@ -393,6 +393,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // l'encoche de la dictée : celle de l'écran de la Lucarne (elle peut être dans l'encoche d'un écran qui n'est pas le principal)
         dictee.panneau.ecranEncoche = { [weak self] in self?.ilot.panneau.ecran?.ecran ?? NSScreen.screens.first }
         lecture.reserveRuban = { [weak self] r in self?.dictee.panneau.modele.reserveRuban = r }
+        lecture.bulleDictee = { [weak self] l in if self?.dictee.panneau.modele.bulleLecture !== l { self?.dictee.panneau.modele.bulleLecture = l } }
         dictee.panneau.modele.$ruban.dropFirst().sink { [weak self] _ in self?.ilot.occupationChangee() }.store(in: &abonnements)
         dictee.surChangementEtat = { [weak self] enCours in self?.ilot.dicteeChange(enCours: enCours) }
         dictee.peutCommencer = { [weak self] in self?.ilot.autoriserDictee() ?? true }

@@ -1858,6 +1858,13 @@ do {
 groupe("Lecture en cours : priorités sur l'encoche")
 do {
     func aff(_ o: OccupationEncoche, morceau: Bool = true, reglage: Bool = true) -> AffichageLecture { PrioriteLecture.affichage(occupation: o, morceau: morceau, reglageAffichage: reglage) }
+    // la pilule de verre de la dictée (hors de l'encoche) garde la vidéo que la dictée a mise en pause (Hugues 12/11 : « l'îlot ne
+    // disparaît jamais ») ; pas une lecture qui joue, ni une lecture que la dictée n'a pas mise en pause, ni hors dictée
+    verifier(PrioriteLecture.bulleDansLaPilule(dictee: true, pauseParNous: true, joue: false, morceau: true), "dictée, vidéo mise en pause par la dictée : dans la pilule, signe pause")
+    verifier(!PrioriteLecture.bulleDansLaPilule(dictee: true, pauseParNous: false, joue: false, morceau: true), "dictée, vidéo déjà en pause avant : pas dans la pilule")
+    verifier(!PrioriteLecture.bulleDansLaPilule(dictee: true, pauseParNous: true, joue: true, morceau: true), "dictée, lecture relancée (clic) : plus dans la pilule")
+    verifier(!PrioriteLecture.bulleDansLaPilule(dictee: false, pauseParNous: true, joue: false, morceau: true), "dictée finie : plus de pilule")
+    verifier(!PrioriteLecture.bulleDansLaPilule(dictee: true, pauseParNous: true, joue: false, morceau: false), "plus de morceau : rien")
     verifier(aff(OccupationEncoche()) == .ilot, "rien d'autre : l'îlot s'affiche")
     verifier(aff(OccupationEncoche(), morceau: false) == .aucun, "rien ne joue : rien")
     verifier(aff(OccupationEncoche(), reglage: false) == .aucun && aff(OccupationEncoche(dictee: true), reglage: false) == .aucun, "réglage coupé : rien, même pendant une dictée")
