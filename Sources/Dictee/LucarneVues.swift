@@ -1,9 +1,10 @@
 import SwiftUI
 import DicteeCore
 
-// La Lucarne hors de l'encoche (docs/plan-lucarne-deplacable.md, mission 3 « verre et contenu hors encoche ») : une forme de verre givré
-// (SwiftUI `.glassEffect(.regular)`, une seule couche, sans `.interactive()` ni reflet qui suit le pointeur : rien ne tourne au repos), un
-// voile noir qui garde le contenu lisible sur une page blanche (`VerreLucarne`), un liseré fin et une ombre douce autour. Repliée, une pilule (couchée, ou
+// La Lucarne hors de l'encoche (docs/plan-lucarne-deplacable.md, mission 3 « verre et contenu hors encoche ») : du verre « Liquide »
+// (SwiftUI `.glassEffect(.clear)`, la variante claire d'iOS 26 : ce qui est derrière transparaît, déformé au bord ; sans `.interactive()` ni
+// reflet qui suit le pointeur : rien ne tourne au repos), un voile léger, un halo sombre et doux sous le contenu qui le garde lisible sur une
+// page blanche (`VerreLucarne`), un liseré fin et une ombre douce autour. Repliée, une pilule (couchée, ou
 // debout au milieu des bords) avec le contenu compact de l'activité ; dépliée, les écrans de l'encoche eux-mêmes (`IlotCalques`), mis en
 // page pour la forme d'arrivée et rognés à elle (les épaules, dans la barre des menus, n'ont pas de place ici : elles restent dehors).
 // Dans l'encoche, ou tenue tout près d'elle, la forme redevient noire (fondu noir ↔ verre).
@@ -92,7 +93,10 @@ struct ContenuCompactLucarne: View {
     var genre: GenreCompact
     var debout = false
     var ouverture: CGFloat = 0
+    /// Sur le verre (hors de l'encoche) : le texte un peu plus gras, le rouge plus clair (`VerreLucarne.rougeVerre`).
+    var surVerre = false
     static let hauteurLogo: CGFloat = 13
+    private var rouge: Color { surVerre ? Color(.sRGB, red: VerreLucarne.rougeVerre.r, green: VerreLucarne.rougeVerre.g, blue: VerreLucarne.rougeVerre.b) : CouleursIlot.rouge }
 
     var body: some View {
         switch genre {
@@ -107,7 +111,7 @@ struct ContenuCompactLucarne: View {
             .accessibilityLabel(g == .volume ? (n.muet ? "Son coupé" : "Volume, \(n.pourcent) %") : "Luminosité, \(n.pourcent) %")
         case .energie(let charge):
             let e = m.energie ?? m.bandeauVu?.energie ?? EnergieIlot(pourcent: 0, secteur: false, enCharge: false)
-            let c = charge ? CouleursIlot.vert : CouleursIlot.rouge
+            let c = charge ? CouleursIlot.vert : rouge
             pile(6) {
                 if charge { Image(systemName: "bolt.fill").font(.system(size: 14, weight: .semibold)).foregroundStyle(c) }
                 else { PileIlot(pourcent: e.pourcent, secteur: false, chiffres: false, echelle: 1.15) }
@@ -163,7 +167,7 @@ struct ContenuCompactLucarne: View {
             }
         case .rendezVous:
             pile(6) {
-                GlypheIlot(nom: GlypheIlot.calendrier, couleur: CouleursIlot.rouge, taille: 12)
+                GlypheIlot(nom: GlypheIlot.calendrier, couleur: rouge, taille: 12)
                 texte((m.rendezVous ?? m.dernierRendezVous).map { PlanAgenda.court($0.debut.timeIntervalSince(m.maintenant())) } ?? "", .white, chiffres: true)
             }
         case .rappel:
@@ -180,8 +184,8 @@ struct ContenuCompactLucarne: View {
             }
         case .micro:
             pile(6) {
-                GlypheIlot(nom: "mic.slash.fill", couleur: CouleursIlot.rouge, taille: 12)
-                texte("Coupé", CouleursIlot.rouge)
+                GlypheIlot(nom: "mic.slash.fill", couleur: rouge, taille: 12)
+                texte("Coupé", rouge)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Micro coupé")
@@ -225,7 +229,8 @@ struct ContenuCompactLucarne: View {
         Image(systemName: nom).font(.system(size: 14, weight: .semibold)).foregroundStyle(c)
     }
     private func texte(_ s: String, _ c: Color, chiffres: Bool = false) -> some View {
-        Text(s).font(chiffres ? .system(size: 12.5, weight: .semibold).monospacedDigit() : .system(size: 12.5, weight: .semibold))
+        let poids: Font.Weight = surVerre ? .bold : .semibold
+        return Text(s).font(chiffres ? .system(size: 12.5, weight: poids).monospacedDigit() : .system(size: 12.5, weight: poids))
             .foregroundStyle(c).lineLimit(1).fixedSize()
     }
 }
@@ -273,13 +278,15 @@ struct LucarneLibreVue: View {
             let c = m.capsuleVue
             ForEach(VueIlot.allCases, id: \.self) { v in
                 if !m.lucarneAilesEncoche, let g = GenreCompact.de(v), m.visible(v) {
-                    ContenuCompactLucarne(m: m, genre: g, debout: m.lucarneDebout)
+                    ContenuCompactLucarne(m: m, genre: g, debout: m.lucarneDebout, surVerre: true)
                         .aspectIlot(m.aspect(v, rang: 0), ancre: .center)
                         .position(x: t.width / 2 + CGFloat(c.centreX), y: CGFloat(c.centreY))
                 }
             }
         }
         .frame(width: t.width, height: t.height, alignment: .topLeading)
+        // le halo : il détache le contenu du verre clair (page blanche derrière) ; rien sur le noir de l'encoche
+        .modifier(HaloLucarne(force: 1 - m.lucarne.capsule.fonduNoir))
         .clipShape(forme)
         .contentShape(forme)
         .gesture(DragGesture(minimumDistance: 0).onChanged { _ in m.appuiSurForme() })
@@ -290,7 +297,8 @@ struct LucarneLibreVue: View {
     /// La bulle de la deuxième activité : une goutte de verre qui sort de la pilule, du côté de l'intérieur de l'écran.
     private func bulle(_ a: ActiviteIlot, _ b: CapsuleLucarne, taille t: CGSize) -> some View {
         let w = CGFloat(b.largeur), h = CGFloat(b.hauteur)
-        return ContenuCompactLucarne(m: m, genre: .activite(a), debout: m.lucarneDebout)
+        return ContenuCompactLucarne(m: m, genre: .activite(a), debout: m.lucarneDebout, surVerre: true)
+            .modifier(HaloLucarne(force: 1))
             .opacity(m.aspectPastille.opacite)
             .frame(width: w, height: h)
             .clipShape(Capsule())
@@ -303,7 +311,7 @@ struct LucarneLibreVue: View {
     }
 }
 
-/// Le verre : un verre givré dans la forme (et la goutte de la bulle, dans le même conteneur : elles se fondent l'une dans l'autre
+/// Le verre : un verre clair dans la forme (et la goutte de la bulle, dans le même conteneur : elles se fondent l'une dans l'autre
 /// tant qu'elles se touchent presque, à la sortie), le voile noir (lisibilité, fondu noir ↔ verre) et le liseré (le verre se voit sur une
 /// fenêtre blanche). Dans les rendus PNG (ImageRenderer ne dessine pas le verre), un faux verre : un blanc léger sous le même voile et le
 /// même liseré (le rendu floute lui-même le faux écran sous la forme).
@@ -315,29 +323,32 @@ struct VerreLucarneVue: View {
 
     var body: some View {
         let noir = m.lucarne.capsule.fonduNoir
-        let voile = VerreLucarne.voile
+        let voile = VerreLucarne.voile(deplie: m.lucarneDeplie)
         let bulle = m.bulleLibreVue
         ZStack(alignment: .topLeading) {
             if noir < 0.999 {
                 if m.statique {
-                    forme.fill(Color.white.opacity(0.16))
-                    if let b = bulle { Capsule().fill(Color.white.opacity(0.16)).frame(width: b.largeur, height: b.hauteur).position(point(b)) }
+                    forme.fill(Color.white.opacity(0.05))
+                    if let b = bulle { Capsule().fill(Color.white.opacity(0.05)).frame(width: b.largeur, height: b.hauteur).position(point(b)) }
                 } else {
                     // l'écart de fusion sous celui de la bulle posée (8 pt) : posées, les deux gouttes sont séparées
                     GlassEffectContainer(spacing: 6) {
                         ZStack(alignment: .topLeading) {
                             verre(capsule, forme: forme)
-                            if let b = bulle { Color.clear.frame(width: b.largeur, height: b.hauteur).glassEffect(.regular, in: Capsule()).position(point(b)) }
+                            if let b = bulle { Color.clear.frame(width: b.largeur, height: b.hauteur).glassEffect(.clear, in: Capsule()).position(point(b)) }
                         }
                         .frame(width: taille.width, height: taille.height, alignment: .topLeading)
                     }
                 }
             }
             forme.fill(Color.black.opacity(voile + (1 - voile) * noir))
-            if let b = bulle { Capsule().fill(Color.black.opacity(voile)).frame(width: b.largeur, height: b.hauteur).position(point(b)) }
+            if let b = bulle { Capsule().fill(Color.black.opacity(VerreLucarne.voilePilule)).frame(width: b.largeur, height: b.hauteur).position(point(b)) }
             // le liseré : un trait clair à l'intérieur, un trait sombre très fin au bord (lisible sur blanc comme sur noir)
             Group {
-                forme.stroke(Color.white.opacity(0.28), lineWidth: 1.2)
+                // la lisière : un trait vif en haut à gauche qui s'éteint vers le bas à droite (le biseau du verre de la maquette)
+                forme.stroke(LinearGradient(colors: [Color.white.opacity(0.75), Color.white.opacity(0.12), Color.white.opacity(0.35)],
+                                            startPoint: UnitPoint(x: (taille.width / 2 + capsule.x0) / taille.width, y: capsule.y0 / taille.height),
+                                            endPoint: UnitPoint(x: (taille.width / 2 + capsule.x1) / taille.width, y: capsule.y1 / taille.height)), lineWidth: 1.4)
                 forme.stroke(Color.black.opacity(0.22), lineWidth: 0.5)
                 if let b = bulle {
                     Capsule().stroke(Color.white.opacity(0.28), lineWidth: 1.2).frame(width: b.largeur, height: b.hauteur).position(point(b))
@@ -360,7 +371,7 @@ struct VerreLucarneVue: View {
         let locale = CapsuleLucarne(x0: -c.largeur / 2, x1: c.largeur / 2, y0: marge, y1: marge + c.hauteur, s: c.s, r: c.r)
         return Color.clear
             .frame(width: l, height: h)
-            .glassEffect(.regular, in: FormeNoire(points: TraceLucarne.calculer(locale)))
+            .glassEffect(.clear, in: FormeNoire(points: TraceLucarne.calculer(locale)))
             .position(x: taille.width / 2 + CGFloat(c.centreX), y: CGFloat(c.y0 - marge + h / 2))
     }
 }
@@ -421,5 +432,18 @@ struct AnneauAppuiLucarne: View {
             .position(a.centre)
             .allowsHitTesting(false)
         }
+    }
+}
+
+/// Le halo sous le contenu sur le verre clair (comme iOS 26) : une ombre sombre serrée qui détache chaque lettre et chaque symbole d'une page
+/// blanche, adoucie d'une ombre large. `force` : 0 sur le noir de l'encoche, 1 sur le verre.
+struct HaloLucarne: ViewModifier {
+    var force: Double
+    func body(content: Content) -> some View {
+        let h = VerreLucarne.halo
+        content
+            .compositingGroup()
+            .shadow(color: .black.opacity(h.pres * force), radius: h.rayonPres)
+            .shadow(color: .black.opacity(h.large * force), radius: h.rayonLarge)
     }
 }

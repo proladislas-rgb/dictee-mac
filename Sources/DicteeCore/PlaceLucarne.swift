@@ -321,24 +321,35 @@ extension GeoLucarne {
     }
 }
 
-/// Le verre hors de l'encoche (niveau « Liquide » de la maquette lucarne-position.html) : un verre givré (le fond flouté sous le contenu :
-/// les lettres d'une page derrière ne se mêlent plus au texte) et un voile noir. Le contenu de l'îlot est fait pour le noir
-/// (texte blanc, rouge, ambre, bleu) ; sans lecture du fond (il faudrait l'enregistrement de l'écran), le voile est réglé sur le pire
-/// fond, une page blanche, par le calcul du contraste (WCAG) : blanc ≥ 12, gris à 60 % ≥ 5, rouge et bleu système ≥ 3,4. Le verre se voit
-/// à son bord (liseré, lentille, ombre) ; sur un fond sombre, il est noir comme l'encoche.
+/// Le verre hors de l'encoche, niveau « Liquide » de la maquette lucarne-position.html (choisi par Hugues : la variante claire d'iOS 26,
+/// presque transparente ; ce qui est derrière transparaît, déformé au bord). La lisibilité vient du contenu, comme chez Apple : un voile
+/// léger, et sous chaque texte et symbole un halo sombre et doux (`halo`) qui le détache d'une page blanche sans éteindre le verre. Visé :
+/// environ 3:1 pour les libellés (iOS 26), pas le 4,5:1 partout.
 public enum VerreLucarne {
-    public static let voile = 0.8
+    /// Le voile noir : pilule repliée (quelques mots en gras), Centre et cartes (du texte courant).
+    public static let voilePilule = 0.12
+    public static let voileDeplie = 0.22
+    /// Le halo sous le contenu : opacité au plus près des lettres (ombre serrée), et celle de l'ombre large qui l'adoucit.
+    public static let halo = (pres: 0.55, rayonPres: 1.2, large: 0.3, rayonLarge: 6.0)
+    /// Sur le verre, le rouge du contenu compact (« Coupé », la batterie faible), un peu plus clair et vif (comme iOS 26 sur le verre
+    /// clair) : le halo sombre dessous le détache mieux que la teinte faite pour le noir.
+    public static let rougeVerre = (r: 1.0, g: 0x72 / 255.0, b: 0x6A / 255.0)
     /// L'ombre posée (repliée, dépliée) : opacité, flou, décalage vers le bas.
     public static let ombrePosee = (opacite: 0.22, flou: 5.0, y: 3.0)
     public static let ombreDepliee = (opacite: 0.32, flou: 11.0, y: 6.0)
+
+    /// Le voile d'une forme entre repliée (0) et dépliée (1).
+    public static func voile(deplie d: Double) -> Double { voilePilule + (voileDeplie - voilePilule) * min(1, max(0, d)) }
+
     /// Luminance relative (WCAG) d'une composante sRGB.
     public static func luminance(_ c: Double) -> Double {
         c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
     }
-    /// Le contraste d'un texte de couleur sRGB `lettre` (opacité `opacite`) posé sur le voile noir, lui-même sur un fond gris sRGB `fond`
-    /// (1 = page blanche) vu au travers du verre.
-    public static func contraste(lettre: (r: Double, g: Double, b: Double) = (1, 1, 1), opacite: Double = 1, voile v: Double = voile, fond: Double) -> Double {
-        let dessous = fond * (1 - v)
+    /// Le contraste d'un texte de couleur sRGB `lettre` (opacité `opacite`) sur le verre : la page grise sRGB `fond` (1 = page blanche) vue
+    /// au travers, sous le voile `voile`, assombrie au plus près des lettres par le halo (`halo.pres`, 0 sans halo).
+    public static func contraste(lettre: (r: Double, g: Double, b: Double) = (1, 1, 1), opacite: Double = 1, voile v: Double, halo h: Double = halo.pres,
+                                 fond: Double) -> Double {
+        let dessous = fond * (1 - v) * (1 - h)
         func melange(_ c: Double) -> Double { dessous + (c - dessous) * opacite }
         let a = 0.2126 * luminance(melange(lettre.r)) + 0.7152 * luminance(melange(lettre.g)) + 0.0722 * luminance(melange(lettre.b))
         let b = luminance(dessous)

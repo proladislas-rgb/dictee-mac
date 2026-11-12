@@ -527,14 +527,21 @@ func controlesPlacesLucarne() {
         verifier(abs(rentree.centreX - r.centreX) < 0.001 && rentree.largeur < r.largeur && rentree.hauteur < r.hauteur, "bulle rentrée : cachée sous le milieu de la pilule")
         verifier(G.bulle(r, place: .hautDroite, largeur: 74, sortie: 1.2) == G.bulle(r, place: .hautDroite, largeur: 74), "le rebond de la sortie ne la pousse pas au-delà de sa place (la fenêtre la contient)")
 
-        groupe("Lucarne : le voile du verre (le contenu fait pour le noir reste lisible sur une page blanche)")
+        groupe("Lucarne : le verre Liquide reste lisible (voile léger + halo sous le contenu, comme iOS 26)")
         let V = VerreLucarne.self
-        func ct(_ l: (r: Double, g: Double, b: Double), _ o: Double = 1, fond: Double = 1) -> Double { V.contraste(lettre: l, opacite: o, fond: fond) }
+        func ct(_ l: (r: Double, g: Double, b: Double), _ o: Double = 1, voile: Double = V.voileDeplie, fond: Double = 1) -> Double {
+            V.contraste(lettre: l, opacite: o, voile: voile, fond: fond)
+        }
         func f(_ x: Double) -> String { String(format: "%.1f", x) }
-        verifier(ct((1, 1, 1)) >= 7, "texte blanc sur page blanche ≥ 7 (\(f(ct((1, 1, 1)))))")
-        verifier(ct((1, 1, 1), 0.6) >= 4.5, "texte gris (60 %) ≥ 4,5 (\(f(ct((1, 1, 1), 0.6))))")
-        let rouge = (1.0, 0x45 / 255.0, 0x3A / 255.0), bleu = (0x0A / 255.0, 0x84 / 255.0, 1.0), ambre = (1.0, 0x9F / 255.0, 0x0A / 255.0)
-        verifier(ct(rouge) >= 3 && ct(bleu) >= 3 && ct(ambre) >= 4.5, "rouge, bleu, ambre système ≥ 3 (\(f(ct(rouge))), \(f(ct(bleu))), \(f(ct(ambre))))")
-        verifier(ct((1, 1, 1), fond: 0) >= 20, "sur fond noir : comme l'encoche")
+        let rouge = (1.0, 0x45 / 255.0, 0x3A / 255.0), bleu = (0x0A / 255.0, 0x84 / 255.0, 1.0)
+        verifier(V.voilePilule <= 0.15 && V.voileDeplie <= 0.25, "le verre se voit : voile léger (\(V.voilePilule), \(V.voileDeplie))")
+        verifier(V.contraste(lettre: (1, 1, 1), voile: V.voileDeplie, halo: 0, fond: 1) < 2, "sans halo, le blanc sur une page blanche ne se lirait pas : le halo est indispensable")
+        verifier(ct((1, 1, 1)) >= 4.5 && ct((1, 1, 1), voile: V.voilePilule) >= 4.5, "texte blanc sur page blanche, avec halo : ≥ 4,5 (\(f(ct((1, 1, 1)))), pilule \(f(ct((1, 1, 1), voile: V.voilePilule))))")
+        verifier(ct((1, 1, 1), 0.6) >= 2.5, "texte gris (60 %) ≥ 2,5 (\(f(ct((1, 1, 1), 0.6))))")
+        verifier(ct(rouge) >= 2 && ct(bleu) >= 1.9, "rouge et bleu système dans une carte ≥ 1,9 sur page blanche (\(f(ct(rouge))), \(f(ct(bleu))))")
+        let rv = V.rougeVerre
+        verifier(ct(rv, voile: V.voilePilule) >= 2.1 && ct(rv, voile: V.voilePilule) > ct(rouge, voile: V.voilePilule),
+                 "rouge « verre » de la pilule (« Coupé », en gras) : ≥ 2,1 et mieux que celui fait pour le noir (\(f(ct(rv, voile: V.voilePilule))))")
+        verifier(ct((1, 1, 1), fond: 0) >= 15, "sur fond noir : comme l'encoche")
     }
 }

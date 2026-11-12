@@ -100,6 +100,8 @@ extension IlotEssai {
                  "loin de l'encoche : une pilule (\(Int(2 * m.lucarne.capsule.hw.cibleFinale)) × \(Int(2 * m.lucarne.capsule.hh.cibleFinale)))")
         verifier(abs(centre().x - (loin.x + d.x)) < 0.01 && abs(centre().y - (loin.y + d.y)) < 0.01 && fenetreSurCapsule(),
                  "elle suit le pointeur (centre = pointeur + prise) et la fenêtre est centrée sur elle")
+        verifier(m.lucarne.capsule.noir.cibleFinale == 0 && m.lucarne.capsule.fonduNoir < 0.01 && m.lucarneEnMain && m.lucarneDeplie == 0,
+                 "pendant la tenue loin de l'encoche : régime verre (noir = \(String(format: "%.3f", m.lucarne.capsule.fonduNoir)), voile de la pilule)")
         verifier(!m.boucleActive, "tenue immobile : plus de boucle (bouge encore : \(m.ceQuiBouge))")
         let rev0 = m.rev, avant = centre()
         let pas = CGPoint(x: loin.x + 37.5, y: loin.y - 12.5)
