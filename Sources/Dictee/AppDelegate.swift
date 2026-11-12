@@ -432,6 +432,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dictee.surNiveauSansEncoche = { [weak self] n in self?.ilot.niveauDeNote(n) }
         dictee.surTexteSansEncoche = { [weak self] t in self?.ilot.texteDeNote(t) }
         dictee.surRienEcrit = { [weak self] in self?.ilot.noteSansTexte() }
+        dictee.surVoixEnDirect = { [weak self] id, texte in self?.ilot.voixEnDirect(session: id, texte: texte) ?? false }
+        dictee.surVoixNiveau = { [weak self] n in self?.ilot.niveauDeVoix(n) }
+        dictee.surVoixFin = { [weak self] id in self?.ilot.finDeVoix(session: id) }
         clavier.onReinitialisation = { [weak self] in self?.ilot.aiguillageNiveau = AiguillageNiveau() }
         clavier.onCopie = { [weak self] in self?.ilot.copieTapee() }
         // « Volume et luminosité » : les touches spéciales passent par la même écoute ; avalées seulement si l'îlot les montre

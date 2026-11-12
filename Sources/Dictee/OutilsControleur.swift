@@ -418,11 +418,7 @@ extension IlotControleur {
     /// Une dictée faite pendant que la carte Note rapide était ouverte : elle devient une note (pas collée dans l'app), en haut de la
     /// liste ; l'îlot se rouvre dessus une fois l'encoche de la dictée rangée.
     func ajouterNote(_ texte: String) -> Bool {
-        guard let n = listeNotes.ajouter(texte, date: maintenant()) else { return false }
-        notesStore.ecrire(listeNotes)
-        moteur.notes = listeNotes.notes
-        moteur.noteNeuve = n.id
-        Log.ecrire("note rapide : ajoutée (\(n.texte.count) caractères)")
+        guard let n = enregistrerNote(texte) else { return false }
         let parClic = moteur.ecouteNote.phase != .repos
         noteEcrite(n)
         // dictée d'un clic, la carte ouverte et épinglée : elle reste comme elle est (la note arrive dessous, « En faire un rappel »
@@ -430,6 +426,16 @@ extension IlotControleur {
         if parClic, !moteur.cache, moteur.courante == .outilNote { moteur.donneesChangees() }
         else if moteur.cache { noteAOuvrir = true } else { moteur.montrerNote() }
         return true
+    }
+    /// La note gardée (notes.json), en haut de la carte Note rapide, mise en avant ; nil si elle est vide. Dite à Lucarne (« Lucarne,
+    /// note… »), elle se montre dans la carte de fin (IlotVoix.swift) plutôt que dans la carte Note rapide.
+    func enregistrerNote(_ texte: String) -> NoteRapide? {
+        guard let n = listeNotes.ajouter(texte, date: maintenant()) else { return nil }
+        notesStore.ecrire(listeNotes)
+        moteur.notes = listeNotes.notes
+        moteur.noteNeuve = n.id
+        Log.ecrire("note rapide : ajoutée (\(n.texte.count) caractères)")
+        return n
     }
     private func envoyerVersNotes(_ id: UUID) {
         guard let n = listeNotes.note(id), moteur.envoisNotes[id] != .enCours else { return }

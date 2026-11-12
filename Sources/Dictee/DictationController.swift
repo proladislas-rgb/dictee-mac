@@ -16,6 +16,8 @@ final class DictationController {
         let mainsLibres: Bool
         /// Faux pour la note dictée d'un clic dans l'îlot : pas d'encoche de dictée (l'îlot montre « J'écoute… »), jamais de collage.
         var encoche = true
+        /// « Lucarne, rappelle-moi… » reconnu en direct : l'îlot a pris la dictée (l'onde de la voix) ; l'encoche de la dictée est rangée.
+        var voix = false
         let appCible: NSRunningApplication?
         let debut = ProcessInfo.processInfo.systemUptime
         var relachement: Double?
@@ -87,6 +89,13 @@ final class DictationController {
     var surNiveauSansEncoche: ((Float) -> Void)?
     var surTexteSansEncoche: ((String) -> Void)?
     var surRienEcrit: (() -> Void)?
+    /// La voix d'un rappel ou d'une note (IlotVoix.swift) : le texte en direct d'une dictée fn tenue ; vrai si l'îlot la prend (« Lucarne,
+    /// rappelle-moi… ») : l'encoche se range, le niveau du micro va à l'onde de l'îlot. Puis la fin de cette dictée (texte écrit, commande
+    /// faite, rien entendu, annulée), dite au plus tôt et parfois deux fois (l'îlot ne fait rien la deuxième) : l'onde s'en va si la carte
+    /// ne l'a pas remplacée.
+    var surVoixEnDirect: ((Int, String) -> Bool)?
+    var surVoixNiveau: ((Float) -> Void)?
+    var surVoixFin: ((Int) -> Void)?
     /// À appeler quand le micro vient d'être autorisé : prépare le moteur pour un départ instantané.
     func microAutorise() { audio.preparer() }
     /// Appelé quand la capture commence (`true`) ou finit (`false`) : l'icône de la barre des menus montre un trait ambre.
@@ -184,7 +193,7 @@ final class DictationController {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, self.courante?.id == s.id else { return }
-                    if s.encoche { self.panneau.niveau(n) } else { self.surNiveauSansEncoche?(n) }
+                    if s.voix { self.surVoixNiveau?(n) } else if s.encoche { self.panneau.niveau(n) } else { self.surNiveauSansEncoche?(n) }
                 }
             }
         }
@@ -193,7 +202,11 @@ final class DictationController {
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
                         guard let self, self.courante?.id == s.id else { return }
-                        if s.encoche { self.panneau.mettreAJourTexte(texte) } else { self.surTexteSansEncoche?(texte) }
+                        // fn tenue (pas en mains libres : l'encoche y garde ✕ et ✓) : « Lucarne, rappelle-moi… » passe à l'îlot, qui suit
+                        // ensuite le texte (le genre, « Rappel… » ou « Note… », peut arriver plus tard)
+                        let pourLIlot = s.encoche && !s.mainsLibres && self.surVoixEnDirect?(s.id, texte) == true
+                        if pourLIlot, !s.voix { s.voix = true; self.panneau.fermer() }
+                        if !s.voix { if s.encoche { self.panneau.mettreAJourTexte(texte) } else { self.surTexteSansEncoche?(texte) } }
                     }
                 }
             }
@@ -211,7 +224,7 @@ final class DictationController {
             jouerDebut(s)
         } else {
             let item = DispatchWorkItem { [weak self] in
-                MainActor.assumeIsolated { if self?.courante?.id == s.id { self?.panneau.ouvrir(app: s.appCible, mainsLibres: false); self?.jouerDebut(s) } }
+                MainActor.assumeIsolated { if self?.courante?.id == s.id { if !s.voix { self?.panneau.ouvrir(app: s.appCible, mainsLibres: false) }; self?.jouerDebut(s) } }
             }
             ouvertureRetardee = item
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: item)
@@ -267,7 +280,10 @@ final class DictationController {
             // son texte ne sert que si Groq échoue.
             if let direct = s.direct { s.secours = Task { await direct.terminer() } }
         }
-        Task { @MainActor [weak self] in await self?.finaliser(s) }
+        Task { @MainActor [weak self] in
+            await self?.finaliser(s)
+            if s.voix { self?.surVoixFin?(s.id) }
+        }
     }
 
     private func finaliser(_ s: Session) async {
@@ -367,6 +383,8 @@ final class DictationController {
             Retours.fin()
             return
         }
+        // pas une commande (« Lucarne est prête… ») : l'onde s'en va avant la remise au propre et le collage
+        if s.voix { surVoixFin?(s.id) }
         let kind = TextFormatter.kind(bundleID: s.appCible?.bundleIdentifier)
         let (champ, sourceChamp) = await s.champ.contexte()
         let contexte = Settings.adapterLeTon ? RemiseAuPropre.contexte(bundleID: s.appCible?.bundleIdentifier, role: champ?.role, titreFenetre: champ?.titreFenetre) : .general
@@ -561,6 +579,7 @@ final class DictationController {
         panneau.fermer()
         audio.arreter { }
         if !s.encoche { surRienEcrit?() }
+        if s.voix { surVoixFin?(s.id) }
     }
 
     private func annulerParBouton() {

@@ -330,19 +330,26 @@ public enum NiveauxVoix {
     public static let pas = 0.16
     /// Le niveau visé par la barre au changement `k` (0,35 à 1), plus haut au milieu de l'onde (barre 4 sur 9), comme une voix.
     public static func niveau(_ barre: Int, _ k: Int) -> Double {
+        let centre = 1 - abs(Double(barre) - 4) / 6
+        return 0.35 + 0.65 * centre * (0.45 + 0.55 * bruit(barre, k))
+    }
+    /// Un nombre de 0 à 1 qui ne se répète pas d'une barre ni d'un changement à l'autre (toujours le même pour les mêmes : rien au hasard).
+    public static func bruit(_ barre: Int, _ k: Int) -> Double {
         var x = UInt64(bitPattern: Int64(barre &* 7919 &+ k &* 104_729)) &+ 0x9E37_79B9_7F4A_7C15
         x = (x ^ (x >> 30)) &* 0xBF58_476D_1CE4_E5B9
         x = (x ^ (x >> 27)) &* 0x94D0_49BB_1331_11EB
         x ^= x >> 31
-        let centre = 1 - abs(Double(barre) - 4) / 6
-        return 0.35 + 0.65 * centre * (0.45 + 0.55 * Double(x % 1000) / 1000)
+        return Double(x % 1000) / 1000
     }
     /// La hauteur de la barre à l'instant `t` (les douze derniers changements comptent, les plus vieux sont posés).
-    public static func valeur(_ barre: Int, t: Double) -> Double {
+    public static func valeur(_ barre: Int, t: Double) -> Double { valeur(t: t, pas: pas) { niveau(barre, $0) } }
+    /// La même somme de ressorts pour des niveaux venus d'ailleurs (`niveau(k)` : celui du changement `k`, un tous les `pas` secondes,
+    /// le premier à 0) : l'onde de la voix dictée (`OndeVoix`) y passe le vrai niveau du micro.
+    public static func valeur(t: Double, pas: Double, niveau: (Int) -> Double) -> Double {
         let n = Int(floor(t / pas))
-        var v = niveau(barre, n - 12)
+        var v = niveau(n - 12)
         for k in (n - 11)...max(n - 11, n) {
-            v += (niveau(barre, k) - niveau(barre, k - 1)) * Ressort.valeur(t - Double(k) * pas, duree: 0.32, rebond: 0.35)
+            v += (niveau(k) - niveau(k - 1)) * Ressort.valeur(t - Double(k) * pas, duree: 0.32, rebond: 0.35)
         }
         return v
     }

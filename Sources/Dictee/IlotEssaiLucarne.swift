@@ -110,39 +110,37 @@ extension IlotEssai {
         let jourDit = ListeRappels.jour(de: demain13, maintenant: c.maintenant())
         let r1 = c.rappels.rappels.last
         verifier(r1?.texte == "Livraison" && r1?.echeance == demain13, "rappel « Livraison », demain 13:00 (\(r1?.texte ?? "aucun"), \(r1.map { FormatIlot.heure($0.echeance) } ?? "-"))")
-        verifier(m.courante == .rappelAjoute && m.bandeauVu?.ligne2 == "Livraison \u{00B7} " + jourDit && m.bandeauVu?.meta == "13:00",
-                 "confirmation visible : « Rappel ajouté · Livraison · \(jourDit) · 13:00 » et « Annuler » (\(m.courante))")
-        verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01, "le bandeau : ≤ 66 pt dans la barre")
-
-        // --- la question de l'app Rappels, UNE fois, après « Rappel ajouté »
+        // dit à Lucarne : la carte de fin (IlotVoix.swift) remplace « Rappel ajouté » et la question de l'app Rappels
+        verifier(m.courante == .voixCarte && m.voix.carte?.titre == "Livraison" && m.voix.carte?.quand == jourDit + " \u{00B7} 13:00" && m.envoiVoix == .aEnvoyer,
+                 "confirmation visible : la carte « Livraison · \(jourDit) · 13:00 » et « Envoyer dans Rappels » (\(m.courante))")
+        verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01, "la carte : ≤ 66 pt dans la barre")
         attendre(IlotControleur.dureeRappelAjoute + 2.5) { m.bandeauVu?.lucarne != .questionRappelsApple }
-        verifier(m.courante == .lucarne && m.bandeauVu?.lucarne == .questionRappelsApple && faux.demandes == 0,
-                 "après « Rappel ajouté » : « Aussi dans l'app Rappels ? » dans l'îlot (aucune fenêtre de macOS avant le choix) (\(m.courante))")
-        if let lc = m.contenus[.lucarne] { verifier(lc <= m.grille.zone(.lucarne).width + 0.5, "la question et « Non » / « Oui » tiennent dans le bandeau (\(Int(lc)) pt)") }
-        pause(0.8)
-        clic(bouton(.lucarne, ["Non", "Oui"], depuisLaDroite: 0), 0.1)
+        verifier(m.bandeauVu?.lucarne != .questionRappelsApple && faux.demandes == 0 && faux.crees.isEmpty,
+                 "jamais la question « Aussi dans l'app Rappels ? » en plus de la carte ; rien n'est envoyé sans clic")
+        pause(0.4)
+        clic(CGPoint(x: PlanVoix.cadreEnvoi(m.grille, genre: .rappel).midX, y: PlanVoix.cadreEnvoi(m.grille, genre: .rappel).midY), 0.1)
         attendre(1.0) { faux.crees.isEmpty }
         pause(0.2)
-        verifier(faux.demandes == 1 && EssaiLucarne.choix == .oui, "vrai clic sur « Oui » : la fenêtre de macOS (simulée), une fois")
-        verifier(faux.crees.count == 1 && faux.crees.values.first?.texte == "Livraison" && faux.crees.values.first?.echeance == demain13 && c.rappels.rappels.last?.idApple != nil,
-                 "accordé : « Livraison » créé dans l'app Rappels, à l'heure (alarme), et lié dans rappels.json")
-        verifier(m.courante == .lucarne && m.bandeauVu?.lucarne == .dansRappelsApple(1), "« Aussi dans l'app Rappels · Tu les verras sur l'iPhone »")
-        pause(3.3)
+        verifier(faux.demandes == 1 && EssaiLucarne.choix == .oui, "vrai clic sur « Envoyer dans Rappels » : la fenêtre de macOS (simulée), une fois ; vaut le « Oui »")
+        verifier(faux.crees.count == 1 && faux.crees.values.first?.texte == "Livraison" && faux.crees.values.first?.echeance == demain13 && c.rappels.rappels.last?.idApple != nil
+                 && m.envoiVoix == .fait, "accordé : « Livraison » créé dans l'app Rappels, à l'heure (alarme), lié dans rappels.json ; « ✓ Dans Rappels »")
+        m.quitterBandeau(); pause(0.5)
 
         // --- le rappel suivant va directement dans l'app Rappels (sans question), une seule fois
         verifier(dicter("Lucarne, rappelle-moi d'appeler Ladislas demain à 15 h."), "« Lucarne, rappelle-moi d'appeler Ladislas demain à 15 h »")
         let r2 = c.rappels.rappels.last
-        verifier(r2?.texte == "Appeler Ladislas" && faux.crees.count == 2 && r2?.idApple != nil, "« Appeler Ladislas » (à l'infinitif), aussi dans l'app Rappels, sans question")
+        verifier(r2?.texte == "Appeler Ladislas" && faux.crees.count == 2 && r2?.idApple != nil && m.envoiVoix == .fait,
+                 "« Appeler Ladislas » (à l'infinitif), aussi dans l'app Rappels, sans question : la carte dit « ✓ Dans Rappels »")
         c.creerDansRappelsApple(c.rappels.rappels, annoncer: false)
         verifier(faux.crees.count == 2, "re-synchroniser ne crée aucun doublon (\(faux.crees.count) dans l'app Rappels)")
-        pause(IlotControleur.dureeRappelAjoute + 1.5)
-        verifier(m.bandeau == nil, "plus de question ensuite (\(m.courante))")
+        m.quitterBandeau(); pause(0.5)
 
-        // --- « Annuler » sur « Rappel ajouté » : retiré là-bas aussi
+        // --- « Annuler » sur la carte : retiré là-bas aussi
         verifier(dicter("Verbe, mets un rappel demain à 9 h pour sortir les poubelles."), "« Verbe, mets un rappel… » (l'ancien nom marche aussi)")
         let r3 = c.rappels.rappels.last, id3 = r3?.idAppleExterne
         verifier(r3?.texte == "Sortir les poubelles" && id3 != nil, "« Sortir les poubelles », créé dans l'app Rappels")
-        clic(bouton(.rappelAjoute, ["Annuler"], depuisLaDroite: 0), 0.5)
+        pause(0.4)
+        clic(CGPoint(x: PlanVoix.cadreSecondaire(m.grille, genre: .rappel).midX, y: PlanVoix.cadreSecondaire(m.grille, genre: .rappel).midY), 0.5)
         verifier(!c.rappels.rappels.contains { $0.id == r3?.id } && id3.map { faux.supprimes.contains($0) } == true, "vrai clic sur « Annuler » : retiré de Lucarne ET de l'app Rappels")
 
         // --- « Fait » dans Lucarne : coché dans l'app Rappels ; coché sur l'iPhone : ne sonne pas ici
@@ -193,10 +191,12 @@ extension IlotEssai {
         verifier(m.courante == .lucarne, "… et « Je n'ai pas compris » se voit même sur le Centre épinglé (\(m.courante))")
         m.quitterBandeau(); m.fermer(); pause(0.6)
 
-        // --- « Non » : dit une fois, plus jamais demandé
+        // --- la question de l'app Rappels reste pour un rappel ajouté autrement qu'en parlant à Lucarne (« En faire un rappel » sous une
+        // note) : « Non » est dit une fois, plus jamais demandé
+        func ajouter(_ texte: String) -> Bool { c.ajouterUnRappel(texte: texte, quand: c.maintenant().addingTimeInterval(86_400)) != nil }
         EssaiLucarne.choix = nil; EssaiLucarne.refusDit = false; c.questionRappelsPosee = false
         let faux2 = RappelsAppleFactice(); c.rappelsApple = faux2
-        verifier(dicter("Lucarne, rappelle-moi de relancer Marc lundi à 10 h."), "un rappel, accès jamais demandé")
+        verifier(ajouter("Relancer Marc") && m.courante == .rappelAjoute, "un rappel ajouté sans parler à Lucarne : « Rappel ajouté », accès jamais demandé")
         attendre(IlotControleur.dureeRappelAjoute + 2.5) { m.bandeauVu?.lucarne != .questionRappelsApple }
         verifier(m.bandeauVu?.lucarne == .questionRappelsApple, "la question (\(m.courante))")
         pause(0.8)
@@ -205,14 +205,14 @@ extension IlotEssai {
                  "vrai clic sur « Non » : aucune fenêtre de macOS, « Tes rappels restent ici » (une fois)")
         pause(6.5)
         c.questionRappelsPosee = false
-        verifier(dicter("Lucarne, rappelle-moi de payer la cantine demain à 8 h."), "rappel suivant")
+        verifier(ajouter("Payer la cantine"), "rappel suivant")
         pause(IlotControleur.dureeRappelAjoute + 1.8)
         verifier(m.bandeau == nil && faux2.demandes == 0 && faux2.crees.isEmpty, "plus jamais demandé, rien dans l'app Rappels")
 
         // --- refus dans la fenêtre de macOS : dit une fois
         EssaiLucarne.choix = nil; EssaiLucarne.refusDit = false; c.questionRappelsPosee = false
         let faux3 = RappelsAppleFactice(); faux3.accorder = false; c.rappelsApple = faux3
-        verifier(dicter("Lucarne, rappelle-moi d'arroser les plantes demain matin."), "un rappel, la fenêtre de macOS dira non")
+        verifier(ajouter("Arroser les plantes"), "un rappel, la fenêtre de macOS dira non")
         attendre(IlotControleur.dureeRappelAjoute + 2.5) { m.bandeauVu?.lucarne != .questionRappelsApple }
         pause(0.8)
         clic(bouton(.lucarne, ["Non", "Oui"], depuisLaDroite: 0), 0.1)
@@ -223,7 +223,7 @@ extension IlotEssai {
         EssaiLucarne.choix = nil; EssaiLucarne.refusDit = false; c.questionRappelsPosee = false
         let faux4 = RappelsAppleFactice(); faux4.acces = .refuse; c.rappelsApple = faux4
         m.quitterBandeau(); pause(0.4)
-        verifier(dicter("Lucarne, rappelle-moi de rendre les livres jeudi."), "accès déjà refusé dans Réglages Système")
+        verifier(ajouter("Rendre les livres"), "accès déjà refusé dans Réglages Système")
         attendre(IlotControleur.dureeRappelAjoute + 2.5) { m.bandeauVu?.lucarne != .rappelsRestentIci(systeme: true) }
         verifier(m.bandeauVu?.lucarne == .rappelsRestentIci(systeme: true) && faux4.demandes == 0 && EssaiLucarne.refusDit, "dit une fois, sans question ni fenêtre")
         m.quitterBandeau(); pause(0.4)

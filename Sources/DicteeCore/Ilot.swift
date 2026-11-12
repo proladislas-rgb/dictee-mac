@@ -78,6 +78,9 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// au survol, où en est le mode (« Arrêter », « +30 min ») ; la carte des modes, rangée sous le Centre ; les bannières « Travail ·
     /// jusqu'à 15:30 » (une ligne) et « Fin de Travail ».
     case concentrationCompact, concentrationStatut, concentration, concentrationLance, concentrationFin
+    /// La voix d'un rappel ou d'une note (maquette ilot-voix-rappel.html, VoixIlot.swift) : l'onde pendant qu'on parle (et « Rappel… »
+    /// dessous dès que c'est compris), puis la carte de fin (« Envoyer dans Rappels », « Envoyer dans Notes »).
+    case voixEcoute, voixCarte
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
@@ -223,6 +226,10 @@ public enum GeoIlot {
         .concentration: [14, 144, MesuresConcentration.profondeurCarte, 6, 34, 18, 10],
         .concentrationLance: [MesuresConcentration.cou, 150, MesuresConcentration.banniere, 6, 28, 16, 10],
         .concentrationFin: [MesuresConcentration.cou, 150, MesuresConcentration.banniereFin, 6, 28, 16, 10],
+        // la voix : l'icône dans l'aile gauche, l'onde sous la caméra (le libellé ajoute une ligne, `enPlus`) ; la carte de fin a la
+        // largeur du Centre, sa hauteur suit son résumé (`enPlus`)
+        .voixEcoute: [MesuresVoix.cou, MesuresVoix.corps, MesuresVoix.profondeurOnde, 6, 24, 14, 10],
+        .voixCarte: [14, MesuresVoix.corpsCarte, MesuresVoix.profondeurCarteMax, 6, 30, 16, 10],
     ]
     /// Indices des valeurs : largeurs (cou, corps, cou droit) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur
     /// mène ; à la fermeture la hauteur se replie d'abord.
@@ -245,7 +252,7 @@ public enum GeoIlot {
     public static let epaules: Double = 56
     public static func aEpaules(_ v: VueIlot) -> Bool {
         [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .dictees, .claudeCarte,
-         .outils, .outilPressePapiers, .outilReformuler, .outilNote, .secondBrain, .bibliotheque, .reunionEtendu, .concentrationStatut, .concentration].contains(v)
+         .outils, .outilPressePapiers, .outilReformuler, .outilNote, .secondBrain, .bibliotheque, .reunionEtendu, .concentrationStatut, .concentration, .voixCarte].contains(v)
     }
 
     /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.
