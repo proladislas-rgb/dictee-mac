@@ -107,4 +107,9 @@ func controlesBureau() {
     verifier(abs(ar) < 0.01 && Ressort.allerRetour(0, 10, t: 0.99, aller: 0, retour: 1, duree: 0.4) > 9.9, "aller-retour : arrivé avant le retour, revenu ensuite")
     let b = IllustrationsAccueil.barres(colonnes: [0, 2, 3, 0, 0, 5, 0, 1])
     verifier(b.count == 3 && b[0].debut == 1.0 / 8 && b[0].fin == 3.0 / 8 && b[2].fin == 1, "les barres de l'onde : séparées par les colonnes vides, la dernière jusqu'au bord")
+    let niveaux = (0..<9).flatMap { b in (0..<200).map { NiveauxVoix.niveau(b, $0) } }
+    verifier(niveaux.allSatisfy { $0 >= 0.35 && $0 <= 1 }, "les niveaux de voix restent entre 0,35 et 1")
+    verifier((0..<50).map { NiveauxVoix.niveau(4, $0) }.reduce(0, +) > (0..<50).map { NiveauxVoix.niveau(0, $0) }.reduce(0, +), "le milieu de l'onde parle plus fort que les bords")
+    let pasFin = stride(from: 0.0, through: 6, by: 1.0 / 120).map { NiveauxVoix.valeur(3, t: $0) }
+    verifier(zip(pasFin, pasFin.dropFirst()).allSatisfy { abs($1 - $0) < 0.08 }, "à 120 images par seconde, une barre ne saute jamais (mouvement continu)")
 }

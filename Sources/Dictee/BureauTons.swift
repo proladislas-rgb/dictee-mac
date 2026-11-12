@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// Les teintes de la fenêtre principale, en clair et en sombre (maquette lucarne-app-final.html, `#fen` et `#fen.nuit`).
@@ -9,7 +10,7 @@ enum TonsBureau {
     static let carte = Color(clair: 0xFFFFFF, sombre: 0x2C2C2F)
     static let encre = Color(clair: 0x1D1D1F, sombre: 0xF5F5F7)
     static let encre2 = Color(clair: 0x6C6C71, sombre: 0xAEAEB3)
-    static let encre3 = Color(clair: 0x86868B, sombre: 0x8E8E93)
+    static let encre3 = Color(clair: 0x6E6E73, sombre: 0x8E8E93)
     static let filet = Color(nsColor: .dynamique(clair: NSColor.black.withAlphaComponent(0.075), sombre: NSColor.white.withAlphaComponent(0.08)))
     /// Fond des pastilles, des boutons doux, des pistes.
     static let remplissage = Color(nsColor: .dynamique(clair: NSColor.black.withAlphaComponent(0.05), sombre: NSColor.white.withAlphaComponent(0.08)))
@@ -21,6 +22,12 @@ enum TonsBureau {
     static let jaune = Color(clair: 0xC98A00, sombre: 0xFFD60A)
     static let sarcelle = Color(clair: 0x1F9FB5, sombre: 0x40C8E0)
     static let corail = Color(hex: 0xE8835C)
+    /// Les mêmes teintes pour du TEXTE : plus foncées en clair (contraste d'au moins 4,5 sur le blanc et le crème), vives en sombre.
+    static let orangeTexte = Color(clair: 0xB35F00, sombre: 0xFF9F0A)
+    static let vertTexte = Color(clair: 0x1F7A3A, sombre: 0x30D158)
+    static let bleuTexte = Color(clair: 0x0064D1, sombre: 0x409CFF)
+    static let jauneTexte = Color(clair: 0x8A6100, sombre: 0xFFD60A)
+    static let sarcelleTexte = Color(clair: 0x0E6E80, sombre: 0x40C8E0)
     /// Les petites scènes de « Découvrir » : un ciel doux, bleu vers sable.
     static let scene = [Color(clair: 0xD7E2EF, sombre: 0x2C3440), Color(clair: 0xE9E9EA, sombre: 0x30302F), Color(clair: 0xF3E2D2, sombre: 0x3B3129)]
 
@@ -162,7 +169,7 @@ struct EntetePage<Droite: View>: View {
                             Image(systemName: "chevron.left").font(.system(size: 11, weight: .bold))
                             Text(retour.titre).font(.system(size: 13, weight: .semibold))
                         }
-                        .foregroundStyle(TonsBureau.bleu)
+                        .foregroundStyle(TonsBureau.bleuTexte)
                         .frame(height: 16)
                         .contentShape(Rectangle())
                     }
@@ -211,7 +218,7 @@ struct BoutonCapsule: View {
                 if let symbole { Image(systemName: symbole).font(.system(size: hauteur > 28 ? 11 : 9.5, weight: .bold)) }
                 Text(titre).font(.system(size: hauteur > 28 ? 13 : 12.5, weight: .semibold)).lineLimit(1)
             }
-            .foregroundStyle(style == .plein ? Color.white : TonsBureau.bleu)
+            .foregroundStyle(style == .plein ? Color.white : TonsBureau.bleuTexte)
             .padding(.horizontal, hauteur > 28 ? 15 : 12)
             .frame(height: hauteur)
             .background(Capsule().fill(style == .plein ? TonsBureau.bleu : TonsBureau.remplissage))
@@ -240,5 +247,12 @@ struct PastilleBureau: View {
         .frame(height: 30)
         .background(Capsule().fill(TonsBureau.remplissage))
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Une minuterie qui ne bat que tant qu'une condition tient (la fenêtre à l'écran) : sinon, aucun réveil.
+enum Minuterie {
+    static func tant(_ actif: Bool, toutesLes secondes: TimeInterval) -> AnyPublisher<Date, Never> {
+        actif ? Timer.publish(every: secondes, on: .main, in: .common).autoconnect().eraseToAnyPublisher() : Empty().eraseToAnyPublisher()
     }
 }

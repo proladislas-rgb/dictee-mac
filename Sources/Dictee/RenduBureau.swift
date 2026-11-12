@@ -28,7 +28,7 @@ enum RenduBureau {
         let journee: JourneeModele
         let bibliotheque: BibliothequeModele
         let aujourdhui: AujourdhuiModele
-        var actions = ActionsBureau(essais: [.etagere, .minuteur, .rappels, .claude])
+        var actions = ActionsBureau(essais: { [.etagere, .minuteur, .rappels, .claude] })
 
         init(sombre: Bool, historique: [EntreeHistorique]? = nil, reunions listeReunions: [Reunion]? = nil, reglages: ReglagesModele? = nil,
              mots: MotsModele? = nil, rappels: [Rappel]? = nil, etagere: [ElementEtagere]? = nil, rendezVous: [EvenementAgenda]? = nil) {
@@ -186,6 +186,15 @@ enum RenduBureau {
             // la plus petite fenêtre permise
             ecran("bureau-13-aujourdhui-petite", sombre: sombre, taille: CGSize(width: FenetrePrincipale.tailleMinimale.width + 80, height: FenetrePrincipale.tailleMinimale.height + 80))
             ecran("bureau-14-reglages-petite", sombre: sombre, taille: CGSize(width: FenetrePrincipale.tailleMinimale.width + 80, height: FenetrePrincipale.tailleMinimale.height + 80)) { $0.nav.aller(.reglages) }
+            // les états des pages reprises (ceux de l'ancien --rendu-fenetre)
+            ecran("bureau-15-dictees-vides", sombre: sombre, regler: { $0.nav.ouvrir(.dictees) }, exemple: { Exemple(sombre: $0, historique: []) })
+            ecran("bureau-16-dictees-aucun-resultat", sombre: sombre) { e in e.nav.ouvrir(.dictees); e.dictees.requete = "zzz" }
+            ecran("bureau-17-dictees-suppression", sombre: sombre) { e in
+                e.nav.ouvrir(.dictees); e.dictees.reinitialiser()
+                if let x = e.dictees.affichees.first { e.dictees.developpee = x.id; e.dictees.selection = x.id; e.dictees.suppressionEnAttente = x.id }
+            }
+            ecran("bureau-18-mot-deja-enregistre", sombre: sombre) { e in e.nav.ouvrir(.mots); e.mots.ajouterMot("villeurbanne") }
+            ecran("bureau-19-reglages-mises-a-jour", sombre: sombre, taille: CGSize(width: taille.width, height: 1100)) { $0.nav.aller(.reglages) }
         }
         ok = verifierLesClics() && ok
         return ok ? 0 : 1

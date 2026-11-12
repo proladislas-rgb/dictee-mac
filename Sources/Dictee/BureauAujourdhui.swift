@@ -39,8 +39,11 @@ struct AujourdhuiVue: View {
     @ObservedObject var m: AujourdhuiModele
     @ObservedObject var controleur: ReunionController
     var ouvrir: (SousPageBureau) -> Void
-    var ouvrirNote: (UUID) -> Void
+    /// La note à ouvrir (nil : aucune note, la page Réunions).
+    var ouvrirNote: (UUID?) -> Void
     var noter: () -> Void
+    /// La fenêtre est à l'écran : la page se recalcule chaque minute (« dans 28 min », minuit, une réunion passée).
+    var visible = true
 
     var body: some View {
         let t = m.tableau
@@ -48,7 +51,7 @@ struct AujourdhuiVue: View {
             EntetePage(petit: t.date, titre: "Aujourd\u{2019}hui") {
                 HStack(spacing: 8) {
                     ForEach(Array(t.puces.enumerated()), id: \.offset) { _, p in
-                        PastilleBureau(symbole: "bell.fill", teinte: TonsBureau.orange, texte: p.texte, valeur: p.valeur).frame(maxWidth: 260)
+                        PastilleBureau(symbole: "bell.fill", teinte: TonsBureau.orangeTexte, texte: p.texte, valeur: p.valeur).frame(maxWidth: 260)
                     }
                 }
             }
@@ -57,11 +60,11 @@ struct AujourdhuiVue: View {
                 let colonne = (g.size.width - 3 * e) / 4
                 let rang = max(128, (g.size.height - e) / 2)
                 HStack(alignment: .top, spacing: e) {
-                    TuileMotsVue(t: t.mots) { ouvrir(.dictees) }
+                    TuileMotsVue(t: t.mots, maintenant: m.horloge()) { ouvrir(.dictees) }
                         .frame(width: 2 * colonne + e, height: 2 * rang + e)
                     VStack(spacing: e) {
                         TuileTempsVue(t: t.temps) { ouvrir(.journee) }.frame(height: rang)
-                        TuileNoteVue(note: t.note) { if let n = t.note { ouvrirNote(n.id) } else { ouvrirNote(UUID()) } }.frame(height: rang)
+                        TuileNoteVue(note: t.note) { ouvrirNote(t.note?.id) }.frame(height: rang)
                     }
                     .frame(width: colonne)
                     VStack(spacing: e) {
@@ -76,6 +79,7 @@ struct AujourdhuiVue: View {
         .padding(.bottom, TonsBureau.margeBas)
         .onAppear { m.affichee = true; m.recalculer() }
         .onDisappear { m.affichee = false }
+        .onReceive(Minuterie.tant(visible, toutesLes: 60)) { _ in m.recalculerSiAffichee() }
     }
 }
 
@@ -84,11 +88,13 @@ struct AujourdhuiVue: View {
 /// « Mots dictés » : l'anneau (la part du record), le grand nombre, puis dictées et apps, moyenne, record.
 struct TuileMotsVue: View {
     var t: TuileMots
+    /// « Maintenant » du modèle (fixé dans les rendus).
+    var maintenant: Date
     var action: () -> Void
     var body: some View {
         TuileBouton(etiquette: "Mots dictés : \(FormatJournee.nombre(t.mots)) aujourd\u{2019}hui. Voir les dictées", action: action) {
             VStack(alignment: .leading, spacing: 0) {
-                EnteteTuile(symbole: "quote.opening", titre: "Mots dictés", teinte: TonsBureau.orange, lien: "Dictées")
+                EnteteTuile(symbole: "quote.opening", titre: "Mots dictés", teinte: TonsBureau.orangeTexte, lien: "Dictées")
                 ViewThatFits(in: .horizontal) {
                     corps(anneau: 160)
                     corps(anneau: 120)
@@ -109,7 +115,7 @@ struct TuileMotsVue: View {
                 VStack(alignment: .leading, spacing: 7) {
                     ligne(fort: FormatJournee.nombre(t.dictees), reste: t.dictees > 1 ? " dictées, dans \(t.apps) app\(t.apps > 1 ? "s" : "")" : " dictée", plein: true)
                     if let moyenne = t.moyenne { ligne(debut: "Moyenne ", fort: FormatJournee.nombre(moyenne), reste: " mots par jour") }
-                    if let r = t.record { ligne(debut: "Record ", fort: FormatJournee.nombre(r.mots), reste: ", " + Self.jour(r.jour)) }
+                    if let r = t.record { ligne(debut: "Record ", fort: FormatJournee.nombre(r.mots), reste: ", " + jour(r.jour)) }
                 }
                 .padding(.top, 14)
             }
@@ -126,12 +132,12 @@ struct TuileMotsVue: View {
         .lineLimit(1)
     }
 
-    /// « mardi » cette semaine, sinon « 3 nov. ».
-    static func jour(_ d: Date) -> String {
-        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR")
-        f.dateFormat = Date().timeIntervalSince(d) < 6 * 86_400 ? "EEEE" : "d MMM"
-        return f.string(from: d)
+    /// « mardi » dans les six derniers jours, sinon « 3 nov. ».
+    func jour(_ d: Date) -> String {
+        (maintenant.timeIntervalSince(d) < 6 * 86_400 ? Self.jourSemaine : Self.jourMois).string(from: d)
     }
+    private static let jourSemaine: DateFormatter = { let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "EEEE"; return f }()
+    private static let jourMois: DateFormatter = { let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "d MMM"; return f }()
 }
 
 /// L'anneau orange : la piste pâle, l'arc (bouts ronds), le pourcentage au centre.
@@ -149,7 +155,7 @@ struct AnneauMots: View {
                             style: StrokeStyle(lineWidth: epaisseur, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 VStack(spacing: 1) {
-                    if let pourcent { Text(pourcent).font(.system(size: 15, weight: .bold).monospacedDigit()).foregroundStyle(TonsBureau.orange) }
+                    if let pourcent { Text(pourcent).font(.system(size: 15, weight: .bold).monospacedDigit()).foregroundStyle(TonsBureau.orangeTexte) }
                     Text(sous).font(.system(size: 11.5, weight: .medium)).foregroundStyle(TonsBureau.encre3).multilineTextAlignment(.center)
                 }
                 .padding(epaisseur * 1.5)
@@ -169,7 +175,7 @@ struct TuileTempsVue: View {
         let c = t.chiffre
         TuileBouton(etiquette: "Temps gagné : \(c.nombre) \(c.unite). Voir la journée", action: action) {
             VStack(alignment: .leading, spacing: 0) {
-                EnteteTuile(symbole: "timer", titre: "Temps gagné", teinte: TonsBureau.vert, lien: nil, chevron: true)
+                EnteteTuile(symbole: "timer", titre: "Temps gagné", teinte: TonsBureau.vertTexte, lien: nil, chevron: true)
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text(c.nombre).font(.system(size: 30, weight: .bold)).tracking(-1).monospacedDigit()
                     if !c.unite.isEmpty { Text(c.unite).font(.system(size: 15, weight: .semibold)).foregroundStyle(TonsBureau.encre2) }
@@ -200,7 +206,7 @@ struct TuileRendezVousVue: View {
     var body: some View {
         CarteBureau {
             VStack(alignment: .leading, spacing: 0) {
-                EnteteTuile(symbole: "video", titre: enCours ? "Réunion en cours" : "Prochaine réunion", titreCourt: enCours ? "En cours" : "Réunion", teinte: TonsBureau.bleu, lien: nil)
+                EnteteTuile(symbole: "video", titre: enCours ? "Réunion en cours" : "Prochaine réunion", titreCourt: enCours ? "En cours" : "Réunion", teinte: TonsBureau.bleuTexte, lien: nil)
                 if let r {
                     Text(r.heure).font(.system(size: 30, weight: .bold)).tracking(-1).monospacedDigit().foregroundStyle(TonsBureau.encre).padding(.top, 8)
                     Text(r.titre).font(.system(size: 13, weight: .semibold)).foregroundStyle(TonsBureau.encre).lineLimit(1)
@@ -229,7 +235,7 @@ struct TuileNoteVue: View {
     var body: some View {
         TuileBouton(etiquette: note.map { "Dernière note : \($0.extrait). Ouvrir" } ?? "Réunions", action: action) {
             VStack(alignment: .leading, spacing: 0) {
-                EnteteTuile(symbole: "doc.text", titre: "Dernière note", teinte: TonsBureau.jaune, lien: nil, chevron: true)
+                EnteteTuile(symbole: "doc.text", titre: "Dernière note", teinte: TonsBureau.jauneTexte, lien: nil, chevron: true)
                 if let note {
                     Text(note.extrait).font(.system(size: 15.5, design: .serif)).lineSpacing(3).foregroundStyle(TonsBureau.encre)
                         .lineLimit(3).padding(.top, 8)
@@ -253,7 +259,7 @@ struct TuileEtagereVue: View {
     var body: some View {
         TuileBouton(etiquette: noms.isEmpty ? "Étagère vide. Ouvrir la bibliothèque" : "Sur l\u{2019}étagère : \(noms.joined(separator: ", ")). Ouvrir la bibliothèque", action: action) {
             VStack(alignment: .leading, spacing: 0) {
-                EnteteTuile(symbole: "tray", titre: "Sur l\u{2019}étagère", teinte: TonsBureau.sarcelle, lien: nil, chevron: true)
+                EnteteTuile(symbole: "tray", titre: "Sur l\u{2019}étagère", teinte: TonsBureau.sarcelleTexte, lien: nil, chevron: true)
                 if noms.isEmpty {
                     Text("Glisse un fichier sur l\u{2019}encoche\u{202F}: il t\u{2019}attend ici.").font(.system(size: 12.5)).foregroundStyle(TonsBureau.encre2)
                         .fixedSize(horizontal: false, vertical: true).padding(.top, 10)

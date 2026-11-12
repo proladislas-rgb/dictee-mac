@@ -128,6 +128,8 @@ enum RenduPremierLancement {
         let url = URL(fileURLWithPath: (dossier as NSString).expandingTildeInPath, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         var ok = true
+        // les illustrations du dépôt (le rendu se lance depuis sa racine)
+        Illustrations.dossierDesRendus = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources/Illustrations", isDirectory: true)
         let taille = CGSize(width: 780, height: 420)
 
         func modele(_ e: PriseEnMainModele.Etape, micro: Bool = false, refuse: Bool = false, access: Bool = false, surv: Bool = false,
@@ -160,14 +162,14 @@ enum RenduPremierLancement {
         let seule = CommandLine.arguments.firstIndex(of: "--carte").flatMap { i in i + 1 < CommandLine.arguments.count ? Int(CommandLine.arguments[i + 1]) : nil }
         for sombre in [false, true] where seule == nil {
             etape("accueil-0-bonjour", modele(.bonjour), sombre: sombre)
-            etape("accueil-1-touche-a-autoriser", modele(.touche), sombre: sombre)
-            etape("accueil-1-touche-globe-a-regler", modele(.touche, surv: true, globe: 2), sombre: sombre)
-            etape("accueil-1-touche-prete", modele(.touche, surv: true, doubleAppuiVu: true), sombre: sombre)
-            etape("accueil-2-micro", modele(.micro, surv: true), sombre: sombre)
-            etape("accueil-2-micro-refuse", modele(.micro, refuse: true, surv: true), sombre: sombre)
-            etape("accueil-2-micro-pret", modele(.micro, micro: true, surv: true), sombre: sombre)
-            etape("accueil-3-ecrire", modele(.ecrire, micro: true, surv: true), sombre: sombre)
-            etape("accueil-3-ecrire-pret", modele(.ecrire, micro: true, access: true, surv: true), sombre: sombre)
+            etape("accueil-1-micro", modele(.micro, surv: true), sombre: sombre)
+            etape("accueil-1-micro-refuse", modele(.micro, refuse: true, surv: true), sombre: sombre)
+            etape("accueil-1-micro-pret", modele(.micro, micro: true, surv: true), sombre: sombre)
+            etape("accueil-2-ecrire", modele(.ecrire, micro: true, surv: true), sombre: sombre)
+            etape("accueil-2-ecrire-pret", modele(.ecrire, micro: true, access: true, surv: true), sombre: sombre)
+            etape("accueil-3-touche-a-autoriser", modele(.touche, micro: true, access: true), sombre: sombre)
+            etape("accueil-3-touche-globe-a-regler", modele(.touche, micro: true, access: true, surv: true, globe: 2), sombre: sombre)
+            etape("accueil-3-touche-prete", modele(.touche, micro: true, access: true, surv: true, doubleAppuiVu: true), sombre: sombre)
             etape("accueil-4-cle", modele(.cle, micro: true, access: true, surv: true), sombre: sombre)
             etape("accueil-4-cle-enregistree", modele(.cle, micro: tout.micro, access: tout.access, surv: tout.surv, cle: tout.cle), sombre: sombre)
             etape("accueil-5-essai", modele(.essai, micro: true, access: true, surv: true, cle: tout.cle), sombre: sombre)
@@ -176,13 +178,15 @@ enum RenduPremierLancement {
         }
         // les vidéos : chaque carte en mouvement, une boucle et demie, image par image, en clair
         let images = 60.0
-        let etats: [PriseEnMainModele] = [modele(.touche, surv: true), modele(.micro, micro: true, surv: true), modele(.ecrire, micro: true, access: true, surv: true),
-                                          modele(.cle, micro: true, access: true, surv: true, cle: tout.cle), modele(.essai, micro: true, access: true, surv: true, cle: tout.cle)]
-        for (i, m) in etats.enumerated() where seule == nil || seule == i + 1 {
-            let carte = i + 1
+        // dans l'ordre des cartes (1 le micro … 5 l'essai)
+        let etats: [PriseEnMainModele] = [modele(.micro, micro: true, surv: true), modele(.ecrire, micro: true, access: true, surv: true),
+                                          modele(.touche, micro: true, access: true, surv: true), modele(.cle, micro: true, access: true, surv: true, cle: tout.cle),
+                                          modele(.essai, micro: true, access: true, surv: true, cle: tout.cle)]
+        for m in etats where seule == nil || seule == m.etape.rawValue {
+            let carte = m.etape.rawValue
             let dossierImages = FileManager.default.temporaryDirectory.appendingPathComponent("verbe-video-accueil-\(carte)-\(UUID().uuidString)", isDirectory: true)
             try? FileManager.default.createDirectory(at: dossierImages, withIntermediateDirectories: true)
-            let duree = max(6, SceneAccueil.boucle(carte) * 1.5)
+            let duree = max(6, SceneAccueil.boucle(m.etape.illustration) * 1.5)
             let n = Int(duree * images)
             for k in 0..<n {
                 let donnees = RenduVues.png(scene(m, sombre: false, t: Double(k) / images), taille: taille, echelle: 1.5, apparence: .aqua)

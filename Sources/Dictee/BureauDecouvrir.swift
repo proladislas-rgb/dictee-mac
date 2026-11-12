@@ -168,7 +168,7 @@ struct ScenePetite: View {
                 VStack(spacing: 7) {
                     HStack(spacing: 9) {
                         ForEach(0..<5, id: \.self) { i in
-                            Circle().fill(i == 1 ? Color(hex: 0x0A84FF) : (i == 3 ? Color(hex: 0xE8835C) : Color.white.opacity(0.2))).frame(width: 18, height: 18)
+                            Circle().fill(i == 1 ? CouleursScene.bleu : (i == 3 ? CouleursScene.corail : Color.white.opacity(0.2))).frame(width: 18, height: 18)
                         }
                     }
                     HStack(spacing: 6) {
@@ -177,7 +177,7 @@ struct ScenePetite: View {
                     }
                     .frame(height: 22)
                     Capsule().fill(Color.white.opacity(0.12)).frame(height: 13)
-                        .overlay(alignment: .leading) { Circle().fill(Color(hex: 0xFF453A)).frame(width: 6, height: 6).padding(.leading, 5) }
+                        .overlay(alignment: .leading) { Circle().fill(CouleursScene.rouge).frame(width: 6, height: 6).padding(.leading, 5) }
                 }
                 .frame(width: 140).padding(.top, 10).opacity(vu).offset(y: -4 * (1 - vu))
             }
@@ -218,14 +218,14 @@ struct ScenePetite: View {
                 HStack(spacing: 4) {
                     ForEach(["5", "10", "25"], id: \.self) { m in
                         Text(m).font(.system(size: 8, weight: .bold)).foregroundStyle(m == "10" && choisi ? .black : .white)
-                            .frame(width: 30, height: 15).background(Capsule().fill(m == "10" && choisi ? Color(hex: 0xFF9F0A) : Color.white.opacity(0.16)))
+                            .frame(width: 30, height: 15).background(Capsule().fill(m == "10" && choisi ? CouleursScene.ambre : Color.white.opacity(0.16)))
                     }
                 }
                 .padding(.top, 13).opacity(o)
                 HStack {
-                    Circle().trim(from: 0, to: 0.8 - 0.1 * max(0, s - 1.8) / 2.2).stroke(Color(hex: 0xFF9F0A), lineWidth: 1.6).rotationEffect(.degrees(-90)).frame(width: 7, height: 7)
+                    Circle().trim(from: 0, to: 0.8 - 0.1 * max(0, s - 1.8) / 2.2).stroke(CouleursScene.ambre, lineWidth: 1.6).rotationEffect(.degrees(-90)).frame(width: 7, height: 7)
                     Spacer()
-                    Text("9:5\(8 - min(2, Int(max(0, s - 1.8))))").font(.system(size: 7.5, weight: .bold).monospacedDigit()).foregroundStyle(Color(hex: 0xFF9F0A))
+                    Text("9:5\(8 - min(2, Int(max(0, s - 1.8))))").font(.system(size: 7.5, weight: .bold).monospacedDigit()).foregroundStyle(CouleursScene.ambre)
                 }
                 .padding(.horizontal, 6).padding(.top, 2).opacity(compte * (1 - o))
             }
@@ -242,11 +242,11 @@ struct ScenePetite: View {
             encoche(44 + 52 * ecoute + 120 * b * (1 - ecoute), 11 + 19 * b) {
                 ZStack(alignment: .topLeading) {
                     HStack(spacing: 1.5) {
-                        ForEach(0..<4, id: \.self) { i in Capsule().fill(Color(hex: 0xFFAB3D)).frame(width: 1.6, height: 3 + 4 * abs(sin(t * 6 + Double(i)))) }
+                        ForEach(0..<4, id: \.self) { i in Capsule().fill(CouleursScene.egaliseur).frame(width: 1.6, height: 3 + 4 * abs(sin(t * 6 + Double(i)))) }
                     }
                     .padding(.leading, 8).padding(.top, 2).opacity(ecoute)
                     HStack(spacing: 5) {
-                        Image(systemName: "bell.fill").font(.system(size: 7)).foregroundStyle(Color(hex: 0xFFD60A)).frame(width: 15, height: 15).background(Circle().fill(Color(hex: 0xFFD60A).opacity(0.22)))
+                        Image(systemName: "bell.fill").font(.system(size: 7)).foregroundStyle(CouleursScene.jaune).frame(width: 15, height: 15).background(Circle().fill(CouleursScene.jaune.opacity(0.22)))
                         Text("Demain 9:00").font(.system(size: 7.5, weight: .bold)).foregroundStyle(.white)
                         Text("Appeler le garage").font(.system(size: 7.5, weight: .semibold)).foregroundStyle(.white.opacity(0.6))
                     }
@@ -265,7 +265,7 @@ struct ScenePetite: View {
         return ZStack(alignment: .top) {
             encoche(96, 11) {
                 HStack {
-                    Circle().fill(Color(hex: 0xFF453A)).frame(width: 5, height: 5).opacity(0.6 + 0.4 * cos(t * 5.2))
+                    Circle().fill(CouleursScene.rouge).frame(width: 5, height: 5).opacity(0.6 + 0.4 * cos(t * 5.2))
                     Spacer()
                     Text("12:0\(4 + Int(s) % 6)").font(.system(size: 7.5, weight: .bold).monospacedDigit()).foregroundStyle(.white)
                 }
@@ -276,8 +276,8 @@ struct ScenePetite: View {
                     ForEach(0..<3, id: \.self) { i in
                         let v = Ressort.allerRetour(0, 1, t: s, aller: 0.3 + 0.7 * Double(i), retour: 3.5, duree: 0.45)
                         HStack(spacing: 5) {
-                            Capsule().fill([Color(hex: 0xE8835C), Color(hex: 0x6E8FBF), Color(hex: 0x6EA77A)][i]).frame(width: 12, height: 3)
-                            Capsule().fill(Color(hex: 0xD6D8DE)).frame(width: [62, 52, 70][i], height: 3)
+                            Capsule().fill([CouleursScene.corail, CouleursScene.voixBleue, CouleursScene.voixVerte][i]).frame(width: 12, height: 3)
+                            Capsule().fill(CouleursScene.ligne).frame(width: [62, 52, 70][i], height: 3)
                         }
                         .opacity(v).offset(y: 3 * (1 - v))
                     }
@@ -294,7 +294,7 @@ struct ScenePetite: View {
         return ZStack(alignment: .top) {
             encoche(96, 11) {
                 HStack {
-                    Image(systemName: "asterisk").font(.system(size: 7, weight: .bold)).foregroundStyle(Color(hex: 0xE8835C)).rotationEffect(.degrees(t * 90))
+                    Image(systemName: "asterisk").font(.system(size: 7, weight: .bold)).foregroundStyle(CouleursScene.corail).rotationEffect(.degrees(t * 90))
                     Spacer()
                     Text("\(3 + Int(barre * 4.2))/7").font(.system(size: 7.5, weight: .bold).monospacedDigit()).foregroundStyle(.white)
                 }
@@ -302,9 +302,9 @@ struct ScenePetite: View {
             }
             FeuilleMini {
                 VStack(alignment: .leading, spacing: 7) {
-                    Text("boutique \u{00B7} écrit les tests").font(.system(size: 8.5, weight: .semibold)).foregroundStyle(Color(hex: 0x1D1D1F)).lineLimit(1)
+                    Text("boutique \u{00B7} écrit les tests").font(.system(size: 8.5, weight: .semibold)).foregroundStyle(CouleursScene.encre).lineLimit(1)
                     GeometryReader { g in
-                        Capsule().fill(Color(hex: 0xECECF0)).overlay(alignment: .leading) { Capsule().fill(Color(hex: 0xE8835C)).frame(width: g.size.width * barre) }
+                        Capsule().fill(CouleursScene.piste).overlay(alignment: .leading) { Capsule().fill(CouleursScene.corail).frame(width: g.size.width * barre) }
                     }
                     .frame(height: 3)
                 }
@@ -321,15 +321,15 @@ struct ScenePetite: View {
         return encoche(110 + 60 * o, 13 + 47 * o) {
             ZStack(alignment: .topLeading) {
                 HStack {
-                    RoundedRectangle(cornerRadius: 2).fill(LinearGradient(colors: [Color(hex: 0xF2841C), Color(hex: 0xE8455C)], startPoint: .topLeading, endPoint: .bottomTrailing)).frame(width: 9, height: 9)
+                    RoundedRectangle(cornerRadius: 2).fill(LinearGradient(colors: [CouleursScene.pochetteHaut, CouleursScene.pochetteBas], startPoint: .topLeading, endPoint: .bottomTrailing)).frame(width: 9, height: 9)
                     Spacer()
                     HStack(spacing: 1.5) {
-                        ForEach(0..<4, id: \.self) { i in Capsule().fill(Color(hex: 0xFFAB3D)).frame(width: 1.6, height: 3 + 4 * abs(sin(t * 5 + Double(i) * 1.3))) }
+                        ForEach(0..<4, id: \.self) { i in Capsule().fill(CouleursScene.egaliseur).frame(width: 1.6, height: 3 + 4 * abs(sin(t * 5 + Double(i) * 1.3))) }
                     }
                 }
                 .padding(.horizontal, 7).padding(.top, 2).opacity(1 - o)
                 HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 6).fill(LinearGradient(colors: [Color(hex: 0xF2841C), Color(hex: 0xE8455C)], startPoint: .topLeading, endPoint: .bottomTrailing)).frame(width: 34, height: 34)
+                    RoundedRectangle(cornerRadius: 6).fill(LinearGradient(colors: [CouleursScene.pochetteHaut, CouleursScene.pochetteBas], startPoint: .topLeading, endPoint: .bottomTrailing)).frame(width: 34, height: 34)
                     VStack(alignment: .leading, spacing: 4) {
                         Capsule().fill(Color.white.opacity(0.85)).frame(width: 58, height: 4)
                         Capsule().fill(Color.white.opacity(0.4)).frame(width: 40, height: 3)
@@ -346,11 +346,20 @@ struct ScenePetite: View {
     }
 }
 
+/// Les couleurs des petites scènes : celles de l'encoche (toujours sombre) et des objets qu'elle montre, les mêmes en clair et en sombre.
+enum CouleursScene {
+    static let bleu = Color(hex: 0x0A84FF), corail = Color(hex: 0xE8835C), rouge = Color(hex: 0xFF453A), ambre = Color(hex: 0xFF9F0A)
+    static let egaliseur = Color(hex: 0xFFAB3D), jaune = Color(hex: 0xFFD60A), pdf = Color(hex: 0xE5484D)
+    static let voixBleue = Color(hex: 0x6E8FBF), voixVerte = Color(hex: 0x6EA77A)
+    static let encre = Color(hex: 0x1D1D1F), ligne = Color(hex: 0xD6D8DE), piste = Color(hex: 0xECECF0)
+    static let pochetteHaut = Color(hex: 0xF2841C), pochetteBas = Color(hex: 0xE8455C)
+}
+
 /// Un petit document (PDF) pour la scène de l'étagère.
 struct DocumentMini: View {
     var body: some View {
         RoundedRectangle(cornerRadius: 2.5).fill(.white).frame(width: 18, height: 23)
-            .overlay(alignment: .bottom) { Text("PDF").font(.system(size: 5, weight: .heavy)).foregroundStyle(.white).padding(.horizontal, 2).background(Color(hex: 0xE5484D)).padding(.bottom, 4) }
+            .overlay(alignment: .bottom) { Text("PDF").font(.system(size: 5, weight: .heavy)).foregroundStyle(.white).padding(.horizontal, 2).background(CouleursScene.pdf).padding(.bottom, 4) }
             .shadow(color: .black.opacity(0.25), radius: 3, y: 2)
     }
 }

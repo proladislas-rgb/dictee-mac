@@ -40,6 +40,9 @@ final class NavigationBureau: ObservableObject {
     @Published private(set) var sousPage: SousPageBureau?
     /// La fenêtre est à l'écran (ni fermée, ni cachée derrière une autre) : les petites scènes de Découvrir ne tournent que là.
     @Published var visible = true
+    /// Un endroit d'une page où défiler en arrivant (puis oublié).
+    enum Ancre: Hashable { case misesAJour }
+    @Published var defilerVers: Ancre?
 
     func aller(_ p: PageBureau) { page = p; sousPage = nil }
     func ouvrir(_ s: SousPageBureau) { page = s.parent; sousPage = s }
@@ -125,7 +128,8 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
     var surDesinstaller: () -> Void = {}
     /// « Essayer » d'une tuile de Découvrir : l'AppDelegate le fait faire à la vraie encoche (seulement celles qu'il sait montrer).
     var surEssayer: (Decouverte) -> Void = { _ in }
-    var essais: Set<Decouverte> = []
+    /// Celles qu'elle sait montrer en ce moment (une fonction éteinte n'a pas de bouton « Essayer »).
+    var essais: () -> Set<Decouverte> = { [] }
 
     init(dictees: ModeleDictees, controleurReunions: ReunionController, bibliotheque: BibliothequeModele, sources: SourcesAujourdhui) {
         self.dictees = dictees; self.controleurReunions = controleurReunions; self.bibliotheque = bibliotheque
@@ -141,6 +145,9 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
 
     /// Ouvre la fenêtre sur « Aujourd'hui » (icône du Dock, Spotlight, menu).
     func afficherAccueil() { montrer { $0.aller(.aujourdhui) } }
+
+    /// Ouvre Réglages et fait défiler jusqu'aux mises à jour (menu « Rechercher les mises à jour »).
+    func afficherMisesAJour() { montrer { $0.aller(.reglages); $0.defilerVers = .misesAJour } }
 
     /// Ouvre la fenêtre sur une page (menu « Aller »).
     func afficher(page: PageBureau) { montrer { $0.aller(page) } }
@@ -158,7 +165,7 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         // ne peut plus afficher l'encoche par-dessus une app en plein écran (constaté dans le Terminal en plein écran).
         NSApp.activate(ignoringOtherApps: true)
         f.makeKeyAndOrderFront(nil)
-        nav.visible = true
+        changerVisibilite(true)
     }
 
     /// Ce qu'une page relit en s'ouvrant.
@@ -170,19 +177,28 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         default: break
         }
         if page == .reunions, sous == nil, reunions.ouverte == nil { reunions.reinitialiser() }
-        if page == .aujourdhui, sous == nil { aujourdhui.recalculer() }
     }
 
     /// Fenêtre fermée : Verbe reste discret dans l'encoche et la barre des menus (par sécurité, on garde la politique d'arrière-plan).
     func windowWillClose(_ notification: Notification) {
-        nav.visible = false
+        changerVisibilite(false)
         NSApp.setActivationPolicy(.accessory)
+    }
+
+    /// La fenêtre paraît ou disparaît : ses pages ne recalculent (nouvelle dictée, note qui change) et ne s'animent que visibles.
+    /// La vue survit à la fermeture (fenêtre gardée) : `onAppear` / `onDisappear` ne suffisent pas.
+    private func changerVisibilite(_ v: Bool) {
+        nav.visible = v
+        aujourdhui.affichee = v && nav.page == .aujourdhui && nav.sousPage == nil
+        journee.affichee = v && nav.sousPage == .journee
+        if v { aujourdhui.recalculerSiAffichee(); journee.recalculerSiAffichee() }
     }
 
     /// Cachée derrière d'autres fenêtres, sur un autre bureau, réduite : les animations s'arrêtent ; de retour, elles reprennent.
     func windowDidChangeOcclusionState(_ notification: Notification) {
         guard let f = fenetre else { return }
-        nav.visible = f.occlusionState.contains(.visible)
+        let v = f.occlusionState.contains(.visible)
+        if v != nav.visible { changerVisibilite(v) }
     }
 
     func fermer() { fenetre?.close() }
@@ -203,7 +219,7 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
                                          cle: { [weak self] in self?.surCle() },
                                          desinstaller: { [weak self] in self?.surDesinstaller() },
                                          essayer: { [weak self] d in self?.surEssayer(d) },
-                                         essais: essais,
+                                         essais: { [weak self] in self?.essais() ?? [] },
                                          preparer: { [weak self] sous, page in self?.preparer(sous, page) }))
     }
 

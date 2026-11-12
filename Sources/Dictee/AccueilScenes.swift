@@ -2,19 +2,17 @@ import AppKit
 import SwiftUI
 import DicteeCore
 
-/// Les illustrations des cartes d'accueil : `Contents/Resources/Illustrations/<nom>.png` dans l'app, `Resources/Illustrations/` du
-/// dépôt pour les rendus lancés depuis le dossier de travail. Une pièce absente n'empêche rien : la scène montre un repli sobre.
+/// Les illustrations des cartes d'accueil : `Contents/Resources/Illustrations/<nom>.png` dans l'app. Les rendus (lancés depuis le dépôt)
+/// donnent `dossierDesRendus`. Une pièce absente n'empêche rien : la scène montre un repli sobre.
 @MainActor
 enum Illustrations {
     private static var cache: [String: NSImage] = [:]
     private static var absentes: Set<String> = []
     private static var barresOnde: [(debut: Double, fin: Double)]?
 
-    static let dossiers: [URL] = [
-        Bundle.main.resourceURL?.appendingPathComponent("Illustrations", isDirectory: true),
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Resources/Illustrations", isDirectory: true),
-    ].compactMap { $0 }
+    /// Rendus seulement : `Resources/Illustrations` du dossier de travail (l'app n'en a pas besoin).
+    static var dossierDesRendus: URL?
+    static var dossiers: [URL] { [Bundle.main.resourceURL?.appendingPathComponent("Illustrations", isDirectory: true), dossierDesRendus].compactMap { $0 } }
 
     static func image(_ nom: String) -> NSImage? {
         if let i = cache[nom] { return i }
@@ -197,28 +195,6 @@ struct OndeBarres: View {
     }
 }
 
-/// Des niveaux de voix qui changent tous les `pas` secondes : une somme de ressorts (un par changement), donc un mouvement continu,
-/// avec élan et rebond, qui ne se répète pas barre à barre.
-enum NiveauxVoix {
-    static let pas = 0.16
-    static func niveau(_ barre: Int, _ k: Int) -> Double {
-        var x = UInt64(bitPattern: Int64(barre &* 7919 &+ k &* 104_729)) &+ 0x9E37_79B9_7F4A_7C15
-        x = (x ^ (x >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        x = (x ^ (x >> 27)) &* 0x94D0_49BB_1331_11EB
-        x ^= x >> 31
-        let centre = 1 - abs(Double(barre) - 4) / 6          // plus haut au milieu, comme une voix
-        return 0.35 + 0.65 * centre * (0.45 + 0.55 * Double(x % 1000) / 1000)
-    }
-    static func valeur(_ barre: Int, t: Double) -> Double {
-        let n = Int(floor(t / pas))
-        var v = niveau(barre, n - 12)
-        for k in (n - 11)...max(n - 11, n) {
-            v += (niveau(barre, k) - niveau(barre, k - 1)) * Ressort.valeur(t - Double(k) * pas, duree: 0.32, rebond: 0.35)
-        }
-        return v
-    }
-}
-
 // MARK: - 1 · la touche fn
 
 /// La caméra s'approche, l'index arrive en arc depuis le bord de la carte, la touche s'enfonce (petit écrasement), un reflet glisse
@@ -339,6 +315,15 @@ struct SceneEcrire: View {
     static let curseur = (x: 0.499, y: 0.499, hauteur: 0.246)
     static let debutTexte = (x: 0.215, y: 0.47)
 
+    /// La largeur des `n` premières lettres, mesurée une fois par taille de police (pas à chaque image).
+    @MainActor private static var largeurs: [CGFloat: [CGFloat]] = [:]
+    @MainActor private static func largeur(_ n: Int, _ police: NSFont) -> CGFloat {
+        if largeurs[police.pointSize] == nil {
+            largeurs[police.pointSize] = (0...texte.count).map { (String(texte.prefix($0)) as NSString).size(withAttributes: [.font: police]).width }
+        }
+        return largeurs[police.pointSize]?[n] ?? 0
+    }
+
     var body: some View {
         let s = t.truncatingRemainder(dividingBy: Self.boucle)
         let toile = Toile(cadre: cadre, fenetre: Self.fenetre)
@@ -349,7 +334,7 @@ struct SceneEcrire: View {
         let frappe = 0.075, debut = 0.55
         let tapees = max(0, min(Self.texte.count, Int((s - debut) / frappe)))
         let ecrit = String(Self.texte.prefix(tapees))
-        let largeur = (ecrit as NSString).size(withAttributes: [.font: police]).width
+        let largeur = Self.largeur(tapees, police)
         let efface = Ressort.de(1, vers: 0, t: s, depart: 4.4, duree: 0.5)
         // pendant la frappe, le curseur reste allumé ; ensuite il clignote en douceur
         let finFrappe = debut + Double(Self.texte.count) * frappe + 0.25

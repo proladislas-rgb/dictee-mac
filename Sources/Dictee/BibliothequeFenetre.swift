@@ -59,7 +59,7 @@ struct BibliothequeFenetreVue: View {
         let groupes = BibliothequeIlot.groupes(vus, recents: e.recents, maintenant: b.maintenant())
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                Text(BibliothequeIlot.compte(tout.count, etagere: b.surEtagere)).font(Polices.commande(12.5)).foregroundStyle(Palette.texte3).lineLimit(1)
+                Text(BibliothequeIlot.compte(tout.count, etagere: b.surEtagere)).font(Polices.commande(12.5)).foregroundStyle(Palette.texte3).lineLimit(1).fixedSize()
                 Spacer(minLength: 8)
                 champ
                 tri
@@ -100,7 +100,7 @@ struct BibliothequeFenetreVue: View {
             Spacer(minLength: 0)
             barreDuBas
         }
-        .padding(.horizontal, 24).padding(.top, 18)
+        .padding(.trailing, 24).padding(.top, 2)   // sous le titre de la sous-page, aligné sur sa marge
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 

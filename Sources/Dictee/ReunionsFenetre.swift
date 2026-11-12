@@ -584,7 +584,6 @@ struct ColonneReunions: View {
         }
         .padding(.top, 2)
         .frame(maxHeight: .infinity, alignment: .top)
-        
     }
 
     private var groupes: [(titre: String, reunions: [Reunion])] {

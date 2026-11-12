@@ -11,7 +11,7 @@ enum Palette {
     static let selection = Color(clair: 0xEFECE7, sombre: 0x262624)
     static let texte = Color(clair: 0x1D1D1F, sombre: 0xECE9E3)
     static let texte2 = Color(clair: 0x6C6C71, sombre: 0xA8A59E)
-    static let texte3 = Color(clair: 0x86868B, sombre: 0x88857E)
+    static let texte3 = Color(clair: 0x6E6E73, sombre: 0x88857E)
     static let accent = Color(clair: 0xC2741A, sombre: 0xE6A04A)
     static let filet = Color(nsColor: .dynamique(clair: NSColor.black.withAlphaComponent(0.08), sombre: NSColor(srgbRed: 236/255, green: 233/255, blue: 227/255, alpha: 0.09)))
     /// Interrupteurs allumés, coches, « prêt ».
@@ -35,7 +35,7 @@ enum Palette {
     static let nsAccent = NSColor.dynamique(clair: NSColor(hex: 0xC2741A), sombre: NSColor(srgbRed: 230/255, green: 160/255, blue: 74/255, alpha: 1))
     static let nsSelectionCG = CGColor(srgbRed: 38/255, green: 38/255, blue: 36/255, alpha: 1)
     static let nsTexte = NSColor.dynamique(clair: NSColor(hex: 0x1D1D1F), sombre: NSColor(srgbRed: 236/255, green: 233/255, blue: 227/255, alpha: 1))
-    static let nsTexte3 = NSColor.dynamique(clair: NSColor(hex: 0x86868B), sombre: NSColor(srgbRed: 136/255, green: 133/255, blue: 126/255, alpha: 1))
+    static let nsTexte3 = NSColor.dynamique(clair: NSColor(hex: 0x6E6E73), sombre: NSColor(srgbRed: 136/255, green: 133/255, blue: 126/255, alpha: 1))
 }
 
 extension NSColor {

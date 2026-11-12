@@ -8,15 +8,11 @@ import DicteeCore
 struct GroupeReglages<Contenu: View>: View {
     var titre: String
     @ViewBuilder var contenu: Contenu
-    @Environment(\.colorScheme) private var schema
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(titre).font(.system(size: 13, weight: .semibold)).foregroundStyle(TonsBureau.encre3).padding(.leading, 12)
                 .accessibilityAddTraits(.isHeader)
-            VStack(spacing: 0) { contenu }
-                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(TonsBureau.carte))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(schema == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06), lineWidth: 0.5))
-                .shadow(color: Color(red: 70/255, green: 45/255, blue: 20/255).opacity(schema == .dark ? 0 : 0.08), radius: 8, y: 4)
+            CarteBureau(rayon: 14) { VStack(spacing: 0) { contenu } }
         }
     }
 }
@@ -78,7 +74,7 @@ struct EtatVert: View {
             Image(systemName: "checkmark").font(.system(size: 11, weight: .bold))
             Text(texte).fontWeight(.semibold)
         }
-        .foregroundStyle(TonsBureau.vert)
+        .foregroundStyle(TonsBureau.vertTexte)
         .accessibilityElement(children: .combine)
     }
 }
@@ -88,7 +84,7 @@ struct LienBleu: View {
     var titre: String
     var action: () -> Void
     var body: some View {
-        Button(action: action) { Text(titre).font(.system(size: 13, weight: .medium)).foregroundStyle(TonsBureau.bleu).contentShape(Rectangle()) }
+        Button(action: action) { Text(titre).font(.system(size: 13, weight: .medium)).foregroundStyle(TonsBureau.bleuTexte).contentShape(Rectangle()) }
             .buttonStyle(.plain)
     }
 }
@@ -113,30 +109,44 @@ struct ReglagesBureauVue: View {
     @ObservedObject var store: HistoriqueStore
     @ObservedObject var mots: MotsModele
     @ObservedObject var apparence: ApparenceFenetre
+    @ObservedObject var nav: NavigationBureau
     var actions: ActionsBureau
+    /// La fenêtre est à l'écran : la touche 🌐 n'est relue que là.
+    var visible = true
     var ouvrir: (SousPageBureau) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             EntetePage(petit: "Peu de réglages, chacun dit ce qu\u{2019}il fait", titre: "Réglages") { aPropos }
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .top, spacing: 20) {
-                        VStack(alignment: .leading, spacing: 14) { dictee; lucarne }.frame(maxWidth: .infinity)
-                        VStack(alignment: .leading, spacing: 14) { apparenceGroupe; confidentialite; compte }.frame(maxWidth: .infinity)
+            // la page dépasse la fenêtre : la barre de défilement le montre ; venu de « Rechercher les mises à jour », on y défile
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(alignment: .top, spacing: 20) {
+                            VStack(alignment: .leading, spacing: 14) { dictee; lucarne }.frame(maxWidth: .infinity)
+                            VStack(alignment: .leading, spacing: 14) { apparenceGroupe; confidentialite; compte }.frame(maxWidth: .infinity)
+                        }
+                        liens
                     }
-                    liens
+                    .padding(.bottom, TonsBureau.margeBas)
                 }
-                .padding(.bottom, TonsBureau.margeBas)
+                .onAppear { defiler(proxy) }
+                .onChange(of: nav.defilerVers) { _, _ in defiler(proxy) }
             }
         }
         .padding(.horizontal, TonsBureau.margeH)
-        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in r.rafraichirGlobe() }
+        .onReceive(Minuterie.tant(visible, toutesLes: 1)) { _ in r.rafraichirGlobe() }
+    }
+
+    private func defiler(_ proxy: ScrollViewProxy) {
+        guard let a = nav.defilerVers else { return }
+        withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(a, anchor: .center) }
+        nav.defilerVers = nil
     }
 
     private var aPropos: some View {
         HStack(spacing: 10) {
-            Image(nsImage: IconeApp.image()).resizable().frame(width: 44, height: 44)
+            Image(nsImage: IconeApp.image128).resizable().frame(width: 44, height: 44)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Verbe \(r.maj.versionActuelle)").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(TonsBureau.encre)
                 Text(r.maj.disponible == nil ? "Tout reste sur ce Mac" : "Une mise à jour est prête").font(.system(size: 12)).foregroundStyle(TonsBureau.encre3)
@@ -158,7 +168,7 @@ struct ReglagesBureauVue: View {
             LigneGroupe(libelle: "Micro, langue, vitesse", action: { ouvrir(.dictee) }) { Text(r.micros.first { $0.id == r.micro }?.nom ?? "Automatique").lineLimit(1) }
             LigneGroupe(libelle: "Mots et raccourcis", action: { ouvrir(.mots) }) {
                 if mots.propositions.enAttente.count > 0 {
-                    Text("\(mots.propositions.enAttente.count) à valider").foregroundStyle(TonsBureau.orange)
+                    Text("\(mots.propositions.enAttente.count) à valider").foregroundStyle(TonsBureau.orangeTexte)
                 } else {
                     Text("\(mots.mots.count + mots.raccourcis.count)")
                 }
@@ -215,7 +225,7 @@ struct ReglagesBureauVue: View {
     private var compte: some View {
         GroupeReglages(titre: "Compte") {
             LigneGroupe(libelle: "Clé Groq", premiere: true) {
-                if r.cle == .absente { Text("Manquante").foregroundStyle(TonsBureau.orange); LienBleu(titre: "Ajouter", action: actions.cle) }
+                if r.cle == .absente { Text("Manquante").foregroundStyle(TonsBureau.orangeTexte); LienBleu(titre: "Ajouter", action: actions.cle) }
                 else { EtatVert(texte: "Enregistrée"); LienBleu(titre: "Modifier", action: actions.cle) }
             }
             LigneGroupe(libelle: r.ligneGroq, note: r.noteGroq) {
@@ -225,13 +235,13 @@ struct ReglagesBureauVue: View {
                 }
             }
             LigneGroupe(libelle: "Autorisations", detail: "micro, accessibilité, clavier") {
-                if r.autorisationsAccordees == 3 { EtatVert(texte: "3 sur 3") } else { Text("\(r.autorisationsAccordees) sur 3").foregroundStyle(TonsBureau.orange) }
+                if r.autorisationsAccordees == 3 { EtatVert(texte: "3 sur 3") } else { Text("\(r.autorisationsAccordees) sur 3").foregroundStyle(TonsBureau.orangeTexte) }
                 LienBleu(titre: "Voir", action: actions.autorisations)
             }
             LigneGroupe(libelle: "Ouvrir au démarrage", note: r.avis) {
                 Interrupteur(actif: .constant(r.ouvrirAuDemarrage), etiquette: "Ouvrir au démarrage") { r.choisirOuvertureAuDemarrage($0) }
             }
-            LignesMiseAJour(m: r.maj)
+            LignesMiseAJour(m: r.maj).id(NavigationBureau.Ancre.misesAJour)
         }
     }
 

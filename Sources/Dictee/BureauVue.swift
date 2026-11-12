@@ -10,8 +10,8 @@ struct ActionsBureau {
     var cle: () -> Void = {}
     var desinstaller: () -> Void = {}
     var essayer: (Decouverte) -> Void = { _ in }
-    /// Les tuiles de Découvrir que l'encoche sait montrer en vrai (« Essayer »).
-    var essais: Set<Decouverte> = []
+    /// Les tuiles de Découvrir que l'encoche sait montrer en vrai (« Essayer »), relues à chaque affichage.
+    var essais: () -> Set<Decouverte> = { [] }
     var preparer: (SousPageBureau?, PageBureau) -> Void = { _, _ in }
 }
 
@@ -42,13 +42,19 @@ struct BureauVue: View {
                 .transition(.opacity.combined(with: reduire ? .identity : .offset(y: 6)))
                 .padding(.top, TonsBureau.margeHaut)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // la bande du haut (hors des onglets et du soleil) déplace la fenêtre, comme une barre de titre
+            Color.clear.frame(height: TonsBureau.margeHaut - 10).frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .gesture(WindowDragGesture())
+                .allowsWindowActivationEvents(true)
             BarreBureau(nav: nav, apparence: apparence, preparer: actions.preparer)
         }
         .animation(.easeOut(duration: 0.22), value: cle)
         .ignoresSafeArea()
         .environment(\.colorScheme, apparence.sombre ? .dark : .light)
-        // Le micro réellement utilisé peut changer (casque branché) : relu de temps en temps tant que la fenêtre est ouverte.
-        .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in reglages.rafraichirMicroUtilise() }
+        // Le micro réellement utilisé peut changer (casque branché) : relu de temps en temps, seulement fenêtre à l'écran (la vue
+        // survit à la fermeture de la fenêtre : sans cette garde, la minuterie tournerait pour rien).
+        .onReceive(Minuterie.tant(nav.visible, toutesLes: 5)) { _ in reglages.rafraichirMicroUtilise() }
     }
 
     /// Une clé par écran : la page, ou la sous-page.
@@ -71,14 +77,18 @@ struct BureauVue: View {
             case .aujourdhui:
                 AujourdhuiVue(m: aujourdhui, controleur: controleur,
                               ouvrir: { s in nav.ouvrir(s); actions.preparer(s, s.parent) },
-                              ouvrirNote: { id in reunions.ouvrir(id); nav.aller(.reunions) },
-                              noter: { reunions.surNoter() })
+                              ouvrirNote: { id in
+                                  if let id { reunions.ouvrir(id) }
+                                  nav.aller(.reunions); actions.preparer(nil, .reunions)
+                              },
+                              noter: { reunions.surNoter() },
+                              visible: nav.visible)
             case .decouvrir:
-                DecouvrirVue(essais: actions.essais, essayer: actions.essayer, actif: nav.visible)
+                DecouvrirVue(essais: actions.essais(), essayer: actions.essayer, actif: nav.visible)
             case .reunions:
                 ReunionsPageVue(m: reunions, store: reunions.store, controleur: controleur)
             case .reglages:
-                ReglagesBureauVue(r: reglages, store: store, mots: mots, apparence: apparence, actions: actions,
+                ReglagesBureauVue(r: reglages, store: store, mots: mots, apparence: apparence, nav: nav, actions: actions, visible: nav.visible,
                                   ouvrir: { s in nav.ouvrir(s); actions.preparer(s, s.parent) })
             }
         }
@@ -96,7 +106,7 @@ struct BureauVue: View {
         switch s {
         case .dictees: DicteesFenetreVue(m: dictees, store: store, reglages: reglages)
         case .journee: JourneeVue(m: journee)
-        case .bibliotheque: BibliothequeFenetreVue(b: bibliotheque, e: etatBibliotheque, statique: statique).padding(.horizontal, TonsBureau.margeH).padding(.bottom, TonsBureau.margeBas)
+        case .bibliotheque: BibliothequeFenetreVue(b: bibliotheque, e: etatBibliotheque, statique: statique).padding(.leading, TonsBureau.margeH)
         case .mots: MotsVue(m: mots).padding(.horizontal, TonsBureau.margeH)
         case .dictee, .lucarne, .confidentialite:
             ReglagesDetailVue(sous: s, r: reglages, store: store, actions: actions)
@@ -163,8 +173,11 @@ struct BarreBureau: View {
     private var boutonApparence: some View {
         Button { withAnimation(.easeInOut(duration: 0.35)) { apparence.basculer() } } label: {
             ZStack {
-                Image(systemName: "sun.max").opacity(apparence.sombre ? 0 : 1).rotationEffect(.degrees(apparence.sombre ? 60 : 0)).scaleEffect(apparence.sombre ? 0.6 : 1)
-                Image(systemName: "moon").opacity(apparence.sombre ? 1 : 0).rotationEffect(.degrees(apparence.sombre ? 0 : -60)).scaleEffect(apparence.sombre ? 1 : 0.6)
+                // le soleil tourne et rapetisse en laissant la place à la lune (un simple fondu avec « Réduire les animations »)
+                Image(systemName: "sun.max").opacity(apparence.sombre ? 0 : 1)
+                    .rotationEffect(.degrees(apparence.sombre && !reduire ? 60 : 0)).scaleEffect(apparence.sombre && !reduire ? 0.6 : 1)
+                Image(systemName: "moon").opacity(apparence.sombre ? 1 : 0)
+                    .rotationEffect(.degrees(apparence.sombre || reduire ? 0 : -60)).scaleEffect(apparence.sombre || reduire ? 1 : 0.6)
             }
             .font(.system(size: 15, weight: .medium))
             .foregroundStyle(TonsBureau.encre)

@@ -323,3 +323,27 @@ extension IllustrationsAccueil {
         return sortie
     }
 }
+
+/// Des niveaux de voix qui changent tous les `pas` secondes, barre par barre (l'onde des cartes d'accueil) : une somme de ressorts,
+/// un par changement, donc un mouvement continu avec élan et rebond, qui ne se répète pas d'une barre à l'autre.
+public enum NiveauxVoix {
+    public static let pas = 0.16
+    /// Le niveau visé par la barre au changement `k` (0,35 à 1), plus haut au milieu de l'onde (barre 4 sur 9), comme une voix.
+    public static func niveau(_ barre: Int, _ k: Int) -> Double {
+        var x = UInt64(bitPattern: Int64(barre &* 7919 &+ k &* 104_729)) &+ 0x9E37_79B9_7F4A_7C15
+        x = (x ^ (x >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        x = (x ^ (x >> 27)) &* 0x94D0_49BB_1331_11EB
+        x ^= x >> 31
+        let centre = 1 - abs(Double(barre) - 4) / 6
+        return 0.35 + 0.65 * centre * (0.45 + 0.55 * Double(x % 1000) / 1000)
+    }
+    /// La hauteur de la barre à l'instant `t` (les douze derniers changements comptent, les plus vieux sont posés).
+    public static func valeur(_ barre: Int, t: Double) -> Double {
+        let n = Int(floor(t / pas))
+        var v = niveau(barre, n - 12)
+        for k in (n - 11)...max(n - 11, n) {
+            v += (niveau(barre, k) - niveau(barre, k - 1)) * Ressort.valeur(t - Double(k) * pas, duree: 0.32, rebond: 0.35)
+        }
+        return v
+    }
+}

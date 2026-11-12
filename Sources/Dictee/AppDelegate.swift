@@ -25,12 +25,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var reunionControleur = ReunionController()
     private lazy var fenetrePrincipale = FenetrePrincipale(dictees: ModeleDictees(), controleurReunions: reunionControleur, bibliotheque: ilot.bibliotheque,
                                                            sources: sourcesAujourdhui)
-    /// Les rendez-vous d'« Aujourd'hui » : lus seulement si le calendrier est allumé (et déjà autorisé), jamais demandés d'ici.
-    private let agendaBureau = AgendaSysteme()
+    /// Les rendez-vous d'« Aujourd'hui » : lus dans le calendrier de l'îlot (un seul accès aux calendriers), seulement s'il est allumé
+    /// (et déjà autorisé) ; jamais demandés d'ici.
     private var sourcesAujourdhui: SourcesAujourdhui {
         SourcesAujourdhui(rappels: { [weak self] in self?.ilot.rappels.rappels ?? [] },
                           etagere: { [weak self] in self?.ilot.etagere.elements ?? [] },
-                          rendezVous: { [weak self] in Settings.ilotCalendrier ? (self?.agendaBureau.prochains(heures: 12, depuis: Date()) ?? []) : [] })
+                          rendezVous: { [weak self] in Settings.ilotCalendrier ? (self?.ilot.agenda.prochains(heures: 12, depuis: Date()) ?? []) : [] })
     }
     private var survolStatus: SurvolStatus?
     private var derniereAppExterne: NSRunningApplication?
@@ -323,7 +323,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fenetrePrincipale.surCle = { [weak self] in self?.ouvrirPriseEnMain(etape: .cle, forcerCle: true) }
         fenetrePrincipale.surDesinstaller = { InstallationApp.desinstaller() }
         // Découvrir › « Essayer » : seulement ce que l'encoche sait montrer d'elle-même (une carte qu'on ouvre, un minuteur d'une minute)
-        fenetrePrincipale.essais = [.etagere, .minuteur, .rappels, .claude]
+        fenetrePrincipale.essais = {
+            var e = Set<Decouverte>()
+            if Settings.ilotEtagere { e.insert(.etagere) }
+            if Settings.ilotMinuteur { e.insert(.minuteur) }
+            if Settings.ilotRappels { e.insert(.rappels) }
+            if Settings.ilotClaude { e.insert(.claude) }
+            return e
+        }
         fenetrePrincipale.surEssayer = { [weak self] d in
             guard let self else { return }
             switch d {
@@ -440,8 +447,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func rechercherLesMisesAJour() {
         let maj = MiseAJourControleur.partage
-        // La progression et le résultat se lisent dans Réglages › Compte & données : on l'ouvre.
-        ouvrirFenetre(.reglages)
+        // La progression et le résultat se lisent dans Réglages › Compte (les lignes des mises à jour) : on y va.
+        fenetrePrincipale.afficherMisesAJour()
         if maj.modele.disponible != nil, maj.modele.peutInstaller { maj.installer() } else { maj.rechercher(manuel: true) }
     }
 

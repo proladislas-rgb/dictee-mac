@@ -5,10 +5,24 @@ import SwiftUI
 import DicteeCore
 
 /// L'état du premier lancement (maquette lucarne-app-final.html, étapes 1 à 6) : « Bonjour », puis cinq cartes, une question à la
-/// fois. La touche fn (et ce que fait la touche 🌐), le micro, l'écriture dans les apps (Accessibilité), la clé Groq, un essai.
+/// fois, dans l'ordre de la maquette : le micro, l'écriture dans les apps (Accessibilité), la touche fn (et ce que fait la touche 🌐),
+/// la clé Groq, un essai.
 @MainActor
 final class PriseEnMainModele: ObservableObject {
-    enum Etape: Int, CaseIterable { case bonjour = 0, touche, micro, ecrire, cle, essai }
+    enum Etape: Int, CaseIterable {
+        case bonjour = 0, micro, ecrire, touche, cle, essai
+        /// Le numéro de la série d'illustrations de la carte (Resources/Illustrations : 1 = la touche fn, 2 = le micro…).
+        var illustration: Int {
+            switch self {
+            case .bonjour: return 0
+            case .touche: return 1
+            case .micro: return 2
+            case .ecrire: return 3
+            case .cle: return 4
+            case .essai: return 5
+            }
+        }
+    }
 
     @Published var etape: Etape = .bonjour
     @Published private(set) var microOK = false
@@ -149,9 +163,7 @@ struct PriseEnMainVue: View {
         .background {
             // un voile coloré très doux sous le verre, comme sur la maquette (bleu en haut, vert et sable en bas)
             RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(LinearGradient(colors: schema == .dark ? [Color(hex: 0x1E2A3A).opacity(0.5), Color(hex: 0x1F2E26).opacity(0.4)]
-                                                             : [Color(hex: 0xD9E8FB).opacity(0.55), Color(hex: 0xE4F3E9).opacity(0.45)],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+                .fill(LinearGradient(colors: TeintesAccueil.voile(sombre: schema == .dark), startPoint: .topLeading, endPoint: .bottomTrailing))
         }
         .verre(RoundedRectangle(cornerRadius: 30, style: .continuous))
         .animation(.spring(duration: 0.5, bounce: 0.15), value: m.etape)
@@ -165,7 +177,7 @@ struct PriseEnMainVue: View {
 
     private var accueil: some View {
         VStack(spacing: 0) {
-            Image(nsImage: IconeApp.image(cote: 256)).resizable().frame(width: 96, height: 96).shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+            Image(nsImage: IconeApp.image256).resizable().frame(width: 96, height: 96).shadow(color: .black.opacity(0.15), radius: 8, y: 4)
             Text("Bonjour").font(.system(size: 30, weight: .bold)).tracking(-0.6).foregroundStyle(TonsBureau.encre).padding(.top, 12)
             Text("Verbe vit dans l\u{2019}encoche de ton Mac.\nTiens fn, parle\u{202F}: le texte s\u{2019}écrit là où tu es.")
                 .font(.system(size: 14.5)).lineSpacing(3).multilineTextAlignment(.center).foregroundStyle(TonsBureau.encre2).padding(.top, 8)
@@ -182,16 +194,16 @@ struct PriseEnMainVue: View {
     // MARK: une carte
 
     private var carte: some View {
-        let n = m.etape.rawValue
+        let n = m.etape.rawValue, i = m.etape.illustration
         return HStack(alignment: .top, spacing: 26) {
-            IllustrationAccueil(carte: n, actif: apparition.visible)
+            IllustrationAccueil(carte: i, actif: apparition.visible)
                 .frame(width: 300, height: 256)
-                .background(LinearGradient(colors: Self.teinte(n, sombre: schema == .dark), startPoint: .top, endPoint: .bottom))
+                .background(LinearGradient(colors: TeintesAccueil.fond(i, sombre: schema == .dark), startPoint: .top, endPoint: .bottom))
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .id(n)
             VStack(alignment: .leading, spacing: 0) {
                 points
-                Text("Étape \(n) sur 5").font(.system(size: 13, weight: .semibold)).foregroundStyle(TonsBureau.orange).padding(.top, 14)
+                Text("Étape \(n) sur 5").font(.system(size: 13, weight: .semibold)).foregroundStyle(TonsBureau.orangeTexte).padding(.top, 14)
                 Text(titre).font(.system(size: 26, weight: .bold)).tracking(-0.5).foregroundStyle(TonsBureau.encre).padding(.top, 2)
                 Text(phrase).font(.system(size: 14.5)).lineSpacing(3).foregroundStyle(TonsBureau.encre2)
                     .fixedSize(horizontal: false, vertical: true).padding(.top, 8)
@@ -202,13 +214,6 @@ struct PriseEnMainVue: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(20)
-    }
-
-    /// La teinte douce du fond de chaque scène.
-    static func teinte(_ n: Int, sombre: Bool) -> [Color] {
-        let clair: [[UInt32]] = [[0xF6EBDD, 0xEBDCC8], [0xFCE9DA, 0xF7DCC7], [0xE3ECF8, 0xD5E2F3], [0xE6F2E3, 0xD6E9D2], [0xFBEEDC, 0xF4E2CB]]
-        let fonce: [[UInt32]] = [[0x3A332B, 0x2C2722], [0x3B2F27, 0x2D2520], [0x27303D, 0x1F2631], [0x26332A, 0x1E2922], [0x3A3127, 0x2C2620]]
-        return (sombre ? fonce : clair)[max(0, min(4, n - 1))].map { Color(hex: $0) }
     }
 
     private var points: some View {
@@ -281,45 +286,64 @@ struct PriseEnMainVue: View {
                 CleSecrete(texte: $m.saisieCle, invite: "gsk_…") { m.enregistrerCle() }
                     .frame(height: 22)
                     .padding(.horizontal, 12).frame(height: 36)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(TonsBureau.carte))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
+                    .background(FondChamp())
                 BoutonCapsule(titre: "Enregistrer", hauteur: 32) { m.enregistrerCle() }.opacity(m.saisieCle.isEmpty ? 0.5 : 1)
             }
-            Text(m.avisCle ?? "Sans clé, seule la dictée du Mac écrit.").font(.system(size: 12)).foregroundStyle(m.avisCle == nil ? TonsBureau.encre3 : TonsBureau.orange)
+            Text(m.avisCle ?? "Sans clé, seule la dictée du Mac écrit.").font(.system(size: 12)).foregroundStyle(m.avisCle == nil ? TonsBureau.encre3 : TonsBureau.orangeTexte)
         }
     }
 
     private var essai: some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(TonsBureau.carte)
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
+                FondChamp()
                 ChampRecherche(texte: $m.essai, invite: "La phrase apparaîtra ici", taille: 14.5, jetonFocus: m.jetonFocus) { _ in false }
                     .padding(.horizontal, 12).frame(height: 44)
                 if curseurFactice && m.essai.isEmpty { RoundedRectangle(cornerRadius: 1).fill(TonsBureau.bleu).frame(width: 2, height: 17).offset(x: 12, y: 13) }
             }
             .frame(height: 44)
             if m.reussie { PastilleFaite(texte: "Le texte est écrit. Tout est prêt.") }
-            else if let echec = m.echecInsertion { Text(echec).font(.system(size: 12.5)).foregroundStyle(TonsBureau.orange) }
+            else if let echec = m.echecInsertion { Text(echec).font(.system(size: 12.5)).foregroundStyle(TonsBureau.orangeTexte) }
         }
     }
 
     // MARK: pied
 
+    /// « Plus tard » passe la carte (comme sur la maquette) ; sur l'essai, il ferme la prise en main, relançable depuis Réglages.
     private var pied: some View {
         HStack {
             if !(m.etape == .essai && m.reussie) {
-                Button("Passer", action: m.surPasser).buttonStyle(.plain).font(.system(size: 13, weight: .medium)).foregroundStyle(TonsBureau.encre3)
+                Button("Plus tard") { if m.etape == .essai { m.surPasser() } else { m.suivant() } }
+                    .buttonStyle(.plain).font(.system(size: 13, weight: .medium)).foregroundStyle(TonsBureau.encre3)
             }
             Spacer()
-            switch m.etape {
-            case .essai: BoutonCapsule(titre: "Terminer", hauteur: 32) { if m.reussie { m.surTerminer() } }.opacity(m.reussie ? 1 : 0.4)
-            case .cle where !m.fait(.cle): Button("Plus tard") { m.suivant() }.buttonStyle(.plain).font(.system(size: 13, weight: .medium)).foregroundStyle(TonsBureau.bleu)
-            default:
+            if m.etape == .essai {
+                BoutonCapsule(titre: "Terminer", hauteur: 32) { if m.reussie { m.surTerminer() } }.opacity(m.reussie ? 1 : 0.4)
+            } else {
                 BoutonCapsule(titre: "Continuer", style: m.fait(m.etape) ? .plein : .doux, hauteur: 32) { m.suivant() }
             }
         }
         .frame(height: 32)
+    }
+}
+
+/// Le fond d'un champ de la carte (clé, essai) : blanc, coins de 10 pt, fil fin.
+struct FondChamp: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 10, style: .continuous).fill(TonsBureau.carte)
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
+    }
+}
+
+/// Les teintes des cartes d'accueil : le voile sous le verre et le fond doux de chaque scène (par numéro d'illustration).
+enum TeintesAccueil {
+    static func voile(sombre: Bool) -> [Color] {
+        sombre ? [Color(hex: 0x1E2A3A).opacity(0.5), Color(hex: 0x1F2E26).opacity(0.4)] : [Color(hex: 0xD9E8FB).opacity(0.55), Color(hex: 0xE4F3E9).opacity(0.45)]
+    }
+    private static let clair: [[UInt32]] = [[0xF6EBDD, 0xEBDCC8], [0xFCE9DA, 0xF7DCC7], [0xE3ECF8, 0xD5E2F3], [0xE6F2E3, 0xD6E9D2], [0xFBEEDC, 0xF4E2CB]]
+    private static let fonce: [[UInt32]] = [[0x3A332B, 0x2C2722], [0x3B2F27, 0x2D2520], [0x27303D, 0x1F2631], [0x26332A, 0x1E2922], [0x3A3127, 0x2C2620]]
+    static func fond(_ illustration: Int, sombre: Bool) -> [Color] {
+        (sombre ? fonce : clair)[max(0, min(4, illustration - 1))].map { Color(hex: $0) }
     }
 }
 
@@ -330,7 +354,7 @@ struct PastilleFaite: View {
         HStack(spacing: 8) {
             Image(systemName: "checkmark").font(.system(size: 11, weight: .heavy)).foregroundStyle(.white)
                 .frame(width: 22, height: 22).background(Circle().fill(TonsBureau.vert))
-            Text(texte).font(.system(size: 14.5, weight: .semibold)).foregroundStyle(Color(clair: 0x1F7A3A, sombre: 0x5BE584))
+            Text(texte).font(.system(size: 14.5, weight: .semibold)).foregroundStyle(TonsBureau.vertTexte)
         }
         .padding(.leading, 6).padding(.trailing, 14).frame(height: 36)
         .background(Capsule().fill(TonsBureau.vert.opacity(0.16)))

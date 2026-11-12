@@ -500,5 +500,10 @@ télécharger directement les bouts où les gens parlent, comme WhatsApp, à cô
       Hugues (Resources/Illustrations, LISEZ-MOI.md), vidéos de contrôle `--rendu-premier-lancement` (design/rendus-bureau/accueil).
 - [x] Rendus `--rendu-fenetre` : 14 écrans × clair/sombre dans design/rendus-bureau (hors git).
 - [x] Retrait : FenetreVue, ReglagesVue, RenduFenetre, ChoixReglage, LigneReglage.
-- [ ] Relecture opus, push. À trancher : « Essayer » du Centre, des Réunions et de la Lecture (rien de sûr à faire faire à l'encoche) ;
-      « Changer sa place » (Lucarne déplaçable pas encore dans main) ; doigt 1c (à voir par Hugues sur la vidéo).
+- [x] Relecture opus (16 points) : ordre des cartes de la maquette + « Plus tard », contraste du texte en clair, Réglages qui défile
+      jusqu'aux mises à jour, Aujourd'hui recalculé chaque minute et plus du tout fenêtre cachée, un seul accès au calendrier, « Essayer »
+      seulement fonction allumée, minuteries arrêtées fenêtre fermée, bande du haut qui déplace la fenêtre, ménage.
+- [ ] À vérifier par Hugues dans l'app (impossible sans fenêtre visible) : clic sur les 4 onglets et le soleil, déplacer la fenêtre par
+      la bande du haut, le verre réel, les interrupteurs verts.
+- [ ] À trancher : « Essayer » du Centre, des Réunions et de la Lecture ; « Changer sa place » (Lucarne déplaçable pas dans main) ;
+      le doigt 1c (vidéo accueil-3-anime.mp4).
