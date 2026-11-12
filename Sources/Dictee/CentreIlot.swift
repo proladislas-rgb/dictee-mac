@@ -301,7 +301,7 @@ extension IlotMoteur {
     var nomPremiereCarte: String? {
         guard let p = cartes.first, p != .centre else { return nil }
         switch p {
-        case .lectureEtendu, .lectureMinuteur: return lecture.genre == .musique ? "Musique" : "Vidéo"
+        case .lectureEtendu: return lecture.genre == .musique ? "Musique" : "Vidéo"
         case .minuteurEtendu: return "Minuteur"
         case .microEtendu: return "Micro"
         case .claudeCarte: return "Claude"

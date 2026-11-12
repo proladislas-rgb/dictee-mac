@@ -1,47 +1,31 @@
 import AppKit
 import DicteeCore
 
-// La Lucarne et le système : l'écran (NSScreen → EcranLucarne), le Dock (ses préférences, lues sans rien écrire), la mémoire des places
-// (une par écran), la vibration ; et la fenêtre de l'îlot en régime libre (docs/plan-lucarne-deplacable.md, mission 2).
+// La Lucarne et le système : les écrans (NSScreen → EcranIlot → EcranLucarne), le Dock (ses préférences, lues sans rien écrire, relues
+// seulement quand elles changent), la mémoire des places (une par écran, et l'écran choisi), la vibration ; et la fenêtre de l'îlot en
+// régime libre (docs/plan-lucarne-deplacable.md, missions 2 et 4).
 
-/// Tout ce que la Lucarne lit ou écrit hors d'elle : injectable, l'essai ne touche jamais aux vrais réglages ni au vrai Dock.
-struct SystemeLucarne {
-    /// L'écran tel que la Lucarne le voit (`centre` : le centre de l'encoche, coordonnées globales d'AppKit).
-    var decrire: (NSScreen, GeometrieEncoche, CGFloat) -> EcranLucarne = { e, g, c in
-        MainActor.assumeIsolated { EcranLucarne(ecran: e, geometrie: g, centre: c, dock: .lire()) }
+/// Un écran tel que l'îlot le voit : sa clé dans la mémoire des places (l'UUID de CoreGraphics, stable d'un branchement à l'autre), son
+/// cadre et sa zone visible (repère global d'AppKit), l'encoche mesurée et son centre. `ecran` : celui d'AppKit, pour la cadence de la
+/// boucle (nil : un faux écran des essais).
+struct EcranIlot {
+    var id: String
+    /// `frame` d'AppKit (même nom : le panneau lit `ecran.frame` comme avant).
+    var frame: CGRect
+    var zoneVisible: CGRect
+    var geometrie: GeometrieEncoche
+    /// Le centre de l'encoche (x global d'AppKit) ; le milieu de l'écran s'il n'y en a pas.
+    var centre: CGFloat
+    weak var ecran: NSScreen?
+
+    init(id: String, frame: CGRect, zoneVisible: CGRect, geometrie: GeometrieEncoche, centre: CGFloat, ecran: NSScreen? = nil) {
+        self.id = id; self.frame = frame; self.zoneVisible = zoneVisible; self.geometrie = geometrie; self.centre = centre; self.ecran = ecran
     }
-    /// La clé de l'écran dans la mémoire (son UUID, stable d'un branchement à l'autre).
-    var identifiant: (NSScreen) -> String = { e in MainActor.assumeIsolated { EcranLucarne.uuid(de: e) } }
-    var lireMemoire: () -> MemoirePlaces = { Settings.lucarnePlaces }
-    var ecrireMemoire: (MemoirePlaces) -> Void = { Settings.lucarnePlaces = $0 }
-    /// Une petite vibration au décollage.
-    var vibrer: () -> Void = { MainActor.assumeIsolated { Retours.vibrer(.legere) } }
-}
 
-/// Les préférences du Dock (`com.apple.dock`), lues seulement : son côté, s'il se masque, la taille de ses icônes.
-struct PrefsDock: Equatable {
-    var cote: CoteDock = .bas
-    var masque = false
-    var tailleIcone = 48.0
-
-    static func lire() -> PrefsDock {
-        let domaine = "com.apple.dock" as CFString
-        func valeur(_ cle: String) -> Any? { CFPreferencesCopyAppValue(cle as CFString, domaine) }
-        return PrefsDock(cote: CoteDock.depuis(orientation: valeur("orientation") as? String), masque: valeur("autohide") as? Bool ?? false,
-                         tailleIcone: (valeur("tilesize") as? NSNumber)?.doubleValue ?? 48)
-    }
-}
-
-extension EcranLucarne {
-    /// Depuis l'écran d'AppKit : son cadre, ce que `visibleFrame` lui retire (la barre des menus, le Dock visible), l'encoche mesurée (sa
-    /// hauteur de barre, la caméra si elle est réelle) et le Dock. La largeur du Dock n'a pas d'API publique : inconnue (les coins du bas
-    /// passent alors au-dessus de sa ligne).
     @MainActor
-    init(ecran e: NSScreen, geometrie g: GeometrieEncoche, centre: CGFloat, dock: PrefsDock) {
-        let v = e.visibleFrame, f = e.frame
-        self.init(cadre: f, barre: Double(g.hauteur), demiCamera: g.reelle ? Double(g.largeur / 2) : nil, centreX: Double(centre - f.minX),
-                  retraitGauche: Double(v.minX - f.minX), retraitDroit: Double(f.maxX - v.maxX), retraitBas: Double(v.minY - f.minY),
-                  dockCote: dock.cote, dockMasque: dock.masque, dockEpaisseur: EcranLucarne.epaisseurDock(tailleIcone: dock.tailleIcone))
+    init(_ e: NSScreen) {
+        let (g, c) = GeometrieEncoche.mesurer(e)
+        self.init(id: Self.uuid(de: e), frame: e.frame, zoneVisible: e.visibleFrame, geometrie: g, centre: c, ecran: e)
     }
 
     /// L'UUID de l'écran (CoreGraphics) ; à défaut, son numéro.
@@ -54,6 +38,73 @@ extension EcranLucarne {
     }
 }
 
+/// Tout ce que la Lucarne lit ou écrit hors d'elle : injectable, l'essai ne touche jamais aux vrais écrans, au vrai Dock ni aux vrais
+/// réglages.
+struct SystemeLucarne {
+    /// Les écrans branchés, le principal (celui de la barre des menus, origine du repère global) en premier.
+    var ecrans: () -> [EcranIlot] = { MainActor.assumeIsolated { NSScreen.screens.map(EcranIlot.init) } }
+    /// Les préférences du Dock (lues une fois, puis seulement quand `suivreDock` dit qu'elles ont changé).
+    var lireDock: () -> PrefsDock = { PrefsDock.lire() }
+    /// Prévient quand une préférence du Dock change (côté, masquage, taille des icônes) ; l'objet rendu garde l'observation en vie.
+    /// Aucune minuterie : macOS prévient lui-même (observation du domaine `com.apple.dock`, sondée le 12/11 entre deux processus).
+    var suivreDock: (@escaping () -> Void) -> AnyObject? = { SuiviDock(surChangement: $0) }
+    var lireMemoire: () -> MemoirePlaces = { Settings.lucarnePlaces }
+    var ecrireMemoire: (MemoirePlaces) -> Void = { Settings.lucarnePlaces = $0 }
+    /// Une petite vibration au décollage.
+    var vibrer: () -> Void = { MainActor.assumeIsolated { Retours.vibrer(.legere) } }
+}
+
+/// Les préférences du Dock (`com.apple.dock`), lues seulement : son côté, s'il se masque, la taille de ses icônes.
+struct PrefsDock: Equatable {
+    var cote: CoteDock = .bas
+    var masque = false
+    var tailleIcone = 48.0
+
+    static let domaine = "com.apple.dock"
+    static let cles = ["orientation", "autohide", "tilesize"]
+
+    /// Lues par le même accès que celui qu'on observe (`SuiviDock`) : jamais un cache en retard sur la notification.
+    static func lire() -> PrefsDock {
+        let r = UserDefaults(suiteName: domaine)
+        return PrefsDock(cote: CoteDock.depuis(orientation: r?.string(forKey: "orientation")), masque: r?.bool(forKey: "autohide") ?? false,
+                         tailleIcone: (r?.object(forKey: "tilesize") as? NSNumber)?.doubleValue ?? 48)
+    }
+}
+
+/// L'observation des préférences du Dock : macOS prévient quand le Dock les réécrit (Réglages Système, `defaults`), même depuis un
+/// autre processus. Rien n'est écrit ; le rappel arrive sur le fil principal.
+final class SuiviDock: NSObject {
+    private let reglages = UserDefaults(suiteName: PrefsDock.domaine)
+    private let surChangement: () -> Void
+
+    init(surChangement: @escaping () -> Void) {
+        self.surChangement = surChangement
+        super.init()
+        for c in PrefsDock.cles { reglages?.addObserver(self, forKeyPath: c, options: [], context: nil) }
+    }
+    deinit { for c in PrefsDock.cles { reglages?.removeObserver(self, forKeyPath: c) } }
+
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
+        let rappel = surChangement
+        DispatchQueue.main.async { rappel() }
+    }
+}
+
+extension EcranLucarne {
+    /// Depuis l'écran de l'îlot : son cadre, ce que la zone visible lui retire (la barre des menus, le Dock visible), l'encoche mesurée
+    /// (sa hauteur de barre, la caméra si elle est réelle) et le Dock. La largeur du Dock n'a pas d'API publique : inconnue (les coins du
+    /// bas passent alors au-dessus de sa ligne). Plein écran (décision D) : la barre et le Dock masqués ne déplacent rien, la barre vient
+    /// de l'encoche (au moins 24 pt) et le Dock compte toujours son épaisseur (`reserveBas`…).
+    /// `autres` : les cadres des écrans branchés (ceux qui touchent celui-ci sont ses voisins).
+    init(_ e: EcranIlot, dock: PrefsDock, autres: [CGRect] = []) {
+        let v = e.zoneVisible, f = e.frame, g = e.geometrie
+        self.init(cadre: f, barre: Double(g.hauteur), demiCamera: g.reelle ? Double(g.largeur / 2) : nil, centreX: Double(e.centre - f.minX),
+                  retraitGauche: Double(v.minX - f.minX), retraitDroit: Double(f.maxX - v.maxX), retraitBas: Double(v.minY - f.minY),
+                  dockCote: dock.cote, dockMasque: dock.masque, dockEpaisseur: EcranLucarne.epaisseurDock(tailleIcone: dock.tailleIcone))
+        voisins = BordsEcran.voisins(de: f, parmi: autres)
+    }
+}
+
 extension Settings {
     /// La place de la Lucarne pour chaque écran (JSON de `MemoirePlaces`). Aucun réglage dans l'interface : on la déplace d'un geste.
     static var lucarnePlaces: MemoirePlaces {
@@ -63,22 +114,74 @@ extension Settings {
 }
 
 extension IlotPanneau {
-    /// L'écran de l'îlot vient d'être mesuré : la Lucarne y est reposée à la place retenue pour lui, sans animation ; la boucle bat au
-    /// rythme de cet écran.
-    func mesurerLucarne(_ e: NSScreen) {
-        let s = moteur.lucarne.systeme
-        let id = s.identifiant(e)
-        moteur.cadence.ecran = e
+    /// L'écran où la Lucarne doit vivre : celui où on l'a posée s'il est branché, sinon le principal (un écran débranché la renvoie sur
+    /// le principal ; rebranché, elle y revient).
+    /// Tenue ou en vol sur un autre écran (pas encore lâchée : la mémoire ne le sait pas), elle reste sur celui-là.
+    func ecranVoulu() -> EcranIlot? {
+        let s = moteur.lucarne.systeme, liste = s.ecrans()
+        if moteur.lucarneEnMain, let ici = liste.first(where: { $0.id == moteur.lucarne.uuid }) { return ici }
+        let choisi = s.lireMemoire().ecranChoisi(parmi: liste.map(\.id))
+        return liste.first { $0.id == choisi } ?? liste.first
+    }
+
+    /// Le Dock, lu une seule fois ; ensuite seulement quand il change (`dockChange`).
+    func dockLu() -> PrefsDock {
+        if let d = prefsDock { return d }
+        let d = moteur.lucarne.systeme.lireDock()
+        prefsDock = d
+        return d
+    }
+
+    /// Une préférence du Dock a changé (côté, masquage, taille) : relue ; si elle diffère, la Lucarne est reposée à sa place, recalculée.
+    func dockChange() {
+        let d = moteur.lucarne.systeme.lireDock()
+        guard d != prefsDock else { return }
+        prefsDock = d
+        recaler()
+    }
+
+    /// L'écran tel que la Lucarne le voit : le Dock lu, et ses voisins parmi les écrans branchés.
+    func decrire(_ e: EcranIlot) -> EcranLucarne {
+        EcranLucarne(e, dock: dockLu(), autres: moteur.lucarne.systeme.ecrans().map(\.frame))
+    }
+
+    /// L'écran de l'îlot vient d'être mesuré : la Lucarne y est reposée à la place retenue pour lui, sans animation.
+    func mesurerLucarne(_ e: EcranIlot) {
         cadreVoulu = .zero   // posée sans animation : sa fenêtre est posée telle quelle, sans attendre
-        moteur.poserLucarne(s.decrire(e, moteur.geometrie, centre), uuid: id, place: s.lireMemoire().place(pour: id))
+        moteur.poserLucarne(decrire(e), uuid: e.id, place: moteur.lucarne.systeme.lireMemoire().place(pour: e.id))
+    }
+
+    /// VoiceOver « Déplacer vers… » : ce qui est ouvert se range, la Lucarne est posée à cette place sans geste ni animation (une action
+    /// d'accessibilité est un saut), retenue pour cet écran ; VoiceOver annonce où elle est.
+    func deplacerLucarne(vers place: PlaceLucarne) {
+        // une alerte ou un bandeau (que « fermer » ne range pas) ne se déplace pas, comme pour le geste
+        guard let e = ecran, let el = moteur.lucarne.ecran, place != moteur.lucarne.place, !moteur.lucarneOccupee, !moteur.lucarne.vol,
+              !moteur.resolution.verrou else { return }
+        if moteur.fenetreOuverte { moteur.fermer() }
+        var memoire = moteur.lucarne.systeme.lireMemoire()
+        memoire.poser(place, sur: e.id)
+        moteur.lucarne.systeme.ecrireMemoire(memoire)
+        cadreVoulu = .zero
+        moteur.poserLucarne(el, uuid: e.id, place: place)
+        moteur.donneesChangees()
+        ajuster()
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                             userInfo: [.announcement: "Lucarne déplacée vers " + place.nom(avecEncoche: el.avecEncoche), .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }
 
     /// Un événement du bouton gauche sur la vue de l'îlot : son point GLOBAL (`cgEvent.location`, origine en haut à gauche de l'écran
-    /// principal) dans le repère de la Lucarne, et l'heure de l'événement.
+    /// principal) dans le repère de la Lucarne, et l'heure de l'événement. Tenue, le pointeur passé sur un autre écran l'emmène avec lui.
     func bouton(_ e: NSEvent) {
-        guard let g = e.cgEvent?.location, let ecran else { return }
-        let principal = NSScreen.screens.first?.frame.maxY ?? ecran.frame.maxY
-        let p = PointLucarne(Double(g.x - centre), Double(ecran.frame.maxY - (principal - g.y)))
+        guard let g = e.cgEvent?.location, var ecran else { return }
+        // la conversion qu'AppKit a faite pour donner ce point : celle du vrai écran principal
+        let global = CGPoint(x: g.x, y: (NSScreen.screens.first?.frame.maxY ?? ecran.frame.maxY) - g.y)
+        // `NSMouseInRect` (repère d'AppKit, y vers le haut) : la rangée tout en haut d'un écran est à lui, pas à l'écran posé dessus
+        if e.type == .leftMouseDragged, moteur.lucarneEnMain, !moteur.lucarne.vol, !NSMouseInRect(global, ecran.frame, false),
+           let autre = moteur.lucarne.systeme.ecrans().first(where: { $0.id != ecran.id && NSMouseInRect(global, $0.frame, false) }) {
+            passerSur(autre)
+            ecran = autre
+        }
+        let p = PointLucarne(Double(global.x - centre), Double(ecran.frame.maxY - global.y))
         switch e.type {
         case .leftMouseDown: moteur.sourisBas(p, t: e.timestamp)
         case .leftMouseDragged: moteur.sourisGlisse(p, t: e.timestamp)

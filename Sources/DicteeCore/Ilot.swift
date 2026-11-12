@@ -7,7 +7,7 @@ import Foundation
 public enum VueIlot: String, CaseIterable, Sendable {
     case repos
     case minuteurMinimal, minuteurCompact, minuteurEtendu, minuteurLance, minuteurFini
-    case lectureCompact, lectureEtendu, lectureMinuteur
+    case lectureCompact, lectureEtendu
     case rappelEtendu, rappelCompact, rappelAjoute, rappelFait, rappelReporte, rappelListe
     case agendaAvant, agendaCompact, agendaEtendu, agendaDebut
     /// Le réveil (maquette ilot-bibliotheque.html, étapes 7 à 9) : replié, le réveil dans l'aile gauche et « 9:00 » dans l'aile droite ;
@@ -109,8 +109,6 @@ public enum VueIlot: String, CaseIterable, Sendable {
 /// Tout est exprimé depuis la vraie caméra et la vraie barre : aucune mesure de la maquette n'est copiée telle quelle.
 public enum GeoIlot {
     public static let aileMax: Double = 66
-    /// Ce que la rangée Minuteur ajoute sous la lecture dépliée (maquette : 208 → 262 pt de haut).
-    public static let rangeeMinuteur: Double = 54
     /// Une ligne de l'accueil (42 pt) : celle de l'étagère s'ajoute en bas quand elle garde des fichiers.
     public static let ligneAccueil: Double = 42
     /// Une rangée de plus de fichiers dans la carte Étagère (tuile de 72 pt + 8 pt d'écart).
@@ -122,7 +120,7 @@ public enum GeoIlot {
     /// Les écrans dont le cou droit n'est pas celui de gauche : la pile de l'étagère n'a qu'une aile, à gauche ; à droite, la caméra seule
     /// (les icônes de la barre des menus à droite de l'encoche restent dégagées). Valeur au-delà de la demi-caméra.
     public static let couDroit: [VueIlot: Double] = [.etagerePile: 0, .concentrationCompact: 0]
-    /// La lecture dépliée jusqu'à ses commandes (pochette, titre, barre, boutons) : la rangée Minuteur (appui long) se pose dessous.
+    /// La lecture dépliée jusqu'à ses commandes (pochette, titre, barre, boutons) : son pied (`piedLecture`) se pose dessous.
     public static let profondeurLecture: Double = 175
     /// Le pied de la lecture dépliée : le bouton « Centre » (30 pt) et sa marge (maquette : 12 pt dessus, 14 dessous ; ici 6 + 30 + 4,
     /// les boutons de la lecture ont déjà 7 pt de vide sous leur glyphe).
@@ -154,9 +152,6 @@ public enum GeoIlot {
         .minuteurLance: bandeau, .minuteurFini: alerte,
         // la lecture dépliée : ses commandes, puis le pied (bouton « Centre ») ; le Centre a la même largeur (on passe de l'un à l'autre)
         .lectureCompact: compact(44), .lectureEtendu: [44, 144, profondeurLecture + piedLecture, 6, 34, 18, 10],
-        // la lecture dépliée + la rangée Minuteur de l'accueil (appui long, maquette apple-acces/1-controles.html) : même largeur ; la
-        // rangée prend la place du pied
-        .lectureMinuteur: [44, 144, profondeurLecture + rangeeMinuteur, 6, 34, 18, 10],
         .rappelEtendu: alerte, .rappelCompact: compact(48), .rappelAjoute: bandeau,
         .rappelFait: bandeau, .rappelReporte: bandeau, .rappelListe: [14, 144, 136, 6, 34, 18, 10], .lucarne: bandeau,
         // le rendez-vous qui commence : la ligne de l'annonce, puis « Rejoindre » et « Noter la réunion » côte à côte (maquette
@@ -251,7 +246,7 @@ public enum GeoIlot {
     /// la batterie du Mac (à gauche) et celle des écouteurs (à droite). 56 + le congé du cou déplié (10 pt) = la limite des ailes (66 pt).
     public static let epaules: Double = 56
     public static func aEpaules(_ v: VueIlot) -> Bool {
-        [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .dictees, .claudeCarte,
+        [.minuteurEtendu, .lectureEtendu, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .dictees, .claudeCarte,
          .outils, .outilPressePapiers, .outilReformuler, .outilNote, .secondBrain, .bibliotheque, .reunionEtendu, .concentrationStatut, .concentration, .voixCarte].contains(v)
     }
 
@@ -437,7 +432,7 @@ public enum ArbitrageIlot {
         switch ecran {
         case .minuteurFini, .rappelEtendu, .agendaDebut, .agendaAvant, .agendaCompact, .rappelCompact, .rappelAjoute, .lucarne, .reveilFini,
              .microCompact, .microEtendu, .microOuvert, .microFn: return 3
-        case .lectureCompact, .lectureEtendu, .lectureMinuteur: return 4
+        case .lectureCompact, .lectureEtendu: return 4
         default: return 5
         }
     }

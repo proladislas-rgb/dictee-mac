@@ -120,8 +120,6 @@ struct FichierEtagere: Identifiable {
 /// Ce que l'îlot demande aux contrôleurs (le moteur ne sait rien du minuteur, des rappels ni du calendrier : il montre et il relaie).
 enum ActionIlot {
     case minuteurLancer(minutes: Double)
-    /// Depuis la rangée Minuteur sous la lecture : pas de bandeau, le minuteur part directement dans la pastille.
-    case minuteurLancerSousLecture(minutes: Double)
     case minuteurBasculer, minuteurPlusUneMinute, minuteurArreter
     case minuteurRecommencer(minutes: Double)
     case alerteOK
@@ -208,7 +206,7 @@ enum FamilleIlot: CaseIterable {
     case lecture, minuteur, rappel, agenda, micro, claude, autre
     static func de(_ v: VueIlot) -> FamilleIlot {
         switch v {
-        case .lectureCompact, .lectureEtendu, .lectureMinuteur: return .lecture
+        case .lectureCompact, .lectureEtendu: return .lecture
         case .minuteurMinimal, .minuteurCompact, .minuteurEtendu: return .minuteur
         case .rappelCompact, .rappelEtendu: return .rappel
         case .agendaCompact, .agendaEtendu: return .agenda
@@ -626,7 +624,6 @@ final class IlotMoteur: ObservableObject {
         if let e = echange, resolution.pastille != e, ArbitrageIlot.ordre(etat).contains(e) == false { echange = nil }
         if resolution.verrou { epingle = false; survole = false; sousVue = nil }
         if ancien.principal != resolution.principal, !(survole || epingle) { sousVue = nil }
-        if sousVue == .lectureMinuteur, FamilleIlot.de(resolution.principal) != .lecture || resolution.verrou { sousVue = nil }
         if sousVue == .etagere || sousVue == .bibliotheque, !etagereActive { sousVue = nil }
         if depot || appel, !etagereActive { depot = false; appel = false; depotSurvole = false; depotZone = nil }
         // l'îlot se range : le panneau « Garder éveillé » se replie s'il n'y a rien à montrer, les survols s'oublient
@@ -693,12 +690,11 @@ final class IlotMoteur: ObservableObject {
         let h = CartesIlot.piedEnPlus(p, pile: pile)
         return h > 0 ? [p: CGFloat(h)] : [:]
     }
-    /// Ce qu'un contenu variable ajoute à la hauteur d'un écran : la ligne de l'étagère en bas de l'accueil, la deuxième rangée de
-    /// fichiers de la carte Étagère. Sous la rangée Minuteur de la lecture dépliée (appui long), la ligne de l'étagère. (L'accueil n'a
-    /// plus de ligne variable : l'étagère et le choix du micro sont dans le Centre.)
+    /// Ce qu'un contenu variable ajoute à la hauteur d'un écran : la deuxième rangée de fichiers de la carte Étagère et sa ligne des
+    /// captures, le Centre, les Outils et les cartes qui épousent ce qu'elles montrent. (L'accueil n'a plus de ligne variable : l'étagère
+    /// et le choix du micro sont dans le Centre.)
     var hauteursEnPlus: [VueIlot: CGFloat] {
         var d: [VueIlot: CGFloat] = [:]
-        if etagereActive, !etagere.isEmpty { d[.lectureMinuteur] = CGFloat(GeoIlot.ligneAccueil) }
         if EtagereIlot.rangees(etagere.count) > 1 { d[.etagere] = CGFloat(GeoIlot.rangeeEtagere) }
         if capturesActives { d[.etagere, default: 0] += CGFloat(GeoIlot.ligneVignette) }
         // le Centre suit ce qu'il montre (« Modifier ») : les fichiers de l'étagère en haut, ronds, cases et bande de la réunion ; la page
@@ -744,9 +740,8 @@ final class IlotMoteur: ObservableObject {
         let ouvre = passage == .ouverture, ferme = passage == .fermeture
         // contenu : la famille (ce qui voyage) et l'écran (ce qui est propre à cet état)
         lien = fa == fv && fv != .autre && !lucarne.libre   // hors de l'encoche, le compact est dans la pilule : rien ne voyage, fondu
-        // la lecture dépliée qui gagne (ou perd) sa rangée Minuteur : la pochette reste où elle est
-        glisseLecture = lien && fa == .lecture && avant != .lectureCompact && v != .lectureCompact
-        repliDepuisRangee = lien && avant == .lectureMinuteur && v == .lectureCompact
+        // la lecture dépliée qui le reste (sa forme change sans se replier) : la pochette reste où elle est
+        glisseLecture = lien && avant == .lectureEtendu && v == .lectureEtendu
         let delai = ferme ? 0.22 : (ouvre ? 0.12 : 0.10)
         if !lien {
             if fa != .autre { dernierMode[fa] = min(1, max(0, modeAvant)); sortir(&apparitionsFamille[fa]) }
@@ -758,9 +753,8 @@ final class IlotMoteur: ObservableObject {
         if avant != v, !reduire, let i = Self.rang(avant, pile), let j = Self.rang(v, pile), i != j { glisse = j > i ? 1 : -1 }
         // d'une carte à l'autre, la nouvelle arrive plus tôt (l'ancienne part en 0,15 s) : pas de trou noir entre les deux
         let delaiContenu = glisse != 0 ? 0.06 : delai
-        // un écran fait de plusieurs couches (la lecture + sa rangée) : seules les couches qui changent partent ou arrivent
-        if avant != v { for c in Self.couches(avant) where !Self.couches(v).contains(c) { sortir(&apparitions[c], glisse: glisse) } }
-        for c in Self.couches(v) { entrer(&apparitions[c], delai: delaiContenu, glisse: glisse) }
+        if avant != v { sortir(&apparitions[avant], glisse: glisse) }
+        entrer(&apparitions[v], delai: delaiContenu, glisse: glisse)
         if avant != v, v == .claudeCarte { defilementClaude = 0 }
         if avant != v, v == .outilNote { defilementNotes = 0 }
         if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere || v == .centre || v == .dictees
@@ -769,15 +763,10 @@ final class IlotMoteur: ObservableObject {
         if avant == .etagere, v != .etagere { surEtagereVue() }
     }
 
-    /// Les couches de contenu d'un écran : la rangée Minuteur se pose sous la lecture dépliée, qui ne s'efface pas pour autant.
-    static func couches(_ v: VueIlot) -> [VueIlot] { v == .lectureMinuteur ? [.lectureEtendu, .lectureMinuteur] : [v] }
-    /// La place d'un écran dans la pile des cartes (la rangée Minuteur compte comme la lecture, la carte d'un outil comme la page Outils).
-    static func rang(_ v: VueIlot, _ pile: [VueIlot]) -> Int? { pile.firstIndex(of: v == .lectureMinuteur ? .lectureEtendu : (CartesIlot.parent(v) ?? v)) }
-    /// La forme passe de la lecture dépliée à la lecture + rangée (ou l'inverse) : la pochette ne bouge pas.
+    /// La place d'un écran dans la pile des cartes (la carte d'un outil compte comme la page Outils).
+    static func rang(_ v: VueIlot, _ pile: [VueIlot]) -> Int? { pile.firstIndex(of: CartesIlot.parent(v) ?? v) }
+    /// La lecture dépliée change de forme sans se replier : la pochette ne bouge pas.
     private var glisseLecture = false
-    /// La lecture + rangée se replie d'un coup en compact : la pochette se règle sur la hauteur de la rangée (sinon, partie de 262 pt
-    /// pour une référence de 208, elle « rebondirait » de 30 % au premier instant du repli).
-    private var repliDepuisRangee = false
 
     // MARK: horloge du contenu
 
@@ -839,14 +828,11 @@ final class IlotMoteur: ObservableObject {
         return ouvertureCourante(f)
     }
     private func ouvertureCourante(_ f: FamilleIlot) -> Double {
-        guard let (c, x0) = f.vues else { return 1 }
-        // la lecture + rangée compte comme dépliée ; entre les deux états dépliés, la pochette reste posée
-        let x = f == .lecture && courante == .lectureMinuteur ? .lectureMinuteur : x0
+        guard let (c, x) = f.vues else { return 1 }
         let estEtendu: Double = courante == x ? 1 : 0
         guard lien else { return estEtendu }
         if f == .lecture, glisseLecture { return 1 }
-        let ref = f == .lecture && (courante == .lectureMinuteur || repliDepuisRangee) ? VueIlot.lectureMinuteur : x
-        let hc = cible(c)[2], hx = cible(ref)[2]
+        let hc = cible(c)[2], hx = cible(x)[2]
         guard hx - hc > 1 else { return estEtendu }
         return (geo[2].x - hc) / (hx - hc)
     }
@@ -1086,20 +1072,6 @@ final class IlotMoteur: ObservableObject {
         guard !cache else { return }
         intention?.cancel(); fermeture?.cancel()
         formeAppuyee()
-    }
-
-    /// Appui long (0,4 s) sur la lecture : sous elle, la rangée Minuteur de l'accueil (comme l'appui long sur la Dynamic Island).
-    /// Faux si rien ne s'est passé (pas de lecture, minuteur éteint dans les réglages, îlot verrouillé).
-    /// Plus branché au geste (l'appui long déplace la Lucarne, le minuteur se lance du Centre) : retiré avec `.lectureMinuteur` à la
-    /// mission 4 du plan de la Lucarne déplaçable ; seuls les rendus l'appellent encore.
-    @discardableResult
-    func appuiLong(minuteurActif: Bool = Settings.ilotMinuteur) -> Bool {
-        presse = false; rev += 1
-        guard minuteurActif, !cache, !resolution.verrou, FamilleIlot.de(resolution.principal) == .lecture else { return false }
-        intention?.cancel(); fermeture?.cancel()
-        sousVue = .lectureMinuteur; epingle = true; survole = true
-        donneesChangees(); surDepliageMoniteur()
-        return true
     }
 
     /// Un clic ailleurs (moniteur du panneau) range l'îlot. Pas pendant que macOS pose sa question pour Téléchargements : on y répond
@@ -1574,8 +1546,9 @@ final class CadenceEcran: NSObject {
     private var lien: CADisplayLink?
     private var minuterie: Timer?
     var tic: () -> Void = {}
-    /// L'écran où vit l'îlot (la Lucarne peut être sur un autre que le premier) : la boucle bat à son rythme.
-    weak var ecran: NSScreen?
+    /// L'écran où vit l'îlot (la Lucarne peut être sur un autre que le premier) : la boucle bat à son rythme ; il change pendant
+    /// qu'elle tourne (la Lucarne tenue passe sur un autre écran) : elle repart sur le nouveau.
+    weak var ecran: NSScreen? { didSet { if ecran !== oldValue, lien != nil { arreter(); demarrer() } } }
     var active: Bool { lien != nil || minuterie != nil }
     /// Les essais (`--ilot-essai`) tournent sur la minuterie : écran éteint, le lien de l'écran ne bat plus et rien ne bougerait.
     nonisolated(unsafe) static var minuterieSeulement = false

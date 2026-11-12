@@ -299,6 +299,7 @@ struct LucarneLibreVue: View {
         .gesture(DragGesture(minimumDistance: 0).onChanged { _ in m.appuiSurForme() })
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { m.clicForme() }
+        .modifier(DeplacerLucarneVoiceOver(m: m))
     }
 
     /// La bulle de la deuxième activité : une goutte de verre qui sort de la pilule, du côté de l'intérieur de l'écran.
@@ -315,6 +316,25 @@ struct LucarneLibreVue: View {
             .accessibilityLabel("Autre activité")
             .accessibilityAddTraits(.isButton)
             .position(x: t.width / 2 + CGFloat(b.centreX), y: CGFloat(b.centreY))
+    }
+}
+
+/// VoiceOver : sur la Lucarne, une action « Déplacer vers … » par autre place (le geste d'appui long n'existe pas pour VoiceOver). Elle se
+/// pose là sans animation, retenue pour cet écran (`IlotPanneau.deplacerLucarne`). Les actions sont calculées par la vue qui observe le
+/// moteur et données en valeurs : une place qui change les refait (un modificateur qui lirait le moteur lui-même garderait les anciennes).
+struct DeplacerLucarneVoiceOver: ViewModifier {
+    let actions: [(place: PlaceLucarne, nom: String)]
+    let deplacer: (PlaceLucarne) -> Void
+
+    /// Une alerte ou un bandeau ne se déplace pas (comme pour le geste) : aucune action.
+    init(m: IlotMoteur) {
+        actions = m.resolution.verrou ? [] : PlaceLucarne.actionsDeplacer(depuis: m.lucarne.place, avecEncoche: m.lucarne.ecran?.avecEncoche ?? true)
+        deplacer = m.lucarne.deplacer
+    }
+    func body(content: Content) -> some View {
+        content.accessibilityActions {
+            ForEach(actions, id: \.place) { a in Button(a.nom) { deplacer(a.place) } }
+        }
     }
 }
 

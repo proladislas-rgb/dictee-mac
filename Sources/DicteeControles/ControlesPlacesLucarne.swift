@@ -160,6 +160,105 @@ func controlesPlacesLucarne() {
     }
     verifier(G.plusProche(x: 0, y: 20, macBook, sauf: .encoche) != .encoche && G.plusProche(x: 0, y: 20, macBook) == .encoche, "« sauf » écarte une place")
 
+    groupe("Lucarne : l'encoche n'attire que près d'elle (la zone de son aimant)")
+    do {
+        let e = macBook
+        verifier(G.plusProche(x: 0, y: e.hauteur / 2, e) != .encoche && G.plusProche(x: 0, y: 450, e) == .basMilieu,
+                 "lâchée au milieu de l'écran (ou à 450 pt sous l'encoche) : la plus proche des sept autres places, jamais l'encoche")
+        verifier(G.plusProche(x: 0, y: 16.5 + 149, e) == .encoche && G.plusProche(x: 0, y: 16.5 + 151, e) != .encoche,
+                 "sous l'encoche : elle attire jusqu'à 150 pt (149 : l'encoche ; 151 : une autre place)")
+        verifier(G.plusProche(x: 290, y: 16.5, e) == .encoche && G.plusProche(x: 310, y: 30, e) != .encoche, "de côté : jusqu'à ~300 pt, comme l'aimant")
+        // partout où l'aimant ne tient plus, jamais l'encoche ; partout où l'aimant retient la forme tenue (seuil 0,45), l'encoche
+        var horsZone = true, dansZone = true
+        for x in stride(from: e.xBordGauche, through: e.xBordDroit, by: 15) {
+            for y in stride(from: 0.0, through: e.hauteur, by: 15) {
+                let a = G.aimant(x: x, y: y, e), p = G.plusProche(x: x, y: y, e)
+                if a <= 0, p == .encoche { horsZone = false }
+                if a > G.seuilAimant, p != .encoche { dansZone = false }
+            }
+        }
+        verifier(horsZone, "hors de la zone de l'aimant (tout l'écran, tous les 15 pt) : jamais l'encoche")
+        verifier(dansZone, "là où l'aimant retient la forme (> 0,45) : l'encoche reste la plus proche")
+        verifier(G.plusProche(x: 0, y: 300, externe) == .encoche, "sans caméra : la pilule du haut au milieu est une place comme les autres (pas de zone d'aimant)")
+        verifier(G.placeLachee(cx: 0, cy: 450, vx: 0, vy: 0, pres: false, e) == .basMilieu, "lâchée sans élan au milieu : le bas du milieu, pas l'encoche")
+    }
+
+    groupe("Lucarne : VoiceOver, « Déplacer vers… »")
+    do {
+        let a = PlaceLucarne.actionsDeplacer(depuis: .hautDroite, avecEncoche: true)
+        verifier(a.count == 7 && !a.contains { $0.place == .hautDroite } && Set(a.map(\.place)).count == 7, "une action par AUTRE place (7), jamais la sienne")
+        verifier(a.map(\.nom) == ["Déplacer vers l'encoche", "Déplacer vers le haut à gauche", "Déplacer vers le bord gauche", "Déplacer vers le bord droit",
+                                  "Déplacer vers le bas à gauche", "Déplacer vers le bas au milieu", "Déplacer vers le bas à droite"],
+                 "les noms, dans l'ordre des places : \(a.map(\.nom).joined(separator: " · "))")
+        let sans = PlaceLucarne.actionsDeplacer(depuis: .basGauche, avecEncoche: false)
+        verifier(sans.first?.nom == "Déplacer vers le haut au milieu" && sans.count == 7, "sans caméra : « Déplacer vers le haut au milieu » (la pilule du haut)")
+        verifier(Set(PlaceLucarne.allCases.map { $0.nom(avecEncoche: true) }).count == 8, "huit noms distincts")
+    }
+
+    groupe("Lucarne : deux écrans (on la glisse de l'un à l'autre)")
+    do {
+        let mac = CGRect(x: 0, y: 0, width: 1470, height: 956), ext = CGRect(x: 1470, y: -124, width: 1920, height: 1080)
+        let dessus = CGRect(x: 200, y: 956, width: 1000, height: 800), loin = CGRect(x: 5000, y: 0, width: 800, height: 600)
+        verifier(BordsEcran.voisins(de: mac, parmi: [mac, ext]) == .droite && BordsEcran.voisins(de: ext, parmi: [mac, ext]) == .gauche,
+                 "deux écrans côte à côte : le bord droit de l'un touche le bord gauche de l'autre")
+        verifier(BordsEcran.voisins(de: mac, parmi: [mac, dessus]) == .haut && BordsEcran.voisins(de: dessus, parmi: [mac, dessus]) == .bas,
+                 "un écran posé au-dessus : le haut de l'un, le bas de l'autre")
+        verifier(BordsEcran.voisins(de: mac, parmi: [mac, loin]).isEmpty && BordsEcran.voisins(de: mac, parmi: [mac]).isEmpty,
+                 "un écran qui ne touche pas, ou seul : aucun voisin")
+        var e = macBook; e.voisins = .droite
+        let bord = G.tenue(pointeur: PointLucarne(e.xBordDroit + 30, 400), decalage: PointLucarne(0, 0), e)
+        verifier(bord.cx == e.xBordDroit + 30, "tenue vers l'écran voisin : elle passe le bord avec le doigt (sans buter, sans saut à la bascule)")
+        let gauche = G.tenue(pointeur: PointLucarne(-5000, 400), decalage: PointLucarne(0, 0), e)
+        verifier(abs(gauche.cx - (e.xBordGauche + 60 * 1.04 + 4)) < 1e-9, "… mais toujours retenue du côté sans voisin")
+    }
+
+    groupe("Lucarne : la dictée (fn) à sa place, hors de l'encoche")
+    for (nom, e) in faux {
+        var ok = true, fixe = true
+        for p in PlaceLucarne.allCases where p != .encoche || !e.avecEncoche {
+            let c = G.dictee(p, e, ruban: false, mainsLibres: false), r = G.dictee(p, e, ruban: true, mainsLibres: false), l = G.dictee(p, e, ruban: true, mainsLibres: true)
+            for k in [c, r, l] where !dansEcran(k, e) || k.y0 < e.yHaut - 0.001 || surDock(k, e) || k.hauteur != G.dicteeHauteur { ok = false }
+            // elle s'allonge vers l'intérieur : le bord côté écran ne bouge pas (au milieu : centrée)
+            switch p.ancre.x {
+            case 0: if abs(c.x0 - r.x0) > 0.001 || abs(r.x0 - l.x0) > 0.001 { fixe = false }
+            case 1: if abs(c.x1 - r.x1) > 0.001 || abs(r.x1 - l.x1) > 0.001 { fixe = false }
+            default: if abs(c.centreX - r.centreX) > 0.001 || abs(r.centreX - l.centreX) > 0.001 { fixe = false }
+            }
+            if abs(c.centreY - G.grand(p, e, largeur: 404, hauteur: 36, rayon: 1).centreY) > 0.001 { fixe = false }
+        }
+        verifier(ok, "\(nom) : la pilule de la dictée, à chaque place : dans l'écran, hors de la barre et du Dock")
+        verifier(fixe, "\(nom) : le texte et les boutons l'allongent vers l'intérieur (le bord côté écran ne bouge pas)")
+    }
+    do {
+        verifier(G.largeurDictee(ruban: false, mainsLibres: false) == 120 && G.largeurDictee(ruban: true, mainsLibres: true) == 404, "dictée : 120 pt repliée, 340 avec le texte, + 64 mains libres")
+        let bg = G.dictee(.basGauche, macBook, ruban: true, mainsLibres: false), lucarne = G.replie(.basGauche, macBook)
+        verifier(abs(bg.x0 - lucarne.x0) < 0.001 && abs(bg.centreY - lucarne.centreY) < 0.001 && !macBook.recouvreDock(x0: bg.x0, x1: bg.x1),
+                 "en bas à gauche, à côté d'un Dock de 600 pt : exactement à la place de la Lucarne (même bord, même ligne), sans toucher le Dock")
+        var large = macBook; large.dockLargeur = 1000
+        let bl = G.dictee(.basGauche, large, ruban: true, mainsLibres: true)
+        verifier(abs(bl.x0 - G.replie(.basGauche, large).x0) < 0.001 && bl.y1 <= large.yFond + 0.001, "un Dock plus large qu'elle n'a de place à côté : elle monte au-dessus de lui")
+    }
+
+    groupe("Lucarne : plein écran (décision D : elle reste à sa place)")
+    do {
+        // dans un Space plein écran, la barre des menus et le Dock se masquent : la zone visible devient tout l'écran. La barre vient de
+        // l'encoche (ou de 24 pt au moins), le Dock compte toujours son épaisseur : les places ne bougent pas.
+        func pleinEcran(_ e: EcranLucarne) -> EcranLucarne {
+            var p = e; p.retraitGauche = 0; p.retraitDroit = 0; p.retraitBas = 0; return p
+        }
+        for (nom, e) in faux where !e.dockMasque {
+            let pe = pleinEcran(e)
+            let ecart = PlaceLucarne.allCases.map { p -> Double in
+                let a = G.replie(p, e), b = G.replie(p, pe)
+                return max(abs(a.x0 - b.x0), abs(a.x1 - b.x1), abs(a.y0 - b.y0), abs(a.y1 - b.y1))
+            }.max() ?? 0
+            verifier(ecart < 0.001, "\(nom) : en plein écran (barre et Dock masqués), les 8 places ne bougent pas (écart \(ecart) pt)")
+        }
+        var barre25 = externe; barre25.barre = 25
+        let ecart = PlaceLucarne.allCases.map { p in abs(G.replie(p, barre25).y0 - G.replie(p, externe).y0) }.max() ?? 0
+        verifier(ecart <= 1.001, "écran sans encoche : la barre de 25 pt masquée (lue 24 au moins), les places du haut bougent d'1 pt au plus")
+    }
+
     groupe("Lucarne : le lancer")
     do {
         let e = macBook, cx = 0.0, cy = 478.0
@@ -457,6 +556,17 @@ func controlesPlacesLucarne() {
         n.appuyer(o, t: 0)
         n.appuyer(PointLucarne(5, 5), t: 5)
         verifier(n.depart == PointLucarne(5, 5) && abs((n.echeanceAppui ?? 0) - 5.4) < 1e-9, "un nouvel appui (relâchement perdu) repart de zéro")
+        // tenue, elle passe sur un autre écran : le geste change de repère sans changer de vitesse
+        var g0 = GesteLucarne(), g1 = GesteLucarne()
+        for g in [0, 1] {
+            var x = g == 0 ? g0 : g1
+            x.appuyer(o, t: 0); _ = x.echeance(0.4)
+            for i in 1...6 { _ = x.bouger(PointLucarne(Double(i) * 10, 0), t: 0.4 + Double(i) * 0.016) }
+            if g == 0 { g0 = x } else { g1 = x }
+        }
+        g1.decaler(dx: -1470, dy: 120)
+        verifier(g1.pointeur == PointLucarne(60 - 1470, 120) && g1.depart == PointLucarne(100 - 1470, 320), "changement d'écran : départ et pointeur dans le repère du nouvel écran")
+        verifier(g0.relacher(PointLucarne(70, 0), t: 0.5) == g1.relacher(PointLucarne(70 - 1470, 120), t: 0.5), "… la vitesse du lancer ne change pas")
     }
 
     groupe("Lucarne : la mémoire des places")
@@ -476,6 +586,9 @@ func controlesPlacesLucarne() {
         verifier(MemoirePlaces().ecranChoisi(parmi: ["UUID-1"]) == nil, "aucun écran choisi : nil")
         m.oublier("UUID-1")
         verifier(m.place(pour: "UUID-1") == .encoche, "oublier un écran")
+        m.poser(.basDroite, sur: "UUID-3")
+        verifier(m.place(pour: "UUID-3") == .basDroite && m.ecranChoisi == "UUID-3" && m.place(pour: "UUID-2") == .droite,
+                 "lâchée sur un autre écran : sa place y est retenue, il devient le sien, les autres places restent")
         // sans encoche : la même mémoire, la place « encoche » est la pilule de verre en haut au milieu
         var sans = MemoirePlaces(); sans.memoriser(.encoche, pour: "EXTERNE")
         let c = G.replie(sans.place(pour: "EXTERNE"), externe)
@@ -534,7 +647,8 @@ func controlesPlacesLucarne() {
         }
         func f(_ x: Double) -> String { String(format: "%.1f", x) }
         let rouge = (1.0, 0x45 / 255.0, 0x3A / 255.0), bleu = (0x0A / 255.0, 0x84 / 255.0, 1.0)
-        verifier(V.voilePilule <= 0.15 && V.voileDeplie <= 0.25, "le verre se voit : voile léger (\(V.voilePilule), \(V.voileDeplie))")
+        verifier(V.voilePilule <= 0.05 && V.voileDeplie <= 0.10, "le verre se voit au travers : voile presque nul (\(V.voilePilule), \(V.voileDeplie))")
+        verifier(V.halo.rayonPres <= 1 && V.halo.rayonLarge <= 2, "halo serré autour des glyphes (\(V.halo.rayonPres) et \(V.halo.rayonLarge) pt) : jamais une plaque floutée")
         verifier(V.contraste(lettre: (1, 1, 1), voile: V.voileDeplie, halo: 0, fond: 1) < 2, "sans halo, le blanc sur une page blanche ne se lirait pas : le halo est indispensable")
         verifier(ct((1, 1, 1)) >= 4.5 && ct((1, 1, 1), voile: V.voilePilule) >= 4.5, "texte blanc sur page blanche, avec halo : ≥ 4,5 (\(f(ct((1, 1, 1)))), pilule \(f(ct((1, 1, 1), voile: V.voilePilule))))")
         verifier(ct((1, 1, 1), 0.6) >= 2.5, "texte gris (60 %) ≥ 2,5 (\(f(ct((1, 1, 1), 0.6))))")

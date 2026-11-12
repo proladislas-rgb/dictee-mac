@@ -129,6 +129,8 @@ enum IlotEssai {
             } else if seul == "places" || seul == "places-survol" {
                 IlotEssai.placesLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
                 IlotEssai.verreLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+                IlotEssai.bordsLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+                IlotEssai.dicteeLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
                 // `places-survol` : le survol des Dictées juste après (comme dans l'essai complet) : la Lucarne revenue dans l'encoche ne
                 // doit rien laisser qui alourdisse l'îlot
                 if seul == "places-survol" { IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) }
@@ -208,8 +210,8 @@ enum IlotEssai {
         c.panneau.envoyerSouris(.leftMouseDown, en: sousBarre); attendre(0.2)
         verifier(m.presse && m.anneauAppui != nil, "pendant l'appui : l'îlot gonfle sous le doigt, l'anneau se remplit")
         attendre(0.4)
-        verifier(m.lucarne.geste.phase == .decollee && !m.fenetreOuverte && m.courante != .lectureMinuteur && !m.presse,
-                 "vrai appui long (0,6 s) sur la lecture dépliée : elle se range (plus de rangée Minuteur)")
+        verifier(m.lucarne.geste.phase == .decollee && !m.fenetreOuverte && !m.presse,
+                 "vrai appui long (0,6 s) sur la lecture dépliée : elle se range, la Lucarne se décolle")
         // la Lucarne attend que l'encoche soit repliée pour se décoller (jamais de capsule de la largeur du corps sur la barre des menus)
         attendre(1.0) { m.lucarne.repli }
         verifier(m.lucarne.geste.phase == .decollee && m.lucarne.libre, "… puis, l'encoche repliée, la Lucarne se décolle")
@@ -1186,6 +1188,8 @@ enum IlotEssai {
         IlotEssai.voix(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers })
         IlotEssai.placesLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.verreLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.bordsLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.dicteeLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.secondBrain(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },

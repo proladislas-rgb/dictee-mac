@@ -1,27 +1,49 @@
 import AppKit
 import DicteeCore
 
-/// La Lucarne déplaçable pendant l'essai : un faux Dock, une mémoire des places en mémoire, une vibration comptée. Jamais les vrais
-/// réglages (`lucarnePlaces`), jamais les préférences du Dock, jamais l'actionneur du trackpad.
+/// La Lucarne déplaçable pendant l'essai : de faux écrans, un faux Dock, une mémoire des places en mémoire, une vibration comptée.
+/// Jamais les vrais réglages (`lucarnePlaces`), jamais les préférences du Dock, jamais l'actionneur du trackpad.
 @MainActor
 enum EssaiPlaces {
     static var memoire = MemoirePlaces()
     static var ecritures = 0
     static var vibrations = 0
     static let ecran = "ECRAN-ESSAI"
+    /// Les faux écrans, le principal d'abord ; le faux Dock (en bas, icônes de 56 : 70 pt).
+    static var ecrans: [EcranIlot] = [principal()]
+    static var dock = PrefsDock(cote: .bas, masque: false, tailleIcone: 56)
+    static var lecturesDock = 0
+
+    /// Le faux écran principal : le cadre et l'encoche du vrai (les événements fabriqués passent par la conversion d'AppKit, qui suit le
+    /// vrai écran principal : son cadre doit être le même), avec la zone visible d'un Dock de 70 pt en bas. Sans écran (essai sans
+    /// affichage) : un MacBook de 1470 × 956 ; sans encoche : une caméra de MacBook.
+    static func principal(dock bas: CGFloat = 70) -> EcranIlot {
+        let vrai = NSScreen.screens.first
+        let f = vrai?.frame ?? CGRect(x: 0, y: 0, width: 1470, height: 956)
+        // sans encoche (capot fermé, écran externe) : une caméra fictive de MacBook, pour que les essais de la Lucarne ne soient jamais sautés
+        let (g, c) = vrai.map(GeometrieEncoche.mesurer).flatMap { $0.0.reelle ? $0 : nil } ?? (GeometrieEncoche(largeur: 179, hauteur: 33), f.midX)
+        return EcranIlot(id: ecran, frame: f, zoneVisible: CGRect(x: f.minX, y: f.minY + bas, width: f.width, height: f.height - g.hauteur - bas),
+                         geometrie: g, centre: c)
+    }
+
+    /// Un faux écran externe sans encoche (barre de 24 pt), collé à droite du principal, haut contre haut.
+    static func externe(largeur: CGFloat = 1920, hauteur: CGFloat = 1080) -> EcranIlot {
+        let p = principal().frame
+        let f = CGRect(x: p.maxX, y: p.maxY - hauteur, width: largeur, height: hauteur)
+        var g = GeometrieEncoche(); g.reelle = false; g.hauteur = 24
+        return EcranIlot(id: "ECRAN-EXTERNE", frame: f, zoneVisible: CGRect(x: f.minX, y: f.minY, width: f.width, height: f.height - 24), geometrie: g, centre: f.midX)
+    }
 }
 
 extension IlotEssai {
-    /// Branché par `fabriquer()` avant le démarrage du panneau : l'écran réel (son cadre, son encoche) avec un Dock factice en bas
-    /// (70 pt, largeur inconnue), et tout ce qui toucherait au système remplacé.
+    /// Branché par `fabriquer()` avant le démarrage du panneau : les faux écrans et le faux Dock, et tout ce qui toucherait au système
+    /// remplacé (aucune observation du vrai Dock).
     @MainActor
     static func systemeLucarneDEssai(_ c: IlotControleur) {
         c.moteur.lucarne.systeme = SystemeLucarne(
-            decrire: { e, g, centre in
-                EcranLucarne(cadre: e.frame, barre: Double(g.hauteur), demiCamera: g.reelle ? Double(g.largeur / 2) : nil,
-                             centreX: Double(centre - e.frame.minX), retraitBas: 70, dockCote: .bas, dockEpaisseur: 70)
-            },
-            identifiant: { _ in EssaiPlaces.ecran },
+            ecrans: { MainActor.assumeIsolated { EssaiPlaces.ecrans } },
+            lireDock: { MainActor.assumeIsolated { EssaiPlaces.lecturesDock += 1; return EssaiPlaces.dock } },
+            suivreDock: { _ in nil },
             lireMemoire: { MainActor.assumeIsolated { EssaiPlaces.memoire } },
             ecrireMemoire: { m in MainActor.assumeIsolated { EssaiPlaces.memoire = m; EssaiPlaces.ecritures += 1 } },
             vibrer: { MainActor.assumeIsolated { EssaiPlaces.vibrations += 1 } })
@@ -35,7 +57,7 @@ extension IlotEssai {
         let m = c.moteur
         print("— la Lucarne déplaçable : appui long, tenue, lâcher, lancer, retour dans l'encoche")
         guard let e = m.lucarne.ecran else { verifier(false, "Lucarne : l'écran est mesuré au démarrage"); return }
-        guard e.avecEncoche else { print("  (écran sans encoche : essai des places sauté)"); return }
+        guard e.avecEncoche else { verifier(false, "Lucarne : le faux écran principal a une encoche (essai des places)"); return }
         m.fermer(); pause(0.8)
         EssaiPlaces.memoire = MemoirePlaces()
         var tenu = false
@@ -322,7 +344,7 @@ extension IlotEssai {
         let m = c.moteur
         func etat() -> String { IlotEssai.etatLucarne(m) }
         print("— la Lucarne hors de l'encoche : verre, contenu, depuis chaque place")
-        guard let e = m.lucarne.ecran, e.avecEncoche else { print("  (écran sans encoche : essai du verre sauté)"); return }
+        guard let e = m.lucarne.ecran, e.avecEncoche else { verifier(false, "Lucarne : le faux écran principal a une encoche (essai du verre)"); return }
         // les réglages du Centre en mémoire (jamais les vrais : ouvrir le Centre marque l'aide vue, le Centre utilisé…)
         var memoire = (bulle: true, utilise: true, telechargements: false, micro: nil as String?)
         c.reglagesCentre.telechargements = { memoire.telechargements }; c.reglagesCentre.reglerTelechargements = { memoire.telechargements = $0 }
@@ -482,5 +504,375 @@ extension IlotEssai {
         EssaiPlaces.memoire.memoriser(.encoche, pour: EssaiPlaces.ecran)
         c.panneau.demarrer(); m.poser(); pause(0.3)
         verifier(!m.lucarne.libre && !m.boucleActive, "de retour dans l'encoche, plus rien ne tourne")
+    }
+}
+
+// MARK: - les bords (mission 4)
+
+extension IlotEssai {
+    /// La Lucarne au bord des choses, avec de faux écrans et un faux Dock (jamais les vrais) : Dock à gauche, à droite, masqué (lu une
+    /// fois, relu seulement quand il change) ; lâchée au milieu de l'écran (jamais l'encoche) ; deux écrans (glissée de l'un à l'autre,
+    /// une place par écran, écran débranché puis rebranché) ; écran principal sans encoche (la pilule du haut au milieu, visible même
+    /// vide) ; VoiceOver « Déplacer vers… ». Vrais événements souris remis à la fenêtre, fenêtre invisible.
+    @MainActor
+    static func bordsLucarne(_ c: IlotControleur, verifier: (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void) {
+        func pause(_ s: Double) { attendre(s) { true } }
+        let m = c.moteur
+        print("— la Lucarne aux bords : Dock, deux écrans, sans encoche, VoiceOver")
+        guard let principal = EssaiPlaces.ecrans.first, principal.geometrie.reelle else { verifier(false, "Lucarne : le faux écran principal a une encoche (essai des bords)"); return }
+        func etat() -> String { IlotEssai.etatLucarne(m) }
+        let ecrans0 = EssaiPlaces.ecrans, dock0 = EssaiPlaces.dock
+        var tenu = false
+        m.boutonEnfonce = { tenu }
+        defer {
+            m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 }
+            EssaiPlaces.ecrans = ecrans0; EssaiPlaces.dock = dock0
+        }
+        CatalogueLucarne.vider(m); pause(0.6)
+
+        /// Un point de l'écran `e` (repère de la Lucarne sur lui) en coordonnées globales d'AppKit, et un point global dans le repère de
+        /// l'écran où vit l'îlot en ce moment (les événements de l'essai se donnent dans ce repère).
+        func global(_ q: CGPoint, sur e: EcranIlot) -> CGPoint { CGPoint(x: e.centre + q.x, y: e.frame.maxY - q.y) }
+        func ici(_ g: CGPoint) -> CGPoint {
+            guard let e = c.panneau.ecran else { return g }
+            return CGPoint(x: g.x - c.panneau.centre, y: e.frame.maxY - g.y)
+        }
+        func bas(_ g: CGPoint) { tenu = true; c.panneau.envoyerSouris(.leftMouseDown, en: ici(g)) }
+        func glisse(_ g: CGPoint) { c.panneau.envoyerSouris(.leftMouseDragged, en: ici(g)) }
+        func haut(_ g: CGPoint) { c.panneau.envoyerSouris(.leftMouseUp, en: ici(g)); tenu = false }
+        /// Un glisser (coordonnées globales) de `a` à `b` en `n` pas de 16 ms : chaque point est redonné dans le repère du moment.
+        func trainer(_ a: CGPoint, _ b: CGPoint, n: Int = 24) {
+            for i in 1...n { let u = CGFloat(i) / CGFloat(n); glisse(CGPoint(x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u)); pause(0.016) }
+        }
+        /// Le milieu de la forme, en coordonnées globales (dans l'encoche : son milieu dans la barre).
+        func centreG() -> CGPoint {
+            guard let e = c.panneau.ecran else { return .zero }
+            let p = m.lucarne.libre ? CGPoint(x: m.lucarne.capsule.cx.x, y: m.lucarne.capsule.cy.x) : CGPoint(x: 0, y: Double(m.geometrie.hauteur) / 2)
+            return CGPoint(x: c.panneau.centre + p.x, y: e.frame.maxY - p.y)
+        }
+        /// Appui long sur la forme, glissé jusqu'à `b` (global), immobile 0,2 s puis relâché : sans élan.
+        func deplacer(vers b: CGPoint) {
+            let a = centreG()
+            bas(a); pause(0.5); trainer(a, b); pause(0.25); haut(b); pause(1.2); attendre(1.5) { m.boucleActive }
+        }
+        /// Posée à cette place du principal, sans geste (comme au lancement).
+        func reposer(_ p: PlaceLucarne) {
+            CatalogueLucarne.vider(m)
+            EssaiPlaces.memoire.poser(p, sur: EssaiPlaces.ecran)
+            c.panneau.recaler(); m.poser(); pause(0.1)
+        }
+        /// La fenêtre (globale) entoure-t-elle la forme posée ?
+        func fenetreAutour() -> Bool {
+            guard let f = c.panneau.cadre, let e = c.panneau.ecran else { return false }
+            let k = m.lucarne.capsule.valeur
+            let r = CGRect(x: c.panneau.centre + k.x0, y: e.frame.maxY - k.y1, width: k.largeur, height: k.hauteur)
+            return f.insetBy(dx: -0.5, dy: -0.5).contains(r)
+        }
+        /// Le faux écran principal avec ce Dock (sa zone visible suit) ; le faux Dock change, le panneau est prévenu.
+        func dock(_ cote: CoteDock, masque: Bool) {
+            var p = EssaiPlaces.principal(dock: cote == .bas && !masque ? 70 : 0)
+            if !masque, cote != .bas {
+                let f = p.frame
+                p.zoneVisible = CGRect(x: f.minX + (cote == .gauche ? 70 : 0), y: f.minY, width: f.width - 70, height: f.height - p.geometrie.hauteur)
+            }
+            EssaiPlaces.ecrans = [p]
+            EssaiPlaces.dock = PrefsDock(cote: cote, masque: masque, tailleIcone: 56)
+            c.panneau.dockChange(); m.poser(); pause(0.1)
+        }
+
+        // --- le Dock : lu une fois, relu seulement quand il change
+        let lectures0 = EssaiPlaces.lecturesDock
+        c.panneau.recaler(); c.panneau.recaler()
+        verifier(EssaiPlaces.lecturesDock == lectures0, "écrans remesurés deux fois : le Dock n'est pas relu (\(EssaiPlaces.lecturesDock - lectures0) lecture)")
+        let place0 = m.lucarne.place, ecritures0 = EssaiPlaces.ecritures
+        c.panneau.dockChange()
+        verifier(EssaiPlaces.lecturesDock == lectures0 + 1 && m.lucarne.place == place0 && EssaiPlaces.ecritures == ecritures0,
+                 "le Dock prévient d'un changement qui n'en est pas un : relu une fois, rien ne bouge")
+
+        // --- Dock à gauche, à droite, masqué : les places de son côté sont décalées, les dépliés ne le couvrent pas
+        for (cote, masque, nom) in [(CoteDock.gauche, false, "à gauche"), (.droite, false, "à droite"), (.bas, true, "masqué")] {
+            dock(cote, masque: masque)
+            guard let e = m.lucarne.ecran else { verifier(false, "Dock \(nom) : écran mesuré"); continue }
+            verifier(e.dockCote == cote && e.dockMasque == masque, "Dock \(nom) : lu depuis le faux Dock (relu parce qu'il a changé)")
+            let places: [PlaceLucarne] = cote == .gauche ? [.hautGauche, .gauche, .basGauche] : (cote == .droite ? [.hautDroite, .droite, .basDroite] : [.basGauche, .basMilieu, .basDroite])
+            var bilan: [String] = []
+            for p in places {
+                reposer(p)
+                let k = m.lucarne.capsule.valeur
+                let libre: Bool
+                switch cote {
+                case .gauche: libre = k.x0 >= e.xBordGauche + 70 + GeoLucarne.marge - 0.01
+                case .droite: libre = k.x1 <= e.xBordDroit - 70 - GeoLucarne.marge + 0.01
+                case .bas: libre = k.y1 <= e.hauteur - 70 - GeoLucarne.marge + 0.01
+                }
+                if !libre || !fenetreAutour() || m.boucleActive { bilan.append("\(p.rawValue) \(etat())") }
+                // le Centre ouvert depuis cette place : vers l'intérieur, jamais sur le Dock
+                m.clicForme(); m.poser(); c.panneau.ajuster()
+                let o = m.lucarne.capsule.valeur
+                let surDock: Bool
+                switch cote {
+                case .gauche: surDock = o.x0 < e.xBordGauche + 70 - 0.01
+                case .droite: surDock = o.x1 > e.xBordDroit - 70 + 0.01
+                case .bas: surDock = o.y1 > e.hauteur - 70 + 0.01
+                }
+                if m.courante != .centre || surDock || o.y0 < e.yHaut - 0.01 { bilan.append("\(p.rawValue) Centre \(etat())") }
+                m.fermer(); m.poser()
+            }
+            verifier(bilan.isEmpty, "Dock \(nom) : \(places.map(\.rawValue).joined(separator: ", ")) décalées hors du Dock (70 pt + 10), le Centre s'ouvre à côté\(bilan.isEmpty ? "" : " — " + bilan.joined(separator: " ; "))")
+        }
+        dock(.bas, masque: false)
+
+        // --- lâchée au milieu de l'écran : la place la plus proche parmi les sept autres, jamais l'encoche
+        reposer(.encoche)
+        guard let e = m.lucarne.ecran else { return }
+        let milieu = global(CGPoint(x: 0, y: e.hauteur / 2), sur: principal), a0 = centreG()
+        bas(a0); pause(0.5); trainer(a0, milieu); pause(0.25)
+        // la place attendue, d'après où elle est lâchée (pas d'après où elle s'est posée)
+        let attendue = GeoLucarne.plusProche(x: m.lucarne.capsule.cx.x, y: m.lucarne.capsule.cy.x, e)
+        haut(milieu); pause(1.2); attendre(1.5) { m.boucleActive }
+        verifier(attendue != .encoche && m.lucarne.libre && m.lucarne.place == attendue && !m.boucleActive,
+                 "lâchée au milieu de l'écran : \(m.lucarne.place.rawValue), pas l'encoche \(etat())")
+
+        // --- deux écrans : glissée de l'un à l'autre, une place par écran
+        let externe = EssaiPlaces.externe()
+        EssaiPlaces.ecrans = [EssaiPlaces.principal(), externe]
+        reposer(.hautDroite)
+        let surExterne = global(CGPoint(x: -300, y: 500), sur: externe)
+        let a = centreG()
+        bas(a); pause(0.5)
+        verifier(m.lucarneEnMain, "appui long sur la Lucarne en haut à droite : décollée")
+        // pas à pas : jamais de saut au passage d'un écran à l'autre (la forme passe le bord avec le doigt)
+        var saut = 0.0, avant = centreG()
+        for i in 1...40 {
+            let u = CGFloat(i) / 40, q = CGPoint(x: a.x + (surExterne.x - a.x) * u, y: a.y + (surExterne.y - a.y) * u)
+            glisse(q); pause(0.016)
+            let k = centreG(); saut = max(saut, hypot(k.x - avant.x, k.y - avant.y)); avant = k
+        }
+        pause(0.3)
+        let pas = hypot(surExterne.x - a.x, surExterne.y - a.y) / 40
+        verifier(saut < pas + 12, "d'un écran à l'autre : la forme suit le doigt sans saut (au plus \(Int(saut)) pt d'un mouvement à l'autre, pas de \(Int(pas)) pt)")
+        let pointe = m.lucarne.geste.pointeur, d = m.lucarne.capsule.decalage
+        verifier(c.panneau.ecran?.id == externe.id && m.lucarne.uuid == externe.id && m.lucarne.ecran?.avecEncoche == false,
+                 "glissée sur l'écran externe : l'îlot y vit (sa géométrie, sa clé) \(etat())")
+        verifier(abs(pointe.x - (-300)) < 0.5 && abs(pointe.y - 500) < 0.5 && abs(m.lucarne.capsule.cx.x - (pointe.x + d.x)) < 0.01
+                 && abs(m.lucarne.capsule.cy.x - (pointe.y + d.y)) < 0.01,
+                 "… et elle reste sous le doigt, dans le repère du nouvel écran (pointeur \(Int(pointe.x)), \(Int(pointe.y)))")
+        if let f = c.panneau.cadre {
+            let k = centreG()
+            verifier(abs(f.midX - k.x) < 1 && abs(f.midY - k.y) < 1 && externe.frame.contains(k), "la fenêtre la suit sur l'écran externe")
+        }
+        verifier(m.lucarne.pres == false && m.lucarne.capsule.noir.cibleFinale == 0, "tenue sur l'écran sans encoche : une pilule de verre")
+        haut(surExterne); pause(1.2); attendre(1.5) { m.boucleActive }
+        let surE = EssaiPlaces.memoire.place(pour: externe.id)
+        verifier(m.lucarne.libre && m.lucarne.place == surE && EssaiPlaces.memoire.ecranChoisi == externe.id
+                 && EssaiPlaces.memoire.place(pour: EssaiPlaces.ecran) == .hautDroite && !m.boucleActive,
+                 "lâchée sur l'écran externe : posée (\(surE.rawValue)), retenue pour lui, il devient le sien ; la place du principal reste")
+        if let f = c.panneau.cadre { verifier(externe.frame.contains(f) && fenetreAutour(), "posée : sa fenêtre est sur l'écran externe, autour d'elle") }
+        // tout en haut au milieu de l'écran externe (sans caméra) : la pilule du haut, jamais aspirée dans une fausse encoche
+        deplacer(vers: global(CGPoint(x: 6, y: 34), sur: externe))
+        let haute = GeoLucarne.replie(.encoche, m.lucarne.ecran ?? e)
+        verifier(m.lucarne.libre && m.lucarne.place == .encoche && !m.lucarne.aspiree && abs(m.lucarne.capsule.cy.x - haute.centreY) < 0.01 && c.panneau.estVisible,
+                 "écran externe sans encoche, lâchée en haut au milieu : la pilule de verre sous la barre, visible \(etat())")
+
+        // --- l'écran externe débranché : elle revient sur le principal, à sa place ; rebranché, elle y retourne
+        EssaiPlaces.ecrans = [EssaiPlaces.principal()]
+        c.panneau.recaler(); m.poser(); pause(0.2)
+        verifier(c.panneau.ecran?.id == EssaiPlaces.ecran && m.lucarne.place == .hautDroite && m.lucarne.libre && fenetreAutour() && !m.boucleActive,
+                 "écran externe débranché : de retour sur le principal, à sa place (\(m.lucarne.place.rawValue)) \(etat())")
+        verifier(EssaiPlaces.memoire.ecranChoisi == externe.id, "… l'écran choisi reste retenu (rebranché, elle y retournera)")
+        EssaiPlaces.ecrans = [EssaiPlaces.principal(), externe]
+        c.panneau.recaler(); m.poser(); pause(0.2)
+        verifier(c.panneau.ecran?.id == externe.id && m.lucarne.place == .encoche && m.lucarne.libre, "rebranché : elle y retourne, à sa place \(etat())")
+
+        // --- ramenée de l'écran externe dans l'encoche du principal : aspirée, l'encoche de cet écran, retenu comme le sien
+        let a2 = centreG(), encoche = global(CGPoint(x: 0, y: principal.geometrie.hauteur / 2 + 6), sur: principal)
+        bas(a2); pause(0.5); trainer(a2, encoche, n: 40); pause(0.4)
+        verifier(c.panneau.ecran?.id == EssaiPlaces.ecran && m.lucarne.pres == true, "glissée vers l'encoche du principal : de retour sur lui, aimantée \(etat())")
+        haut(encoche); pause(1.2); attendre(1.5) { m.boucleActive }
+        verifier(!m.lucarne.libre && m.lucarne.place == .encoche && EssaiPlaces.memoire.ecranChoisi == EssaiPlaces.ecran && !m.boucleActive
+                 && m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01,
+                 "lâchée près de l'encoche du principal : aspirée (cou ≤ 66 pt), le principal redevient le sien \(etat())")
+
+        // --- VoiceOver : « Déplacer vers… », une action par autre place, sur la Lucarne
+        EssaiPlaces.ecrans = [EssaiPlaces.principal()]
+        reposer(.encoche)
+        let attendues = PlaceLucarne.actionsDeplacer(depuis: .encoche, avecEncoche: true).map(\.nom)
+        let trouvees = IlotEssai.actionsAccessibles(c.panneau.vueEssai)
+        verifier(attendues.allSatisfy(trouvees.keys.contains) && !trouvees.keys.contains("Déplacer vers l'encoche"),
+                 "VoiceOver trouve sur la Lucarne : \(attendues.filter(trouvees.keys.contains).count)/7 actions « Déplacer vers… » (pas vers sa propre place)")
+        m.clicForme(); pause(0.6)
+        let e0 = EssaiPlaces.ecritures
+        let versBG = IlotEssai.actionsAccessibles(c.panneau.vueEssai)["Déplacer vers le bas à gauche"]
+        let parVoiceOver = versBG?() ?? false
+        if versBG == nil { m.lucarne.deplacer(.basGauche) }   // l'essai continue, l'échec est déjà dit
+        m.poser(); pause(0.2)
+        let bg = m.capsuleRepliee(e)
+        verifier(parVoiceOver && m.lucarne.place == .basGauche && m.lucarne.libre && !m.fenetreOuverte && m.lucarne.capsule.valeur == bg && EssaiPlaces.ecritures == e0 + 1
+                 && EssaiPlaces.memoire.place(pour: EssaiPlaces.ecran) == .basGauche && fenetreAutour() && !m.boucleActive,
+                 "VoiceOver « Déplacer vers le bas à gauche » (Centre ouvert) : le Centre se range, posée en bas à gauche, retenue, plus rien ne tourne \(etat())")
+        let depuisBG = IlotEssai.actionsAccessibles(c.panneau.vueEssai)
+        verifier(depuisBG.keys.contains("Déplacer vers l'encoche") && !depuisBG.keys.contains("Déplacer vers le bas à gauche") && depuisBG.count >= 7,
+                 "hors de l'encoche, dans le verre : les actions suivent la place")
+        let versEncoche = depuisBG["Déplacer vers l'encoche"]
+        let parVoiceOver2 = versEncoche?() ?? false
+        if versEncoche == nil { m.lucarne.deplacer(.encoche) }
+        m.poser(); pause(0.2)
+        verifier(parVoiceOver2 && !m.lucarne.libre && m.lucarne.place == .encoche && !m.boucleActive, "VoiceOver « Déplacer vers l'encoche » : de retour dans l'encoche \(etat())")
+
+        // --- écran principal sans encoche : la place du haut au milieu est une pilule de verre, visible même vide (décision A)
+        var sans = EssaiPlaces.principal()
+        sans.geometrie.reelle = false; sans.geometrie.hauteur = 24; sans.centre = sans.frame.midX
+        sans.zoneVisible = CGRect(x: sans.frame.minX, y: sans.frame.minY + 70, width: sans.frame.width, height: sans.frame.height - 24 - 70)
+        EssaiPlaces.ecrans = [sans]
+        reposer(.encoche)
+        guard let es = m.lucarne.ecran else { return }
+        let pil = m.lucarne.capsule.valeur
+        verifier(!es.avecEncoche && m.lucarne.libre && m.courante == .repos && abs(pil.centreX) < 0.01 && abs(pil.y0 - es.yHaut) < 0.01 && pil.s > 0
+                 && c.panneau.estVisible && fenetreAutour() && m.contient(CGPoint(x: pil.centreX, y: pil.centreY)) && !m.boucleActive,
+                 "écran sans encoche, rien d'actif : la pilule de verre en haut au milieu, visible, cliquable, rien ne tourne \(etat())")
+        c.panneau.envoyerSouris(.leftMouseDown, en: CGPoint(x: pil.centreX, y: pil.centreY)); pause(0.08)
+        c.panneau.envoyerSouris(.leftMouseUp, en: CGPoint(x: pil.centreX, y: pil.centreY)); pause(0.9)
+        let ouvert = m.lucarne.capsule.valeur
+        verifier(m.courante == .centre && abs(ouvert.centreX) < 0.5 && abs(ouvert.y0 - es.yHaut) < 0.5, "un clic : le Centre s'ouvre de la pilule, vers le bas \(etat())")
+        m.clicAilleurs(); pause(0.6); attendre(1.5) { m.boucleActive }
+        // retirée d'elle puis lâchée en haut au milieu : elle reste une pilule (jamais aspirée)
+        deplacer(vers: global(CGPoint(x: -500, y: 600), sur: sans))
+        let noms = IlotEssai.actionsAccessibles(c.panneau.vueEssai)
+        verifier(m.lucarne.place != .encoche && noms.keys.contains("Déplacer vers le haut au milieu") && !noms.keys.contains("Déplacer vers l'encoche"),
+                 "VoiceOver, sans caméra : « Déplacer vers le haut au milieu » (jamais « l'encoche ») depuis \(m.lucarne.place.rawValue) — trouvées : \(noms.keys.sorted())")
+        deplacer(vers: global(CGPoint(x: 4, y: 30), sur: sans))
+        verifier(m.lucarne.place == .encoche && m.lucarne.libre && !m.lucarne.aspiree && c.panneau.estVisible && !m.boucleActive,
+                 "lâchée en haut au milieu : la pilule de verre, jamais une fausse encoche \(etat())")
+
+        // --- retour : le vrai principal, le Dock d'origine, dans l'encoche
+        EssaiPlaces.ecrans = ecrans0; EssaiPlaces.dock = dock0
+        c.panneau.dockChange()
+        reposer(.encoche)
+        verifier(!m.lucarne.libre && c.panneau.ecran?.id == EssaiPlaces.ecran && !m.boucleActive && m.lucarne.reveil == nil && m.lucarne.garde == nil,
+                 "fin : dans l'encoche du principal, plus rien ne tourne, aucun réveil")
+    }
+
+    /// Les actions d'accessibilité nommées sous la vue (ce que VoiceOver propose), par nom : de quoi les déclencher comme lui. SwiftUI ne
+    /// construit son arbre d'accessibilité que pour un client d'accessibilité : l'essai se déclare comme VoiceOver le fait (l'attribut
+    /// « AXEnhancedUserInterface » de l'app, dans ce processus seulement, rendu tout de suite après) ; les nœuds de SwiftUI
+    /// (`AccessibilityNode`) ne se lisent que par leurs sélecteurs (sondé le 12/11 : ils ne se déclarent pas `NSAccessibilityProtocol`).
+    @MainActor
+    static func actionsAccessibles(_ vue: NSView?) -> [String: () -> Bool] {
+        let regler = NSSelectorFromString("accessibilitySetValue:forAttribute:"), attribut = "AXEnhancedUserInterface" as NSString
+        _ = NSApp.perform(regler, with: NSNumber(value: true), with: attribut)
+        defer { _ = NSApp.perform(regler, with: NSNumber(value: false), with: attribut) }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        func lire(_ o: NSObject, _ nom: String) -> [Any] {
+            let sel = NSSelectorFromString(nom)
+            guard o.responds(to: sel) else { return [] }
+            return o.perform(sel)?.takeUnretainedValue() as? [Any] ?? []
+        }
+        var trouvees: [String: () -> Bool] = [:]
+        func parcourir(_ el: Any, profondeur: Int) {
+            guard profondeur < 40, let o = el as? NSObject else { return }
+            for case let x as NSAccessibilityCustomAction in lire(o, "accessibilityCustomActions") where trouvees[x.name] == nil {
+                trouvees[x.name] = { x.handler?() ?? false }
+            }
+            for e in lire(o, "accessibilityChildren") { parcourir(e, profondeur: profondeur + 1) }
+        }
+        if let vue { parcourir(vue, profondeur: 0) }
+        return trouvees
+    }
+}
+
+// MARK: - la dictée à la place de la Lucarne
+
+extension IlotEssai {
+    /// La dictée (fn) quand la Lucarne est posée dans un coin : la fenêtre de la dictée (la vraie, invisible) se montre à sa place, en
+    /// verre, et rien dans l'encoche ; le texte en direct élargit la pilule vers l'intérieur ; mains libres, ✕ et ✓ prennent le clic ; un
+    /// message (« Champ protégé… ») aussi ; la Lucarne s'efface le temps de la dictée et revient à sa place. Dans l'encoche : comme avant.
+    @MainActor
+    static func dicteeLucarne(_ c: IlotControleur, verifier: (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void) {
+        func pause(_ s: Double) { attendre(s) { true } }
+        let m = c.moteur
+        print("— la dictée à la place de la Lucarne (en verre), l'encoche vide")
+        guard let principal = EssaiPlaces.ecrans.first, principal.geometrie.reelle else { verifier(false, "Lucarne : le faux écran principal a une encoche (essai de la dictée)"); return }
+        let d = EnclochePanneau()
+        d.invisible = true
+        d.placementLibre = { [weak c] in c?.panneau.placementDictee() }
+        var valide = 0, annule = 0
+        d.modele.surValider = { valide += 1 }
+        d.modele.surAnnuler = { annule += 1 }
+        var occ = OccupationEncoche()
+        c.occupation = { occ }
+        defer { d.fermer(); c.occupation = { OccupationEncoche() }; c.occupationChangee() }
+        func dicter(_ oui: Bool) { occ.dictee = oui; c.occupationChangee() }
+        func reposer(_ p: PlaceLucarne) {
+            CatalogueLucarne.vider(m)
+            EssaiPlaces.memoire.poser(p, sur: EssaiPlaces.ecran)
+            c.panneau.recaler(); m.poser(); pause(0.2)
+        }
+        /// L'encoche du principal (la caméra et ses ailes), en coordonnées globales : rien de la dictée n'y va quand la Lucarne est ailleurs.
+        let g = principal.geometrie
+        let encoche = NSRect(x: principal.centre - g.largeur / 2 - GeometrieEncoche.aile, y: principal.frame.maxY - g.hauteur - GeometrieEncoche.hauteurRuban,
+                             width: g.largeur + 2 * GeometrieEncoche.aile, height: g.hauteur + GeometrieEncoche.hauteurRuban)
+        func globale(_ k: CapsuleLucarne) -> NSRect {
+            NSRect(x: principal.centre + CGFloat(k.x0), y: principal.frame.maxY - CGFloat(k.y1), width: CGFloat(k.largeur), height: CGFloat(k.hauteur))
+        }
+        var bilan: [String] = []
+        for p in [PlaceLucarne.hautGauche, .hautDroite, .basGauche, .basDroite] {
+            reposer(p)
+            guard let e = m.lucarne.ecran, c.panneau.placementDictee()?.place == p else { bilan.append("\(p.rawValue) : pas de placement"); continue }
+            let lucarne = m.lucarne.capsule.valeur
+            d.ouvrir(app: nil, mainsLibres: false); dicter(true); pause(0.9)
+            let compacte = GeoLucarne.dictee(p, e, ruban: false, mainsLibres: false)
+            guard let f = d.cadre else { bilan.append("\(p.rawValue) : fenêtre absente"); continue }
+            // à sa place : la pilule de la dictée part du même bord que la Lucarne, dans l'écran, hors de la barre et du Dock
+            let bord = p.ancre.x == 0 ? abs(compacte.x0 - lucarne.x0) < 0.5 : abs(compacte.x1 - lucarne.x1) < 0.5
+            let ici = globale(compacte)
+            if !d.horsEncoche || !f.contains(ici) || f.intersects(encoche) { bilan.append("\(p.rawValue) : fenêtre \(f) pas à la place (pilule \(ici))") }
+            if !bord || compacte.y0 < e.yHaut - 0.01 || (compacte.y1 > e.yFond + 0.01 && e.recouvreDock(x0: compacte.x0, x1: compacte.x1)) {
+                bilan.append("\(p.rawValue) : pilule \(Int(compacte.x0)),\(Int(compacte.y0)) loin de la Lucarne \(Int(lucarne.x0)),\(Int(lucarne.y0))")
+            }
+            if c.panneau.estVisible || !m.cache { bilan.append("\(p.rawValue) : la Lucarne reste affichée pendant la dictée") }
+            // le texte arrive : la pilule s'allonge vers l'intérieur, son bord côté écran ne bouge pas
+            d.mettreAJourTexte("Je te rappelle demain pour le devis"); pause(0.4)
+            let ruban = GeoLucarne.dictee(p, e, ruban: true, mainsLibres: false)
+            let fixe = p.ancre.x == 0 ? abs(ruban.x0 - compacte.x0) < 0.01 : abs(ruban.x1 - compacte.x1) < 0.01
+            let fr = d.cadre ?? .zero
+            if !d.modele.ruban || !fixe || !fr.contains(globale(ruban)) { bilan.append("\(p.rawValue) : le ruban ne s'ouvre pas vers l'intérieur") }
+            // la fenêtre n'est que la pilule (et son ombre) : son vide ne prend rien aux apps voisines
+            if fr.width > CGFloat(ruban.largeur) + 2 * DicteeVerreVue.marge + 0.5 { bilan.append("\(p.rawValue) : fenêtre de \(Int(fr.width)) pt pour une pilule de \(Int(ruban.largeur))") }
+            // mains libres : ✓ au bout, côté intérieur ou extérieur, prend le clic (un vrai clic remis à la fenêtre)
+            d.passerEnMainsLibres(); pause(0.5)
+            let r = d.placementLibre()?.pilule(ruban: true, mainsLibres: true) ?? .zero
+            let v0 = valide, a0 = annule
+            // `r` est dans la boîte la plus large (`cadreFenetre`) : ses points globaux ne dépendent pas du cadre du moment
+            let boite = d.placementLibre()?.cadreFenetre ?? .zero
+            d.cliquerEssai(en: NSPoint(x: boite.minX + r.maxX - 24, y: boite.maxY - r.midY)); pause(0.2)
+            d.cliquerEssai(en: NSPoint(x: boite.minX + r.minX + 24, y: boite.maxY - r.midY)); pause(0.2)
+            if valide != v0 + 1 || annule != a0 + 1 { bilan.append("\(p.rawValue) : ✕ / ✓ ne prennent pas le clic (✓ \(valide - v0), ✕ \(annule - a0))") }
+            d.figer(); d.fermer(); dicter(false); pause(1.0)
+            if d.cadre != nil || !c.panneau.estVisible || m.lucarne.place != p || m.boucleActive {
+                bilan.append("\(p.rawValue) : après la dictée \(IlotEssai.etatLucarne(m)), fenêtre de dictée \(String(describing: d.cadre))")
+            }
+        }
+        verifier(bilan.isEmpty, "dictée avec la Lucarne dans chacun des 4 coins : en verre à sa place (rien dans l'encoche), le texte l'allonge vers l'intérieur, ✕ et ✓ cliquables, la Lucarne revient après\(bilan.isEmpty ? "" : " — " + bilan.joined(separator: " ; "))")
+
+        // un message (« Champ protégé… », une erreur) depuis le bas du milieu : à la place, en verre
+        reposer(.basMilieu)
+        d.afficherMessage("Champ protégé, texte copié", app: nil, duree: 0.6); dicter(true); pause(0.3)
+        if let f = d.cadre, let e = m.lucarne.ecran {
+            let k = GeoLucarne.dictee(.basMilieu, e, ruban: true, mainsLibres: false)
+            verifier(d.horsEncoche && d.modele.message != nil && f.contains(globale(k)) && !f.intersects(encoche) && abs(k.centreX) < 0.01,
+                     "un message en bas au milieu : dans la pilule de verre à la place de la Lucarne (\(Int(k.largeur)) pt), rien dans l'encoche")
+        } else { verifier(false, "un message en bas au milieu : la fenêtre de dictée est là") }
+        pause(0.8); dicter(false); pause(0.8)
+        verifier(d.cadre == nil, "le message parti, la fenêtre de la dictée s'en va")
+
+        // dans l'encoche : la dictée comme avant (noire, dans l'encoche)
+        reposer(.encoche)
+        d.ouvrir(app: nil, mainsLibres: false); dicter(true); pause(0.5)
+        if let f = d.cadre {
+            verifier(!d.horsEncoche && c.panneau.placementDictee() == nil && abs(f.midX - principal.centre) < 1 && abs(f.maxY - principal.frame.maxY) < 1,
+                     "la Lucarne dans l'encoche : la dictée s'y montre, comme avant")
+        } else { verifier(false, "la Lucarne dans l'encoche : la fenêtre de dictée est là") }
+        d.fermer(); dicter(false); pause(1.0)
+        verifier(!m.lucarne.libre && c.panneau.estVisible && !m.boucleActive, "fin de la dictée : la Lucarne dans l'encoche, plus rien ne tourne")
     }
 }
