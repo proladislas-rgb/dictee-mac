@@ -155,7 +155,10 @@ public struct DispositionCentre: Equatable, Sendable {
         let r = d.avecNouveautes(dejaProposees: dejaProposees)
         guard !r.proposees.isEmpty else { return (d, nil, []) }
         let ajoutees = r.proposees.filter { r.disposition.elements.contains($0) && !d.elements.contains($0) }
-        return (r.disposition, dejaProposees.union(r.proposees.map(\.rawValue)).sorted(), ajoutees)
+        // seulement ce qui a vraiment trouvé sa place (12/11 : la rangée pleine, Concentration était marquée « proposée » sans jamais
+        // être montrée) ; le reste attend une place libre et sera ajouté à ce moment-là
+        guard !ajoutees.isEmpty else { return (d, nil, []) }
+        return (r.disposition, dejaProposees.union(ajoutees.map(\.rawValue)).sorted(), ajoutees)
     }
 
     /// Les ronds montrés : ceux qui sont disponibles (le choix du micro n'existe qu'avec des AirPods), six au plus.

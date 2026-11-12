@@ -183,6 +183,9 @@ func controlesConcentration() {
     verifier(jamais.disposition.elements.contains(.concentration) && jamais.aRetenir == ["calendrier", "concentration", "groq"] && jamais.ajoutees.isEmpty,
              "jamais rangé : déjà dans le Centre par défaut, retenue comme donnée")
     let plein = DispositionCentre.relire(identifiants: ["micro", "dictee", "telechargements", "calendrier", "claude", "rappel", "minuteur"], dejaProposees: ["calendrier", "groq"])
-    verifier(!plein.disposition.elements.contains(.concentration) && plein.aRetenir?.contains("concentration") == true
-             && plein.disposition.aAjouter().contains(.concentration), "rangée pleine (six ronds) : rien n'entre, « Modifier » la propose")
+    verifier(!plein.disposition.elements.contains(.concentration) && plein.aRetenir == nil && plein.ajoutees.isEmpty
+             && plein.disposition.aAjouter().contains(.concentration), "rangée pleine (six ronds) : rien n'entre, PAS marquée « proposée » (12/11), « Modifier » la propose")
+    let libre = DispositionCentre.relire(identifiants: ["micro", "dictee", "telechargements", "calendrier", "claude", "minuteur"], dejaProposees: ["calendrier", "groq"])
+    verifier(libre.disposition.elements.contains(.concentration) && libre.ajoutees == [.concentration] && libre.aRetenir?.contains("concentration") == true,
+             "une place se libère : Concentration entre alors, une fois")
 }
