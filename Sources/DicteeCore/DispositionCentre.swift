@@ -62,6 +62,7 @@ extension ElementCentre {
         case .reformuler: return "Réécrit ta dernière dictée"
         case .notes: return "Tes notes rapides, gardées ici"
         case .noteRapide: return "Ta prochaine dictée devient une note"
+        case .secondBrain: return "Ce qui t\u{2019}attend dans Second Brain"
         }
     }
     /// La plus longue phrase d'aide permise (en caractères) : au-delà, ce n'est plus une aide de survol.
