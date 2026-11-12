@@ -440,12 +440,13 @@ extension IlotControleur {
     private func envoyerVersNotes(_ id: UUID) {
         guard let n = listeNotes.note(id), moteur.envoisNotes[id] != .enCours else { return }
         moteur.envoisNotes[id] = .enCours
-        envoyerNoteVersNotes(ListeNotes.html(n.texte)) { [weak self] ok in
+        envoyerNoteVersNotes(ListeNotes.html(n.texte)) { [weak self] r in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                self.moteur.envoisNotes[id] = ok ? .fait : .refuse
+                let ok = r == .fait
+                self.moteur.envoisNotes[id] = r == .fait ? .fait : (r == .refuse ? .refuse : .echec)
                 if ok { self.listeNotes.marquerVersNotes(id); self.notesStore.ecrire(self.listeNotes); self.moteur.notes = self.listeNotes.notes }
-                Log.ecrire("note rapide : vers Notes \(ok ? "faite" : "refusée ou impossible")")
+                Log.ecrire("note rapide : vers Notes \(ok ? "faite" : (r == .refuse ? "refusée (Automatisation)" : "en échec, à réessayer"))")
                 self.moteur.donneesChangees()
             }
         }
@@ -487,14 +488,18 @@ extension IlotControleur {
     nonisolated private static let fileAppleScript = DispatchQueue(label: "verbe.notes.applescript", qos: .userInitiated)
     /// Crée la note dans l'app Notes (AppleScript, sur une file série à part : Notes peut mettre quelques secondes à s'ouvrir). Le texte
     /// est déjà du HTML échappé ; seules les barres obliques inverses restent à protéger pour la chaîne AppleScript.
-    nonisolated static func versNotesSysteme(_ html: String, fini: @escaping @Sendable (Bool) -> Void) {
+    nonisolated static func versNotesSysteme(_ html: String, fini: @escaping @Sendable (ResultatVersNotes) -> Void) {
         let corps = html.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
         let source = "tell application \"Notes\" to make new note with properties {body:\"\(corps)\"}"
         fileAppleScript.async {
             var erreur: NSDictionary?
-            let ok = NSAppleScript(source: source)?.executeAndReturnError(&erreur) != nil
-            if let n = erreur?[NSAppleScript.errorNumber] as? Int { Log.ecrire("note rapide : AppleScript a répondu \(n)\(n == -1743 ? " (non autorisé : Réglages Système › Confidentialité › Automatisation)" : "")") }
-            DispatchQueue.main.async { fini(ok) }
+            let script = NSAppleScript(source: source)
+            let ok = script?.executeAndReturnError(&erreur) != nil
+            let n = erreur?[NSAppleScript.errorNumber] as? Int
+            if let n { Log.ecrire("note rapide : AppleScript a répondu \(n)\(n == -1743 ? " (non autorisé : Réglages Système › Confidentialité › Automatisation)" : "")") }
+            // un script qui n'a pas pu être créé, ou un échec sans numéro : un échec (jamais pris pour un refus)
+            let r: ResultatVersNotes = ok ? .fait : (n.map { ResultatVersNotes.depuis(erreur: $0) } ?? .echec)
+            DispatchQueue.main.async { fini(r) }
         }
     }
 }

@@ -79,10 +79,27 @@ func controlesVoix() {
     groupe("Voix : le bouton d'envoi")
     verifier(EnvoiVoix.aEnvoyer.libelle(.rappel) == "Envoyer dans Rappels" && EnvoiVoix.fait.libelle(.rappel) == "Dans Rappels"
              && EnvoiVoix.aEnvoyer.libelle(.note) == "Envoyer dans Notes" && EnvoiVoix.fait.libelle(.note) == "Dans Notes", "les libellés de la maquette")
-    verifier(EnvoiVoix.libelles(.rappel).count == 4 && Set(EnvoiVoix.libelles(.note)).count == 4, "quatre états, quatre libellés (le bouton prend la largeur du plus long)")
     verifier(EnvoiVoix.rappel(lie: true, acces: .refuse) == .fait && EnvoiVoix.rappel(lie: false, acces: .refuse) == .refuse
              && EnvoiVoix.rappel(lie: false, acces: .nonDemande) == .aEnvoyer && EnvoiVoix.rappel(lie: false, acces: .autorise) == .aEnvoyer,
              "déjà dans Rappels : fait ; refusé : « Autoriser dans Réglages » ; sinon « Envoyer dans Rappels »")
+    verifier(EnvoiVoix.rappel(lie: false, acces: .autorise, essaye: true) == .echec && EnvoiVoix.rappel(lie: false, acces: .refuse, essaye: true) == .refuse
+             && EnvoiVoix.rappel(lie: true, acces: .autorise, essaye: true) == .fait && EnvoiVoix.rappel(lie: false, acces: .nonDemande, essaye: true) == .aEnvoyer,
+             "un envoi tenté, accès donné, mais rien d'enregistré : « Réessayer » (jamais « Autoriser dans Réglages »)")
+    verifier(EnvoiVoix.echec.libelle(.note) == "Réessayer" && EnvoiVoix.echec.message(.note) == "Notes n\u{2019}a pas répondu"
+             && EnvoiVoix.echec.message(.rappel) == "Rappels n\u{2019}a pas répondu" && EnvoiVoix.tous.filter { $0.message(.note) != nil } == [.echec],
+             "après un échec sans refus : « Réessayer » et un message court ; aucun autre état n'a de message")
+    verifier(EnvoiVoix.libelles(.rappel).count == 5 && Set(EnvoiVoix.libelles(.note)).count == 5, "cinq états, cinq libellés")
+
+    groupe("Voix : la réponse de l'app Notes")
+    verifier(ResultatVersNotes.depuis(erreur: nil) == .fait, "le script a réussi : dans Notes")
+    verifier(ResultatVersNotes.depuis(erreur: -1743) == .refuse && ResultatVersNotes.depuis(erreur: -1744) == .refuse,
+             "-1743 (Automatisation refusée), -1744 (autorisation impossible à demander) : un refus, « Autoriser dans Réglages »")
+    verifier([-1712, -600, -609, -2700, -10000, 1].allSatisfy { ResultatVersNotes.depuis(erreur: $0) == .echec },
+             "trop lent (-1712), Notes fermé ou parti (-600, -609), erreur du script : un échec, « Réessayer », jamais pris pour un refus")
+
+    groupe("Voix : une dictée prise par l'îlot sans commande")
+    verifier(IssueVoix.sansCommande(priseParLIlot: true) == .garderDansLIlot && IssueVoix.sansCommande(priseParLIlot: false) == .coller,
+             "l'îlot l'avait prise (l'onde, « Rappel… ») : jamais collée en silence, gardée dans l'îlot avec « Copier » ; une dictée normale est collée")
     verifier(PlanCarteRappel.envoyerTout(choix: .oui, acces: .autorise) && !PlanCarteRappel.envoyerTout(choix: nil, acces: .autorise)
              && !PlanCarteRappel.envoyerTout(choix: .non, acces: .autorise) && !PlanCarteRappel.envoyerTout(choix: .oui, acces: .nonDemande),
              "il part seul seulement si Hugues l'a déjà voulu (« Oui » ou un clic sur la carte) et que l'accès est donné ; sinon, rien sans son clic")

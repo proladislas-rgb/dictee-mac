@@ -189,6 +189,10 @@ public enum EnvoiVoix: Equatable, Sendable {
     case fait
     /// L'accès est refusé (Réglages Système) : « Autoriser dans Réglages » ouvre le bon volet.
     case refuse
+    /// L'envoi a échoué sans refus (Notes trop lent ou qui ne répond pas, Rappels qui n'enregistre pas) : « Réessayer », et la carte le dit.
+    case echec
+
+    public static let tous: [EnvoiVoix] = [.aEnvoyer, .enCours, .fait, .refuse, .echec]
 
     public func libelle(_ g: GenreVoix) -> String {
         switch self {
@@ -196,17 +200,40 @@ public enum EnvoiVoix: Equatable, Sendable {
         case .enCours: return "Envoi\u{2026}"
         case .fait: return "Dans \(g.app)"
         case .refuse: return "Autoriser dans Réglages"
+        case .echec: return "Réessayer"
         }
     }
+    /// Le message court à côté du bouton (seulement après un échec) : ce qui s'est passé, sans accuser l'autorisation.
+    public func message(_ g: GenreVoix) -> String? { self == .echec ? "\(g.app) n\u{2019}a pas répondu" : nil }
     /// Tous les libellés d'un genre : le bouton garde la largeur du plus long (il ne change pas de taille sous le pointeur).
-    public static func libelles(_ g: GenreVoix) -> [String] { [EnvoiVoix.aEnvoyer, .enCours, .fait, .refuse].map { $0.libelle(g) } }
+    public static func libelles(_ g: GenreVoix) -> [String] { tous.map { $0.libelle(g) } }
 
-    /// Un rappel, après un clic : il a son double dans l'app Rappels (fait), l'accès est refusé, ou rien n'est parti (pendant la fenêtre
-    /// de macOS, le contrôleur montre `.enCours`).
-    public static func rappel(lie: Bool, acces: AccesRappelsApple) -> EnvoiVoix {
+    /// Un rappel : il a son double dans l'app Rappels (fait), l'accès est refusé, un envoi vient d'échouer avec l'accès donné (`essaye` :
+    /// on a tenté), ou rien n'est parti (pendant la fenêtre de macOS, le contrôleur montre `.enCours`).
+    public static func rappel(lie: Bool, acces: AccesRappelsApple, essaye: Bool = false) -> EnvoiVoix {
         if lie { return .fait }
-        return acces == .refuse ? .refuse : .aEnvoyer
+        if acces == .refuse { return .refuse }
+        return essaye && acces == .autorise ? .echec : .aEnvoyer
     }
+}
+
+/// La réponse de l'app Notes à « Envoyer dans Notes » (AppleScript) : faite, refusée (l'autorisation Automatisation manque : erreur
+/// -1743, ou -1744 quand macOS ne peut pas la demander), ou un autre échec (Notes trop lent, -1712 ; qui ne répond pas ; script refusé…).
+public enum ResultatVersNotes: Equatable, Sendable {
+    case fait, refuse, echec
+    /// D'après le numéro d'erreur d'AppleScript (nil : le script a réussi).
+    public static func depuis(erreur: Int?) -> ResultatVersNotes {
+        guard let e = erreur else { return .fait }
+        return e == -1743 || e == -1744 ? .refuse : .echec
+    }
+}
+
+/// Le texte final d'une dictée que l'îlot a prise (l'onde, « Rappel… ») mais où aucune commande n'a été lue (Groq a perdu le mot d'appel,
+/// ou la phrase parle de Lucarne) : jamais collé en silence, il reste dans l'îlot (« Je n'ai pas compris », « Copier »), comme une
+/// commande Lucarne pas comprise. Une dictée normale (l'îlot ne l'a pas prise) est collée.
+public enum IssueVoix: Equatable, Sendable {
+    case coller, garderDansLIlot
+    public static func sansCommande(priseParLIlot: Bool) -> IssueVoix { priseParLIlot ? .garderDansLIlot : .coller }
 }
 
 /// Après un rappel dicté à Lucarne : l'envoyer tout de suite dans l'app Rappels (Hugues l'a déjà voulu une fois et l'accès est donné), ou

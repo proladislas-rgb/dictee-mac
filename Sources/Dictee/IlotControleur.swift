@@ -99,7 +99,7 @@ final class IlotControleur {
     /// Note rapide : les notes (fichier 0600), l'envoi vers l'app Notes, la dictée qui deviendra une note.
     var notesStore: NotesStore
     var listeNotes: ListeNotes
-    var envoyerNoteVersNotes: (String, @escaping @Sendable (Bool) -> Void) -> Void = { IlotControleur.versNotesSysteme($0, fini: $1) }
+    var envoyerNoteVersNotes: (String, @escaping @Sendable (ResultatVersNotes) -> Void) -> Void = { IlotControleur.versNotesSysteme($0, fini: $1) }
     var noteArmeeJusqua: Date = .distantPast
     var noteAOuvrir = false
     /// ⌘C vient d'être tapé : un seul réveil, le temps que l'app écrive dans le presse-papiers.

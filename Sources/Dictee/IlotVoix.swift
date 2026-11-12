@@ -99,6 +99,7 @@ extension IlotMoteur {
             switch envoisNotes[id] {
             case .enCours?: return .enCours
             case .refuse?: return .refuse
+            case .echec?: return .echec
             case .fait?: return .fait
             case nil: return notes.first { $0.id == id }?.versNotes == true ? .fait : .aEnvoyer
             }
@@ -162,12 +163,25 @@ extension IlotControleur {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.filetVoix, execute: item)
     }
 
-    /// La dictée prise par l'îlot a fini (texte collé, rien entendu, annulée…) sans carte : l'onde s'en va, ce qui attendait passe.
+    /// La dictée prise par l'îlot a fini sans carte (rien entendu, annulée…) : l'onde s'en va, ce qui attendait passe.
     /// Après une carte (ou un second appel), rien à faire.
     func finDeVoix(session: Int) {
         guard moteur.voix.session == session, moteur.voix.phase != .repos else { return }
-        Log.ecrire("voix : la dictée prise par l'îlot finit sans carte (texte collé, rien entendu ou annulée)")
+        Log.ecrire("voix : la dictée prise par l'îlot finit sans carte (rien entendu ou annulée)")
         terminerVoix()
+    }
+
+    /// La dictée prise par l'îlot n'était pas une commande comprise (Groq a perdu « Lucarne, » ou la phrase parle de Lucarne) : rien n'est
+    /// collé ; comme une commande pas comprise, la phrase reste dans l'îlot (« Je n'ai pas compris », « Copier »), une fois l'onde partie.
+    /// Aussi après le filet (Groq a mis plus de 20 s) : la phrase n'est jamais perdue en silence.
+    func voixIncomprise(session: Int, texte: String) {
+        guard moteur.voix.session == session else { return }
+        let phrase = texte.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !phrase.isEmpty else { finDeVoix(session: session); return }
+        // l'annonce attend derrière l'onde, qui s'en va aussitôt : elle passe juste après (une alerte arrivée pendant la dictée passe avant)
+        annoncerTout(BandeauIlot(vue: .lucarne, jusqua: maintenant().addingTimeInterval(Self.dureeLucarne), ligne1: "", ligne2: "", lucarne: .incomprise(phrase)))
+        Log.ecrire("voix : la dictée prise par l'îlot n'est pas une commande (\(phrase.split(separator: " ").count) mots), rien n'est collé")
+        if moteur.voix.phase != .repos { terminerVoix() }
     }
 
     private func terminerVoix() {
@@ -183,8 +197,9 @@ extension IlotControleur {
     /// « Lucarne, rappelle-moi… » : le rappel vient d'être gardé. Il part dans l'app Rappels si Hugues l'a déjà voulu (et que l'accès est
     /// donné) ; la carte montre où il en est.
     func montrerCarteRappel(_ r: Rappel, phrase: String) {
-        if PlanCarteRappel.envoyerTout(choix: reglagesCentre.choixRappelsApple(), acces: rappelsApple.acces) { creerDansRappelsApple([r], annoncer: false) }
-        moteur.voix.envoiRappel = EnvoiVoix.rappel(lie: rappels.rappel(r.id)?.idApple != nil, acces: rappelsApple.acces)
+        let essaye = PlanCarteRappel.envoyerTout(choix: reglagesCentre.choixRappelsApple(), acces: rappelsApple.acces)
+        if essaye { creerDansRappelsApple([r], annoncer: false) }
+        moteur.voix.envoiRappel = EnvoiVoix.rappel(lie: rappels.rappel(r.id)?.idApple != nil, acces: rappelsApple.acces, essaye: essaye)
         montrerCarte(CarteVoix.rappel(id: r.id, texte: r.texte, echeance: r.echeance, phrase: phrase, maintenant: maintenant()))
     }
 
@@ -211,7 +226,8 @@ extension IlotControleur {
         case (.envoyer, .note(let id)):
             // refusé : le volet Automatisation ; au clic suivant (autorisé entre-temps), Notes est réessayé
             if moteur.envoiVoix == .refuse { ouvrir(Self.reglagesAutomatisation); moteur.envoisNotes[id] = nil; return }
-            guard moteur.envoiVoix == .aEnvoyer else { return }
+            // la première fois, ou « Réessayer » après un échec (Notes trop lent, fermé…)
+            guard moteur.envoiVoix == .aEnvoyer || moteur.envoiVoix == .echec else { return }
             // l'AppleScript de « Vers Notes » (Outils) : Notes peut mettre quelques secondes à s'ouvrir, la carte attend
             agirOutils(.noteVersNotes(id))
             prolongerCarte(Self.dureeCarteVoix)
@@ -256,7 +272,7 @@ extension IlotControleur {
     private func rappelEnvoye(_ id: UUID) {
         let lie = rappels.rappel(id)?.idApple != nil
         if lie { reglagesCentre.enregistrerChoixRappelsApple(.oui) }
-        moteur.voix.envoiRappel = EnvoiVoix.rappel(lie: lie, acces: rappelsApple.acces)
+        moteur.voix.envoiRappel = EnvoiVoix.rappel(lie: lie, acces: rappelsApple.acces, essaye: true)
         prolongerCarte(Self.dureeApresEnvoi, raccourcir: lie)
     }
 
@@ -296,6 +312,11 @@ enum PlanVoix {
     static func cadreEnvoi(_ g: GrilleIlot, genre: GenreVoix) -> CGRect {
         let z = zoneCarte(g)
         return CGRect(x: z.minX + CGFloat(M.coche + M.ecartCoche), y: z.maxY - CGFloat(M.bouton), width: largeurEnvoi(genre), height: CGFloat(M.bouton))
+    }
+    /// Le message d'échec : entre le bouton d'envoi et le bouton discret.
+    static func cadreMessage(_ g: GrilleIlot, genre: GenreVoix) -> CGRect {
+        let e = cadreEnvoi(g, genre: genre), s = cadreSecondaire(g, genre: genre)
+        return CGRect(x: e.maxX + 10, y: e.minY, width: max(0, s.minX - e.maxX - 16), height: e.height)
     }
     static func titreSecondaire(_ genre: GenreVoix, copie: Bool) -> String { genre == .rappel ? "Annuler" : (copie ? "Copié" : "Copier") }
     static func cadreSecondaire(_ g: GrilleIlot, genre: GenreVoix) -> CGRect {
@@ -430,6 +451,13 @@ struct CarteVoixVue: View {
                 .posee(CGRect(x: z.minX + colonne, y: z.minY, width: z.width - colonne, height: z.height - CGFloat(MesuresVoix.bouton)), m.aspect(v, rang: 1))
             PiluleEnvoi(etat: m.envoiVoix, genre: c.genre, anime: !m.statique) { m.surAction(.voix(.envoyer)) }
                 .posee(PlanVoix.cadreEnvoi(g, genre: c.genre), m.aspect(v, rang: 2), ancre: .leading)
+            // après un échec (sans refus), ce qui s'est passé, entre le bouton et « Copier » / « Annuler »
+            Text(m.envoiVoix.message(c.genre) ?? "").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color(hex: 0xFFB340))
+                .lineLimit(1).minimumScaleFactor(0.85)
+                .opacity(m.envoiVoix.message(c.genre) == nil ? 0 : 1)
+                .animation(m.statique ? nil : .easeOut(duration: 0.2).delay(0.14), value: m.envoiVoix)
+                .allowsHitTesting(false)
+                .posee(PlanVoix.cadreMessage(g, genre: c.genre), m.aspect(v, rang: 3), ancre: .leading, .leading)
             BoutonDiscret(titre: PlanVoix.titreSecondaire(c.genre, copie: voix.copie)) { m.surAction(.voix(c.genre == .rappel ? .annuler : .copier)) }
                 .posee(PlanVoix.cadreSecondaire(g, genre: c.genre), m.aspect(v, rang: 3), ancre: .trailing, .trailing)
         }
@@ -495,7 +523,7 @@ struct PiluleEnvoi: View {
         case .aEnvoyer: return Color.white.opacity(survol ? 0.9 : 1)
         case .enCours: return Color.white.opacity(0.55)
         case .fait: return CouleursIlot.vert.opacity(0.2)
-        case .refuse: return Color.white.opacity(survol ? 0.22 : 0.14)
+        case .refuse, .echec: return Color.white.opacity(survol ? 0.22 : 0.14)
         }
     }
 
@@ -503,7 +531,7 @@ struct PiluleEnvoi: View {
         let part = Animation.easeOut(duration: 0.1), arrive = Animation.easeOut(duration: 0.2).delay(0.14)
         Button(action: action) {
             ZStack {
-                ForEach([EnvoiVoix.aEnvoyer, .enCours, .fait, .refuse], id: \.self) { e in
+                ForEach(EnvoiVoix.tous, id: \.self) { e in
                     libelle(e).opacity(e == etat ? 1 : 0).animation(anime ? (e == etat ? arrive : part) : nil, value: etat)
                 }
             }
@@ -519,9 +547,10 @@ struct PiluleEnvoi: View {
     @ViewBuilder private func libelle(_ e: EnvoiVoix) -> some View {
         HStack(spacing: 6) {
             if e == .fait { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)) }
+            if e == .echec { Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .bold)) }
             Text(e.libelle(genre)).font(.system(size: PlanVoix.tailleBouton, weight: .semibold)).lineLimit(1).fixedSize()
         }
-        .foregroundStyle(e == .fait ? Color(hex: 0x5FE08A) : (e == .refuse ? Color.white : Color.black))
+        .foregroundStyle(e == .fait ? Color(hex: 0x5FE08A) : (e == .refuse || e == .echec ? Color.white : Color.black))
     }
 }
 

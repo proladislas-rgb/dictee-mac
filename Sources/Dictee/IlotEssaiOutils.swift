@@ -78,7 +78,7 @@ extension IlotEssai {
         var selectionPossible = true, selectionsDemandees: [String] = []
         c.selectionnerDansLApp = { selectionsDemandees.append($0); return selectionPossible }
         var versNotes: [String] = [], notesAccepte = true
-        c.envoyerNoteVersNotes = { html, fini in versNotes.append(html); let ok = notesAccepte; DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { fini(ok) } }
+        c.envoyerNoteVersNotes = { html, fini in versNotes.append(html); let ok = notesAccepte; DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { fini(ok ? .fait : .refuse) } }
         m.dispositionOutils = DispositionCentre(identifiants: memoire, page: .outils)
         m.disposition = DispositionCentre()
         c.lecture.modele.morceau = nil; c.lecture.surIlot(false)

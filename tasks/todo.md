@@ -540,3 +540,6 @@ résumé) qui propose de l'envoyer dans Rappels ou dans Notes. Maquette : design
       1er « Envoyer dans Notes » (autorisation Automatisation pour Notes).
 - [ ] À trancher : « Modifier » de la maquette remplacé par « Annuler » (pas d'éditeur de rappel dans l'îlot) ; le titre et le résumé
       sont tirés du texte sur le Mac (sans IA) ; mains libres : l'encoche garde ✕ ✓, seule la carte de fin vient.
+- [x] (12/11 soir, après la fusion de314ea) Les deux points laissés : Notes lent ou en échec sans refus → « Réessayer » et « Notes n'a pas
+      répondu » (seuls -1743/-1744 donnent « Autoriser dans Réglages ») ; dictée prise par l'îlot sans commande lue → jamais collée, « Je
+      n'ai pas compris » et la phrase avec « Copier » (même arrivée après le filet de 20 s). 3920/3920 contrôles, essai complet vert (1342).
