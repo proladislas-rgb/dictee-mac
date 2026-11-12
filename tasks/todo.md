@@ -598,3 +598,30 @@ Arrêté après l'étape 1 sur demande (nouvelles demandes de Hugues, dont le re
       pour Rappels, Étagère, Notes, Bibliothèque, Concentration, Réveil (même format : chaque type garde ses `depuis`/`donnees`),
       écriture atomique créée directement en 0600, échec tracé ; journal en 0600 ; contrôle qui relit un fichier au format actuel.
 - [ ] Essai complet `--ilot-essai` (au moins après les étapes 4 et 5), sous le verrou du scratchpad.
+
+## Retours de Hugues du 12/11, 23 h 30 (sur main 9fcc1dc) : branche retours-23h (worktree ~/dictee-mac-retours, depuis texte-groq e33ff77)
+Un commit par point, poussé, NON fusionné, NON installé.
+- [x] 1. Dictée à la place de la Lucarne invisible : cause NON reproduite (câblée comme l'app, vidéo en cours, 4 places, fenêtres
+      visibles : la pilule reste là ; chez Hugues, la fenêtre de la dictée était bien posée à la place de la Lucarne). Le journal dit
+      maintenant où la dictée s'affiche et qui la range (fichier:ligne) ; filet qui remet la fenêtre devant ; la vidéo mise en pause
+      par la dictée reste dans la pilule (miniature + pause) ; texte rogné à la pilule. Essai `DICTEE_ESSAI_SEUL=dictee`.
+- [ ] 1bis. Hugues : dicter avec la Lucarne en haut à droite, une vidéo en cours ; si rien ne s'affiche, envoyer les lignes
+      « dictée : affichée… / rangée (…) / fenêtre absente… » du journal (elles diront la cause).
+- [x] 2. Journal : les lignes 10 h-14 h étaient ses vraies dictées (vérifié) ; les lignes d'essais s'arrêtent à 7 h 15 (5313a89).
+      Verrou de plus : hors d'un .app, journal toujours à part.
+- [x] 3. App de bureau : tuiles bornées (150-196 / 190-250 pt), page qui défile si trop basse, 760 pt sans troncature ; rendus
+      bureau-20 à 23 (hors git) à 760×600, 900×920, 1200×900.
+- [x] 4. Miniature de capture à ses proportions (38 pt de haut, ≤ 64 de large, 192 px), coins de 6 pt ; ilot-14e/14f, lucarne-ecran-capture.
+- [x] 5. Son des réunions gardé par défaut (Hugues n'avait jamais touché le réglage) ; « Télécharger l'audio » (toute la réunion),
+      flèche par passage (existait). Les anciennes réunions n'ont plus leur son.
+- [x] 6. Voxile partout (Voxile.app, icône n° 6, textes, README) ; Verbe.app se renomme seule ; Voxile range l'ancienne Verbe.app ;
+      release.sh fait Voxile-x.dmg + Verbe-x.dmg (passage pour les Verbe 0.3.x). Gardés : com.hugues.dictee, « Concentration Verbe ».
+- [ ] 6bis. Avant la prochaine release : monter VERSION (> 0.3.2) sinon les Verbe installées ne verront pas la mise à jour ; joindre
+      les 4 fichiers de release.sh.
+- [x] 7. Curseur « Verre » au bas du Centre (Lucarne en verre seulement), synchronisé avec les Réglages ; essai `DICTEE_ESSAI_SEUL=verre`.
+- [x] 8. Barres de la lecture en pause : état deviné « joue » jamais corrigé (revient après 2 s sans confirmation du système) et barres
+      qui lisaient un état ancien (observent la lecture) ; essai qui échouait avant correction.
+- [ ] Hugues : vérifier dans l'app (impossible dans l'essai) : (1) la pilule pendant fn en haut à droite avec une vidéo ; (6) l'icône,
+      le nom dans la barre des menus, que les autorisations (micro, accessibilité, surveillance de l'entrée) tiennent après le
+      renommage ; (7) le curseur Verre en vrai verre (le rendu ne dessine pas le vrai verre) ; (8) une vidéo YouTube mise en pause
+      puis l'îlot déplacé ; (5) une réunion : télécharger un passage et toute la réunion.
