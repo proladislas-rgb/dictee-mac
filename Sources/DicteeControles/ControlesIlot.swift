@@ -414,13 +414,8 @@ func controlesIlot() {
     verifier(compact.corps == demi + 48 && compact.hauteur == barre, "compact : pas de corps sous la barre, même largeur en bas")
     let lectureC = GeoIlot.valeurs(.lectureCompact, hauteurBarre: barre), lectureX = GeoIlot.valeurs(.lectureEtendu, hauteurBarre: barre)
     verifier(lectureC[0] == lectureX[0], "lecture : le cou ne bouge pas en se dépliant (l'égaliseur reste dans l'aile)")
-    let lectureM = GeoIlot.valeurs(.lectureMinuteur, hauteurBarre: barre)
-    verifier(lectureM[0] == lectureX[0] && lectureM[1] == lectureX[1] && lectureM[2] == barre + GeoIlot.profondeurLecture + 54 && Array(lectureM[3...]) == Array(lectureX[3...]),
-             "lecture + rangée Minuteur : même cou, même corps, 54 pt sous les commandes (maquette : 208 → 262) ; la rangée prend la place du pied")
     verifier(lectureX[2] == barre + GeoIlot.profondeurLecture + GeoIlot.piedLecture && lectureX[2] + 30 <= 330,
              "lecture dépliée : les commandes, puis le pied (bouton « Centre ») ; \(Int(lectureX[2])) pt, dans la zone de dessin (ombre comprise)")
-    verifier(Double(lectureM[2]) + 30 <= 330, "lecture + rangée Minuteur : tient dans la zone de dessin de l'îlot (330 pt, ombre comprise)")
-    verifier(ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .lectureMinuteur) == 4, "lecture + rangée : même étage de priorité que la lecture")
     verifier(PassageIlot.de(hauteur: barre, vers: GeoIlot.valeurs(.accueil, hauteurBarre: barre)[2]) == .ouverture
              && PassageIlot.de(hauteur: GeoIlot.valeurs(.accueil, hauteurBarre: barre)[2], vers: barre) == .fermeture
              && PassageIlot.de(hauteur: barre, vers: barre + 0.5) == .glissement, "ouverture / fermeture / glissement reconnus (ceux du moteur)")
@@ -443,7 +438,7 @@ func controlesIlot() {
     verifier(etendu.commandes.filter { if case .cubique = $0 { return true }; return false }.count == 4, "étendu : quatre coins continus (courbes cubiques)")
     if case let .deplacer(_, y) = etendu.commandes.first { verifier(y <= 0, "la forme part du bord haut de l'écran") }
     // pendant chaque passage (ressorts de la maquette, rebond compris), rien ne dépasse les ailes dans la barre
-    let paires: [(VueIlot, VueIlot)] = [(.lectureCompact, .lectureEtendu), (.lectureEtendu, .lectureCompact), (.lectureEtendu, .lectureMinuteur), (.lectureMinuteur, .lectureCompact), (.repos, .accueil), (.accueil, .repos),
+    let paires: [(VueIlot, VueIlot)] = [(.lectureCompact, .lectureEtendu), (.lectureEtendu, .lectureCompact), (.repos, .accueil), (.accueil, .repos),
                                          (.repos, .centre), (.centre, .repos), (.lectureEtendu, .centre), (.centre, .accueil), (.accueil, .centre), (.centre, .lectureCompact), (.centre, .microCompact),
                                          (.lectureCompact, .rappelEtendu), (.rappelEtendu, .lectureCompact), (.minuteurCompact, .minuteurEtendu),
                                          (.agendaCompact, .agendaEtendu), (.lectureEtendu, .minuteurFini), (.repos, .notification), (.agendaEtendu, .repos)]
@@ -1025,7 +1020,7 @@ func controlesEtagere(_ t0: Date) {
 
     groupe("Îlot : l'étagère, géométrie")
     for (barre, demi) in [(32.0, 92.0), (37.0, 100.0)] {
-        for (vue, plus) in [(VueIlot.etagereDepot, 0.0), (.etagere, 0), (.etagere, GeoIlot.rangeeEtagere), (.accueil, GeoIlot.ligneAccueil), (.lectureMinuteur, GeoIlot.ligneAccueil)] {
+        for (vue, plus) in [(VueIlot.etagereDepot, 0.0), (.etagere, 0), (.etagere, GeoIlot.rangeeEtagere), (.accueil, GeoIlot.ligneAccueil)] {
             let g = GeoIlot.valeurs(vue, hauteurBarre: barre, demiCamera: demi, epaules: true, enPlus: plus)
             let p = TraceIlot.calculer(g, demiCamera: demi, barre: barre)
             verifier(p.bande <= demi + GeoIlot.aileMax + 0.001, "\(vue.rawValue)\(plus > 0 ? " + \(Int(plus)) pt" : "") : \(String(format: "%.0f", p.bande - demi)) pt dans la barre de chaque côté (≤ 66)")
@@ -1271,7 +1266,6 @@ func controlesCentre() {
     verifier(CartesIlot.pile(survol: .outils) == [.centre, .outils, .accueil, .dictees] && CartesIlot.pile(survol: .dictees) == [.centre, .outils, .accueil, .dictees],
              "depuis les Outils ou les Dictées : la même pile")
     verifier(CartesIlot.pile(survol: .lectureEtendu) == [.lectureEtendu, .centre, .outils, .accueil, .dictees], "une vidéo : la lecture, le Centre, les Outils, l'accueil, les Dictées en dernier")
-    verifier(CartesIlot.pile(survol: .lectureMinuteur) == [.lectureEtendu, .centre, .outils, .accueil, .dictees], "la rangée Minuteur compte comme la lecture")
     verifier(CartesIlot.pile(survol: .minuteurEtendu) == [.minuteurEtendu, .centre, .outils, .accueil, .dictees] && CartesIlot.pile(survol: .microEtendu).first == .microEtendu,
              "un minuteur, le micro coupé : leur déplié, puis le Centre")
     verifier(CartesIlot.pile(survol: nil).isEmpty, "verrouillé (alerte, bandeau) : aucune carte")
@@ -1279,8 +1273,8 @@ func controlesCentre() {
     verifier(CartesIlot.voisine(p, de: .lectureEtendu, pas: 1) == .centre && CartesIlot.voisine(p, de: .centre, pas: 1) == .outils
              && CartesIlot.voisine(p, de: .outils, pas: 1) == .accueil && CartesIlot.voisine(p, de: .outils, pas: -1) == .centre
              && CartesIlot.voisine(p, de: .accueil, pas: 1) == .dictees && CartesIlot.voisine(p, de: .dictees, pas: -1) == .accueil
-             && CartesIlot.voisine(p, de: .centre, pas: -1) == .lectureEtendu && CartesIlot.voisine(p, de: .lectureMinuteur, pas: 1) == .centre,
-             "carte suivante, précédente (le Centre → les Outils → l'accueil → les Dictées ; depuis la rangée Minuteur aussi)")
+             && CartesIlot.voisine(p, de: .centre, pas: -1) == .lectureEtendu,
+             "carte suivante, précédente (le Centre → les Outils → l'accueil → les Dictées)")
     verifier(CartesIlot.voisine(p, de: .dictees, pas: 1) == nil && CartesIlot.voisine(p, de: .lectureEtendu, pas: -1) == nil && CartesIlot.voisine(p, de: .etagere, pas: 1) == nil,
              "au bout de la pile : rien (on ne boucle pas) ; hors de la pile : rien")
     verifier(ArbitrageIlot.resoudre(EtatIlot()).survol == .centre, "l'îlot vide s'ouvre sur le Centre")
@@ -1300,9 +1294,8 @@ func controlesCentre() {
             verifier(h + 30 <= 380, "\(v.rawValue) avec son pied (barre \(Int(barre))) : \(Int(h)) pt + 30 d'ombre, dans la zone de dessin (380)")
         }
     }
-    verifier(!CartesIlot.aUnPied(.lectureMinuteur, pile: CartesIlot.pile(survol: .lectureMinuteur)) && !CartesIlot.aUnPied(.centre, pile: CartesIlot.pile(survol: .centre))
-             && !CartesIlot.aUnPied(.minuteurEtendu, pile: []),
-             "pas de pied : sous la rangée Minuteur (elle prend sa place), sur l'îlot vide (il s'ouvre sur le Centre), verrouillé (alerte, bandeau)")
+    verifier(!CartesIlot.aUnPied(.centre, pile: CartesIlot.pile(survol: .centre)) && !CartesIlot.aUnPied(.minuteurEtendu, pile: []),
+             "pas de pied : sur l'îlot vide (il s'ouvre sur le Centre), verrouillé (alerte, bandeau)")
 
     groupe("Îlot : le Centre, le défilement (un geste = une carte)")
     var d = DefilementIlot()

@@ -387,7 +387,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                      miseAJour: MiseAJourControleur.partage.bande.estOuverte,
                                      autreAnnonce: self.panneauCompact.estOuvert || self.priseEnMain.estOuvert)
         }
-        lecture.rubanDictee = { [weak self] in self?.dictee.panneau.modele.ruban ?? false }
+        // la mini-miniature se loge au bout du ruban de l'encoche : pas quand la dictée se montre à la place de la Lucarne, ailleurs
+        lecture.rubanDictee = { [weak self] in self.map { $0.dictee.panneau.modele.ruban && !$0.dictee.panneau.horsEncoche } ?? false }
+        dictee.panneau.placementLibre = { [weak self] in self?.ilot.panneau.placementDictee }
         lecture.reserveRuban = { [weak self] r in self?.dictee.panneau.modele.reserveRuban = r }
         dictee.panneau.modele.$ruban.dropFirst().sink { [weak self] _ in self?.ilot.occupationChangee() }.store(in: &abonnements)
         dictee.surChangementEtat = { [weak self] enCours in self?.ilot.dicteeChange(enCours: enCours) }

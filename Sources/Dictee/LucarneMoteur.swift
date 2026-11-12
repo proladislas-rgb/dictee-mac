@@ -4,7 +4,8 @@ import DicteeCore
 
 // La Lucarne déplaçable dans le moteur (docs/plan-lucarne-deplacable.md) : un appui long de 0,4 s sur la forme (même dans l'encoche) la
 // décolle ; elle suit le pointeur au point près ; lâchée (ou lancée), elle se pose sur l'une des huit places aimantées ; ramenée près de
-// l'encoche, elle y est aspirée et reprend la forme noire de l'encoche. La place est retenue pour chaque écran.
+// l'encoche, elle y est aspirée et reprend la forme noire de l'encoche. La place est retenue pour chaque écran ; tenue, elle passe d'un
+// écran à l'autre avec le pointeur (mission 4), et l'écran où on la lâche devient le sien.
 // Hors de l'encoche (mission 3), la forme est de verre : repliée, une pilule avec le contenu compact ; dépliée (survol, clic, alerte,
 // bandeau, dépôt de fichiers), elle grandit vers l'intérieur de l'écran depuis sa place, avec les écrans de l'encoche dedans.
 // Énergie : aucune minuterie au repos ; un seul réveil pour les 0,4 s de l'appui (l'anneau s'anime seul, sans la boucle) ; la boucle tourne
@@ -47,6 +48,8 @@ struct EtatLucarne {
     var garde: DispatchWorkItem?
     /// Tenue ou vol : la fenêtre doit suivre la capsule (le panneau déplace son origine).
     var surDeplacement: () -> Void = {}
+    /// VoiceOver « Déplacer vers… » (le panneau pose la Lucarne et sa fenêtre).
+    var deplacer: (PlaceLucarne) -> Void = { _ in }
 }
 
 extension IlotMoteur {
@@ -398,15 +401,34 @@ extension IlotMoteur {
         lucarne.capsule.saisir(pointeur: lucarne.geste.pointeur)
         lucarne.capsule.lever()
         if reduire { lucarne.capsule.leve.poser(); lucarne.capsule.decalX.poser(); lucarne.capsule.decalY.poser() }
-        // assez grande pour tout ce qu'elle peut devenir d'ici son arrivée (la forme de départ, celle de l'encoche, les pilules), levée
-        let ailes = 2 * ((e.demiCamera ?? 0) + GeoLucarne.ailesCompactes + GeoLucarne.epaulesCompactes)
-        let l = max(depart.largeur, ailes, GeoLucarne.pilule.largeur, GeoLucarne.pilouleDebout.largeur)
-        let h = max(depart.hauteur, e.barre, GeoLucarne.pilule.hauteur, GeoLucarne.pilouleDebout.hauteur)
-        lucarne.tailleVol = CGSize(width: ceil(CGFloat(l * GeoLucarne.echelleTenue)) + 2 * Self.margeVol,
-                                   height: ceil(CGFloat(h * GeoLucarne.echelleTenue)) + 2 * Self.margeVol)
+        lucarne.tailleVol = Self.tailleVol(depart: depart, e)
         suivre(lucarne.geste.pointeur)
         surveillerTenue()
         surFenetre(); demarrerBoucle()
+    }
+
+    /// La fenêtre de la tenue et du vol : assez grande pour tout ce que la forme peut devenir d'ici son arrivée (la forme de départ, celle
+    /// de l'encoche de cet écran, les pilules), levée, avec son ombre.
+    private static func tailleVol(depart: CapsuleLucarne, _ e: EcranLucarne) -> CGSize {
+        let ailes = 2 * ((e.demiCamera ?? 0) + GeoLucarne.ailesCompactes + GeoLucarne.epaulesCompactes)
+        let l = max(depart.largeur, ailes, GeoLucarne.pilule.largeur, GeoLucarne.pilouleDebout.largeur)
+        let h = max(depart.hauteur, e.barre, GeoLucarne.pilule.hauteur, GeoLucarne.pilouleDebout.hauteur)
+        return CGSize(width: ceil(CGFloat(l * GeoLucarne.echelleTenue)) + 2 * margeVol, height: ceil(CGFloat(h * GeoLucarne.echelleTenue)) + 2 * margeVol)
+    }
+
+    /// Tenue, elle passe sur un autre écran (le panneau y a déjà pris sa géométrie) : la forme et le geste passent dans son repère
+    /// (`dx`, `dy` : ce qu'il faut ajouter à un point de l'ancien), sans saut sous le doigt ; la fenêtre de la tenue se met à la taille de
+    /// cette encoche ; la forme tenue se choisit de nouveau (pilule, ou celle de cette encoche tout près d'elle). Les écrans de l'encoche
+    /// sont recalculés pour sa barre et sa caméra (un retour par aspiration y arrivera juste).
+    func changerEcranLucarne(_ e: EcranLucarne, uuid: String, dx: Double, dy: Double) {
+        guard lucarneEnMain, !lucarne.vol else { return }
+        let c = lucarne.capsule
+        lucarne.capsule.suivre(cx: c.cx.x + dx, cy: c.cy.x + dy)
+        lucarne.geste.decaler(dx: dx, dy: dy)
+        lucarne.ecran = e; lucarne.uuid = uuid; lucarne.pres = nil
+        lucarne.tailleVol = Self.tailleVol(depart: c.valeur, e)
+        donneesChangees()
+        suivre(lucarne.geste.pointeur)
     }
 
     /// Tenue : elle suit le pointeur 1:1 ; près de l'encoche, elle en prend la forme (noire), ailleurs une pilule.
@@ -426,7 +448,7 @@ extension IlotMoteur {
     }
 
     /// Lâchée : l'encoche si elle y est aimantée, la place dans la direction d'un lancer, sinon la plus proche ; le ressort garde la
-    /// vitesse du geste. La place est retenue pour cet écran. Relâchée pendant le repli de l'encoche : elle y reste.
+    /// vitesse du geste. La place est retenue pour cet écran, qui devient le sien. Relâchée pendant le repli de l'encoche : elle y reste.
     private func lacher(vx: Double, vy: Double) {
         guard let e = lucarne.ecran else { return }
         lucarne.garde?.cancel(); lucarne.garde = nil
@@ -448,8 +470,9 @@ extension IlotMoteur {
             lucarne.capsule.viser(capsuleRepliee(e), passage: .atterrissage, vitesse: v, reduire: reduire)
         }
         lucarne.vol = true; lucarne.pres = nil
+        // retenue pour cet écran, qui devient le sien (lâchée sur un autre écran, elle y vit désormais)
         var memoire = lucarne.systeme.lireMemoire()
-        memoire.memoriser(place, pour: lucarne.uuid)
+        memoire.poser(place, sur: lucarne.uuid)
         lucarne.systeme.ecrireMemoire(memoire)
         if lucarne.capsule.fini { finVol() } else { surFenetre(); demarrerBoucle() }
     }

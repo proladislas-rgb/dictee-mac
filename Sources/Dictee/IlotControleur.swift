@@ -586,7 +586,7 @@ final class IlotControleur {
             // la commande dictée n'existe que si l'accueil de l'îlot (ou la lecture dépliée, qui le remplace pendant une vidéo) est
             // ouvert à cet instant
             let courante = moteur.courante
-            if moteur.fenetreOuverte, [.accueil, .centre, .rappelListe, .lectureEtendu, .lectureMinuteur].contains(courante) {
+            if moteur.fenetreOuverte, [.accueil, .centre, .rappelListe, .lectureEtendu].contains(courante) {
                 armeFormulaire = courante == .rappelListe
                 armeJusqua = .distantFuture
             }
@@ -697,7 +697,6 @@ final class IlotControleur {
     func agir(_ action: ActionIlot) {
         switch action {
         case .minuteurLancer(let minutes): lancerLeMinuteur(secondes: minutes * 60, bandeau: true)
-        case .minuteurLancerSousLecture(let minutes): lancerLeMinuteur(secondes: minutes * 60, bandeau: false)
         case .minuteurRecommencer(let minutes): moteur.quitterAlerte(); lancerLeMinuteur(secondes: minutes * 60, bandeau: false)
         case .minuteurBasculer:
             minuteur?.basculer(a: maintenant()); mettreAJourLeMinuteur()

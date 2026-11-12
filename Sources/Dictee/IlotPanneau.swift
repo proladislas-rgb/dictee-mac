@@ -80,7 +80,11 @@ final class IlotPanneau {
     private var vue: VueHebergeeIlot<IlotVue>?
     private var conteneur: NSView?
     private(set) var centre: CGFloat = 0
-    private(set) var ecran: NSScreen?
+    /// L'écran où vit l'îlot (celui de la Lucarne : elle peut être sur un autre que le principal).
+    private(set) var ecran: EcranIlot?
+    /// Les préférences du Dock, lues une fois (`dockLu`), puis seulement quand il change (`dockChange`) ; et leur observation.
+    var prefsDock: PrefsDock?
+    private var suiviDock: AnyObject?
     var cadreVoulu = CGRect.zero
     /// Le cadre appliqué est celui du régime libre de la Lucarne (centré sur sa capsule) : un changement de régime s'applique tout de suite.
     private(set) var cadreLibre = false
@@ -103,12 +107,14 @@ final class IlotPanneau {
         moteur.surFenetre = { [weak self] in self?.ajuster() }
         moteur.surMoniteur = { [weak self] actif in if actif { self?.installerMoniteur() } else { self?.retirerMoniteur() } }
         moteur.lucarne.surDeplacement = { [weak self] in self?.deplacerLibre() }
+        moteur.lucarne.deplacer = { [weak self] p in self?.deplacerLucarne(vers: p) }
     }
 
     // MARK: vie
 
     func demarrer() {
-        guard let e = NSScreen.screens.first else { return }
+        guard let e = ecranVoulu() else { return }
+        if suiviDock == nil { suiviDock = moteur.lucarne.systeme.suivreDock { [weak self] in MainActor.assumeIsolated { self?.dockChange() } } }
         mesurer(e)
         if fenetre == nil { creerFenetre() }
         if surveilleEcran == nil {
@@ -134,16 +140,29 @@ final class IlotPanneau {
         surveilleEcran = nil
         if let surveilleReduire { NSWorkspace.shared.notificationCenter.removeObserver(surveilleReduire) }
         surveilleReduire = nil
+        suiviDock = nil
         fenetre?.orderOut(nil)
     }
 
-    private func mesurer(_ e: NSScreen) {
-        let (g, c) = GeometrieEncoche.mesurer(e)
-        moteur.geometrie = g
-        moteur.reduire = reduire
-        centre = c
-        ecran = e
+    private func mesurer(_ e: EcranIlot) {
+        prendre(e)
         mesurerLucarne(e)
+    }
+    /// L'îlot vit sur cet écran : sa géométrie, le centre de son encoche, la cadence de sa boucle (celle de cet écran).
+    private func prendre(_ e: EcranIlot) {
+        moteur.geometrie = e.geometrie
+        moteur.reduire = reduire
+        centre = e.centre
+        ecran = e
+        moteur.cadence.ecran = e.ecran
+    }
+    /// Tenue, la Lucarne passe sur l'écran `e` : l'îlot y vit désormais, la forme reste sous le doigt (repère du nouvel écran).
+    func passerSur(_ e: EcranIlot) {
+        guard let avant = ecran, e.id != avant.id else { return }
+        let dx = Double(centre - e.centre), dy = Double(e.frame.maxY - avant.frame.maxY)
+        prendre(e)
+        moteur.changerEcranLucarne(decrire(e), uuid: e.id, dx: dx, dy: dy)
+        ajuster()
     }
     /// Une encoche réelle (caméra) : l'îlot vide a sa place dans l'encoche. Sans encoche, l'îlot vide n'existe pas.
     private var encocheReelle: Bool { ecran != nil && moteur.geometrie.reelle }
@@ -251,8 +270,10 @@ final class IlotPanneau {
         pointeur(CGPoint(x: m.x - centre, y: ecran.frame.maxY - m.y))
     }
 
-    private func recaler() {
-        guard let e = NSScreen.screens.first else { return }
+    /// Les écrans ont changé (branché, débranché, résolution) ou le Dock : l'îlot est remesuré sur l'écran de la Lucarne (le principal si
+    /// le sien est parti).
+    func recaler() {
+        guard let e = ecranVoulu() else { return }
         mesurer(e)
         cadreVoulu = .zero
         moteur.donneesChangees()

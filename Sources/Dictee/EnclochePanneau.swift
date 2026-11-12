@@ -20,6 +20,16 @@ final class EnclochePanneau {
     let modele = EncocheModele()
     private var fenetre: PanneauSansFocus?
     private var fermeture: DispatchWorkItem?
+    /// Où est la Lucarne : nil, dans l'encoche (la dictée s'y montre, noire) ; sinon sa place hors de l'encoche, où la dictée se montre en
+    /// verre (LucarneDictee.swift) et l'encoche reste vide. Lu à chaque ouverture.
+    var placementLibre: () -> PlacementDictee? = { nil }
+    /// La dictée en cours se montre hors de l'encoche (la mini-miniature de la lecture, qui se loge au bout du ruban de l'encoche, n'a
+    /// alors pas lieu d'être).
+    private(set) var horsEncoche = false
+    /// Essais : la fenêtre est là, mais transparente et sans clics.
+    var invisible = false
+    /// Essais : le cadre de la fenêtre (nil : pas affichée).
+    var cadre: NSRect? { fenetre?.isVisible == true ? fenetre?.frame : nil }
 
     static func tailleFenetre(pour g: GeometrieEncoche) -> CGSize {
         let largeurMax = g.largeur + 2 * GeometrieEncoche.aile + GeometrieEncoche.rallongeMainsLibres + 2 * 16
@@ -50,8 +60,11 @@ final class EnclochePanneau {
         modele.message = nil
         if !dejaAffichee { modele.calmerLesBarres(); modele.ruban = false }
 
-        let taille = Self.tailleFenetre(pour: g)
-        let cadre = NSRect(x: centre - taille.width / 2, y: ecran.frame.maxY - taille.height, width: taille.width, height: taille.height)
+        let placement = placementLibre()
+        horsEncoche = placement != nil
+        let taille = placement?.cadreFenetre.size ?? Self.tailleFenetre(pour: g)
+        let cadre = placement?.cadreFenetre
+            ?? NSRect(x: centre - taille.width / 2, y: ecran.frame.maxY - taille.height, width: taille.width, height: taille.height)
         if fenetre == nil {
             let f = PanneauSansFocus(contentRect: cadre, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             f.isOpaque = false
@@ -67,10 +80,12 @@ final class EnclochePanneau {
         }
         guard let f = fenetre else { return }
         f.setFrame(cadre, display: false)
-        let vue = VueHebergeePremierClic(rootView: EncocheVue(m: modele, tailleFenetre: taille))
+        let vue: NSView = placement.map { VueHebergeePremierClic(rootView: DicteeVerreVue(m: modele, placement: $0)) }
+            ?? VueHebergeePremierClic(rootView: EncocheVue(m: modele, tailleFenetre: taille))
         vue.frame = NSRect(origin: .zero, size: taille)
         f.contentView = vue
-        f.ignoresMouseEvents = !mainsLibres
+        f.ignoresMouseEvents = !mainsLibres || invisible
+        f.alphaValue = invisible ? 0 : 1
         f.orderFrontRegardless()
 
         withAnimation(ressort(rebond: 0.12)) {
@@ -82,7 +97,7 @@ final class EnclochePanneau {
 
     func passerEnMainsLibres() {
         guard modele.ouverte else { return }
-        fenetre?.ignoresMouseEvents = false
+        fenetre?.ignoresMouseEvents = invisible
         withAnimation(ressort(rebond: 0.12)) { modele.mainsLibres = true }
     }
 
@@ -117,6 +132,17 @@ final class EnclochePanneau {
         }
         fermeture = retrait
         DispatchQueue.main.asyncAfter(deadline: .now() + GeometrieEncoche.dureeMouvement + 0.1, execute: retrait)
+    }
+
+    /// Essais : un vrai clic (appui, relâchement) remis à la fenêtre au point global `p` (rien n'est envoyé au système).
+    func cliquerEssai(en p: NSPoint) {
+        guard let f = fenetre else { return }
+        let local = NSPoint(x: p.x - f.frame.minX, y: p.y - f.frame.minY)
+        for (type, pression) in [(NSEvent.EventType.leftMouseDown, 1.0), (.leftMouseUp, 0.0)] {
+            guard let e = NSEvent.mouseEvent(with: type, location: local, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                             windowNumber: f.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: Float(pression)) else { continue }
+            f.sendEvent(e)
+        }
     }
 
     /// Affiche un court message dans le ruban (ex. « Champ protégé, texte copié »), puis referme.

@@ -118,7 +118,6 @@ struct IlotCalques: View {
         switch v {
         case .repos, .lectureCompact, .minuteurMinimal, .minuteurCompact: EmptyView()
         case .lectureEtendu: LectureEtendue(m: m, lecture: m.lecture, g: g)
-        case .lectureMinuteur: rangeeMinuteurLecture
         case .minuteurEtendu: minuteurEtendu
         case .minuteurLance, .minuteurFini, .rappelEtendu, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant,
              .notification, .notifications, .reveilRegle, .reveilFini:
@@ -540,48 +539,6 @@ struct IlotCalques: View {
         }
     }
 
-    // MARK: rangée Minuteur sous la lecture (appui long)
-
-    /// La rangée Minuteur de l'accueil, posée sous la lecture dépliée (maquette apple-acces/1-controles.html) : un filet, puis
-    /// [minuteur] Minuteur / Lancer un compte à rebours [5 min] [10 min] [25 min]. Un minuteur qui tourne déjà montre son temps.
-    /// L'étagère, si elle garde des fichiers, suit en dessous (pendant une vidéo, l'accueil n'est pas atteignable : c'est son entrée).
-    private var rangeeMinuteurLecture: some View {
-        let v = VueIlot.lectureMinuteur
-        let w = g.corps(v), l = 2 * w - 2 * GrilleIlot.marge
-        let haut = g.barre + CGFloat(GeoIlot.profondeurLecture)
-        let etagere = m.etagereActive && !m.etagere.isEmpty
-        return ZStack(alignment: .topLeading) {
-            filet.posee(CGRect(x: -w + GrilleIlot.marge, y: haut - 1, width: l, height: 1), m.aspect(v, rang: 0))
-            if etagere {
-                ligneEtagere(v, 2, filet: false)
-                    .frame(width: l, height: 42)
-                    .offset(x: IlotMoteur.largeur / 2 - w + GrilleIlot.marge, y: haut + 3 + 42)
-            }
-            tic { d in
-                ligneAccueil(v, 1, glyphe: GlypheIlot(nom: "timer", couleur: CouleursIlot.ambre, taille: 17), titre: "Minuteur",
-                             sous: m.minuteur == nil ? "Lancer un compte à rebours" : "En cours \u{00B7} " + tempsRestant(d),
-                             couleurSous: m.minuteur == nil ? CouleursIlot.encre2 : CouleursIlot.ambre, filet: etagere) {
-                    if let mt = m.minuteur {
-                        // il tourne : pause (ou reprise) et arrêt, ronds, comme l'activité du minuteur sur l'iPhone
-                        HStack(spacing: 8) {
-                            BoutonRondIlot(symbole: mt.enPause ? "play.fill" : "pause.fill", couleur: CouleursIlot.ambre, fond: CouleursIlot.ambre.opacity(0.22),
-                                           etiquette: mt.enPause ? "Reprendre le minuteur" : "Mettre le minuteur en pause") { m.surAction(.minuteurBasculer) }
-                            BoutonRondIlot(symbole: "xmark", couleur: .white, fond: Color.white.opacity(0.14), etiquette: "Arrêter le minuteur") { m.surAction(.minuteurArreter) }
-                        }
-                    } else {
-                        HStack(spacing: 6) {
-                            ForEach([5, 10, 25], id: \.self) { n in
-                                CapIlot(titre: "\(n) min", hauteur: 28, etiquette: "Minuteur de \(n) minutes") { m.surAction(.minuteurLancerSousLecture(minutes: Double(n))) }
-                            }
-                        }
-                    }
-                }
-            }
-            .frame(width: l, height: 42)
-            .offset(x: IlotMoteur.largeur / 2 - w + GrilleIlot.marge, y: haut + 3)
-        }
-    }
-
     // MARK: accueil
 
     /// L'accueil, la carte sous le Centre : une liste à filets fins (le prochain rendez-vous, « Dire un rappel », la dernière dictée),
@@ -609,23 +566,6 @@ struct IlotCalques: View {
         }
         .frame(width: z.width, height: z.height, alignment: .top)
         .offset(x: IlotMoteur.largeur / 2 + z.minX, y: z.minY)
-    }
-
-    /// « Étagère · 2 fichiers », leurs noms (le plus récent d'abord), deux icônes en pile ; un clic ouvre la carte Étagère.
-    private func ligneEtagere(_ v: VueIlot, _ rang: Int, filet avecFilet: Bool) -> some View {
-        ligneAccueil(v, rang, glyphe: GlypheIlot(nom: "tray.full.fill", couleur: CouleursIlot.bleu, taille: 15),
-                     titre: "Étagère \u{00B7} " + EtagereIlot.resume(m.etagere.count),
-                     sous: m.etagere.reversed().map(\.nom).joined(separator: ", "), filet: avecFilet) {
-            HStack(spacing: 8) {
-                IconesFichiers(icones: m.etagere.suffix(2).reversed().map(\.icone), cote: 28)
-                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(CouleursIlot.encre3)
-            }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture { m.ouvrirEtagere() }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction { m.ouvrirEtagere() }
     }
 
     private func ligneAccueil<G: View, D: View>(_ v: VueIlot, _ rang: Int, glyphe: G, titre: String, police: Font = TexteIlot.ligne, couleurTitre: Color = .white,
@@ -883,6 +823,7 @@ struct IlotVue: View {
                 .gesture(DragGesture(minimumDistance: 0).onChanged { _ in m.appuiSurForme() })
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { m.clicForme() }
+                .modifier(DeplacerLucarneVoiceOver(m: m))
         }
         .frame(width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax, alignment: .topLeading)
         .scaleEffect(m.presse ? 1.015 : 1, anchor: .top)

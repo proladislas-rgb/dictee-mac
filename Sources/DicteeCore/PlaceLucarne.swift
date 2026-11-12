@@ -26,6 +26,25 @@ public enum PlaceLucarne: String, Codable, CaseIterable, Sendable {
     }
     /// Les places du milieu des bords gauche et droit sont des pilules debout.
     public var debout: Bool { self == .gauche || self == .droite }
+
+    /// Le nom de la place pour VoiceOver (« le haut à gauche ») ; sans caméra, la place de l'encoche est la pilule du haut au milieu.
+    public func nom(avecEncoche: Bool) -> String {
+        switch self {
+        case .encoche: return avecEncoche ? "l'encoche" : "le haut au milieu"
+        case .hautGauche: return "le haut à gauche"
+        case .hautDroite: return "le haut à droite"
+        case .gauche: return "le bord gauche"
+        case .droite: return "le bord droit"
+        case .basGauche: return "le bas à gauche"
+        case .basMilieu: return "le bas au milieu"
+        case .basDroite: return "le bas à droite"
+        }
+    }
+
+    /// Les actions VoiceOver « Déplacer vers… » d'une Lucarne posée à `place` : une par AUTRE place, dans l'ordre des places.
+    public static func actionsDeplacer(depuis place: PlaceLucarne, avecEncoche: Bool) -> [(place: PlaceLucarne, nom: String)] {
+        allCases.filter { $0 != place }.map { ($0, "Déplacer vers " + $0.nom(avecEncoche: avecEncoche)) }
+    }
 }
 
 /// Un point de l'écran, dans le repère de la Lucarne (x depuis le centre de l'encoche, y depuis le haut).
@@ -81,6 +100,27 @@ public enum CoteDock: String, Codable, Sendable {
     }
 }
 
+/// Les bords d'un écran qui touchent un autre écran (repère de la Lucarne : `haut` est le bord de la barre des menus).
+public struct BordsEcran: OptionSet, Equatable, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    public static let gauche = BordsEcran(rawValue: 1), droite = BordsEcran(rawValue: 2), haut = BordsEcran(rawValue: 4), bas = BordsEcran(rawValue: 8)
+
+    /// Les bords du cadre `f` (repère global d'AppKit, y vers le haut) collés à l'un des `autres` (à 1 pt près, et qui se recouvrent
+    /// le long de ce bord).
+    public static func voisins(de f: CGRect, parmi autres: [CGRect]) -> BordsEcran {
+        var b: BordsEcran = []
+        for o in autres where o != f {
+            let cote = o.minY < f.maxY && o.maxY > f.minY, dessus = o.minX < f.maxX && o.maxX > f.minX
+            if cote, abs(o.minX - f.maxX) < 1 { b.insert(.droite) }
+            if cote, abs(o.maxX - f.minX) < 1 { b.insert(.gauche) }
+            if dessus, abs(o.minY - f.maxY) < 1 { b.insert(.haut) }
+            if dessus, abs(o.maxY - f.minY) < 1 { b.insert(.bas) }
+        }
+        return b
+    }
+}
+
 /// Ce que la Lucarne sait d'un écran : son cadre (repère global d'AppKit), la barre des menus, la caméra, les retraits de `visibleFrame`
 /// et le Dock. Valeurs en points. Construit par le contrôleur depuis `NSScreen` et les préférences du Dock ; ici, tout est pur.
 public struct EcranLucarne: Equatable, Sendable {
@@ -98,6 +138,8 @@ public struct EcranLucarne: Equatable, Sendable {
     public var dockLargeur: Double?
     /// Ce qu'il occupe (son épaisseur : taille des icônes + 14 pt), même masqué : notre fenêtre voleraient ses clics sinon.
     public var dockEpaisseur: Double
+    /// Les bords qui touchent un autre écran : tenue, la forme y passe (on la glisse d'un écran à l'autre sans qu'elle bute au bord).
+    public var voisins: BordsEcran = []
 
     public init(cadre: CGRect, barre: Double, demiCamera: Double? = nil, centreX: Double? = nil,
                 retraitGauche: Double = 0, retraitDroit: Double = 0, retraitBas: Double = 0,
@@ -239,9 +281,13 @@ public enum GeoLucarne {
     }
 
     /// La place la plus proche du point (centre de la forme), sauf `sauf`. À égalité, la première dans l'ordre des places.
+    /// L'encoche (avec caméra) n'attire que dans la zone de son aimant (`aimant > 0` : jusqu'à ~150 pt sous elle, ~300 pt de côté) :
+    /// lâchée au milieu de l'écran, la Lucarne va à la plus proche des sept autres places, jamais remonter dans l'encoche. Sans caméra,
+    /// la place du haut au milieu est une pilule comme les autres.
     public static func plusProche(x: Double, y: Double, _ e: EcranLucarne, sauf: PlaceLucarne? = nil) -> PlaceLucarne {
         var mieux = PlaceLucarne.encoche, dmin = Double.infinity
         for p in PlaceLucarne.allCases where p != sauf {
+            if p == .encoche, e.avecEncoche, aimant(x: x, y: y, e) <= 0 { continue }
             let c = centre(p, e), d = hypot(c.x - x, c.y - y)
             if d < dmin { dmin = d; mieux = p }
         }
@@ -282,9 +328,11 @@ public enum GeoLucarne {
         let m = aimant(x: p.x, y: p.y, e), lisse = m * m * (3 - 2 * m)
         let demiL = hw * echelleTenue, demiH = hh * echelleTenue
         func lerp(_ a: Double, _ b: Double) -> Double { a + (b - a) * lisse }
-        let cx = min(e.xBordDroit - demiL - 4, max(e.xBordGauche + demiL + 4, lerp(p.x + d.x, 0)))
+        // jamais hors de l'écran, sauf vers un écran voisin : elle y passe sans buter au bord
+        let v = e.voisins, loin = Double.infinity
+        let cx = min(v.contains(.droite) ? loin : e.xBordDroit - demiL - 4, max(v.contains(.gauche) ? -loin : e.xBordGauche + demiL + 4, lerp(p.x + d.x, 0)))
         // l'encoche attire le centre à la demi-hauteur de la forme tenue (son haut collé au bord de l'écran), pas au milieu de la barre
-        let cy = min(e.hauteur - demiH - 4, max(e.barre / 2, lerp(p.y + d.y, hh)))
+        let cy = min(v.contains(.bas) ? loin : e.hauteur - demiH - 4, max(v.contains(.haut) ? -loin : e.barre / 2, lerp(p.y + d.y, hh)))
         return (cx, cy, m > seuilAimant)
     }
 }
@@ -322,15 +370,18 @@ extension GeoLucarne {
 }
 
 /// Le verre hors de l'encoche, niveau « Liquide » de la maquette lucarne-position.html (choisi par Hugues : la variante claire d'iOS 26,
-/// presque transparente ; ce qui est derrière transparaît, déformé au bord). La lisibilité vient du contenu, comme chez Apple : un voile
-/// léger, et sous chaque texte et symbole un halo sombre et doux (`halo`) qui le détache d'une page blanche sans éteindre le verre. Visé :
-/// environ 3:1 pour les libellés (iOS 26), pas le 4,5:1 partout.
+/// presque transparente ; ce qui est derrière transparaît, déformé au bord). La lisibilité vient du contenu, comme chez Apple, jamais du
+/// voile : sous chaque texte et symbole une ombre portée serrée (`halo`) qui le détache d'une page blanche, sans faire de plaque sombre ;
+/// le texte de la pilule en gras. Visé : environ 3:1 pour les libellés (iOS 26), pas le 4,5:1 partout.
+/// 12/11 soir, Hugues : « pas assez liquide glace » (voile de 0,12 / 0,22 et halo large de 6 pt : une plaque bleutée uniforme sur la
+/// Terre de son fond d'écran) → voile presque nul, halo resserré autour des glyphes.
 public enum VerreLucarne {
-    /// Le voile noir : pilule repliée (quelques mots en gras), Centre et cartes (du texte courant).
-    public static let voilePilule = 0.12
-    public static let voileDeplie = 0.22
-    /// Le halo sous le contenu : opacité au plus près des lettres (ombre serrée), et celle de l'ombre large qui l'adoucit.
-    public static let halo = (pres: 0.55, rayonPres: 1.2, large: 0.3, rayonLarge: 6.0)
+    /// Le voile noir : pilule repliée (quelques mots en gras), Centre et cartes (du texte courant). Presque rien : le fond reste lisible.
+    public static let voilePilule = 0.03
+    public static let voileDeplie = 0.09
+    /// Le halo sous le contenu : une ombre portée serrée au plus près des lettres, et une à peine plus large (2 pt) qui l'adoucit ;
+    /// jamais une zone floutée.
+    public static let halo = (pres: 0.65, rayonPres: 0.8, large: 0.3, rayonLarge: 2.0)
     /// Sur le verre, le rouge du contenu compact (« Coupé », la batterie faible), un peu plus clair et vif (comme iOS 26 sur le verre
     /// clair) : le halo sombre dessous le détache mieux que la teinte faite pour le noir.
     public static let rougeVerre = (r: 1.0, g: 0x72 / 255.0, b: 0x6A / 255.0)
@@ -354,6 +405,29 @@ public enum VerreLucarne {
         let a = 0.2126 * luminance(melange(lettre.r)) + 0.7152 * luminance(melange(lettre.g)) + 0.0722 * luminance(melange(lettre.b))
         let b = luminance(dessous)
         return (max(a, b) + 0.05) / (min(a, b) + 0.05)
+    }
+}
+
+// MARK: la dictée hors de l'encoche
+
+extension GeoLucarne {
+    /// La dictée (fn) quand la Lucarne n'est pas dans l'encoche : une pilule de verre à sa place, [✕] icône · texte en direct · son [✓].
+    /// Repliée (rien d'écrit encore) : l'icône et l'onde ; avec le texte (ou un message) : le ruban ; mains libres : ✕ et ✓ en plus.
+    public static let dicteeHauteur = 36.0
+    public static let dicteeCompacte = 120.0
+    public static let dicteeRuban = 340.0
+    public static let dicteeMainsLibres = 64.0
+
+    public static func largeurDictee(ruban: Bool, mainsLibres: Bool) -> Double {
+        (ruban ? dicteeRuban : dicteeCompacte) + (mainsLibres ? dicteeMainsLibres : 0)
+    }
+    /// La pilule de la dictée à cette place : elle grandit vers l'intérieur depuis la place (son bord côté écran ne bouge pas), dans la zone
+    /// utile, jamais sur le Dock ni dans la barre (`grand`). Une place debout (milieu des bords) : couchée, calée sur le bord.
+    public static func dictee(_ place: PlaceLucarne, _ e: EcranLucarne, ruban: Bool, mainsLibres: Bool) -> CapsuleLucarne {
+        let w = largeurDictee(ruban: ruban, mainsLibres: mainsLibres)
+        let boite = grand(place, e, largeur: dicteeRuban + dicteeMainsLibres, hauteur: dicteeHauteur, rayon: dicteeHauteur / 2 / TraceIlot.portee)
+        let x0 = boite.x0 + (boite.largeur - w) * place.ancre.x
+        return .pilule(cx: x0 + w / 2, cy: boite.centreY, largeur: w, hauteur: dicteeHauteur)
     }
 }
 
@@ -596,6 +670,14 @@ public struct GesteLucarne: Sendable {
         return ev
     }
 
+    /// Tenue, la Lucarne passe sur un autre écran : tout ce que le geste retient (départ, pointeur, échantillons de vitesse) passe dans
+    /// le repère du nouvel écran (`dx`, `dy` : ce qu'il faut ajouter à un point de l'ancien). La vitesse du lancer n'en change pas.
+    public mutating func decaler(dx: Double, dy: Double) {
+        func d(_ p: PointLucarne) -> PointLucarne { PointLucarne(p.x + dx, p.y + dy) }
+        depart = d(depart); pointeur = d(pointeur)
+        echantillons = echantillons.map { ($0.t, d($0.p)) }
+    }
+
     /// Dictée, réunion, écran qui change… : le geste s'arrête. Tenue : lâchée sans vitesse (elle retombe à la place la plus proche).
     public mutating func interrompre() -> [Evenement] {
         defer { phase = .repos; echantillons = [] }
@@ -624,7 +706,7 @@ public struct GesteLucarne: Sendable {
 // MARK: la mémoire
 
 /// La place de la Lucarne, une par écran (clé : l'UUID de l'écran), et l'écran choisi. Codable : enregistrée en JSON dans les réglages
-/// (`Settings.lucarnePlaces`, `Settings.lucarneEcran`). Les places sont gardées en texte : une valeur inconnue (version future) retombe
+/// (`Settings.lucarnePlaces`, une seule clé). Les places sont gardées en texte : une valeur inconnue (version future) retombe
 /// sur l'encoche au lieu de rendre toute la mémoire illisible.
 public struct MemoirePlaces: Codable, Equatable, Sendable {
     public private(set) var places: [String: String] = [:]
@@ -635,6 +717,9 @@ public struct MemoirePlaces: Codable, Equatable, Sendable {
     /// La place mémorisée pour cet écran ; inconnue ou illisible : l'encoche (sans caméra, c'est la pilule en haut au milieu).
     public func place(pour uuid: String) -> PlaceLucarne { places[uuid].flatMap(PlaceLucarne.init(rawValue:)) ?? .encoche }
     public mutating func memoriser(_ p: PlaceLucarne, pour uuid: String) { places[uuid] = p.rawValue }
+    /// Lâchée (ou déplacée) sur un écran : sa place y est retenue et cet écran devient le sien (elle y revient au lancement, et quand
+    /// il est rebranché).
+    public mutating func poser(_ p: PlaceLucarne, sur uuid: String) { memoriser(p, pour: uuid); ecranChoisi = uuid }
     public mutating func oublier(_ uuid: String) { places[uuid] = nil }
     /// L'écran choisi s'il est encore branché ; sinon nil (le contrôleur prend l'écran principal).
     public func ecranChoisi(parmi branches: [String]) -> String? { ecranChoisi.flatMap { branches.contains($0) ? $0 : nil } }

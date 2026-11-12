@@ -221,9 +221,6 @@ enum RenduLecture {
         ecrire(bureau(hauteur: grandBureau, clair: false) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1f2-etendu-video-fond-sombre")
         ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: modele(contenus[0], direct: true)) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1g-etendu-direct")
         ecrire(bureau(hauteur: grandBureau) { ilot(scene(lecture: modele(contenus[2], joue: false)) { $0.lecturePresente = true; $0.survole = true }) }, "ilot-1m-etendu-en-pause")
-        // appui long sur la lecture : la rangée Minuteur (maquette apple-acces/1-controles.html), seule puis avec un minuteur qui tourne
-        ecrire(bureau(hauteur: geometrie.hauteur + 300) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.donneesChangees(); $0.appuiLong(minuteurActif: true) }) }, "ilot-1n-lecture-rangee-minuteur")
-        ecrire(bureau(hauteur: geometrie.hauteur + 300, clair: false) { ilot(scene(lecture: musique) { $0.lecturePresente = true; $0.minuteur = minut(10, restant: 252); $0.donneesChangees(); $0.appuiLong(minuteurActif: true) }) }, "ilot-1n2-lecture-rangee-minuteur-en-cours")
         for (cam, barre) in [(179.0, 33.0), (200.0, 32.0)] {
             let gg = GeometrieEncoche(largeur: CGFloat(cam), hauteur: CGFloat(barre))
             // une vidéo de plus d'une heure : les temps (« −1:05:12 ») ne sont jamais coupés
@@ -277,7 +274,7 @@ enum RenduLecture {
         // batterie et appareils (maquette ilot-apple.html) : épaules du déplié, écouteurs connectés, chargeur branché, batterie faible
         let batterie = EnergieIlot(pourcent: 33, secteur: true, enCharge: true)
         let airpods = AppareilIlot(nom: "AirPods Pro de Hugues", genre: .ecouteurs, gauche: 80, droit: 78, etui: 45)
-        ecrire(bureau(hauteur: geometrie.hauteur + 300, clair: false) { ilot(scene(lecture: videoLongue) { m in m.energie = batterie; m.ecouteurs = airpods; m.lecturePresente = true; m.minuteur = minut(10, restant: 578); m.donneesChangees(); m.appuiLong(minuteurActif: true) }) }, "ilot-11a-epaules-lecture-minuteur")
+        ecrire(bureau(hauteur: geometrie.hauteur + 300, clair: false) { ilot(scene(lecture: videoLongue) { m in m.energie = batterie; m.ecouteurs = airpods; m.lecturePresente = true; m.minuteur = minut(10, restant: 578); m.donneesChangees(); m.survole = true; m.donneesChangees() }) }, "ilot-11a-epaules-lecture-en-charge")
         ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpods; m.derniereDictee = ("Je te rappelle demain pour confirmer le créneau avec l\u{2019}équipe", "3 min"); m.rendezVousSuivant = rdv
             m.donneesChangees(); m.allerA(.accueil) }) }, "ilot-11b-epaules-accueil")
         ecrire(bureau(hauteur: geometrie.hauteur + 230, clair: false) { ilot(scene(lecture: videoLongue) { m in m.energie = EnergieIlot(pourcent: 100, secteur: true, enCharge: false); m.ecouteurs = airpods; m.lecturePresente = true; m.donneesChangees(); m.survole = true; m.donneesChangees() }) }, "ilot-11f-epaules-100-branche")
@@ -413,8 +410,6 @@ enum RenduLecture {
         ecrire(bureau(hauteur: grandBureau) { ilot(scene { m in m.etagereActive = true; m.etagere = []; m.ouvrirEtagere() }) }, "ilot-22g-carte-etagere-vide")
         ecrire(bureau(hauteur: petitBureau + 80) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.minuteur = minut(10, restant: 372); depot(deux, survol: false)(m) }) }, "ilot-22h-etagere-pendant-video")
         ecrire(bureau(hauteur: petitBureau + 80) { ilot(miCourse(scene { m in m.etagereActive = true; m.etagere = deux }, 0.16) { $0.montrerDepot(true) }) }, "ilot-22i-etagere-ouverture-mi-course")
-        ecrire(bureau(hauteur: grandBureau + 70) { ilot(scene(lecture: videoLongue) { m in m.etagereActive = true; m.etagere = deux; m.lecturePresente = true
-            m.donneesChangees(); m.appuiLong(minuteurActif: true) }) }, "ilot-22j-lecture-rangee-et-etagere")
         // l'étagère plus rapide (maquette ilot-etagere-rapide.html, validée) : l'appel dès que le glisser commence, les deux zones (Étagère
         // éclairée, AirDrop éclairée, « Rangé »), la pile replié dans l'aile gauche, l'envoi AirDrop (en cours, envoyé, annulé), le Centre
         // avec les fichiers en haut (et « Tout »), « 3 fichiers partis dans Mail · Remettre », la carte avec une capture « Nouveau » et

@@ -8,14 +8,14 @@ import Foundation
 
 public enum CartesIlot {
     /// Les cartes de l'îlot ouvert, de haut en bas. `survol` : l'écran que l'îlot prend au survol (nil : verrouillé, pas de cartes).
-    /// Rien ne joue : le Centre d'abord. Une activité : son déplié d'abord (la rangée Minuteur de la lecture compte comme la lecture).
+    /// Rien ne joue : le Centre d'abord. Une activité : son déplié d'abord.
     /// Les Outils sont la page juste sous le Centre (maquette ilot-claude-plus.html, étape 8 : « 2e point à droite »).
     /// Les Dictées sont la DERNIÈRE carte (Hugues, 11/11 : leur liste défile vers le bas, elle bloquait le passage vers les cartes
     /// suivantes) : activité, Centre, Outils, accueil, puis Dictées ; arrivé au bout, on fait défiler la liste librement.
     public static func pile(survol: VueIlot?) -> [VueIlot] {
         guard let s = survol else { return [] }
         if s == .centre || s == .outils || s == .accueil || s == .dictees { return [.centre, .outils, .accueil, .dictees] }
-        return [s == .lectureMinuteur ? .lectureEtendu : s, .centre, .outils, .accueil, .dictees]
+        return [s, .centre, .outils, .accueil, .dictees]
     }
 
     /// Les cartes des outils (presse-papiers, Reformuler, Note rapide) sont rangées sous la page Outils : ses points de page restent, celui
@@ -37,8 +37,7 @@ public enum CartesIlot {
 
     /// La carte porte-t-elle le bouton « Centre » à son pied ? Le déplié de TOUTE activité (la vidéo, le minuteur, Claude, un rendez-vous,
     /// un rappel), c'est-à-dire la première carte d'une pile qui contient le Centre : le chemin vers le Centre se voit toujours (on n'a
-    /// jamais à deviner un défilement). Le Centre, les Outils, les Dictées et l'accueil n'en ont pas ; la rangée Minuteur de la lecture
-    /// prend sa place. La carte « Claude Code » n'en a pas : son en-tête a déjà « ‹ Centre ». La carte « Réunion » non plus : son bouton
+    /// jamais à deviner un défilement). Le Centre, les Outils, les Dictées et l'accueil n'en ont pas. La carte « Claude Code » n'en a pas : son en-tête a déjà « ‹ Centre ». La carte « Réunion » non plus : son bouton
     /// « Centre » est dans son en-tête (maquette ilot-reunion.html), sa rangée du bas porte les boutons de la réunion. Le pied porte aussi
     /// le bouton « Dictées » (maquette, étape 2), quand il tient.
     public static func aUnPied(_ v: VueIlot, pile: [VueIlot]) -> Bool {
@@ -53,7 +52,7 @@ public enum CartesIlot {
 
     /// La carte voisine, `pas` cartes plus bas (+1) ou plus haut (−1) ; nil au bout de la pile (on ne boucle pas).
     public static func voisine(_ pile: [VueIlot], de carte: VueIlot, pas: Int) -> VueIlot? {
-        guard let i = pile.firstIndex(of: carte == .lectureMinuteur ? .lectureEtendu : carte) else { return nil }
+        guard let i = pile.firstIndex(of: carte) else { return nil }
         let j = i + pas
         return pile.indices.contains(j) && j != i ? pile[j] : nil
     }
