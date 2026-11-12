@@ -61,11 +61,9 @@ struct DicteeVerreVue: View {
             ZStack {
                 forme.fill(Color.black.opacity(0.22)).blur(radius: 6).offset(y: 3)
                     .mask { Rectangle().padding(-20).overlay { forme.fill(Color.black).blendMode(.destinationOut) }.compositingGroup() }
-                if statique { forme.fill(Color.white.opacity(0.05)) } else { Color.clear.glassEffect(.clear, in: forme) }
+                if statique { forme.fill(Color.white.opacity(0.05)) } else { Color.clear.glassEffect(.clear, in: forme).modifier(IntensiteVerre()) }
                 forme.fill(Color.black.opacity(VerreLucarne.voilePilule))
-                forme.stroke(LinearGradient(colors: [Color.white.opacity(0.75), Color.white.opacity(0.12), Color.white.opacity(0.35)],
-                                            startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1.4)
-                forme.stroke(Color.black.opacity(0.22), lineWidth: 0.5)
+                LisereVerre(forme: forme)
                 contenu(ruban: ruban).modifier(HaloLucarne(force: 1))
             }
             .frame(width: r.width, height: r.height)

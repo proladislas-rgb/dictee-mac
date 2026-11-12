@@ -59,7 +59,7 @@ extension IlotEssai {
         c.reglagesCentre.allumerRappels = { EssaiLucarne.rappelsActifs = true }
     }
 
-    /// « Lucarne, … » partout (îlot fermé), « Je n'ai pas compris », l'app Rappels (la question une fois, « Oui », « Non », « Fait »,
+    /// « Voxile, … » partout (îlot fermé), « Je n'ai pas compris », l'app Rappels (la question une fois, « Oui », « Non », « Fait »,
     /// « Annuler », coché sur l'iPhone, pas de doublon), le minuteur dit. De VRAIS clics sur les bandeaux.
     @MainActor
     static func lucarne(_ c: IlotControleur, decaler: @escaping (Double) -> Void, verifier: (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void,
@@ -87,7 +87,7 @@ extension IlotEssai {
             return pris
         }
 
-        print("Lucarne, … (commandes dites partout), l'app Rappels")
+        print("Voxile, … (commandes dites partout), l'app Rappels")
         reglagesLucarneDEssai(c)
         let faux = RappelsAppleFactice(); c.rappelsApple = faux
         EssaiLucarne.choix = nil; EssaiLucarne.refusDit = false; c.questionRappelsPosee = false
@@ -97,13 +97,13 @@ extension IlotEssai {
 
         // --- sans le mot d'appel : rien ne change (un mail reste un mail)
         verifier(!dicter("J'ai une livraison demain vers 13-14 h.") && c.rappels.rappels.isEmpty && m.bandeau == nil,
-                 "sans « Lucarne » en tête, îlot fermé : dictée normale, collée (aucun rappel, aucun bandeau)")
+                 "sans « Voxile » en tête, îlot fermé : dictée normale, collée (aucun rappel, aucun bandeau)")
         // --- une phrase qui PARLE de Lucarne (pas de virgule, aucune demande) : collée elle aussi, jamais un rappel
-        verifier(!dicter("Lucarne est prête, je te l'envoie demain.") && !dicter("Verbe 0.3.3 publiée ce soir.") && c.rappels.rappels.isEmpty && m.bandeau == nil,
-                 "« Lucarne est prête, je te l'envoie demain », « Verbe 0.3.3 publiée ce soir » : collées dans le mail, aucun rappel, aucun bandeau")
+        verifier(!dicter("Voxile est prête, je te l'envoie demain.") && !dicter("Voxile 0.3.3 publiée ce soir.") && c.rappels.rappels.isEmpty && m.bandeau == nil,
+                 "« Voxile est prête, je te l'envoie demain », « Voxile 0.3.3 publiée ce soir » : collées dans le mail, aucun rappel, aucun bandeau")
 
-        // --- « Lucarne, … » îlot fermé : le rappel de Hugues (11/11)
-        verifier(dicter("Lucarne, j'ai demain une livraison vers 13-14h."), "« Lucarne, j'ai demain une livraison vers 13-14h » : une commande, rien n'est collé")
+        // --- « Voxile, … » îlot fermé : le rappel de Hugues (11/11)
+        verifier(dicter("Voxile, j'ai demain une livraison vers 13-14h."), "« Voxile, j'ai demain une livraison vers 13-14h » : une commande, rien n'est collé")
         let cal = Calendar.current
         // « demain » : le jour qui commence si l'essai tourne entre minuit et 4 h (on vit encore la veille), et l'îlot nomme alors le jour
         let demain13 = cal.date(bySettingHour: 13, minute: 0, second: 0, of: MomentDicte.demain(c.maintenant()))!
@@ -127,7 +127,7 @@ extension IlotEssai {
         m.quitterBandeau(); pause(0.5)
 
         // --- le rappel suivant va directement dans l'app Rappels (sans question), une seule fois
-        verifier(dicter("Lucarne, rappelle-moi d'appeler Ladislas demain à 15 h."), "« Lucarne, rappelle-moi d'appeler Ladislas demain à 15 h »")
+        verifier(dicter("Voxile, rappelle-moi d'appeler Ladislas demain à 15 h."), "« Voxile, rappelle-moi d'appeler Ladislas demain à 15 h »")
         let r2 = c.rappels.rappels.last
         verifier(r2?.texte == "Appeler Ladislas" && faux.crees.count == 2 && r2?.idApple != nil && m.envoiVoix == .fait,
                  "« Appeler Ladislas » (à l'infinitif), aussi dans l'app Rappels, sans question : la carte dit « ✓ Dans Rappels »")
@@ -136,7 +136,7 @@ extension IlotEssai {
         m.quitterBandeau(); pause(0.5)
 
         // --- « Annuler » sur la carte : retiré là-bas aussi
-        verifier(dicter("Verbe, mets un rappel demain à 9 h pour sortir les poubelles."), "« Verbe, mets un rappel… » (l'ancien nom marche aussi)")
+        verifier(dicter("Voxile, mets un rappel demain à 9 h pour sortir les poubelles."), "« Voxile, mets un rappel… »")
         let r3 = c.rappels.rappels.last, id3 = r3?.idAppleExterne
         verifier(r3?.texte == "Sortir les poubelles" && id3 != nil, "« Sortir les poubelles », créé dans l'app Rappels")
         pause(0.4)
@@ -161,7 +161,7 @@ extension IlotEssai {
         m.fermer(); pause(0.6)
 
         // --- ce qui n'est pas compris : jamais collé, jamais silencieux ; « Copier » rend la phrase ENTIÈRE (l'aperçu seul est coupé)
-        let longue = "Lucarne, " + String(repeating: "voici un long paragraphe dicté pour le compte rendu de la réunion de ce matin avec l'équipe. ", count: 4) + "Fin."
+        let longue = "Voxile, " + String(repeating: "voici un long paragraphe dicté pour le compte rendu de la réunion de ce matin avec l'équipe. ", count: 4) + "Fin."
         verifier(dicter(longue), "une longue dictée pour Lucarne, pas comprise : rien n'est collé, pas de plantage")
         verifier(m.courante == .lucarne && m.bandeauVu?.lucarne == .incomprise(longue) && m.contenuAnnonce(.lucarne)?.l1 == "Je n\u{2019}ai pas compris"
                  && (m.contenuAnnonce(.lucarne)?.l2.count ?? 999) < 130,
@@ -172,21 +172,21 @@ extension IlotEssai {
                  "vrai clic sur « Copier » : la phrase ENTIÈRE (\(longue.count) caractères) est dans le presse-papiers, rien de perdu")
         // un moment déjà passé : pas de rappel qui sonnerait aussitôt, « Cette heure est passée »
         let n0 = c.rappels.rappels.count
-        verifier(dicter("Lucarne, rappelle-moi le 2/1/2020 à 9 h d'appeler Paul.") && c.rappels.rappels.count == n0 && m.bandeauVu?.lucarne == .passe("Lucarne, rappelle-moi le 2/1/2020 à 9 h d'appeler Paul.")
+        verifier(dicter("Voxile, rappelle-moi le 2/1/2020 à 9 h d'appeler Paul.") && c.rappels.rappels.count == n0 && m.bandeauVu?.lucarne == .passe("Voxile, rappelle-moi le 2/1/2020 à 9 h d'appeler Paul.")
                  && m.contenuAnnonce(.lucarne)?.l1 == "Cette heure est passée", "un moment passé : rien d'ajouté, « Cette heure est passée » (\(m.courante))")
         m.quitterBandeau(); pause(0.4)
-        verifier(dicter("Lucarne, rappelle-moi d'appeler Paul.") && m.contenuAnnonce(.lucarne)?.l1 == "Il me manque l\u{2019}heure", "un rappel sans heure : « Il me manque l'heure »")
+        verifier(dicter("Voxile, rappelle-moi d'appeler Paul.") && m.contenuAnnonce(.lucarne)?.l1 == "Il me manque l\u{2019}heure", "un rappel sans heure : « Il me manque l'heure »")
         m.quitterBandeau(); pause(0.4)
 
         // --- le minuteur dit
-        verifier(dicter("Lucarne, minuteur de 5 minutes.") && abs((c.minuteur?.total ?? 0) - 300) < 0.5 && m.bandeauVu?.vue == .minuteurLance, "« Lucarne, minuteur de 5 minutes » : lancé, « Minuteur lancé »")
+        verifier(dicter("Voxile, minuteur de 5 minutes.") && abs((c.minuteur?.total ?? 0) - 300) < 0.5 && m.bandeauVu?.vue == .minuteurLance, "« Voxile, minuteur de 5 minutes » : lancé, « Minuteur lancé »")
         c.agir(.minuteurArreter); pause(0.6)
 
         // --- l'îlot ouvert (Centre épinglé) : le bandeau passe quand même (la réponse à ce qu'on vient de dire)
         m.clicForme(); pause(0.8); m.epinglerLeCentre(); pause(0.3)
         occ.dictee = true; c.dicteeChange(enCours: true); c.occupationChangee(); pause(0.3)
         occ.dictee = false; c.dicteeChange(enCours: false)
-        verifier(c.intercepter("Lucarne, ouvre Safari."), "Centre épinglé : « Lucarne, ouvre Safari » est pour Lucarne")
+        verifier(c.intercepter("Voxile, ouvre Safari."), "Centre épinglé : « Voxile, ouvre Safari » est pour Lucarne")
         c.occupationChangee(); pause(0.8)
         verifier(m.courante == .lucarne, "… et « Je n'ai pas compris » se voit même sur le Centre épinglé (\(m.courante))")
         m.quitterBandeau(); m.fermer(); pause(0.6)
@@ -226,6 +226,14 @@ extension IlotEssai {
         verifier(ajouter("Rendre les livres"), "accès déjà refusé dans Réglages Système")
         attendre(IlotControleur.dureeRappelAjoute + 2.5) { m.bandeauVu?.lucarne != .rappelsRestentIci(systeme: true) }
         verifier(m.bandeauVu?.lucarne == .rappelsRestentIci(systeme: true) && faux4.demandes == 0 && EssaiLucarne.refusDit, "dit une fois, sans question ni fenêtre")
+        m.quitterBandeau(); pause(0.4)
+
+        // --- Lucarne n'est plus un mot d'appel (12/11 au soir) : collé comme un texte normal ; « Voxil » (ce que Groq écrit) l'est
+        let avant = c.rappels.rappels.count
+        verifier(!dicter("Lucarne, rappelle-moi demain à 13 h pour la livraison.") && c.rappels.rappels.count == avant,
+                 "« Lucarne, rappelle-moi… » : plus un mot d'appel, un texte normal (aucun rappel)")
+        verifier(dicter("Voxil, rappelle-moi demain à 13h pour la livraison.") && c.rappels.rappels.last?.texte == "La livraison",
+                 "« Voxil, rappelle-moi… » (la transcription de Groq) : une commande, le rappel « La livraison »")
         m.quitterBandeau(); pause(0.4)
         for r in c.rappels.rappels { c.agir(.rappelAnnuler(r.id)) }
         EssaiLucarne.choix = .non; EssaiLucarne.refusDit = true

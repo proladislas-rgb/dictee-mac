@@ -366,21 +366,16 @@ struct VerreLucarneVue: View {
                         }
                         .frame(width: taille.width, height: taille.height, alignment: .topLeading)
                     }
+                    .modifier(IntensiteVerre(deplie: m.lucarneDeplie))
                 }
             }
             forme.fill(Color.black.opacity(voile + (1 - voile) * noir))
             if let b = bulle { Capsule().fill(Color.black.opacity(VerreLucarne.voilePilule)).frame(width: b.largeur, height: b.hauteur).position(point(b)) }
-            // le liseré : un trait clair à l'intérieur, un trait sombre très fin au bord (lisible sur blanc comme sur noir)
+            // le liseré et les reflets du bord : c'est là seulement qu'on devine le verre
             Group {
-                // la lisière : un trait vif en haut à gauche qui s'éteint vers le bas à droite (le biseau du verre de la maquette)
-                forme.stroke(LinearGradient(colors: [Color.white.opacity(0.75), Color.white.opacity(0.12), Color.white.opacity(0.35)],
-                                            startPoint: UnitPoint(x: (taille.width / 2 + capsule.x0) / taille.width, y: capsule.y0 / taille.height),
-                                            endPoint: UnitPoint(x: (taille.width / 2 + capsule.x1) / taille.width, y: capsule.y1 / taille.height)), lineWidth: 1.4)
-                forme.stroke(Color.black.opacity(0.22), lineWidth: 0.5)
-                if let b = bulle {
-                    Capsule().stroke(Color.white.opacity(0.28), lineWidth: 1.2).frame(width: b.largeur, height: b.hauteur).position(point(b))
-                    Capsule().stroke(Color.black.opacity(0.22), lineWidth: 0.5).frame(width: b.largeur, height: b.hauteur).position(point(b))
-                }
+                LisereVerre(forme: forme, debut: UnitPoint(x: (taille.width / 2 + capsule.x0) / taille.width, y: capsule.y0 / taille.height),
+                            fin: UnitPoint(x: (taille.width / 2 + capsule.x1) / taille.width, y: capsule.y1 / taille.height))
+                if let b = bulle { LisereVerre(forme: Capsule()).frame(width: b.largeur, height: b.hauteur).position(point(b)) }
             }
             .opacity(1 - noir)
         }
@@ -400,6 +395,39 @@ struct VerreLucarneVue: View {
             .frame(width: l, height: h)
             .glassEffect(.clear, in: FormeNoire(points: TraceLucarne.calculer(locale)))
             .position(x: taille.width / 2 + CGFloat(c.centreX), y: CGFloat(c.y0 - marge + h / 2))
+    }
+}
+
+/// Le verre clair de macOS, adouci (12/11 soir, Hugues : « vraiment beaucoup plus transparent ») : son flou et sa teinte sont ceux du
+/// système, sans réglage ; on les atténue en atténuant toute la couche (`VerreLucarne.intensite`, selon que la forme est repliée ou
+/// dépliée) et on le prend dans sa variante claire même dans la fenêtre sombre de l'îlot (la sombre y est un gris fumé, vu sur la capture
+/// du vrai verre). Le contenu, lui, reste en sombre.
+struct IntensiteVerre: ViewModifier {
+    var deplie: Double = 0
+    func body(content: Content) -> some View {
+        content
+            .environment(\.colorScheme, .light)
+            .opacity(VerreLucarne.intensite(deplie: deplie))
+    }
+}
+
+/// Le bord du verre clair, seul à le montrer : un biseau vif (clair en haut à gauche, éteint au milieu, rallumé en bas à droite), un reflet
+/// intérieur sur deux épaisseurs (l'épaisseur de la goutte, sans flou : rien à recalculer quand elle bouge) et un trait sombre très fin
+/// dehors (lisible sur une page blanche comme sur du noir).
+struct LisereVerre<S: Shape>: View {
+    var forme: S
+    var debut: UnitPoint = .topLeading
+    var fin: UnitPoint = .bottomTrailing
+
+    var body: some View {
+        let l = VerreLucarne.lisere
+        ZStack {
+            forme.stroke(Color.white.opacity(l.reflet), lineWidth: 2 * l.largeurReflet).clipShape(forme)
+            forme.stroke(Color.white.opacity(l.reflet), lineWidth: l.largeurReflet).clipShape(forme)
+            forme.stroke(LinearGradient(colors: [Color.white.opacity(l.vif), Color.white.opacity(l.eteint), Color.white.opacity(l.retour)],
+                                        startPoint: debut, endPoint: fin), lineWidth: l.largeur)
+            forme.stroke(Color.black.opacity(l.sombre), lineWidth: 0.6)
+        }
     }
 }
 

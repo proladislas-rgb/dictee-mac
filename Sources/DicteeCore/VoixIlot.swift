@@ -1,7 +1,7 @@
 import Foundation
 
 // La voix d'un rappel ou d'une note dans l'îlot (maquette design/maquettes/ilot-voix-rappel.html, demande de Hugues du 12/11) : pendant
-// qu'on dit « Lucarne, rappelle-moi… » ou « Lucarne, note… » (fn tenue), une onde qui suit la voix et, dès que la commande est comprise,
+// qu'on dit « Voxile, rappelle-moi… » ou « Voxile, note… » (fn tenue), une onde qui suit la voix et, dès que la commande est comprise,
 // « Rappel… » ou « Note… » ; au relâchement, une carte qui montre ce qui a été compris (titre, jour et heure, une ligne de résumé) et
 // propose de l'envoyer dans l'app Rappels ou dans l'app Notes. Tout ici est pur : aucune interface, aucun réseau, aucune horloge.
 
@@ -23,9 +23,10 @@ public enum DirectVoix: Equatable, Sendable {
 }
 
 extension AnalyseCommandeIlot {
-    /// Le texte en direct d'une dictée fn tenue : est-elle pour Lucarne, et pour quoi ? Jugé comme la commande finale (`lucarne`) :
-    /// le mot d'appel en tête, puis une virgule (on s'adresse à Lucarne) ou une demande en toutes lettres (« Lucarne rappelle-moi »).
-    /// « Lucarne » seul (la suite n'est pas encore arrivée) ou « Lucarne est prête… » restent `.autre` : rien n'est pris trop tôt.
+    /// Le texte en direct d'une dictée fn tenue : est-elle pour l'app, et pour quoi ? Jugé comme la commande finale (`lucarne`) :
+    /// le mot d'appel en tête, puis une virgule (on s'adresse à l'app) ou une demande en toutes lettres (« Voxile rappelle-moi »).
+    /// « Voxile » seul (la suite n'est pas encore arrivée) ou « Voxile est prête… » restent `.autre` : rien n'est pris trop tôt. Un mot
+    /// seulement proche (« Boxile, … ») attend une ponctuation et une demande en toutes lettres (`appelDetaille`), comme la commande finale.
     public static func directVoix(_ texte: String, maintenant: Date, calendrier: Calendar = .current) -> DirectVoix {
         guard let appel = appelDetaille(texte) else { return .autre }
         let reste = TexteDicte.sansPolitesse(appel.reste)
@@ -34,7 +35,7 @@ extension AnalyseCommandeIlot {
         if TexteNote.demandee(reste, interpelle: appel.interpelle) { return .pourLucarne(.note) }
         let demande = TexteRappel.estUnReveil(reste) || minuteur(reste) != nil
         guard appel.interpelle || demande || TexteRappel.commenceParUneTete(reste) else { return .autre }
-        // « Lucarne, j'ai demain une livraison… » : un rappel dès que le jour ou l'heure est dit, après une tête ou une tâche
+        // « Voxile, j'ai demain une livraison… » : un rappel dès que le jour ou l'heure est dit, après une tête ou une tâche
         if !demande, let r = MomentDicte.extraire(reste, maintenant: maintenant, calendrier: calendrier),
            TexteRappel.commenceParUneTete(r.reste) || TexteRappel.commenceParUnVerbe(r.reste) {
             return .pourLucarne(.rappel)
@@ -45,7 +46,7 @@ extension AnalyseCommandeIlot {
 
 // MARK: - Le texte d'une note
 
-/// « Lucarne, note : … », « Lucarne, prends une note … », « Lucarne, note que … » : ce qui suit est la note.
+/// « Voxile, note : … », « Voxile, prends une note … », « Voxile, note que … » : ce qui suit est la note.
 public enum TexteNote {
     /// Ce qui annonce une note, en tête du reste de la phrase (les plus longs d'abord). « note un rappel » est un rappel (TexteRappel le
     /// voit avant).
@@ -55,7 +56,7 @@ public enum TexteNote {
         "nouvelle note", "une note", "note-moi", "note moi", "notez", "note",
     ]
 
-    /// Seuls, sans virgule après le mot d'appel, ils ne suffisent pas (« Lucarne une note de 15 sur 20 », « Verbe note… » peuvent parler
+    /// Seuls, sans virgule après le mot d'appel, ils ne suffisent pas (« Voxile une note de 15 sur 20 », « Voxile note… » peuvent parler
     /// de Lucarne) ; les autres sont une demande en toutes lettres.
     static let ambigus: Set<String> = ["une note", "nouvelle note", "notez", "note"]
 
@@ -68,7 +69,7 @@ public enum TexteNote {
         }
         return nil
     }
-    /// Une note demandée : un déclencheur sans ambiguïté, ou n'importe lequel quand on s'adresse à Lucarne (« Lucarne, note… »).
+    /// Une note demandée : un déclencheur sans ambiguïté, ou n'importe lequel quand on s'adresse à l'app (« Voxile, note… »).
     static func demandee(_ s: String, interpelle: Bool) -> Bool {
         guard let d = declencheur(s) else { return false }
         return interpelle || !ambigus.contains(d.mot)

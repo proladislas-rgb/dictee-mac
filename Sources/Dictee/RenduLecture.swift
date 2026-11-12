@@ -552,7 +552,7 @@ enum RenduLecture {
                 m.donneesChangees(); m.survole = true; m.donneesChangees() }, t) { $0.allerA(.centre) }) }, "ilot-23n\(nom)-centre-passage-\(Int(t * 1000))ms")
         }
         // les Outils, 2e page du Centre (maquette ilot-claude-plus.html, étapes 8 à 14) : la page (« Outils › » dans l'en-tête du Centre,
-        // 2e point), Garder éveillé 1 h, le presse-papiers (« Copié », « Coller » au survol), Reformuler (« Verbe réécrit… », le résultat),
+        // 2e point), Garder éveillé 1 h, le presse-papiers (« Copié », « Coller » au survol), Reformuler (« Voxile réécrit… », le résultat),
         // Note rapide (la note qui vient d'arriver, « Dans Notes »), « Modifier » sur la page Outils, les cartes vides, un passage à mi-course
         func outils(_ config: @escaping (IlotMoteur) -> Void = { _ in }) -> (IlotMoteur) -> Void {
             { m in centre()(m); m.allerA(.outils); config(m); m.donneesChangees() }
@@ -616,16 +616,16 @@ enum RenduLecture {
             m.noteNeuve = noteLivraison.id; m.suggestionRappel = (noteLivraison.id, "Livraison", demain13) })) }, "ilot-25o-note-en-faire-un-rappel")
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.notes = Array(notesExemple.suffix(2)); m.ouvrirOutil(.outilNote)
             m.ecouteNote.message = "Je n\u{2019}ai rien entendu, réessaie" })) }, "ilot-25p-note-rien-entendu")
-        // « Lucarne, … » dit n'importe où : la confirmation, ce qui n'est pas compris (jamais collé), l'app Rappels (demandé une fois)
+        // « Voxile, … » dit n'importe où : la confirmation, ce qui n'est pas compris (jamais collé), l'app Rappels (demandé une fois)
         func lucarne(_ msg: MessageLucarne) -> (IlotMoteur) -> Void { { $0.bandeau = BandeauIlot(vue: .lucarne, jusqua: t0, ligne1: "", ligne2: "", lucarne: msg) } }
         ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelAjoute, jusqua: t0, ligne1: "Rappel ajouté", ligne2: "Livraison \u{00B7} demain", meta: "13:00") }) },
                "ilot-27a-lucarne-rappel-ajoute-livraison")
-        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene(lucarne(.incomprise("Lucarne, ouvre le dossier des factures.")))) }, "ilot-27b-lucarne-pas-compris")
-        ecrire(bureau(hauteur: petitBureau + 20, clair: false) { ilot(scene(lucarne(.incomprise("Lucarne, est-ce que tu peux me commander une pizza aux quatre fromages pour ce soir, vers vingt heures trente, avec un dessert ?")))) },
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene(lucarne(.incomprise("Voxile, ouvre le dossier des factures.")))) }, "ilot-27b-lucarne-pas-compris")
+        ecrire(bureau(hauteur: petitBureau + 20, clair: false) { ilot(scene(lucarne(.incomprise("Voxile, est-ce que tu peux me commander une pizza aux quatre fromages pour ce soir, vers vingt heures trente, avec un dessert ?")))) },
                "ilot-27c-lucarne-pas-compris-long-sombre")
-        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene(lucarne(.sansHeure("Lucarne, rappelle-moi d\u{2019}appeler Paul.")))) }, "ilot-27d-lucarne-il-manque-l-heure")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene(lucarne(.sansHeure("Voxile, rappelle-moi d\u{2019}appeler Paul.")))) }, "ilot-27d-lucarne-il-manque-l-heure")
         ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene(lucarne(.questionRappelsApple))) }, "ilot-27e-rappels-apple-question")
-        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene(lucarne(.passe("Lucarne, rappelle-moi aujourd\u{2019}hui à 9 h d\u{2019}appeler Paul.")))) }, "ilot-27h-lucarne-heure-passee")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene(lucarne(.passe("Voxile, rappelle-moi aujourd\u{2019}hui à 9 h d\u{2019}appeler Paul.")))) }, "ilot-27h-lucarne-heure-passee")
         // dit entre minuit et 4 h : le jour est nommé au lieu de « demain » (on vit encore la veille)
         ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelAjoute, jusqua: t0, ligne1: "Rappel ajouté", ligne2: "Livraison \u{00B7} vendredi 13", meta: "13:00") }) },
                "ilot-27i-lucarne-rappel-ajoute-la-nuit")

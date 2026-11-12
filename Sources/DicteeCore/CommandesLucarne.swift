@@ -1,67 +1,134 @@
 import Foundation
 
-// « Lucarne, … » (et « Verbe, … ») : une dictée qui COMMENCE par le nom de l'app est une commande, îlot ouvert ou fermé, dans n'importe
-// quelle app, et n'est jamais collée (validé par Hugues le 11/11). Sans le nom en tête, rien ne change : une phrase d'un mail ne devient
-// jamais une commande. Tout ici est pur (aucune interface, aucun réseau) : la phrase est lue sur le Mac, rien n'en part.
+// « Voxile, … » : une dictée qui COMMENCE par le nom de l'app est une commande, îlot ouvert ou fermé, dans n'importe quelle app, et n'est
+// jamais collée (validé par Hugues le 11/11 ; le mot d'appel est le nom de l'app, Voxile, et lui seul depuis le 12/11 au soir : « Lucarne »
+// et « Verbe » en tête sont un texte normal). Sans le nom en tête, rien ne change : une phrase d'un mail ne devient jamais une commande.
+// Tout ici est pur (aucune interface, aucun réseau) : la phrase est lue sur le Mac, rien n'en part.
 
-/// Ce qu'une dictée adressée à Lucarne demande.
+/// Ce qu'une dictée adressée à l'app demande.
 public enum ResultatLucarne: Equatable, Sendable {
-    /// La dictée ne commence pas par « Lucarne » ni « Verbe » : une dictée normale.
+    /// La dictée ne commence pas par « Voxile » : une dictée normale.
     case aucune
     case commande(CommandeIlot)
-    /// Adressée à Lucarne, mais rien de reconnu : « Je n'ai pas compris » et la phrase (rien n'est collé).
+    /// Adressée à l'app, mais rien de reconnu : « Je n'ai pas compris » et la phrase (rien n'est collé).
     case incomprise(phrase: String)
     /// Un rappel sans heure ni jour : « Il me manque l'heure » et la phrase (rien n'est collé).
     case sansHeure(phrase: String)
     /// Un rappel pour un moment déjà passé (« aujourd'hui à 9 h » dit à 14 h) : « Cette heure est passée » et la phrase. Il n'est pas
     /// ajouté (il sonnerait aussitôt, et arriverait en retard dans l'app Rappels).
     case passe(phrase: String)
-    /// « Lucarne, note : … » : une note (VoixIlot.swift), son texte remis au propre.
+    /// « Voxile, note : … » : une note (VoixIlot.swift), son texte remis au propre.
     case note(texte: String)
 }
 
-extension AnalyseCommandeIlot {
-    /// Le mot d'appel en tête de phrase, et ses transcriptions ratées les plus courantes (« Lucarnes », « L'ucarne », « Lu carne »,
-    /// « La carne »). Suivi d'une virgule, d'un point, de rien… mais jamais collé à un autre mot (« Verbes », « Lucarneau »). `sep` : ce
-    /// qui le suit (la ponctuation de Whisper dit si on s'adresse à Lucarne ou si on parle d'elle).
-    private static let appel = try! NSRegularExpression(
-        pattern: "^\\s*[«\"]?\\s*(?:lucarnes?|l'ucarne|lu[ -]carne|la carne|verbe)(?![\\p{L}\\p{N}'-])(?<sep>[\\s,.;:!?…»\"-]*)",
-        options: [.caseInsensitive])
+/// Le mot d'appel : « Voxile », le nom de l'app (décision de Hugues, 12/11 au soir), et ce que la transcription en fait.
+public enum MotAppel {
+    public static let mot = "Voxile"
+    /// Sa clé phonétique (« voksil ») : « Voxil », « Voxyle », « Vauxile », « Vox île », « Vocsil » s'écrivent autrement mais
+    /// se disent pareil.
+    static let cle = ClePhonetique.cle(mot)
 
-    /// Le reste de la phrase après « Lucarne, », ou nil si elle ne commence pas par le mot d'appel.
-    public static func sansAppel(_ texte: String) -> String? { appelDetaille(texte)?.reste }
-
-    /// Le reste, et `interpelle` : le mot d'appel est suivi d'une ponctuation (« Lucarne, … », « Verbe. … ») ou est seul. Sans ponctuation
-    /// (« Lucarne est prête… », « Verbe 0.3.3 publiée ce soir »), la phrase PARLE de Lucarne : elle n'est pour Lucarne que si elle demande
-    /// quelque chose en toutes lettres (« Lucarne rappelle-moi… », « Lucarne minuteur… »).
-    static func appelDetaille(_ texte: String) -> (reste: String, interpelle: Bool)? {
-        let t = TexteDicte.unifier(texte)
-        let ns = t as NSString
-        guard let m = appel.firstMatch(in: t, range: NSRange(location: 0, length: ns.length)) else { return nil }
-        let reste = ns.substring(from: m.range.upperBound).trimmingCharacters(in: .whitespaces)
-        let sep = m.range(withName: "sep").location == NSNotFound ? "" : ns.substring(with: m.range(withName: "sep"))
-        return (reste, reste.isEmpty || sep.contains { ",.;:!?…".contains($0) })
+    /// Comment le mot en tête ressemble au mot d'appel.
+    enum Proximite: Equatable {
+        /// Il se dit comme « Voxile » (même clé phonétique).
+        case meme
+        /// Une lettre de la clé d'écart (« Boxile », « Voxel ») : une transcription ratée, PEUT-ÊTRE. On ne la prend que suivie d'une
+        /// ponctuation ET d'une demande en toutes lettres (`AnalyseCommandeIlot.appelDetaille`), sinon la phrase est collée comme avant.
+        case proche
     }
 
-    /// « Lucarne, rappelle-moi d'appeler Ladislas demain à 15 h », « Verbe minuteur de 10 minutes », « Lucarne, j'ai une livraison
-    /// demain vers 13-14 h » : la commande, ou `.incomprise`/`.sansHeure` (la phrase n'est jamais collée), ou `.aucune` (pas pour Lucarne).
+    /// Les mots donnés à Whisper (son `prompt`) : le mot d'appel en premier pour le PREMIER morceau d'une dictée (texte précédent vide),
+    /// le seul où une commande peut commencer ; sans lui, Whisper écrit ce qu'il connaît (« Lucas » pour « Lucarne », 12/11 au soir).
+    public static func motsDuPrompt(_ mots: [String], texteDavant: String?) -> [String] {
+        let premier = (texteDavant ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard premier, !mots.contains(where: { ClePhonetique.plier($0) == ClePhonetique.plier(mot) }) else { return mots }
+        return [mot] + mots
+    }
+
+    /// La proximité d'un mot au mot d'appel ; nil s'il n'y ressemble pas. Bornée : une seule lettre d'écart sur une clé de six, et jamais
+    /// un mot de moins de quatre lettres (« vox », « box » seuls ne sont pas lui).
+    static func proximite(_ mot: String) -> Proximite? {
+        guard ClePhonetique.plier(mot).count >= 4 else { return nil }
+        let c = ClePhonetique.cle(mot)
+        if c == cle { return .meme }
+        return ClePhonetique.distance(c, cle, plafond: 1) <= 1 ? .proche : nil
+    }
+}
+
+extension AnalyseCommandeIlot {
+    /// En tête : des guillemets éventuels, un mot, puis peut-être un second mot après une espace seule (« Vox île »).
+    private static let tete = try! NSRegularExpression(
+        pattern: "^\\s*[«\"“]?\\s*(?<un>[\\p{L}][\\p{L}'-]*)(?: (?<deux>[\\p{L}][\\p{L}'-]*))?",
+        options: [])
+    /// Ce qui peut suivre le mot d'appel avant la demande (`sep` : la ponctuation de Whisper dit si on s'adresse à l'app ou si on parle
+    /// d'elle). Après le mot, tout ce qui n'est ni lettre ni chiffre le termine (comme avant le 12/11 soir : « Voxile— », « Voxile” »).
+    private static let separateurs = CharacterSet(charactersIn: ",.;:!?…»\"”-—–").union(.whitespaces)
+
+    /// Le reste de la phrase après « Voxile, », ou nil si elle ne commence pas par le mot d'appel.
+    public static func sansAppel(_ texte: String) -> String? { appelDetaille(texte)?.reste }
+
+    /// Le reste ; `interpelle` : le mot d'appel est suivi d'une ponctuation (« Voxile, … », « Voxile. … ») ou est seul. Sans ponctuation
+    /// (« Voxile est prête… », « Voxile 0.4 publiée ce soir »), la phrase PARLE de l'app : elle n'est pour elle que si elle demande
+    /// quelque chose en toutes lettres (« Voxile rappelle-moi… », « Voxile minuteur… »). `proche` : le mot en tête n'est qu'une
+    /// déformation possible (« Boxile », ou deux mots d'un trait, « Vox île ») ; il n'est retenu que suivi d'une ponctuation et d'une
+    /// demande en toutes lettres (rappel, note, minuteur, réveil) : « Voici le rappel de la réunion… » (« voici le » ≈ « voksil » à une
+    /// lettre près), « Vox il faut que… » restent un texte normal, en direct comme à la fin.
+    public static func appelDetaille(_ texte: String) -> (reste: String, interpelle: Bool, proche: Bool)? {
+        let t = TexteDicte.unifier(texte)
+        let ns = t as NSString
+        guard let m = tete.firstMatch(in: t, range: NSRange(location: 0, length: ns.length)) else { return nil }
+        let un = ns.substring(with: m.range(withName: "un"))
+        // un mot seul d'abord (« Voxile », « Voxil »), sinon les deux premiers d'un trait s'ils se disent EXACTEMENT comme lui (« Vox
+        // île ») : le second peut être un vrai mot (« Vox il faut… »), ils ne valent qu'un mot proche
+        var fin = m.range(withName: "un").upperBound
+        var proche: Bool
+        switch MotAppel.proximite(un) {
+        case .meme: proche = false
+        case .proche: proche = true
+        case nil:
+            guard m.range(withName: "deux").location != NSNotFound,
+                  MotAppel.proximite(un + ns.substring(with: m.range(withName: "deux"))) == .meme else { return nil }
+            fin = m.range(withName: "deux").upperBound; proche = true
+        }
+        // jamais collé à la suite d'un mot ou d'un chiffre (« Voxile2 ») : un séparateur, un autre signe ou la fin de la phrase
+        let apres = ns.substring(from: fin).unicodeScalars
+        if let c = apres.first, CharacterSet.alphanumerics.contains(c) { return nil }
+        let sep = String(String.UnicodeScalarView(apres.prefix { separateurs.contains($0) }))
+        let reste = String(String.UnicodeScalarView(apres.dropFirst(sep.unicodeScalars.count))).trimmingCharacters(in: .whitespaces)
+        let interpelle = reste.isEmpty || sep.contains { ",.;:!?…".contains($0) }
+        if proche, !(interpelle && demandeEnToutesLettres(TexteDicte.sansPolitesse(reste))) { return nil }
+        return (reste, interpelle, proche)
+    }
+
+    /// Une demande dite en toutes lettres en tête du reste : un rappel (« rappelle-moi », « mets un rappel »…), une note, un minuteur, un
+    /// réveil.
+    static func demandeEnToutesLettres(_ reste: String) -> Bool {
+        TexteRappel.sansDeclencheur(reste) != nil || TexteRappel.estUnReveil(reste) || minuteur(reste) != nil || TexteNote.declencheur(reste) != nil
+    }
+
+    /// « Voxile, rappelle-moi d'appeler Ladislas demain à 15 h », « Voxile minuteur de 10 minutes », « Voxile, j'ai une livraison
+    /// demain vers 13-14 h » : la commande, ou `.incomprise`/`.sansHeure` (la phrase n'est jamais collée), ou `.aucune` (pas pour l'app).
+    /// Un mot en tête seulement proche du mot d'appel n'arrive ici que suivi d'une ponctuation et d'une demande (`appelDetaille`).
     public static func lucarne(_ texte: String, maintenant: Date, calendrier: Calendar = .current) -> ResultatLucarne {
         guard let appel = appelDetaille(texte) else { return .aucune }
+        return commande(appel: appel, phrase: TexteDicte.propre(texte), maintenant: maintenant, calendrier: calendrier)
+    }
+
+    /// `phrase` : la phrase entière (rien n'est collé : « Copier » doit la rendre telle quelle, jamais coupée).
+    private static func commande(appel: (reste: String, interpelle: Bool, proche: Bool), phrase: String, maintenant: Date, calendrier: Calendar) -> ResultatLucarne {
         let reste = TexteDicte.sansPolitesse(appel.reste)
-        // la phrase entière (rien n'est collé : « Copier » doit la rendre telle quelle, jamais coupée)
-        let phrase = TexteDicte.propre(texte)
         guard !reste.isEmpty else { return .incomprise(phrase: phrase) }
         if let s = minuteur(reste) { return .commande(.minuteur(secondes: s)) }
         // « crée-moi un rappel… », « rappelle-moi de… », « n'oublie pas que… » : ce qui suit est le rappel
         let declencheur = TexteRappel.sansDeclencheur(reste)
-        // « Lucarne, note : … » : une note (« note un rappel » est un rappel, vu juste avant)
+        // « Voxile, note : … » : une note (« note un rappel » est un rappel, vu juste avant)
         if declencheur == nil, TexteNote.demandee(reste, interpelle: appel.interpelle), let n = TexteNote.sansDeclencheur(reste) { let t = TexteNote.propre(n); return t.isEmpty ? .incomprise(phrase: phrase) : .note(texte: t) }
         let demande = declencheur != nil || TexteRappel.estUnReveil(reste)
-        // « Lucarne est prête, je te l'envoie demain » (sans virgule, sans demande) : une phrase sur Lucarne, collée comme les autres
+        // « Voxile est prête, je te l'envoie demain » (sans virgule, sans demande) : une phrase sur l'app, collée comme les autres
         guard appel.interpelle || demande || TexteRappel.commenceParUneTete(reste) else { return .aucune }
         if let r = MomentDicte.extraire(declencheur ?? reste, maintenant: maintenant, calendrier: calendrier) {
             // sans « rappelle-moi » : il faut une tête de rappel (« j'ai… », « il faut que… ») ou une tâche (« appeler Paul… ») ; un nom et
-            // une date (« Lucarne : sortie demain », une ligne de liste) ne suffisent pas
+            // une date (« Voxile : sortie demain », une ligne de liste) ne suffisent pas
             guard demande || TexteRappel.commenceParUneTete(r.reste) || TexteRappel.commenceParUnVerbe(r.reste) else { return .incomprise(phrase: phrase) }
             guard r.quand > maintenant else { return .passe(phrase: phrase) }
             return .commande(.rappel(texte: TexteRappel.propre(r.reste), quand: r.quand))
@@ -86,7 +153,8 @@ extension AnalyseCommandeIlot {
 enum TexteDicte {
     /// Apostrophes droites, espaces insécables en espaces simples, espaces doublés réduits.
     static func unifier(_ s: String) -> String {
-        var t = s.replacingOccurrences(of: "\u{2019}", with: "'").replacingOccurrences(of: "\u{00A0}", with: " ").replacingOccurrences(of: "\u{202F}", with: " ")
+        // composé (NFC) : un « î » écrit en deux signes reste une lettre pour les expressions
+        var t = s.precomposedStringWithCanonicalMapping.replacingOccurrences(of: "\u{2019}", with: "'").replacingOccurrences(of: "\u{00A0}", with: " ").replacingOccurrences(of: "\u{202F}", with: " ")
             .replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "\t", with: " ")
         while t.contains("  ") { t = t.replacingOccurrences(of: "  ", with: " ") }
         return t.trimmingCharacters(in: .whitespaces)
@@ -125,8 +193,8 @@ public enum TexteRappel {
     }
 
     /// Ce qui, en tête, dit qu'on parle de soi et de ce qu'on a à faire (« j'ai une livraison », « il faut que j'appelle ») : assez pour
-    /// qu'une phrase qui commence par « Lucarne » lui soit adressée, même sans virgule. Jamais « c'est », « il y a » (on peut le dire
-    /// de Lucarne).
+    /// qu'une phrase qui commence par « Voxile » lui soit adressée, même sans virgule. Jamais « c'est », « il y a » (on peut le dire
+    /// de l'app).
     private static let tetesDeRappel = ["j'ai ", "j'aurai ", "je vais avoir ", "je dois ", "il faut ", "il faudrait ", "faut que ", "n'oublie ",
                                         "on a ", "nous avons ", "j'ai besoin "]
     static func commenceParUneTete(_ s: String) -> Bool {

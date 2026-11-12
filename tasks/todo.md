@@ -545,3 +545,28 @@ résumé) qui propose de l'envoyer dans Rappels ou dans Notes. Maquette : design
 - [x] (12/11 soir, après la fusion de314ea) Les deux points laissés : Notes lent ou en échec sans refus → « Réessayer » et « Notes n'a pas
       répondu » (seuls -1743/-1744 donnent « Autoriser dans Réglages ») ; dictée prise par l'îlot sans commande lue → jamais collée, « Je
       n'ai pas compris » et la phrase avec « Copier » (même arrivée après le filet de 20 s). 3920/3920 contrôles, essai complet vert (1342).
+
+## Mot d'appel « Voxile » + verre vraiment transparent (12/11 soir) — branche verre-transparent (worktree ~/dictee-mac-verre2)
+Retours de Hugues (20 h 50, sur a8a2aad installé) : « Lucarne, rappelle-moi demain à 13 h… » collé dans le Terminal (journal : Groq a
+écrit « Lucas, rappelle-moi… ») ; puis décision : « il faut l'appeler par le nom de l'application » → le mot d'appel est VOXILE, et lui seul.
+Et le verre : « vraiment beaucoup plus transparent ».
+- [x] Mot d'appel : « Voxile » seul (Lucarne et Verbe = texte normal) ; graphies qui se disent pareil (clé phonétique) = le mot ;
+      à une lettre de clé (« Boxile », « Voxel », « Fox île ») = seulement pour une commande complète, sinon collé.
+- [x] Biais : « Voxile » en tête du prompt de Whisper (premier morceau) et dans les mots de SpeechAnalyzer (contextualStrings).
+- [x] Mesures `say` → Groq (`--transcrire`) : sans biais « Voxil, … » (3 voix sur 3), avec biais « Voxile, … » (3/3).
+- [x] Textes qui apprennent le mot d'appel : Découvrir (tuile Rappels, scène animée).
+- [x] Essai : section Lucarne (Lucarne n'est plus un mot d'appel, « Voxil » l'est) ; contrôles purs.
+- [x] Verre : une capture du vrai verre (sonde jetable, design/rendus-lucarne/verre-reel-sonde.png) : le `.clear` de macOS est un dépoli
+      gris qui efface la page derrière. Voile 0 ; couche du verre système claire et atténuée (0,35 pilule, 0,6 Centre et cartes) ; liseré
+      plus marqué ; halo plus dense ; faux verres calés sur la capture (Terre, page blanche, vidéo + Bloc-notes) ; essai « forme jamais
+      noire, aucune couche opaque sous le contenu » sur 20 écrans × 6 places (au plus 18 % couvert ; un voile de 0,95 le fait échouer).
+- [ ] À juger par Hugues sur l'app installée : la pilule à 0,35, le Centre à 0,6 (juste milieu) ; les libellés gris du Centre restent
+      faibles sur une page blanche pleine de texte.
+- [x] Relecture opus appliquée : deux mots d'un trait seulement s'ils se disent exactement « Voxile » ; un mot proche seulement suivi d'une
+      ponctuation ET d'une demande en toutes lettres (« Voici le rappel… », « Faux cils : … » restent collés) ; « Voxile » dans le prompt de
+      la dictée seulement ; séparateurs comme avant (tiret long, guillemet fermant), NFC ; essai du verre : message à part si le rendu échoue.
+      Refusé, noté : un premier morceau réduit à « Voxile » n'est pas filtré comme fantôme (il casserait « Voxile, » + pause + demande).
+- [x] Vérifié : build release ; 3966/3966 contrôles ; `--ilot-essai` complet tout vert (1376 ok) ; `defaults read Dictee` vide.
+      Noté : « aucun à-coup » (survol des Dictées, molette) oscille autour de 100 M instructions, AUSSI sur main a8a2aad (108,0 M mesuré
+      dans la même série) : pas une régression de la branche.
+- [x] Push de la branche (pas de fusion, pas d'installation).

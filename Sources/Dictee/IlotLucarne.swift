@@ -2,12 +2,12 @@ import AppKit
 import EventKit
 import DicteeCore
 
-// « Lucarne, … » partout (CommandesLucarne.swift pour la logique), l'app Rappels d'Apple, et la note dictée d'un clic dans la carte
+// « Voxile, … » partout (CommandesLucarne.swift pour la logique), l'app Rappels d'Apple, et la note dictée d'un clic dans la carte
 // Note rapide (11/11 au soir, Hugues : « c'est pas simple à utiliser… pas clair »).
-// - Une dictée qui COMMENCE par « Lucarne » ou « Verbe » est une commande, jamais collée ; rien de reconnu → « Je n'ai pas compris » et la
+// - Une dictée qui COMMENCE par « Voxile » (le nom de l'app) est une commande, jamais collée ; rien de reconnu → « Je n'ai pas compris » et la
 //   phrase (« Copier »), jamais un échec silencieux. Sans le mot d'appel, rien ne change.
 // - Chaque rappel créé par Lucarne peut aller aussi dans l'app Rappels (liste par défaut, alarme à l'heure) pour arriver sur l'iPhone.
-//   Dit à Lucarne (« Lucarne, rappelle-moi… »), la carte de fin (IlotVoix.swift) le montre et propose « Envoyer dans Rappels » ; ajouté
+//   Dit à Lucarne (« Voxile, rappelle-moi… »), la carte de fin (IlotVoix.swift) le montre et propose « Envoyer dans Rappels » ; ajouté
 //   autrement (« En faire un rappel » sous une note), la question se pose UNE fois, depuis l'îlot ; un refus est dit une fois. « Fait » le
 //   coche là-bas aussi.
 // - « Dicter une note » : un clic, l'écoute commence dans la carte (« J'écoute… », le niveau, le texte en direct), « Terminé » ou 2 s de
@@ -98,13 +98,13 @@ final class RappelsAppleSysteme: PiloteRappelsApple {
 }
 
 extension IlotControleur {
-    // MARK: « Lucarne, … »
+    // MARK: « Voxile, … »
 
     /// Combien de temps « Je n'ai pas compris » reste (le temps de lire la phrase et de la copier) ; la question de l'app Rappels.
     static let dureeLucarne: TimeInterval = 6
     static let dureeQuestionRappels: TimeInterval = 15
 
-    /// Une dictée qui commence par « Lucarne » (ou « Verbe ») : la commande est faite, ou l'îlot dit pourquoi pas. Vrai : la dictée était
+    /// Une dictée qui commence par « Voxile » : la commande est faite, ou l'îlot dit pourquoi pas. Vrai : la dictée était
     /// pour Lucarne, rien n'est collé. Le journal ne garde jamais la phrase.
     func commandeLucarne(_ texte: String) -> Bool {
         let resultat = AnalyseCommandeIlot.lucarne(texte, maintenant: maintenant())
@@ -151,7 +151,7 @@ extension IlotControleur {
     }
 
     /// Le texte de la note dictée d'un clic : liée à SA dictée (pas à une échéance), elle devient une note même si elle arrive tard
-    /// (réseau lent, secours d'Apple sur une longue note) ; ou une commande si elle commence par « Lucarne ». Faux : texte vide.
+    /// (réseau lent, secours d'Apple sur une longue note) ; ou une commande si elle commence par « Voxile ». Faux : texte vide.
     func noteParClicEcrite(_ texte: String) -> Bool {
         intercepterLucarne(texte) || ajouterNote(texte)
     }

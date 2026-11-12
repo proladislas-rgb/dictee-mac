@@ -375,13 +375,26 @@ extension GeoLucarne {
 /// le texte de la pilule en gras. Visé : environ 3:1 pour les libellés (iOS 26), pas le 4,5:1 partout.
 /// 12/11 soir, Hugues : « pas assez liquide glace » (voile de 0,12 / 0,22 et halo large de 6 pt : une plaque bleutée uniforme sur la
 /// Terre de son fond d'écran) → voile presque nul, halo resserré autour des glyphes.
+/// 12/11 au soir, Hugues : « vraiment beaucoup plus transparent » (la carte Lecture sur une vidéo et le Bloc-notes : un dépoli gris) → plus
+/// de voile du tout, le verre système atténué et pris clair (dans la fenêtre sombre de l'îlot, sa variante sombre est un gris fumé), le bord plus marqué ; la lisibilité vient du seul contenu (gras, halo).
 public enum VerreLucarne {
-    /// Le voile noir : pilule repliée (quelques mots en gras), Centre et cartes (du texte courant). Presque rien : le fond reste lisible.
-    public static let voilePilule = 0.03
-    public static let voileDeplie = 0.09
+    /// Le voile noir : pilule repliée, Centre et cartes. Aucun (0,03 et 0,09 avant le 12/11 au soir) : le fond se voit tel quel.
+    public static let voilePilule = 0.0
+    public static let voileDeplie = 0.0
+    /// L'opacité de la couche du verre de macOS (son flou et sa teinte n'ont pas de réglage). Mesuré à l'écran le 12/11 au soir (sonde
+    /// jetable, une capture) : le `.clear` tel quel, dans une fenêtre non activée comme l'îlot, est un dépoli gris qui efface tout le texte
+    /// d'une page derrière ; à 0,35, le fond passe presque net (un léger voile flou), le bord reste dessiné par le liseré. La pilule (quelques
+    /// mots en gras) reste à 0,35 ; le Centre et les cartes (du texte courant, des libellés gris) montent à 0,6 : à 0,35 sur une page blanche
+    /// pleine de texte, les lignes de la page se lisaient au travers des libellés (rendu `lucarne-*-centre-clair`), le juste milieu.
+    public static let intensitePilule = 0.35
+    public static let intensiteDeplie = 0.6
+    /// L'intensité d'une forme entre repliée (0) et dépliée (1).
+    public static func intensite(deplie d: Double) -> Double { intensitePilule + (intensiteDeplie - intensitePilule) * min(1, max(0, d)) }
+    /// Le bord : biseau (largeur, blanc vif / éteint / retour), reflet intérieur (blanc, largeur de la bande), trait sombre dehors.
+    public static let lisere = (largeur: 1.6, vif: 0.9, eteint: 0.2, retour: 0.5, reflet: 0.1, largeurReflet: 3.0, sombre: 0.28)
     /// Le halo sous le contenu : une ombre portée serrée au plus près des lettres, et une à peine plus large (2 pt) qui l'adoucit ;
-    /// jamais une zone floutée.
-    public static let halo = (pres: 0.65, rayonPres: 0.8, large: 0.3, rayonLarge: 2.0)
+    /// jamais une zone floutée. Plus dense depuis qu'il n'y a plus de voile.
+    public static let halo = (pres: 0.75, rayonPres: 0.8, large: 0.35, rayonLarge: 2.0)
     /// Sur le verre, le rouge du contenu compact (« Coupé », la batterie faible), un peu plus clair et vif (comme iOS 26 sur le verre
     /// clair) : le halo sombre dessous le détache mieux que la teinte faite pour le noir.
     public static let rougeVerre = (r: 1.0, g: 0x72 / 255.0, b: 0x6A / 255.0)
