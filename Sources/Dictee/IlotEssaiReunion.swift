@@ -81,8 +81,8 @@ extension IlotEssai {
         publier()
         c.panneau.simulerPointeur(forme: true); pause(1.0)
         verifier(m.courante == .reunionEtendu && m.fenetreOuverte, "survol : la carte « Réunion » (\(m.courante))")
-        verifier(m.cartes == [.reunionEtendu, .centre, .dictees, .accueil] && m.visible(ExtraIlot.points) && !m.visible(ExtraIlot.pied),
-                 "les points de page (Réunion, Centre, Dictées, accueil), pas de pied (« Centre » est dans l'en-tête)")
+        verifier(m.cartes == [.reunionEtendu, .centre, .outils, .accueil, .dictees] && m.visible(ExtraIlot.points) && !m.visible(ExtraIlot.pied),
+                 "les points de page (Réunion, Centre, Outils, accueil, Dictées : la pile de main), pas de pied (« Centre » est dans l'en-tête)")
         verifier(m.trace.bande <= hc + GeoIlot.aileMax + 0.01, "la carte : épaules ≤ 66 pt dans la barre (\(String(format: "%.1f", m.trace.bande - hc)))")
         verifier(abs(m.geo[2].cibleFinale - (barre + GeoIlot.profondeurReunion)) < 0.5, "la carte : \(Int(GeoIlot.profondeurReunion)) pt sous la barre (maquette : 291 − 33)")
         verifier(m.lignesDirect.map(\.locuteur) == [.eux, .moi, .eux] && m.lignesDirect.last?.enAttente == true,

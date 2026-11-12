@@ -77,8 +77,10 @@ extension IlotEssai {
                  "gardé dans un fichier 0600 (Application Support ; ici, le dossier de l'essai)")
         if let r = c.reveil {
             let j = ReveilIlot.jour(r.sonnerie, maintenant: c.maintenant())
-            verifier(CaseMinuteur.jourTient(j, m) && abs(r.sonnerie.timeIntervalSince(ReveilIlot.prochaine(heure: 9, minute: 0, apres: c.maintenant()))) < 1,
-                     "« \(j) » en haut à droite de la case, mesuré : il tient")
+            // le jour dépend de l'heure de l'essai : avant 9 h, « aujourd'hui », qui ne tient pas toujours (il n'est alors pas écrit,
+            // l'heure en ambre suffit : CaseMinuteur.droite) ; « demain », le cas courant, doit tenir
+            verifier(CaseMinuteur.jourTient("demain", m) && abs(r.sonnerie.timeIntervalSince(ReveilIlot.prochaine(heure: 9, minute: 0, apres: c.maintenant()))) < 1,
+                     "« demain » tient en haut à droite de la case, mesuré (ce matin : « \(j) », \(CaseMinuteur.jourTient(j, m) ? "écrit" : "pas écrit, l'heure suffit"))")
         }
         verifier(m.resolution.principal == .reveilCompact && m.resolution.survol == .centre, "derrière le Centre, l'îlot replié est déjà le réveil")
         clic(CGPoint(x: xHeure(2), y: yHeures), 0.5)

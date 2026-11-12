@@ -162,7 +162,7 @@ enum IlotEssai {
         attendre(0.8)
         let grandeFenetre = c.panneau.cadre
         verifier((grandeFenetre?.height ?? 0) > Double(g.hauteur) + 120, "la fenêtre grandit avec l'îlot (\(Int(grandeFenetre?.width ?? 0)) × \(Int(grandeFenetre?.height ?? 0)))")
-        verifier(!m.boucleActive, "îlot déplié et posé : plus de boucle (les ressorts sont arrivés)")
+        verifier(!m.boucleActive, "îlot déplié et posé : plus de boucle (les ressorts sont arrivés ; bouge encore : \(m.ceQuiBouge))")
         c.panneau.simulerPointeur(forme: false); attendre(0.25)
         verifier(m.courante == .lectureEtendu, "souris sortie depuis 0,25 s : encore ouvert (délai de 0,32 s)")
         c.panneau.simulerPointeur(forme: true); attendre(0.6)
