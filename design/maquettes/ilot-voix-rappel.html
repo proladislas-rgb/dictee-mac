@@ -295,8 +295,8 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 #ecran.sombre :is(.lecteur,.sug .vg,.yt-av,.chaine .av,.profil){filter:invert(1) hue-rotate(180deg)}
 #ecran.sombre .dock{background:rgba(255,255,255,.14)}
 #ecran.sombre #verre{background:rgba(0,0,0,.1)}
-#givre{background:rgba(255,255,255,.26)}
-#ecran.sombre #givre{background:rgba(0,0,0,.32)}
+#givre{background:rgba(255,255,255,.4)}
+#ecran.sombre #givre{background:rgba(0,0,0,.42)}
 
 /* verre : couleurs de texte et d'accent selon le fond (clair par défaut) */
 #luContenu{--ora:176 88 0;--jau:255 214 10;--vt:18 124 52}
@@ -890,7 +890,7 @@ async function envoyer(type){ st.envoye[type] = true; majEnvoi(); await attendre
 const ecran = $('#ecran'), pointeur = $('#pointeur'), pad = $('#pad');
 const luEl = $('#lu'), verre = $('#verre'), givre = $('#givre'), luC = $('#luContenu'), vitre = $('#vitre');
 const lentImg = $('#carteLentille'), lentDeps = [...document.querySelectorAll('#lentille .dep')], lentF = $('#lentille');
-const NVL = {flou:.8, sat:1.1, lum:1, lentille:140, bord:42, givre:9, rentre:.4, ombre:1.35, aberration:.03};
+const NVL = {flou:2.6, sat:1.1, lum:1, lentille:140, bord:28, givre:14, rentre:.3, ombre:1.35, aberration:.03};
 const miniBarres = [5, 9, 14, 8, 5].map(h => `<i style="height:${h}px"></i>`).join('');
 luC.innerHTML = `<div class="c e" data-c="pil"><div class="lu-pil"><span class="mini">${miniBarres}</span><span>Voxile</span></div></div>
   <div class="c e" data-c="onde"><div class="onde" data-onde></div></div>
@@ -923,7 +923,7 @@ function gouttes(){
   });
 }
 const lu = {vu:false, etat:'pil', coin:'hd', box:null, tw:124, th:36};
-const hCarte = n => lc[n].firstElementChild.offsetHeight + 28;
+const hCarte = n => lc[n].firstElementChild.offsetHeight + 36;   // 14 pt en haut, 22 pt sous la rangée de boutons
 const TAILLE = () => ({pil:[124, 36], onde:[214, 46], ondeLib:[214, 72], rap:[452, hCarte('rap')], note:[452, hCarte('note')]});
 /* la boîte d'une étape dans un coin : en haut, sous la barre des menus, elle grandit vers le bas ; en bas, à côté du Dock,
    elle grandit vers le haut, et passe au-dessus du Dock si elle le recouvre */
