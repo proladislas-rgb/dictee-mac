@@ -170,6 +170,26 @@ extension IlotEssai {
         verifier(m.bandeau == nil && m.courante == .etagerePile && c.etagere.elements.count == 2, "\(Int(IlotControleur.dureeRemettre)) s plus tard, sans geste : « Remettre » s'en va, le fichier reste parti")
         attendre(1.0) { m.boucleActive }
         verifier(!m.boucleActive, "au repos : aucune boucle (bouge encore : \(m.ceQuiBouge))")
+        // --- la croix de « Remettre » (Hugues, 12/11 : « je veux pouvoir fermer tout de suite ») : un vrai clic, l'annonce part sur-le-champ,
+        // le fichier reste parti
+        c.ranger([photo]); pause(0.4)
+        m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
+        if let i = c.etagere.elements.firstIndex(where: { $0.nom == "Photo-chantier.heic" }) {
+            glisserDepuis(CGPoint(x: zc.minX + lt * (CGFloat(i) + 0.5) + TuileEtagere.espace * CGFloat(i), y: zc.minY + 42 + 8 + 26))
+        }
+        EssaiEtagere.finGlisser?(.copy, NSPoint(x: 600, y: 300)); pause(0.9)
+        verifier(m.courante == .etagerePartis && m.bandeau?.ligne1 == "1 fichier parti dans Mail", "la photo glissée vers Mail : « \(m.bandeau?.ligne1 ?? "") », « Remettre » et la croix")
+        let zp = m.grille.zoneAnnonce(.etagerePartis)
+        verifier((m.largeurContenu(.etagerePartis) ?? .infinity) <= zp.width + 0.5,
+                 "la croix ajoutée, tout tient : contenu mesuré \(Int(m.largeurContenu(.etagerePartis) ?? 0)) pt dans \(Int(zp.width)) pt (rien n'est coupé)")
+        verifier(m.trace.bande <= hc + GeoIlot.aileMax + 0.01, "avec la croix : \(Int(m.trace.bande - hc)) pt dans la barre (≤ 66)")
+        let avantCroix = Date()
+        clic(CGPoint(x: zp.maxX - ContenuAnnonce.coteCompte / 2, y: zp.midY), 0.4)
+        verifier(m.bandeau == nil && Date().timeIntervalSince(avantCroix) < IlotControleur.dureeRemettre - 3,
+                 "vrai clic sur la croix : l'annonce part tout de suite (\(String(format: "%.1f", Date().timeIntervalSince(avantCroix))) s, pas \(Int(IlotControleur.dureeRemettre)) s)")
+        c.agir(.etagereRemettre); pause(0.3)
+        verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Devis-cuisine.pdf"], "fermée : la photo reste partie, plus rien à remettre (\(c.etagere.elements.map(\.nom)))")
+        attendre(1.0) { m.courante != .etagerePile }
         // glissé sur le panneau AirDrop de macOS (l'extension « AirDrop ») : l'envoi part, le fichier RESTE sur l'étagère
         verifier(EtagereIlot.appDuLacher(bundle: EnvoiAirDropEtat.extensionAirDrop, nom: "AirDrop") == "AirDrop", "le panneau AirDrop se reconnaît à son extension")
         m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)

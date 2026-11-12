@@ -1911,6 +1911,16 @@ do {
     verifier(r.processusArrete(dureeDeVie: 5, echecMediaRemote: true) == .abandonner(raison: "MediaRemote inaccessible sur cette version de macOS"), "MediaRemote inaccessible : abandon tout de suite")
     r.reinitialiser(); verifier(r.echecs == 0, "réinitialisation")
 }
+groupe("Journal : les modes de vérification écrivent à part")
+do {
+    let x = "/Applications/Verbe.app/Contents/MacOS/Verbe"
+    verifier(!ModesLancement.journalAPart([x]), "la vraie app (aucune option) : le vrai journal")
+    verifier(!ModesLancement.journalAPart([x, "--sans-interface", "--duree=4", "--verifier-parole=a.wav"]), "--sans-interface (lancé par open) : le vrai journal")
+    verifier(["--ilot-essai", "--rendu-ilot", "--transcrire", "--lecture-test", "--verifier-collage", "--rendu-icones", "--option-inconnue"]
+                .allSatisfy { ModesLancement.journalAPart([x, $0]) }, "tout autre mode (essais, rendus, réseau, option inconnue) : un journal à part")
+    let j = ModesLancement.journalTemporaire.path
+    verifier(!j.contains("/Library/Logs/") && j.hasPrefix(FileManager.default.temporaryDirectory.path), "le journal à part est dans le dossier temporaire (\(j))")
+}
 controlesPrecision()
 controlesIlot()
 controlesLucarne()

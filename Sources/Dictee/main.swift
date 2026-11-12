@@ -1,6 +1,11 @@
 import AppKit
+import DicteeCore
 
 let arguments = CommandLine.arguments
+
+// Tout mode de vérification écrit son journal à part (dossier temporaire), AVANT sa première ligne : le vrai journal ne contient que
+// ce que fait l'app de Hugues (l'essai de l'îlot le redirige encore vers son propre dossier, qu'il efface en partant).
+if ModesLancement.journalAPart(arguments) { Log.url = ModesLancement.journalTemporaire }
 
 // Modes de vérification en ligne de commande. Aucun ne touche au micro, à la reconnaissance vocale,
 // à l'accessibilité ni à la surveillance du clavier (sinon macOS attribuerait ces autorisations au Terminal).

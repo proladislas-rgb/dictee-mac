@@ -113,14 +113,18 @@ enum IlotEssai {
         let g = m.geometrie
         print("caméra : \(Int(g.largeur)) × \(Int(g.hauteur)) pt")
 
-        // `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`) : une section seule (pour la mettre au point sans attendre tout l'essai)
-        if let seul = ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"], ["bibliotheque", "reveil"].contains(seul) {
+        // une section seule (pour la mettre au point sans attendre tout l'essai) : `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`), ou
+        // `--ilot-essai --seulement=survol` (le survol des Dictées, pour mesurer vite ; l'essai complet la joue aussi)
+        let seul = CommandLine.arguments.contains("--seulement=survol") ? "survol" : ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"]
+        if let seul, ["bibliotheque", "reveil", "survol"].contains(seul) {
             attendre(0.4)
             if seul == "bibliotheque" {
                 IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
                                        fenetres: { fenetres }, relancer: { fabriquer() })
-            } else {
+            } else if seul == "reveil" {
                 IlotEssai.reveilEtCalendrier(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
+            } else {
+                IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
             }
             c.arreter()
             print(echecs == 0 ? "essai terminé : tout est vert" : "essai terminé : \(echecs) échec(s)")
@@ -1169,6 +1173,7 @@ enum IlotEssai {
         IlotEssai.outils(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
         IlotEssai.lucarne(c, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers })
+        IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.secondBrain(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
                                fenetres: { fenetres }, relancer: { fabriquer() })

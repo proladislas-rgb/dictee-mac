@@ -45,11 +45,14 @@ struct ContenuAnnonce {
     var source: FichierEtagere? = nil
     /// À la place du symbole : l'étoile de Claude (dessinée, en corail).
     var etoile = false
-    /// Après les pilules : l'anneau qui se vide jusqu'à `fin` (« Remettre » des fichiers partis), sur `duree` secondes.
+    /// Après les pilules : la croix qui ferme l'annonce tout de suite (`fermer`), cerclée de l'anneau qui se vide jusqu'à `fin` sur
+    /// `duree` secondes (« Remettre » des fichiers partis : on peut attendre, ou fermer d'un clic).
     var compte: (fin: Date, duree: TimeInterval)? = nil
+    var fermer: ActionIlot? = nil
     /// Après le texte : un rouet (l'envoi AirDrop attend la réponse du panneau de macOS).
     var attente = false
-    static let coteCompte: CGFloat = 18, coteRouet: CGFloat = 22
+    /// La croix cerclée de l'anneau : 28 pt (une cible franche, à côté d'une pilule de 32 pt) ; le rouet de l'envoi AirDrop : 22 pt.
+    static let coteCompte: CGFloat = 28, coteRouet: CGFloat = 22
     /// À la place du symbole : le réveil qui se secoue (l'alerte du réveil).
     var reveil = false
 
@@ -233,12 +236,13 @@ extension IlotMoteur {
             }
             return ContenuAnnonce(glyphe: g, l1: b.ligne1, l2: b.ligne2)
         case .etagerePartis:
-            // « 3 fichiers partis dans Mail », « Remettre » et l'anneau qui se vide (maquette ilot-etagere-rapide.html, étapes 7 et 8)
+            // « 3 fichiers partis dans Mail », « Remettre », puis la croix (fermer tout de suite) cerclée de l'anneau qui se vide
+            // (maquette ilot-etagere-rapide.html, étapes 7 et 8 ; la croix : demande de Hugues du 12/11)
             guard let b, let p = b.partis else { return nil }
             return ContenuAnnonce(glyphe: nil, l1: b.ligne1, l2: b.ligne2,
                                   droite: .boutons([.init(titre: "Remettre", etiquette: "Remettre " + (p.nombre == 1 ? "le fichier" : "les fichiers") + " sur l\u{2019}étagère",
                                                           action: .etagereRemettre)]),
-                                  icones: p.icones, coteSymbole: 30, compte: (b.jusqua, p.duree))
+                                  icones: p.icones, coteSymbole: 30, compte: (b.jusqua, p.duree), fermer: .etagerePartisFermer)
         case .etagereEnvoi:
             // l'envoi AirDrop (étapes 4 et 5) : c'est le panneau de macOS qui choisit l'appareil ; l'îlot dit ce que le service répond
             guard let e = b?.envoi else { return nil }

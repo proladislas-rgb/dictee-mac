@@ -451,6 +451,10 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in m.etagereActive = true
             m.bandeau = BandeauIlot(vue: .etagerePartis, jusqua: t0.addingTimeInterval(3.6), ligne1: EtagereIlot.partis(3, app: "Mail"), ligne2: "Ils ont quitté l\u{2019}étagère",
                                     partis: PartisEtagere(nombre: 3, app: "Mail", icones: trois.suffix(2).reversed().map(\.icone), duree: 5)) }) }, "ilot-24l-etagere-partis-remettre")
+        // une capture glissée vers une app au nom long : « Remettre » et la croix tiennent sans rien couper
+        ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene { m in m.etagereActive = true
+            m.bandeau = BandeauIlot(vue: .etagerePartis, jusqua: t0.addingTimeInterval(4.6), ligne1: EtagereIlot.partis(1, app: "Google Chrome"), ligne2: "Il a quitté l\u{2019}étagère",
+                                    partis: PartisEtagere(nombre: 1, app: "Google Chrome", icones: [trois[0].icone], duree: 5)) }) }, "ilot-24v-etagere-parti-croix")
         var capture = etagere([("Capture d\u{2019}écran 2026-11-11 à 14.32.10.png", .png)])
         capture[0].nouveau = true
         // l'option allumée : la ligne « Vignette des captures en haut » s'ajoute dessous (éteinte ; puis allumée, au premier clic, qui explique)

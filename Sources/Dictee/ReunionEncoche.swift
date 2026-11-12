@@ -218,20 +218,24 @@ struct TracesDeSon: View {
 }
 
 /// Une vue d'hébergement qui accepte le premier clic et dit quand la souris entre ou sort (le ruban d'actions sort au survol).
+/// Les zones de suivi de SwiftUI restent et `super` est toujours appelé : sinon ses `.onHover` ne voient jamais la souris (voir
+/// VueHebergeeIlot).
 final class VueHebergeeSurvol<Contenu: View>: NSHostingView<Contenu> {
     var surSurvol: ((Bool) -> Void)?
+    private var zonePropre: NSTrackingArea?
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        for a in trackingAreas { removeTrackingArea(a) }
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .cursorUpdate, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
+        if let z = zonePropre { removeTrackingArea(z) }
+        let z = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .cursorUpdate, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
+        addTrackingArea(z); zonePropre = z
     }
     // Au-dessus de l'encoche, toujours la flèche : sans cela, la fenêtre de dessous (Terminal, éditeur) garde son curseur
     // de texte (le « I » de sélection), car ce panneau ne devient jamais la fenêtre active.
-    override func mouseEntered(with event: NSEvent) { fleche(); surSurvol?(true) }
-    override func mouseMoved(with event: NSEvent) { fleche() }
-    override func cursorUpdate(with event: NSEvent) { fleche() }
-    override func mouseExited(with event: NSEvent) { surSurvol?(false) }
+    override func mouseEntered(with event: NSEvent) { super.mouseEntered(with: event); fleche(); surSurvol?(true) }
+    override func mouseMoved(with event: NSEvent) { super.mouseMoved(with: event); fleche() }
+    override func cursorUpdate(with event: NSEvent) { super.cursorUpdate(with: event); fleche() }
+    override func mouseExited(with event: NSEvent) { super.mouseExited(with: event); surSurvol?(false) }
     private func fleche() { CurseurEnArrierePlan.autoriser(); NSCursor.arrow.set() }
 }
 
