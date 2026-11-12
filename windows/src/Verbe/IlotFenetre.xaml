@@ -149,7 +149,7 @@
                     </Grid.ColumnDefinitions>
                     <Button x:Name="boutonMicro" Style="{StaticResource BoutonRond}" Background="{StaticResource Orange}" Foreground="Black" Content="&#xE720;" ToolTip="Dicter (mains libres)"/>
                     <TextBlock Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="10,0">
-                        <Run Text="Tenir"/> <Run Text="Ctrl + ⊞" FontWeight="SemiBold"/> <Run Text="pour dicter" Foreground="{StaticResource Gris}"/>
+                        <Run Text="Tenir"/> <Run Text="Ctrl + Windows" FontWeight="SemiBold"/> <Run Text="pour dicter" Foreground="{StaticResource Gris}"/>
                     </TextBlock>
                     <Button x:Name="boutonReglages" Grid.Column="2" Style="{StaticResource BoutonRond}" Content="&#xE713;" ToolTip="Réglages"/>
                 </Grid>
@@ -231,8 +231,8 @@
                     <Button x:Name="boutonChangerCle" Grid.Row="3" Grid.Column="1" Style="{StaticResource BoutonPilule}" Padding="12,4" Margin="0,10,0,0" HorizontalAlignment="Right" Content="Changer la clé"/>
 
                     <TextBlock Grid.Row="4" Grid.ColumnSpan="2" Margin="0,16,0,0" Foreground="{StaticResource Gris}" FontSize="12" TextWrapping="Wrap" LineHeight="18">
-                        <Run Text="Tenir Ctrl + ⊞" Foreground="White"/><Run Text=" : parler, relâcher pour écrire.  "/>
-                        <Run Text="Toucher Ctrl + ⊞" Foreground="White"/><Run Text=" : mains libres.  "/>
+                        <Run Text="Tenir Ctrl + Windows" Foreground="White"/><Run Text=" : parler, relâcher pour écrire.  "/>
+                        <Run Text="Toucher Ctrl + Windows" Foreground="White"/><Run Text=" : mains libres.  "/>
                         <Run Text="Échap" Foreground="White"/><Run Text=" : annuler."/>
                     </TextBlock>
 

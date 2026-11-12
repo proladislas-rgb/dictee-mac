@@ -129,12 +129,12 @@ public partial class IlotFenetre : Window
     static Size TailleDe(Vue v) => v switch
     {
         Vue.Repos => new Size(110, 8),
-        Vue.Survol => new Size(300, 40),
+        Vue.Survol => new Size(332, 40),
         Vue.Ecoute => new Size(236, 40),
         Vue.Traitement => new Size(196, 40),
         Vue.Fait => new Size(132, 40),
         Vue.Message => new Size(260, 40),
-        Vue.Reglages => new Size(420, 252),
+        Vue.Reglages => new Size(420, 276),
         Vue.Cle => new Size(440, 214),
         _ => new Size(110, 8),
     };

@@ -73,7 +73,7 @@ sealed class Controleur
         if (!reglages.PremierLancementVu)
         {
             reglages.PremierLancementVu = true; reglages.Enregistrer();
-            ilot.AllerMessage("Prêt. Tiens Ctrl + ⊞, parle, relâche.", "", Brushes.White, secondes: 5);
+            ilot.AllerMessage("Prêt. Tiens Ctrl + Windows, parle, relâche.", "", Brushes.White, secondes: 5);
         }
         groq.Prechauffer();
     }
@@ -102,7 +102,7 @@ sealed class Controleur
         _ = Terminer();
     }
 
-    /// Ctrl + ⊞ + une autre touche (changer de bureau…) : ce n'était pas une dictée, on lâche tout sans bruit.
+    /// Ctrl + Windows + une autre touche (changer de bureau…) : ce n'était pas une dictée, on lâche tout sans bruit.
     void SurAutreTouche()
     {
         if (etat != Etat.Ecoute || mainsLibres) return;
@@ -317,7 +317,7 @@ sealed class Controleur
         clavier.AvalerEchap = false;
         if (sonEnAttente != null) { Reessayer(); return; }
         reglages.PremierLancementVu = true; reglages.Enregistrer();
-        ilot.AllerMessage("C'est prêt. Tiens Ctrl + ⊞, parle, relâche.", "", (Brush)new BrushConverter().ConvertFrom("#30D158")!, secondes: 5);
+        ilot.AllerMessage("C'est prêt. Tiens Ctrl + Windows, parle, relâche.", "", (Brush)new BrushConverter().ConvertFrom("#30D158")!, secondes: 5);
     }
 
     static void Jouer(SoundPlayer s)
