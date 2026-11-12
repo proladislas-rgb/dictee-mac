@@ -44,6 +44,7 @@ extension IlotPanneau {
 /// La pilule de verre de la dictée : le même verre que la Lucarne (variante claire, voile presque nul, liseré, ombre douce, halo serré
 /// sous le contenu), le même contenu que l'encoche (icône de l'app, texte en direct, onde, ✕ et ✓ en mains libres, messages).
 struct DicteeVerreVue: View {
+    @ObservedObject var verre = ReglageVerre.partage
     @ObservedObject var m: EncocheModele
     var placement: PlacementDictee
     /// Rendus PNG : ImageRenderer ne dessine pas le verre (un blanc léger à la place, le rendu pose son faux verre dessous).
@@ -62,8 +63,8 @@ struct DicteeVerreVue: View {
                 forme.fill(Color.black.opacity(0.22)).blur(radius: 6).offset(y: 3)
                     .mask { Rectangle().padding(-20).overlay { forme.fill(Color.black).blendMode(.destinationOut) }.compositingGroup() }
                 if statique { forme.fill(Color.white.opacity(0.05)) } else { Color.clear.glassEffect(.clear, in: forme).modifier(IntensiteVerre()) }
-                forme.fill(Color.black.opacity(VerreLucarne.voilePilule))
-                LisereVerre(forme: forme)
+                forme.fill(Color.black.opacity(VerreLucarne.voilePilule(intensite: verre.intensite)))
+                LisereVerre(forme: forme, intensite: verre.intensite)
                 contenu(ruban: ruban).modifier(HaloLucarne(force: 1))
             }
             .frame(width: r.width, height: r.height)

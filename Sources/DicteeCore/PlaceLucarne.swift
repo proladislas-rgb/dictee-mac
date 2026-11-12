@@ -378,20 +378,38 @@ extension GeoLucarne {
 /// 12/11 au soir, Hugues : « vraiment beaucoup plus transparent » (la carte Lecture sur une vidéo et le Bloc-notes : un dépoli gris) → plus
 /// de voile du tout, le verre système atténué et pris clair (dans la fenêtre sombre de l'îlot, sa variante sombre est un gris fumé), le bord plus marqué ; la lisibilité vient du seul contenu (gras, halo).
 public enum VerreLucarne {
-    /// Le voile noir : pilule repliée, Centre et cartes. Aucun (0,03 et 0,09 avant le 12/11 au soir) : le fond se voit tel quel.
-    public static let voilePilule = 0.0
-    public static let voileDeplie = 0.0
+    /// L'intensité du verre, réglable (Réglages › Apparence, comme Sillonia ; Hugues, 12/11 à 23 h : « mettre de l'opacité… dans les
+    /// réglages ») : 0 = discret (presque rien sur le flou), 1 = très appuyé. Une seule valeur pilote la teinte et la surbrillance.
+    public static let intensiteParDefaut = 0.5
+    /// Le mot à côté du curseur : « Discret », « Léger », « Moyen », « Appuyé », « Très appuyé ».
+    public static func nomIntensite(_ i: Double) -> String {
+        switch min(1, max(0, i)) { case ..<0.15: return "Discret"; case ..<0.4: return "Léger"; case ..<0.6: return "Moyen"; case ..<0.85: return "Appuyé"; default: return "Très appuyé" }
+    }
+    /// La teinte sombre posée sur le flou : le flou plein efface les lettres de derrière, la teinte rend le blanc lisible sur une page
+    /// blanche. 0,04 à 0,40 dépliée ; la pilule (quelques mots en gras) à 70 % de la teinte dépliée. Par défaut : 0,22 et 0,154 (le
+    /// réglage E de la comparaison du vrai verre, scratchpad sonde-verre2).
+    public static func voileDeplie(intensite i: Double) -> Double { 0.04 + 0.36 * min(1, max(0, i)) }
+    public static func voilePilule(intensite i: Double) -> Double { 0.7 * voileDeplie(intensite: i) }
+    public static let voilePilule = voilePilule(intensite: intensiteParDefaut)
+    public static let voileDeplie = voileDeplie(intensite: intensiteParDefaut)
     /// L'opacité de la couche du verre de macOS (son flou et sa teinte n'ont pas de réglage). Mesuré à l'écran le 12/11 au soir (sonde
     /// jetable, une capture) : le `.clear` tel quel, dans une fenêtre non activée comme l'îlot, est un dépoli gris qui efface tout le texte
     /// d'une page derrière ; à 0,35, le fond passe presque net (un léger voile flou), le bord reste dessiné par le liseré. La pilule (quelques
     /// mots en gras) reste à 0,35 ; le Centre et les cartes (du texte courant, des libellés gris) montent à 0,6 : à 0,35 sur une page blanche
     /// pleine de texte, les lignes de la page se lisaient au travers des libellés (rendu `lucarne-*-centre-clair`), le juste milieu.
-    public static let intensitePilule = 0.35
-    public static let intensiteDeplie = 0.6
+    /// 12/11, 23 h : le flou plein partout (à 0,35 et 0,6, le fond passait NET au travers : les lettres d'un Terminal se mêlaient à celles
+    /// du Centre, capture de Hugues) ; la transparence vient de la teinte réglable, plus d'un verre atténué.
+    public static let intensitePilule = 1.0
+    public static let intensiteDeplie = 1.0
     /// L'intensité d'une forme entre repliée (0) et dépliée (1).
     public static func intensite(deplie d: Double) -> Double { intensitePilule + (intensiteDeplie - intensitePilule) * min(1, max(0, d)) }
     /// Le bord : biseau (largeur, blanc vif / éteint / retour), reflet intérieur (blanc, largeur de la bande), trait sombre dehors.
-    public static let lisere = (largeur: 1.6, vif: 0.9, eteint: 0.2, retour: 0.5, reflet: 0.1, largeurReflet: 3.0, sombre: 0.28)
+    public static let lisere = (largeur: 2.0, vif: 1.0, eteint: 0.25, retour: 0.7, reflet: 0.14, largeurReflet: 3.0, sombre: 0.28)
+    /// La surbrillance : la lumière qui tombe sur le haut du verre (blanc en haut, presque rien au tiers, plus rien à 60 %), plus vive
+    /// quand le verre est plus appuyé (0,2 en haut par défaut).
+    public static func refletHaut(intensite i: Double) -> (haut: Double, tiers: Double) {
+        let x = min(1, max(0, i)); return (0.08 + 0.24 * x, 0.02 + 0.08 * x)
+    }
     /// Le halo sous le contenu : une ombre portée serrée au plus près des lettres, et une à peine plus large (2 pt) qui l'adoucit ;
     /// jamais une zone floutée. Plus dense depuis qu'il n'y a plus de voile.
     public static let halo = (pres: 0.75, rayonPres: 0.8, large: 0.35, rayonLarge: 2.0)
@@ -403,7 +421,9 @@ public enum VerreLucarne {
     public static let ombreDepliee = (opacite: 0.32, flou: 11.0, y: 6.0)
 
     /// Le voile d'une forme entre repliée (0) et dépliée (1).
-    public static func voile(deplie d: Double) -> Double { voilePilule + (voileDeplie - voilePilule) * min(1, max(0, d)) }
+    public static func voile(deplie d: Double, intensite i: Double = intensiteParDefaut) -> Double {
+        let p = voilePilule(intensite: i); return p + (voileDeplie(intensite: i) - p) * min(1, max(0, d))
+    }
 
     /// Luminance relative (WCAG) d'une composante sRGB.
     public static func luminance(_ c: Double) -> Double {

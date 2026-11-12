@@ -56,7 +56,14 @@ final class RappelsAppleSysteme: PiloteRappelsApple {
     }
 
     func creer(texte: String, echeance: Date) -> DoubleApple? {
-        guard acces == .autorise, let liste = magasin.defaultCalendarForNewReminders() else { return nil }
+        guard acces == .autorise else { Log.ecrire("rappels : création impossible, accès à l'app Rappels non accordé"); return nil }
+        // la liste par défaut peut manquer (aucune liste choisie par défaut, liste iCloud pas encore là) : la première liste modifiable
+        // (12/11 : « 0 mis aussi dans l'app Rappels », trois fois, sans un mot ; le rappel de Hugues n'est jamais parti)
+        let modifiables = magasin.calendars(for: .reminder).filter(\.allowsContentModifications)
+        guard let liste = magasin.defaultCalendarForNewReminders().flatMap({ $0.allowsContentModifications ? $0 : nil }) ?? modifiables.first else {
+            Log.ecrire("rappels : création impossible, aucune liste modifiable dans l'app Rappels (\(magasin.calendars(for: .reminder).count) liste(s))")
+            return nil
+        }
         let r = EKReminder(eventStore: magasin)
         r.title = texte
         r.calendar = liste

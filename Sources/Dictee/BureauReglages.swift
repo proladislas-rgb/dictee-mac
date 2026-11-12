@@ -213,6 +213,23 @@ struct ReglagesBureauVue: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
+            // l'intensité du verre de la Lucarne (Hugues, 12/11 : « mettre de l'opacité… dans les réglages », comme Sillonia) : aperçu immédiat
+            Divider().padding(.leading, 14)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Intensité du verre").font(.system(size: 13, weight: .medium)).foregroundStyle(TonsBureau.encre)
+                    Spacer()
+                    Text(VerreLucarne.nomIntensite(r.intensiteVerre)).font(.system(size: 12.5)).foregroundStyle(TonsBureau.encre2)
+                }
+                HStack(spacing: 10) {
+                    Text("Discret").font(.system(size: 11.5)).foregroundStyle(TonsBureau.encre2)
+                    Slider(value: $r.intensiteVerre, in: 0...1, step: 0.05).accessibilityLabel("Intensité du verre de la Lucarne")
+                    Text("Très appuyé").font(.system(size: 11.5)).foregroundStyle(TonsBureau.encre2)
+                }
+                Text("La teinte et les reflets du verre de la Lucarne. Le changement se voit tout de suite.")
+                    .font(.system(size: 11.5)).foregroundStyle(TonsBureau.encre2)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
         }
     }
 

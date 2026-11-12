@@ -261,6 +261,12 @@ enum Settings {
         get { defaults.object(forKey: "ilotMicro") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotMicro") }
     }
+    /// L'intensité du verre de la Lucarne (Réglages › Apparence) : 0 discret, 1 très appuyé, 0,5 par défaut (`VerreLucarne`).
+    static var intensiteVerre: Double {
+        get { (defaults.object(forKey: "intensiteVerre") as? Double).map { min(1, max(0, $0)) } ?? VerreLucarne.intensiteParDefaut }
+        set { defaults.set(min(1, max(0, newValue)), forKey: "intensiteVerre") }
+    }
+
     /// « Volume et luminosité dans l'îlot » : les touches du clavier s'affichent dans l'îlot au lieu de l'affichage de macOS. ALLUMÉ
     /// par défaut : rien n'est demandé à macOS (l'écoute du clavier est déjà là pour fn).
     static var ilotNiveaux: Bool {

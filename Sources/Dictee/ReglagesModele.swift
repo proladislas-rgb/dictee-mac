@@ -34,6 +34,8 @@ final class ReglagesModele: ObservableObject {
     @Published var iconeBarre: Bool { didSet { if !installe { return }; Settings.iconeBarreMenus = iconeBarre; NotificationCenter.default.post(name: .verbeIconeBarre, object: nil) } }
     /// Pas d'encoche sur l'écran principal : l'icône est toujours là (`PresenceIcone`), l'interrupteur la montre allumée, grisé.
     @Published var iconeToujours = false
+    /// L'intensité du verre de la Lucarne : 0 discret, 1 très appuyé (0,5 par défaut).
+    @Published var intensiteVerre: Double { didSet { if !installe { return }; Settings.intensiteVerre = intensiteVerre; ReglageVerre.partage.intensite = intensiteVerre } }
     @Published var ilotMicro: Bool { didSet { if !installe { return }; Settings.ilotMicro = ilotMicro; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotNiveaux: Bool { didSet { if !installe { return }; Settings.ilotNiveaux = ilotNiveaux; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotEtagere: Bool { didSet { if !installe { return }; Settings.ilotEtagere = ilotEtagere; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
@@ -123,6 +125,7 @@ final class ReglagesModele: ObservableObject {
         ilotEnergie = reel ? Settings.ilotEnergie : true
         ilotTelechargements = reel ? Settings.ilotTelechargements : false
         ilotMicro = reel ? Settings.ilotMicro : true
+        intensiteVerre = reel ? Settings.intensiteVerre : VerreLucarne.intensiteParDefaut
         iconeBarre = reel ? (Settings.iconeBarreMenus ?? false) : false
         iconeToujours = reel ? !PresenceIcone.encochePrincipale : false
         ilotNiveaux = reel ? Settings.ilotNiveaux : true

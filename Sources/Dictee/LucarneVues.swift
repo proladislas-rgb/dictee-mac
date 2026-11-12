@@ -344,13 +344,14 @@ struct DeplacerLucarneVoiceOver: ViewModifier {
 /// même liseré (le rendu floute lui-même le faux écran sous la forme).
 struct VerreLucarneVue: View {
     @ObservedObject var m: IlotMoteur
+    @ObservedObject var verre = ReglageVerre.partage
     var forme: FormeNoire
     var capsule: CapsuleLucarne
     var taille: CGSize
 
     var body: some View {
         let noir = m.lucarne.capsule.fonduNoir
-        let voile = VerreLucarne.voile(deplie: m.lucarneDeplie)
+        let voile = VerreLucarne.voile(deplie: m.lucarneDeplie, intensite: verre.intensite)
         let bulle = m.bulleLibreVue
         ZStack(alignment: .topLeading) {
             if noir < 0.999 {
@@ -370,12 +371,12 @@ struct VerreLucarneVue: View {
                 }
             }
             forme.fill(Color.black.opacity(voile + (1 - voile) * noir))
-            if let b = bulle { Capsule().fill(Color.black.opacity(VerreLucarne.voilePilule)).frame(width: b.largeur, height: b.hauteur).position(point(b)) }
+            if let b = bulle { Capsule().fill(Color.black.opacity(VerreLucarne.voilePilule(intensite: verre.intensite))).frame(width: b.largeur, height: b.hauteur).position(point(b)) }
             // le liseré et les reflets du bord : c'est là seulement qu'on devine le verre
             Group {
                 LisereVerre(forme: forme, debut: UnitPoint(x: (taille.width / 2 + capsule.x0) / taille.width, y: capsule.y0 / taille.height),
-                            fin: UnitPoint(x: (taille.width / 2 + capsule.x1) / taille.width, y: capsule.y1 / taille.height))
-                if let b = bulle { LisereVerre(forme: Capsule()).frame(width: b.largeur, height: b.hauteur).position(point(b)) }
+                            fin: UnitPoint(x: (taille.width / 2 + capsule.x1) / taille.width, y: capsule.y1 / taille.height), intensite: verre.intensite)
+                if let b = bulle { LisereVerre(forme: Capsule(), intensite: verre.intensite).frame(width: b.largeur, height: b.hauteur).position(point(b)) }
             }
             .opacity(1 - noir)
         }
@@ -418,10 +419,15 @@ struct LisereVerre<S: Shape>: View {
     var forme: S
     var debut: UnitPoint = .topLeading
     var fin: UnitPoint = .bottomTrailing
+    var intensite: Double = VerreLucarne.intensiteParDefaut
 
     var body: some View {
         let l = VerreLucarne.lisere
+        let h = VerreLucarne.refletHaut(intensite: intensite)
         ZStack {
+            forme.fill(LinearGradient(stops: [.init(color: .white.opacity(h.haut), location: 0), .init(color: .white.opacity(h.tiers), location: 0.35),
+                                              .init(color: .clear, location: 0.6)],
+                                      startPoint: UnitPoint(x: 0.5, y: debut.y), endPoint: UnitPoint(x: 0.5, y: fin.y)))
             forme.stroke(Color.white.opacity(l.reflet), lineWidth: 2 * l.largeurReflet).clipShape(forme)
             forme.stroke(Color.white.opacity(l.reflet), lineWidth: l.largeurReflet).clipShape(forme)
             forme.stroke(LinearGradient(colors: [Color.white.opacity(l.vif), Color.white.opacity(l.eteint), Color.white.opacity(l.retour)],
