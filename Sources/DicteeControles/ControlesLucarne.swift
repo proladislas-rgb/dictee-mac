@@ -25,11 +25,21 @@ func controlesLucarne() {
              "« Voxile. », « voxile : » (la ponctuation de Whisper)")
     // ce que Groq a écrit pour « Voxile » dit par les voix Thomas, Amélie et celle par défaut (12/11 au soir) : « Voxil » ; et les
     // graphies qui se disent pareil
-    verifier(["Voxil, minuteur", "Voxyle, minuteur", "Vauxile, minuteur", "Vox île, minuteur", "Vox-île, minuteur", "Vocsil, minuteur", "Voxille, minuteur", "« Voxile, minuteur",
+    verifier(["Voxil, minuteur", "Voxyle, minuteur", "Vauxile, minuteur", "Vox-île, minuteur", "Vocsil, minuteur", "Voxille, minuteur", "« Voxile, minuteur",
               "VOXILE, minuteur"].allSatisfy { AnalyseCommandeIlot.sansAppel($0) == "minuteur" && AnalyseCommandeIlot.appelDetaille($0)?.proche == false },
-             "« Voxil », « Voxyle », « Vauxile », « Vox île », « Vocsil » se disent comme « Voxile » : le mot d'appel, tel quel")
-    verifier(["Boxile, minuteur", "Voxel, minuteur", "Fox île, minuteur", "Box il, minuteur"].allSatisfy { AnalyseCommandeIlot.appelDetaille($0)?.proche == true },
-             "« Boxile », « Voxel », « Fox île », « Box il » : à une lettre près, PEUT-ÊTRE le mot d'appel (seulement pour une commande complète)")
+             "« Voxil », « Voxyle », « Vauxile », « Vox-île », « Vocsil » se disent comme « Voxile » : le mot d'appel, tel quel")
+    verifier(["Boxile, minuteur de 5 minutes", "Voxel, minuteur de 5 minutes", "Vox île, minuteur de 5 minutes", "Voxel : rappelle-moi"].allSatisfy { AnalyseCommandeIlot.appelDetaille($0)?.proche == true },
+             "« Boxile », « Voxel » (une lettre près), « Vox île » (deux mots d'un trait) : PEUT-ÊTRE le mot d'appel, suivis d'une ponctuation et d'une demande")
+    verifier(["Boxile rappelle-moi demain à 9 h", "Voxel, je t'envoie le fichier demain", "Boxile.", "Boxile, ouvre le dossier"].allSatisfy { AnalyseCommandeIlot.sansAppel($0) == nil },
+             "un mot seulement proche sans ponctuation, ou sans demande en toutes lettres : pas le mot d'appel")
+    // relecture du 12/11 au soir : deux mots courants d'un trait tombent à une lettre de « voksil » (« voici le » → « voasil »)
+    for s in ["Voici le rappel de la réunion de demain à 10 h.", "Voici les documents pour demain à 9 h.", "Faux cils : acheter demain à 10 h.",
+              "Vos cils, rappelle-moi demain à 9 h", "Vox il faut que je réserve la salle demain à 18 h", "Fox île, minuteur de 5 minutes", "Box il, minuteur"] {
+        verifier(lucarne(s) == .aucune && AnalyseCommandeIlot.sansAppel(s) == nil, "« \(s) » : un texte normal (collé)")
+    }
+    verifier(AnalyseCommandeIlot.sansAppel("Voxile—rappelle-moi demain à 9 h") == "rappelle-moi demain à 9 h" && AnalyseCommandeIlot.sansAppel("Voxile” rappelle-moi") == "rappelle-moi"
+             && AnalyseCommandeIlot.sansAppel("Vox i\u{0302}le, minuteur de 5 minutes") == "minuteur de 5 minutes",
+             "tiret long, guillemet fermant, accent écrit en deux signes : le mot d'appel comme avant")
     verifier(["Verbes irréguliers à revoir", "Bonjour Voxile", "Voxilerie est là", "Vox populi", "Box, il faut", "Boxe, il faut que je réserve la salle demain",
               "Fossile, rappelle-moi demain à 9 h", "Vos fils, rappelle-leur demain", "Voxile2, rappelle-moi",
               "Je te rappelle demain à 15 h", "J'ai une livraison demain vers 13-14 h"].allSatisfy { AnalyseCommandeIlot.sansAppel($0) == nil },
@@ -41,11 +51,14 @@ func controlesLucarne() {
     }
     // un mot seulement proche : une commande complète, sinon collé comme avant (rien n'est avalé)
     rappel("Boxile, rappelle-moi demain à 13 h pour la livraison.", "La livraison", le(12, 13))
-    verifier(lucarne("Voxel, minuteur de 10 minutes.") == .commande(.minuteur(secondes: 600)) && lucarne("Fox île, note : acheter du pain.") == .note(texte: "Acheter du pain."),
-             "« Voxel, minuteur… », « Fox île, note : … » : commandes complètes, faites")
-    for s in ["Boxile, ouvre le dossier des factures.", "Voxel, rappelle-moi d'appeler Paul.", "Voxel, je t'envoie le fichier demain.", "Boxile.",
-              "Voxel, rappelle-moi aujourd'hui à 9 h d'appeler Paul."] {
-        verifier(lucarne(s, t1) == .aucune, "« \(s) » : mot seulement proche, pas une commande complète → collé (pas de « Je n'ai pas compris »)")
+    verifier(lucarne("Voxel, minuteur de 10 minutes.") == .commande(.minuteur(secondes: 600)) && lucarne("Voxel, note : acheter du pain.") == .note(texte: "Acheter du pain.")
+             && lucarne("Vox île, mets un rappel demain à 9 h pour sortir les poubelles.") == .commande(.rappel(texte: "Sortir les poubelles", quand: le(12, 9))),
+             "« Voxel, minuteur… », « Voxel, note : … », « Vox île, mets un rappel… » : des demandes, faites")
+    verifier(lucarne("Voxel, rappelle-moi d'appeler Paul.") == .sansHeure(phrase: "Voxel, rappelle-moi d'appeler Paul.")
+             && lucarne("Voxel, rappelle-moi aujourd'hui à 9 h d'appeler Paul.", t1) == .passe(phrase: "Voxel, rappelle-moi aujourd'hui à 9 h d'appeler Paul."),
+             "une demande claire après un mot proche : « Il me manque l'heure », « Cette heure est passée » (comme en direct, l'îlot l'avait prise)")
+    for s in ["Boxile, ouvre le dossier des factures.", "Voxel, je t'envoie le fichier demain.", "Boxile."] {
+        verifier(lucarne(s, t1) == .aucune, "« \(s) » : mot seulement proche, aucune demande → collé (pas de « Je n'ai pas compris »)")
     }
     verifier(lucarne("Voxil, ouvre le dossier des factures.") == .incomprise(phrase: "Voxil, ouvre le dossier des factures."),
              "« Voxil » se dit comme « Voxile » : une demande inconnue reste « Je n'ai pas compris » (jamais collée)")

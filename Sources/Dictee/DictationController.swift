@@ -16,7 +16,7 @@ final class DictationController {
         let mainsLibres: Bool
         /// Faux pour la note dictée d'un clic dans l'îlot : pas d'encoche de dictée (l'îlot montre « J'écoute… »), jamais de collage.
         var encoche = true
-        /// « Lucarne, rappelle-moi… » reconnu en direct : l'îlot a pris la dictée (l'onde de la voix) ; l'encoche de la dictée est rangée.
+        /// « Voxile, rappelle-moi… » reconnu en direct : l'îlot a pris la dictée (l'onde de la voix) ; l'encoche de la dictée est rangée.
         var voix = false
         let appCible: NSRunningApplication?
         let debut = ProcessInfo.processInfo.systemUptime
@@ -79,7 +79,7 @@ final class DictationController {
     var surRelaisIndisponible: ((String) -> Void)?
     /// Appelé avec le texte final avant le collage : vrai si c'était une commande de l'îlot (le texte n'est alors pas collé).
     var surInterception: ((String) -> Bool)?
-    /// « Lucarne, … » cherché sur le texte de Groq, AVANT la remise au propre (l'IA, le lexique ou les raccourcis pourraient changer ou
+    /// « Voxile, … » cherché sur le texte de Groq, AVANT la remise au propre (l'IA, le lexique ou les raccourcis pourraient changer ou
     /// retirer le mot d'appel, et la commande serait collée dans l'app) : vrai si c'était pour Lucarne (rien n'est collé).
     var surCommandeLucarne: ((String) -> Bool)?
     /// Le texte de la note dictée d'un clic, lié à SA dictée (jamais à une échéance) : vrai s'il est devenu une note (ou une commande).
@@ -89,7 +89,7 @@ final class DictationController {
     var surNiveauSansEncoche: ((Float) -> Void)?
     var surTexteSansEncoche: ((String) -> Void)?
     var surRienEcrit: (() -> Void)?
-    /// La voix d'un rappel ou d'une note (IlotVoix.swift) : le texte en direct d'une dictée fn tenue ; vrai si l'îlot la prend (« Lucarne,
+    /// La voix d'un rappel ou d'une note (IlotVoix.swift) : le texte en direct d'une dictée fn tenue ; vrai si l'îlot la prend (« Voxile,
     /// rappelle-moi… ») : l'encoche se range, le niveau du micro va à l'onde de l'îlot. Puis la fin de cette dictée (texte écrit, commande
     /// faite, rien entendu, annulée), dite au plus tôt et parfois deux fois (l'îlot ne fait rien la deuxième) : l'onde s'en va si la carte
     /// ne l'a pas remplacée.
@@ -162,7 +162,7 @@ final class DictationController {
         let recents = HistoriqueStore.shared.historique.entrees.prefix(20).map(\.texte)
         let transcripteur = ChunkTranscriber(mots: Dictionnaire.mots(), langue: Settings.langue,
                                              promptPour: PreparationLexique.promptPour(langue: Settings.langue, genre: TextFormatter.kind(bundleID: appCible?.bundleIdentifier),
-                                                                                       champ: { champ.dejaConnu() }, recents: Array(recents)),
+                                                                                       champ: { champ.dejaConnu() }, recents: Array(recents), motAppel: true),
                                              correcteur: PreparationLexique.correcteur())
         let s = Session(id: compteur, mainsLibres: mainsLibres, appCible: appCible, transcripteur: transcripteur, champ: champ)
         s.encoche = encoche
@@ -202,7 +202,7 @@ final class DictationController {
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
                         guard let self, self.courante?.id == s.id else { return }
-                        // fn tenue (pas en mains libres : l'encoche y garde ✕ et ✓) : « Lucarne, rappelle-moi… » passe à l'îlot, qui suit
+                        // fn tenue (pas en mains libres : l'encoche y garde ✕ et ✓) : « Voxile, rappelle-moi… » passe à l'îlot, qui suit
                         // ensuite le texte (le genre, « Rappel… » ou « Note… », peut arriver plus tard)
                         let pourLIlot = s.encoche && !s.mainsLibres && self.surVoixEnDirect?(s.id, texte) == true
                         if pourLIlot, !s.voix { s.voix = true; self.panneau.fermer() }
@@ -375,7 +375,7 @@ final class DictationController {
 
     /// Mise en forme selon l'app cible, puis collage au curseur.
     private func ecrire(_ brut: String, session s: Session, relachement relache: Double) async {
-        // « Lucarne, … » sur le texte de Groq : une commande ne passe jamais par la remise au propre (ni l'IA, ni le lexique)
+        // « Voxile, … » sur le texte de Groq : une commande ne passe jamais par la remise au propre (ni l'IA, ni le lexique)
         if AnalyseCommandeIlot.sansAppel(brut) != nil, surCommandeLucarne?(brut) == true {
             s.unites?.annulerTout(); s.nettoyageAnticipe?.tache.cancel()
             Log.ecrire("dictée \(s.id) : commande pour Lucarne (lue sur le texte de Groq), rien n\u{2019}est collé")
@@ -383,7 +383,7 @@ final class DictationController {
             Retours.fin()
             return
         }
-        // pas une commande (« Lucarne est prête… ») : l'onde s'en va avant la remise au propre et le collage
+        // pas une commande (« Voxile est prête… ») : l'onde s'en va avant la remise au propre et le collage
         if s.voix { surVoixFin?(s.id) }
         let kind = TextFormatter.kind(bundleID: s.appCible?.bundleIdentifier)
         let (champ, sourceChamp) = await s.champ.contexte()
@@ -407,7 +407,7 @@ final class DictationController {
             return
         }
         // Commande de l'îlot (« minuteur 10 minutes ») : seulement si l'accueil de l'îlot était ouvert au début de la dictée ; sinon jamais
-        // touchée. « Lucarne, … » y est cherché encore, en secours, sur le texte final.
+        // touchée. « Voxile, … » y est cherché encore, en secours, sur le texte final.
         if surInterception?(texteFinal) == true {
             Log.ecrire("dictée \(s.id) : commande de l\u{2019}îlot, rien n\u{2019}est collé")
             fermerSiLibre()

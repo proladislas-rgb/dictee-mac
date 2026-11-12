@@ -62,7 +62,7 @@ struct DicteeVerreVue: View {
                 forme.fill(Color.black.opacity(0.22)).blur(radius: 6).offset(y: 3)
                     .mask { Rectangle().padding(-20).overlay { forme.fill(Color.black).blendMode(.destinationOut) }.compositingGroup() }
                 if statique { forme.fill(Color.white.opacity(0.05)) } else { Color.clear.glassEffect(.clear, in: forme).modifier(IntensiteVerre()) }
-                if VerreLucarne.voilePilule > 0 { forme.fill(Color.black.opacity(VerreLucarne.voilePilule)) }
+                forme.fill(Color.black.opacity(VerreLucarne.voilePilule))
                 LisereVerre(forme: forme)
                 contenu(ruban: ruban).modifier(HaloLucarne(force: 1))
             }

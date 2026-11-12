@@ -138,6 +138,7 @@ final class ChunkTranscriber: @unchecked Sendable {
         let (groq, mots, langue, promptPour, correcteur) = (self.groq, self.mots, self.langue, self.promptPour, self.correcteur)
         return Task { [weak self] () -> Sortie in
             guard self != nil else { return Sortie(texte: nil, erreur: "annulé") }
+            // sans `promptPour` (le mode `--transcrire`, qui mesure une dictée) : mots.txt, et le mot d'appel au premier morceau comme une dictée
             let prompt = promptPour?(m.contexte) ?? TextAssembler.prompt(mots: MotAppel.motsDuPrompt(mots, texteDavant: m.contexte), contexte: m.contexte, ancre: ChoixLangue.phraseAncre(langue: langue))
             let t0 = ProcessInfo.processInfo.systemUptime
             let fichier = await m.fichier.value

@@ -336,9 +336,9 @@ extension IlotEssai {
     /// sous lui (un fond de carte, une pochette floutée, la forme restée noire) la couvrirait presque toute. nil : rendu impossible.
     @MainActor
     static func partOpaque(_ m: IlotMoteur) -> Double? {
-        let avant = m.statique
-        m.statique = true
-        defer { m.statique = avant }
+        let avant = (m.statique, m.lecture.statique)
+        m.statique = true; m.lecture.statique = true
+        defer { m.statique = avant.0; m.lecture.statique = avant.1 }
         let t = m.tailleVue, k = m.capsuleVue
         let rendu = ImageRenderer(content: LucarneLibreVue(m: m).frame(width: t.width, height: t.height))
         rendu.scale = 1
@@ -460,12 +460,13 @@ extension IlotEssai {
                 let ici = CGPoint(x: k.centreX, y: k.y0 + min(40, k.hauteur / 2)), dehors = CGPoint(x: c.panneau.cadreVoulu.minX + 2, y: c.panneau.cadreVoulu.minY + 2)
                 // le fond doit transparaître : la forme en verre (jamais restée noire), et rien d'opaque posé sous le contenu
                 let noir = m.lucarne.capsule.fonduNoir, opaque = IlotEssai.partOpaque(m)
-                partOpaqueMax = max(partOpaqueMax, opaque ?? 1)
+                if let opaque { partOpaqueMax = max(partOpaqueMax, opaque) }
                 let probleme = v != x.vue ? "écran \(v.rawValue)" : (!mesure ? "taille \(Int(k.largeur)) × \(Int(k.hauteur)) pour \(Int(largeur)) × \(Int(hauteur))" :
                     (tient(k) ?? (!interieur || !vertical ? "pas ouvert vers l'intérieur" : (!contenu ? "contenu décalé" :
                     (m.lucarneDeplie < 1 ? "voile de lecture absent" : (!m.contient(ici) || m.contient(dehors) ? "clics" : (m.boucleActive ? "boucle au repos" :
                     (noir > 0.001 ? "forme encore noire (\(String(format: "%.2f", noir)))" :
-                    ((opaque ?? 1) > IlotEssai.partOpaqueAdmise ? "couche opaque sous le contenu (\(Int((opaque ?? 1) * 100)) % de la forme couverte)" : nil)))))))))
+                    (opaque == nil ? "rendu de la forme impossible (opacité non mesurée)" :
+                    (opaque! > IlotEssai.partOpaqueAdmise ? "couche opaque sous le contenu (\(Int(opaque! * 100)) % de la forme couverte)" : nil))))))))))
                 if let probleme { bilan.append("\(p.rawValue) · \(x.nom) : \(probleme)") }
             }
         }

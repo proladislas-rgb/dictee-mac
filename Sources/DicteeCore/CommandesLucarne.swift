@@ -32,8 +32,8 @@ public enum MotAppel {
     enum Proximite: Equatable {
         /// Il se dit comme « Voxile » (même clé phonétique).
         case meme
-        /// Une lettre de la clé d'écart (« Boxile », « Voxel », « Fox île ») : une transcription ratée, PEUT-ÊTRE. On ne la prend que
-        /// pour une commande complète (`AnalyseCommandeIlot.lucarne`), sinon la phrase est collée comme avant.
+        /// Une lettre de la clé d'écart (« Boxile », « Voxel ») : une transcription ratée, PEUT-ÊTRE. On ne la prend que suivie d'une
+        /// ponctuation ET d'une demande en toutes lettres (`AnalyseCommandeIlot.appelDetaille`), sinon la phrase est collée comme avant.
         case proche
     }
 
@@ -45,8 +45,8 @@ public enum MotAppel {
         return [mot] + mots
     }
 
-    /// La proximité d'un mot (ou de deux mots dits d'un trait, « Vox île ») au mot d'appel ; nil s'il n'y ressemble pas. Bornée : une
-    /// seule lettre d'écart sur une clé de six, et jamais un mot de moins de quatre lettres (« vox », « box » seuls ne sont pas lui).
+    /// La proximité d'un mot au mot d'appel ; nil s'il n'y ressemble pas. Bornée : une seule lettre d'écart sur une clé de six, et jamais
+    /// un mot de moins de quatre lettres (« vox », « box » seuls ne sont pas lui).
     static func proximite(_ mot: String) -> Proximite? {
         guard ClePhonetique.plier(mot).count >= 4 else { return nil }
         let c = ClePhonetique.cle(mot)
@@ -56,12 +56,13 @@ public enum MotAppel {
 }
 
 extension AnalyseCommandeIlot {
-    /// En tête : des guillemets éventuels, un mot, puis peut-être un second mot collé par un espace seul (« Vox île »), et ce qui suit
-    /// (`sep` : la ponctuation de Whisper dit si on s'adresse à l'app ou si on parle d'elle).
+    /// En tête : des guillemets éventuels, un mot, puis peut-être un second mot après une espace seule (« Vox île »).
     private static let tete = try! NSRegularExpression(
-        pattern: "^\\s*[«\"]?\\s*(?<un>[\\p{L}][\\p{L}'-]*)(?:(?<espace> )(?<deux>[\\p{L}][\\p{L}'-]*))?",
+        pattern: "^\\s*[«\"“]?\\s*(?<un>[\\p{L}][\\p{L}'-]*)(?: (?<deux>[\\p{L}][\\p{L}'-]*))?",
         options: [])
-    private static let separateurs = CharacterSet(charactersIn: " ,.;:!?…»\"-")
+    /// Ce qui peut suivre le mot d'appel avant la demande (`sep` : la ponctuation de Whisper dit si on s'adresse à l'app ou si on parle
+    /// d'elle). Après le mot, tout ce qui n'est ni lettre ni chiffre le termine (comme avant le 12/11 soir : « Voxile— », « Voxile” »).
+    private static let separateurs = CharacterSet(charactersIn: ",.;:!?…»\"”-—–").union(.whitespaces)
 
     /// Le reste de la phrase après « Voxile, », ou nil si elle ne commence pas par le mot d'appel.
     public static func sansAppel(_ texte: String) -> String? { appelDetaille(texte)?.reste }
@@ -69,40 +70,48 @@ extension AnalyseCommandeIlot {
     /// Le reste ; `interpelle` : le mot d'appel est suivi d'une ponctuation (« Voxile, … », « Voxile. … ») ou est seul. Sans ponctuation
     /// (« Voxile est prête… », « Voxile 0.4 publiée ce soir »), la phrase PARLE de l'app : elle n'est pour elle que si elle demande
     /// quelque chose en toutes lettres (« Voxile rappelle-moi… », « Voxile minuteur… »). `proche` : le mot en tête n'est qu'une
-    /// déformation possible (« Boxile », `MotAppel.Proximite.proche`).
+    /// déformation possible (« Boxile », ou deux mots d'un trait, « Vox île ») ; il n'est retenu que suivi d'une ponctuation et d'une
+    /// demande en toutes lettres (rappel, note, minuteur, réveil) : « Voici le rappel de la réunion… » (« voici le » ≈ « voksil » à une
+    /// lettre près), « Vox il faut que… » restent un texte normal, en direct comme à la fin.
     public static func appelDetaille(_ texte: String) -> (reste: String, interpelle: Bool, proche: Bool)? {
         let t = TexteDicte.unifier(texte)
         let ns = t as NSString
         guard let m = tete.firstMatch(in: t, range: NSRange(location: 0, length: ns.length)) else { return nil }
         let un = ns.substring(with: m.range(withName: "un"))
-        // un mot seul d'abord (« Voxile », « Voxil »), puis les deux premiers d'un trait (« Vox île », « Vox il »)
+        // un mot seul d'abord (« Voxile », « Voxil »), sinon les deux premiers d'un trait s'ils se disent EXACTEMENT comme lui (« Vox
+        // île ») : le second peut être un vrai mot (« Vox il faut… »), ils ne valent qu'un mot proche
         var fin = m.range(withName: "un").upperBound
-        var proximite = MotAppel.proximite(un)
-        if proximite != .meme, m.range(withName: "deux").location != NSNotFound {
-            let deux = ns.substring(with: m.range(withName: "deux"))
-            if let p = MotAppel.proximite(un + deux), proximite == nil || p == .meme { proximite = p; fin = m.range(withName: "deux").upperBound }
+        var proche: Bool
+        switch MotAppel.proximite(un) {
+        case .meme: proche = false
+        case .proche: proche = true
+        case nil:
+            guard m.range(withName: "deux").location != NSNotFound,
+                  MotAppel.proximite(un + ns.substring(with: m.range(withName: "deux"))) == .meme else { return nil }
+            fin = m.range(withName: "deux").upperBound; proche = true
         }
-        guard let proximite else { return nil }
-        // jamais collé à la suite d'un mot (« Voxile-moi » n'existe pas) : un séparateur ou la fin de la phrase
-        let apres = ns.substring(from: fin)
-        if let c = apres.unicodeScalars.first, !separateurs.contains(c) { return nil }
-        let sep = String(String.UnicodeScalarView(apres.unicodeScalars.prefix { separateurs.contains($0) }))
-        let reste = String(apres.dropFirst(sep.count)).trimmingCharacters(in: .whitespaces)
-        return (reste, reste.isEmpty || sep.contains { ",.;:!?…".contains($0) }, proximite == .proche)
+        // jamais collé à la suite d'un mot ou d'un chiffre (« Voxile2 ») : un séparateur, un autre signe ou la fin de la phrase
+        let apres = ns.substring(from: fin).unicodeScalars
+        if let c = apres.first, CharacterSet.alphanumerics.contains(c) { return nil }
+        let sep = String(String.UnicodeScalarView(apres.prefix { separateurs.contains($0) }))
+        let reste = String(String.UnicodeScalarView(apres.dropFirst(sep.unicodeScalars.count))).trimmingCharacters(in: .whitespaces)
+        let interpelle = reste.isEmpty || sep.contains { ",.;:!?…".contains($0) }
+        if proche, !(interpelle && demandeEnToutesLettres(TexteDicte.sansPolitesse(reste))) { return nil }
+        return (reste, interpelle, proche)
+    }
+
+    /// Une demande dite en toutes lettres en tête du reste : un rappel (« rappelle-moi », « mets un rappel »…), une note, un minuteur, un
+    /// réveil.
+    static func demandeEnToutesLettres(_ reste: String) -> Bool {
+        TexteRappel.sansDeclencheur(reste) != nil || TexteRappel.estUnReveil(reste) || minuteur(reste) != nil || TexteNote.declencheur(reste) != nil
     }
 
     /// « Voxile, rappelle-moi d'appeler Ladislas demain à 15 h », « Voxile minuteur de 10 minutes », « Voxile, j'ai une livraison
     /// demain vers 13-14 h » : la commande, ou `.incomprise`/`.sansHeure` (la phrase n'est jamais collée), ou `.aucune` (pas pour l'app).
-    /// Un mot en tête seulement proche du mot d'appel (« Boxile, … ») ne compte que pour une commande complète (un rappel avec son heure,
-    /// une note, un minuteur, un réveil) : le reste est collé comme avant, rien n'est avalé par erreur.
+    /// Un mot en tête seulement proche du mot d'appel n'arrive ici que suivi d'une ponctuation et d'une demande (`appelDetaille`).
     public static func lucarne(_ texte: String, maintenant: Date, calendrier: Calendar = .current) -> ResultatLucarne {
         guard let appel = appelDetaille(texte) else { return .aucune }
-        let r = commande(appel: appel, phrase: TexteDicte.propre(texte), maintenant: maintenant, calendrier: calendrier)
-        guard appel.proche else { return r }
-        switch r {
-        case .commande, .note: return r
-        case .aucune, .incomprise, .sansHeure, .passe: return .aucune
-        }
+        return commande(appel: appel, phrase: TexteDicte.propre(texte), maintenant: maintenant, calendrier: calendrier)
     }
 
     /// `phrase` : la phrase entière (rien n'est collé : « Copier » doit la rendre telle quelle, jamais coupée).
@@ -144,7 +153,8 @@ extension AnalyseCommandeIlot {
 enum TexteDicte {
     /// Apostrophes droites, espaces insécables en espaces simples, espaces doublés réduits.
     static func unifier(_ s: String) -> String {
-        var t = s.replacingOccurrences(of: "\u{2019}", with: "'").replacingOccurrences(of: "\u{00A0}", with: " ").replacingOccurrences(of: "\u{202F}", with: " ")
+        // composé (NFC) : un « î » écrit en deux signes reste une lettre pour les expressions
+        var t = s.precomposedStringWithCanonicalMapping.replacingOccurrences(of: "\u{2019}", with: "'").replacingOccurrences(of: "\u{00A0}", with: " ").replacingOccurrences(of: "\u{202F}", with: " ")
             .replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "\t", with: " ")
         while t.contains("  ") { t = t.replacingOccurrences(of: "  ", with: " ") }
         return t.trimmingCharacters(in: .whitespaces)

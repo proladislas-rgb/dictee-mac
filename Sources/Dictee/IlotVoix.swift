@@ -4,7 +4,7 @@ import DicteeCore
 
 // La voix d'un rappel ou d'une note dans l'îlot (maquette design/maquettes/ilot-voix-rappel.html, demande de Hugues du 12/11 ; la logique
 // pure dans DicteeCore/VoixIlot.swift).
-// - fn tenue, « Lucarne, rappelle-moi… » ou « Lucarne, note… » reconnu dans le texte en direct : l'encoche de la dictée se range et l'îlot
+// - fn tenue, « Voxile, rappelle-moi… » ou « Voxile, note… » reconnu dans le texte en direct : l'encoche de la dictée se range et l'îlot
 //   prend la dictée. L'onde suit la voix (le vrai niveau du micro, sur des ressorts) ; dès que la commande est comprise, l'îlot grandit d'une
 //   ligne et « Rappel… » (orange) ou « Note… » (jaune) arrive dessous. Les annonces qui arrivent pendant ce temps attendent, comme pendant
 //   une dictée.
@@ -180,7 +180,7 @@ extension IlotControleur {
         occupationChangee()
     }
 
-    /// « Lucarne, rappelle-moi… » : le rappel vient d'être gardé. Il part dans l'app Rappels si Hugues l'a déjà voulu (et que l'accès est
+    /// « Voxile, rappelle-moi… » : le rappel vient d'être gardé. Il part dans l'app Rappels si Hugues l'a déjà voulu (et que l'accès est
     /// donné) ; la carte montre où il en est.
     func montrerCarteRappel(_ r: Rappel, phrase: String) {
         if PlanCarteRappel.envoyerTout(choix: reglagesCentre.choixRappelsApple(), acces: rappelsApple.acces) { creerDansRappelsApple([r], annoncer: false) }
@@ -188,7 +188,7 @@ extension IlotControleur {
         montrerCarte(CarteVoix.rappel(id: r.id, texte: r.texte, echeance: r.echeance, phrase: phrase, maintenant: maintenant()))
     }
 
-    /// « Lucarne, note… » : la note vient d'être gardée (carte Note rapide) ; la carte propose de l'envoyer dans Notes.
+    /// « Voxile, note… » : la note vient d'être gardée (carte Note rapide) ; la carte propose de l'envoyer dans Notes.
     func montrerCarteNote(_ n: NoteRapide) {
         montrerCarte(CarteVoix.note(id: n.id, texte: n.texte))
     }

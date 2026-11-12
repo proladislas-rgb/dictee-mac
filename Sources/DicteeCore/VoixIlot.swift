@@ -26,7 +26,7 @@ extension AnalyseCommandeIlot {
     /// Le texte en direct d'une dictée fn tenue : est-elle pour l'app, et pour quoi ? Jugé comme la commande finale (`lucarne`) :
     /// le mot d'appel en tête, puis une virgule (on s'adresse à l'app) ou une demande en toutes lettres (« Voxile rappelle-moi »).
     /// « Voxile » seul (la suite n'est pas encore arrivée) ou « Voxile est prête… » restent `.autre` : rien n'est pris trop tôt. Un mot
-    /// seulement proche (« Boxile, … ») attend une demande en toutes lettres (rappel, note, réveil, minuteur), comme la commande finale.
+    /// seulement proche (« Boxile, … ») attend une ponctuation et une demande en toutes lettres (`appelDetaille`), comme la commande finale.
     public static func directVoix(_ texte: String, maintenant: Date, calendrier: Calendar = .current) -> DirectVoix {
         guard let appel = appelDetaille(texte) else { return .autre }
         let reste = TexteDicte.sansPolitesse(appel.reste)
@@ -34,7 +34,6 @@ extension AnalyseCommandeIlot {
         if TexteRappel.sansDeclencheur(reste) != nil { return .pourLucarne(.rappel) }
         if TexteNote.demandee(reste, interpelle: appel.interpelle) { return .pourLucarne(.note) }
         let demande = TexteRappel.estUnReveil(reste) || minuteur(reste) != nil
-        if appel.proche && !demande { return .autre }
         guard appel.interpelle || demande || TexteRappel.commenceParUneTete(reste) else { return .autre }
         // « Voxile, j'ai demain une livraison… » : un rappel dès que le jour ou l'heure est dit, après une tête ou une tâche
         if !demande, let r = MomentDicte.extraire(reste, maintenant: maintenant, calendrier: calendrier),

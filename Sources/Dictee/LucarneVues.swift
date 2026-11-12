@@ -370,7 +370,7 @@ struct VerreLucarneVue: View {
                 }
             }
             forme.fill(Color.black.opacity(voile + (1 - voile) * noir))
-            if let b = bulle, VerreLucarne.voilePilule > 0 { Capsule().fill(Color.black.opacity(VerreLucarne.voilePilule)).frame(width: b.largeur, height: b.hauteur).position(point(b)) }
+            if let b = bulle { Capsule().fill(Color.black.opacity(VerreLucarne.voilePilule)).frame(width: b.largeur, height: b.hauteur).position(point(b)) }
             // le liseré et les reflets du bord : c'est là seulement qu'on devine le verre
             Group {
                 LisereVerre(forme: forme, debut: UnitPoint(x: (taille.width / 2 + capsule.x0) / taille.width, y: capsule.y0 / taille.height),
@@ -400,13 +400,13 @@ struct VerreLucarneVue: View {
 
 /// Le verre clair de macOS, adouci (12/11 soir, Hugues : « vraiment beaucoup plus transparent ») : son flou et sa teinte sont ceux du
 /// système, sans réglage ; on les atténue en atténuant toute la couche (`VerreLucarne.intensite`, selon que la forme est repliée ou
-/// dépliée) et on le prend dans sa variante claire (`VerreLucarne.verreClair`) même dans la fenêtre sombre de l'îlot. Le contenu, lui,
-/// reste en sombre.
+/// dépliée) et on le prend dans sa variante claire même dans la fenêtre sombre de l'îlot (la sombre y est un gris fumé, vu sur la capture
+/// du vrai verre). Le contenu, lui, reste en sombre.
 struct IntensiteVerre: ViewModifier {
     var deplie: Double = 0
     func body(content: Content) -> some View {
         content
-            .environment(\.colorScheme, VerreLucarne.verreClair ? .light : .dark)
+            .environment(\.colorScheme, .light)
             .opacity(VerreLucarne.intensite(deplie: deplie))
     }
 }

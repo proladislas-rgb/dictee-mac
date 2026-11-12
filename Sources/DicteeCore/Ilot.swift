@@ -52,7 +52,7 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// Ses cartes, ouvertes d'un clic sur un rond : le presse-papiers (les cinq dernières copies), Reformuler (la dernière dictée ou le
     /// texte choisi, réécrit), Note rapide (dicter une note, les notes gardées).
     case outils, outilPressePapiers, outilReformuler, outilNote
-    /// « Lucarne, … » (CommandesLucarne.swift) : ce que l'îlot répond à une commande dite qui n'a pas abouti (« Je n'ai pas compris » et la
+    /// « Voxile, … » (CommandesLucarne.swift) : ce que l'îlot répond à une commande dite qui n'a pas abouti (« Je n'ai pas compris » et la
     /// phrase, « Il me manque l'heure »), et l'app Rappels d'Apple (« Aussi dans l'app Rappels ? », « Tes rappels restent ici »).
     case lucarne
     /// La carte « Second Brain » (maquette ilot-second-cerveau.html) : ce que l'autre app de Hugues dépose dans ~/.config/second-cerveau/ilot.json

@@ -376,7 +376,7 @@ extension GeoLucarne {
 /// 12/11 soir, Hugues : « pas assez liquide glace » (voile de 0,12 / 0,22 et halo large de 6 pt : une plaque bleutée uniforme sur la
 /// Terre de son fond d'écran) → voile presque nul, halo resserré autour des glyphes.
 /// 12/11 au soir, Hugues : « vraiment beaucoup plus transparent » (la carte Lecture sur une vidéo et le Bloc-notes : un dépoli gris) → plus
-/// de voile du tout, le verre système atténué et pris clair, le bord plus marqué ; la lisibilité vient du seul contenu (gras, halo).
+/// de voile du tout, le verre système atténué et pris clair (dans la fenêtre sombre de l'îlot, sa variante sombre est un gris fumé), le bord plus marqué ; la lisibilité vient du seul contenu (gras, halo).
 public enum VerreLucarne {
     /// Le voile noir : pilule repliée, Centre et cartes. Aucun (0,03 et 0,09 avant le 12/11 au soir) : le fond se voit tel quel.
     public static let voilePilule = 0.0
@@ -390,8 +390,6 @@ public enum VerreLucarne {
     public static let intensiteDeplie = 0.6
     /// L'intensité d'une forme entre repliée (0) et dépliée (1).
     public static func intensite(deplie d: Double) -> Double { intensitePilule + (intensiteDeplie - intensitePilule) * min(1, max(0, d)) }
-    /// Le verre pris dans sa variante claire, même dans la fenêtre sombre de l'îlot : la sombre est un gris fumé (même capture).
-    public static let verreClair = true
     /// Le bord : biseau (largeur, blanc vif / éteint / retour), reflet intérieur (blanc, largeur de la bande), trait sombre dehors.
     public static let lisere = (largeur: 1.6, vif: 0.9, eteint: 0.2, retour: 0.5, reflet: 0.1, largeurReflet: 3.0, sombre: 0.28)
     /// Le halo sous le contenu : une ombre portée serrée au plus près des lettres, et une à peine plus large (2 pt) qui l'adoucit ;

@@ -648,7 +648,7 @@ func controlesPlacesLucarne() {
         func f(_ x: Double) -> String { String(format: "%.1f", x) }
         let rouge = (1.0, 0x45 / 255.0, 0x3A / 255.0), bleu = (0x0A / 255.0, 0x84 / 255.0, 1.0)
         verifier(V.voilePilule == 0 && V.voileDeplie == 0, "le verre se voit au travers : aucun voile (\(V.voilePilule), \(V.voileDeplie))")
-        verifier(V.verreClair && V.intensite(deplie: 0) == V.intensitePilule && V.intensite(deplie: 1) == V.intensiteDeplie && V.intensite(deplie: 2) == V.intensiteDeplie
+        verifier(V.intensite(deplie: 0) == V.intensitePilule && V.intensite(deplie: 1) == V.intensiteDeplie && V.intensite(deplie: 2) == V.intensiteDeplie
                  && V.intensitePilule <= 0.35 && V.intensiteDeplie <= 0.6 && V.intensitePilule <= V.intensiteDeplie,
                  "« vraiment beaucoup plus transparent » (12/11 soir) : le verre système clair, atténué (pilule \(V.intensitePilule), déplié \(V.intensiteDeplie))")
         verifier(V.halo.rayonPres <= 1 && V.halo.rayonLarge <= 2, "halo serré autour des glyphes (\(V.halo.rayonPres) et \(V.halo.rayonLarge) pt) : jamais une plaque floutée")

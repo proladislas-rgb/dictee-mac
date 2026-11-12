@@ -29,8 +29,9 @@ func controlesVoix() {
     verifier(direct("Voxil, rappelle-moi") == .pourLucarne(.rappel) && direct("Boxile, rappelle-moi") == .pourLucarne(.rappel)
              && direct("Voxel, minuteur de 5 minutes") == .pourLucarne(nil),
              "« Voxil » (dit pareil) ou « Boxile » (proche) suivis d'une demande en toutes lettres : pour l'app")
-    verifier(direct("Boxile, j'ai une livraison") == .autre && direct("Voxel, je t'envoie le fichier") == .autre,
-             "un mot seulement proche, sans demande en toutes lettres : l'encoche de la dictée reste")
+    verifier(direct("Boxile, j'ai une livraison") == .autre && direct("Voxel, je t'envoie le fichier") == .autre && direct("Voici le rappel de la réunion") == .autre
+             && direct("Boxile rappelle-moi") == .autre,
+             "un mot seulement proche, sans ponctuation ou sans demande en toutes lettres (« Voici le rappel… ») : l'encoche de la dictée reste")
     verifier(direct("Voxile noté dans la liste") == .autre && direct("Voxile notre devis") == .autre, "« noté », « notre » ne sont pas « note »")
 
     groupe("Voix : la commande « note »")

@@ -559,4 +559,11 @@ Et le verre : « vraiment beaucoup plus transparent ».
       noire, aucune couche opaque sous le contenu » sur 20 écrans × 6 places (au plus 18 % couvert ; un voile de 0,95 le fait échouer).
 - [ ] À juger par Hugues sur l'app installée : la pilule à 0,35, le Centre à 0,6 (juste milieu) ; les libellés gris du Centre restent
       faibles sur une page blanche pleine de texte.
-- [ ] Relecture opus, push (pas de fusion).
+- [x] Relecture opus appliquée : deux mots d'un trait seulement s'ils se disent exactement « Voxile » ; un mot proche seulement suivi d'une
+      ponctuation ET d'une demande en toutes lettres (« Voici le rappel… », « Faux cils : … » restent collés) ; « Voxile » dans le prompt de
+      la dictée seulement ; séparateurs comme avant (tiret long, guillemet fermant), NFC ; essai du verre : message à part si le rendu échoue.
+      Refusé, noté : un premier morceau réduit à « Voxile » n'est pas filtré comme fantôme (il casserait « Voxile, » + pause + demande).
+- [x] Vérifié : build release ; 3966/3966 contrôles ; `--ilot-essai` complet tout vert (1376 ok) ; `defaults read Dictee` vide.
+      Noté : « aucun à-coup » (survol des Dictées, molette) oscille autour de 100 M instructions, AUSSI sur main a8a2aad (108,0 M mesuré
+      dans la même série) : pas une régression de la branche.
+- [x] Push de la branche (pas de fusion, pas d'installation).

@@ -105,7 +105,7 @@ final class IlotControleur {
     /// ⌘C vient d'être tapé : un seul réveil, le temps que l'app écrive dans le presse-papiers.
     var reveilCopie: DispatchWorkItem?
 
-    // MARK: « Lucarne, … », l'app Rappels, la note dictée d'un clic (IlotLucarne.swift)
+    // MARK: « Voxile, … », l'app Rappels, la note dictée d'un clic (IlotLucarne.swift)
     /// L'app Rappels d'Apple (EventKit ; un faux dans l'essai, jamais le vrai, jamais de vraie demande d'autorisation).
     var rappelsApple: PiloteRappelsApple = RappelsAppleSysteme()
     /// La question « Aussi dans l'app Rappels ? » attend que « Rappel ajouté » ait été vu ; posée une fois par lancement au plus.
@@ -866,7 +866,7 @@ final class IlotControleur {
         guard reglagesCentre.rappelsActifs(), let r = rappels.ajouter(texte: texte, echeance: quand, maintenant: maintenant()) else { return nil }
         sauver()
         dernierRappelAjoute = r.id
-        // dit à Lucarne (« Lucarne, rappelle-moi… ») : la carte de fin remplace « Rappel ajouté » et la question de l'app Rappels
+        // dit à Lucarne (« Voxile, rappelle-moi… ») : la carte de fin remplace « Rappel ajouté » et la question de l'app Rappels
         if let phraseDite { montrerCarteRappel(r, phrase: phraseDite); return r }
         moteur.fermer()
         moteur.annoncer(bandeau: BandeauIlot(vue: .rappelAjoute, jusqua: maintenant().addingTimeInterval(Self.dureeRappelAjoute), ligne1: "Rappel ajouté",
@@ -978,7 +978,7 @@ final class IlotControleur {
 
     // MARK: commandes dictées
 
-    /// « Lucarne, … » lu sur une dictée (le texte de Groq d'abord, avant toute remise au propre ; puis le texte final, en secours) : vrai
+    /// « Voxile, … » lu sur une dictée (le texte de Groq d'abord, avant toute remise au propre ; puis le texte final, en secours) : vrai
     /// si elle était pour Lucarne. Ce qui était armé pour cette dictée (note, commande de l'îlot ouvert) tombe ; une note dictée d'un
     /// clic qui était en fait une commande rend la carte à son bouton.
     func intercepterLucarne(_ texte: String) -> Bool {
@@ -996,7 +996,7 @@ final class IlotControleur {
     /// Appelée avec le texte final d'une dictée, avant le collage. Vrai si c'était une commande de l'îlot (le texte n'est alors PAS collé).
     /// Ne s'applique que si l'accueil de l'îlot était ouvert au début de la dictée : une dictée normale n'est jamais mangée.
     func intercepter(_ texte: String) -> Bool {
-        // « Lucarne, … » (ou « Verbe, … ») en tête : une commande, îlot ouvert ou fermé, dans n'importe quelle app ; jamais collée
+        // « Voxile, … » en tête : une commande, îlot ouvert ou fermé, dans n'importe quelle app ; jamais collée
         if intercepterLucarne(texte) { return true }
         // Note rapide : la carte était ouverte au début de la dictée, le texte devient une note
         if noteArmeeJusqua > maintenant() {
