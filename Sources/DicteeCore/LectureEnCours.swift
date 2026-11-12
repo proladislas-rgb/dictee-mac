@@ -390,7 +390,7 @@ public enum AffichageLecture: Equatable, Sendable {
 public enum PrioriteLecture {
     public static func affichage(occupation o: OccupationEncoche, morceau: Bool, reglageAffichage: Bool) -> AffichageLecture {
         guard reglageAffichage, morceau else { return .aucun }
-        if o.reunion { return .aucun }                  // pendant une réunion, la lecture ne s'affiche pas
+        // pendant une réunion, la lecture reste : la réunion a l'îlot, la vidéo passe dans la bulle (maquette ilot-reunion.html)
         if o.dictee { return .miniature }               // dictée : l'îlot s'efface ; mini-miniature dans le ruban (si Verbe a mis en pause)
         if o.filet || o.miseAJour || o.autreAnnonce { return .aucun }
         return .ilot

@@ -158,6 +158,9 @@ struct IlotCalques: View {
         case .outilReformuler: CarteReformuler(m: m, g: g)
         case .outilNote: CarteNote(m: m, g: g)
         case .bibliotheque: BibliothequeCarteVue(m: m, b: m.bibliotheque, g: g)
+        case .reunionCompact: ReunionAiles(m: m, g: g)
+        case .reunionEtendu: CarteReunion(m: m, g: g)
+        case .reunionPropose, .reunionPrepare, .reunionPrete, .reunionMessage: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         }
     }
 
@@ -228,7 +231,32 @@ struct IlotCalques: View {
     /// Une annonce sur une ligne : [symbole] [titre / sous-titre] [actions]. Les trois blocs arrivent l'un après l'autre. La forme a
     /// la largeur de ce contenu (`IlotMoteur.largeurContenu`, même description `ContenuAnnonce`) : rien n'est tassé à gauche.
     /// Symbole nil : la place est gardée pour une pièce qui voyage (la cloche).
-    private func annonce(_ v: VueIlot, _ c: ContenuAnnonce) -> some View {
+    @ViewBuilder private func annonce(_ v: VueIlot, _ c: ContenuAnnonce) -> some View {
+        if let p = c.progres { preparation(v, c, p) } else { annonceSimple(v, c) }
+    }
+
+    /// « Note en préparation… » : le titre et le pourcentage, l'étape en gris, puis la barre qui avance (maquette, étape 9).
+    private func preparation(_ v: VueIlot, _ c: ContenuAnnonce, _ p: Double) -> some View {
+        let z = g.zoneAnnonce(v)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: ContenuAnnonce.espace) {
+                Text(c.l1).font(TexteIlot.l1).tracking(ContenuAnnonce.interlettreL1).foregroundStyle(.white).lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if case .meta(let t) = c.droite { meta(t).fixedSize() }
+            }
+            .aspectIlot(m.aspect(v, rang: 0), ancre: .topLeading)
+            c.texteL2.font(TexteIlot.l2).foregroundStyle(CouleursIlot.encre2).lineLimit(1).padding(.top, 2)
+                .aspectIlot(m.aspect(v, rang: 1), ancre: .topLeading)
+            BarrePreparation(progres: p, animer: !m.reduire && !m.statique).frame(height: 6).padding(.top, 12)
+                .aspectIlot(m.aspect(v, rang: 2), ancre: .topLeading)
+        }
+        .frame(width: z.width, height: z.height)
+        .offset(x: IlotMoteur.largeur / 2 + z.minX, y: z.minY)
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(PreparationNote.pourcent(p))
+    }
+
+    private func annonceSimple(_ v: VueIlot, _ c: ContenuAnnonce) -> some View {
         let z = g.zoneAnnonce(v, haut: v.estAlerte ? 20 : 16, bas: v.estAlerte ? 20 : 16)
         return HStack(spacing: ContenuAnnonce.espace) {
             Group {
@@ -853,6 +881,8 @@ struct PastilleVue: View {
             .padding(.leading, 10)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Réveil, \((m.reveil ?? m.dernierReveil)?.libelle() ?? "")")
+        case .reunion:
+            PastilleReunion(m: m)
         case .alerte:
             EmptyView()
         }

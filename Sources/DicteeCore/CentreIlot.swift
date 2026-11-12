@@ -38,10 +38,12 @@ public enum CartesIlot {
     /// La carte porte-t-elle le bouton « Centre » à son pied ? Le déplié de TOUTE activité (la vidéo, le minuteur, Claude, un rendez-vous,
     /// un rappel), c'est-à-dire la première carte d'une pile qui contient le Centre : le chemin vers le Centre se voit toujours (on n'a
     /// jamais à deviner un défilement). Le Centre, les Outils, les Dictées et l'accueil n'en ont pas ; la rangée Minuteur de la lecture
-    /// prend sa place. La carte « Claude Code » n'en a pas : son en-tête a déjà « ‹ Centre ». Le pied porte aussi le bouton « Dictées »
-    /// (maquette, étape 2), quand il tient.
+    /// prend sa place. La carte « Claude Code » n'en a pas : son en-tête a déjà « ‹ Centre ». La carte « Réunion » non plus : son bouton
+    /// « Centre » est dans son en-tête (maquette ilot-reunion.html), sa rangée du bas porte les boutons de la réunion. Le pied porte aussi
+    /// le bouton « Dictées » (maquette, étape 2), quand il tient.
     public static func aUnPied(_ v: VueIlot, pile: [VueIlot]) -> Bool {
-        v != .centre && v != .accueil && v != .dictees && v != .claudeCarte && v != .outils && parent(v) == nil && pile.first == v && pile.contains(.centre)
+        v != .centre && v != .accueil && v != .dictees && v != .claudeCarte && v != .outils && v != .reunionEtendu && parent(v) == nil
+            && pile.first == v && pile.contains(.centre)
     }
 
     /// Ce que le pied ajoute à la hauteur d'une carte : la lecture l'a déjà dans sa géométrie, les autres dépliés l'ajoutent dessous.

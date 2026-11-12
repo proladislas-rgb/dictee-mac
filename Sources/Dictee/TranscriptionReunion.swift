@@ -12,8 +12,13 @@ final class TranscriptionReunion: @unchecked Sendable {
     private let verrou = NSLock()
     private var file: [Travail] = []
     private var enVol = 0
+    /// Les morceaux partis chez Whisper et pas encore revenus (le direct les montre en gris).
+    private var envoles: [MorceauReunion] = []
     private var boucle: Task<Void, Never>?
     private var annule = false
+    /// La relecture d'après l'appel prend le relais : plus rien de nouveau ne part, ce qui attend son budget ou un nouvel essai renonce.
+    private var abandon = false
+    private(set) var abandonnes = 0
     private var dernierTexte: [Locuteur: String] = [:]
     private(set) var echecs = 0
     private(set) var recus = 0
@@ -37,6 +42,12 @@ final class TranscriptionReunion: @unchecked Sendable {
 
     var restants: Int { verrou.lock(); defer { verrou.unlock() }; return file.count + enVol }
 
+    /// Ce qui est entendu mais pas encore transcrit : les morceaux en file et ceux partis chez Whisper.
+    func attentes() -> [AttenteDirect] {
+        verrou.lock(); defer { verrou.unlock() }
+        return (envoles + file.map(\.morceau)).map { AttenteDirect(locuteur: $0.locuteur, debut: $0.debut, fin: $0.debut + $0.duree) }
+    }
+
     func soumettre(_ m: MorceauReunion) {
         verrou.lock()
         file.append(Travail(morceau: m))
@@ -52,6 +63,19 @@ final class TranscriptionReunion: @unchecked Sendable {
         b?.cancel()
     }
 
+    /// À l'arrêt, quand le son de l'appel est sur le disque : la relecture va retranscrire tout l'appel avec le modèle précis, inutile
+    /// d'envoyer encore au turbo les morceaux en retard (travail en double, minutes prises à la dictée). Les morceaux en file sont
+    /// laissés ; seuls ceux déjà partis chez Groq finissent. `attendreLaFin` ne dure plus que le temps d'une requête.
+    func abandonnerLaFile() {
+        verrou.lock()
+        abandon = true
+        abandonnes += file.count
+        let n = file.count
+        file.removeAll()
+        verrou.unlock()
+        if n > 0 { Log.ecrire("réunion : \(n) morceau(x) du direct pas encore envoyés, laissés à la relecture") }
+    }
+
     /// Attend que tous les morceaux soient transcrits (ou abandonnés).
     func attendreLaFin() async {
         while restants > 0 && !annule { try? await Task.sleep(for: .milliseconds(250)) }
@@ -61,14 +85,25 @@ final class TranscriptionReunion: @unchecked Sendable {
         verrou.lock(); defer { verrou.unlock() }
         guard !annule, !file.isEmpty else { boucle = nil; return nil }
         enVol += 1
-        return file.removeFirst()
+        let t = file.removeFirst()
+        envoles.append(t.morceau)
+        return t
     }
 
     private func tourner() async {
         while let travail = suivant() {
             await traiter(travail)
-            let n = verrou.withLock { () -> Int in enVol -= 1; return file.count + enVol }
+            let n = verrou.withLock { () -> Int in enVol -= 1; envoles.removeAll { $0.id == travail.morceau.id }; return file.count + enVol }
             surProgression?(n)
+        }
+    }
+
+    /// Une attente (budget, nouvel essai) qui s'interrompt dès que la relecture prend le relais.
+    private func dormir(_ secondes: Double) async {
+        var reste = secondes
+        while reste > 0, !Task.isCancelled, !verrou.withLock({ abandon }) {
+            let pas = min(1, reste)
+            try? await Task.sleep(for: .seconds(pas)); reste -= pas
         }
     }
 
@@ -78,9 +113,10 @@ final class TranscriptionReunion: @unchecked Sendable {
         while !Task.isCancelled {
             // La dictée d'abord : on attend que le budget de requêtes et d'audio laisse de la place.
             let attente = max(BudgetRequetes.partage.delaiAvantDePermettre(.anticipation), BudgetAudio.partage.delaiAvant(duree: m.duree))
+            if verrou.withLock({ abandon }) { verrou.withLock { abandonnes += 1 }; return }
             if attente > 0 {
                 Log.ecrire("réunion : morceau \(m.locuteur.libelle) de \(Int(m.duree)) s en attente de budget (\(Int(attente)) s)")
-                try? await Task.sleep(for: .seconds(min(attente, 20)))
+                await dormir(min(attente, 20))
                 continue
             }
             let fichier = EncodeurAudio.encoder(m.echantillons)
@@ -112,7 +148,7 @@ final class TranscriptionReunion: @unchecked Sendable {
                 }
                 Log.ecrire("réunion : échec Groq pour un morceau \(m.locuteur.libelle) (\(error)), essai \(t.essais)")
                 if !retentable || t.essais >= 5 { verrou.withLock { echecs += 1 }; return }
-                try? await Task.sleep(for: .seconds(Double([2, 5, 12, 25, 40][min(t.essais - 1, 4)])))
+                await dormir(Double([2, 5, 12, 25, 40][min(t.essais - 1, 4)]))
             }
         }
     }

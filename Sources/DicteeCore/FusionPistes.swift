@@ -71,12 +71,14 @@ public enum FusionPistes {
         }.map(\.element)
     }
 
-    /// Recolle les passages consécutifs d'un même locuteur quand le silence entre eux est court (`ecart` secondes) :
-    /// une phrase coupée par le découpage redevient un paragraphe.
-    public static func regrouper(_ segments: [SegmentReunion], ecart: Double = 3.0) -> [SegmentReunion] {
+    /// Recolle les passages consécutifs d'un même orateur quand le silence entre eux est court (`ecart` secondes) :
+    /// une phrase coupée par le découpage redevient un paragraphe. `dureeMax` : un tour plus long est laissé en plusieurs lignes
+    /// (la transcription relue montre l'heure à chaque nouvelle minute, un monologue de cinq minutes n'y fait pas une seule ligne).
+    public static func regrouper(_ segments: [SegmentReunion], ecart: Double = 3.0, dureeMax: Double = .infinity) -> [SegmentReunion] {
         var sortie: [SegmentReunion] = []
         for s in segments {
-            if var dernier = sortie.last, dernier.locuteur == s.locuteur, s.debut - dernier.fin <= ecart {
+            if var dernier = sortie.last, dernier.locuteur == s.locuteur, dernier.idOrateur == s.idOrateur, s.debut - dernier.fin <= ecart,
+               max(dernier.fin, s.fin) - dernier.debut <= dureeMax {
                 dernier.texte += TextAssembler.separateur(entre: dernier.texte, et: s.texte) + s.texte
                 dernier.fin = max(dernier.fin, s.fin)
                 sortie[sortie.count - 1] = dernier
@@ -87,9 +89,58 @@ public enum FusionPistes {
         return sortie
     }
 
-    /// Tout d'un coup : échos retirés, fusion, regroupement. Renvoie aussi le nombre d'échos retirés (pour le journal).
-    public static func transcription(moi: [SegmentReunion], eux: [SegmentReunion]) -> (segments: [SegmentReunion], echos: Int) {
-        let propre = retirerEchos(moi: moi, eux: eux)
-        return (regrouper(fusionner(moi: propre.moi, eux: eux)), propre.retires)
+    /// Whisper reçoit la fin du passage précédent de la même voix comme contexte, et la répète parfois en tête du suivant (le son ne
+    /// se chevauche jamais : deux morceaux d'une piste se suivent). Si les premiers mots de `texte` reprennent les derniers mots de
+    /// `precedent` (au moins `minimum` mots de suite, sans tenir compte des accents, majuscules ni ponctuation), ils sont retirés.
+    /// Un passage qui n'est qu'une reprise devient vide.
+    public static func sansReprise(_ texte: String, apres precedent: String, minimum: Int = 4) -> String {
+        let jetons = texte.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        // les mêmes « mots » des deux côtés : un jeton du texte (« d'avoir ») plié en une clé (« davoir »)
+        let cles = jetons.map { mots($0).joined() }
+        let avant = precedent.split(whereSeparator: { $0.isWhitespace }).map { mots(String($0)).joined() }.filter { !$0.isEmpty }
+        guard !avant.isEmpty, !jetons.isEmpty else { return texte }
+        // le plus long recouvrement : les k derniers mots d'avant = les k premiers mots (non vides) du texte
+        var meilleur = 0, coupe = 0
+        var k = 0, i = 0
+        var debut: [String] = []
+        while i < jetons.count, k < avant.count {
+            if !cles[i].isEmpty {
+                debut.append(cles[i]); k += 1
+                if k >= min(minimum, avant.count), Array(avant.suffix(k)) == debut { meilleur = k; coupe = i + 1 }
+            }
+            i += 1
+        }
+        guard meilleur >= minimum || (meilleur == avant.count && meilleur >= 2 && meilleur == cles.filter { !$0.isEmpty }.count) else { return texte }
+        var reste = Array(jetons[coupe...])
+        // le reste commence par une ponctuation isolée (« , c'est faisable ») : on la retire ; et une majuscule après une phrase finie
+        while let p = reste.first, mots(p).isEmpty { reste.removeFirst() }
+        guard var premier = reste.first else { return "" }
+        if let fin = precedent.trimmingCharacters(in: .whitespaces).last, ".?!…".contains(fin), let c = premier.first, c.isLowercase {
+            premier = c.uppercased() + premier.dropFirst()
+            reste[0] = premier
+        }
+        return reste.joined(separator: " ")
+    }
+
+    /// Les reprises retirées dans une suite de passages d'UNE voix, dans l'ordre du son ; les passages devenus vides disparaissent.
+    /// Seulement entre deux morceaux qui se suivent (moins de `ecart` secondes entre eux : un même tour coupé par le découpage, le son
+    /// ne se chevauche pas, une répétition y est forcément un artefact) ; « Oui, je m'en charge. » redit une minute plus tard est gardé.
+    public static func sansReprises(_ segments: [SegmentReunion], ecart: Double = 3) -> [SegmentReunion] {
+        var sortie: [SegmentReunion] = []
+        for s in segments {
+            guard let d = sortie.last, s.debut - d.fin <= ecart else { sortie.append(s); continue }
+            var t = s
+            t.texte = sansReprise(s.texte, apres: d.texte)
+            if !t.texte.isEmpty { sortie.append(t) }
+        }
+        return sortie
+    }
+
+    /// Tout d'un coup : reprises de Whisper retirées (voix par voix), échos retirés, fusion, regroupement. Renvoie aussi le nombre
+    /// d'échos retirés (pour le journal).
+    public static func transcription(moi: [SegmentReunion], eux: [SegmentReunion], dureeMax: Double = .infinity) -> (segments: [SegmentReunion], echos: Int) {
+        let m = sansReprises(moi.sorted { $0.debut < $1.debut }), e = sansReprises(eux.sorted { $0.debut < $1.debut })
+        let propre = retirerEchos(moi: m, eux: e)
+        return (regrouper(fusionner(moi: propre.moi, eux: e), dureeMax: dureeMax), propre.retires)
     }
 }

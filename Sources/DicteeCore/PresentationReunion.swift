@@ -209,7 +209,7 @@ public struct ResumeReunion: Equatable, Sendable {
         let premiere = t.aFaire.first { $0.echeance != nil }
         let bref = (r.enBref ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         // ancienne note, écrite avant « En bref » : le premier point abordé tient lieu de résumé
-        let repli = r.dit.first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let repli = (r.dit.first ?? r.sujets?.first?.puces.first?.texte)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return ResumeReunion(enBref: bref.isEmpty ? repli : bref, noteEcrite: r.etat == .prete, aFaire: t.aFaire.count, faites: t.faites.count,
                              premiere: premiere?.echeance, premiereAvant: premiere.map { Echeance.analyser($0.quand ?? "", depuis: Date()).avant } ?? false)
     }
@@ -229,7 +229,18 @@ public enum ListeReunions {
     public static func correspond(_ r: Reunion, requete: String) -> Bool {
         let mots = Historique.plier(requete).split(whereSeparator: { $0.isWhitespace }).map(String.init)
         guard !mots.isEmpty else { return true }
-        let cible = Historique.plier(([r.titreAffiche, r.enBref ?? ""] + r.dit + r.decisions + r.actions.map(\.quoi) + r.segments.map(\.texte)).joined(separator: " "))
+        var morceaux: [String] = [r.titreAffiche, r.enBref ?? ""]
+        morceaux += r.dit
+        for s in r.sujets ?? [] {
+            morceaux.append(s.titre)
+            for p in s.puces { morceaux.append(p.texte); morceaux += p.sous }
+        }
+        morceaux += r.decisions
+        morceaux += r.actions.map(\.quoi)
+        morceaux += r.orateursEntendus.map(\.nom)
+        morceaux += r.participants
+        morceaux += r.segments.map(\.texte)
+        let cible = Historique.plier(morceaux.joined(separator: " "))
         return mots.allSatisfy { cible.contains($0) }
     }
 }
@@ -322,6 +333,7 @@ extension NoteReunion {
     public static func appliquer(_ n: NoteBrute, a r: inout Reunion, segments: [SegmentReunion], calendrier: Calendar = .current) {
         r.titre = n.titre
         r.enBref = n.enBref.isEmpty ? nil : n.enBref
+        r.sujets = n.sujets.isEmpty ? nil : n.sujets
         r.dit = n.dit
         var citations: [CitationReunion] = []
         for (i, point) in n.dit.enumerated() {

@@ -1043,8 +1043,9 @@ do {
                     segments: [SegmentReunion(debut: 12, fin: 20, locuteur: .moi, texte: "Bonjour."), SegmentReunion(debut: 30, fin: 40, locuteur: .eux, texte: "Bonjour, on commence ?")], etat: .prete)
     let md = ReunionMarkdown.rendre(r, calendrier: cal)
     verifier(md.hasPrefix("# Appel Garnier\n"), "Markdown : titre")
-    verifier(md.contains("- [ ] **Moi** : Envoyer la proposition (jeudi)") && md.contains("- [x] Valider le budget"), "Markdown : actions cochables avec qui et quand")
-    verifier(md.contains("## Ce qui a été dit") && md.contains("## Ce qui a été décidé") && md.contains("## Ce qu'il reste à faire") && md.contains("**Moi** (14:02) : Bonjour.") && md.contains("**Eux** (14:02) : Bonjour, on commence ?"), "Markdown : transcription avec l'heure")
+    verifier(md.contains("- [ ] **Moi** : Envoyer la proposition (jeudi)") && md.contains("- [x] Valider le budget"), "Markdown : prochaines étapes cochables avec qui et quand")
+    verifier(md.contains("## Ce qui a été dit") && md.contains("## Décisions") && md.contains("## Prochaines étapes") && md.contains("**Moi** · 14:02\nBonjour.") && md.contains("**Eux**\nBonjour, on commence ?"),
+             "Markdown : ancienne note (« dit »), transcription avec l'orateur, l'heure seulement à la première ligne de chaque minute")
     verifier(!ReunionMarkdown.rendre(Reunion(debut: debut, titre: "Vide"), calendrier: cal).contains("## "), "Markdown : une réunion vide n'a aucune section")
     verifier(ArchiveReunions.decoder(ArchiveReunions.encoder(r)!) == r, "JSON aller-retour")
     verifier(ArchiveReunions.decoder(Data("pas du json".utf8)) == nil, "JSON abîmé : nil")
@@ -1283,10 +1284,10 @@ do {
     let g = GardeInvention(segments: seg).nettoyer(NoteBrute(titre: "", dit: ["Point inventé chez Morel", "Prix sensible"], decisions: ["Signature chez Dupont", "Paiement"], participants: [], enBref: "Un résumé chez Morel", citations: ["x", "J'en parle à mon associé jeudi"], decisionsQuand: ["avant le vingt", "mardi"]))
     verifier(g.note.dit == ["Prix sensible"] && g.note.citations == ["J'en parle à mon associé jeudi"] && g.note.decisions == ["Paiement"] && g.note.decisionsQuand == [""] && g.note.enBref == "", "garde : points, citations et décisions restent alignés ; « En bref » inventé retiré ; « quand » jamais dit retiré")
     // consigne : un souhait n'est pas une décision
-    verifier(NoteReunion.consigneNote.contains("n'est PAS une décision") && NoteReunion.consigneNote.contains("on aimerait") && NoteReunion.consigneNote.contains("en_bref") && NoteReunion.consigneNote.contains("MOT POUR MOT"), "consigne : souhait ≠ décision (avec exemple), « En bref » et citation exacte demandés")
-    verifier(NoteReunion.consigneAssemblage.contains("en_bref") && NoteReunion.consignePartie.contains("citation"), "consignes de partie et d'assemblage : citations, « En bref » à l'assemblage")
+    verifier(NoteReunion.consigneNote.contains("n'est PAS une décision") && NoteReunion.consigneNote.contains("on aimerait") && NoteReunion.consigneNote.contains("en_bref") && NoteReunion.consigneNote.contains("\"sujets\""), "consigne : souhait ≠ décision (avec exemple), phrase d'ouverture et sujets demandés")
+    verifier(NoteReunion.consigneAssemblage.contains("\"sujets\"") && NoteReunion.consignePartie.contains("MOT POUR MOT"), "consignes de partie (points et citation exacte) et d'assemblage (sujets)")
     let md = ReunionMarkdown.rendre(reunion, calendrier: cal)
-    verifier(md.contains("**En bref** : Offre complète retenue") && md.contains("- Signature visée (avant le vingt novembre)"), "Markdown : « En bref » et échéance des décisions")
+    verifier(md.contains("\n\nOffre complète retenue") && md.contains("- Signature visée (avant le vingt novembre)"), "Markdown : phrase d'ouverture et échéance des décisions")
 }
 
 groupe("Réunion : état de l'encoche")
@@ -1861,8 +1862,8 @@ do {
     verifier(aff(OccupationEncoche(), morceau: false) == .aucun, "rien ne joue : rien")
     verifier(aff(OccupationEncoche(), reglage: false) == .aucun && aff(OccupationEncoche(dictee: true), reglage: false) == .aucun, "réglage coupé : rien, même pendant une dictée")
     verifier(aff(OccupationEncoche(dictee: true)) == .miniature, "dictée : l'îlot s'efface, la lecture devient une mini-miniature dans le ruban de la dictée")
-    verifier(aff(OccupationEncoche(reunion: true)) == .aucun, "réunion : la lecture ne s'affiche pas")
-    verifier(aff(OccupationEncoche(dictee: true, reunion: true)) == .aucun, "dictée pendant une réunion : toujours rien")
+    verifier(aff(OccupationEncoche(reunion: true)) == .ilot, "réunion : la lecture reste dans l'îlot (la réunion a l'îlot, la vidéo passe dans la bulle)")
+    verifier(aff(OccupationEncoche(dictee: true, reunion: true)) == .miniature, "dictée pendant une réunion : comme toute dictée")
     verifier(aff(OccupationEncoche(filet: true)) == .aucun && aff(OccupationEncoche(miseAJour: true)) == .aucun && aff(OccupationEncoche(autreAnnonce: true)) == .aucun, "filet, mise à jour, autre annonce : la lecture s'efface")
     verifier(aff(OccupationEncoche(dictee: true, filet: true)) == .miniature, "dictée + filet : la dictée garde la place, la lecture reste une mini-miniature")
 }
@@ -1927,6 +1928,10 @@ controlesLucarne()
 controlesSecondBrain()
 controlesGroq()
 controlesPlacesLucarne()
+controlesReunionIlot()
+controlesReunionNote()
+controlesVoixReunion()
+controlesExtraitsReunion()
 
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)

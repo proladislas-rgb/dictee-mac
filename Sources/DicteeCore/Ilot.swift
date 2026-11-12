@@ -67,6 +67,13 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// (clic sur la jauge des Outils) et la première dictée passée par le Mac (« Dicté sur le Mac · Pas de réseau ») ; ensuite, une dictée
     /// passée par le Mac le dit seulement dans les ailes (`dicteeMac` : l'ordinateur à gauche, « Mac » à droite).
     case groq, dicteeMac
+    /// La réunion (maquette design/maquettes/ilot-reunion.html, façon Wispr Flow) : une activité comme une autre. Repliée : un point rouge
+    /// et l'onde dans l'aile gauche, le temps dans l'aile droite (comme l'enregistrement sur l'iPhone) ; au survol, la carte « Réunion »
+    /// (le direct, « Ce que j'ai raté », « Ajouter un point », pause, Arrêter, « Centre »).
+    case reunionCompact, reunionEtendu
+    /// Les annonces de la réunion, qui attendent un geste ou la fin de ce qu'elles disent (jamais de survol) : « Noter cet appel ? »,
+    /// « Note en préparation… », « Note prête · Ouvrir », un message court (« Micro non autorisé »).
+    case reunionPropose, reunionPrepare, reunionPrete, reunionMessage
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
@@ -81,6 +88,8 @@ public enum VueIlot: String, CaseIterable, Sendable {
     public var estAlerte: Bool { self == .minuteurFini || self == .rappelEtendu || self == .agendaDebut || self == .reveilFini }
     /// Volume et luminosité : un bandeau qui suit les touches du clavier (1,5 s après la dernière).
     public var estNiveau: Bool { self == .volume || self == .luminosite }
+    /// Les annonces de la réunion (leur fin est décidée par la réunion, pas par l'îlot).
+    public var estAnnonceReunion: Bool { [.reunionPropose, .reunionPrepare, .reunionPrete, .reunionMessage].contains(self) }
 }
 
 /// Géométrie de la forme (maquette design/maquettes/ilot-pro-A.html), sept valeurs :
@@ -121,12 +130,16 @@ public enum GeoIlot {
     /// Le rendez-vous qui commence : 16 de marge, la ligne (titre, « Maintenant · Google Meet », l'heure ; 40), 10, les deux boutons
     /// (32), 16.
     public static let profondeurDebutRendezVous: Double = 16 + 40 + 10 + 32 + 16
+    /// La carte « Réunion » (maquette : 291 − 33) : 14 de marge, l'en-tête (26), 10, le direct (152), 12, la rangée des boutons (30), 14.
+    public static let profondeurReunion: Double = 14 + 26 + 10 + 152 + 12 + 30 + 14
     /// Repos d'une activité : rien sous la barre, le cou serré contre la caméra (la place de la pochette, de l'anneau, de l'heure).
     static func compact(_ cou: Double) -> [Double] { [cou, cou, 0, 6, 10, 0, 0] }
     /// Bandeau passager : cou étroit (les menus restent visibles), deux lignes sous la barre. Le corps s'ajuste à son contenu (comme la
     /// Dynamic Island) : la table donne le plus large permis, `corps(_:contenu:demiCamera:)` la largeur voulue.
     static let bandeau: [Double] = [14, 150, 72, 6, 28, 16, 10]
     static let alerte: [Double] = [14, 150, 79, 6, 30, 16, 10]
+    /// « Note en préparation… » : le titre et le pourcentage, l'étape, puis une barre de 6 pt (maquette ilot-reunion.html, étape 9).
+    static let bandeauPreparation: [Double] = [14, 150, 88, 6, 28, 16, 10]
     static let table: [VueIlot: [Double]] = [
         // repos : exactement l'encoche (pas d'épaule : rien ne déborde sur la barre autour de la caméra)
         .repos: [0, 0, 0, 0, 8, 0, 0],
@@ -193,6 +206,12 @@ public enum GeoIlot {
         .secondBrain: [14, 144, profondeurCentre, 6, 34, 18, 10],
         // la Bibliothèque : la largeur du Centre (et de l'étagère), la hauteur de sa liste (`enPlus`, `CarteBibliotheque.profondeur`)
         .bibliotheque: [14, 144, CarteBibliotheque.profondeurMax, 6, 34, 18, 10],
+        // la réunion repliée : le point rouge et l'onde (aile gauche, 30 pt), le temps (« 12:41 », « 1:02:13 », 48 pt au plus dans
+        // l'aile droite) ; 60 + 6 = 66. Dépliée : la largeur du Centre (on passe de l'un à l'autre sans que la forme s'élargisse)
+        .reunionCompact: compact(60),
+        .reunionEtendu: [14, 144, profondeurReunion, 6, 34, 18, 10],
+        // les annonces : des bandeaux qui épousent leur contenu
+        .reunionPropose: bandeau, .reunionPrepare: bandeauPreparation, .reunionPrete: bandeau, .reunionMessage: bandeau,
     ]
     /// Indices des valeurs : largeurs (cou, corps, cou droit) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur
     /// mène ; à la fermeture la hauteur se replie d'abord.
@@ -206,14 +225,16 @@ public enum GeoIlot {
     public static let evasementMin: Double = 38
 
     /// Écrans dont le corps épouse le contenu (bandeaux, alertes, rendez-vous déplié) : ni texte collé à gauche ni grand vide à droite.
-    public static func ajusteAuContenu(_ v: VueIlot) -> Bool { ((v.estBandeau || v.estAlerte) && profondeur(v) > 0) || v == .agendaEtendu || v == .microEtendu }
+    public static func ajusteAuContenu(_ v: VueIlot) -> Bool {
+        ((v.estBandeau || v.estAlerte || v.estAnnonceReunion) && profondeur(v) > 0) || v == .agendaEtendu || v == .microEtendu
+    }
 
     /// Les épaules (maquette ilot-apple.html) : dans un écran déplié, le cou s'élargit à 56 pt de chaque côté de la caméra pour montrer
     /// la batterie du Mac (à gauche) et celle des écouteurs (à droite). 56 + le congé du cou déplié (10 pt) = la limite des ailes (66 pt).
     public static let epaules: Double = 56
     public static func aEpaules(_ v: VueIlot) -> Bool {
         [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .dictees, .claudeCarte,
-         .outils, .outilPressePapiers, .outilReformuler, .outilNote, .secondBrain, .bibliotheque].contains(v)
+         .outils, .outilPressePapiers, .outilReformuler, .outilNote, .secondBrain, .bibliotheque, .reunionEtendu].contains(v)
     }
 
     /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.
@@ -280,6 +301,8 @@ public enum ActiviteIlot: String, Sendable, Equatable {
     case claude
     /// Un réveil est réglé (il attend son heure dans les ailes).
     case reveil
+    /// Une réunion s'enregistre (ou est en pause) : elle passe avant tout le reste, le reste va dans la bulle.
+    case reunion
 }
 
 /// Ce qui est vrai à l'instant, pour décider qui a l'îlot et qui a la pastille.
@@ -296,6 +319,8 @@ public struct EtatIlot: Equatable, Sendable {
     public var reveil = false              // un réveil est réglé
     public var alerte: VueIlot?            // minuteurFini, rappelEtendu ou agendaDebut, en cours
     public var bandeau: VueIlot?           // un bandeau passager
+    public var reunion = false             // une réunion s'enregistre (ou est en pause)
+    public var annonceReunion: VueIlot?    // « Noter cet appel ? », « Note en préparation… », « Note prête », un message
     public init() {}
 }
 
@@ -317,8 +342,11 @@ public enum ArbitrageIlot {
     /// L'ordre de priorité des activités qui se partagent l'îlot : micro coupé, rendez-vous, rappel, lecture, minuteur, Claude. Le micro
     /// coupé passe avant tout : c'est ce qui gêne le plus si on l'oublie (on parle dans un appel où personne n'entend) ; la vidéo devient
     /// la bulle. Claude au travail est un fond (il passe après la vidéo et le minuteur) ; Claude qui attend une réponse passe avant la vidéo.
+    /// La réunion passe avant tout (maquette ilot-reunion.html : elle garde l'îlot, une vidéo ou un minuteur part dans la bulle) ; le micro
+    /// coupé vient juste après (rouge dans la bulle : on le voit pendant l'appel).
     public static func ordre(_ e: EtatIlot, echange: ActiviteIlot? = nil) -> [ActiviteIlot] {
         var p: [ActiviteIlot] = []
+        if e.reunion { p.append(.reunion) }
         if e.microCoupe { p.append(.micro) }
         if e.rendezVousProche { p.append(.rendezVous) }
         if e.rappelEnAttente { p.append(.rappel) }
@@ -342,6 +370,7 @@ public enum ArbitrageIlot {
         case .claude: return (.claudeCompact, .claudeCarte)
         // au survol, le Centre : sa case Minuteur montre le réveil (onglet Réveil), on le change ou l'annule d'un clic
         case .reveil: return (.reveilCompact, .centre)
+        case .reunion: return (.reunionCompact, .reunionEtendu)
         case .alerte: return (.repos, .repos)
         }
     }
@@ -360,6 +389,8 @@ public enum ArbitrageIlot {
         // dans la bulle et en revient à chaque touche)
         if let b = e.bandeau, b.estNiveau { return ResolutionIlot(principal: b, survol: nil, verrou: true, pastille: p.count > 1 ? p[1] : nil) }
         if let b = e.bandeau { return ResolutionIlot(principal: b, survol: nil, verrou: true, pastille: p.first) }
+        // une annonce de la réunion attend un geste (« Noter », « Ouvrir ») ou sa fin : pas de survol, l'activité va dans la bulle
+        if let a = e.annonceReunion { return ResolutionIlot(principal: a, survol: nil, verrou: true, pastille: p.first) }
         if let premiere = p.first {
             let v = vues(premiere)
             // Claude sans rien à dire (ni liste, ni nom de tâche, ni question) : l'étoile seule, dans un îlot plus étroit
@@ -542,5 +573,11 @@ public enum FormatIlot {
         let m = Int((secondes / 60).rounded())
         if m >= 60 { return m % 60 == 0 ? "\(m / 60) h" : "\(m / 60) h \(String(format: "%02d", m % 60))" }
         return "\(m) min"
+    }
+    /// Le temps d'une réunion qui s'enregistre : « 0:04 », « 12:41 », « 1:02:13 » (secondes entières, comme le chronomètre de l'iPhone).
+    public static func chrono(_ secondes: Double) -> String {
+        let s = max(0, Int(secondes))
+        let h = s / 3600, m = (s % 3600) / 60, sec = s % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%d:%02d", m, sec)
     }
 }

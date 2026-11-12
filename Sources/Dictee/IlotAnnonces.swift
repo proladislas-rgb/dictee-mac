@@ -55,6 +55,8 @@ struct ContenuAnnonce {
     static let coteCompte: CGFloat = 28, coteRouet: CGFloat = 22
     /// À la place du symbole : le réveil qui se secoue (l'alerte du réveil).
     var reveil = false
+    /// À la place du symbole : un anneau qui se remplit (0 à 1) ; « Note en préparation… ».
+    var progres: Double? = nil
 
     static let cote: CGFloat = 26, espace: CGFloat = 12, espaceBoutons: CGFloat = 8, espaceJauges: CGFloat = 8
     /// L'icône d'un fichier : 38 pt, presque la hauteur des deux lignes (maquette ilot-apple.html, « Téléchargé »).
@@ -101,13 +103,21 @@ enum MesureIlot {
         let f = chiffres ? NSFont.monospacedDigitSystemFont(ofSize: taille, weight: poids) : NSFont.systemFont(ofSize: taille, weight: poids)
         return ceil((s as NSString).size(withAttributes: [.font: f, .kern: interlettre]).width) + 1
     }
+    /// Le nombre de lignes d'un texte coupé à `largeur` (Core Text, même police que la carte).
+    static func lignes(_ s: String, _ taille: CGFloat, _ poids: NSFont.Weight, largeur: CGFloat) -> Int {
+        guard !s.isEmpty, largeur > 0 else { return s.isEmpty ? 0 : .max }
+        let f = NSFont.systemFont(ofSize: taille, weight: poids)
+        let h = (s as NSString).boundingRect(with: NSSize(width: largeur, height: .greatestFiniteMagnitude),
+                                             options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: f]).height
+        return max(1, Int((h / (f.ascender - f.descender + f.leading)).rounded()))
+    }
     static func symbole(_ nom: String, _ taille: CGFloat, _ poids: NSFont.Weight = .semibold) -> CGFloat {
         let c = NSImage.SymbolConfiguration(pointSize: taille, weight: poids)
         return ceil(NSImage(systemSymbolName: nom, accessibilityDescription: nil)?.withSymbolConfiguration(c)?.size.width ?? taille)
     }
     /// Une pilule `CapIlot` de 32 pt.
     static func bouton(_ b: ContenuAnnonce.Bouton) -> CGFloat {
-        texte(b.titre, 13.5, .semibold) + 28 + (b.icone.map { symbole($0, 13) + 6 } ?? 0)
+        texte(b.titre, 13.5, .semibold) + 28 + (b.icone.map { symbole($0, 13) + 6 } ?? 0) + (b.style == .noter ? CapIlot.placePoint : 0)
     }
     static func boutons(_ bs: [ContenuAnnonce.Bouton], memeLargeur: Bool = false) -> CGFloat {
         guard !bs.isEmpty else { return 0 }
@@ -211,6 +221,8 @@ extension IlotMoteur {
             return ContenuAnnonce(glyphe: GlypheIlot(nom: "checkmark.circle.fill", couleur: CouleursIlot.vert, taille: 22), l1: b?.ligne1 ?? "Tâche terminée",
                                   l2: b?.ligne2 ?? s?.projet ?? "",
                                   droite: .boutons([.init(titre: "Voir", etiquette: "Voir la fenêtre du Terminal de \(s?.projet ?? "Claude Code")", action: .claudeOuvrir(s))]))
+        case .reunionPropose, .reunionPrepare, .reunionPrete, .reunionMessage:
+            return contenuReunion(v)
         case .microEtendu:
             // le micro barré voyage depuis l'aile gauche (sa place est gardée) ; le nom du micro peut être long : coupé au bout
             return ContenuAnnonce(glyphe: nil, l1: "Micro coupé", l2: nomMicro ?? "Micro du Mac",
@@ -324,11 +336,14 @@ extension IlotMoteur {
                 + ContenuAnnonce.espace + MesureIlot.texte(FormatIlot.heure(e.debut), 13, .semibold, chiffres: true)
             return max(haut, MesureIlot.boutons(bs, memeLargeur: true))
         }
-        let textes = max(MesureIlot.texte(c.l1, 17, .semibold, interlettre: ContenuAnnonce.interlettreL1), MesureIlot.texte(c.l2, 12.5, .medium))
-        var l = c.coteSymbole + ContenuAnnonce.espace + textes
+        // « Note en préparation… » : mesurée sur sa plus longue étape et sur « 100 % », la forme ne bouge pas pendant qu'elle avance
+        let l2 = v == .reunionPrepare ? PreparationNote.etapes.max { MesureIlot.texte($0, 12.5, .medium) < MesureIlot.texte($1, 12.5, .medium) } ?? c.l2 : c.l2
+        let textes = max(MesureIlot.texte(c.l1, 17, .semibold, interlettre: ContenuAnnonce.interlettreL1), MesureIlot.texte(l2, 12.5, .medium))
+        // sans symbole, « Note en préparation… » commence au bord (le pourcentage est sur la ligne du titre)
+        var l = c.progres == nil ? c.coteSymbole + ContenuAnnonce.espace + textes : textes
         switch c.droite {
         case .rien: break
-        case .meta(let t): l += ContenuAnnonce.espace + MesureIlot.texte(t, 13, .semibold, chiffres: true)
+        case .meta(let t): l += ContenuAnnonce.espace + MesureIlot.texte(v == .reunionPrepare ? PreparationNote.pourcent(1) : t, 13, .semibold, chiffres: true)
         case .temps:
             let mn = minuteur ?? dernierMinuteur
             l += ContenuAnnonce.espace + MesureIlot.texte(FormatIlot.duree(mn.total), 15, .semibold, chiffres: true)

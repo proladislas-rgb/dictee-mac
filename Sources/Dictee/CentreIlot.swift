@@ -290,6 +290,7 @@ extension IlotMoteur {
         case .microEtendu: return "Micro"
         case .claudeCarte: return "Claude"
         case .outils: return "Outils"
+        case .reunionEtendu: return "Réunion"
         case .agendaEtendu: return "Rendez-vous"
         case .rappelEtendu, .rappelListe: return "Rappel"
         default: return nil
@@ -721,24 +722,42 @@ private struct FondCase: View {
 }
 
 /// « Noter la réunion » en grande case, à côté du Minuteur, quand les fichiers de l'étagère prennent le haut du Centre (maquette
-/// ilot-etagere-rapide.html, étape 6) : le point rouge, le titre, ce que ça fait.
+/// ilot-etagere-rapide.html, étape 6) : le point rouge, le titre, ce que ça fait. Pendant une réunion, comme la bande (BandeReunion) :
+/// « Réunion en cours », le temps, et un clic ramène à la carte de la réunion (jamais une deuxième réunion).
 struct CaseReunion: View {
     @ObservedObject var m: IlotMoteur
     @State private var survol = false
     var body: some View {
-        Button { m.epinglerLeCentre(); m.surAction(.centreReunion) } label: {
+        let r = m.reunion
+        Button {
+            if r != nil, m.cartes.contains(.reunionEtendu) { m.allerA(.reunionEtendu) } else { m.epinglerLeCentre(); m.surAction(.centreReunion) }
+        } label: {
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white.opacity(survol ? 0.14 : 0.1))
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(r != nil ? CouleursIlot.rouge.opacity(survol ? 0.3 : 0.24) : Color.white.opacity(survol ? 0.14 : 0.1))
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 7) {
-                        Circle().strokeBorder(CouleursIlot.rouge, lineWidth: 1.8)
-                            .overlay(Circle().fill(CouleursIlot.rouge).padding(4.2))
-                            .frame(width: 16, height: 16).frame(width: 18, height: 17)
-                        Text(BandeReunion.titre).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                        Group {
+                            if let r {
+                                Circle().strokeBorder(CouleursIlot.rouge, lineWidth: 1.8)
+                                    .overlay(PointReunion(enPause: r.enPause, animer: !m.reduire && !m.statique, cote: 10))
+                            } else {
+                                Circle().strokeBorder(CouleursIlot.rouge, lineWidth: 1.8).overlay(Circle().fill(CouleursIlot.rouge).padding(4.2))
+                            }
+                        }
+                        .frame(width: 16, height: 16).frame(width: 18, height: 17)
+                        Text(r == nil ? BandeReunion.titre : BandeReunion.titreEnCours).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
                     }
                     .frame(height: 17)
-                    Text(BandeReunion.sousTitre).font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5))
-                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                    if r != nil {
+                        HStack(spacing: 0) {
+                            ChronoReunion(m: m, taille: 12).fixedSize()
+                            Text(BandeReunion.suiteEnCours).font(.system(size: 12, weight: .medium)).foregroundStyle(Color(hex: 0xFF8A82)).lineLimit(1)
+                        }
+                    } else {
+                        Text(BandeReunion.sousTitre).font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5))
+                            .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .padding(.horizontal, 14).padding(.vertical, 11)
             }
@@ -746,7 +765,7 @@ struct CaseReunion: View {
         }
         .buttonStyle(AppuiIlot(echelle: 0.97))
         .onHover { survol = $0 }
-        .accessibilityLabel("Noter la réunion : Verbe écrit tout ce qui se dit")
+        .accessibilityLabel(r == nil ? "Noter la réunion : Verbe écrit tout ce qui se dit" : "Réunion en cours : voir le direct")
     }
 }
 

@@ -148,7 +148,18 @@ final class GroqClient: @unchecked Sendable {
         return try await requete(modele: modele, fichier: fichier, prompt: prompt, langue: forcee, verbose: false, etiquette: etiquette + " (langue forcée)").texte
     }
 
-    private func requete(modele: ModeleWhisper, fichier: EncodeurAudio.Fichier, prompt: String, langue: String?, verbose: Bool, etiquette: String) async throws -> (texte: String, langue: String?) {
+    /// La relecture d'après l'appel : un lot de son (deux minutes au plus) transcrit avec ses phrases horodatées (`verbose_json`,
+    /// horodatage par phrase), avec le modèle précis SEULEMENT. Pas de secours sur le turbo : ses minutes sont celles de la dictée et
+    /// du direct (`BudgetAudio.partage`), et un lot refusé a déjà son repli, gratuit (le direct, et le son gardé pour « Refaire la note »).
+    func transcrirePhrases(fichier: EncodeurAudio.Fichier, prompt: String, langue: String?, etiquette: String) async throws -> [PhraseWhisper] {
+        let langueEnvoyee = (langue?.isEmpty ?? true) ? nil : langue
+        let r = try await requete(modele: .precis, fichier: fichier, prompt: prompt, langue: langueEnvoyee, verbose: true, etiquette: etiquette, horodatage: true)
+        guard let phrases = RelectureReunion.analyser(r.donnees) else { throw GroqErreur.reponseIllisible }
+        return phrases
+    }
+
+    private func requete(modele: ModeleWhisper, fichier: EncodeurAudio.Fichier, prompt: String, langue: String?, verbose: Bool, etiquette: String,
+                         horodatage: Bool = false) async throws -> (texte: String, langue: String?, donnees: Data) {
         guard let cle else { throw GroqErreur.pasDeCle }
         // Mesure du « secours rapide » : la première requête de chaque morceau est retardée (jamais en usage normal).
         if let ms = ProcessInfo.processInfo.environment["DICTEE_RETARD_PREMIERE_REQUETE_MS"].flatMap({ Double($0) }), !etiquette.contains("secours") {
@@ -162,6 +173,7 @@ final class GroqClient: @unchecked Sendable {
         champ("model", modele.identifiant)
         champ("response_format", verbose ? "verbose_json" : "json")
         champ("temperature", "0")
+        if horodatage { champ("timestamp_granularities[]", "segment") }
         if let langue, !langue.isEmpty { champ("language", langue) }
         if !prompt.isEmpty { champ("prompt", prompt) }
         corps.append("--\(frontiere)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(fichier.nom)\"\r\nContent-Type: \(fichier.type)\r\n\r\n".data(using: .utf8)!)
@@ -170,6 +182,7 @@ final class GroqClient: @unchecked Sendable {
 
         var req = URLRequest(url: base.appendingPathComponent("audio/transcriptions"))
         req.httpMethod = "POST"
+        if horodatage { req.timeoutInterval = 40 }   // un lot de deux minutes (la dictée garde ses 8 s)
         req.setValue("Bearer \(cle)", forHTTPHeaderField: "Authorization")
         req.setValue("multipart/form-data; boundary=\(frontiere)", forHTTPHeaderField: "Content-Type")
         req.httpBody = corps
@@ -196,7 +209,7 @@ final class GroqClient: @unchecked Sendable {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let texte = json["text"] as? String else {
             throw GroqErreur.reponseIllisible
         }
-        return (texte, json["language"] as? String)
+        return (texte, json["language"] as? String, data)
     }
 
     /// Une complétion de texte (remise au propre). Température basse, sortie = le texte seul.

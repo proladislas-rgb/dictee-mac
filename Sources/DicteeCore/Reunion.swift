@@ -12,12 +12,49 @@ public struct SegmentReunion: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var debut: Double
     public var fin: Double
+    /// La piste d'où vient le passage (le micro ou le son du Mac).
     public var locuteur: Locuteur
     public var texte: String
+    /// L'orateur (`OrateurReunion.id`) : nil = celui de la piste (« moi » ou « eux »). La séparation des voix donnera plusieurs
+    /// orateurs à la piste du Mac ; leur nom vit dans `Reunion.orateurs`, jamais dans le passage (on renomme une fois pour toutes).
+    public var orateur: String?
 
-    public init(id: UUID = UUID(), debut: Double, fin: Double, locuteur: Locuteur, texte: String) {
-        self.id = id; self.debut = debut; self.fin = max(fin, debut); self.locuteur = locuteur; self.texte = texte
+    public init(id: UUID = UUID(), debut: Double, fin: Double, locuteur: Locuteur, texte: String, orateur: String? = nil) {
+        self.id = id; self.debut = debut; self.fin = max(fin, debut); self.locuteur = locuteur; self.texte = texte; self.orateur = orateur
     }
+
+    /// L'identifiant de l'orateur, celui de la piste par défaut.
+    public var idOrateur: String { orateur ?? locuteur.rawValue }
+}
+
+/// Une voix de la réunion : « Moi » (le micro), « Eux » (le son du Mac), ou, quand les voix du son du Mac ont été séparées,
+/// « Personne 1 », « Personne 2 »… (`SeparationVoix`). Le nom se change une fois pour toutes : chaque passage renvoie à l'orateur
+/// par son identifiant, jamais par son nom.
+public struct OrateurReunion: Codable, Equatable, Identifiable, Sendable {
+    public var id: String
+    public var nom: String
+    public var piste: Locuteur
+    /// L'empreinte de la voix (séparation des voix) : de quoi la reconnaître plus tard (`SeparationVoix.reconnaitre`). Gardée sur ce
+    /// Mac seulement, avec la réunion ; nil pour « Moi », « Eux » et les notes d'avant la séparation.
+    public var empreinte: [Float]?
+    public init(id: String, nom: String, piste: Locuteur, empreinte: [Float]? = nil) {
+        self.id = id; self.nom = nom; self.piste = piste; self.empreinte = empreinte
+    }
+    /// L'orateur d'une piste tant qu'on ne sépare pas les voix.
+    public static func dePiste(_ l: Locuteur) -> OrateurReunion { OrateurReunion(id: l.rawValue, nom: l.libelle, piste: l) }
+}
+
+/// Un sujet du résumé : un titre court et ses puces (une puce peut avoir des détails en dessous).
+public struct SujetReunion: Codable, Equatable, Sendable {
+    public var titre: String
+    public var puces: [PuceReunion]
+    public init(titre: String, puces: [PuceReunion]) { self.titre = titre; self.puces = puces }
+}
+
+public struct PuceReunion: Codable, Equatable, Sendable {
+    public var texte: String
+    public var sous: [String]
+    public init(texte: String, sous: [String] = []) { self.texte = texte; self.sous = sous }
 }
 
 /// Une chose à faire notée dans la réunion. `qui` et `quand` restent vides quand la réunion ne les a pas dits.
@@ -92,6 +129,20 @@ public struct Reunion: Codable, Equatable, Identifiable, Sendable {
     public var citations: [CitationReunion]?
     /// Une échéance (ou rien) par décision, dans l'ordre de `decisions`.
     public var decisionsEcheances: [EcheanceReunion?]?
+    /// Les moments marqués pendant l'appel (« Ajouter un point » dans l'îlot), en secondes de réunion.
+    public var points: [Double]?
+    // Ajouts de la note « façon Wispr Flow » : facultatifs eux aussi.
+    /// Le résumé rangé par sujets (titres et puces). Les notes plus anciennes n'ont que `dit`.
+    public var sujets: [SujetReunion]?
+    /// Les orateurs et leur nom (nil : « Moi » et « Eux »).
+    public var orateurs: [OrateurReunion]?
+    /// Vrai quand TOUT l'enregistrement a été retranscrit d'un coup après l'appel (modèle précis) ; faux : une partie (ou tout) n'a
+    /// pas pu être relue (réseau, limite de Groq) et c'est le direct qui la remplace ; absent : notes d'avant la relecture.
+    public var relue: Bool?
+    /// Les passages de parole vus pendant l'appel, voix par voix (ce que la relecture renvoie, sans les silences). Gardés tant que le
+    /// son l'est : « Refaire la note » après un arrêt brutal ou une relecture impossible les relit. nil : inconnus (anciennes notes).
+    public var passagesMoi: [PassageParole]?
+    public var passagesEux: [PassageParole]?
 
     public init(id: UUID = UUID(), debut: Date = Date(), duree: Double = 0, titre: String = "", participants: [String] = [],
                 dit: [String] = [], decisions: [String] = [], actions: [ActionReunion] = [], segments: [SegmentReunion] = [],
@@ -129,10 +180,78 @@ public struct Reunion: Codable, Equatable, Identifiable, Sendable {
         return t.isEmpty ? "Réunion du \(FormatReunion.jourHeure(debut))" : t
     }
 
-    /// Voix distinctes dans la transcription (1 ou 2 : Moi, Eux).
-    public var voix: Int { Set(segments.map(\.locuteur)).count }
+    /// Voix distinctes dans la transcription (Moi, Eux, ou Moi et les personnes séparées).
+    public var voix: Int { Set(segments.map(\.idOrateur)).count }
+
+    /// L'orateur d'un passage (son nom tel que renommé).
+    public func orateur(de s: SegmentReunion) -> OrateurReunion { orateur(id: s.idOrateur, piste: s.locuteur) }
+
+    public func orateur(id: String, piste: Locuteur = .eux) -> OrateurReunion {
+        orateurs?.first { $0.id == id } ?? (Locuteur(rawValue: id).map(OrateurReunion.dePiste)
+            ?? OrateurReunion(id: id, nom: SeparationVoix.nomParDefaut(id: id) ?? id, piste: piste))
+    }
+
+    /// Les orateurs qu'on entend, dans l'ordre où ils parlent pour la première fois.
+    public var orateursEntendus: [OrateurReunion] {
+        var vus: [String] = []
+        for s in segments where !vus.contains(s.idOrateur) { vus.append(s.idOrateur) }
+        return vus.map { id in orateur(id: id, piste: segments.first { $0.idOrateur == id }?.locuteur ?? .eux) }
+    }
+
+    /// Renomme un orateur une fois pour toutes : chaque passage le suit (il ne garde que l'identifiant), et les prochaines étapes
+    /// et participants qui portaient l'ancien nom prennent le nouveau. Un nom vide rend le nom par défaut (« Eux », « Personne 2 »).
+    /// Un nom qui n'est pas celui d'une piste (« Personne 2 », « Claire ») est aussi remplacé dans le texte de la note (en bref,
+    /// sujets, décisions, prochaines étapes), mot entier seulement ; « Moi » et « Eux », mots courants, n'y sont jamais touchés.
+    public mutating func renommer(orateur id: String, en nom: String) {
+        let ancien = orateur(id: id)
+        let n = nom.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nouveau = n.isEmpty ? (SeparationVoix.nomParDefaut(id: id) ?? ancien.nom) : n
+        guard nouveau != ancien.nom else { return }
+        var liste = orateurs ?? orateursEntendus
+        if let i = liste.firstIndex(where: { $0.id == id }) { liste[i].nom = nouveau } else { liste.append(OrateurReunion(id: id, nom: nouveau, piste: ancien.piste)) }
+        orateurs = liste
+        for i in actions.indices where actions[i].qui == ancien.nom { actions[i].qui = nouveau }
+        if let i = participants.firstIndex(of: ancien.nom) { participants[i] = nouveau }
+        else if (ancien.nom == Locuteur.eux.libelle || SeparationVoix.estNomParDefaut(ancien.nom)), !participants.contains(nouveau) { participants.append(nouveau) }
+        guard Locuteur(rawValue: ancien.nom.lowercased()) == nil else { return }
+        let r = { (t: String) in NomDansLeTexte.remplacer(ancien.nom, par: nouveau, dans: t) }
+        enBref = enBref.map(r)
+        dit = dit.map(r)
+        decisions = decisions.map(r)
+        sujets = sujets?.map { s in SujetReunion(titre: r(s.titre), puces: s.puces.map { PuceReunion(texte: r($0.texte), sous: $0.sous.map(r)) }) }
+        for i in actions.indices { actions[i].quoi = r(actions[i].quoi) }
+    }
 
     public var motsTranscrits: Int { segments.reduce(0) { $0 + Historique.compterMots($1.texte) } }
+
+    /// Les passages de parole connus, voix par voix (une voix absente : inconnue, la relecture les retrouve dans la transcription).
+    public var passagesParVoix: [Locuteur: [PassageParole]] {
+        get {
+            var d: [Locuteur: [PassageParole]] = [:]
+            if let p = passagesMoi { d[.moi] = p }
+            if let p = passagesEux { d[.eux] = p }
+            return d
+        }
+        set { passagesMoi = newValue[.moi]; passagesEux = newValue[.eux] }
+    }
+}
+
+/// Remplacer un nom dans un texte, mot entier seulement (« Personne 1 » n'est pas touché dans « Personne 12 »).
+public enum NomDansLeTexte {
+    public static func remplacer(_ ancien: String, par nouveau: String, dans texte: String) -> String {
+        guard !ancien.isEmpty, texte.contains(ancien) else { return texte }
+        var sortie = ""
+        var reste = texte[...]
+        while let r = reste.range(of: ancien) {
+            let avant = r.lowerBound > reste.startIndex ? reste[reste.index(before: r.lowerBound)] : nil
+            let apres = r.upperBound < reste.endIndex ? reste[r.upperBound] : nil
+            let entier = !(avant.map { $0.isLetter || $0.isNumber } ?? false) && !(apres.map { $0.isLetter || $0.isNumber } ?? false)
+            sortie += reste[..<r.lowerBound]
+            sortie += entier ? nouveau : String(reste[r])
+            reste = reste[r.upperBound...]
+        }
+        return sortie + reste
+    }
 }
 
 /// Dates et durées à la française.
@@ -170,8 +289,43 @@ public enum FormatReunion {
     }
 }
 
+/// La transcription telle que la note la montre : les passages dans l'ordre, l'heure seulement sur la première ligne de chaque minute
+/// (« 14:13 »), les points marqués pendant l'appel posés avant le premier passage qui commence après eux. Logique pure.
+public enum LignesTranscription {
+    public enum Element: Equatable, Sendable {
+        /// Le passage `index` de `Reunion.segments` ; `heure` (« 14:13 ») sur la première ligne d'une nouvelle minute, sinon nil.
+        case passage(index: Int, heure: String?)
+        /// Un point marqué, en secondes de réunion.
+        case point(Double)
+    }
+
+    public static func elements(_ r: Reunion, calendrier: Calendar = .current) -> [Element] {
+        var sortie: [Element] = []
+        var points = (r.points ?? []).sorted()
+        var minute: Int?
+        for (i, s) in r.segments.enumerated() {
+            while let t = points.first, t < s.debut { sortie.append(.point(t)); points.removeFirst() }
+            let instant = r.debut.addingTimeInterval(s.debut)
+            let m = Int((instant.timeIntervalSinceReferenceDate / 60).rounded(.down))
+            sortie.append(.passage(index: i, heure: m == minute ? nil : FormatReunion.heure(instant, calendrier: calendrier)))
+            minute = m
+        }
+        sortie += points.map { .point($0) }
+        return sortie
+    }
+}
+
 /// Export Markdown de la note : lisible tel quel, collable dans Notion (qui le convertit en blocs).
 public enum ReunionMarkdown {
+    /// « , juste après « tous les textes avant le 25 » » : la fin de ce qui venait d'être dit au moment marqué.
+    public static func avant(_ t: Double, dans segments: [SegmentReunion]) -> String {
+        guard let s = segments.last(where: { $0.debut <= t }) else { return "" }
+        let m = s.texte.split(separator: " ")
+        guard !m.isEmpty else { return "" }
+        let fin = m.suffix(6).joined(separator: " ").trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?…"))
+        return ", juste après « " + (m.count > 6 ? "\u{2026}" : "") + fin + " »"
+    }
+
     public static func rendre(_ r: Reunion, calendrier: Calendar = .current) -> String {
         var l: [String] = []
         l.append("# \(r.titreAffiche)")
@@ -179,28 +333,49 @@ public enum ReunionMarkdown {
         var meta = "\(FormatReunion.jourHeure(r.debut, calendrier: calendrier)) · \(FormatReunion.duree(r.duree))"
         if !r.participants.isEmpty { meta += "\nParticipants : \(r.participants.joined(separator: ", "))" }
         l.append(meta)
-        if let b = r.enBref, !b.isEmpty { l += ["", "**En bref** : \(b)"] }
-        if !r.dit.isEmpty { l += ["", "## Ce qui a été dit", ""] + r.dit.map { "- \($0)" } }
-        if !r.decisions.isEmpty { l += ["", "## Ce qui a été décidé", ""] + r.decisions.enumerated().map { i, d in "- \(d)" + (r.echeance(decision: i).map { " (\($0.quand))" } ?? "") } }
+        if let b = r.enBref?.trimmingCharacters(in: .whitespacesAndNewlines), !b.isEmpty { l += ["", b] }
+        if let sujets = r.sujets, !sujets.isEmpty {
+            l += ["", "## Résumé par sujet"]
+            for s in sujets {
+                l.append("")
+                if !s.titre.isEmpty { l += ["### \(s.titre)", ""] }
+                for p in s.puces {
+                    l.append("- \(p.texte)")
+                    l += p.sous.map { "  - \($0)" }
+                }
+            }
+        } else if !r.dit.isEmpty {
+            l += ["", "## Ce qui a été dit", ""] + r.dit.map { "- \($0)" }
+        }
+        if !r.decisions.isEmpty {
+            l += ["", "## Décisions", ""] + r.decisions.enumerated().map { i, d in "- \(d)" + (r.echeance(decision: i).map { " (\($0.quand))" } ?? "") }
+        }
         if !r.actions.isEmpty {
-            l += ["", "## Ce qu'il reste à faire", ""]
+            l += ["", "## Prochaines étapes", ""]
             for a in r.actions {
                 var ligne = "- [\(a.fait ? "x" : " ")] "
                 if let q = a.qui, !q.isEmpty { ligne += "**\(q)** : " }
                 ligne += a.quoi
-                if let q = a.quand, !q.isEmpty { ligne += " (\(q))" }
+                let e = Echeance.etiquette(quand: a.quand, date: a.echeance, calendrier: calendrier)
+                if !e.sansDate { ligne += " (\(e.texte))" }
                 l.append(ligne)
             }
         }
+        if let p = r.points, !p.isEmpty {
+            l += ["", "## Points marqués pendant l'appel", ""] + p.sorted().map { "- " + FormatReunion.heure(r.debut.addingTimeInterval($0), calendrier: calendrier) + Self.avant($0, dans: r.segments) }
+        }
         if !r.avertissements.isEmpty { l += ["", "## À savoir", ""] + r.avertissements.map { "- \($0)" } }
         if !r.segments.isEmpty {
-            l += ["", "## Transcription", ""]
-            for s in r.segments {
-                let heure = FormatReunion.heure(r.debut.addingTimeInterval(s.debut), calendrier: calendrier)
-                l.append("**\(s.locuteur.libelle)** (\(heure)) : \(s.texte)")
-                l.append("")
+            l += ["", "## Transcription"]
+            for e in LignesTranscription.elements(r, calendrier: calendrier) {
+                switch e {
+                case .point(let t):
+                    l += ["", "*Point marqué · \(FormatReunion.heure(r.debut.addingTimeInterval(t), calendrier: calendrier))*"]
+                case .passage(let i, let heure):
+                    let s = r.segments[i]
+                    l += ["", "**\(r.orateur(de: s).nom)**" + (heure.map { " · \($0)" } ?? ""), s.texte]
+                }
             }
-            l.removeLast()
         }
         return l.joined(separator: "\n") + "\n"
     }
@@ -235,5 +410,36 @@ public enum ArchiveReunions {
             s.avertissements.append("Cette réunion s'est arrêtée avant la fin (Verbe a été fermé). La transcription est celle des morceaux déjà reçus.")
         }
         return s
+    }
+
+    /// Jours pendant lesquels le son d'une réunion reste sur le Mac quand il n'a pas pu servir (relecture incomplète, note pas écrite,
+    /// Verbe fermé pendant l'appel) : le temps de « Refaire la note ». Au-delà, il est effacé au lancement.
+    public static let joursSonEnAttente = 7
+
+    /// Le son peut-il partir maintenant que la note est faite ? Seulement si la note est prête ET que tout l'appel a été relu
+    /// (sinon « Refaire la note » en a encore besoin), et si le réglage « Garder le son des réunions » était éteint.
+    public static func sonInutile(apresNote r: Reunion) -> Bool {
+        !r.sonGarde && r.etat == .prete && r.relue == true
+    }
+
+    /// Au lancement : un son gardé pour réessayer, plus vieux que `joursSonEnAttente` jours, est effacé (le réglage « garder » éteint).
+    public static func sonPerime(_ r: Reunion, maintenant: Date) -> Bool {
+        guard !r.sonGarde, r.etat == .prete || r.etat == .sansNote else { return false }
+        return maintenant.timeIntervalSince(r.debut.addingTimeInterval(r.duree)) > Double(joursSonEnAttente) * 86_400
+    }
+
+    /// Une réunion réécrite après un long traitement (relecture, note) : ce que l'utilisateur a changé pendant ce temps dans la version
+    /// enregistrée (`actuelle`, par rapport à `depart`, celle d'où le traitement est parti) est gardé : le titre, les orateurs renommés,
+    /// les prochaines étapes cochées.
+    public static func garderLesModifications(de actuelle: Reunion, depuis depart: Reunion, dans r: Reunion) -> Reunion {
+        var x = r
+        if actuelle.titre != depart.titre { x.titre = actuelle.titre }
+        for o in actuelle.orateurs ?? [] where o.nom != depart.orateur(id: o.id, piste: o.piste).nom {
+            x.renommer(orateur: o.id, en: o.nom)
+        }
+        for a in actuelle.actions where a.fait && !(depart.actions.first { $0.id == a.id }?.fait ?? false) {
+            if let i = x.actions.firstIndex(where: { $0.id == a.id || $0.quoi == a.quoi }) { x.actions[i].fait = true }
+        }
+        return x
     }
 }

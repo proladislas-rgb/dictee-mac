@@ -16,9 +16,19 @@ public enum DecoupeReunion {
         return c
     }
 
-    /// « [12:04] Moi : … » une ligne par passage : le texte que la rédaction de la note lit.
+    /// « [12:04] Moi : … » une ligne par passage : le texte que la rédaction de la note lit. Les voix séparées y sont « Personne 1 »,
+    /// « Personne 2 »… (jamais le nom donné ensuite : la note suit le renommage, `Reunion.renommer`).
     public static func ligne(_ s: SegmentReunion) -> String {
-        "[\(FormatReunion.horloge(s.debut))] \(s.locuteur.libelle) : \(s.texte)"
+        "[\(FormatReunion.horloge(s.debut))] \(SeparationVoix.nomParDefaut(id: s.idOrateur) ?? s.locuteur.libelle) : \(s.texte)"
+    }
+
+    /// Les noms des voix séparées présentes (« Personne 1 »…) : la garde contre l'invention les accepte dans « qui ».
+    public static func nomsDesVoix(_ segments: [SegmentReunion]) -> [String] {
+        var vus: [String] = []
+        for s in segments where SeparationVoix.rang(id: s.idOrateur) != nil {
+            if let n = SeparationVoix.nomParDefaut(id: s.idOrateur), !vus.contains(n) { vus.append(n) }
+        }
+        return vus
     }
 
     public static func texte(_ segments: [SegmentReunion]) -> String { segments.map(ligne).joined(separator: "\n") }

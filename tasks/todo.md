@@ -348,3 +348,100 @@ JOUR), -tokens (par minute, rien pour l'audio), retry-after sur 429. Facturé 10
 - [x] Téléchargements « dossier inaccessible (errno 13) » à 03:52:34 : c'était l'essai d'une autre équipe (l'app installée a l'accès, TCC autorisé, signature à exigence fixe déjà stable) ; tous les modes de vérification écrivent leur journal à part.
 - [x] « Remettre » après un glisser : une croix (✕) qui ferme tout de suite, l'anneau discret autour.
 - [x] (12/11 ~05:30) NOM CHOISI par moi (délégation de Hugues : « le plus Apple / Revolut ») : **Voxile** (vox + isle / voix + île = l'îlot qui écoute). Vérifié : 0 app Mac/iOS FR+US, GitHub 6 dépôts à 0 étoile, voxile.app/.io/.fr libres (RDAP/whois 12/11), .com pris (en vente). Alternatives sur la page noms-v2.html (favori de l'agent : Luette). Renommage de l'app = AVEC Hugues réveillé. Icônes « Voxile » lancées (il choisit).
+
+## Réunions façon Wispr Flow — l'îlot pendant la réunion (branche reunions-wispr, maquette design/maquettes/ilot-reunion.html étapes 1 à 7, « très bien pour ce visuel »)
+- [x] Cœur : la réunion devient une activité de l'îlot (plus de `cache`) : compact (point rouge + onde / durée), carte « Réunion », annonces (Noter cet appel ?, Note en préparation, Note prête, message) ; pile de cartes ; lecture plus masquée pendant une réunion
+- [x] Direct propre (DicteeCore/DirectReunion) : ordre chronologique, tours de parole fusionnés, reprises de Whisper retirées, échos retirés en direct (gris tant que l'écho n'est pas jugé), « … » gris pendant qu'on parle
+- [x] « Ce que j'ai raté » (3 dernières minutes, même service que la note, 2–3 puces), « Ajouter un point » (gardé dans la réunion), Pause / Reprendre, Arrêter, Centre
+- [x] Plus de fenêtre ReunionEncoche : l'îlot la remplace (avec et sans encoche) ; menu « Noter / Arrêter la réunion » gardé
+- [x] Contrôles, essai de l'îlot (réunion factice, vrais clics), rendus comparés à la maquette, commits
+- [ ] Hugues : essayer en vrai (un appel Zoom/Meet : « Noter cet appel ? », la carte au survol, le direct, « Ce que j'ai raté », un point, pause, Arrêter). Non vérifiés d'ici : le vrai micro et le son du Mac, la qualité réelle du direct (chaque morceau fait 10 à 30 s : le texte arrive par blocs, le « … » gris dit qu'on parle), la réponse réelle de Groq pour « Ce que j'ai raté ».
+- [ ] Suite (autres équipes de la branche) : après l'appel, retravailler TOUT l'enregistrement (noms, texte propre), la note par sujets, « Demander » ; « Note en préparation » avec une vraie progression.
+
+## Réunions façon Wispr Flow — la note après l'appel (maquette ilot-reunion.html étapes 8 à 12)
+- [x] Son : les deux pistes toujours écrites sur le Mac (WAV 0600, calées sur l'heure de la réunion) jusqu'à la note, puis effacées sauf « Garder le son des réunions »
+- [x] Relecture : tout l'enregistrement retranscrit par whisper-large-v3 (horodatages, lots de passages de parole), repli sur le direct pour un lot en échec ; progression dans l'îlot (« Note en préparation… » + % + barre de la maquette)
+- [x] Note au format de la maquette : phrase d'ouverture, résumé par sujets (titres + puces imbriquées), Décisions, Prochaines étapes (qui, quand, case), points marqués, transcription (orateur + heure à la 1re ligne de chaque minute, clic = réécouter)
+- [x] Orateurs : « Moi / Eux » pour l'instant, un orateur par segment, renommable une fois pour toutes (structure prête pour la séparation des voix)
+- [x] « Demander » sur la réunion (réponse liée au moment) et « Demander à mes réunions » ; Copier / Exporter (Markdown)
+- [x] Onglet Réunions refait : colonne de gauche (recherche, Demander à mes réunions, liste par jour) + la note
+- [x] Contrôles, essai de bout en bout sans réseau ni micro (relecture et note factices), rendus comparés à la maquette, commit
+- [ ] Hugues : essayer en vrai (5 points « À vérifier en vrai » de la section « la note après l'appel » de docs/spec-v1.md). Non vérifiés d'ici : la vraie réponse de Groq (relecture, note par sujets, « Demander »), le son réel réécouté, la durée réelle du traitement.
+- [ ] Suite : séparation des voix (« Qui parle », les noms de chacun) ; décider si le son doit être écrit compressé pendant l'appel (≈ 115 Mo par heure et par piste aujourd'hui, effacé à la fin).
+
+### Relecture Réunions (9 points de l'équipe, 12/11)
+- [x] Grave : le son de l'appel n'est plus effacé quand la relecture échoue (réunion gardée « sans note », son gardé 7 jours, « Refaire la note » le relit) ; effacé seulement note prête ET tout l'appel relu
+- [x] ⌘Q pendant l'appel : sources coupées, son fermé, passages de parole enregistrés (aussi toutes les 5 s) ; « Refaire la note » dès que le son est là ; son gardé pour réessayer effacé au lancement après 7 jours
+- [x] Son temporaire hors de Time Machine ; écriture du WAV sur une file à part (plus rien sur le fil temps réel)
+- [x] À l'arrêt : les morceaux du direct pas encore partis ne partent plus (la relecture les reprend) ; relecture sur le modèle précis seulement (plus de secours turbo pris à la dictée)
+- [x] Réunion effacée ou renommée pendant l'enregistrement / la préparation : rien n'est recréé, le titre et les orateurs changés sont gardés
+- [x] « Ce que j'ai raté » : seulement les 3 dernières minutes d'un long tour ; puces mesurées à la vraie police, coupées à un mot entier
+- [x] Contrôles (2 282), essai de l'îlot (section « le son gardé tant qu'il peut servir »), rendus comparés (nouveau : reunions-14-pas-entierement-relue)
+
+## Voix séparées dans les notes de réunion (FluidAudio, 12/11) — branche voix-reunions
+Accord de Hugues : « oui part sur FluidAudio ». La transcription reste chez Groq ; seule la séparation des voix est faite sur le Mac.
+- [x] FluidAudio 0.18.2 (version exacte), seul le module « Diarizer » (ni synthèse vocale, ni normalisation de texte) ; pipeline
+      hors ligne pyannote community-1 (découpe + empreintes WeSpeaker + regroupement VBx), passages exclusifs, moteur neuronal + processeur.
+- [x] Logique pure (DicteeCore/VoixReunion.swift) : tours de parole → « Personne 1, 2… » sur les passages « Eux » (chevauchement,
+      tour le plus proche à 1,5 s près, voix de moins de 3 s fondues, moins de 2 voix = repli « Eux ») ; renommage dans toute la note
+      (passages, en bref, sujets, décisions, étapes, participants, export) ; empreinte de voix gardée avec l'orateur + `reconnaitre`
+      (structure pour « voix connue », pas encore branchée) ; progression (relecture et voix en parallèle, téléchargement visible).
+- [x] App (Dictee/SeparationVoix.swift) : modèle dans ~/Library/Application Support/Dictee/Modeles (téléchargé au premier usage
+      depuis Hugging Face, effacé par « Désinstaller »), chargé le temps d'une séparation, une à la fois, WAV « Eux » lu sans tout
+      charger ; branchée dans la préparation de la note (pendant la relecture) et « Refaire la note » ; repli « Eux » + avertissement.
+- [x] La rédaction de la note lit « Personne 1 : … » ; la garde contre l'invention accepte « Personne 2 » dans « qui ».
+- [x] Contrôles (2 325 verts) + essai `--ilot-essai` « voix séparées » (séparation, relecture et rédaction factices, ni micro ni son).
+- [x] `Verbe --voix-mesure piste.wav [--verite tours.tsv] [--modeles DOSSIER]` ; `--reunion-test … [--modeles DOSSIER]` sépare aussi.
+
+### Mesures (12/11, MacBook Air M5 16 Go, d'autres équipes compilaient en même temps : temps à ±40 %)
+Son de test fabriqué (`say` : Thomas, Amélie, Jacques ; tours de 1 à 4 phrases, silences de 0,25 à 1,2 s ; aucune vraie réunion).
+- Taille de Verbe.app (`./build.sh --sans-installer`) : 17,8 Mo → 25,4 Mo (+7,6 Mo, tout dans l'exécutable : 17,5 → 25,2 Mo).
+  Compressée (zip, ≈ ce qu'on télécharge) : 4,9 Mo → 7,3 Mo (+2,4 Mo). Piste : `strip -x` de l'exécutable ferait 7,6 Mo (avant) /
+  12,5 Mo (après) — non fait (build.sh pas touché, les rapports de plantage perdraient des noms).
+- Modèle téléchargé une fois : 21-22 Mo sur le disque (4 modèles CoreML + paramètres). Téléchargement : 14 s, une autre fois 134 s
+  (Hugging Face lent, une reprise après délai dépassé). Chargement ensuite : 0,1 s.
+- 20 min de son « Eux », 3 voix : séparation en 5,5 à 8,5 s (140 à 220× plus vite que le temps réel) ; mémoire de pointe du processus
+  ≈ 500 Mo pendant ces quelques secondes (≈ 700 Mo si on laisse aussi la carte graphique : d'où le moteur neuronal + processeur ;
+  la taille des lots ne change rien), puis 46 Mo une fois les modèles libérés. 3 min : 2,6 s.
+  (Une première série avait donné ≈ 250-300 Mo de pointe ; les séries suivantes ≈ 500 Mo, sans changement de code expliquant l'écart.)
+- Justesse sur 20 min : 3 voix trouvées sur 3 ; 91,3 % du temps de parole à la bonne voix ; 93,4 % des passages de la transcription au
+  bon orateur (347 passages simulés). Amélie (voix de femme) presque parfaite (111/114) ; Thomas/Jacques (deux voix d'homme de
+  synthèse) confondus sur 19 passages de Jacques sur 116. Sur 3 min : 94,4 % / 98 %.
+- Bout en bout (`--reunion-test`, vraie relecture Groq + vraie séparation, 3 min, 3 voix + Moi) : 24 passages « Eux » relus, tous
+  au bon orateur (Amélie → Personne 1, Thomas → Personne 2, Jacques → Personne 3) ; la note dit « Personne 2 : Envoyer le contact… ».
+
+### Pas fait / à faire
+- [ ] Hugues : essayer en vrai (un appel à 2-3 personnes ; regarder la progression « Téléchargement du modèle de voix » la 1re fois).
+- [ ] Reconnaître une voix déjà nommée d'une réunion à l'autre (empreintes gardées, `SeparationVoix.reconnaitre` prêt, rien de branché).
+- [ ] Renommer d'un clic sur le nom dans une ligne de la transcription (aujourd'hui : clic sur « Personne 1 » dans l'en-tête de la note).
+- [ ] La transcription du direct pendant l'appel reste « Moi / Eux » (la séparation se fait après l'appel).
+
+## Bulles audio (« vocaux ») + réunion optimisée (12/11) — branche voix-reunions
+Demande de Hugues : « optimise à fond la réunion. Et pour les vocaux, dans la transcription, comme sur la maquette : la possibilité de
+télécharger directement les bouts où les gens parlent, comme WhatsApp, à côté de ce qui a été transcrit. »
+- [x] Une bulle par passage sous le texte : ▶︎/❚❚ dans la couleur de l'orateur, onde du vrai son (36 barres, la part jouée en
+      couleur, un clic s'y place), durée (temps écoulé pendant la lecture), vitesse ×1 / ×1,5 / ×2, « Télécharger l'extrait ».
+      L'extrait exact : la bonne piste (micro pour « Moi », son du Mac pour les autres), 0,15 s avant / 0,35 s après les heures de
+      Whisper sans mordre sur la voix voisine de la même piste ; la lecture enchaîne sur le passage suivant. Un clic sur le texte joue.
+- [x] Télécharger : .m4a AAC 16 kHz 32 kbit/s, « Réunion – Personne 2 – 14h05.m4a », panneau d'enregistrement du Mac ; la bulle se
+      glisse vers Finder / Mail / WhatsApp comme un fichier ; bouton « Audio » : toute la réunion, Moi + Eux mélangés, encodée par blocs.
+- [x] Rétention : bulles seulement si le son est gardé (réglage « Garder le son des réunions », ou les 7 jours d'attente) ; sinon
+      bulle grise « audio effacé ». Extraits de glisser-déposer dans Reunions/.extraits (0700/0600), effacés avec le son, avec la
+      réunion et à chaque lancement. Fichiers exportés en 0600. Aucun réseau.
+- [x] Optimisations : relecture 3 lots à la fois (audio réservé d'un seul geste), séparation des voix sur les seuls passages de
+      parole + fenêtres tous les 3,5 s, direct de l'îlot recalculé seulement s'il change.
+
+### Mesures avant / après (MacBook Air M5 ; d'autres équipes compilaient : charge 4 à 25, voir chaque ligne)
+- Arrêter → note prête (`--reunion-test`, appel fabriqué de 8 min, 3 voix + Moi, vrai Groq) : avant 23 s = relecture 10,3 s
+  (6 lots l'un après l'autre) en parallèle de la séparation (7,4 s de chargement sous charge + 4,6 s), puis note 11 s.
+  Après relecture en parallèle : relecture 5,0 s, mais la séparation devenait le goulet (charge 25). Voir la ligne « après tout ».
+- Séparation des voix, appel fabriqué de 20 min où « Eux » parle environ 60 % du temps (charge 8) : avant 10,4 à 13,9 s (tout le
+  fichier, fenêtres tous les 2 s) ; après 3,5 à 4,4 s (seulement les passages de parole, fenêtres tous les 3,5 s). Justesse : 98,6 %
+  → 96,7 % des passages au bon orateur (le fait de n'analyser que les passages coûte 2 points ; le pas de 3,5 s ne coûte rien).
+  Mémoire de pointe pendant la séparation inchangée (≈ 490-500 Mo quelques secondes, puis ≈ 40 Mo).
+- Pendant l'appel (`--reunion-mesure`, 20 min, deux pistes, sans micro ni réseau) : pistes (conversion, niveaux, découpe, écriture
+  du son) 39 ms de processeur par minute = 0,06 % d'un cœur (rien à gagner) ; direct de l'îlot recalculé chaque seconde : 0,83 %
+  d'un cœur, et ça grandit avec la longueur de l'appel (il relit toute la transcription) → seulement quand il change : 0,14 %
+  (1 205 calculs → 204). Mémoire ajoutée par l'enregistrement : ≈ 8 Mo (pointe 113 Mo dont 51 Mo de son d'essai chargé).
+- Déjà en place, vérifié : envoi Groq au fil de l'eau pendant l'appel, morceaux pas encore partis abandonnés à l'arrêt, séparation
+  lancée dès l'arrêt en parallèle de la relecture, une seule minuterie (1 s) pendant l'enregistrement, aucune au repos.

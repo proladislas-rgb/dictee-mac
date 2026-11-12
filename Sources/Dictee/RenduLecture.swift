@@ -742,6 +742,62 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .dicteeMac, jusqua: t0, ligne1: "Mac", ligne2: "") }) }, "ilot-29i-groq-ailes-mac")
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: "Dictée sur le Mac pas encore prête", ligne2: "Le Mac télécharge le français \u{00B7} 42 %", groq: .attente) }) },
                "ilot-29j-groq-langue-en-telechargement")
+        // 32 · la réunion (maquette ilot-reunion.html, étapes 1 à 7) : « Noter cet appel ? », le point rouge et le temps, la carte et son
+        // direct (mots en cours en gris), « Ce que j'ai raté », « Ajouter un point », le Centre pendant la réunion, le minuteur en bulle,
+        // la pause, la liste remontée ; puis les annonces d'après l'arrêt. Personnes et échanges inventés (dépôt public).
+        let hCarteReunion = geometrie.hauteur + CGFloat(GeoIlot.profondeurReunion) + 30
+        func seg(_ d: Double, _ f: Double, _ l: Locuteur, _ t: String) -> SegmentReunion { SegmentReunion(debut: d, fin: f, locuteur: l, texte: t) }
+        let directMoi = [seg(744, 747.5, .moi, "D\u{2019}accord, on garde le vert de la marque alors.")]
+        let directEux = [seg(733, 735.5, .eux, "Bon, la page d\u{2019}accueil me va."),
+                         seg(736, 742, .eux, "Je changerais juste la couleur du bouton, il se voit mal sur téléphone."),
+                         seg(749, 752.5, .eux, "Pour la mise en ligne, le 2 décembre,")]
+        func reunion(_ secondes: Double, pause: Bool = false, lignes: [LigneDirect]? = nil, _ config: (inout ReunionIlot) -> Void = { _ in }) -> ReunionIlot {
+            var r = ReunionIlot()
+            r.app = "Zoom"
+            if pause { r.duree = secondes; r.enPause = true } else { r.depuis = t0.addingTimeInterval(-secondes) }
+            r.lignes = lignes ?? DirectReunion.lignes(moi: directMoi, eux: directEux, attentes: [AttenteDirect(locuteur: .eux, debut: 753)])
+            config(&r)
+            return r
+        }
+        func carte(_ r: ReunionIlot, _ config: @escaping (IlotMoteur) -> Void = { _ in }) -> (IlotMoteur) -> Void {
+            { m in m.energie = EnergieIlot(pourcent: 64, secteur: false, enCharge: false); m.ecouteurs = airpodsPro
+                m.reunionChangee(r, annonce: nil); m.survole = true; m.donneesChangees(); config(m); m.donneesChangees() }
+        }
+        ecrire(bureau(hauteur: petitBureau + 40) { ilot(scene { m in m.reunionChangee(nil, annonce: .propose(app: "Zoom")) }) }, "ilot-32a-reunion-1-noter-cet-appel")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { m in m.reunionChangee(reunion(4, lignes: []), annonce: nil) }) }, "ilot-32b-reunion-2-point-rouge-et-temps")
+        ecrire(bureau(hauteur: hCarteReunion) { ilot(scene(carte(reunion(761, lignes: DirectReunion.lignes(moi: directMoi, eux: directEux.dropLast(), attentes: []))))) }, "ilot-32c-reunion-3-carte-direct")
+        ecrire(bureau(hauteur: hCarteReunion) { ilot(scene(carte(reunion(767)))) }, "ilot-32d-reunion-4-mots-en-cours")
+        // une phrase de « Moi » grise : le passage de « Eux » qui la chevauche n'est pas encore transcrit (peut-être un écho)
+        let douteuse = DirectReunion.lignes(moi: directMoi + [seg(753, 757, .moi, "à condition d\u{2019}avoir tous les textes avant le 25.")], eux: directEux.dropLast(),
+                                            attentes: [AttenteDirect(locuteur: .eux, debut: 749, fin: 758)])
+        ecrire(bureau(hauteur: hCarteReunion, clair: false) { ilot(scene(carte(reunion(770, lignes: douteuse)))) }, "ilot-32d2-reunion-moi-gris-echo-a-juger-sombre")
+        ecrire(bureau(hauteur: hCarteReunion) { ilot(scene(carte(reunion(780) { $0.rattrapage = .enCours }))) }, "ilot-32e-reunion-5-ce-que-j-ai-rate-en-cours")
+        let puces = ["Claire valide la page d\u{2019}accueil, seul le bouton change de couleur.",
+                     "Marc peut mettre le site en ligne le 2 décembre, si les textes arrivent avant le 25.",
+                     "Tu as dit que tu enverrais les fiches produits lundi."]
+        ecrire(bureau(hauteur: hCarteReunion) { ilot(scene(carte(reunion(781) { $0.rattrapage = .pret(puces) }))) }, "ilot-32f-reunion-5-ce-que-j-ai-rate")
+        ecrire(bureau(hauteur: hCarteReunion) { ilot(scene(carte(reunion(790, lignes: DirectReunion.lignes(moi: directMoi, eux: directEux, attentes: [AttenteDirect(locuteur: .eux, debut: 791)], points: [790])) { $0.pointFait = true }))) },
+               "ilot-32g-reunion-6-point-ajoute")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(carte(reunion(805)) { m in m.allerA(.centre); m.epinglerLeCentre() })) }, "ilot-32h-reunion-7-le-centre-pendant-la-reunion")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(carte(reunion(806)) { m in m.allerA(.centre); m.epinglerLeCentre(); m.minuteur = minut(25) })) }, "ilot-32i-reunion-7-minuteur-25-dans-le-centre")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { m in m.reunionChangee(reunion(812), annonce: nil); m.minuteur = minut(25, restant: 1493) }) }, "ilot-32j-reunion-8-minuteur-en-bulle")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.reunionChangee(reunion(812), annonce: nil) }) }, "ilot-32k-reunion-video-en-bulle")
+        ecrire(bureau(hauteur: hCarteReunion) { ilot(scene(carte(reunion(901, pause: true)))) }, "ilot-32l-reunion-en-pause")
+        // un long direct remonté : il ne suit plus, « Revenir en bas »
+        let long = (0..<12).flatMap { i -> [SegmentReunion] in
+            [seg(Double(600 + i * 12), Double(605 + i * 12), .eux, "Il faudra relire les fiches produits une par une avant l\u{2019}envoi, numéro \(i + 1)."),
+             seg(Double(606 + i * 12), Double(610 + i * 12), .moi, "Oui, je m\u{2019}en charge.")]
+        }
+        ecrire(bureau(hauteur: hCarteReunion) { ilot(scene(carte(reunion(760, lignes: DirectReunion.lignes(moi: long.filter { $0.locuteur == .moi }, eux: long.filter { $0.locuteur == .eux }))) { m in
+            m.defilerLeDirect(90) })) }, "ilot-32m-reunion-direct-remonte")
+        ecrire(bureau(hauteur: petitBureau + 40) { ilot(scene { m in m.minuteur = minut(25, restant: 590); m.reunionChangee(nil, annonce: .prepare(etape: PreparationNote.relecture, progres: 0.34)) }) }, "ilot-32n-reunion-9-note-en-preparation")
+        ecrire(bureau(hauteur: petitBureau + 40) { ilot(scene { m in m.reunionChangee(nil, annonce: .prete(id: UUID(), titre: "Lancement de la boutique en ligne", duree: 1740, sansNote: false)) }) }, "ilot-32o-reunion-10-note-prete")
+        ecrire(bureau(hauteur: petitBureau + 40) { ilot(scene { m in m.reunionChangee(nil, annonce: .message("Micro non autorisé, voir les Réglages")) }) }, "ilot-32p-reunion-message")
+        for (cam, barre) in [(179.0, 33.0)] {
+            let gg = GeometrieEncoche(largeur: CGFloat(cam), hauteur: CGFloat(barre))
+            ecrire(bureau(hauteur: barre + CGFloat(GeoIlot.profondeurReunion) + 30, geo: gg) { ilot(scene(geo: gg, carte(reunion(3725)))) }, "ilot-32q-reunion-carte-camera-\(Int(cam))-plus-d-une-heure")
+            ecrire(bureau(hauteur: barre + 70, geo: gg) { ilot(scene(geo: gg) { m in m.reunionChangee(reunion(3725), annonce: nil) }) }, "ilot-32r-reunion-compact-camera-\(Int(cam))-plus-d-une-heure")
+        }
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)

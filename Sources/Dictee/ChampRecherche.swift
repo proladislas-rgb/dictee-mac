@@ -13,6 +13,7 @@ enum CommandeChamp: Equatable {
 final class ChampNS: NSTextField {
     var surRaccourci: ((NSEvent) -> Bool)?
     var prendreLeFocusAuMontage = true
+    var surFocus: ((Bool) -> Void)?
     /// Barre d'espace pressée dans un champ vide (déplier la dictée choisie) ; `true` = traitée, rien n'est tapé.
     var surEspace: (() -> Bool)?
     private var moniteurEspace: Any?
@@ -45,6 +46,7 @@ final class ChampNS: NSTextField {
 
     override func becomeFirstResponder() -> Bool {
         let ok = super.becomeFirstResponder()
+        if ok { surFocus?(true) }
         // Curseur ambre, sélection ambre : la signature visuelle du design.
         if let editeur = currentEditor() as? NSTextView {
             editeur.insertionPointColor = Palette.nsAccent
@@ -69,6 +71,10 @@ struct ChampRecherche: NSViewRepresentable {
     var surCommande: (CommandeChamp) -> Bool
     /// La barre d'espace, dans un champ vide, déplie la ligne choisie (fenêtre des dictées).
     var espaceDeplie = false
+    /// Le champ prend le clavier dès qu'il apparaît (faux pour un second champ de la même page : « Demander »).
+    var focusAuMontage = true
+    /// Le champ prend ou rend le clavier (anneau de mise en avant).
+    var surFocus: ((Bool) -> Void)? = nil
 
     func makeCoordinator() -> Coordinateur { Coordinateur(self) }
 
@@ -85,6 +91,8 @@ struct ChampRecherche: NSViewRepresentable {
         champ.cell?.isScrollable = true
         champ.delegate = context.coordinator
         champ.surRaccourci = { [weak coord = context.coordinator] event in coord?.raccourci(event) ?? false }
+        champ.prendreLeFocusAuMontage = focusAuMontage
+        champ.surFocus = { [weak coord = context.coordinator] f in coord?.parent.surFocus?(f) }
         if espaceDeplie { champ.surEspace = { [weak coord = context.coordinator] in coord?.parent.surCommande(.voirTout) ?? false } }
         context.coordinator.champ = champ
         context.coordinator.dernierJeton = jetonFocus
@@ -106,6 +114,8 @@ struct ChampRecherche: NSViewRepresentable {
         weak var champ: ChampNS?
         var dernierJeton = 0
         init(_ parent: ChampRecherche) { self.parent = parent }
+
+        func controlTextDidEndEditing(_ obj: Notification) { parent.surFocus?(false) }
 
         func controlTextDidChange(_ notification: Notification) {
             guard let champ else { return }

@@ -139,4 +139,6 @@ final class Verrouille<T>: @unchecked Sendable {
     var valeur: T { verrou.lock(); defer { verrou.unlock() }; return contenu }
     /// Remplace la valeur et rend l'ancienne.
     func remplacer(_ v: T) -> T { verrou.lock(); defer { verrou.unlock() }; let ancien = contenu; contenu = v; return ancien }
+    /// Change la valeur sous le verrou et rend ce que `f` rend.
+    func modifier<R>(_ f: (inout T) -> R) -> R { verrou.lock(); defer { verrou.unlock() }; return f(&contenu) }
 }
