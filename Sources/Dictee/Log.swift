@@ -5,7 +5,8 @@ import DicteeCore
 /// Règles : jamais la clé Groq, jamais plus de 30 caractères du texte dicté (voir `Log.apercu`) ; seule exception, la ligne
 /// « texte Groq → texte final » (60 caractères de chaque côté autour de la première différence, voir `ComparaisonJournal`).
 enum Log {
-    static let url: URL = {
+    /// Les essais le remplacent par un fichier temporaire avant la première ligne : jamais le vrai journal de Hugues.
+    nonisolated(unsafe) static var url: URL = {
         let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Dictee", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("dictee.log")

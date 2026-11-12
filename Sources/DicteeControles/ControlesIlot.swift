@@ -1214,8 +1214,8 @@ func controlesEtagereRapide(_ t0: Date) {
     pv = vg.lire(noms: noms2, a: tc.addingTimeInterval(2), mesure: mesure2)
     // l'annonce « Capture d’écran · Sur l’étagère » : une rafale (moins de 2 s) = une annonce, une capture n'est annoncée qu'une fois
     var ra = RafaleCaptures()
-    verifier(ra.ajouter([nfd], a: tc) && ra.titre == "Capture d\u{2019}écran" && RafaleCaptures.sousTitre == "Sur l\u{2019}étagère" && RafaleCaptures.duree == 2.5,
-             "une capture : « Capture d’écran », « Sur l’étagère », 2,5 s")
+    verifier(ra.ajouter([nfd], a: tc) && ra.titre == "Capture d\u{2019}écran" && RafaleCaptures.sousTitre == "Sur l\u{2019}étagère" && RafaleCaptures.duree == 4,
+             "une capture : « Capture d’écran », « Sur l’étagère », 4 s (le temps de la reprendre)")
     verifier(ra.ajouter(["B.png"], a: tc.addingTimeInterval(1.2)) && ra.ajouter(["C.png"], a: tc.addingTimeInterval(2.9)) && ra.titre == "3 captures",
              "trois captures, chacune moins de 2 s après la précédente : une seule annonce, « 3 captures » (\(ra.titre))")
     verifier(!ra.ajouter([nfc], a: tc.addingTimeInterval(3.5)) && ra.titre == "3 captures",
