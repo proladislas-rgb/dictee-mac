@@ -41,7 +41,9 @@ public enum ModeConcentration: String, CaseIterable, Codable, Sendable {
         case .travail: return 0x32B6C8
         case .personnel: return 0xB58CF6
         case .sommeil: return 0x4A8DF0
-        case .reduire: return 0x8E8E93
+        // l'icône est un anneau de quatre couleurs : la sélection prend une teinte sobre tirée de son rose (lisible sur le noir, distincte
+        // du violet de Personnel) ; le gris de la maquette faisait une plaque claire, pas une sélection
+        case .reduire: return 0xC9799E
         }
     }
     /// Le symbole SF du mode ; nil : « Réduire les interruptions » a un glyphe dessiné (l'anneau de couleurs et l'étincelle, maquette).

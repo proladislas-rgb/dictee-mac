@@ -634,7 +634,8 @@ struct CarteModesConcentration: View {
     }
 }
 
-/// Un bouton de mode (48 pt) : l'icône dans un rond de sa couleur, le nom. Choisi : teinté et cerclé de sa couleur ; allumé : plein.
+/// Un bouton de mode (48 pt) : l'icône dans un rond de sa couleur, le nom. Choisi ou allumé : le même style pour les cinq modes, teinté
+/// et cerclé de sa couleur (allumé, un peu plus fort) ; jamais une plaque pleine (le gris de « Réduire » en faisait une plaque claire).
 struct BoutonModeConcentration: View {
     var mode: ModeConcentration
     var choisi: Bool
@@ -645,7 +646,7 @@ struct BoutonModeConcentration: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Circle().fill(allume ? Color.white.opacity(0.28) : (mode.largeurPleine ? Color.white.opacity(0.16) : mode.teinte))
+                Circle().fill(mode.largeurPleine ? Color.white.opacity(0.16) : mode.teinte)
                     .overlay { GlypheConcentration(mode: mode, taille: 18) }
                     .frame(width: 32, height: 32)
                 Text(mode.nom).font(.system(size: 13, weight: .semibold)).tracking(-0.1).foregroundStyle(.white).lineLimit(1)
@@ -654,8 +655,8 @@ struct BoutonModeConcentration: View {
             .padding(.leading, 8).padding(.trailing, 12)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(fond))
-            .overlay { if choisi && !allume { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(mode.teinte, lineWidth: 1.5) } }
-            .brightness(survol && !allume ? 0.06 : 0)
+            .overlay { if choisi || allume { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(mode.teinte, lineWidth: allume ? 2 : 1.5) } }
+            .brightness(survol ? 0.06 : 0)
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(AppuiIlot(echelle: 0.97))
@@ -663,7 +664,7 @@ struct BoutonModeConcentration: View {
         .accessibilityLabel(mode.nom)
         .accessibilityValue(allume ? "allumé" : (choisi ? "choisi" : ""))
     }
-    private var fond: Color { allume ? mode.teinte : (choisi ? mode.teinte.opacity(0.3) : Color.white.opacity(0.1)) }
+    private var fond: Color { allume ? mode.teinte.opacity(0.42) : (choisi ? mode.teinte.opacity(0.3) : Color.white.opacity(0.1)) }
 }
 
 /// Une durée (32 pt) : grise ; éteinte (aucun mode choisi) à 40 % ; celle du mode allumé, blanche.
