@@ -788,7 +788,8 @@ struct PastilleVue: View {
                     .offset(x: IlotMoteur.largeur / 2 + x0, y: 0)
                     .accessibilityLabel("Autre activité")
                     .accessibilityAddTraits(.isButton)
-                contenu(a, ouverture: ouv)
+                // le contenu compact de l'activité (le même que dans la pilule de la Lucarne hors de l'encoche)
+                ContenuCompactLucarne(m: m, genre: .activite(a), ouverture: ouv).padding(.leading, 10)
                     .frame(width: l, height: h, alignment: .leading)
                     .clipShape(Rectangle())
                     .opacity(m.aspectPastille.opacite)
@@ -815,77 +816,6 @@ struct PastilleVue: View {
         }
         .frame(width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax)
         .allowsHitTesting(false)
-    }
-
-    @ViewBuilder private func contenu(_ a: ActiviteIlot, ouverture: CGFloat) -> some View {
-        switch a {
-        case .minuteur:
-            let mn = m.minuteur ?? m.dernierMinuteur
-            TimelineView(.periodic(from: m.minuteur?.echeance ?? Date(timeIntervalSinceReferenceDate: 0), by: 1)) { _ in
-                HStack(spacing: 6) {
-                    AnneauIlot(taille: 14, trait: 2, couleur: CouleursIlot.ambre, fraction: mn.fraction(a: m.maintenant()), enPause: mn.enPause) {}
-                    Text(FormatIlot.duree(mn.restant(a: m.maintenant()))).font(.system(size: 13, weight: .semibold).monospacedDigit()).foregroundStyle(CouleursIlot.ambre).lineLimit(1).fixedSize()
-                }
-                .padding(.leading, 10)
-            }
-        case .lecture:
-            let large = m.lecture.pochetteLarge
-            HStack(spacing: 7) {
-                PochetteLecture(m: m.lecture).frame(width: large ? 24 : 15, height: large ? 13.5 : 15)
-                    .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
-                Group {
-                    if m.statique { EgaliseurFixe(teinte: teinteIlot(m.lecture.teinte.clair), joue: m.lecture.joue, nombre: 3, largeurBarre: 2.2) }
-                    else { EgaliseurPetit(teinte: teinteIlot(m.lecture.teinte.clair), joue: m.lecture.joue, animer: !m.reduire) }
-                }
-                .frame(width: 11, height: 10)
-                Text(m.lecture.morceau?.titre ?? "").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
-                    .frame(maxWidth: 140, alignment: .leading)
-                    .opacity(Double(lisseIlot((ouverture - 0.35) / 0.5)))
-            }
-            .padding(.leading, 10)
-        case .rendezVous:
-            HStack(spacing: 6) {
-                GlypheIlot(nom: GlypheIlot.calendrier, couleur: CouleursIlot.rouge, taille: 12)
-                Text((m.rendezVous ?? m.dernierRendezVous).map { PlanAgenda.court($0.debut.timeIntervalSince(m.maintenant())) } ?? "")
-                    .font(.system(size: 12.5, weight: .semibold).monospacedDigit()).foregroundStyle(.white).lineLimit(1).fixedSize()
-            }
-            .padding(.leading, 10)
-        case .rappel:
-            // la cloche et l'heure ; au survol, de quel rappel il s'agit
-            let r = m.rappelVu
-            HStack(spacing: 6) {
-                GlypheIlot(nom: "bell.fill", couleur: CouleursIlot.jaune, taille: 12)
-                Text(FormatIlot.heure(r?.echeance ?? m.maintenant()))
-                    .font(.system(size: 12.5, weight: .semibold).monospacedDigit()).foregroundStyle(CouleursIlot.jaune).lineLimit(1).fixedSize()
-                Text(r?.texte ?? "").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
-                    .frame(maxWidth: 150, alignment: .leading)
-                    .opacity(Double(lisseIlot((ouverture - 0.35) / 0.5)))
-            }
-            .padding(.leading, 10)
-        case .micro:
-            HStack(spacing: 6) {
-                GlypheIlot(nom: "mic.slash.fill", couleur: CouleursIlot.rouge, taille: 12)
-                Text("Coupé").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(CouleursIlot.rouge).lineLimit(1).fixedSize()
-            }
-            .padding(.leading, 10)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Micro coupé")
-        case .claude:
-            PastilleClaude(m: m)
-        case .reveil:
-            HStack(spacing: 6) {
-                GlypheIlot(nom: "alarm", couleur: CouleursIlot.ambre, taille: 12)
-                Text((m.reveil ?? m.dernierReveil)?.libelle() ?? "").font(.system(size: 12.5, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(CouleursIlot.ambre).lineLimit(1).fixedSize()
-            }
-            .padding(.leading, 10)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Réveil, \((m.reveil ?? m.dernierReveil)?.libelle() ?? "")")
-        case .reunion:
-            PastilleReunion(m: m)
-        case .alerte:
-            EmptyView()
-        }
     }
 }
 

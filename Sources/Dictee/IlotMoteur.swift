@@ -658,6 +658,7 @@ final class IlotMoteur: ObservableObject {
         }
         majExtras()
         majPastille()
+        viserLucarne()
         programmerReveil()
         surFenetre()
         demarrerBoucle()
@@ -730,7 +731,7 @@ final class IlotMoteur: ObservableObject {
         let passage = PassageIlot.viser(&geo, vers: c, alerte: v.estAlerte, reduire: reduire)
         let ouvre = passage == .ouverture, ferme = passage == .fermeture
         // contenu : la famille (ce qui voyage) et l'écran (ce qui est propre à cet état)
-        lien = fa == fv && fv != .autre
+        lien = fa == fv && fv != .autre && !lucarne.libre   // hors de l'encoche, le compact est dans la pilule : rien ne voyage, fondu
         // la lecture dépliée qui gagne (ou perd) sa rangée Minuteur : la pochette reste où elle est
         glisseLecture = lien && fa == .lecture && avant != .lectureCompact && v != .lectureCompact
         repliDepuisRangee = lien && avant == .lectureMinuteur && v == .lectureCompact
@@ -1295,6 +1296,7 @@ final class IlotMoteur: ObservableObject {
     /// d'une autre carte (l'accueil, qui passe aux Dictées en chemin) reste un changement de carte jusqu'au bout (`pourLaListe`).
     func recevoirDefilement(dy: Double, dx: Double, phase: DefilementIlot.Phase, inertie: Bool, en p: CGPoint? = nil, t: Double = ProcessInfo.processInfo.systemUptime) {
         guard fenetreOuverte, !cache else { return }
+        let p = p.map(versContenu)   // hors de l'encoche, le contenu n'est pas sous l'encoche
         // la carte « Claude Code » défile elle-même (sa liste peut dépasser) : la molette ne change pas de carte
         if courante == .claudeCarte {
             if abs(dy) >= abs(dx) { defilerCarteClaude(CGFloat(phase == .aucune && abs(dy) < 20 ? dy * 2 : dy)) }
@@ -1478,6 +1480,7 @@ final class IlotMoteur: ObservableObject {
     /// La forme visée, élargie de `marge` points tout autour (la zone de dépôt ne se perd pas en la visant, mais le vide de la fenêtre
     /// loin de la forme, à côté du cou dans la barre, n'en fait pas partie).
     func contient(_ point: CGPoint, marge: CGFloat) -> Bool {
+        if lucarne.libre { return contientLibre(point, marge: marge) }
         let chemin = FormeNoire(points: traceCible).path(in: CGRect(x: -IlotMoteur.largeur / 2, y: 0, width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax))
         return chemin.contains(point) || chemin.strokedPath(StrokeStyle(lineWidth: 2 * marge, lineCap: .round, lineJoin: .round)).contains(point)
     }
@@ -1527,8 +1530,9 @@ final class IlotMoteur: ObservableObject {
     }
     func rectPastille() -> CGRect? {
         // tant que la bulle n'est pas sortie, sa place ne prend aucun clic (l'icône de la barre à côté reste cliquable) ; hors de
-        // l'encoche, pas de bulle
-        guard !lucarne.libre, let p = pastille, pastilleMontree, pastilleChute.x >= 0.5 else { return nil }
+        // l'encoche, la goutte de verre à côté de la pilule
+        if lucarne.libre { return rectBulleLibre() }
+        guard let p = pastille, pastilleMontree, pastilleChute.x >= 0.5 else { return nil }
         return CGRect(x: bordPastille, y: 0, width: largeurPastilleActuelle(p), height: hauteurPastille)
     }
     /// Le rectangle que la fenêtre doit couvrir (centre = 0) : la forme voulue, la pastille et une marge pour l'ombre et la secousse.

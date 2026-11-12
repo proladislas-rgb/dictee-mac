@@ -247,21 +247,6 @@ struct PouleReunion: NSViewRepresentable {
     }
 }
 
-/// La réunion dans la bulle (une alerte ou une annonce a pris l'îlot) : le point rouge et le temps.
-struct PastilleReunion: View {
-    @ObservedObject var m: IlotMoteur
-    var body: some View {
-        let r = m.reunion ?? m.derniereReunion
-        HStack(spacing: 6) {
-            PointReunion(enPause: r.enPause, animer: !m.reduire && !m.statique)
-            ChronoReunion(m: m, taille: 12.5).fixedSize()
-        }
-        .padding(.leading, 10)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(r.enPause ? "Réunion en pause" : "Réunion en cours")
-    }
-}
-
 // MARK: - la carte « Réunion »
 
 struct CarteReunion: View {

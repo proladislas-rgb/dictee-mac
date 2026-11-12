@@ -84,6 +84,8 @@ final class IlotPanneau {
     var cadreVoulu = CGRect.zero
     /// Le cadre appliqué est celui du régime libre de la Lucarne (centré sur sa capsule) : un changement de régime s'applique tout de suite.
     private(set) var cadreLibre = false
+    /// … et celui de la tenue ou du vol (centré sur la capsule, d'une taille fixe) : posée, la Lucarne a sa fenêtre à elle tout de suite.
+    private(set) var cadreEnMain = false
     private var reduction: DispatchWorkItem?
     private var moniteurClic: Any?
     private var surveilleEcran: NSObjectProtocol?
@@ -188,18 +190,27 @@ final class IlotPanneau {
             return
         }
         let r = moteur.fenetreVoulue()
-        let grandit = r.width > cadreVoulu.width + 0.5 || r.height > cadreVoulu.height + 0.5 || !f.isVisible || poserToutDeSuite(r)
-        if grandit { appliquer(r) }
-        else if r != cadreVoulu {
-            reduction?.cancel()
-            let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { guard let self else { return }; self.appliquer(self.moteur.fenetreVoulue()) } }
-            reduction = item
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.65, execute: item)
+        if let fusion = cadreLibrePose(r, visible: f.isVisible) {
+            // hors de l'encoche, posée : l'ancienne forme et la nouvelle tiennent toutes deux le temps du passage
+            appliquer(fusion)
+            if fusion != r { programmerReduction() }
+        } else {
+            let grandit = r.width > cadreVoulu.width + 0.5 || r.height > cadreVoulu.height + 0.5 || !f.isVisible || poserToutDeSuite(r)
+            if grandit { appliquer(r) } else if r != cadreVoulu { programmerReduction() }
         }
         f.alphaValue = invisible ? 0 : 1
-        f.ignoresMouseEvents = invisible || moniteurTraversee != nil
+        // en vol, la fenêtre (de la taille de la tenue) ne prend aucun clic : rien n'y est cliquable
+        f.ignoresMouseEvents = invisible || moniteurTraversee != nil || moteur.lucarne.vol
         if !f.isVisible { f.orderFrontRegardless(); reevaluerPointeur() }
         _ = ecran
+    }
+
+    /// Le cadre voulu, 0,65 s plus tard (le temps que la forme se referme).
+    private func programmerReduction() {
+        reduction?.cancel()
+        let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { guard let self else { return }; self.appliquer(self.moteur.fenetreVoulue()) } }
+        reduction = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65, execute: item)
     }
 
     private func retarderMasquage() {
@@ -221,12 +232,12 @@ final class IlotPanneau {
         reduction?.cancel()
         cadreVoulu = r
         cadreLibre = moteur.lucarne.libre
-        let o = moteur.origineVue
+        cadreEnMain = moteur.lucarneEnMain
+        let o = moteur.origineVue, t = moteur.tailleVue
         let cadre = NSRect(x: centre + r.minX, y: ecran.frame.maxY - r.maxY, width: r.width, height: r.height)
         f.setFrame(cadre, display: false)
         conteneur?.frame = NSRect(origin: .zero, size: cadre.size)
-        vue?.frame = NSRect(x: o.x - r.minX - IlotMoteur.largeur / 2, y: cadre.height - IlotMoteur.hauteurMax - (o.y - r.minY),
-                            width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax)
+        vue?.frame = NSRect(x: o.x - r.minX - t.width / 2, y: cadre.height - t.height - (o.y - r.minY), width: t.width, height: t.height)
         reevaluerPointeur()
     }
 
@@ -261,8 +272,7 @@ final class IlotPanneau {
         // la forme elle-même : le vide à côté du cou (où sont les menus) ne compte pas
         let surForme = moteur.contient(p)
         let surPastille = moteur.rectPastille()?.contains(p) ?? false
-        // hors de l'encoche, la capsule ne s'ouvre pas encore au survol (son contenu arrive avec la mission 3)
-        if surForme != sousForme { sousForme = surForme; moteur.survolForme(surForme && !moteur.lucarne.libre) }
+        if surForme != sousForme { sousForme = surForme; moteur.survolForme(surForme) }
         if surPastille != sousPastille { sousPastille = surPastille; moteur.survolPastille(surPastille) }
         laisserPasser(!(surForme || surPastille))
     }
@@ -536,8 +546,7 @@ final class IlotPanneau {
     /// l'îlot appelle (« Glisse ici ») tout de suite, puis s'ouvre en grand en approchant. Un texte glissé n'ouvre rien.
     func glisser(_ p: CGPoint, nouveau: () -> Bool = { true }, fichiers: () -> Bool) {
         // un fichier qui PART de l'îlot (bandeau « Téléchargé », tuile de l'étagère) n'ouvre jamais rien sous lui-même
-        // hors de l'encoche, pas de zones de dépôt (elles arrivent avec le contenu de la Lucarne libre, mission 3)
-        guard etagereActive, !moteur.glisserSortant, !moteur.cache, !moteur.lucarne.libre else { return }
+        guard etagereActive, !moteur.glisserSortant, !moteur.cache else { return }
         if glisserDeFichiers == nil {
             guard nouveau() else { return }
             glisserDeFichiers = fichiers()
@@ -551,7 +560,8 @@ final class IlotPanneau {
     }
 
     private func procheEncoche(_ p: CGPoint) -> Bool {
-        ApprocheEtagere.proche(x: Double(p.x), y: Double(p.y), demiCamera: Double(moteur.demiCamera), barre: Double(moteur.geometrie.hauteur), retour: zonesQuittees)
+        if moteur.lucarne.libre { return procheLucarne(p, retour: zonesQuittees) }
+        return ApprocheEtagere.proche(x: Double(p.x), y: Double(p.y), demiCamera: Double(moteur.demiCamera), barre: Double(moteur.geometrie.hauteur), retour: zonesQuittees)
     }
 
     /// Des fichiers glissés sont en `p` : près de l'encoche, l'îlot s'ouvre en « Déposez ici » et la fenêtre les accepte ; ouvert, il le
@@ -560,7 +570,8 @@ final class IlotPanneau {
     func approcher(_ p: CGPoint) {
         // dans la barre des menus, seulement près du cou (à côté, ce sont les icônes des autres apps) ; dessous, près de la forme
         let marge = CGFloat(ApprocheEtagere.marge)
-        let garde = moteur.depot && (p.y < moteur.geometrie.hauteur ? abs(p.x) <= CGFloat(moteur.traceCible.cou) + marge : moteur.contient(p, marge: marge))
+        // (hors de l'encoche, pas de barre des menus autour : la forme et ses 40 pt)
+        let garde = moteur.depot && (p.y < moteur.geometrie.hauteur && !moteur.lucarne.libre ? abs(p.x) <= CGFloat(moteur.traceCible.cou) + marge : moteur.contient(p, marge: marge))
         // le Centre ouvert reçoit les fichiers sur toute sa forme (sa case Étagère s'éclaire) : on y lâche un fichier venu du Finder
         let proche = procheEncoche(p) || garde || (moteur.centreOuvert && moteur.contient(p))
         if proche, !moteur.depot {
@@ -586,7 +597,8 @@ final class IlotPanneau {
     /// L'instant où la zone « AirDrop » s'est éclairée sous le pointeur (nil : elle ne l'est pas).
     private var airDropEclaire: TimeInterval?
     private func zone(_ p: CGPoint) -> ZoneDepotEtagere {
-        ZoneDepotEtagere.sous(x: Double(p.x), y: Double(p.y), barre: Double(moteur.geometrie.hauteur))
+        let q = moteur.versContenu(p)   // les zones sont mises en page comme sous l'encoche
+        return ZoneDepotEtagere.sous(x: Double(q.x), y: Double(q.y), barre: Double(moteur.geometrie.hauteur))
     }
     /// Un lâcher en `p` serait-il accepté ? Seulement sur la forme de « Déposez ici » (pas dans le vide de la fenêtre à côté).
     func peutDeposer(_ p: CGPoint) -> Bool { etagereActive && moteur.depot && !depotLache && moteur.contient(p) }
@@ -638,7 +650,7 @@ final class IlotPanneau {
     /// glisser parti de Verbe lui-même (`interne` : une tuile de la carte, le fichier du bandeau « Téléchargé ») n'ouvre rien. Vrai : un
     /// lâcher à cet endroit serait accepté.
     func glisserSurLIlot(_ p: CGPoint, interne: Bool = false) -> Bool {
-        guard etagereActive, !moteur.cache, !interne, !moteur.glisserSortant, !moteur.lucarne.libre else { return false }
+        guard etagereActive, !moteur.cache, !interne, !moteur.glisserSortant else { return false }
         glisserDeFichiers = true
         if !moteur.appel, !depotLache { moteur.montrerAppel(true); if moteur.appel { guetterLaFin(true) } }
         approcher(p)

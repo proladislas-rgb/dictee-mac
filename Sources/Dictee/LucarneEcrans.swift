@@ -69,6 +69,7 @@ extension IlotPanneau {
         let s = moteur.lucarne.systeme
         let id = s.identifiant(e)
         moteur.cadence.ecran = e
+        cadreVoulu = .zero   // posée sans animation : sa fenêtre est posée telle quelle, sans attendre
         moteur.poserLucarne(s.decrire(e, moteur.geometrie, centre), uuid: id, place: s.lireMemoire().place(pour: id))
     }
 
@@ -87,16 +88,33 @@ extension IlotPanneau {
     }
 
     /// Le cadre `r` doit-il être posé tout de suite (même plus petit) ? Oui si la Lucarne change de régime (encoche ↔ libre : la vue n'est
-    /// plus au même endroit dans la fenêtre) ; libre, si son centre a bougé (la fenêtre reste centrée sur elle) ou si elle est posée (rien
-    /// ne se referme, la fenêtre n'a pas à attendre pour se resserrer).
+    /// plus au même endroit dans la fenêtre), pendant la tenue et le vol (la fenêtre est centrée sur la capsule), et à l'arrivée (la forme
+    /// est posée : la grande fenêtre du vol n'a rien à attendre pour se resserrer).
     func poserToutDeSuite(_ r: CGRect) -> Bool {
-        if cadreLibre != moteur.lucarne.libre { return true }
-        return cadreLibre && r != cadreVoulu && (moteur.lucarnePosee || abs(r.midX - cadreVoulu.midX) > 0.01 || abs(r.midY - cadreVoulu.midY) > 0.01)
+        if cadreLibre != moteur.lucarne.libre || cadreEnMain != moteur.lucarneEnMain { return true }
+        return cadreLibre && moteur.lucarneEnMain && r != cadreVoulu
+    }
+
+    /// Hors de l'encoche, posée (ni tenue ni vol, déjà en régime libre) : le cadre à poser tout de suite, ou nil (la règle de l'encoche
+    /// s'applique). Un cadre qui sort de l'actuel (la forme monte au-dessus de la ligne du Dock, une carte plus haute) est posé tout de
+    /// suite, réuni à l'actuel : la forme qui se replie y tient encore ; il se resserre 0,65 s plus tard.
+    func cadreLibrePose(_ r: CGRect, visible: Bool) -> CGRect? {
+        guard visible, cadreLibre, !cadreEnMain, !cadreVoulu.isEmpty, moteur.lucarne.libre, !moteur.lucarneEnMain, !cadreVoulu.contains(r) else { return nil }
+        return cadreVoulu.union(r)
+    }
+
+    /// Des fichiers glissés près de la Lucarne hors de l'encoche : à 140 pt de sa pilule (60 pt si on a déjà quitté ses zones pendant ce
+    /// glisser), comme près de l'encoche.
+    func procheLucarne(_ p: CGPoint, retour: Bool) -> Bool {
+        guard let e = moteur.lucarne.ecran else { return false }
+        let c = moteur.capsuleRepliee(e)
+        let dx = max(0, max(c.x0 - Double(p.x), Double(p.x) - c.x1)), dy = max(0, max(c.y0 - Double(p.y), Double(p.y) - c.y1))
+        return hypot(dx, dy) <= (retour ? ApprocheEtagere.distanceRetour : ApprocheEtagere.distance)
     }
 
     /// Tenue ou vol : la fenêtre suit la capsule par son ORIGINE seulement (même taille, la vue ne bouge pas dedans : rien à redessiner).
     func deplacerLibre() {
-        guard let f = fenetre, let ecran, moteur.lucarne.libre else { return }
+        guard let f = fenetre, let ecran, moteur.lucarneEnMain else { return }
         let r = moteur.fenetreVoulue()
         // pas encore le cadre du régime libre (le décollage le pose), ou une autre taille : c'est à `ajuster` de le poser en entier
         guard cadreLibre, r.size == cadreVoulu.size else { ajuster(); return }

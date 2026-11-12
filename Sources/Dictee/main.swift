@@ -88,6 +88,11 @@ if let i = arguments.firstIndex(where: { $0 == "--rendu-lecture" || $0 == "--ren
     exit(MainActor.assumeIsolated { RenduLecture.executer(dossier: arguments[i + 1]) })
 }
 
+// Dictee --rendu-lucarne dossier  (la Lucarne hors de l'encoche, en verre, depuis chaque place, en PNG, sans fenêtre)
+if let i = arguments.firstIndex(of: "--rendu-lucarne"), i + 1 < arguments.count {
+    exit(MainActor.assumeIsolated { RenduLucarne.executer(dossier: arguments[i + 1]) })
+}
+
 // Dictee --ilot-essai  (essai de bout en bout de l'îlot : priorités, pastille, minuteur, rappels, calendrier simulé ; fenêtre transparente ;
 // ni micro, ni clavier, ni Accessibilité, ni son, ni calendrier, ni notifications)
 if arguments.contains("--ilot-essai") {

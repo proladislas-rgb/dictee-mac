@@ -124,6 +124,7 @@ enum IlotEssai {
                                        fenetres: { fenetres }, relancer: { fabriquer() })
             } else if seul == "places" {
                 IlotEssai.placesLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+                IlotEssai.verreLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
             } else if seul == "reveil" {
                 IlotEssai.reveilEtCalendrier(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
             } else {
@@ -1168,6 +1169,7 @@ enum IlotEssai {
         IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
         IlotEssai.lucarne(c, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers })
         IlotEssai.placesLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.verreLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.secondBrain(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
