@@ -116,7 +116,7 @@ func controlesReveil() {
     verifier(vieux.disposition.elements == [.micro, .telechargements, .calendrier, .claude, .concentration] && vieux.aRetenir == ["calendrier", "concentration"] && vieux.ajoutees == [.calendrier, .concentration],
              "rangé avant le calendrier : il arrive une fois (retenu, disposition à enregistrer)")
     let pleinR = D.relire(identifiants: ["micro", "dictee", "telechargements", "claude", "rappel", "derniere-dictee"], dejaProposees: [])
-    verifier(pleinR.aRetenir == ["calendrier", "concentration"] && pleinR.ajoutees.isEmpty, "rangée pleine : retenu, rien d'ajouté ni d'enregistré")
+    verifier(pleinR.aRetenir == nil && pleinR.ajoutees.isEmpty, "rangée pleine : rien d'ajouté, rien de retenu (12/11 : la nouveauté attend une place libre)")
     let p2 = D.plan(ronds: true, cases: true, bande: true, nomsSurDeuxLignes: true)
     verifier(p2.profondeur == GeoIlot.profondeurCentre + D.ligneNom && p2.hauts[.cases] == 158 + D.ligneNom, "un nom sur deux lignes : la rangée des ronds s'allonge d'une ligne (14 pt), le reste descend")
     verifier(D.poidsCase(.minuteur) == 1.16 && D.poidsCase(.etagere) == 0.84, "cases côte à côte : Minuteur 1,16, Étagère 0,84 (maquette)")
