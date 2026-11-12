@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Permet de construire l'exe Windows depuis le Mac. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <NoWarn>WFAC010</NoWarn>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Verbe</RootNamespace>
+    <AssemblyName>Verbe</AssemblyName>
+    <ApplicationIcon>Ressources\Verbe.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.1.0</Version>
+    <Product>Verbe</Product>
+    <Description>Dictée vocale : tenir Ctrl + Windows, parler, relâcher.</Description>
+    <Copyright>Verbe, logiciel libre</Copyright>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <SatelliteResourceLanguages>fr;en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Ressources\Verbe.ico" />
+  </ItemGroup>
+
+</Project>

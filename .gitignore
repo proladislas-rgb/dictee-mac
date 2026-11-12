@@ -5,3 +5,5 @@
 *.xcodeproj/xcuserdata/
 dist/
 design/rendus-bureau/
+windows/**/bin/
+windows/**/obj/
