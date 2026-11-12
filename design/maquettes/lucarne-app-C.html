@@ -1,0 +1,1484 @@
+<!doctype html>
+<!--
+Lucarne — direction C : « l'îlot d'abord, la fenêtre en compagnon ».
+Tout part de l'encoche et y revient. Pas de grande fenêtre d'accueil : au premier lancement, l'encoche se gonfle et une
+grande carte en verre « Liquide » en sort, juste dessous (comme la carte des AirPods sur l'iPhone). Une question à la fois,
+avec une grande animation, puis la carte rentre dans l'encoche. La fenêtre de l'app est petite : une colonne, un sélecteur
+segmenté en verre (Aujourd'hui · Découvrir · Réunions · Réglages). Elle sort de l'encoche depuis le Centre, et y rentre.
+Dans l'encoche : toujours noir. Hors de l'encoche : du verre (lentille feDisplacementMap reprise de lucarne-position.html).
+12 étapes :
+  1-6   premier lancement dans la carte : bonjour, micro, écrire dans tes apps, touche fn, clé Groq, essai ;
+  7     le Centre (noir) → la fenêtre sort de l'encoche, sur « Aujourd'hui » ;
+  8-9   Découvrir (7 fonctions, une mini-animation chacune) et « Essayer » : Lucarne déplaçable, en vrai ;
+  10-12 Réunions (liste puis note), Réglages (5 groupes), la fenêtre rentre dans l'encoche.
+Forme de l'îlot, ressorts et régie repris de ilot-centre.html / lucarne-app.html. Icône officielle (clair et sombre) intégrée.
+Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt. Personnes et données inventées.
+Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
+                   ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lucarne · l’îlot d’abord</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --affiche:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --rond:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,sans-serif;
+  --bleu:#0a84ff; --vert:#30c759; --rouge:#ff453a; --ambre:#ff9f0a; --jaune:#ffd60a; --corail:#e8835c;
+  --encre:#1d1d1f; --encre2:rgba(0,0,0,.6); --encre3:rgba(0,0,0,.42); --filet:rgba(0,0,0,.08);
+  --regie:#111113; --clair:#f5f5f7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--regie)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--clair);min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default;text-align:inherit}
+svg{display:block;overflow:visible}
+img{display:block}
+html.fige *,html.fige *::before,html.fige *::after{animation-play-state:paused!important}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+
+/* ===================== l'écran (macOS 26, apparence claire) ===================== */
+#ecran{position:relative;height:clamp(460px,calc(100vh - 178px),780px);overflow:hidden;user-select:none;-webkit-user-select:none;
+  background:#e4ecf5;transition:opacity calc(.26s*var(--k)) ease}
+.papier{position:absolute;inset:0}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;z-index:9;font-size:13.5px;color:var(--encre);white-space:nowrap;pointer-events:none;
+  background:rgba(255,255,255,.18)}
+.menus,.etats{display:flex;flex-wrap:wrap;align-content:flex-start;height:33px;overflow:hidden;max-width:calc(50% - 110px)}
+.menus{column-gap:19px;padding-left:18px}
+.menus>*{height:33px;line-height:33px;font-weight:500}
+.menus>svg{height:17px;margin-top:7px;flex:none}
+.menus>b{font-weight:700}
+.etats{flex-direction:row-reverse;column-gap:15px;padding-right:15px}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats svg{width:17px;height:17px;color:var(--encre)}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* ===================== le verre « Liquide » (hors de l'encoche) ===================== */
+.verre{position:absolute;left:0;top:0;width:10px;height:10px;overflow:hidden;visibility:hidden;color:var(--encre);--noir:1;--v1:.3;--v2:.22;
+  background:linear-gradient(180deg,rgba(255,255,255,var(--v1)),rgba(255,255,255,var(--v2)));
+  box-shadow:
+    inset 1.6px 1.8px 0 -.6px rgba(255,255,255,calc(.95*(1 - var(--noir)))),
+    inset -1.2px -1.6px 0 -.6px rgba(255,255,255,calc(.6*(1 - var(--noir)))),
+    inset 0 0 22px rgba(255,255,255,calc(.32*(1 - var(--noir)))),
+    0 0 0 .5px rgba(10,20,40,calc(.2*(1 - var(--noir)))),
+    0 28px 60px -18px rgba(18,32,60,calc(.36*(1 - var(--noir)))),
+    0 8px 20px -8px rgba(18,32,60,calc(.2*(1 - var(--noir))))}
+.verre::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:4;opacity:calc(1 - var(--noir));
+  background:radial-gradient(80% 46% at 20% -6%,rgba(255,255,255,.6),rgba(255,255,255,0) 62%),radial-gradient(60% 34% at 88% 106%,rgba(255,255,255,.3),rgba(255,255,255,0) 70%)}
+/* le noir de l'encoche : il remonte dans l'encoche quand la forme en sort (jamais de gris uniforme entre les deux) */
+.v-noir{position:absolute;inset:0;z-index:6;pointer-events:none;opacity:calc(var(--noir) * 4);
+  background:linear-gradient(180deg,#000 0,#000 calc(var(--noir) * 130% - 30%),rgba(0,0,0,0) calc(var(--noir) * 130% + 4%))}
+
+/* ===================== la carte du premier lancement ===================== */
+#carte{z-index:12;--v1:.36;--v2:.26}
+.points{position:absolute;left:0;right:0;top:18px;display:flex;justify-content:center;gap:6px;z-index:3;transition:opacity calc(.3s*var(--k)) ease}
+.points.cache{opacity:0}
+.points i{width:6px;height:6px;border-radius:3px;background:rgba(0,0,0,.16);transition:width calc(.45s*var(--k)) var(--ressort),background-color .3s ease}
+.points i.fait{background:rgba(0,0,0,.34)}
+.points i.ici{width:20px;background:rgba(0,0,0,.62)}
+.pane{position:absolute;top:0;left:50%;width:380px;margin-left:-190px;padding:40px 30px 22px;text-align:center;display:flex;flex-direction:column;align-items:center;
+  opacity:0;filter:blur(6px);transform:translateX(28px);pointer-events:none;
+  transition:opacity calc(.18s*var(--k)) ease,filter calc(.2s*var(--k)) ease,transform calc(.4s*var(--k)) var(--ressort)}
+.pane.parti{transform:translateX(-28px)}
+.pane.on{opacity:1;filter:none;transform:none;pointer-events:auto;
+  transition:opacity calc(.3s*var(--k)) ease calc(.12s*var(--k)),filter calc(.32s*var(--k)) ease calc(.12s*var(--k)),transform calc(.55s*var(--k)) var(--ressort) calc(.08s*var(--k))}
+.pane[data-q="bien"]{padding-top:30px}
+.ill{height:118px;width:100%;position:relative;display:grid;place-items:center;flex:none}
+.pane h2{font:700 23px/29px var(--affiche);letter-spacing:-.45px;margin-top:14px}
+.pane p{font-size:14px;line-height:20px;color:var(--encre2);margin-top:6px;max-width:310px}
+.pane .act{height:42px;margin-top:20px;display:grid;place-items:center;width:100%}
+.pane .act>*{grid-area:1/1}
+.prim{height:42px;min-width:230px;border-radius:21px;padding:0 24px;background:linear-gradient(180deg,#2794ff,#0a7bf2);color:#fff;font-size:15px;font-weight:600;text-align:center;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 0 0 .5px rgba(0,60,140,.35),0 6px 14px -6px rgba(10,110,240,.6);cursor:pointer;
+  transition:transform calc(.3s*var(--k)) var(--ressort),opacity .2s ease}
+.prim:active,.prim.appuye{transform:scale(.96)}
+.ok{display:flex;align-items:center;gap:8px;height:42px;padding:0 18px 0 10px;border-radius:21px;background:rgba(48,199,89,.14);color:#1a7f37;font-size:15px;font-weight:600;
+  opacity:0;transform:scale(.82);pointer-events:none;transition:opacity calc(.25s*var(--k)) ease,transform calc(.5s*var(--k)) var(--ressort)}
+.ok i{width:24px;height:24px;border-radius:50%;background:var(--vert);display:grid;place-items:center}
+.pane.fait .ok{opacity:1;transform:none}
+.pane.fait .prim{opacity:0;transform:scale(.9);pointer-events:none}
+.second{height:20px;margin-top:10px;font-size:13px;color:var(--encre3);font-weight:500}
+.second .lien{color:var(--bleu)}
+.pane.fait .second{visibility:hidden}
+/* bonjour */
+.icone-g{width:96px;height:96px;filter:drop-shadow(0 10px 18px rgba(20,30,60,.22))}
+.pane[data-q="bien"] h1{font:700 34px/40px var(--affiche);letter-spacing:-.8px;margin-top:12px}
+.pane[data-q="bien"] p{font-size:15px;line-height:21px;max-width:300px}
+/* micro : le rond qui respire */
+.mic{position:relative;width:118px;height:118px;display:grid;place-items:center}
+.mic .onde-r{position:absolute;left:27px;top:27px;width:64px;height:64px;border-radius:50%;box-shadow:0 0 0 1.5px rgba(10,132,255,.45);animation:respire 2.4s cubic-bezier(.2,.6,.3,1) infinite}
+.mic .onde-r:nth-child(2){animation-delay:-.8s}.mic .onde-r:nth-child(3){animation-delay:-1.6s}
+@keyframes respire{0%{transform:scale(1);opacity:.9}100%{transform:scale(1.85);opacity:0}}
+.mic .disque{position:relative;width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.82);
+  box-shadow:inset 0 1px 0 #fff,0 0 0 .5px rgba(0,0,0,.12),0 8px 18px -6px rgba(20,40,80,.35);transition:background-color .4s ease}
+.mic .disque>*{position:absolute;transition:opacity .3s ease,transform calc(.5s*var(--k)) var(--ressort)}
+.mic .disque .v{opacity:0;transform:scale(.6)}
+.pane.fait .mic .disque{background:var(--vert)}
+.pane.fait .mic .disque .m{opacity:0;transform:scale(.6)}
+.pane.fait .mic .disque .v{opacity:1;transform:none}
+.pane.fait .mic .onde-r{box-shadow:0 0 0 1.5px rgba(48,199,89,.5)}
+/* écrire dans tes apps : une petite fenêtre où le texte arrive */
+.doc-ill{width:236px;height:100px;border-radius:14px;background:rgba(255,255,255,.9);box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 12px 26px -10px rgba(20,40,80,.35);padding:12px 14px;text-align:left;position:relative}
+.doc-ill .fe{display:flex;gap:5px;margin-bottom:10px}
+.doc-ill .fe i{width:7px;height:7px;border-radius:50%;background:#d8d8dd}
+.doc-ill .tape{font-size:15px;line-height:20px;font-weight:500;color:var(--encre);white-space:nowrap;overflow:hidden;display:flex;align-items:center}
+.doc-ill .tape span{display:inline-block;overflow:hidden;white-space:nowrap;animation:tape 4s steps(15) infinite;animation-delay:-2.6s}
+@keyframes tape{0%,12%{width:0}52%,86%{width:122px}100%{width:0}}
+.doc-ill .caret{display:inline-block;width:2px;height:18px;background:var(--bleu);margin-left:1px;animation:clign 1s steps(1) infinite}
+@keyframes clign{50%{opacity:0}}
+.doc-ill .gris{height:7px;border-radius:4px;background:#ececf0;margin-top:9px}
+.doc-ill .badge{position:absolute;right:-12px;bottom:-12px;width:40px;height:40px;border-radius:50%;background:#fff;display:grid;place-items:center;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 6px 14px -6px rgba(20,40,80,.4);transition:background-color .4s ease}
+.pane.fait .doc-ill .badge{background:var(--vert)}
+.doc-ill .badge>*{position:absolute;transition:opacity .3s ease}
+.doc-ill .badge .v{opacity:0}
+.pane.fait .doc-ill .badge .v{opacity:1}
+.pane.fait .doc-ill .badge .m{opacity:0}
+/* la touche fn */
+.touche{position:relative;width:92px;height:86px;border-radius:15px;background:linear-gradient(180deg,#2f2f32,#1c1c1e);color:#f2f2f4;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14),inset 0 0 0 .5px rgba(255,255,255,.08),0 4px 0 #0c0c0d,0 8px 18px -4px rgba(0,0,0,.45);
+  transition:transform calc(.16s*var(--k)) ease,box-shadow calc(.16s*var(--k)) ease}
+.touche .lbl{position:absolute;right:12px;top:10px;font-size:15px;font-weight:500}
+.touche .glb{position:absolute;left:11px;bottom:11px}
+.touche.anime{animation:appuie 2.2s ease-in-out infinite;animation-delay:-1.2s}
+@keyframes appuie{0%,30%,100%{transform:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),inset 0 0 0 .5px rgba(255,255,255,.08),0 4px 0 #0c0c0d,0 8px 18px -4px rgba(0,0,0,.45)}
+  40%,72%{transform:translateY(4px);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),inset 0 0 0 1.5px rgba(10,132,255,.9),0 0 0 #0c0c0d,0 3px 8px -2px rgba(0,0,0,.4)}}
+.touche.bas{transform:translateY(4px);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),inset 0 0 0 1.5px rgba(10,132,255,.9),0 0 0 #0c0c0d,0 3px 8px -2px rgba(0,0,0,.4)}
+.fn-ill{display:flex;align-items:center;gap:16px}
+.choix{display:flex;flex-direction:column;gap:5px;text-align:left;font-size:12.5px;font-weight:500;color:var(--encre2)}
+.choix span{height:26px;border-radius:13px;padding:0 11px;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.55);box-shadow:0 0 0 .5px rgba(0,0,0,.1);white-space:nowrap}
+.choix span.barre{text-decoration:line-through;color:var(--encre3)}
+.choix span.bon{background:rgba(255,255,255,.92);color:var(--encre);font-weight:600}
+.pane.fait .choix span.bon{background:var(--vert);color:#fff}
+/* clé Groq */
+.cle{width:286px;height:48px;border-radius:24px;background:rgba(255,255,255,.88);box-shadow:inset 0 1px 0 #fff,0 0 0 .5px rgba(0,0,0,.12),0 10px 22px -10px rgba(20,40,80,.35);
+  display:flex;align-items:center;gap:10px;padding:0 10px 0 16px;font:500 15px/1 ui-monospace,"SF Mono",Menlo,monospace;color:var(--encre3)}
+.cle .val{flex:1;text-align:left;overflow:hidden;white-space:nowrap}
+.cle.plein .val{color:var(--encre)}
+.cle .etat{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;flex:none}
+.cle .tourne{width:18px;height:18px;border-radius:50%;border:2px solid rgba(0,0,0,.12);border-top-color:var(--bleu);animation:tourne .8s linear infinite;display:none}
+.cle.verif .tourne{display:block}
+.cle.bon .etat{background:var(--vert)}
+@keyframes tourne{to{transform:rotate(360deg)}}
+.cle-sous{font-size:12px;color:var(--encre3);margin-top:12px;font-weight:500}
+/* essai */
+.es{display:flex;flex-direction:column;align-items:center;gap:12px}
+.es-champ{width:300px;height:58px;border-radius:16px;background:rgba(255,255,255,.88);box-shadow:inset 0 1px 0 #fff,0 0 0 .5px rgba(0,0,0,.12),0 10px 22px -10px rgba(20,40,80,.3);
+  display:flex;align-items:center;padding:0 18px;font:600 24px/1 var(--affiche);letter-spacing:-.4px;color:var(--encre);transition:box-shadow .3s ease}
+.es-champ.ecoute{box-shadow:inset 0 1px 0 #fff,0 0 0 2px rgba(10,132,255,.7),0 10px 22px -10px rgba(20,40,80,.3)}
+.es-champ .caret{display:inline-block;width:2px;height:26px;background:var(--bleu);margin-left:2px;animation:clign 1s steps(1) infinite}
+.es-bas{display:flex;align-items:center;gap:12px;height:44px}
+.es-bas .touche{width:48px;height:42px;border-radius:9px}
+.es-bas .touche .lbl{right:7px;top:5px;font-size:11px}
+.es-bas .touche .glb{left:6px;bottom:6px}
+.niveau{display:flex;align-items:center;gap:3px;height:30px;width:150px}
+.niveau i{flex:1;height:4px;border-radius:2px;background:rgba(0,0,0,.14);transition:height .12s ease,background-color .2s}
+.niveau.vif i{background:var(--bleu)}
+.bravo{display:none;align-items:center;gap:10px;height:42px;font-size:15px;font-weight:600;color:var(--encre)}
+.pane.reussi .bravo{display:flex}
+.pane.reussi .es-etat{display:none}
+.es-etat{font-size:13px;font-weight:500;color:var(--encre3);height:42px;display:grid;place-items:center}
+.coche-r{position:relative;width:32px;height:32px}
+.coche-r svg{position:absolute;inset:0}
+.coche-r .c1{stroke-dasharray:101;stroke-dashoffset:101;transition:stroke-dashoffset calc(.55s*var(--k)) ease .05s}
+.coche-r .c2{stroke-dasharray:20;stroke-dashoffset:20;transition:stroke-dashoffset calc(.3s*var(--k)) ease .5s}
+.pane.reussi .coche-r .c1,.pane.reussi .coche-r .c2{stroke-dashoffset:0}
+
+/* ===================== la question de macOS, Réglages Système ===================== */
+.alerte{position:absolute;left:50%;top:132px;width:262px;margin-left:-131px;z-index:16;border-radius:26px;padding:20px 18px 16px;text-align:center;color:var(--encre);
+  background:rgba(246,246,248,.92);-webkit-backdrop-filter:blur(30px) saturate(1.6);backdrop-filter:blur(30px) saturate(1.6);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 0 0 .5px rgba(0,0,0,.2),0 30px 64px -12px rgba(20,30,50,.45),0 8px 20px -8px rgba(20,30,50,.25);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.4s*var(--k)) var(--ressort)}
+.alerte.cache{opacity:0;transform:scale(.9);pointer-events:none}
+.alerte img{width:54px;height:54px;margin:0 auto}
+.alerte b{display:block;font-size:13px;line-height:17px;font-weight:700;margin-top:10px}
+.alerte p{font-size:11.5px;line-height:15px;color:#6e6e73;margin-top:5px}
+.alerte .al-bt{display:flex;gap:8px;margin-top:15px}
+.alerte .al-bt button{flex:1;height:30px;border-radius:15px;font-size:13px;font-weight:500;background:rgba(0,0,0,.07);text-align:center}
+.alerte .al-bt button.bleu{background:var(--bleu);color:#fff}
+.sys{position:absolute;left:calc(50% + 212px);top:62px;width:344px;z-index:14;border-radius:16px;overflow:hidden;background:#f4f4f6;color:var(--encre);
+  box-shadow:0 0 0 .5px rgba(0,0,0,.22),0 30px 70px -18px rgba(20,30,50,.45),0 10px 24px -10px rgba(20,30,50,.25);
+  transition:opacity calc(.22s*var(--k)) ease,transform calc(.45s*var(--k)) var(--ressort);transform-origin:20% 30%}
+.sys.cache{opacity:0;transform:scale(.92) translateX(-14px);pointer-events:none}
+.sys-h{height:50px;display:flex;align-items:center;gap:10px;padding:0 16px;font-size:14px;font-weight:700}
+.feux{display:flex;gap:8px;margin-right:14px}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.18)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.sys-c{padding:0 16px 16px}
+.sys-c p{font-size:12px;line-height:16px;color:#6e6e73;margin:0 2px 10px}
+.sys-g{background:#fff;border-radius:11px;box-shadow:0 0 0 .5px rgba(0,0,0,.1)}
+.sys-r{height:46px;display:flex;align-items:center;gap:10px;padding:0 12px;font-size:13px}
+.sys-r+.sys-r{border-top:1px solid #ececef}
+.sys-r img{width:26px;height:26px}
+.sys-r .sp{flex:1}
+.sys-r .grise{color:#8e8e93}
+.sys-pop{height:24px;border-radius:7px;background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.18),0 1px 2px rgba(0,0,0,.08);padding:0 8px 0 10px;font-size:12.5px;display:flex;align-items:center;gap:7px;transition:background-color .2s}
+.sys-pop.vu{background:#e5f0ff}
+.sw{width:34px;height:20px;border-radius:10px;background:rgba(0,0,0,.14);position:relative;flex:none;cursor:pointer;transition:background-color calc(.22s*var(--k))}
+.sw::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3),0 0 0 .5px rgba(0,0,0,.06);transition:transform calc(.35s*var(--k)) var(--ressort)}
+.sw.on{background:var(--bleu)}
+.sw.on::after{transform:translateX(14px)}
+
+/* ===================== l'îlot (noir, opaque) ===================== */
+.calque{position:absolute;left:calc(50% - 500px);top:0;width:1000px;height:420px;pointer-events:none}
+#forme-svg{z-index:20}
+#contenu{z-index:21}
+#encoche-svg{z-index:22}
+.c{position:absolute;color:#fff;white-space:nowrap;text-align:left;font-family:var(--sans)}
+.e{opacity:0;filter:blur(7px);transform:translateY(var(--sy,0px)) scale(.965);
+  transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
+.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+  transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+.aile{display:flex;align-items:center;gap:5px;height:17px;font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.1px}
+.eq{display:flex;align-items:center;justify-content:space-between;width:18.4px;height:14px}
+.eq i{display:block;width:2.6px;height:14px;border-radius:1.3px;background:#ffab3d;transform:scaleY(.3);animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(1){animation-duration:.82s;animation-delay:-.3s}
+.eq i:nth-child(2){animation-duration:1.06s;animation-delay:-.7s}
+.eq i:nth-child(3){animation-duration:.74s;animation-delay:-.1s}
+.eq i:nth-child(4){animation-duration:.95s;animation-delay:-.5s}
+.eq i:nth-child(5){animation-duration:1.18s;animation-delay:-.2s}
+@keyframes eq{0%{transform:scaleY(.28)}22%{transform:scaleY(.95)}41%{transform:scaleY(.5)}63%{transform:scaleY(1)}82%{transform:scaleY(.36)}100%{transform:scaleY(.28)}}
+.naitre img{width:30px;height:30px}
+/* le Centre (repris de ilot-centre.html, allégé) */
+.cc{width:432px}
+.cc-tete{display:flex;align-items:center;gap:8px;height:28px}
+.pil{height:28px;border-radius:14px;padding:0 12px;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.13);font-size:13px;font-weight:600;cursor:pointer;flex:none;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.pil img{width:18px;height:18px;margin-left:-5px}
+.pil.app{background:rgba(255,255,255,.2)}
+.pil.app.survol{background:rgba(255,255,255,.3)}
+.pil.appuye{transform:scale(.94)}
+.cc-tete .sp{flex:1}
+.cc-tete .cc-t{font-size:12px;font-weight:600;color:rgba(255,255,255,.45)}
+.cc-ronds{display:flex;justify-content:space-around;margin-top:12px;height:96px}
+.tg{width:90px;display:flex;flex-direction:column;align-items:center;color:#fff;flex:none}
+.tg .rd{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center}
+.tg b{font-size:11.5px;line-height:15px;font-weight:600;margin-top:7px;letter-spacing:-.2px}
+.tg i{font-style:normal;font-size:11.5px;line-height:14px;color:rgba(255,255,255,.55);font-weight:500;margin-top:1px}
+.tg.corail .rd{background:var(--corail)}
+.cc-larges{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;height:76px}
+.tl{position:relative;border-radius:20px;background:rgba(255,255,255,.1);padding:11px 14px}
+.tl-t{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600}
+.tl-caps{display:flex;gap:6px;margin-top:8px;align-items:center}
+.cap{height:28px;width:44px;border-radius:14px;background:rgba(255,255,255,.14);font-size:13px;font-weight:600;display:grid;place-items:center}
+.tl-u{font-size:12px;font-weight:500;color:rgba(255,255,255,.5);margin-left:3px}
+.tl-eta{background:transparent;border:1.5px dashed rgba(255,255,255,.3);padding:9.5px 12.5px}
+.eta-vide{font-size:12.5px;line-height:16px;color:rgba(255,255,255,.55);margin-top:12px;font-weight:500}
+.tr{display:flex;align-items:center;gap:10px;width:100%;height:40px;margin-top:10px;border-radius:20px;padding:0 16px 0 14px;background:rgba(255,255,255,.1);font-size:13.5px;font-weight:600}
+.tr-pt{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1.8px var(--rouge);background:radial-gradient(circle,var(--rouge) 0 3.6px,transparent 4.2px)}
+.tr-s{margin-left:auto;font-size:12px;font-weight:500;color:rgba(255,255,255,.5)}
+
+/* ===================== la fenêtre compagnon ===================== */
+#fen{z-index:11;--v1:.62;--v2:.54}
+.f-corps{position:absolute;top:0;left:50%;width:420px;height:404px;margin-left:-210px;transition:opacity calc(.2s*var(--k)) ease}
+#fen.rentre .f-corps{opacity:0}
+.f-haut{height:58px;display:grid;place-items:center;position:relative;z-index:2}
+.segm{position:relative;display:flex;height:32px;padding:2px;border-radius:16px;background:rgba(0,0,0,.055);box-shadow:inset 0 0 0 .5px rgba(0,0,0,.06)}
+.segm button{position:relative;z-index:1;height:28px;border-radius:14px;padding:0 13px;font-size:13px;font-weight:500;color:var(--encre2);cursor:pointer;white-space:nowrap;transition:color .2s ease}
+.segm button.on{color:var(--encre);font-weight:600}
+.pouce{position:absolute;top:2px;left:2px;height:28px;width:60px;border-radius:14px;background:rgba(255,255,255,.95);
+  box-shadow:inset 0 1px 0 #fff,0 0 0 .5px rgba(0,0,0,.08),0 2px 6px -1px rgba(0,0,0,.18);
+  transition:left calc(.5s*var(--k)) var(--ressort),width calc(.5s*var(--k)) var(--ressort)}
+.pages{position:absolute;left:0;right:0;top:58px;bottom:0}
+.page{position:absolute;inset:0;padding:2px 18px 18px;overflow-y:auto;scrollbar-width:none;opacity:0;transform:translateX(18px);filter:blur(4px);pointer-events:none;
+  transition:opacity calc(.16s*var(--k)) ease,transform calc(.4s*var(--k)) var(--ressort),filter calc(.18s*var(--k)) ease}
+.page::-webkit-scrollbar{display:none}
+.page,.reu-l,.reu-n{-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 14px,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(180deg,transparent 0,#000 14px,#000 calc(100% - 18px),transparent)}
+.reu-n{-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 14px,#000 calc(100% - 66px),transparent calc(100% - 42px));mask-image:linear-gradient(180deg,transparent 0,#000 14px,#000 calc(100% - 66px),transparent calc(100% - 42px))}
+.page.avant{transform:translateX(-18px)}
+.page.on{opacity:1;transform:none;filter:none;pointer-events:auto;
+  transition:opacity calc(.26s*var(--k)) ease calc(.06s*var(--k)),transform calc(.5s*var(--k)) var(--ressort),filter calc(.26s*var(--k)) ease calc(.06s*var(--k))}
+.groupe{background:rgba(255,255,255,.66);border-radius:16px;box-shadow:0 0 0 .5px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04)}
+.groupe+.groupe{margin-top:12px}
+.g-titre{font-size:12.5px;font-weight:600;color:var(--encre3);margin:16px 4px 6px}
+.g-titre:first-child{margin-top:6px}
+.ligne{position:relative;display:flex;align-items:center;gap:11px;min-height:48px;padding:7px 12px}
+.ligne+.ligne::before{content:"";position:absolute;left:51px;right:0;top:0;border-top:.5px solid var(--filet)}
+.ico{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none;color:#fff}
+.ico.rouge{background:#ff453a}.ico.jaune{background:#ffcc00}.ico.corail{background:var(--corail)}.ico.bleu{background:var(--bleu)}
+.ico.gris{background:#8e8e93}.ico.vert{background:var(--vert)}.ico.noir{background:#1d1d1f}.ico.orange{background:var(--ambre)}
+.tx{flex:1;min-width:0}
+.tx b{display:block;font-size:13.5px;line-height:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx span{display:block;font-size:12px;line-height:16px;color:var(--encre2);margin-top:1px}
+.val{font-size:12.5px;color:var(--encre2);font-variant-numeric:tabular-nums;white-space:nowrap;display:flex;align-items:center;gap:4px}
+.capsule{height:26px;border-radius:13px;padding:0 12px;background:rgba(10,132,255,.12);color:var(--bleu);font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer;
+  transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s}
+.capsule.appuye{transform:scale(.92);background:rgba(10,132,255,.22)}
+/* Aujourd'hui */
+.au-date{font-size:13px;font-weight:600;color:var(--encre3);margin:4px 2px 0}
+.au-stat{display:flex;align-items:flex-end;justify-content:space-between;margin:4px 2px 14px}
+.au-stat .gros{font:700 40px/44px var(--rond);letter-spacing:-1px;color:var(--encre);font-variant-numeric:tabular-nums}
+.au-stat .u{font:600 17px var(--affiche);margin-left:6px;color:var(--encre)}
+.au-stat p{font-size:13px;line-height:18px;color:var(--encre2);margin-top:1px}
+.barres{display:flex;align-items:flex-end;gap:3px;height:40px;width:112px;margin-bottom:4px}
+.barres i{flex:1;border-radius:2px;background:rgba(0,0,0,.12)}
+.barres i.vif{background:var(--bleu)}
+.vignettes{display:flex;gap:6px;align-items:flex-end}
+.prog{width:54px;height:4px;border-radius:2px;background:rgba(0,0,0,.1);position:relative;overflow:hidden}
+.prog b{position:absolute;left:0;top:0;bottom:0;width:43%;background:var(--corail);border-radius:2px}
+/* Découvrir */
+.de-intro{font-size:13px;line-height:18px;color:var(--encre2);margin:4px 4px 10px}
+.de-l{display:flex;align-items:center;gap:12px;padding:9px 12px}
+.de-l+.de-l{border-top:.5px solid var(--filet)}
+.de-l.ici{background:rgba(10,132,255,.07)}
+.de-l .tx b{font-size:13.5px}
+.de-l .tx span{white-space:normal}
+.mini{position:relative;width:64px;height:46px;border-radius:11px;overflow:hidden;flex:none;background:linear-gradient(165deg,#c4daf1 0%,#e3ebf3 55%,#f3e2d3 100%);box-shadow:0 0 0 .5px rgba(0,0,0,.08)}
+.mini .mn{position:absolute;left:50%;top:0;width:24px;height:6px;margin-left:-12px;background:#000;border-radius:0 0 4px 4px}
+.mini .mfen{position:absolute;background:#fff;border-radius:4px;box-shadow:0 0 0 .5px rgba(0,0,0,.1),0 3px 6px -3px rgba(20,30,50,.35)}
+.mini .li{position:absolute;height:2.5px;border-radius:2px;background:#d6d8de}
+/* 1 Centre */
+.k-centre .mn{animation:kCentre 3.6s var(--ressort) infinite}
+@keyframes kCentre{0%,16%{width:24px;height:6px;margin-left:-12px;border-radius:0 0 4px 4px}30%,78%{width:50px;height:27px;margin-left:-25px;border-radius:0 0 9px 9px}90%,100%{width:24px;height:6px;margin-left:-12px;border-radius:0 0 4px 4px}}
+.k-centre .ronds{position:absolute;left:50%;top:9px;margin-left:-19px;display:flex;gap:4px;animation:kVu 3.6s infinite}
+.k-centre .ronds i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3)}
+.k-centre .ronds i:nth-child(3){background:var(--corail)}
+.k-centre .ronds i:nth-child(1){background:#fff}
+@keyframes kVu{0%,30%{opacity:0}38%,74%{opacity:1}80%,100%{opacity:0}}
+.k-centre .fl{position:absolute;left:44px;top:30px;width:7px;height:10px;animation:kPt 3.6s ease-in-out infinite}
+@keyframes kPt{0%{transform:translate(10px,10px)}16%,80%{transform:translate(-11px,-26px)}100%{transform:translate(10px,10px)}}
+/* 2 étagère */
+.k-eta .mn{animation:kEta 3.4s var(--ressort) infinite}
+@keyframes kEta{0%,30%{width:24px;height:6px;margin-left:-12px}40%,62%{width:46px;height:18px;margin-left:-23px;border-radius:0 0 7px 7px}72%,100%{width:34px;height:6px;margin-left:-17px;border-radius:0 0 4px 4px}}
+.k-eta .doc{position:absolute;left:26px;top:28px;width:11px;height:14px;border-radius:2px;background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.2);animation:kDoc 3.4s ease-in-out infinite}
+.k-eta .doc::after{content:"";position:absolute;left:2px;right:2px;bottom:2px;height:3px;border-radius:1px;background:#ff453a}
+@keyframes kDoc{0%,6%{transform:translate(-14px,4px);opacity:0}12%{opacity:1;transform:translate(-14px,4px)}46%{transform:translate(0,-18px) scale(.8);opacity:1}56%,100%{transform:translate(0,-26px) scale(.3);opacity:0}}
+.k-eta .pile{position:absolute;left:25px;top:1px;width:5px;height:4px;border-radius:1px;border:1px solid #5eb0ff;animation:kPile 3.4s infinite}
+@keyframes kPile{0%,70%{opacity:0}76%,100%{opacity:1}}
+/* 3 minuteur */
+.k-min .mn{animation:kMin 4s var(--ressort) infinite}
+@keyframes kMin{0%,18%{width:24px;margin-left:-12px}30%,100%{width:40px;margin-left:-12px}}
+.k-min .t{position:absolute;left:44px;top:1px;width:4px;height:4px;border-radius:50%;background:var(--ambre);animation:kVuMin 4s infinite}
+@keyframes kVuMin{0%,26%{opacity:0}34%,100%{opacity:1}}
+.k-min .caps{position:absolute;left:12px;top:15px;display:flex;gap:3px;animation:kCaps 4s infinite}
+.k-min .caps i{width:12px;height:8px;border-radius:4px;background:rgba(255,255,255,.85);box-shadow:0 0 0 .5px rgba(0,0,0,.15)}
+.k-min .caps i:nth-child(2){animation:kChoisi 4s steps(1) infinite}
+@keyframes kCaps{0%{opacity:0;transform:translateY(-4px)}8%,22%{opacity:1;transform:none}30%,100%{opacity:0;transform:translateY(-6px) scale(.6)}}
+@keyframes kChoisi{0%,14%{background:rgba(255,255,255,.85)}15%,100%{background:var(--ambre)}}
+.k-min .anneau{position:absolute;left:21px;top:20px;width:22px;height:22px;border-radius:50%;background:conic-gradient(var(--ambre) var(--p,100%),rgba(0,0,0,.08) 0);animation:kAnneau 4s linear infinite;opacity:.9}
+.k-min .anneau::after{content:"";position:absolute;inset:4px;border-radius:50%;background:#eaf0f5}
+@property --p{syntax:"<percentage>";inherits:false;initial-value:100%}
+@keyframes kAnneau{0%,30%{--p:100%;opacity:0}36%{opacity:.9}100%{--p:20%;opacity:.9}}
+/* 4 rappel par la voix */
+.k-rap .mn{animation:kRap 4.2s var(--ressort) infinite}
+@keyframes kRap{0%,10%{width:24px;margin-left:-12px}18%,40%{width:40px;margin-left:-20px;height:6px;border-radius:0 0 4px 4px}50%,82%{width:54px;height:20px;margin-left:-27px;border-radius:0 0 8px 8px}92%,100%{width:24px;height:6px;margin-left:-12px;border-radius:0 0 4px 4px}}
+.k-rap .eqm{position:absolute;left:41px;top:1.5px;display:flex;gap:1px;animation:kRapEq 4.2s infinite}
+.k-rap .eqm i{width:1.4px;height:3.5px;border-radius:1px;background:#ffab3d}
+@keyframes kRapEq{0%,16%{opacity:0}20%,40%{opacity:1}46%,100%{opacity:0}}
+.k-rap .bulle{position:absolute;left:50%;top:8px;margin-left:-22px;display:flex;align-items:center;gap:3px;animation:kRapB 4.2s infinite}
+.k-rap .bulle i{width:5px;height:5px;border-radius:50%;background:var(--jaune)}
+.k-rap .bulle b{width:30px;height:3px;border-radius:2px;background:rgba(255,255,255,.75)}
+@keyframes kRapB{0%,50%{opacity:0}56%,80%{opacity:1}86%,100%{opacity:0}}
+.k-rap .cle{position:absolute;left:5px;bottom:5px;width:13px;height:11px;border-radius:2.5px;background:#2a2a2c;box-shadow:0 1.5px 0 #0c0c0d;animation:kRapCle 4.2s infinite;padding:0}
+@keyframes kRapCle{0%,14%,44%,100%{transform:none}18%,40%{transform:translateY(1.5px);box-shadow:0 0 0 #0c0c0d,0 0 0 1px var(--bleu)}}
+/* 5 réunions */
+.k-reu .mn{width:40px;margin-left:-20px}
+.k-reu .pr{position:absolute;left:3px;top:1.5px;width:3px;height:3px;border-radius:50%;background:var(--rouge);animation:pouls 1.2s infinite}
+@keyframes pouls{50%{opacity:.35}}
+.k-reu .mfen{left:12px;right:12px;top:11px;height:30px;padding:5px 6px}
+.k-reu .ph{display:flex;gap:3px;align-items:center;height:6px;margin-bottom:2px;opacity:0;animation:kPh 4s infinite}
+.k-reu .ph:nth-child(2){animation-delay:.8s}.k-reu .ph:nth-child(3){animation-delay:1.6s}
+.k-reu .ph b{width:7px;height:2.5px;border-radius:2px;background:var(--q)}
+.k-reu .ph i{height:2.5px;border-radius:2px;background:#d6d8de}
+@keyframes kPh{0%{opacity:0;transform:translateY(2px)}12%,80%{opacity:1;transform:none}92%,100%{opacity:0}}
+/* 6 Claude Code */
+.k-cl .mn{width:42px;margin-left:-21px}
+.k-cl .et{position:absolute;left:3px;top:.5px;width:5px;height:5px;animation:tourne 4s linear infinite}
+.k-cl .mfen{left:10px;right:10px;top:13px;height:24px;padding:5px 6px}
+.k-cl .barre{position:absolute;left:6px;right:6px;bottom:6px;height:2.5px;border-radius:2px;background:#ececf0;overflow:hidden}
+.k-cl .barre b{position:absolute;left:0;top:0;bottom:0;background:var(--corail);animation:kBarre 4s ease-in-out infinite}
+@keyframes kBarre{0%{width:12%}100%{width:96%}}
+/* 7 Lucarne déplaçable */
+.k-dep .pl{position:absolute;left:20px;top:0;width:24px;height:6px;border-radius:0 0 4px 4px;background:#000;animation:kDep 4.4s var(--ressort) infinite}
+@keyframes kDep{0%,24%{transform:none;background:#000;border-radius:0 0 4px 4px;box-shadow:none;width:24px}
+  34%{transform:translate(0,4px) scale(1.06);background:#000;border-radius:3px;width:24px}
+  48%,76%{transform:translate(18px,5px);background:rgba(255,255,255,.8);border-radius:3px;width:22px;box-shadow:0 0 0 .5px rgba(0,0,0,.3),0 2px 4px rgba(0,0,0,.15)}
+  90%,100%{transform:none;background:#000;border-radius:0 0 4px 4px;width:24px}}
+.k-dep .an{position:absolute;left:27px;top:-2px;width:10px;height:10px;border-radius:50%;box-shadow:0 0 0 1.2px #fff,0 0 0 2px rgba(0,0,0,.25);opacity:0;animation:kAn 4.4s infinite}
+@keyframes kAn{0%,10%{opacity:0;transform:scale(.6)}16%,30%{opacity:1;transform:none}36%,100%{opacity:0;transform:scale(1.4)}}
+.k-dep .fl{position:absolute;left:30px;top:3px;width:7px;height:10px;animation:kDepFl 4.4s var(--ressort) infinite}
+@keyframes kDepFl{0%{transform:translate(8px,18px)}12%,32%{transform:none}48%,62%{transform:translate(18px,5px)}74%{transform:translate(20px,24px)}100%{transform:translate(8px,18px)}}
+/* Réunions */
+.champ{height:32px;border-radius:16px;background:rgba(0,0,0,.05);display:flex;align-items:center;gap:7px;padding:0 12px;font-size:13px;color:var(--encre3);box-shadow:inset 0 0 0 .5px rgba(0,0,0,.05)}
+.reu{position:absolute;inset:0;overflow:hidden}
+.reu-l,.reu-n{position:absolute;inset:0;padding:2px 18px 18px;overflow-y:auto;scrollbar-width:none;transition:transform calc(.5s*var(--k)) var(--ressort),opacity calc(.3s*var(--k)) ease}
+.reu-l::-webkit-scrollbar,.reu-n::-webkit-scrollbar{display:none}
+.reu-n{transform:translateX(100%);opacity:0;padding-bottom:60px}
+.reu.detail .reu-l{transform:translateX(-30%);opacity:0}
+.reu.detail .reu-n{transform:none;opacity:1}
+.reu-r .tx b{font-size:13.5px}
+.reu-r.survol{background:rgba(0,0,0,.04)}
+.chev{color:var(--encre3);flex:none}
+.retour{display:flex;align-items:center;gap:3px;height:24px;font-size:13.5px;font-weight:500;color:var(--bleu);margin:2px 0 6px -4px}
+.n-titre{font:700 19px/24px var(--affiche);letter-spacing:-.35px}
+.n-meta{font-size:12px;color:var(--encre2);margin-top:3px}
+.n-bref{font-size:13.5px;line-height:19px;color:var(--encre);margin-top:8px}
+.reu-n .g-titre{margin:12px 4px 5px}
+.n-l{position:relative;display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:17px;padding:8px 12px}
+.n-l .qui{margin-left:auto;font-size:12px;color:var(--encre2);white-space:nowrap;padding-left:8px}
+.n-l+.n-l::before{content:"";position:absolute;left:36px;right:0;top:0;border-top:.5px solid var(--filet)}
+.n-l svg{flex:none;margin-top:1px}
+.n-l em{display:block;font-style:normal;font-size:11.5px;color:var(--encre2);margin-top:1px}
+.n-l .case{width:15px;height:15px;border-radius:50%;box-shadow:inset 0 0 0 1.4px rgba(0,0,0,.3);flex:none;margin-top:1px}
+.n-dem{position:absolute;left:14px;right:14px;bottom:12px;height:38px;border-radius:19px;display:flex;align-items:center;gap:8px;padding:0 14px;font-size:13px;color:var(--encre3);
+  background:rgba(255,255,255,.94);box-shadow:inset 0 1px 0 #fff,0 0 0 .5px rgba(0,0,0,.1),0 6px 16px -8px rgba(20,40,80,.35);opacity:0;transform:translateY(10px);
+  transition:opacity calc(.3s*var(--k)) ease,transform calc(.5s*var(--k)) var(--ressort),box-shadow .2s}
+.reu.detail .n-dem{opacity:1;transform:none;transition-delay:calc(.15s*var(--k))}
+.n-dem.survol{box-shadow:inset 0 1px 0 #fff,0 0 0 1.5px rgba(10,132,255,.55),0 6px 16px -8px rgba(20,40,80,.35)}
+/* Réglages */
+.re-l .tx b{font-weight:500}
+.fnt{display:inline-grid;place-items:center;min-width:24px;height:19px;border-radius:5px;padding:0 5px;background:#2a2a2c;color:#f2f2f4;font-size:11px;font-weight:600;box-shadow:0 1.5px 0 #000}
+
+/* ===================== Lucarne qu'on déplace ===================== */
+#pilule{z-index:19;--v1:.12;--v2:.06}
+.pil-c{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;color:var(--encre);z-index:2}
+.pil-c .eq i{background:var(--ambre)}
+#places-svg{position:absolute;left:0;top:0;width:100%;height:100%;z-index:10;pointer-events:none}
+#places{opacity:0;transition:opacity calc(.22s*var(--k)) ease}
+#places.vu{opacity:1}
+.place{fill:rgba(255,255,255,.2);stroke:rgba(20,30,50,.42);stroke-width:1.2;stroke-dasharray:4 3.5;transition:fill .2s ease,stroke .2s ease}
+.place.pres{fill:rgba(10,132,255,.16);stroke:rgba(10,132,255,.92);stroke-dasharray:none;stroke-width:1.6}
+
+/* faux pointeur */
+.pointeur{position:absolute;left:0;top:0;z-index:30;pointer-events:none;opacity:0;transition:opacity .22s}
+.pointeur.vu{opacity:1}
+.pointeur .fleche{position:relative;width:18px;height:26px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));transform-origin:2px 2px;transition:transform .12s ease}
+.pointeur.appui .fleche{transform:scale(.86)}
+.tenir{position:absolute;left:-16px;top:-16px;width:32px;height:32px;opacity:0;transition:opacity .15s ease,transform .25s ease}
+.tenir circle{fill:none;stroke-width:3}
+.t-ombre{stroke:rgba(0,0,0,.3)}
+.t-plein{stroke:#fff;stroke-linecap:round;stroke-dasharray:69.2;stroke-dashoffset:69.2;transform:rotate(-90deg);transform-origin:16px 16px;filter:drop-shadow(0 0 1px rgba(0,0,0,.6))}
+.pointeur.tient .tenir{opacity:1}
+.pointeur.tient .t-plein{stroke-dashoffset:0;transition:stroke-dashoffset calc(.4s*var(--k)) linear}
+.pointeur.pris .tenir{opacity:0;transform:scale(1.35)}
+.pointeur.pris .t-plein{stroke-dashoffset:0}
+
+/* ===================== la régie ===================== */
+.regie{padding:12px 24px 16px;max-width:1400px;margin:0 auto}
+.r-haut{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:28px;align-items:start}
+.r-num{font-size:12px;line-height:16px;font-weight:500;color:rgba(245,245,247,.46);font-variant-numeric:tabular-nums}
+.r-titre{font-size:19px;line-height:24px;font-weight:600;letter-spacing:-.3px;margin-top:2px}
+.r-phrase{font-size:13.5px;line-height:19px;color:rgba(245,245,247,.66);margin-top:3px;max-width:760px;min-height:38px}
+.r-cmd{display:flex;flex-direction:column;align-items:flex-end;gap:9px;padding-top:4px}
+.r-bt{display:flex;gap:8px}
+.bouton{height:32px;padding:0 16px;border-radius:16px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s ease}
+.bouton:active{transform:scale(.95)}
+.bouton.creux{background:rgba(255,255,255,.1)}
+.bouton.creux:hover{background:rgba(255,255,255,.16)}
+.bouton.plein{background:var(--clair);color:var(--regie)}
+.r-opts{display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:var(--clair)}
+.r-pas{display:flex;flex-wrap:wrap;gap:2px 2px;list-style:none;margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.r-pas button{height:28px;padding:0 9px;border-radius:8px;font-size:12.5px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:6px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+.r-pas button span{font-variant-numeric:tabular-nums;opacity:.65}
+.r-pas button:hover{color:rgba(245,245,247,.8)}
+.r-pas button.ici{color:var(--clair);background:rgba(255,255,255,.1)}
+.notes{margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px 32px;font-size:12.5px;line-height:18px;color:rgba(245,245,247,.42)}
+.notes b{color:rgba(245,245,247,.72);font-weight:600}
+@media (max-width:900px){.r-haut{grid-template-columns:1fr;gap:10px}.r-cmd{align-items:flex-start}}
+</style>
+</head>
+<body>
+<section id="ecran" aria-label="Faux écran de MacBook, taille réelle">
+  <div class="papier" aria-hidden="true">
+    <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="wpFond" x1="0" y1="0" x2=".35" y2="1"><stop offset="0" stop-color="#d4e4f5"/><stop offset=".55" stop-color="#edf1f5"/><stop offset="1" stop-color="#f6e7da"/></linearGradient>
+        <filter id="wpFlou" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="70"/></filter>
+      </defs>
+      <rect width="1440" height="900" fill="url(#wpFond)"/>
+      <g filter="url(#wpFlou)">
+        <ellipse cx="250" cy="250" rx="420" ry="230" fill="#9fc7f0" opacity=".85"/>
+        <ellipse cx="1210" cy="760" rx="470" ry="250" fill="#f6c19b" opacity=".8"/>
+        <ellipse cx="760" cy="470" rx="330" ry="150" fill="#bfe2d4" opacity=".7"/>
+        <ellipse cx="1240" cy="230" rx="300" ry="170" fill="#b3cdf2" opacity=".75"/>
+        <ellipse cx="300" cy="760" rx="320" ry="160" fill="#f3d9c4" opacity=".8"/>
+      </g>
+      <g fill="none" stroke="#fff" stroke-linecap="round">
+        <path d="M-40 560C220 420 430 330 720 360S1180 500 1480 330" stroke-width="3" opacity=".8"/>
+        <path d="M-40 596C240 460 450 380 730 402S1190 536 1480 372" stroke-width="1.4" opacity=".65"/>
+        <path d="M-40 632C260 500 470 428 740 444S1200 572 1480 414" stroke-width="1.4" opacity=".5"/>
+        <path d="M-40 668C280 540 490 476 750 486S1210 608 1480 456" stroke-width="1.2" opacity=".38"/>
+        <path d="M-40 250C260 330 520 200 770 236S1170 160 1480 230" stroke-width="2.2" opacity=".6"/>
+        <path d="M-40 286C270 362 530 238 780 270S1180 200 1480 266" stroke-width="1.1" opacity=".45"/>
+      </g>
+    </svg>
+  </div>
+
+  <!-- Réglages Système (accès macOS) -->
+  <div class="sys cache" id="sys" aria-label="Réglages Système">
+    <div class="sys-h"><span class="feux"><i></i><i></i><i></i></span><b id="sysT">Accessibilité</b></div>
+    <div class="sys-c" id="sysC"></div>
+  </div>
+
+  <!-- la fenêtre compagnon (verre) -->
+  <div class="verre" id="fen" aria-label="Fenêtre de Lucarne">
+    <div class="f-corps">
+      <div class="f-haut"><div class="segm" id="segm"><i class="pouce" id="pouce"></i>
+        <button data-seg="aujourdhui">Aujourd’hui</button><button data-seg="decouvrir">Découvrir</button><button data-seg="reunions">Réunions</button><button data-seg="reglages">Réglages</button></div></div>
+      <div class="pages" id="pages"></div>
+    </div>
+    <div class="v-noir"></div>
+  </div>
+
+  <!-- la carte du premier lancement (verre) -->
+  <div class="verre" id="carte" aria-label="Premier lancement">
+    <div class="points cache" id="points"><i></i><i></i><i></i><i></i><i></i></div>
+    <div id="panes"></div>
+    <div class="v-noir"></div>
+  </div>
+
+  <!-- Lucarne qu'on déplace (verre hors de l'encoche, noire dedans) -->
+  <div class="verre" id="pilule" aria-hidden="true"><div class="pil-c"><div class="eq"><i></i><i></i><i></i><i></i><i></i></div>Lucarne</div><div class="v-noir"></div></div>
+  <svg id="places-svg" aria-hidden="true"><g id="places"></g></svg>
+
+  <div class="mb" aria-hidden="true"><div class="menus" id="menus"></div><div class="etats" id="etats"></div></div>
+
+  <div class="alerte cache" id="alerte" role="dialog" aria-label="Autorisation macOS">
+    <img class="ic-clair" alt="">
+    <b>« Lucarne » souhaite accéder au micro.</b>
+    <p>Lucarne n’écoute que pendant que tu tiens fn.</p>
+    <div class="al-bt"><button id="refuser">Refuser</button><button class="bleu" id="autoriser">Autoriser</button></div>
+  </div>
+
+  <!-- l'îlot -->
+  <svg id="forme-svg" class="calque" viewBox="-500 0 1000 420" aria-hidden="true"><g id="ombre"><path id="forme" fill="#000" d=""/></g></svg>
+  <div id="contenu" class="calque"></div>
+  <svg id="encoche-svg" class="calque" viewBox="-500 0 1000 420" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/><circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+  <div class="pointeur" id="pointeur" aria-hidden="true"><svg class="tenir" viewBox="0 0 32 32"><circle class="t-ombre" cx="16" cy="16" r="11"/><circle class="t-plein" cx="16" cy="16" r="11"/></svg><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+  <svg id="filtres" width="0" height="0" style="position:absolute" aria-hidden="true"></svg>
+</section>
+
+<section class="regie">
+  <div class="r-haut">
+    <div aria-live="polite"><div class="r-num" id="num"></div><h1 class="r-titre" id="titre"></h1><p class="r-phrase" id="phrase"></p></div>
+    <div class="r-cmd">
+      <div class="r-bt"><button class="bouton creux" id="rejouer">Rejouer</button><button class="bouton plein" id="suivant">Étape suivante</button></div>
+      <div class="r-opts"><label><input type="checkbox" id="autoCase" checked> Lecture automatique</label><label><input type="checkbox" id="lentCase"> Ralenti ×4</label></div>
+    </div>
+  </div>
+  <ol class="r-pas" id="pas"></ol>
+  <div class="notes">
+    <div><b>L’îlot d’abord.</b> Pas de grande fenêtre d’accueil : tout sort de l’encoche et y revient. Dans l’encoche, toujours noir ; dehors, du verre qui tord un peu ce qui passe derrière ses bords.</div>
+    <div><b>Une question à la fois.</b> La carte grandit ou rétrécit selon ce qu’elle dit, les points en haut disent où on en est. Une seule touche dans toute l’app : fn.</div>
+    <div><b>À essayer ici.</b> Décochez Lecture automatique : le sélecteur de la fenêtre et chaque « Essayer » de Découvrir répondent à la vraie souris.</div>
+  </div>
+</section>
+
+<script type="text/plain" id="svgClair"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#FBFBFC"/><stop offset="1" stop-color="#DADBDF"/></linearGradient>
+  <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#2A2A2D"/><stop offset="1" stop-color="#050506"/></linearGradient>
+  <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#fff" stop-opacity="0.95"/>
+    <stop offset="0.35" stop-color="#fff" stop-opacity="0"/>
+    <stop offset="1" stop-color="#fff" stop-opacity="0.25"/></linearGradient>
+  <linearGradient id="glassrim" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#fff" stop-opacity="0.22"/>
+    <stop offset="0.5" stop-color="#fff" stop-opacity="0.02"/>
+    <stop offset="1" stop-color="#fff" stop-opacity="0.26"/></linearGradient>
+  <radialGradient id="sheen" gradientUnits="userSpaceOnUse" cx="512" cy="100" r="440">
+    <stop offset="0" stop-color="#fff" stop-opacity="0.18"/>
+    <stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  <linearGradient id="or" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFB340"/><stop offset="1" stop-color="#FF8A00"/></linearGradient>
+  <filter id="body" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.26"/>
+    <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.18"/></filter>
+  <filter id="gsh" x="-30%" y="-30%" width="160%" height="170%">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="14"/><feOffset dy="10"/>
+    <feComponentTransfer><feFuncA type="linear" slope="0.28"/></feComponentTransfer>
+    <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"/></filter>
+  <filter id="gsh2" x="-30%" y="-30%" width="160%" height="170%">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="4"/>
+    <feComponentTransfer><feFuncA type="linear" slope="0.35"/></feComponentTransfer>
+    <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"/></filter>
+  <filter id="nW" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="3"/>
+    <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  1.6 0 0 0 -0.8"/></filter>
+  <filter id="nB" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="7"/>
+    <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1.6 0 0 0 -0.8"/></filter>
+  <clipPath id="sq"><path d="M924.00,512.00 L923.99,573.83 L923.97,593.59 L923.94,607.95 L923.90,619.65 L923.84,629.70 L923.77,638.60 L923.69,646.64 L923.60,654.01 L923.49,660.85 L923.37,667.24 L923.24,673.26 L923.10,678.95 L922.94,684.36 L922.77,689.52 L922.59,694.46 L922.39,699.21 L922.18,703.77 L921.96,708.17 L921.73,712.42 L921.48,716.53 L921.23,720.52 L920.96,724.39 L920.67,728.15 L920.37,731.81 L920.07,735.37 L919.74,738.85 L919.41,742.23 L919.06,745.54 L918.70,748.78 L918.33,751.94 L917.94,755.03 L917.54,758.06 L917.13,761.02 L916.70,763.93 L916.26,766.77 L915.81,769.57 L915.35,772.31 L914.87,775.00 L914.38,777.64 L913.88,780.24 L913.36,782.79 L912.83,785.29 L912.28,787.76 L911.73,790.18 L911.16,792.56 L910.57,794.91 L909.98,797.22 L909.36,799.49 L908.74,801.73 L908.10,803.93 L907.45,806.10 L906.79,808.23 L906.11,810.34 L905.41,812.41 L904.71,814.45 L903.99,816.47 L903.25,818.45 L902.50,820.41 L901.74,822.34 L900.96,824.24 L900.17,826.11 L899.37,827.96 L898.55,829.78 L897.71,831.58 L896.87,833.35 L896.00,835.10 L895.12,836.83 L894.23,838.53 L893.32,840.21 L892.40,841.86 L891.46,843.50 L890.51,845.11 L889.54,846.70 L888.56,848.27 L887.56,849.81 L886.55,851.34 L885.52,852.85 L884.48,854.33 L883.42,855.80 L882.34,857.24 L881.25,858.67 L880.14,860.08 L879.01,861.46 L877.87,862.83 L876.71,864.18 L875.54,865.52 L874.34,866.83 L873.14,868.13 L871.91,869.41 L870.67,870.67 L869.41,871.91 L868.13,873.14 L866.83,874.34 L865.52,875.54 L864.18,876.71 L862.83,877.87 L861.46,879.01 L860.08,880.14 L858.67,881.25 L857.24,882.34 L855.80,883.42 L854.33,884.48 L852.85,885.52 L851.34,886.55 L849.81,887.56 L848.27,888.56 L846.70,889.54 L845.11,890.51 L843.50,891.46 L841.86,892.40 L840.21,893.32 L838.53,894.23 L836.83,895.12 L835.10,896.00 L833.35,896.87 L831.58,897.71 L829.78,898.55 L827.96,899.37 L826.11,900.17 L824.24,900.96 L822.34,901.74 L820.41,902.50 L818.45,903.25 L816.47,903.99 L814.45,904.71 L812.41,905.41 L810.34,906.11 L808.23,906.79 L806.10,907.45 L803.93,908.10 L801.73,908.74 L799.49,909.36 L797.22,909.98 L794.91,910.57 L792.56,911.16 L790.18,911.73 L787.76,912.28 L785.29,912.83 L782.79,913.36 L780.24,913.88 L777.64,914.38 L775.00,914.87 L772.31,915.35 L769.57,915.81 L766.77,916.26 L763.93,916.70 L761.02,917.13 L758.06,917.54 L755.03,917.94 L751.94,918.33 L748.78,918.70 L745.54,919.06 L742.23,919.41 L738.85,919.74 L735.37,920.07 L731.81,920.37 L728.15,920.67 L724.39,920.96 L720.52,921.23 L716.53,921.48 L712.42,921.73 L708.17,921.96 L703.77,922.18 L699.21,922.39 L694.46,922.59 L689.52,922.77 L684.36,922.94 L678.95,923.10 L673.26,923.24 L667.24,923.37 L660.85,923.49 L654.01,923.60 L646.64,923.69 L638.60,923.77 L629.70,923.84 L619.65,923.90 L607.95,923.94 L593.59,923.97 L573.83,923.99 L512.00,924.00 L450.17,923.99 L430.41,923.97 L416.05,923.94 L404.35,923.90 L394.30,923.84 L385.40,923.77 L377.36,923.69 L369.99,923.60 L363.15,923.49 L356.76,923.37 L350.74,923.24 L345.05,923.10 L339.64,922.94 L334.48,922.77 L329.54,922.59 L324.79,922.39 L320.23,922.18 L315.83,921.96 L311.58,921.73 L307.47,921.48 L303.48,921.23 L299.61,920.96 L295.85,920.67 L292.19,920.37 L288.63,920.07 L285.15,919.74 L281.77,919.41 L278.46,919.06 L275.22,918.70 L272.06,918.33 L268.97,917.94 L265.94,917.54 L262.98,917.13 L260.07,916.70 L257.23,916.26 L254.43,915.81 L251.69,915.35 L249.00,914.87 L246.36,914.38 L243.76,913.88 L241.21,913.36 L238.71,912.83 L236.24,912.28 L233.82,911.73 L231.44,911.16 L229.09,910.57 L226.78,909.98 L224.51,909.36 L222.27,908.74 L220.07,908.10 L217.90,907.45 L215.77,906.79 L213.66,906.11 L211.59,905.41 L209.55,904.71 L207.53,903.99 L205.55,903.25 L203.59,902.50 L201.66,901.74 L199.76,900.96 L197.89,900.17 L196.04,899.37 L194.22,898.55 L192.42,897.71 L190.65,896.87 L188.90,896.00 L187.17,895.12 L185.47,894.23 L183.79,893.32 L182.14,892.40 L180.50,891.46 L178.89,890.51 L177.30,889.54 L175.73,888.56 L174.19,887.56 L172.66,886.55 L171.15,885.52 L169.67,884.48 L168.20,883.42 L166.76,882.34 L165.33,881.25 L163.92,880.14 L162.54,879.01 L161.17,877.87 L159.82,876.71 L158.48,875.54 L157.17,874.34 L155.87,873.14 L154.59,871.91 L153.33,870.67 L152.09,869.41 L150.86,868.13 L149.66,866.83 L148.46,865.52 L147.29,864.18 L146.13,862.83 L144.99,861.46 L143.86,860.08 L142.75,858.67 L141.66,857.24 L140.58,855.80 L139.52,854.33 L138.48,852.85 L137.45,851.34 L136.44,849.81 L135.44,848.27 L134.46,846.70 L133.49,845.11 L132.54,843.50 L131.60,841.86 L130.68,840.21 L129.77,838.53 L128.88,836.83 L128.00,835.10 L127.13,833.35 L126.29,831.58 L125.45,829.78 L124.63,827.96 L123.83,826.11 L123.04,824.24 L122.26,822.34 L121.50,820.41 L120.75,818.45 L120.01,816.47 L119.29,814.45 L118.59,812.41 L117.89,810.34 L117.21,808.23 L116.55,806.10 L115.90,803.93 L115.26,801.73 L114.64,799.49 L114.02,797.22 L113.43,794.91 L112.84,792.56 L112.27,790.18 L111.72,787.76 L111.17,785.29 L110.64,782.79 L110.12,780.24 L109.62,777.64 L109.13,775.00 L108.65,772.31 L108.19,769.57 L107.74,766.77 L107.30,763.93 L106.87,761.02 L106.46,758.06 L106.06,755.03 L105.67,751.94 L105.30,748.78 L104.94,745.54 L104.59,742.23 L104.26,738.85 L103.93,735.37 L103.63,731.81 L103.33,728.15 L103.04,724.39 L102.77,720.52 L102.52,716.53 L102.27,712.42 L102.04,708.17 L101.82,703.77 L101.61,699.21 L101.41,694.46 L101.23,689.52 L101.06,684.36 L100.90,678.95 L100.76,673.26 L100.63,667.24 L100.51,660.85 L100.40,654.01 L100.31,646.64 L100.23,638.60 L100.16,629.70 L100.10,619.65 L100.06,607.95 L100.03,593.59 L100.01,573.83 L100.00,512.00 L100.01,450.17 L100.03,430.41 L100.06,416.05 L100.10,404.35 L100.16,394.30 L100.23,385.40 L100.31,377.36 L100.40,369.99 L100.51,363.15 L100.63,356.76 L100.76,350.74 L100.90,345.05 L101.06,339.64 L101.23,334.48 L101.41,329.54 L101.61,324.79 L101.82,320.23 L102.04,315.83 L102.27,311.58 L102.52,307.47 L102.77,303.48 L103.04,299.61 L103.33,295.85 L103.63,292.19 L103.93,288.63 L104.26,285.15 L104.59,281.77 L104.94,278.46 L105.30,275.22 L105.67,272.06 L106.06,268.97 L106.46,265.94 L106.87,262.98 L107.30,260.07 L107.74,257.23 L108.19,254.43 L108.65,251.69 L109.13,249.00 L109.62,246.36 L110.12,243.76 L110.64,241.21 L111.17,238.71 L111.72,236.24 L112.27,233.82 L112.84,231.44 L113.43,229.09 L114.02,226.78 L114.64,224.51 L115.26,222.27 L115.90,220.07 L116.55,217.90 L117.21,215.77 L117.89,213.66 L118.59,211.59 L119.29,209.55 L120.01,207.53 L120.75,205.55 L121.50,203.59 L122.26,201.66 L123.04,199.76 L123.83,197.89 L124.63,196.04 L125.45,194.22 L126.29,192.42 L127.13,190.65 L128.00,188.90 L128.88,187.17 L129.77,185.47 L130.68,183.79 L131.60,182.14 L132.54,180.50 L133.49,178.89 L134.46,177.30 L135.44,175.73 L136.44,174.19 L137.45,172.66 L138.48,171.15 L139.52,169.67 L140.58,168.20 L141.66,166.76 L142.75,165.33 L143.86,163.92 L144.99,162.54 L146.13,161.17 L147.29,159.82 L148.46,158.48 L149.66,157.17 L150.86,155.87 L152.09,154.59 L153.33,153.33 L154.59,152.09 L155.87,150.86 L157.17,149.66 L158.48,148.46 L159.82,147.29 L161.17,146.13 L162.54,144.99 L163.92,143.86 L165.33,142.75 L166.76,141.66 L168.20,140.58 L169.67,139.52 L171.15,138.48 L172.66,137.45 L174.19,136.44 L175.73,135.44 L177.30,134.46 L178.89,133.49 L180.50,132.54 L182.14,131.60 L183.79,130.68 L185.47,129.77 L187.17,128.88 L188.90,128.00 L190.65,127.13 L192.42,126.29 L194.22,125.45 L196.04,124.63 L197.89,123.83 L199.76,123.04 L201.66,122.26 L203.59,121.50 L205.55,120.75 L207.53,120.01 L209.55,119.29 L211.59,118.59 L213.66,117.89 L215.77,117.21 L217.90,116.55 L220.07,115.90 L222.27,115.26 L224.51,114.64 L226.78,114.02 L229.09,113.43 L231.44,112.84 L233.82,112.27 L236.24,111.72 L238.71,111.17 L241.21,110.64 L243.76,110.12 L246.36,109.62 L249.00,109.13 L251.69,108.65 L254.43,108.19 L257.23,107.74 L260.07,107.30 L262.98,106.87 L265.94,106.46 L268.97,106.06 L272.06,105.67 L275.22,105.30 L278.46,104.94 L281.77,104.59 L285.15,104.26 L288.63,103.93 L292.19,103.63 L295.85,103.33 L299.61,103.04 L303.48,102.77 L307.47,102.52 L311.58,102.27 L315.83,102.04 L320.23,101.82 L324.79,101.61 L329.54,101.41 L334.48,101.23 L339.64,101.06 L345.05,100.90 L350.74,100.76 L356.76,100.63 L363.15,100.51 L369.99,100.40 L377.36,100.31 L385.40,100.23 L394.30,100.16 L404.35,100.10 L416.05,100.06 L430.41,100.03 L450.17,100.01 L512.00,100.00 L573.83,100.01 L593.59,100.03 L607.95,100.06 L619.65,100.10 L629.70,100.16 L638.60,100.23 L646.64,100.31 L654.01,100.40 L660.85,100.51 L667.24,100.63 L673.26,100.76 L678.95,100.90 L684.36,101.06 L689.52,101.23 L694.46,101.41 L699.21,101.61 L703.77,101.82 L708.17,102.04 L712.42,102.27 L716.53,102.52 L720.52,102.77 L724.39,103.04 L728.15,103.33 L731.81,103.63 L735.37,103.93 L738.85,104.26 L742.23,104.59 L745.54,104.94 L748.78,105.30 L751.94,105.67 L755.03,106.06 L758.06,106.46 L761.02,106.87 L763.93,107.30 L766.77,107.74 L769.57,108.19 L772.31,108.65 L775.00,109.13 L777.64,109.62 L780.24,110.12 L782.79,110.64 L785.29,111.17 L787.76,111.72 L790.18,112.27 L792.56,112.84 L794.91,113.43 L797.22,114.02 L799.49,114.64 L801.73,115.26 L803.93,115.90 L806.10,116.55 L808.23,117.21 L810.34,117.89 L812.41,118.59 L814.45,119.29 L816.47,120.01 L818.45,120.75 L820.41,121.50 L822.34,122.26 L824.24,123.04 L826.11,123.83 L827.96,124.63 L829.78,125.45 L831.58,126.29 L833.35,127.13 L835.10,128.00 L836.83,128.88 L838.53,129.77 L840.21,130.68 L841.86,131.60 L843.50,132.54 L845.11,133.49 L846.70,134.46 L848.27,135.44 L849.81,136.44 L851.34,137.45 L852.85,138.48 L854.33,139.52 L855.80,140.58 L857.24,141.66 L858.67,142.75 L860.08,143.86 L861.46,144.99 L862.83,146.13 L864.18,147.29 L865.52,148.46 L866.83,149.66 L868.13,150.86 L869.41,152.09 L870.67,153.33 L871.91,154.59 L873.14,155.87 L874.34,157.17 L875.54,158.48 L876.71,159.82 L877.87,161.17 L879.01,162.54 L880.14,163.92 L881.25,165.33 L882.34,166.76 L883.42,168.20 L884.48,169.67 L885.52,171.15 L886.55,172.66 L887.56,174.19 L888.56,175.73 L889.54,177.30 L890.51,178.89 L891.46,180.50 L892.40,182.14 L893.32,183.79 L894.23,185.47 L895.12,187.17 L896.00,188.90 L896.87,190.65 L897.71,192.42 L898.55,194.22 L899.37,196.04 L900.17,197.89 L900.96,199.76 L901.74,201.66 L902.50,203.59 L903.25,205.55 L903.99,207.53 L904.71,209.55 L905.41,211.59 L906.11,213.66 L906.79,215.77 L907.45,217.90 L908.10,220.07 L908.74,222.27 L909.36,224.51 L909.98,226.78 L910.57,229.09 L911.16,231.44 L911.73,233.82 L912.28,236.24 L912.83,238.71 L913.36,241.21 L913.88,243.76 L914.38,246.36 L914.87,249.00 L915.35,251.69 L915.81,254.43 L916.26,257.23 L916.70,260.07 L917.13,262.98 L917.54,265.94 L917.94,268.97 L918.33,272.06 L918.70,275.22 L919.06,278.46 L919.41,281.77 L919.74,285.15 L920.07,288.63 L920.37,292.19 L920.67,295.85 L920.96,299.61 L921.23,303.48 L921.48,307.47 L921.73,311.58 L921.96,315.83 L922.18,320.23 L922.39,324.79 L922.59,329.54 L922.77,334.48 L922.94,339.64 L923.10,345.05 L923.24,350.74 L923.37,356.76 L923.49,363.15 L923.60,369.99 L923.69,377.36 L923.77,385.40 L923.84,394.30 L923.90,404.35 L923.94,416.05 L923.97,430.41 L923.99,450.17 Z"/></clipPath>
+</defs>
+<path d="M924.00,512.00 L923.99,573.83 L923.97,593.59 L923.94,607.95 L923.90,619.65 L923.84,629.70 L923.77,638.60 L923.69,646.64 L923.60,654.01 L923.49,660.85 L923.37,667.24 L923.24,673.26 L923.10,678.95 L922.94,684.36 L922.77,689.52 L922.59,694.46 L922.39,699.21 L922.18,703.77 L921.96,708.17 L921.73,712.42 L921.48,716.53 L921.23,720.52 L920.96,724.39 L920.67,728.15 L920.37,731.81 L920.07,735.37 L919.74,738.85 L919.41,742.23 L919.06,745.54 L918.70,748.78 L918.33,751.94 L917.94,755.03 L917.54,758.06 L917.13,761.02 L916.70,763.93 L916.26,766.77 L915.81,769.57 L915.35,772.31 L914.87,775.00 L914.38,777.64 L913.88,780.24 L913.36,782.79 L912.83,785.29 L912.28,787.76 L911.73,790.18 L911.16,792.56 L910.57,794.91 L909.98,797.22 L909.36,799.49 L908.74,801.73 L908.10,803.93 L907.45,806.10 L906.79,808.23 L906.11,810.34 L905.41,812.41 L904.71,814.45 L903.99,816.47 L903.25,818.45 L902.50,820.41 L901.74,822.34 L900.96,824.24 L900.17,826.11 L899.37,827.96 L898.55,829.78 L897.71,831.58 L896.87,833.35 L896.00,835.10 L895.12,836.83 L894.23,838.53 L893.32,840.21 L892.40,841.86 L891.46,843.50 L890.51,845.11 L889.54,846.70 L888.56,848.27 L887.56,849.81 L886.55,851.34 L885.52,852.85 L884.48,854.33 L883.42,855.80 L882.34,857.24 L881.25,858.67 L880.14,860.08 L879.01,861.46 L877.87,862.83 L876.71,864.18 L875.54,865.52 L874.34,866.83 L873.14,868.13 L871.91,869.41 L870.67,870.67 L869.41,871.91 L868.13,873.14 L866.83,874.34 L865.52,875.54 L864.18,876.71 L862.83,877.87 L861.46,879.01 L860.08,880.14 L858.67,881.25 L857.24,882.34 L855.80,883.42 L854.33,884.48 L852.85,885.52 L851.34,886.55 L849.81,887.56 L848.27,888.56 L846.70,889.54 L845.11,890.51 L843.50,891.46 L841.86,892.40 L840.21,893.32 L838.53,894.23 L836.83,895.12 L835.10,896.00 L833.35,896.87 L831.58,897.71 L829.78,898.55 L827.96,899.37 L826.11,900.17 L824.24,900.96 L822.34,901.74 L820.41,902.50 L818.45,903.25 L816.47,903.99 L814.45,904.71 L812.41,905.41 L810.34,906.11 L808.23,906.79 L806.10,907.45 L803.93,908.10 L801.73,908.74 L799.49,909.36 L797.22,909.98 L794.91,910.57 L792.56,911.16 L790.18,911.73 L787.76,912.28 L785.29,912.83 L782.79,913.36 L780.24,913.88 L777.64,914.38 L775.00,914.87 L772.31,915.35 L769.57,915.81 L766.77,916.26 L763.93,916.70 L761.02,917.13 L758.06,917.54 L755.03,917.94 L751.94,918.33 L748.78,918.70 L745.54,919.06 L742.23,919.41 L738.85,919.74 L735.37,920.07 L731.81,920.37 L728.15,920.67 L724.39,920.96 L720.52,921.23 L716.53,921.48 L712.42,921.73 L708.17,921.96 L703.77,922.18 L699.21,922.39 L694.46,922.59 L689.52,922.77 L684.36,922.94 L678.95,923.10 L673.26,923.24 L667.24,923.37 L660.85,923.49 L654.01,923.60 L646.64,923.69 L638.60,923.77 L629.70,923.84 L619.65,923.90 L607.95,923.94 L593.59,923.97 L573.83,923.99 L512.00,924.00 L450.17,923.99 L430.41,923.97 L416.05,923.94 L404.35,923.90 L394.30,923.84 L385.40,923.77 L377.36,923.69 L369.99,923.60 L363.15,923.49 L356.76,923.37 L350.74,923.24 L345.05,923.10 L339.64,922.94 L334.48,922.77 L329.54,922.59 L324.79,922.39 L320.23,922.18 L315.83,921.96 L311.58,921.73 L307.47,921.48 L303.48,921.23 L299.61,920.96 L295.85,920.67 L292.19,920.37 L288.63,920.07 L285.15,919.74 L281.77,919.41 L278.46,919.06 L275.22,918.70 L272.06,918.33 L268.97,917.94 L265.94,917.54 L262.98,917.13 L260.07,916.70 L257.23,916.26 L254.43,915.81 L251.69,915.35 L249.00,914.87 L246.36,914.38 L243.76,913.88 L241.21,913.36 L238.71,912.83 L236.24,912.28 L233.82,911.73 L231.44,911.16 L229.09,910.57 L226.78,909.98 L224.51,909.36 L222.27,908.74 L220.07,908.10 L217.90,907.45 L215.77,906.79 L213.66,906.11 L211.59,905.41 L209.55,904.71 L207.53,903.99 L205.55,903.25 L203.59,902.50 L201.66,901.74 L199.76,900.96 L197.89,900.17 L196.04,899.37 L194.22,898.55 L192.42,897.71 L190.65,896.87 L188.90,896.00 L187.17,895.12 L185.47,894.23 L183.79,893.32 L182.14,892.40 L180.50,891.46 L178.89,890.51 L177.30,889.54 L175.73,888.56 L174.19,887.56 L172.66,886.55 L171.15,885.52 L169.67,884.48 L168.20,883.42 L166.76,882.34 L165.33,881.25 L163.92,880.14 L162.54,879.01 L161.17,877.87 L159.82,876.71 L158.48,875.54 L157.17,874.34 L155.87,873.14 L154.59,871.91 L153.33,870.67 L152.09,869.41 L150.86,868.13 L149.66,866.83 L148.46,865.52 L147.29,864.18 L146.13,862.83 L144.99,861.46 L143.86,860.08 L142.75,858.67 L141.66,857.24 L140.58,855.80 L139.52,854.33 L138.48,852.85 L137.45,851.34 L136.44,849.81 L135.44,848.27 L134.46,846.70 L133.49,845.11 L132.54,843.50 L131.60,841.86 L130.68,840.21 L129.77,838.53 L128.88,836.83 L128.00,835.10 L127.13,833.35 L126.29,831.58 L125.45,829.78 L124.63,827.96 L123.83,826.11 L123.04,824.24 L122.26,822.34 L121.50,820.41 L120.75,818.45 L120.01,816.47 L119.29,814.45 L118.59,812.41 L117.89,810.34 L117.21,808.23 L116.55,806.10 L115.90,803.93 L115.26,801.73 L114.64,799.49 L114.02,797.22 L113.43,794.91 L112.84,792.56 L112.27,790.18 L111.72,787.76 L111.17,785.29 L110.64,782.79 L110.12,780.24 L109.62,777.64 L109.13,775.00 L108.65,772.31 L108.19,769.57 L107.74,766.77 L107.30,763.93 L106.87,761.02 L106.46,758.06 L106.06,755.03 L105.67,751.94 L105.30,748.78 L104.94,745.54 L104.59,742.23 L104.26,738.85 L103.93,735.37 L103.63,731.81 L103.33,728.15 L103.04,724.39 L102.77,720.52 L102.52,716.53 L102.27,712.42 L102.04,708.17 L101.82,703.77 L101.61,699.21 L101.41,694.46 L101.23,689.52 L101.06,684.36 L100.90,678.95 L100.76,673.26 L100.63,667.24 L100.51,660.85 L100.40,654.01 L100.31,646.64 L100.23,638.60 L100.16,629.70 L100.10,619.65 L100.06,607.95 L100.03,593.59 L100.01,573.83 L100.00,512.00 L100.01,450.17 L100.03,430.41 L100.06,416.05 L100.10,404.35 L100.16,394.30 L100.23,385.40 L100.31,377.36 L100.40,369.99 L100.51,363.15 L100.63,356.76 L100.76,350.74 L100.90,345.05 L101.06,339.64 L101.23,334.48 L101.41,329.54 L101.61,324.79 L101.82,320.23 L102.04,315.83 L102.27,311.58 L102.52,307.47 L102.77,303.48 L103.04,299.61 L103.33,295.85 L103.63,292.19 L103.93,288.63 L104.26,285.15 L104.59,281.77 L104.94,278.46 L105.30,275.22 L105.67,272.06 L106.06,268.97 L106.46,265.94 L106.87,262.98 L107.30,260.07 L107.74,257.23 L108.19,254.43 L108.65,251.69 L109.13,249.00 L109.62,246.36 L110.12,243.76 L110.64,241.21 L111.17,238.71 L111.72,236.24 L112.27,233.82 L112.84,231.44 L113.43,229.09 L114.02,226.78 L114.64,224.51 L115.26,222.27 L115.90,220.07 L116.55,217.90 L117.21,215.77 L117.89,213.66 L118.59,211.59 L119.29,209.55 L120.01,207.53 L120.75,205.55 L121.50,203.59 L122.26,201.66 L123.04,199.76 L123.83,197.89 L124.63,196.04 L125.45,194.22 L126.29,192.42 L127.13,190.65 L128.00,188.90 L128.88,187.17 L129.77,185.47 L130.68,183.79 L131.60,182.14 L132.54,180.50 L133.49,178.89 L134.46,177.30 L135.44,175.73 L136.44,174.19 L137.45,172.66 L138.48,171.15 L139.52,169.67 L140.58,168.20 L141.66,166.76 L142.75,165.33 L143.86,163.92 L144.99,162.54 L146.13,161.17 L147.29,159.82 L148.46,158.48 L149.66,157.17 L150.86,155.87 L152.09,154.59 L153.33,153.33 L154.59,152.09 L155.87,150.86 L157.17,149.66 L158.48,148.46 L159.82,147.29 L161.17,146.13 L162.54,144.99 L163.92,143.86 L165.33,142.75 L166.76,141.66 L168.20,140.58 L169.67,139.52 L171.15,138.48 L172.66,137.45 L174.19,136.44 L175.73,135.44 L177.30,134.46 L178.89,133.49 L180.50,132.54 L182.14,131.60 L183.79,130.68 L185.47,129.77 L187.17,128.88 L188.90,128.00 L190.65,127.13 L192.42,126.29 L194.22,125.45 L196.04,124.63 L197.89,123.83 L199.76,123.04 L201.66,122.26 L203.59,121.50 L205.55,120.75 L207.53,120.01 L209.55,119.29 L211.59,118.59 L213.66,117.89 L215.77,117.21 L217.90,116.55 L220.07,115.90 L222.27,115.26 L224.51,114.64 L226.78,114.02 L229.09,113.43 L231.44,112.84 L233.82,112.27 L236.24,111.72 L238.71,111.17 L241.21,110.64 L243.76,110.12 L246.36,109.62 L249.00,109.13 L251.69,108.65 L254.43,108.19 L257.23,107.74 L260.07,107.30 L262.98,106.87 L265.94,106.46 L268.97,106.06 L272.06,105.67 L275.22,105.30 L278.46,104.94 L281.77,104.59 L285.15,104.26 L288.63,103.93 L292.19,103.63 L295.85,103.33 L299.61,103.04 L303.48,102.77 L307.47,102.52 L311.58,102.27 L315.83,102.04 L320.23,101.82 L324.79,101.61 L329.54,101.41 L334.48,101.23 L339.64,101.06 L345.05,100.90 L350.74,100.76 L356.76,100.63 L363.15,100.51 L369.99,100.40 L377.36,100.31 L385.40,100.23 L394.30,100.16 L404.35,100.10 L416.05,100.06 L430.41,100.03 L450.17,100.01 L512.00,100.00 L573.83,100.01 L593.59,100.03 L607.95,100.06 L619.65,100.10 L629.70,100.16 L638.60,100.23 L646.64,100.31 L654.01,100.40 L660.85,100.51 L667.24,100.63 L673.26,100.76 L678.95,100.90 L684.36,101.06 L689.52,101.23 L694.46,101.41 L699.21,101.61 L703.77,101.82 L708.17,102.04 L712.42,102.27 L716.53,102.52 L720.52,102.77 L724.39,103.04 L728.15,103.33 L731.81,103.63 L735.37,103.93 L738.85,104.26 L742.23,104.59 L745.54,104.94 L748.78,105.30 L751.94,105.67 L755.03,106.06 L758.06,106.46 L761.02,106.87 L763.93,107.30 L766.77,107.74 L769.57,108.19 L772.31,108.65 L775.00,109.13 L777.64,109.62 L780.24,110.12 L782.79,110.64 L785.29,111.17 L787.76,111.72 L790.18,112.27 L792.56,112.84 L794.91,113.43 L797.22,114.02 L799.49,114.64 L801.73,115.26 L803.93,115.90 L806.10,116.55 L808.23,117.21 L810.34,117.89 L812.41,118.59 L814.45,119.29 L816.47,120.01 L818.45,120.75 L820.41,121.50 L822.34,122.26 L824.24,123.04 L826.11,123.83 L827.96,124.63 L829.78,125.45 L831.58,126.29 L833.35,127.13 L835.10,128.00 L836.83,128.88 L838.53,129.77 L840.21,130.68 L841.86,131.60 L843.50,132.54 L845.11,133.49 L846.70,134.46 L848.27,135.44 L849.81,136.44 L851.34,137.45 L852.85,138.48 L854.33,139.52 L855.80,140.58 L857.24,141.66 L858.67,142.75 L860.08,143.86 L861.46,144.99 L862.83,146.13 L864.18,147.29 L865.52,148.46 L866.83,149.66 L868.13,150.86 L869.41,152.09 L870.67,153.33 L871.91,154.59 L873.14,155.87 L874.34,157.17 L875.54,158.48 L876.71,159.82 L877.87,161.17 L879.01,162.54 L880.14,163.92 L881.25,165.33 L882.34,166.76 L883.42,168.20 L884.48,169.67 L885.52,171.15 L886.55,172.66 L887.56,174.19 L888.56,175.73 L889.54,177.30 L890.51,178.89 L891.46,180.50 L892.40,182.14 L893.32,183.79 L894.23,185.47 L895.12,187.17 L896.00,188.90 L896.87,190.65 L897.71,192.42 L898.55,194.22 L899.37,196.04 L900.17,197.89 L900.96,199.76 L901.74,201.66 L902.50,203.59 L903.25,205.55 L903.99,207.53 L904.71,209.55 L905.41,211.59 L906.11,213.66 L906.79,215.77 L907.45,217.90 L908.10,220.07 L908.74,222.27 L909.36,224.51 L909.98,226.78 L910.57,229.09 L911.16,231.44 L911.73,233.82 L912.28,236.24 L912.83,238.71 L913.36,241.21 L913.88,243.76 L914.38,246.36 L914.87,249.00 L915.35,251.69 L915.81,254.43 L916.26,257.23 L916.70,260.07 L917.13,262.98 L917.54,265.94 L917.94,268.97 L918.33,272.06 L918.70,275.22 L919.06,278.46 L919.41,281.77 L919.74,285.15 L920.07,288.63 L920.37,292.19 L920.67,295.85 L920.96,299.61 L921.23,303.48 L921.48,307.47 L921.73,311.58 L921.96,315.83 L922.18,320.23 L922.39,324.79 L922.59,329.54 L922.77,334.48 L922.94,339.64 L923.10,345.05 L923.24,350.74 L923.37,356.76 L923.49,363.15 L923.60,369.99 L923.69,377.36 L923.77,385.40 L923.84,394.30 L923.90,404.35 L923.94,416.05 L923.97,430.41 L923.99,450.17 Z" fill="url(#bg)" filter="url(#body)"/>
+<g clip-path="url(#sq)">
+  <rect x="100" y="100" width="824" height="824" fill="url(#sheen)"/>
+<defs>
+<filter id="b4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
+<filter id="b10" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="10"/></filter>
+<filter id="b24" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="24"/></filter>
+<filter id="b40" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="40"/></filter>
+<linearGradient id="barW" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#D9DADE"/></linearGradient>
+<linearGradient id="barK" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2C2C2F"/><stop offset="1" stop-color="#0A0A0B"/></linearGradient>
+<linearGradient id="lens" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.20"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.45"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.04"/><stop offset="1" stop-color="#fff" stop-opacity="0.16"/></linearGradient>
+<linearGradient id="pillK" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#26262A"/><stop offset="1" stop-color="#030304"/></linearGradient>
+</defs><defs>
+<linearGradient id="frm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#C9CACF"/></linearGradient>
+<linearGradient id="frmIn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C9CACF"/><stop offset="1" stop-color="#FFFFFF"/></linearGradient>
+<linearGradient id="glare" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.16"/><stop offset="0.38" stop-color="#fff" stop-opacity="0.04"/><stop offset="0.39" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<clipPath id="glass"><rect x="212.0" y="382.0" width="600.0" height="240.0" rx="120.0" /></clipPath></defs>
+<rect x="198.0" y="394.0" width="628.0" height="288.0" rx="154.0" fill="#000" opacity="0.3" filter="url(#b40)"/>
+<rect x="178.0" y="356.0" width="668.0" height="308.0" rx="154.0" fill="#000" opacity="0.25" filter="url(#b10)"/>
+<rect x="178.0" y="348.0" width="668.0" height="308.0" rx="154.0" fill="url(#frm)"/>
+<rect x="179.5" y="349.5" width="665.0" height="305.0" rx="152.5" fill="none" stroke="#fff" stroke-opacity="0.9" stroke-width="3"/>
+<rect x="206.0" y="376.0" width="612.0" height="252.0" rx="126.0" fill="url(#frmIn)"/>
+<rect x="212.0" y="382.0" width="600.0" height="240.0" rx="120.0" fill="url(#pillK)"/>
+<g clip-path="url(#glass)"><rect x="172.0" y="342.0" width="680.0" height="70.0" rx="35.0" fill="#000" opacity="0.9" filter="url(#b24)"/>
+<rect x="212.0" y="382.0" width="600.0" height="240.0" rx="0.0" fill="url(#glare)"/></g>
+<rect x="348.0" y="477.0" width="28.0" height="50.0" rx="14.0" fill="url(#barW)"/>
+<rect x="398.0" y="450.0" width="28.0" height="104.0" rx="14.0" fill="url(#barW)"/>
+<rect x="448.0" y="428.0" width="28.0" height="148.0" rx="14.0" fill="url(#barW)"/>
+<rect x="498.0" y="457.0" width="28.0" height="90.0" rx="14.0" fill="url(#barW)"/>
+<rect x="548.0" y="439.0" width="28.0" height="126.0" rx="14.0" fill="url(#barW)"/>
+<rect x="598.0" y="470.0" width="28.0" height="64.0" rx="14.0" fill="url(#barW)"/>
+<rect x="648.0" y="484.0" width="28.0" height="36.0" rx="14.0" fill="url(#barW)"/>
+  <rect x="100" y="100" width="824" height="824" filter="url(#nW)" opacity="0.06"/>
+  <rect x="100" y="100" width="824" height="824" filter="url(#nB)" opacity="0.06"/>
+  <path d="M924.00,512.00 L923.99,573.83 L923.97,593.59 L923.94,607.95 L923.90,619.65 L923.84,629.70 L923.77,638.60 L923.69,646.64 L923.60,654.01 L923.49,660.85 L923.37,667.24 L923.24,673.26 L923.10,678.95 L922.94,684.36 L922.77,689.52 L922.59,694.46 L922.39,699.21 L922.18,703.77 L921.96,708.17 L921.73,712.42 L921.48,716.53 L921.23,720.52 L920.96,724.39 L920.67,728.15 L920.37,731.81 L920.07,735.37 L919.74,738.85 L919.41,742.23 L919.06,745.54 L918.70,748.78 L918.33,751.94 L917.94,755.03 L917.54,758.06 L917.13,761.02 L916.70,763.93 L916.26,766.77 L915.81,769.57 L915.35,772.31 L914.87,775.00 L914.38,777.64 L913.88,780.24 L913.36,782.79 L912.83,785.29 L912.28,787.76 L911.73,790.18 L911.16,792.56 L910.57,794.91 L909.98,797.22 L909.36,799.49 L908.74,801.73 L908.10,803.93 L907.45,806.10 L906.79,808.23 L906.11,810.34 L905.41,812.41 L904.71,814.45 L903.99,816.47 L903.25,818.45 L902.50,820.41 L901.74,822.34 L900.96,824.24 L900.17,826.11 L899.37,827.96 L898.55,829.78 L897.71,831.58 L896.87,833.35 L896.00,835.10 L895.12,836.83 L894.23,838.53 L893.32,840.21 L892.40,841.86 L891.46,843.50 L890.51,845.11 L889.54,846.70 L888.56,848.27 L887.56,849.81 L886.55,851.34 L885.52,852.85 L884.48,854.33 L883.42,855.80 L882.34,857.24 L881.25,858.67 L880.14,860.08 L879.01,861.46 L877.87,862.83 L876.71,864.18 L875.54,865.52 L874.34,866.83 L873.14,868.13 L871.91,869.41 L870.67,870.67 L869.41,871.91 L868.13,873.14 L866.83,874.34 L865.52,875.54 L864.18,876.71 L862.83,877.87 L861.46,879.01 L860.08,880.14 L858.67,881.25 L857.24,882.34 L855.80,883.42 L854.33,884.48 L852.85,885.52 L851.34,886.55 L849.81,887.56 L848.27,888.56 L846.70,889.54 L845.11,890.51 L843.50,891.46 L841.86,892.40 L840.21,893.32 L838.53,894.23 L836.83,895.12 L835.10,896.00 L833.35,896.87 L831.58,897.71 L829.78,898.55 L827.96,899.37 L826.11,900.17 L824.24,900.96 L822.34,901.74 L820.41,902.50 L818.45,903.25 L816.47,903.99 L814.45,904.71 L812.41,905.41 L810.34,906.11 L808.23,906.79 L806.10,907.45 L803.93,908.10 L801.73,908.74 L799.49,909.36 L797.22,909.98 L794.91,910.57 L792.56,911.16 L790.18,911.73 L787.76,912.28 L785.29,912.83 L782.79,913.36 L780.24,913.88 L777.64,914.38 L775.00,914.87 L772.31,915.35 L769.57,915.81 L766.77,916.26 L763.93,916.70 L761.02,917.13 L758.06,917.54 L755.03,917.94 L751.94,918.33 L748.78,918.70 L745.54,919.06 L742.23,919.41 L738.85,919.74 L735.37,920.07 L731.81,920.37 L728.15,920.67 L724.39,920.96 L720.52,921.23 L716.53,921.48 L712.42,921.73 L708.17,921.96 L703.77,922.18 L699.21,922.39 L694.46,922.59 L689.52,922.77 L684.36,922.94 L678.95,923.10 L673.26,923.24 L667.24,923.37 L660.85,923.49 L654.01,923.60 L646.64,923.69 L638.60,923.77 L629.70,923.84 L619.65,923.90 L607.95,923.94 L593.59,923.97 L573.83,923.99 L512.00,924.00 L450.17,923.99 L430.41,923.97 L416.05,923.94 L404.35,923.90 L394.30,923.84 L385.40,923.77 L377.36,923.69 L369.99,923.60 L363.15,923.49 L356.76,923.37 L350.74,923.24 L345.05,923.10 L339.64,922.94 L334.48,922.77 L329.54,922.59 L324.79,922.39 L320.23,922.18 L315.83,921.96 L311.58,921.73 L307.47,921.48 L303.48,921.23 L299.61,920.96 L295.85,920.67 L292.19,920.37 L288.63,920.07 L285.15,919.74 L281.77,919.41 L278.46,919.06 L275.22,918.70 L272.06,918.33 L268.97,917.94 L265.94,917.54 L262.98,917.13 L260.07,916.70 L257.23,916.26 L254.43,915.81 L251.69,915.35 L249.00,914.87 L246.36,914.38 L243.76,913.88 L241.21,913.36 L238.71,912.83 L236.24,912.28 L233.82,911.73 L231.44,911.16 L229.09,910.57 L226.78,909.98 L224.51,909.36 L222.27,908.74 L220.07,908.10 L217.90,907.45 L215.77,906.79 L213.66,906.11 L211.59,905.41 L209.55,904.71 L207.53,903.99 L205.55,903.25 L203.59,902.50 L201.66,901.74 L199.76,900.96 L197.89,900.17 L196.04,899.37 L194.22,898.55 L192.42,897.71 L190.65,896.87 L188.90,896.00 L187.17,895.12 L185.47,894.23 L183.79,893.32 L182.14,892.40 L180.50,891.46 L178.89,890.51 L177.30,889.54 L175.73,888.56 L174.19,887.56 L172.66,886.55 L171.15,885.52 L169.67,884.48 L168.20,883.42 L166.76,882.34 L165.33,881.25 L163.92,880.14 L162.54,879.01 L161.17,877.87 L159.82,876.71 L158.48,875.54 L157.17,874.34 L155.87,873.14 L154.59,871.91 L153.33,870.67 L152.09,869.41 L150.86,868.13 L149.66,866.83 L148.46,865.52 L147.29,864.18 L146.13,862.83 L144.99,861.46 L143.86,860.08 L142.75,858.67 L141.66,857.24 L140.58,855.80 L139.52,854.33 L138.48,852.85 L137.45,851.34 L136.44,849.81 L135.44,848.27 L134.46,846.70 L133.49,845.11 L132.54,843.50 L131.60,841.86 L130.68,840.21 L129.77,838.53 L128.88,836.83 L128.00,835.10 L127.13,833.35 L126.29,831.58 L125.45,829.78 L124.63,827.96 L123.83,826.11 L123.04,824.24 L122.26,822.34 L121.50,820.41 L120.75,818.45 L120.01,816.47 L119.29,814.45 L118.59,812.41 L117.89,810.34 L117.21,808.23 L116.55,806.10 L115.90,803.93 L115.26,801.73 L114.64,799.49 L114.02,797.22 L113.43,794.91 L112.84,792.56 L112.27,790.18 L111.72,787.76 L111.17,785.29 L110.64,782.79 L110.12,780.24 L109.62,777.64 L109.13,775.00 L108.65,772.31 L108.19,769.57 L107.74,766.77 L107.30,763.93 L106.87,761.02 L106.46,758.06 L106.06,755.03 L105.67,751.94 L105.30,748.78 L104.94,745.54 L104.59,742.23 L104.26,738.85 L103.93,735.37 L103.63,731.81 L103.33,728.15 L103.04,724.39 L102.77,720.52 L102.52,716.53 L102.27,712.42 L102.04,708.17 L101.82,703.77 L101.61,699.21 L101.41,694.46 L101.23,689.52 L101.06,684.36 L100.90,678.95 L100.76,673.26 L100.63,667.24 L100.51,660.85 L100.40,654.01 L100.31,646.64 L100.23,638.60 L100.16,629.70 L100.10,619.65 L100.06,607.95 L100.03,593.59 L100.01,573.83 L100.00,512.00 L100.01,450.17 L100.03,430.41 L100.06,416.05 L100.10,404.35 L100.16,394.30 L100.23,385.40 L100.31,377.36 L100.40,369.99 L100.51,363.15 L100.63,356.76 L100.76,350.74 L100.90,345.05 L101.06,339.64 L101.23,334.48 L101.41,329.54 L101.61,324.79 L101.82,320.23 L102.04,315.83 L102.27,311.58 L102.52,307.47 L102.77,303.48 L103.04,299.61 L103.33,295.85 L103.63,292.19 L103.93,288.63 L104.26,285.15 L104.59,281.77 L104.94,278.46 L105.30,275.22 L105.67,272.06 L106.06,268.97 L106.46,265.94 L106.87,262.98 L107.30,260.07 L107.74,257.23 L108.19,254.43 L108.65,251.69 L109.13,249.00 L109.62,246.36 L110.12,243.76 L110.64,241.21 L111.17,238.71 L111.72,236.24 L112.27,233.82 L112.84,231.44 L113.43,229.09 L114.02,226.78 L114.64,224.51 L115.26,222.27 L115.90,220.07 L116.55,217.90 L117.21,215.77 L117.89,213.66 L118.59,211.59 L119.29,209.55 L120.01,207.53 L120.75,205.55 L121.50,203.59 L122.26,201.66 L123.04,199.76 L123.83,197.89 L124.63,196.04 L125.45,194.22 L126.29,192.42 L127.13,190.65 L128.00,188.90 L128.88,187.17 L129.77,185.47 L130.68,183.79 L131.60,182.14 L132.54,180.50 L133.49,178.89 L134.46,177.30 L135.44,175.73 L136.44,174.19 L137.45,172.66 L138.48,171.15 L139.52,169.67 L140.58,168.20 L141.66,166.76 L142.75,165.33 L143.86,163.92 L144.99,162.54 L146.13,161.17 L147.29,159.82 L148.46,158.48 L149.66,157.17 L150.86,155.87 L152.09,154.59 L153.33,153.33 L154.59,152.09 L155.87,150.86 L157.17,149.66 L158.48,148.46 L159.82,147.29 L161.17,146.13 L162.54,144.99 L163.92,143.86 L165.33,142.75 L166.76,141.66 L168.20,140.58 L169.67,139.52 L171.15,138.48 L172.66,137.45 L174.19,136.44 L175.73,135.44 L177.30,134.46 L178.89,133.49 L180.50,132.54 L182.14,131.60 L183.79,130.68 L185.47,129.77 L187.17,128.88 L188.90,128.00 L190.65,127.13 L192.42,126.29 L194.22,125.45 L196.04,124.63 L197.89,123.83 L199.76,123.04 L201.66,122.26 L203.59,121.50 L205.55,120.75 L207.53,120.01 L209.55,119.29 L211.59,118.59 L213.66,117.89 L215.77,117.21 L217.90,116.55 L220.07,115.90 L222.27,115.26 L224.51,114.64 L226.78,114.02 L229.09,113.43 L231.44,112.84 L233.82,112.27 L236.24,111.72 L238.71,111.17 L241.21,110.64 L243.76,110.12 L246.36,109.62 L249.00,109.13 L251.69,108.65 L254.43,108.19 L257.23,107.74 L260.07,107.30 L262.98,106.87 L265.94,106.46 L268.97,106.06 L272.06,105.67 L275.22,105.30 L278.46,104.94 L281.77,104.59 L285.15,104.26 L288.63,103.93 L292.19,103.63 L295.85,103.33 L299.61,103.04 L303.48,102.77 L307.47,102.52 L311.58,102.27 L315.83,102.04 L320.23,101.82 L324.79,101.61 L329.54,101.41 L334.48,101.23 L339.64,101.06 L345.05,100.90 L350.74,100.76 L356.76,100.63 L363.15,100.51 L369.99,100.40 L377.36,100.31 L385.40,100.23 L394.30,100.16 L404.35,100.10 L416.05,100.06 L430.41,100.03 L450.17,100.01 L512.00,100.00 L573.83,100.01 L593.59,100.03 L607.95,100.06 L619.65,100.10 L629.70,100.16 L638.60,100.23 L646.64,100.31 L654.01,100.40 L660.85,100.51 L667.24,100.63 L673.26,100.76 L678.95,100.90 L684.36,101.06 L689.52,101.23 L694.46,101.41 L699.21,101.61 L703.77,101.82 L708.17,102.04 L712.42,102.27 L716.53,102.52 L720.52,102.77 L724.39,103.04 L728.15,103.33 L731.81,103.63 L735.37,103.93 L738.85,104.26 L742.23,104.59 L745.54,104.94 L748.78,105.30 L751.94,105.67 L755.03,106.06 L758.06,106.46 L761.02,106.87 L763.93,107.30 L766.77,107.74 L769.57,108.19 L772.31,108.65 L775.00,109.13 L777.64,109.62 L780.24,110.12 L782.79,110.64 L785.29,111.17 L787.76,111.72 L790.18,112.27 L792.56,112.84 L794.91,113.43 L797.22,114.02 L799.49,114.64 L801.73,115.26 L803.93,115.90 L806.10,116.55 L808.23,117.21 L810.34,117.89 L812.41,118.59 L814.45,119.29 L816.47,120.01 L818.45,120.75 L820.41,121.50 L822.34,122.26 L824.24,123.04 L826.11,123.83 L827.96,124.63 L829.78,125.45 L831.58,126.29 L833.35,127.13 L835.10,128.00 L836.83,128.88 L838.53,129.77 L840.21,130.68 L841.86,131.60 L843.50,132.54 L845.11,133.49 L846.70,134.46 L848.27,135.44 L849.81,136.44 L851.34,137.45 L852.85,138.48 L854.33,139.52 L855.80,140.58 L857.24,141.66 L858.67,142.75 L860.08,143.86 L861.46,144.99 L862.83,146.13 L864.18,147.29 L865.52,148.46 L866.83,149.66 L868.13,150.86 L869.41,152.09 L870.67,153.33 L871.91,154.59 L873.14,155.87 L874.34,157.17 L875.54,158.48 L876.71,159.82 L877.87,161.17 L879.01,162.54 L880.14,163.92 L881.25,165.33 L882.34,166.76 L883.42,168.20 L884.48,169.67 L885.52,171.15 L886.55,172.66 L887.56,174.19 L888.56,175.73 L889.54,177.30 L890.51,178.89 L891.46,180.50 L892.40,182.14 L893.32,183.79 L894.23,185.47 L895.12,187.17 L896.00,188.90 L896.87,190.65 L897.71,192.42 L898.55,194.22 L899.37,196.04 L900.17,197.89 L900.96,199.76 L901.74,201.66 L902.50,203.59 L903.25,205.55 L903.99,207.53 L904.71,209.55 L905.41,211.59 L906.11,213.66 L906.79,215.77 L907.45,217.90 L908.10,220.07 L908.74,222.27 L909.36,224.51 L909.98,226.78 L910.57,229.09 L911.16,231.44 L911.73,233.82 L912.28,236.24 L912.83,238.71 L913.36,241.21 L913.88,243.76 L914.38,246.36 L914.87,249.00 L915.35,251.69 L915.81,254.43 L916.26,257.23 L916.70,260.07 L917.13,262.98 L917.54,265.94 L917.94,268.97 L918.33,272.06 L918.70,275.22 L919.06,278.46 L919.41,281.77 L919.74,285.15 L920.07,288.63 L920.37,292.19 L920.67,295.85 L920.96,299.61 L921.23,303.48 L921.48,307.47 L921.73,311.58 L921.96,315.83 L922.18,320.23 L922.39,324.79 L922.59,329.54 L922.77,334.48 L922.94,339.64 L923.10,345.05 L923.24,350.74 L923.37,356.76 L923.49,363.15 L923.60,369.99 L923.69,377.36 L923.77,385.40 L923.84,394.30 L923.90,404.35 L923.94,416.05 L923.97,430.41 L923.99,450.17 Z" fill="none" stroke="url(#rim)" stroke-width="7"/>
+</g>
+</svg></script>
+<script type="text/plain" id="svgSombre"><svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#3E3F44"/><stop offset="1" stop-color="#1B1C1F"/></linearGradient>
+  <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#1A1A1C"/><stop offset="1" stop-color="#000000"/></linearGradient>
+  <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+    <stop offset="0.35" stop-color="#fff" stop-opacity="0"/>
+    <stop offset="1" stop-color="#fff" stop-opacity="0.06"/></linearGradient>
+  <linearGradient id="glassrim" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#fff" stop-opacity="0.22"/>
+    <stop offset="0.5" stop-color="#fff" stop-opacity="0.02"/>
+    <stop offset="1" stop-color="#fff" stop-opacity="0.26"/></linearGradient>
+  <radialGradient id="sheen" gradientUnits="userSpaceOnUse" cx="512" cy="100" r="440">
+    <stop offset="0" stop-color="#fff" stop-opacity="0.18"/>
+    <stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  <linearGradient id="or" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFB340"/><stop offset="1" stop-color="#FF8A00"/></linearGradient>
+  <filter id="body" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.26"/>
+    <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.18"/></filter>
+  <filter id="gsh" x="-30%" y="-30%" width="160%" height="170%">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="14"/><feOffset dy="10"/>
+    <feComponentTransfer><feFuncA type="linear" slope="0.5"/></feComponentTransfer>
+    <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"/></filter>
+  <filter id="gsh2" x="-30%" y="-30%" width="160%" height="170%">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="4"/>
+    <feComponentTransfer><feFuncA type="linear" slope="0.35"/></feComponentTransfer>
+    <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"/></filter>
+  <filter id="nW" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="3"/>
+    <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  1.6 0 0 0 -0.8"/></filter>
+  <filter id="nB" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="7"/>
+    <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1.6 0 0 0 -0.8"/></filter>
+  <clipPath id="sq"><path d="M924.00,512.00 L923.99,573.83 L923.97,593.59 L923.94,607.95 L923.90,619.65 L923.84,629.70 L923.77,638.60 L923.69,646.64 L923.60,654.01 L923.49,660.85 L923.37,667.24 L923.24,673.26 L923.10,678.95 L922.94,684.36 L922.77,689.52 L922.59,694.46 L922.39,699.21 L922.18,703.77 L921.96,708.17 L921.73,712.42 L921.48,716.53 L921.23,720.52 L920.96,724.39 L920.67,728.15 L920.37,731.81 L920.07,735.37 L919.74,738.85 L919.41,742.23 L919.06,745.54 L918.70,748.78 L918.33,751.94 L917.94,755.03 L917.54,758.06 L917.13,761.02 L916.70,763.93 L916.26,766.77 L915.81,769.57 L915.35,772.31 L914.87,775.00 L914.38,777.64 L913.88,780.24 L913.36,782.79 L912.83,785.29 L912.28,787.76 L911.73,790.18 L911.16,792.56 L910.57,794.91 L909.98,797.22 L909.36,799.49 L908.74,801.73 L908.10,803.93 L907.45,806.10 L906.79,808.23 L906.11,810.34 L905.41,812.41 L904.71,814.45 L903.99,816.47 L903.25,818.45 L902.50,820.41 L901.74,822.34 L900.96,824.24 L900.17,826.11 L899.37,827.96 L898.55,829.78 L897.71,831.58 L896.87,833.35 L896.00,835.10 L895.12,836.83 L894.23,838.53 L893.32,840.21 L892.40,841.86 L891.46,843.50 L890.51,845.11 L889.54,846.70 L888.56,848.27 L887.56,849.81 L886.55,851.34 L885.52,852.85 L884.48,854.33 L883.42,855.80 L882.34,857.24 L881.25,858.67 L880.14,860.08 L879.01,861.46 L877.87,862.83 L876.71,864.18 L875.54,865.52 L874.34,866.83 L873.14,868.13 L871.91,869.41 L870.67,870.67 L869.41,871.91 L868.13,873.14 L866.83,874.34 L865.52,875.54 L864.18,876.71 L862.83,877.87 L861.46,879.01 L860.08,880.14 L858.67,881.25 L857.24,882.34 L855.80,883.42 L854.33,884.48 L852.85,885.52 L851.34,886.55 L849.81,887.56 L848.27,888.56 L846.70,889.54 L845.11,890.51 L843.50,891.46 L841.86,892.40 L840.21,893.32 L838.53,894.23 L836.83,895.12 L835.10,896.00 L833.35,896.87 L831.58,897.71 L829.78,898.55 L827.96,899.37 L826.11,900.17 L824.24,900.96 L822.34,901.74 L820.41,902.50 L818.45,903.25 L816.47,903.99 L814.45,904.71 L812.41,905.41 L810.34,906.11 L808.23,906.79 L806.10,907.45 L803.93,908.10 L801.73,908.74 L799.49,909.36 L797.22,909.98 L794.91,910.57 L792.56,911.16 L790.18,911.73 L787.76,912.28 L785.29,912.83 L782.79,913.36 L780.24,913.88 L777.64,914.38 L775.00,914.87 L772.31,915.35 L769.57,915.81 L766.77,916.26 L763.93,916.70 L761.02,917.13 L758.06,917.54 L755.03,917.94 L751.94,918.33 L748.78,918.70 L745.54,919.06 L742.23,919.41 L738.85,919.74 L735.37,920.07 L731.81,920.37 L728.15,920.67 L724.39,920.96 L720.52,921.23 L716.53,921.48 L712.42,921.73 L708.17,921.96 L703.77,922.18 L699.21,922.39 L694.46,922.59 L689.52,922.77 L684.36,922.94 L678.95,923.10 L673.26,923.24 L667.24,923.37 L660.85,923.49 L654.01,923.60 L646.64,923.69 L638.60,923.77 L629.70,923.84 L619.65,923.90 L607.95,923.94 L593.59,923.97 L573.83,923.99 L512.00,924.00 L450.17,923.99 L430.41,923.97 L416.05,923.94 L404.35,923.90 L394.30,923.84 L385.40,923.77 L377.36,923.69 L369.99,923.60 L363.15,923.49 L356.76,923.37 L350.74,923.24 L345.05,923.10 L339.64,922.94 L334.48,922.77 L329.54,922.59 L324.79,922.39 L320.23,922.18 L315.83,921.96 L311.58,921.73 L307.47,921.48 L303.48,921.23 L299.61,920.96 L295.85,920.67 L292.19,920.37 L288.63,920.07 L285.15,919.74 L281.77,919.41 L278.46,919.06 L275.22,918.70 L272.06,918.33 L268.97,917.94 L265.94,917.54 L262.98,917.13 L260.07,916.70 L257.23,916.26 L254.43,915.81 L251.69,915.35 L249.00,914.87 L246.36,914.38 L243.76,913.88 L241.21,913.36 L238.71,912.83 L236.24,912.28 L233.82,911.73 L231.44,911.16 L229.09,910.57 L226.78,909.98 L224.51,909.36 L222.27,908.74 L220.07,908.10 L217.90,907.45 L215.77,906.79 L213.66,906.11 L211.59,905.41 L209.55,904.71 L207.53,903.99 L205.55,903.25 L203.59,902.50 L201.66,901.74 L199.76,900.96 L197.89,900.17 L196.04,899.37 L194.22,898.55 L192.42,897.71 L190.65,896.87 L188.90,896.00 L187.17,895.12 L185.47,894.23 L183.79,893.32 L182.14,892.40 L180.50,891.46 L178.89,890.51 L177.30,889.54 L175.73,888.56 L174.19,887.56 L172.66,886.55 L171.15,885.52 L169.67,884.48 L168.20,883.42 L166.76,882.34 L165.33,881.25 L163.92,880.14 L162.54,879.01 L161.17,877.87 L159.82,876.71 L158.48,875.54 L157.17,874.34 L155.87,873.14 L154.59,871.91 L153.33,870.67 L152.09,869.41 L150.86,868.13 L149.66,866.83 L148.46,865.52 L147.29,864.18 L146.13,862.83 L144.99,861.46 L143.86,860.08 L142.75,858.67 L141.66,857.24 L140.58,855.80 L139.52,854.33 L138.48,852.85 L137.45,851.34 L136.44,849.81 L135.44,848.27 L134.46,846.70 L133.49,845.11 L132.54,843.50 L131.60,841.86 L130.68,840.21 L129.77,838.53 L128.88,836.83 L128.00,835.10 L127.13,833.35 L126.29,831.58 L125.45,829.78 L124.63,827.96 L123.83,826.11 L123.04,824.24 L122.26,822.34 L121.50,820.41 L120.75,818.45 L120.01,816.47 L119.29,814.45 L118.59,812.41 L117.89,810.34 L117.21,808.23 L116.55,806.10 L115.90,803.93 L115.26,801.73 L114.64,799.49 L114.02,797.22 L113.43,794.91 L112.84,792.56 L112.27,790.18 L111.72,787.76 L111.17,785.29 L110.64,782.79 L110.12,780.24 L109.62,777.64 L109.13,775.00 L108.65,772.31 L108.19,769.57 L107.74,766.77 L107.30,763.93 L106.87,761.02 L106.46,758.06 L106.06,755.03 L105.67,751.94 L105.30,748.78 L104.94,745.54 L104.59,742.23 L104.26,738.85 L103.93,735.37 L103.63,731.81 L103.33,728.15 L103.04,724.39 L102.77,720.52 L102.52,716.53 L102.27,712.42 L102.04,708.17 L101.82,703.77 L101.61,699.21 L101.41,694.46 L101.23,689.52 L101.06,684.36 L100.90,678.95 L100.76,673.26 L100.63,667.24 L100.51,660.85 L100.40,654.01 L100.31,646.64 L100.23,638.60 L100.16,629.70 L100.10,619.65 L100.06,607.95 L100.03,593.59 L100.01,573.83 L100.00,512.00 L100.01,450.17 L100.03,430.41 L100.06,416.05 L100.10,404.35 L100.16,394.30 L100.23,385.40 L100.31,377.36 L100.40,369.99 L100.51,363.15 L100.63,356.76 L100.76,350.74 L100.90,345.05 L101.06,339.64 L101.23,334.48 L101.41,329.54 L101.61,324.79 L101.82,320.23 L102.04,315.83 L102.27,311.58 L102.52,307.47 L102.77,303.48 L103.04,299.61 L103.33,295.85 L103.63,292.19 L103.93,288.63 L104.26,285.15 L104.59,281.77 L104.94,278.46 L105.30,275.22 L105.67,272.06 L106.06,268.97 L106.46,265.94 L106.87,262.98 L107.30,260.07 L107.74,257.23 L108.19,254.43 L108.65,251.69 L109.13,249.00 L109.62,246.36 L110.12,243.76 L110.64,241.21 L111.17,238.71 L111.72,236.24 L112.27,233.82 L112.84,231.44 L113.43,229.09 L114.02,226.78 L114.64,224.51 L115.26,222.27 L115.90,220.07 L116.55,217.90 L117.21,215.77 L117.89,213.66 L118.59,211.59 L119.29,209.55 L120.01,207.53 L120.75,205.55 L121.50,203.59 L122.26,201.66 L123.04,199.76 L123.83,197.89 L124.63,196.04 L125.45,194.22 L126.29,192.42 L127.13,190.65 L128.00,188.90 L128.88,187.17 L129.77,185.47 L130.68,183.79 L131.60,182.14 L132.54,180.50 L133.49,178.89 L134.46,177.30 L135.44,175.73 L136.44,174.19 L137.45,172.66 L138.48,171.15 L139.52,169.67 L140.58,168.20 L141.66,166.76 L142.75,165.33 L143.86,163.92 L144.99,162.54 L146.13,161.17 L147.29,159.82 L148.46,158.48 L149.66,157.17 L150.86,155.87 L152.09,154.59 L153.33,153.33 L154.59,152.09 L155.87,150.86 L157.17,149.66 L158.48,148.46 L159.82,147.29 L161.17,146.13 L162.54,144.99 L163.92,143.86 L165.33,142.75 L166.76,141.66 L168.20,140.58 L169.67,139.52 L171.15,138.48 L172.66,137.45 L174.19,136.44 L175.73,135.44 L177.30,134.46 L178.89,133.49 L180.50,132.54 L182.14,131.60 L183.79,130.68 L185.47,129.77 L187.17,128.88 L188.90,128.00 L190.65,127.13 L192.42,126.29 L194.22,125.45 L196.04,124.63 L197.89,123.83 L199.76,123.04 L201.66,122.26 L203.59,121.50 L205.55,120.75 L207.53,120.01 L209.55,119.29 L211.59,118.59 L213.66,117.89 L215.77,117.21 L217.90,116.55 L220.07,115.90 L222.27,115.26 L224.51,114.64 L226.78,114.02 L229.09,113.43 L231.44,112.84 L233.82,112.27 L236.24,111.72 L238.71,111.17 L241.21,110.64 L243.76,110.12 L246.36,109.62 L249.00,109.13 L251.69,108.65 L254.43,108.19 L257.23,107.74 L260.07,107.30 L262.98,106.87 L265.94,106.46 L268.97,106.06 L272.06,105.67 L275.22,105.30 L278.46,104.94 L281.77,104.59 L285.15,104.26 L288.63,103.93 L292.19,103.63 L295.85,103.33 L299.61,103.04 L303.48,102.77 L307.47,102.52 L311.58,102.27 L315.83,102.04 L320.23,101.82 L324.79,101.61 L329.54,101.41 L334.48,101.23 L339.64,101.06 L345.05,100.90 L350.74,100.76 L356.76,100.63 L363.15,100.51 L369.99,100.40 L377.36,100.31 L385.40,100.23 L394.30,100.16 L404.35,100.10 L416.05,100.06 L430.41,100.03 L450.17,100.01 L512.00,100.00 L573.83,100.01 L593.59,100.03 L607.95,100.06 L619.65,100.10 L629.70,100.16 L638.60,100.23 L646.64,100.31 L654.01,100.40 L660.85,100.51 L667.24,100.63 L673.26,100.76 L678.95,100.90 L684.36,101.06 L689.52,101.23 L694.46,101.41 L699.21,101.61 L703.77,101.82 L708.17,102.04 L712.42,102.27 L716.53,102.52 L720.52,102.77 L724.39,103.04 L728.15,103.33 L731.81,103.63 L735.37,103.93 L738.85,104.26 L742.23,104.59 L745.54,104.94 L748.78,105.30 L751.94,105.67 L755.03,106.06 L758.06,106.46 L761.02,106.87 L763.93,107.30 L766.77,107.74 L769.57,108.19 L772.31,108.65 L775.00,109.13 L777.64,109.62 L780.24,110.12 L782.79,110.64 L785.29,111.17 L787.76,111.72 L790.18,112.27 L792.56,112.84 L794.91,113.43 L797.22,114.02 L799.49,114.64 L801.73,115.26 L803.93,115.90 L806.10,116.55 L808.23,117.21 L810.34,117.89 L812.41,118.59 L814.45,119.29 L816.47,120.01 L818.45,120.75 L820.41,121.50 L822.34,122.26 L824.24,123.04 L826.11,123.83 L827.96,124.63 L829.78,125.45 L831.58,126.29 L833.35,127.13 L835.10,128.00 L836.83,128.88 L838.53,129.77 L840.21,130.68 L841.86,131.60 L843.50,132.54 L845.11,133.49 L846.70,134.46 L848.27,135.44 L849.81,136.44 L851.34,137.45 L852.85,138.48 L854.33,139.52 L855.80,140.58 L857.24,141.66 L858.67,142.75 L860.08,143.86 L861.46,144.99 L862.83,146.13 L864.18,147.29 L865.52,148.46 L866.83,149.66 L868.13,150.86 L869.41,152.09 L870.67,153.33 L871.91,154.59 L873.14,155.87 L874.34,157.17 L875.54,158.48 L876.71,159.82 L877.87,161.17 L879.01,162.54 L880.14,163.92 L881.25,165.33 L882.34,166.76 L883.42,168.20 L884.48,169.67 L885.52,171.15 L886.55,172.66 L887.56,174.19 L888.56,175.73 L889.54,177.30 L890.51,178.89 L891.46,180.50 L892.40,182.14 L893.32,183.79 L894.23,185.47 L895.12,187.17 L896.00,188.90 L896.87,190.65 L897.71,192.42 L898.55,194.22 L899.37,196.04 L900.17,197.89 L900.96,199.76 L901.74,201.66 L902.50,203.59 L903.25,205.55 L903.99,207.53 L904.71,209.55 L905.41,211.59 L906.11,213.66 L906.79,215.77 L907.45,217.90 L908.10,220.07 L908.74,222.27 L909.36,224.51 L909.98,226.78 L910.57,229.09 L911.16,231.44 L911.73,233.82 L912.28,236.24 L912.83,238.71 L913.36,241.21 L913.88,243.76 L914.38,246.36 L914.87,249.00 L915.35,251.69 L915.81,254.43 L916.26,257.23 L916.70,260.07 L917.13,262.98 L917.54,265.94 L917.94,268.97 L918.33,272.06 L918.70,275.22 L919.06,278.46 L919.41,281.77 L919.74,285.15 L920.07,288.63 L920.37,292.19 L920.67,295.85 L920.96,299.61 L921.23,303.48 L921.48,307.47 L921.73,311.58 L921.96,315.83 L922.18,320.23 L922.39,324.79 L922.59,329.54 L922.77,334.48 L922.94,339.64 L923.10,345.05 L923.24,350.74 L923.37,356.76 L923.49,363.15 L923.60,369.99 L923.69,377.36 L923.77,385.40 L923.84,394.30 L923.90,404.35 L923.94,416.05 L923.97,430.41 L923.99,450.17 Z"/></clipPath>
+</defs>
+<path d="M924.00,512.00 L923.99,573.83 L923.97,593.59 L923.94,607.95 L923.90,619.65 L923.84,629.70 L923.77,638.60 L923.69,646.64 L923.60,654.01 L923.49,660.85 L923.37,667.24 L923.24,673.26 L923.10,678.95 L922.94,684.36 L922.77,689.52 L922.59,694.46 L922.39,699.21 L922.18,703.77 L921.96,708.17 L921.73,712.42 L921.48,716.53 L921.23,720.52 L920.96,724.39 L920.67,728.15 L920.37,731.81 L920.07,735.37 L919.74,738.85 L919.41,742.23 L919.06,745.54 L918.70,748.78 L918.33,751.94 L917.94,755.03 L917.54,758.06 L917.13,761.02 L916.70,763.93 L916.26,766.77 L915.81,769.57 L915.35,772.31 L914.87,775.00 L914.38,777.64 L913.88,780.24 L913.36,782.79 L912.83,785.29 L912.28,787.76 L911.73,790.18 L911.16,792.56 L910.57,794.91 L909.98,797.22 L909.36,799.49 L908.74,801.73 L908.10,803.93 L907.45,806.10 L906.79,808.23 L906.11,810.34 L905.41,812.41 L904.71,814.45 L903.99,816.47 L903.25,818.45 L902.50,820.41 L901.74,822.34 L900.96,824.24 L900.17,826.11 L899.37,827.96 L898.55,829.78 L897.71,831.58 L896.87,833.35 L896.00,835.10 L895.12,836.83 L894.23,838.53 L893.32,840.21 L892.40,841.86 L891.46,843.50 L890.51,845.11 L889.54,846.70 L888.56,848.27 L887.56,849.81 L886.55,851.34 L885.52,852.85 L884.48,854.33 L883.42,855.80 L882.34,857.24 L881.25,858.67 L880.14,860.08 L879.01,861.46 L877.87,862.83 L876.71,864.18 L875.54,865.52 L874.34,866.83 L873.14,868.13 L871.91,869.41 L870.67,870.67 L869.41,871.91 L868.13,873.14 L866.83,874.34 L865.52,875.54 L864.18,876.71 L862.83,877.87 L861.46,879.01 L860.08,880.14 L858.67,881.25 L857.24,882.34 L855.80,883.42 L854.33,884.48 L852.85,885.52 L851.34,886.55 L849.81,887.56 L848.27,888.56 L846.70,889.54 L845.11,890.51 L843.50,891.46 L841.86,892.40 L840.21,893.32 L838.53,894.23 L836.83,895.12 L835.10,896.00 L833.35,896.87 L831.58,897.71 L829.78,898.55 L827.96,899.37 L826.11,900.17 L824.24,900.96 L822.34,901.74 L820.41,902.50 L818.45,903.25 L816.47,903.99 L814.45,904.71 L812.41,905.41 L810.34,906.11 L808.23,906.79 L806.10,907.45 L803.93,908.10 L801.73,908.74 L799.49,909.36 L797.22,909.98 L794.91,910.57 L792.56,911.16 L790.18,911.73 L787.76,912.28 L785.29,912.83 L782.79,913.36 L780.24,913.88 L777.64,914.38 L775.00,914.87 L772.31,915.35 L769.57,915.81 L766.77,916.26 L763.93,916.70 L761.02,917.13 L758.06,917.54 L755.03,917.94 L751.94,918.33 L748.78,918.70 L745.54,919.06 L742.23,919.41 L738.85,919.74 L735.37,920.07 L731.81,920.37 L728.15,920.67 L724.39,920.96 L720.52,921.23 L716.53,921.48 L712.42,921.73 L708.17,921.96 L703.77,922.18 L699.21,922.39 L694.46,922.59 L689.52,922.77 L684.36,922.94 L678.95,923.10 L673.26,923.24 L667.24,923.37 L660.85,923.49 L654.01,923.60 L646.64,923.69 L638.60,923.77 L629.70,923.84 L619.65,923.90 L607.95,923.94 L593.59,923.97 L573.83,923.99 L512.00,924.00 L450.17,923.99 L430.41,923.97 L416.05,923.94 L404.35,923.90 L394.30,923.84 L385.40,923.77 L377.36,923.69 L369.99,923.60 L363.15,923.49 L356.76,923.37 L350.74,923.24 L345.05,923.10 L339.64,922.94 L334.48,922.77 L329.54,922.59 L324.79,922.39 L320.23,922.18 L315.83,921.96 L311.58,921.73 L307.47,921.48 L303.48,921.23 L299.61,920.96 L295.85,920.67 L292.19,920.37 L288.63,920.07 L285.15,919.74 L281.77,919.41 L278.46,919.06 L275.22,918.70 L272.06,918.33 L268.97,917.94 L265.94,917.54 L262.98,917.13 L260.07,916.70 L257.23,916.26 L254.43,915.81 L251.69,915.35 L249.00,914.87 L246.36,914.38 L243.76,913.88 L241.21,913.36 L238.71,912.83 L236.24,912.28 L233.82,911.73 L231.44,911.16 L229.09,910.57 L226.78,909.98 L224.51,909.36 L222.27,908.74 L220.07,908.10 L217.90,907.45 L215.77,906.79 L213.66,906.11 L211.59,905.41 L209.55,904.71 L207.53,903.99 L205.55,903.25 L203.59,902.50 L201.66,901.74 L199.76,900.96 L197.89,900.17 L196.04,899.37 L194.22,898.55 L192.42,897.71 L190.65,896.87 L188.90,896.00 L187.17,895.12 L185.47,894.23 L183.79,893.32 L182.14,892.40 L180.50,891.46 L178.89,890.51 L177.30,889.54 L175.73,888.56 L174.19,887.56 L172.66,886.55 L171.15,885.52 L169.67,884.48 L168.20,883.42 L166.76,882.34 L165.33,881.25 L163.92,880.14 L162.54,879.01 L161.17,877.87 L159.82,876.71 L158.48,875.54 L157.17,874.34 L155.87,873.14 L154.59,871.91 L153.33,870.67 L152.09,869.41 L150.86,868.13 L149.66,866.83 L148.46,865.52 L147.29,864.18 L146.13,862.83 L144.99,861.46 L143.86,860.08 L142.75,858.67 L141.66,857.24 L140.58,855.80 L139.52,854.33 L138.48,852.85 L137.45,851.34 L136.44,849.81 L135.44,848.27 L134.46,846.70 L133.49,845.11 L132.54,843.50 L131.60,841.86 L130.68,840.21 L129.77,838.53 L128.88,836.83 L128.00,835.10 L127.13,833.35 L126.29,831.58 L125.45,829.78 L124.63,827.96 L123.83,826.11 L123.04,824.24 L122.26,822.34 L121.50,820.41 L120.75,818.45 L120.01,816.47 L119.29,814.45 L118.59,812.41 L117.89,810.34 L117.21,808.23 L116.55,806.10 L115.90,803.93 L115.26,801.73 L114.64,799.49 L114.02,797.22 L113.43,794.91 L112.84,792.56 L112.27,790.18 L111.72,787.76 L111.17,785.29 L110.64,782.79 L110.12,780.24 L109.62,777.64 L109.13,775.00 L108.65,772.31 L108.19,769.57 L107.74,766.77 L107.30,763.93 L106.87,761.02 L106.46,758.06 L106.06,755.03 L105.67,751.94 L105.30,748.78 L104.94,745.54 L104.59,742.23 L104.26,738.85 L103.93,735.37 L103.63,731.81 L103.33,728.15 L103.04,724.39 L102.77,720.52 L102.52,716.53 L102.27,712.42 L102.04,708.17 L101.82,703.77 L101.61,699.21 L101.41,694.46 L101.23,689.52 L101.06,684.36 L100.90,678.95 L100.76,673.26 L100.63,667.24 L100.51,660.85 L100.40,654.01 L100.31,646.64 L100.23,638.60 L100.16,629.70 L100.10,619.65 L100.06,607.95 L100.03,593.59 L100.01,573.83 L100.00,512.00 L100.01,450.17 L100.03,430.41 L100.06,416.05 L100.10,404.35 L100.16,394.30 L100.23,385.40 L100.31,377.36 L100.40,369.99 L100.51,363.15 L100.63,356.76 L100.76,350.74 L100.90,345.05 L101.06,339.64 L101.23,334.48 L101.41,329.54 L101.61,324.79 L101.82,320.23 L102.04,315.83 L102.27,311.58 L102.52,307.47 L102.77,303.48 L103.04,299.61 L103.33,295.85 L103.63,292.19 L103.93,288.63 L104.26,285.15 L104.59,281.77 L104.94,278.46 L105.30,275.22 L105.67,272.06 L106.06,268.97 L106.46,265.94 L106.87,262.98 L107.30,260.07 L107.74,257.23 L108.19,254.43 L108.65,251.69 L109.13,249.00 L109.62,246.36 L110.12,243.76 L110.64,241.21 L111.17,238.71 L111.72,236.24 L112.27,233.82 L112.84,231.44 L113.43,229.09 L114.02,226.78 L114.64,224.51 L115.26,222.27 L115.90,220.07 L116.55,217.90 L117.21,215.77 L117.89,213.66 L118.59,211.59 L119.29,209.55 L120.01,207.53 L120.75,205.55 L121.50,203.59 L122.26,201.66 L123.04,199.76 L123.83,197.89 L124.63,196.04 L125.45,194.22 L126.29,192.42 L127.13,190.65 L128.00,188.90 L128.88,187.17 L129.77,185.47 L130.68,183.79 L131.60,182.14 L132.54,180.50 L133.49,178.89 L134.46,177.30 L135.44,175.73 L136.44,174.19 L137.45,172.66 L138.48,171.15 L139.52,169.67 L140.58,168.20 L141.66,166.76 L142.75,165.33 L143.86,163.92 L144.99,162.54 L146.13,161.17 L147.29,159.82 L148.46,158.48 L149.66,157.17 L150.86,155.87 L152.09,154.59 L153.33,153.33 L154.59,152.09 L155.87,150.86 L157.17,149.66 L158.48,148.46 L159.82,147.29 L161.17,146.13 L162.54,144.99 L163.92,143.86 L165.33,142.75 L166.76,141.66 L168.20,140.58 L169.67,139.52 L171.15,138.48 L172.66,137.45 L174.19,136.44 L175.73,135.44 L177.30,134.46 L178.89,133.49 L180.50,132.54 L182.14,131.60 L183.79,130.68 L185.47,129.77 L187.17,128.88 L188.90,128.00 L190.65,127.13 L192.42,126.29 L194.22,125.45 L196.04,124.63 L197.89,123.83 L199.76,123.04 L201.66,122.26 L203.59,121.50 L205.55,120.75 L207.53,120.01 L209.55,119.29 L211.59,118.59 L213.66,117.89 L215.77,117.21 L217.90,116.55 L220.07,115.90 L222.27,115.26 L224.51,114.64 L226.78,114.02 L229.09,113.43 L231.44,112.84 L233.82,112.27 L236.24,111.72 L238.71,111.17 L241.21,110.64 L243.76,110.12 L246.36,109.62 L249.00,109.13 L251.69,108.65 L254.43,108.19 L257.23,107.74 L260.07,107.30 L262.98,106.87 L265.94,106.46 L268.97,106.06 L272.06,105.67 L275.22,105.30 L278.46,104.94 L281.77,104.59 L285.15,104.26 L288.63,103.93 L292.19,103.63 L295.85,103.33 L299.61,103.04 L303.48,102.77 L307.47,102.52 L311.58,102.27 L315.83,102.04 L320.23,101.82 L324.79,101.61 L329.54,101.41 L334.48,101.23 L339.64,101.06 L345.05,100.90 L350.74,100.76 L356.76,100.63 L363.15,100.51 L369.99,100.40 L377.36,100.31 L385.40,100.23 L394.30,100.16 L404.35,100.10 L416.05,100.06 L430.41,100.03 L450.17,100.01 L512.00,100.00 L573.83,100.01 L593.59,100.03 L607.95,100.06 L619.65,100.10 L629.70,100.16 L638.60,100.23 L646.64,100.31 L654.01,100.40 L660.85,100.51 L667.24,100.63 L673.26,100.76 L678.95,100.90 L684.36,101.06 L689.52,101.23 L694.46,101.41 L699.21,101.61 L703.77,101.82 L708.17,102.04 L712.42,102.27 L716.53,102.52 L720.52,102.77 L724.39,103.04 L728.15,103.33 L731.81,103.63 L735.37,103.93 L738.85,104.26 L742.23,104.59 L745.54,104.94 L748.78,105.30 L751.94,105.67 L755.03,106.06 L758.06,106.46 L761.02,106.87 L763.93,107.30 L766.77,107.74 L769.57,108.19 L772.31,108.65 L775.00,109.13 L777.64,109.62 L780.24,110.12 L782.79,110.64 L785.29,111.17 L787.76,111.72 L790.18,112.27 L792.56,112.84 L794.91,113.43 L797.22,114.02 L799.49,114.64 L801.73,115.26 L803.93,115.90 L806.10,116.55 L808.23,117.21 L810.34,117.89 L812.41,118.59 L814.45,119.29 L816.47,120.01 L818.45,120.75 L820.41,121.50 L822.34,122.26 L824.24,123.04 L826.11,123.83 L827.96,124.63 L829.78,125.45 L831.58,126.29 L833.35,127.13 L835.10,128.00 L836.83,128.88 L838.53,129.77 L840.21,130.68 L841.86,131.60 L843.50,132.54 L845.11,133.49 L846.70,134.46 L848.27,135.44 L849.81,136.44 L851.34,137.45 L852.85,138.48 L854.33,139.52 L855.80,140.58 L857.24,141.66 L858.67,142.75 L860.08,143.86 L861.46,144.99 L862.83,146.13 L864.18,147.29 L865.52,148.46 L866.83,149.66 L868.13,150.86 L869.41,152.09 L870.67,153.33 L871.91,154.59 L873.14,155.87 L874.34,157.17 L875.54,158.48 L876.71,159.82 L877.87,161.17 L879.01,162.54 L880.14,163.92 L881.25,165.33 L882.34,166.76 L883.42,168.20 L884.48,169.67 L885.52,171.15 L886.55,172.66 L887.56,174.19 L888.56,175.73 L889.54,177.30 L890.51,178.89 L891.46,180.50 L892.40,182.14 L893.32,183.79 L894.23,185.47 L895.12,187.17 L896.00,188.90 L896.87,190.65 L897.71,192.42 L898.55,194.22 L899.37,196.04 L900.17,197.89 L900.96,199.76 L901.74,201.66 L902.50,203.59 L903.25,205.55 L903.99,207.53 L904.71,209.55 L905.41,211.59 L906.11,213.66 L906.79,215.77 L907.45,217.90 L908.10,220.07 L908.74,222.27 L909.36,224.51 L909.98,226.78 L910.57,229.09 L911.16,231.44 L911.73,233.82 L912.28,236.24 L912.83,238.71 L913.36,241.21 L913.88,243.76 L914.38,246.36 L914.87,249.00 L915.35,251.69 L915.81,254.43 L916.26,257.23 L916.70,260.07 L917.13,262.98 L917.54,265.94 L917.94,268.97 L918.33,272.06 L918.70,275.22 L919.06,278.46 L919.41,281.77 L919.74,285.15 L920.07,288.63 L920.37,292.19 L920.67,295.85 L920.96,299.61 L921.23,303.48 L921.48,307.47 L921.73,311.58 L921.96,315.83 L922.18,320.23 L922.39,324.79 L922.59,329.54 L922.77,334.48 L922.94,339.64 L923.10,345.05 L923.24,350.74 L923.37,356.76 L923.49,363.15 L923.60,369.99 L923.69,377.36 L923.77,385.40 L923.84,394.30 L923.90,404.35 L923.94,416.05 L923.97,430.41 L923.99,450.17 Z" fill="url(#bg)" filter="url(#body)"/>
+<g clip-path="url(#sq)">
+  <rect x="100" y="100" width="824" height="824" fill="url(#sheen)"/>
+<defs>
+<filter id="b4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
+<filter id="b10" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="10"/></filter>
+<filter id="b24" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="24"/></filter>
+<filter id="b40" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="40"/></filter>
+<linearGradient id="barW" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#D9DADE"/></linearGradient>
+<linearGradient id="barK" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2C2C2F"/><stop offset="1" stop-color="#0A0A0B"/></linearGradient>
+<linearGradient id="lens" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.20"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.45"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.04"/><stop offset="1" stop-color="#fff" stop-opacity="0.16"/></linearGradient>
+<linearGradient id="pillK" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#26262A"/><stop offset="1" stop-color="#030304"/></linearGradient>
+</defs><defs>
+<linearGradient id="frm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6A6B70"/><stop offset="1" stop-color="#2A2B2F"/></linearGradient>
+<linearGradient id="frmIn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2A2B2F"/><stop offset="1" stop-color="#6A6B70"/></linearGradient>
+<linearGradient id="glare" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.16"/><stop offset="0.38" stop-color="#fff" stop-opacity="0.04"/><stop offset="0.39" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<clipPath id="glass"><rect x="212.0" y="382.0" width="600.0" height="240.0" rx="120.0" /></clipPath></defs>
+<rect x="198.0" y="394.0" width="628.0" height="288.0" rx="154.0" fill="#000" opacity="0.6" filter="url(#b40)"/>
+<rect x="178.0" y="356.0" width="668.0" height="308.0" rx="154.0" fill="#000" opacity="0.5" filter="url(#b10)"/>
+<rect x="178.0" y="348.0" width="668.0" height="308.0" rx="154.0" fill="url(#frm)"/>
+<rect x="179.5" y="349.5" width="665.0" height="305.0" rx="152.5" fill="none" stroke="#fff" stroke-opacity="0.35" stroke-width="3"/>
+<rect x="206.0" y="376.0" width="612.0" height="252.0" rx="126.0" fill="url(#frmIn)"/>
+<rect x="212.0" y="382.0" width="600.0" height="240.0" rx="120.0" fill="url(#pillK)"/>
+<g clip-path="url(#glass)"><rect x="172.0" y="342.0" width="680.0" height="70.0" rx="35.0" fill="#000" opacity="0.9" filter="url(#b24)"/>
+<rect x="212.0" y="382.0" width="600.0" height="240.0" rx="0.0" fill="url(#glare)"/></g>
+<rect x="348.0" y="477.0" width="28.0" height="50.0" rx="14.0" fill="url(#barW)"/>
+<rect x="398.0" y="450.0" width="28.0" height="104.0" rx="14.0" fill="url(#barW)"/>
+<rect x="448.0" y="428.0" width="28.0" height="148.0" rx="14.0" fill="url(#barW)"/>
+<rect x="498.0" y="457.0" width="28.0" height="90.0" rx="14.0" fill="url(#barW)"/>
+<rect x="548.0" y="439.0" width="28.0" height="126.0" rx="14.0" fill="url(#barW)"/>
+<rect x="598.0" y="470.0" width="28.0" height="64.0" rx="14.0" fill="url(#barW)"/>
+<rect x="648.0" y="484.0" width="28.0" height="36.0" rx="14.0" fill="url(#barW)"/>
+  <rect x="100" y="100" width="824" height="824" filter="url(#nW)" opacity="0.06"/>
+  <rect x="100" y="100" width="824" height="824" filter="url(#nB)" opacity="0.06"/>
+  <path d="M924.00,512.00 L923.99,573.83 L923.97,593.59 L923.94,607.95 L923.90,619.65 L923.84,629.70 L923.77,638.60 L923.69,646.64 L923.60,654.01 L923.49,660.85 L923.37,667.24 L923.24,673.26 L923.10,678.95 L922.94,684.36 L922.77,689.52 L922.59,694.46 L922.39,699.21 L922.18,703.77 L921.96,708.17 L921.73,712.42 L921.48,716.53 L921.23,720.52 L920.96,724.39 L920.67,728.15 L920.37,731.81 L920.07,735.37 L919.74,738.85 L919.41,742.23 L919.06,745.54 L918.70,748.78 L918.33,751.94 L917.94,755.03 L917.54,758.06 L917.13,761.02 L916.70,763.93 L916.26,766.77 L915.81,769.57 L915.35,772.31 L914.87,775.00 L914.38,777.64 L913.88,780.24 L913.36,782.79 L912.83,785.29 L912.28,787.76 L911.73,790.18 L911.16,792.56 L910.57,794.91 L909.98,797.22 L909.36,799.49 L908.74,801.73 L908.10,803.93 L907.45,806.10 L906.79,808.23 L906.11,810.34 L905.41,812.41 L904.71,814.45 L903.99,816.47 L903.25,818.45 L902.50,820.41 L901.74,822.34 L900.96,824.24 L900.17,826.11 L899.37,827.96 L898.55,829.78 L897.71,831.58 L896.87,833.35 L896.00,835.10 L895.12,836.83 L894.23,838.53 L893.32,840.21 L892.40,841.86 L891.46,843.50 L890.51,845.11 L889.54,846.70 L888.56,848.27 L887.56,849.81 L886.55,851.34 L885.52,852.85 L884.48,854.33 L883.42,855.80 L882.34,857.24 L881.25,858.67 L880.14,860.08 L879.01,861.46 L877.87,862.83 L876.71,864.18 L875.54,865.52 L874.34,866.83 L873.14,868.13 L871.91,869.41 L870.67,870.67 L869.41,871.91 L868.13,873.14 L866.83,874.34 L865.52,875.54 L864.18,876.71 L862.83,877.87 L861.46,879.01 L860.08,880.14 L858.67,881.25 L857.24,882.34 L855.80,883.42 L854.33,884.48 L852.85,885.52 L851.34,886.55 L849.81,887.56 L848.27,888.56 L846.70,889.54 L845.11,890.51 L843.50,891.46 L841.86,892.40 L840.21,893.32 L838.53,894.23 L836.83,895.12 L835.10,896.00 L833.35,896.87 L831.58,897.71 L829.78,898.55 L827.96,899.37 L826.11,900.17 L824.24,900.96 L822.34,901.74 L820.41,902.50 L818.45,903.25 L816.47,903.99 L814.45,904.71 L812.41,905.41 L810.34,906.11 L808.23,906.79 L806.10,907.45 L803.93,908.10 L801.73,908.74 L799.49,909.36 L797.22,909.98 L794.91,910.57 L792.56,911.16 L790.18,911.73 L787.76,912.28 L785.29,912.83 L782.79,913.36 L780.24,913.88 L777.64,914.38 L775.00,914.87 L772.31,915.35 L769.57,915.81 L766.77,916.26 L763.93,916.70 L761.02,917.13 L758.06,917.54 L755.03,917.94 L751.94,918.33 L748.78,918.70 L745.54,919.06 L742.23,919.41 L738.85,919.74 L735.37,920.07 L731.81,920.37 L728.15,920.67 L724.39,920.96 L720.52,921.23 L716.53,921.48 L712.42,921.73 L708.17,921.96 L703.77,922.18 L699.21,922.39 L694.46,922.59 L689.52,922.77 L684.36,922.94 L678.95,923.10 L673.26,923.24 L667.24,923.37 L660.85,923.49 L654.01,923.60 L646.64,923.69 L638.60,923.77 L629.70,923.84 L619.65,923.90 L607.95,923.94 L593.59,923.97 L573.83,923.99 L512.00,924.00 L450.17,923.99 L430.41,923.97 L416.05,923.94 L404.35,923.90 L394.30,923.84 L385.40,923.77 L377.36,923.69 L369.99,923.60 L363.15,923.49 L356.76,923.37 L350.74,923.24 L345.05,923.10 L339.64,922.94 L334.48,922.77 L329.54,922.59 L324.79,922.39 L320.23,922.18 L315.83,921.96 L311.58,921.73 L307.47,921.48 L303.48,921.23 L299.61,920.96 L295.85,920.67 L292.19,920.37 L288.63,920.07 L285.15,919.74 L281.77,919.41 L278.46,919.06 L275.22,918.70 L272.06,918.33 L268.97,917.94 L265.94,917.54 L262.98,917.13 L260.07,916.70 L257.23,916.26 L254.43,915.81 L251.69,915.35 L249.00,914.87 L246.36,914.38 L243.76,913.88 L241.21,913.36 L238.71,912.83 L236.24,912.28 L233.82,911.73 L231.44,911.16 L229.09,910.57 L226.78,909.98 L224.51,909.36 L222.27,908.74 L220.07,908.10 L217.90,907.45 L215.77,906.79 L213.66,906.11 L211.59,905.41 L209.55,904.71 L207.53,903.99 L205.55,903.25 L203.59,902.50 L201.66,901.74 L199.76,900.96 L197.89,900.17 L196.04,899.37 L194.22,898.55 L192.42,897.71 L190.65,896.87 L188.90,896.00 L187.17,895.12 L185.47,894.23 L183.79,893.32 L182.14,892.40 L180.50,891.46 L178.89,890.51 L177.30,889.54 L175.73,888.56 L174.19,887.56 L172.66,886.55 L171.15,885.52 L169.67,884.48 L168.20,883.42 L166.76,882.34 L165.33,881.25 L163.92,880.14 L162.54,879.01 L161.17,877.87 L159.82,876.71 L158.48,875.54 L157.17,874.34 L155.87,873.14 L154.59,871.91 L153.33,870.67 L152.09,869.41 L150.86,868.13 L149.66,866.83 L148.46,865.52 L147.29,864.18 L146.13,862.83 L144.99,861.46 L143.86,860.08 L142.75,858.67 L141.66,857.24 L140.58,855.80 L139.52,854.33 L138.48,852.85 L137.45,851.34 L136.44,849.81 L135.44,848.27 L134.46,846.70 L133.49,845.11 L132.54,843.50 L131.60,841.86 L130.68,840.21 L129.77,838.53 L128.88,836.83 L128.00,835.10 L127.13,833.35 L126.29,831.58 L125.45,829.78 L124.63,827.96 L123.83,826.11 L123.04,824.24 L122.26,822.34 L121.50,820.41 L120.75,818.45 L120.01,816.47 L119.29,814.45 L118.59,812.41 L117.89,810.34 L117.21,808.23 L116.55,806.10 L115.90,803.93 L115.26,801.73 L114.64,799.49 L114.02,797.22 L113.43,794.91 L112.84,792.56 L112.27,790.18 L111.72,787.76 L111.17,785.29 L110.64,782.79 L110.12,780.24 L109.62,777.64 L109.13,775.00 L108.65,772.31 L108.19,769.57 L107.74,766.77 L107.30,763.93 L106.87,761.02 L106.46,758.06 L106.06,755.03 L105.67,751.94 L105.30,748.78 L104.94,745.54 L104.59,742.23 L104.26,738.85 L103.93,735.37 L103.63,731.81 L103.33,728.15 L103.04,724.39 L102.77,720.52 L102.52,716.53 L102.27,712.42 L102.04,708.17 L101.82,703.77 L101.61,699.21 L101.41,694.46 L101.23,689.52 L101.06,684.36 L100.90,678.95 L100.76,673.26 L100.63,667.24 L100.51,660.85 L100.40,654.01 L100.31,646.64 L100.23,638.60 L100.16,629.70 L100.10,619.65 L100.06,607.95 L100.03,593.59 L100.01,573.83 L100.00,512.00 L100.01,450.17 L100.03,430.41 L100.06,416.05 L100.10,404.35 L100.16,394.30 L100.23,385.40 L100.31,377.36 L100.40,369.99 L100.51,363.15 L100.63,356.76 L100.76,350.74 L100.90,345.05 L101.06,339.64 L101.23,334.48 L101.41,329.54 L101.61,324.79 L101.82,320.23 L102.04,315.83 L102.27,311.58 L102.52,307.47 L102.77,303.48 L103.04,299.61 L103.33,295.85 L103.63,292.19 L103.93,288.63 L104.26,285.15 L104.59,281.77 L104.94,278.46 L105.30,275.22 L105.67,272.06 L106.06,268.97 L106.46,265.94 L106.87,262.98 L107.30,260.07 L107.74,257.23 L108.19,254.43 L108.65,251.69 L109.13,249.00 L109.62,246.36 L110.12,243.76 L110.64,241.21 L111.17,238.71 L111.72,236.24 L112.27,233.82 L112.84,231.44 L113.43,229.09 L114.02,226.78 L114.64,224.51 L115.26,222.27 L115.90,220.07 L116.55,217.90 L117.21,215.77 L117.89,213.66 L118.59,211.59 L119.29,209.55 L120.01,207.53 L120.75,205.55 L121.50,203.59 L122.26,201.66 L123.04,199.76 L123.83,197.89 L124.63,196.04 L125.45,194.22 L126.29,192.42 L127.13,190.65 L128.00,188.90 L128.88,187.17 L129.77,185.47 L130.68,183.79 L131.60,182.14 L132.54,180.50 L133.49,178.89 L134.46,177.30 L135.44,175.73 L136.44,174.19 L137.45,172.66 L138.48,171.15 L139.52,169.67 L140.58,168.20 L141.66,166.76 L142.75,165.33 L143.86,163.92 L144.99,162.54 L146.13,161.17 L147.29,159.82 L148.46,158.48 L149.66,157.17 L150.86,155.87 L152.09,154.59 L153.33,153.33 L154.59,152.09 L155.87,150.86 L157.17,149.66 L158.48,148.46 L159.82,147.29 L161.17,146.13 L162.54,144.99 L163.92,143.86 L165.33,142.75 L166.76,141.66 L168.20,140.58 L169.67,139.52 L171.15,138.48 L172.66,137.45 L174.19,136.44 L175.73,135.44 L177.30,134.46 L178.89,133.49 L180.50,132.54 L182.14,131.60 L183.79,130.68 L185.47,129.77 L187.17,128.88 L188.90,128.00 L190.65,127.13 L192.42,126.29 L194.22,125.45 L196.04,124.63 L197.89,123.83 L199.76,123.04 L201.66,122.26 L203.59,121.50 L205.55,120.75 L207.53,120.01 L209.55,119.29 L211.59,118.59 L213.66,117.89 L215.77,117.21 L217.90,116.55 L220.07,115.90 L222.27,115.26 L224.51,114.64 L226.78,114.02 L229.09,113.43 L231.44,112.84 L233.82,112.27 L236.24,111.72 L238.71,111.17 L241.21,110.64 L243.76,110.12 L246.36,109.62 L249.00,109.13 L251.69,108.65 L254.43,108.19 L257.23,107.74 L260.07,107.30 L262.98,106.87 L265.94,106.46 L268.97,106.06 L272.06,105.67 L275.22,105.30 L278.46,104.94 L281.77,104.59 L285.15,104.26 L288.63,103.93 L292.19,103.63 L295.85,103.33 L299.61,103.04 L303.48,102.77 L307.47,102.52 L311.58,102.27 L315.83,102.04 L320.23,101.82 L324.79,101.61 L329.54,101.41 L334.48,101.23 L339.64,101.06 L345.05,100.90 L350.74,100.76 L356.76,100.63 L363.15,100.51 L369.99,100.40 L377.36,100.31 L385.40,100.23 L394.30,100.16 L404.35,100.10 L416.05,100.06 L430.41,100.03 L450.17,100.01 L512.00,100.00 L573.83,100.01 L593.59,100.03 L607.95,100.06 L619.65,100.10 L629.70,100.16 L638.60,100.23 L646.64,100.31 L654.01,100.40 L660.85,100.51 L667.24,100.63 L673.26,100.76 L678.95,100.90 L684.36,101.06 L689.52,101.23 L694.46,101.41 L699.21,101.61 L703.77,101.82 L708.17,102.04 L712.42,102.27 L716.53,102.52 L720.52,102.77 L724.39,103.04 L728.15,103.33 L731.81,103.63 L735.37,103.93 L738.85,104.26 L742.23,104.59 L745.54,104.94 L748.78,105.30 L751.94,105.67 L755.03,106.06 L758.06,106.46 L761.02,106.87 L763.93,107.30 L766.77,107.74 L769.57,108.19 L772.31,108.65 L775.00,109.13 L777.64,109.62 L780.24,110.12 L782.79,110.64 L785.29,111.17 L787.76,111.72 L790.18,112.27 L792.56,112.84 L794.91,113.43 L797.22,114.02 L799.49,114.64 L801.73,115.26 L803.93,115.90 L806.10,116.55 L808.23,117.21 L810.34,117.89 L812.41,118.59 L814.45,119.29 L816.47,120.01 L818.45,120.75 L820.41,121.50 L822.34,122.26 L824.24,123.04 L826.11,123.83 L827.96,124.63 L829.78,125.45 L831.58,126.29 L833.35,127.13 L835.10,128.00 L836.83,128.88 L838.53,129.77 L840.21,130.68 L841.86,131.60 L843.50,132.54 L845.11,133.49 L846.70,134.46 L848.27,135.44 L849.81,136.44 L851.34,137.45 L852.85,138.48 L854.33,139.52 L855.80,140.58 L857.24,141.66 L858.67,142.75 L860.08,143.86 L861.46,144.99 L862.83,146.13 L864.18,147.29 L865.52,148.46 L866.83,149.66 L868.13,150.86 L869.41,152.09 L870.67,153.33 L871.91,154.59 L873.14,155.87 L874.34,157.17 L875.54,158.48 L876.71,159.82 L877.87,161.17 L879.01,162.54 L880.14,163.92 L881.25,165.33 L882.34,166.76 L883.42,168.20 L884.48,169.67 L885.52,171.15 L886.55,172.66 L887.56,174.19 L888.56,175.73 L889.54,177.30 L890.51,178.89 L891.46,180.50 L892.40,182.14 L893.32,183.79 L894.23,185.47 L895.12,187.17 L896.00,188.90 L896.87,190.65 L897.71,192.42 L898.55,194.22 L899.37,196.04 L900.17,197.89 L900.96,199.76 L901.74,201.66 L902.50,203.59 L903.25,205.55 L903.99,207.53 L904.71,209.55 L905.41,211.59 L906.11,213.66 L906.79,215.77 L907.45,217.90 L908.10,220.07 L908.74,222.27 L909.36,224.51 L909.98,226.78 L910.57,229.09 L911.16,231.44 L911.73,233.82 L912.28,236.24 L912.83,238.71 L913.36,241.21 L913.88,243.76 L914.38,246.36 L914.87,249.00 L915.35,251.69 L915.81,254.43 L916.26,257.23 L916.70,260.07 L917.13,262.98 L917.54,265.94 L917.94,268.97 L918.33,272.06 L918.70,275.22 L919.06,278.46 L919.41,281.77 L919.74,285.15 L920.07,288.63 L920.37,292.19 L920.67,295.85 L920.96,299.61 L921.23,303.48 L921.48,307.47 L921.73,311.58 L921.96,315.83 L922.18,320.23 L922.39,324.79 L922.59,329.54 L922.77,334.48 L922.94,339.64 L923.10,345.05 L923.24,350.74 L923.37,356.76 L923.49,363.15 L923.60,369.99 L923.69,377.36 L923.77,385.40 L923.84,394.30 L923.90,404.35 L923.94,416.05 L923.97,430.41 L923.99,450.17 Z" fill="none" stroke="url(#rim)" stroke-width="7"/>
+</g>
+</svg></script>
+<script>
+'use strict';
+const B = 33, HC = 90, NO = 154, BW = 232;
+const CW = 380, CY = 44, FW = 420, FH = 404, FY = 44;
+const HCC = B + 14 + 28 + 12 + 96 + 10 + 76 + 10 + 40 + 14;      // hauteur du Centre (333)
+const Q = new URLSearchParams(location.search);
+const racine = document.documentElement;
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const f2 = v => Math.round(v * 100) / 100;
+const mid = t => (B - t) / 2;
+let K = 1;
+const FIGE = Q.has('fige');
+const REDUIT = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (FIGE) racine.classList.add('fige');
+
+/* l'icône officielle, en ligne (clair et sombre) */
+const svgUrl = id => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent($(id).textContent.trim());
+const IC_CLAIR = svgUrl('#svgClair'), IC_SOMBRE = svgUrl('#svgSombre');
+
+/* ===================== forme de l'îlot (reprise de ilot-centre.html) ===================== */
+const PORTEE = 1.6, POIGNEE = 0.18;
+function cote(g, n, bw){
+  const corps = Math.max(0, g.h - B), u = Math.min(corps, 40) / 40, e = 1 - Math.pow(1 - u, 2.5);
+  const d = Math.max(0, bw - n) * e, W = n + d, serre = 1 - clamp((n - HC) / 24, 0, 1);
+  const rs = g.rs + (4 - g.rs) * serre, rbv = lerp(g.rb + (8 - g.rb) * serre, g.rb, clamp(corps / 12, 0, 1));
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6), dispo = (1 - lam) * (g.h - rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(rbv, dispo / PORTEE, W / PORTEE));
+  return {n, W, d, fe, rte, rbe, rs};
+}
+function chemin(g){
+  const h = g.h, L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd), X = f2, Y = f2;
+  const a1 = PORTEE * L.rte, c1 = POIGNEE * a1, a2 = PORTEE * L.rbe, c2 = POIGNEE * a2;
+  const b1 = PORTEE * D.rte, d1 = POIGNEE * b1, b2 = PORTEE * D.rbe, d2 = POIGNEE * b2;
+  let p = `M${X(-L.n - L.rs)} ${Y(-1)}L${X(-L.n - L.rs)} 0Q${X(-L.n)} 0 ${X(-L.n)} ${Y(L.rs)}`;
+  if (L.d > 0.5) p += `L${X(-L.n)} ${Y(B - L.fe)}Q${X(-L.n)} ${B} ${X(-L.n - L.fe)} ${B}L${X(-L.W + a1)} ${B}C${X(-L.W + c1)} ${B} ${X(-L.W)} ${Y(B + c1)} ${X(-L.W)} ${Y(B + a1)}`;
+  p += `L${X(-L.W)} ${Y(h - a2)}C${X(-L.W)} ${Y(h - c2)} ${X(-L.W + c2)} ${Y(h)} ${X(-L.W + a2)} ${Y(h)}`;
+  p += `L${X(D.W - b2)} ${Y(h)}C${X(D.W - d2)} ${Y(h)} ${X(D.W)} ${Y(h - d2)} ${X(D.W)} ${Y(h - b2)}`;
+  if (D.d > 0.5) p += `L${X(D.W)} ${Y(B + b1)}C${X(D.W)} ${Y(B + d1)} ${X(D.W - d1)} ${B} ${X(D.W - b1)} ${B}L${X(D.n + D.fe)} ${B}Q${X(D.n)} ${B} ${X(D.n)} ${Y(B - D.fe)}`;
+  p += `L${X(D.n)} ${Y(D.rs)}Q${X(D.n)} 0 ${X(D.n + D.rs)} 0L${X(D.n + D.rs)} ${Y(-1)}Z`;
+  return p;
+}
+const CLES = ['ng', 'nd', 'bw', 'bd', 'h', 'rs', 'rb', 'rt', 'f'];
+const REPOS = {ng:HC, nd:HC, bw:HC, bd:HC, h:B, rs:4, rb:8, rt:0, f:0};
+const compact = (g, d) => ({ng:g, nd:d, bw:g, bd:d, h:B, rs:6, rb:10, rt:0, f:0});
+const bandeau = (w, h, n) => ({ng:n, nd:n, bw:w, bd:w, h, rs:6, rb:30, rt:16, f:10});
+$('#encoche').setAttribute('d', chemin(REPOS));
+
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = .8; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){ this.attente -= dt; if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; } }
+    const w = 2 * Math.PI / this.rep, a = w * w * (this.cible - this.x) - 2 * this.z * w * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+(function(){
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){ pts.push(x); for (let s = 0, n = Math.round((T / N) / dt); s < n; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; } }
+  pts[pts.length - 1] = 1;
+  racine.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+/* ===================== glyphes ===================== */
+const micro = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const etoile = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20">${[0, 30, 60, 90, 120, 150].map(a => `<rect x="9" y="1.5" width="2" height="17" rx="1" fill="${c}" transform="rotate(${a} 10 10)"/>`).join('')}</svg>`;
+const plateauG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M2.6 11.2 4.9 4.6A2 2 0 0 1 6.8 3.3h6.4a2 2 0 0 1 1.9 1.3l2.3 6.6v4a2 2 0 0 1-2 2H4.6a2 2 0 0 1-2-2z"/><path d="M2.8 11.2h4.1l1 2.2h4.2l1-2.2h4.1"/></svg>`;
+const guillemets = (t, c = '#fff') => `<svg width="${t}" height="${f2(t * .7)}" viewBox="-.45 -.3 3 2.1"><g fill="${c}"><path d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><path transform="translate(1.1 0)" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/></g></svg>`;
+const chev = (t, c, d = 'd') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d === 'g' ? 'M12.5 4.5 7 10l5.5 5.5' : 'M7.5 4.5 13 10l-5.5 5.5'}"/></svg>`;
+const hautBas = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 12 12" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.6 6 2.2l2.5 2.4M3.5 7.4 6 9.8l2.5-2.4"/></svg>`;
+const coche = (t, c, w = 2) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.6 12.8 4.6"/></svg>`;
+const loupe = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><circle cx="6.9" cy="6.9" r="4.9"/><path d="M10.6 10.6 14.2 14.2"/></svg>`;
+const trait = (d, t = 16, c = 'currentColor', w = 1.7) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const globe = (t, c) => trait('<circle cx="10" cy="10" r="7.6"/><path d="M2.6 10h14.8M10 2.4c2.2 2.2 3.2 4.8 3.2 7.6s-1 5.4-3.2 7.6c-2.2-2.2-3.2-4.8-3.2-7.6s1-5.4 3.2-7.6z"/>', t, c, 1.4);
+const minuteurG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><circle cx="12" cy="13.4" r="7.6" fill="none" stroke="${c}" stroke-width="2.1"/><path d="M12 13.4V9.2M9.5 2.8h5" stroke="${c}" stroke-width="2.1" stroke-linecap="round"/></svg>`;
+const cloche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><path fill="${c}" d="M12 2.6c-3.3 0-5.8 2.6-5.8 5.9v3.6l-1.6 2.9c-.5.9.1 1.9 1.1 1.9h12.6c1 0 1.6-1 1.1-1.9l-1.6-2.9V8.5c0-3.3-2.5-5.9-5.8-5.9zM9.4 18.7a2.7 2.7 0 0 0 5.2 0z"/></svg>`;
+const doc = (t, coul = '#ff453a', lbl = 'PDF') => `<svg width="${f2(t * 0.8)}" height="${t}" viewBox="0 0 32 40"><path d="M4 1h17l10 10v26a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="#fff" stroke="rgba(0,0,0,.14)" stroke-width=".8"/><path d="M21 1v8a2 2 0 0 0 2 2h8" fill="#d8d8dd"/><rect x="5" y="24" width="22" height="9" rx="2" fill="${coul}"/><text x="16" y="31" text-anchor="middle" font-size="7" font-weight="800" fill="#fff" font-family="-apple-system,sans-serif">${lbl}</text></svg>`;
+let nImg = 0;
+const image = (w, h, a, b) => { const id = 'im' + (nImg++); return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="${w}" height="${h}" rx="4" fill="url(#${id})" stroke="rgba(0,0,0,.12)" stroke-width=".6"/><circle cx="${w * .72}" cy="${h * .3}" r="${h * .12}" fill="#fff" opacity=".6"/><path d="M0 ${h * .78}L${w * .35} ${h * .5}L${w * .6} ${h * .72}L${w} ${h * .55}V${h}H0z" fill="#000" opacity=".16"/></svg>`; };
+const G = {
+  visio:'<rect x="2.4" y="5.4" width="11" height="9.2" rx="2"/><path d="m13.4 9 4.2-2.6v7.2L13.4 11"/>',
+  main:'<path d="M7 9.6V4.4a1.3 1.3 0 0 1 2.6 0v4.8M9.6 8.6V3.4a1.3 1.3 0 0 1 2.6 0v5.4M12.2 8.8V5a1.3 1.3 0 0 1 2.6 0v6.6c0 3.2-2 5.6-5 5.6-2.4 0-3.6-1.2-5-3.4L3 11.6a1.3 1.3 0 0 1 2.1-1.5L7 12"/>',
+  cle:'<circle cx="6.6" cy="10" r="3.4"/><path d="M10 10h7.4M14.6 10v2.6M16.8 10v1.8"/>',
+  cadenas:'<rect x="4" y="9" width="12" height="8.4" rx="2"/><path d="M6.8 9V6.6a3.2 3.2 0 0 1 6.4 0V9"/>',
+  ilot:'<rect x="3" y="4" width="14" height="6" rx="3"/><path d="M5 14h10M7 17h6"/>',
+  reu:'<circle cx="7" cy="7" r="2.6"/><circle cx="13.6" cy="7.6" r="2.1"/><path d="M2.4 16.2c.6-2.6 2.3-4 4.6-4s4 1.4 4.6 4M12.2 11.7c2.4-.4 4.5 1 5.2 3.8"/>',
+  bulle:'<path d="M3.4 9.6a6.6 6.6 0 1 1 3 5.5L3 16.4l1-3.2a6.5 6.5 0 0 1-.6-3.6z"/>',
+  fleche:'<path d="M10 3v10M6 9.4l4 4 4-4M4 17h12"/>',
+};
+const FLECHE_PT = '<svg class="fl" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.8"/></svg>';
+const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
+const MENUS = {Finder:['Fichier', 'Édition', 'Présentation', 'Aller', 'Fenêtre', 'Aide'], Lucarne:['Fichier', 'Édition', 'Présentation', 'Fenêtre', 'Aide'], 'Réglages Système':['Édition', 'Présentation', 'Fenêtre', 'Aide']};
+(function(){
+  const s = d => `<span><svg viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg></span>`;
+  $('#etats').innerHTML = '<span class="heure">Jeu. 12 nov.&nbsp; 9:41</span>' +
+    s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
+    s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
+    s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>';
+})();
+
+/* ===================== la carte : une question à la fois ===================== */
+const ORDRE_Q = ['micro', 'acces', 'fn', 'groq', 'essai'];
+const touche = (cls = '') => `<div class="touche ${cls}"><span class="lbl">fn</span><span class="glb">${globe(17, '#f2f2f4')}</span></div>`;
+const PANES = {
+  bien:`<div class="pane" data-q="bien"><img class="icone-g ic-clair" alt=""><h1>Bonjour</h1>
+    <p>Lucarne vit dans l’encoche de ton Mac. Tiens fn, parle : le texte s’écrit là où tu es.</p>
+    <div class="act"><button class="prim" id="btCommencer">Commencer</button></div><div class="second">Cinq petites étapes, deux minutes.</div></div>`,
+  micro:`<div class="pane" data-q="micro"><div class="ill"><div class="mic"><i class="onde-r"></i><i class="onde-r"></i><i class="onde-r"></i>
+      <div class="disque"><span class="m">${micro(30, '#0a84ff')}</span><span class="v">${coche(28, '#fff', 2.6)}</span></div></div></div>
+    <h2>Le micro</h2><p>Pour t’entendre quand tu dictes. Il n’écoute que pendant que tu tiens fn.</p>
+    <div class="act"><button class="prim">Autoriser le micro</button><span class="ok"><i>${coche(14, '#fff', 2.4)}</i>Le micro est prêt</span></div><div class="second">Plus tard</div></div>`,
+  acces:`<div class="pane" data-q="acces"><div class="ill"><div class="doc-ill"><div class="fe"><i></i><i></i><i></i></div>
+      <div class="tape"><span>Bonjour Claire,</span><i class="caret"></i></div><div class="gris" style="width:88%"></div><div class="gris" style="width:62%"></div>
+      <div class="badge"><span class="m">${trait(G.main, 22, '#1d1d1f', 1.6)}</span><span class="v">${coche(20, '#fff', 2.6)}</span></div></div></div>
+    <h2>Écrire dans tes apps</h2><p>macOS appelle ça « Accessibilité ». Lucarne pose ainsi le texte là où est ton curseur.</p>
+    <div class="act"><button class="prim">Ouvrir le bon volet</button><span class="ok"><i>${coche(14, '#fff', 2.4)}</i>Lucarne peut écrire</span></div><div class="second">Plus tard</div></div>`,
+  fn:`<div class="pane" data-q="fn"><div class="ill"><div class="fn-ill">${touche('anime')}
+      <div class="choix"><span class="barre">Afficher les émojis</span><span class="bon">${coche(12, 'currentColor', 2.4)}Ne rien faire</span></div></div></div>
+    <h2>La touche fn</h2><p>Elle ouvre aussi les émojis. Choisis « Ne rien faire » pour la touche globe : elle est à toi.</p>
+    <div class="act"><button class="prim">Ouvrir le volet Clavier</button><span class="ok"><i>${coche(14, '#fff', 2.4)}</i>fn est à toi</span></div><div class="second">Plus tard</div></div>`,
+  groq:`<div class="pane" data-q="groq"><div class="ill"><div><div class="cle" id="cle">${trait(G.cle, 20, 'rgba(0,0,0,.45)')}<span class="val" id="cleV">gsk_…</span><span class="etat"><i class="tourne"></i><span class="v" id="cleOk"></span></span></div>
+      <div class="cle-sous">Gratuite pour commencer, créée en un clic.</div></div></div>
+    <h2>La clé Groq</h2><p>Groq change ta voix en texte, en moins d’une seconde. La clé reste sur ce Mac.</p>
+    <div class="act"><button class="prim">Coller ma clé</button><span class="ok"><i>${coche(14, '#fff', 2.4)}</i>Clé vérifiée</span></div><div class="second"><span class="lien">Créer une clé gratuite</span></div></div>`,
+  essai:`<div class="pane" data-q="essai"><div class="ill"><div class="es"><div class="es-champ" id="esChamp"><span id="esTexte"></span><i class="caret"></i></div>
+      <div class="es-bas">${touche('').replace('touche ', 'touche" id="esTouche')}<div class="niveau" id="niveau"></div></div></div></div>
+    <h2>Essaie</h2><p>Tiens fn et dis « bonjour ». Lâche la touche : le texte s’écrit ici.</p>
+    <div class="act"><div class="es-etat" id="esEtat">En attente de ta voix</div>
+      <div class="bravo"><div class="coche-r"><svg viewBox="0 0 34 34"><circle class="c1" cx="17" cy="17" r="16" fill="none" stroke="#30c759" stroke-width="2.2" transform="rotate(-90 17 17)"/><path class="c2" d="M10.5 17.5l4.3 4.2 8.7-9.2" fill="none" stroke="#30c759" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>Parfait. Lucarne est prête.</div></div>
+    <div class="second">La carte va rentrer dans l’encoche.</div></div>`,
+};
+$('#panes').innerHTML = Object.values(PANES).join('');
+const pane = q => $(`.pane[data-q="${q}"]`);
+$('#niveau').innerHTML = Array.from({length:22}, () => '<i></i>').join('');
+
+/* ===================== la fenêtre : pages ===================== */
+const ligne = (ico, t, s, droite = '', cls = '') => `<div class="ligne ${cls}">${ico}<div class="tx"><b>${t}</b>${s ? `<span>${s}</span>` : ''}</div>${droite}</div>`;
+const ic = (cls, g) => `<span class="ico ${cls}">${g}</span>`;
+const sw = (on, id = '') => `<span class="sw${on ? ' on' : ''}"${id ? ` id="${id}"` : ''}></span>`;
+const barresH = [2, 5, 9, 14, 11, 6, 4, 8, 12, 7, 3, 1];
+const P_AUJ = `<section class="page" data-page="aujourdhui">
+  <div class="au-date">Jeudi 12 novembre</div>
+  <div class="au-stat"><div><div><b class="gros">46</b><span class="u">dictées</span></div><p>Environ 50 minutes gagnées sur le clavier.</p></div>
+    <div class="barres">${barresH.map(h => `<i class="${h >= 12 ? 'vif' : ''}" style="height:${f2(h / 14 * 100)}%"></i>`).join('')}</div></div>
+  <div class="groupe">
+    ${ligne(ic('rouge', trait(G.visio, 16, '#fff')), 'Point fournisseurs', '15:00 · dans 30 minutes', '<button class="capsule">Noter</button>')}
+    ${ligne(ic('jaune', cloche(16, '#fff')), 'Appeler le garage', 'Rappel à 17:00, dicté ce matin')}
+    ${ligne(ic('corail', etoile(15, '#fff')), 'Claude Code', 'site-boutique · écrit les tests', '<span class="val">3 sur 7<span class="prog"><b></b></span></span>')}
+  </div>
+  <div class="groupe">
+    ${ligne(ic('bleu', plateauG(16, '#fff')), 'Étagère', '3 fichiers t’attendent', `<div class="vignettes">${doc(30)}${image(34, 26, '#e7b07a', '#a8623a')}${doc(30, '#0a84ff', 'DOC')}</div>`)}
+  </div>
+</section>`;
+const DECOUVRIR = [
+  {k:'centre', dl:-1.8, c:'k-centre', t:'Le Centre', p:'Survole l’encoche : micro, minuteur, étagère, à un clic.', m:`<i class="mn"></i><div class="ronds"><i></i><i></i><i></i><i></i></div>${FLECHE_PT}`},
+  {k:'etagere', dl:-1.6, c:'k-eta', t:'L’étagère', p:'Glisse un fichier sur l’encoche : il t’attend là.', m:'<i class="mn"></i><i class="pile"></i><i class="doc"></i>'},
+  {k:'minuteur', dl:-2.4, c:'k-min', t:'Minuteur', p:'5, 10 ou 25 minutes. Le temps reste dans l’encoche.', m:'<i class="mn"></i><i class="t"></i><div class="caps"><i></i><i></i><i></i></div><i class="anneau"></i>'},
+  {k:'rappel', dl:-2.9, c:'k-rap', t:'Rappels par la voix', p:'Tiens fn : « rappelle-moi d’appeler le garage à 17 h ».', m:'<i class="mn"></i><div class="eqm"><i></i><i></i><i></i></div><div class="bulle"><i></i><b></b></div><i class="cle"></i>'},
+  {k:'reunion', dl:-2.6, c:'k-reu', t:'Réunions', p:'Un clic : Lucarne écoute et écrit la note pour toi.', m:'<i class="mn"><i class="pr"></i></i><div class="mfen"><div class="ph" style="--q:#c98b5a"><b></b><i style="width:24px"></i></div><div class="ph" style="--q:#8a8f98"><b></b><i style="width:18px"></i></div><div class="ph" style="--q:#6f93c4"><b></b><i style="width:26px"></i></div></div>'},
+  {k:'claude', dl:-1.6, c:'k-cl', t:'Claude Code', p:'Où en sont tes sessions, et qui attend ta réponse.', m:`<i class="mn"><span class="et">${etoile(5, '#e8835c')}</span></i><div class="mfen"><i class="li" style="left:6px;width:26px;top:6px"></i><div class="barre"><b></b></div></div>`},
+  {k:'deplacer', dl:-2.7, c:'k-dep', t:'Lucarne déplaçable', p:'Reste appuyé sur l’encoche, puis glisse-la où tu veux.', m:`<i class="pl"></i><i class="an"></i>${FLECHE_PT}`},
+];
+const P_DEC = `<section class="page" data-page="decouvrir">
+  <p class="de-intro">Ce que fait l’îlot, en sept gestes. « Essayer » le fait faire à la vraie encoche.</p>
+  <div class="groupe">${DECOUVRIR.map(d => `<div class="de-l" data-de="${d.k}"><div class="mini ${d.c}" data-dl="${d.dl}">${d.m}</div><div class="tx"><b>${d.t}</b><span>${d.p}</span></div><button class="capsule" data-essayer="${d.k}">Essayer</button></div>`).join('')}</div>
+</section>`;
+const P_REU = `<section class="page" data-page="reunions" style="padding:0">
+  <div class="reu" id="reu">
+    <div class="reu-l">
+      <div class="champ" style="margin-top:2px">${loupe(13, 'currentColor')}Rechercher dans tes réunions</div>
+      <div class="g-titre" style="margin-top:14px">Aujourd’hui</div>
+      <div class="groupe">${ligne(ic('rouge', trait(G.reu, 16, '#fff')), 'Lancement de la boutique en ligne', '14:02 · 29 min · 4 personnes', chev(14, 'rgba(0,0,0,.3)'), 'reu-r" id="reu1')}</div>
+      <div class="g-titre">Cette semaine</div>
+      <div class="groupe">
+        ${ligne(ic('gris', trait(G.reu, 16, '#fff')), 'Point fournisseur emballages', 'Lundi · 18 min · 2 personnes', chev(14, 'rgba(0,0,0,.3)'), 'reu-r')}
+        ${ligne(ic('gris', trait(G.visio, 16, '#fff')), 'Appel avec la comptable', 'Mardi · 42 min · 2 personnes', chev(14, 'rgba(0,0,0,.3)'), 'reu-r')}
+        ${ligne(ic('gris', trait(G.reu, 16, '#fff')), 'Visite de l’atelier', 'Mardi · 25 min · 3 personnes', chev(14, 'rgba(0,0,0,.3)'), 'reu-r')}
+      </div>
+    </div>
+    <div class="reu-n">
+      <div class="retour">${chev(15, 'currentColor', 'g')}Réunions</div>
+      <h2 class="n-titre">Lancement de la boutique en ligne</h2>
+      <div class="n-meta">Aujourd’hui, 14:02 · 29 min · Claire, Marc, Inès et toi</div>
+      <p class="n-bref">Site en ligne le 2 décembre, textes attendus le 25.</p>
+      <div class="g-titre">Décisions</div>
+      <div class="groupe"><div class="n-l">${coche(15, '#30c759', 2.2)}Mise en ligne le 2 décembre</div><div class="n-l">${coche(15, '#30c759', 2.2)}Les avis clients passent sous les photos</div></div>
+      <div class="g-titre">Qui fait quoi</div>
+      <div class="groupe"><div class="n-l"><i class="case"></i>Écrire les 40 fiches produits<span class="qui">Toi · lundi</span></div><div class="n-l"><i class="case"></i>Réserver la séance photo<span class="qui">Inès · avant le 20</span></div></div>
+    </div>
+    <div class="n-dem" id="nDem">${trait(G.bulle, 15)}Demander à cette réunion… « Qui fait les photos ? »</div>
+  </div>
+</section>`;
+const P_REG = `<section class="page re-l" data-page="reglages">
+  <div class="g-titre">Dictée</div>
+  <div class="groupe">
+    ${ligne(ic('bleu', micro(16, '#fff')), 'Dicter', 'Tiens fn, parle, lâche.', '<span class="val">Tenir <span class="fnt">fn</span></span>')}
+    ${ligne(ic('bleu', guillemets(14)), 'Mains libres', 'Deux appuis sur fn, un pour finir.', sw(true))}
+    ${ligne(ic('bleu', trait('<path d="M4 6h12M4 10h8M4 14h10"/>', 16, '#fff')), 'Remettre au propre', 'Ponctuation, sans les « euh ».', sw(true))}
+  </div>
+  <div class="g-titre">L’îlot</div>
+  <div class="groupe">
+    ${ligne(ic('noir', trait(G.ilot, 16, '#fff')), 'Ce que montre l’encoche', 'Musique, étagère, Claude, batterie…', `<span class="val">7 sur 9 ${chev(13, 'rgba(0,0,0,.3)')}</span>`)}
+    ${ligne(ic('noir', trait('<path d="M10 3v14M3 10h14M10 3 8 5M10 3l2 2M10 17l-2-2M10 17l2-2"/>', 16, '#fff')), 'Volume et luminosité', 'Dans l’encoche, plus au milieu de l’écran.', sw(false, 'swVol'))}
+  </div>
+  <div class="g-titre">Réunions</div>
+  <div class="groupe">
+    ${ligne(ic('rouge', trait(G.reu, 16, '#fff')), 'Proposer de noter les appels', 'Quand une visio prend le micro.', sw(true))}
+  </div>
+  <div class="g-titre">Confidentialité</div>
+  <div class="groupe">
+    ${ligne(ic('vert', trait(G.cadenas, 16, '#fff')), 'Presque tout reste sur ce Mac', 'Seul le son de ta dictée part chez Groq, pour l’écrire.', chev(13, 'rgba(0,0,0,.3)'))}
+  </div>
+  <div class="g-titre">Compte</div>
+  <div class="groupe">
+    ${ligne(ic('gris', trait(G.cle, 16, '#fff')), 'Clé Groq', 'Gardée sur ce Mac.', `<span class="val" style="color:#1a7f37">${coche(13, '#30c759', 2.4)}Vérifiée</span>`)}
+    ${ligne(`<img src="${IC_SOMBRE}" alt="" style="width:28px;height:28px">`, 'Revoir la mise en route', 'Les cinq étapes, et l’essai.', chev(13, 'rgba(0,0,0,.3)'))}
+  </div>
+</section>`;
+$('#pages').innerHTML = P_AUJ + P_DEC + P_REU + P_REG;
+$$('.ic-clair').forEach(i => i.src = IC_CLAIR);
+/* chaque vignette démarre au milieu de son geste (et une image figée montre le geste) */
+$$('.mini').forEach(m => { const dl = +m.dataset.dl; m.querySelectorAll('*').forEach(e => { const cs = getComputedStyle(e); if (cs.animationName !== 'none') e.style.animationDelay = f2(parseFloat(cs.animationDelay) + dl) + 's'; }); });
+
+/* ===================== l'îlot : contenus ===================== */
+const contenu = $('#contenu'), c = {};
+function place(nom, x, y, html){ const n = document.createElement('div'); n.className = 'c e'; n.style.left = (500 + x) + 'px'; n.style.top = y + 'px'; n.innerHTML = html; contenu.appendChild(n); c[nom] = n; }
+place('naitre', -15, B + (72 - B - 30) / 2, `<span class="naitre"><img src="${IC_CLAIR}" alt=""></span>`);
+place('micG', -126, mid(16), micro(16, '#fff'));
+place('onde', 104, mid(14), '<div class="eq"><i></i><i></i><i></i><i></i><i></i></div>');
+place('okD', 104, mid(16), coche(16, '#5fe08a'));
+place('pret', HC + 9, mid(17), `<div class="aile" style="color:#5fe08a">${coche(15, '#5fe08a', 2.2)}<span style="color:#fff">Prête</span></div>`);
+place('minD', HC + 10, mid(17), `<div class="aile" style="color:var(--ambre)">${minuteurG(15, 'var(--ambre)')}9:59</div>`);
+place('recG', -122, mid(10), '<i style="display:block;width:10px;height:10px;border-radius:50%;background:var(--rouge);animation:pouls 1.2s ease-in-out infinite"></i>');
+place('recD', 96, mid(17), '<div class="aile" style="color:#ff8a82">0:04</div>');
+place('clG', -126, mid(16), `<div style="width:16px;height:16px;animation:tourne 6s linear infinite">${etoile(16, '#e8835c')}</div>`);
+place('clD', 101, mid(17), '<div class="aile">3/7</div>');
+place('etaG', -126, mid(17), `<div class="aile">${plateauG(15)}1</div>`);
+place('rapB', -150, B + 13, `<div style="display:flex;align-items:center;gap:12px;width:300px"><span style="width:34px;height:34px;border-radius:50%;background:rgba(255,214,10,.18);display:grid;place-items:center">${cloche(18, 'var(--jaune)')}</span><div><div style="font-size:14px;font-weight:600">Appeler le garage</div><div style="font-size:12px;color:rgba(255,255,255,.55);margin-top:1px">Rappel à 17:00</div></div></div>`);
+const tuile = (cls, gl, b, i) => `<div class="tg ${cls}"><span class="rd">${gl}</span><b>${b}</b><i>${i}</i></div>`;
+place('centre', -BW + 16, B + 14, `<div class="cc">
+  <div class="cc-tete"><button class="pil app" id="btLucarne"><img src="${IC_CLAIR}" alt="">Lucarne</button><span class="sp"></span><span class="cc-t">Centre</span><span class="sp"></span><button class="pil">Modifier</button></div>
+  <div class="cc-ronds">${tuile('', micro(24, '#fff'), 'Micro', 'Ouvert')}${tuile('', guillemets(20), 'Dictées', '46 aujourd’hui')}${tuile('corail', etoile(22, '#fff'), 'Claude Code', '3 sur 7')}${tuile('', cloche(23, 'var(--jaune)'), 'Rappel', 'Dire un rappel')}</div>
+  <div class="cc-larges">
+    <div class="tl"><div class="tl-t">${minuteurG(17, 'var(--ambre)')}Minuteur</div><div class="tl-caps"><span class="cap">5</span><span class="cap">10</span><span class="cap">25</span><span class="tl-u">min</span></div></div>
+    <div class="tl tl-eta"><div class="tl-t">${plateauG(17, '#5eb0ff')}Étagère</div><div class="eta-vide">Glisse un fichier ici</div></div>
+  </div>
+  <div class="tr"><span class="tr-pt"></span><span>Noter la réunion</span><span class="tr-s">Lucarne écrit tout</span></div>
+</div>`);
+
+/* ===================== moteur (repris de ilot-centre.html) ===================== */
+let jeton = 0, instant = false, enCoursN = 0, cibleN = 0, auto = false;
+const minuteries = new Set();
+function apres(t, fn){ const id = setTimeout(() => { minuteries.delete(id); fn(); }, t * 1000 * K); minuteries.add(id); return id; }
+function annuler(){ minuteries.forEach(clearTimeout); minuteries.clear(); }
+function suite(){ const j = jeton; return Promise.resolve().then(() => { if (j !== jeton) throw 'stop'; }); }
+function attendre(t){ if (instant) return suite(); const j = jeton; return new Promise((ok, ko) => apres(t, () => (j === jeton ? ok() : ko('stop')))); }
+function tween(duree, fn){
+  if (instant){ fn(1); return suite(); }
+  const j = jeton, t0 = performance.now();
+  return new Promise((ok, ko) => { const pas = () => { if (j !== jeton) return ko('stop'); const u = clamp((performance.now() - t0) / (duree * 1000 * K), 0, 1); fn(u); if (u < 1) requestAnimationFrame(pas); else ok(); }; pas(); });
+}
+const facile = u => 1 - Math.pow(1 - u, 3);
+const douce = u => u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+const forme = $('#forme'), ombre = $('#ombre');
+const R = {}; CLES.forEach(k => R[k] = new Ressort(REPOS[k]));
+const TOUS = CLES.map(k => R[k]);
+let cible = {...REPOS}, enCours = false, tPrec = 0;
+function ilot(g, o = {}){
+  const grand = (g.bw + g.bd) * g.h >= (cible.bw + cible.bd) * cible.h - .5;
+  const rep = o.rep ?? (grand ? .46 : .38), z = o.z ?? (grand ? .78 : 1), att = o.attente ?? (grand ? 0 : .06);
+  cible = {...g};
+  for (const k of CLES){ if (instant) R[k].poser(g[k]); else { const haut = k === 'h' && grand; R[k].viser(g[k], haut ? rep * 1.06 : rep, z, att + (haut ? .02 : 0)); } }
+  demarrer();
+}
+function montre(noms, d = .14){
+  const vus = new Set(noms);
+  for (const nom in c){ const n = c[nom], on = vus.has(nom); if (on && !n.classList.contains('on')) n.style.setProperty('--d', d + 's'); n.classList.toggle('on', on); }
+}
+function demarrer(){ if (FIGE || instant){ rendu(); return; } if (!enCours){ enCours = true; tPrec = performance.now(); requestAnimationFrame(boucle); } }
+function boucle(){
+  const t = performance.now(), dt = clamp((t - tPrec) / 1000, 0, .05) / K; tPrec = t;
+  const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+  for (let i = 0; i < n; i++) for (const r of TOUS) r.pas(h);
+  let bouge = false; for (const r of TOUS) if (!r.pose()) bouge = true;
+  rendu();
+  if (bouge) requestAnimationFrame(boucle); else enCours = false;
+}
+function rendu(){
+  const g = {}; for (const k of CLES) g[k] = R[k].x;
+  forme.setAttribute('d', chemin(g));
+  const a = clamp((g.h - B - 6) / 40, 0, 1);
+  ombre.style.filter = a > .01 ? `drop-shadow(0 ${(9 * a).toFixed(1)}px ${(18 * a).toFixed(1)}px rgba(10,20,40,${(.32 * a).toFixed(3)}))` : 'none';
+  VERRES.forEach(v => v.rendu());
+}
+
+/* ===================== le verre « Liquide » : lentille sur les bords (reprise de lucarne-position.html) ===================== */
+const cartes = new Map();
+function carte(w, h, rr, bande){
+  const qw = Math.max(16, Math.round(w / 8) * 8), qh = Math.max(16, Math.round(h / 8) * 8);
+  const qr = Math.min(Math.round(rr), qw / 2, qh / 2), qb = Math.max(4, Math.round(bande)), cle = `${qw}x${qh}x${qr}x${qb}`;
+  if (cartes.has(cle)) return cartes.get(cle);
+  const cv = document.createElement('canvas'); cv.width = qw; cv.height = qh;
+  const cx = cv.getContext('2d'), im = cx.createImageData(qw, qh), dd = im.data;
+  for (let j = 0; j < qh; j++) for (let i = 0; i < qw; i++){
+    const px = i + .5 - qw / 2, py = j + .5 - qh / 2, ax = Math.abs(px) - (qw / 2 - qr), ay = Math.abs(py) - (qh / 2 - qr);
+    let dist, nx, ny;
+    if (ax > 0 && ay > 0){ const L2 = Math.hypot(ax, ay); dist = qr - L2; nx = ax / L2; ny = ay / L2; }
+    else if (ax > ay){ dist = qr - ax; nx = 1; ny = 0; } else { dist = qr - ay; nx = 0; ny = 1; }
+    nx *= px < 0 ? -1 : 1; ny *= py < 0 ? -1 : 1;
+    const u = clamp(1 - dist / qb, 0, 1), m = .45 * u * u + .55 * (1 - Math.sqrt(Math.max(0, 1 - u * u)));
+    const k = (j * qw + i) * 4;
+    dd[k] = 128 - nx * m * 127; dd[k + 1] = 128 - ny * m * 127; dd[k + 2] = 128; dd[k + 3] = 255;
+  }
+  cx.putImageData(im, 0, 0);
+  const url = cv.toDataURL();
+  if (cartes.size > 40) cartes.delete(cartes.keys().next().value);
+  cartes.set(cle, url); return url;
+}
+const ecran = $('#ecran');
+const VERRES = [];
+class Verre{
+  // x : centre (depuis le milieu de l'écran), y : haut, w/h : taille, r : coins, n : noir (1 dans l'encoche), a : visible
+  constructor(el, nom, o){
+    this.el = el; this.o = o; this.cle = '';
+    this.R = {x:new Ressort(0), y:new Ressort(0), w:new Ressort(150), h:new Ressort(30), r:new Ressort(12), n:new Ressort(1), a:new Ressort(0)};
+    const id = 'lent-' + nom;
+    $('#filtres').insertAdjacentHTML('beforeend', `<filter id="${id}" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" x="0" y="0" width="100" height="100" color-interpolation-filters="sRGB">
+      <feImage x="0" y="0" width="100" height="100" preserveAspectRatio="none" result="carte"/>
+      <feDisplacementMap class="dep" in="SourceGraphic" in2="carte" scale="0" xChannelSelector="R" yChannelSelector="G" result="dr"/>
+      <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/>
+      <feDisplacementMap class="dep" in="SourceGraphic" in2="carte" scale="0" xChannelSelector="R" yChannelSelector="G" result="dg"/>
+      <feColorMatrix in="dg" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"/>
+      <feDisplacementMap class="dep" in="SourceGraphic" in2="carte" scale="0" xChannelSelector="R" yChannelSelector="G" result="db"/>
+      <feColorMatrix in="db" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"/>
+      <feBlend in="r" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="b" mode="screen"/></filter>`);
+    this.f = document.getElementById(id); this.img = this.f.querySelector('feImage'); this.deps = [...this.f.querySelectorAll('.dep')];
+    el.style.backdropFilter = el.style.webkitBackdropFilter = `blur(${o.flou}px) url(#${id}) saturate(${o.sat}) brightness(1.03)`;
+    VERRES.push(this); TOUS.push(...Object.values(this.R));
+  }
+  viser(g, rep = .5, z = .8, att = 0){
+    for (const k in g){ const r = this.R[k]; if (instant) r.poser(g[k]); else r.viser(g[k], rep, z, att); }
+    if (g.w !== undefined || g.h !== undefined) this.lentille(g.w ?? this.R.w.cible, g.h ?? this.R.h.cible, g.r ?? this.R.r.cible);
+    demarrer();
+  }
+  noir(v, rep = .3, att = 0){ if (instant) this.R.n.poser(v); else this.R.n.viser(v, rep, 1, att); demarrer(); }
+  voir(v, rep = .3, att = 0){ if (instant) this.R.a.poser(v); else this.R.a.viser(v, rep, 1, att); demarrer(); }
+  poser(g){ for (const k in g) this.R[k].poser(g[k]); if (g.w !== undefined) this.lentille(g.w, g.h ?? this.R.h.x, g.r ?? this.R.r.x); this.rendu(); }
+  rendu(){
+    const Rr = this.R, W = ecran.clientWidth, w = Math.max(2, Rr.w.x), h = Math.max(2, Rr.h.x), r = clamp(Rr.r.x, 0, Math.min(w, h) / 2);
+    const n = clamp(Rr.n.x, 0, 1), a = clamp(Rr.a.x, 0, 1), s = this.el.style;
+    s.left = f2(W / 2 + Rr.x.x - w / 2) + 'px'; s.top = f2(Rr.y.x) + 'px'; s.width = f2(w) + 'px'; s.height = f2(h) + 'px'; s.borderRadius = f2(r) + 'px';
+    s.opacity = a > .995 ? '' : f2(a); s.visibility = a < .005 ? 'hidden' : 'visible'; s.setProperty('--noir', f2(n));
+    this.f.setAttribute('width', Math.ceil(w)); this.f.setAttribute('height', Math.ceil(h));
+    this.img.setAttribute('width', f2(w)); this.img.setAttribute('height', f2(h));
+    if (instant || FIGE || (Math.abs(Rr.w.v) < 20 && Math.abs(Rr.h.v) < 20)) this.lentille(w, h, r);
+  }
+  lentille(w, h, r){
+    const b = this.o.bande(w, h), rr = Math.min(r, Math.min(w, h) / 2);
+    const cle = `${Math.round(w / 8)}x${Math.round(h / 8)}x${Math.round(rr)}x${Math.round(b)}`;
+    if (cle === this.cle) return; this.cle = cle;
+    this.img.setAttribute('href', carte(w, h, rr, b));
+    const e = this.o.echelle(b); this.deps.forEach((d, i) => d.setAttribute('scale', f2(e * (1 + this.o.ab * i))));
+  }
+}
+const vCarte = new Verre($('#carte'), 'carte', {flou:2.5, sat:1.5, bande:(w, h) => Math.min(40, Math.min(w, h) * .3), echelle:b => b * 2.8, ab:.03});
+const vFen = new Verre($('#fen'), 'fen', {flou:22, sat:1.8, bande:(w, h) => Math.min(30, Math.min(w, h) * .3), echelle:b => b * 2.4, ab:.02});
+const vPil = new Verre($('#pilule'), 'pilule', {flou:.8, sat:1.2, bande:(w, h) => Math.min(w, h) * .5, echelle:b => b * 3.2, ab:.03});
+const DANS_ENCOCHE = {x:0, y:0, w:150, h:30, r:12};
+
+/* ===================== l'écran ===================== */
+const pointeur = $('#pointeur'), alerte = $('#alerte'), sys = $('#sys');
+function devant(app){ $('#menus').innerHTML = POMME + `<b>${app}</b>` + MENUS[app].map(m => `<span>${m}</span>`).join(''); }
+const XR = dx => ecran.clientWidth / 2 + dx;
+function ou(el){ const r = el.getBoundingClientRect(), e = ecran.getBoundingClientRect(); return [r.left + r.width / 2 - e.left, r.top + r.height / 2 - e.top]; }
+function cur(x, y, o = {}){
+  const saute = instant || o.saute;
+  pointeur.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
+  pointeur.style.transform = `translate(${f2(x)}px,${f2(y)}px)`;
+  if (saute){ void pointeur.offsetWidth; pointeur.style.transition = ''; }
+  pointeur.classList.toggle('vu', o.vu !== false);
+}
+async function va(x, y, d = .75){ cur(x, y, {duree:d}); await attendre(d); }
+async function vers(el, d = .75, dx = 0, dy = 0){ const [x, y] = ou(el); await va(x + dx - 3, y + dy - 3, d); }
+async function clic(el){
+  if (instant) return suite();
+  pointeur.classList.add('appui'); if (el) el.classList.add('appuye');
+  await attendre(.14);
+  pointeur.classList.remove('appui'); if (el) el.classList.remove('appuye');
+}
+
+/* ----- état ----- */
+let st;
+function remettre(){
+  st = {q:null, parti:[], ok:{}, cle:'', cleEtat:'', fn:false, tape:'', reussi:false, sys:null, sysOn:false, sysFn:false, alerte:false,
+        seg:'aujourdhui', segAvant:null, reuDetail:false, survolReu:false, dem:false, essai:null, vol:false};
+}
+function majCarte(){
+  $$('.pane').forEach(p => {
+    const q = p.dataset.q;
+    p.classList.toggle('on', q === st.q);
+    p.classList.toggle('parti', st.parti.includes(q) && q !== st.q);
+    p.classList.toggle('fait', !!st.ok[q]);
+  });
+  const i = ORDRE_Q.indexOf(st.q);
+  $('#points').classList.toggle('cache', i < 0);
+  $$('#points i').forEach((d, k) => { d.classList.toggle('ici', k === i); d.classList.toggle('fait', k < i || !!st.ok[ORDRE_Q[k]]); });
+  // la clé Groq
+  const cle = $('#cle');
+  if (cle){ $('#cleV').textContent = st.cle || 'gsk_…'; cle.classList.toggle('plein', !!st.cle); cle.classList.toggle('verif', st.cleEtat === 'verif'); cle.classList.toggle('bon', st.cleEtat === 'bon');
+    $('#cleOk').innerHTML = st.cleEtat === 'bon' ? coche(16, '#fff', 2.6) : ''; }
+  // l'essai
+  const es = pane('essai');
+  es.classList.toggle('reussi', st.reussi);
+  $('#esTouche').classList.toggle('bas', st.fn);
+  $('#esChamp').classList.toggle('ecoute', st.fn);
+  $('#esTexte').textContent = st.tape;
+  $('#esEtat').textContent = st.fn ? 'Je t’entends…' : st.tape ? 'Écrit' : 'En attente de ta voix';
+  $('#niveau').classList.toggle('vif', st.fn);
+  alerte.classList.toggle('cache', !st.alerte);
+}
+const hauteurQ = q => pane(q).offsetHeight;
+function carteVise(){ vCarte.viser({x:0, y:CY, w:CW, h:hauteurQ(st.q), r:34}, .52, .74); }
+/* la carte sort de l'encoche : une goutte noire qui devient du verre en descendant */
+function carteSort(){
+  vCarte.poser({...DANS_ENCOCHE, n:1, a:1});
+  vCarte.viser({x:0, y:CY, w:CW, h:hauteurQ(st.q), r:34}, .6, .72);
+  vCarte.noir(0, .55, 0);
+}
+/* la carte rentre : elle se resserre, redevient noire juste avant l'encoche, puis disparaît dessous */
+function carteRentre(){
+  st.q = null; majCarte();
+  vCarte.viser(DANS_ENCOCHE, .5, .9, .12); vCarte.noir(1, .34, .16); vCarte.voir(0, .2, .75);
+}
+async function aller(q){                       // une question s'en va à gauche, la suivante arrive de la droite
+  if (st.q) st.parti.push(st.q);
+  st.q = q; majCarte(); carteVise();
+  await attendre(.7);
+}
+$('#niveau').innerHTML = Array.from({length:22}, () => '<i></i>').join('');
+let tNiv = 0;
+function niveau(){
+  $$('#niveau i').forEach((b, i) => { const h = st && st.fn ? 6 + Math.abs(Math.sin(i * 1.7 + tNiv * 9)) * 20 * (FIGE ? .8 : (0.5 + Math.random() * .5)) : 4; b.style.height = h.toFixed(1) + 'px'; });
+  tNiv += .05;
+}
+setInterval(() => { if (!FIGE && st && st.fn) niveau(); }, 90);
+function majSysteme(){
+  sys.classList.toggle('cache', !st.sys);
+  if (!st.sys) return;
+  $('#sysT').textContent = st.sys === 'acces' ? 'Accessibilité' : 'Clavier';
+  $('#sysC').innerHTML = st.sys === 'acces'
+    ? `<p>Autoriser les apps ci-dessous à contrôler votre ordinateur.</p><div class="sys-g"><div class="sys-r"><span class="grise" style="width:26px;display:grid;place-items:center">${trait('<rect x="3" y="3" width="14" height="14" rx="3"/>', 18, '#c7c7cc')}</span><span class="sp grise">Outil de capture</span>${sw(false)}</div><div class="sys-r"><img src="${IC_CLAIR}" alt=""><span class="sp">Lucarne</span>${sw(st.sysOn, 'sysInter')}</div></div>`
+    : `<p>Ce que fait la touche globe quand tu appuies dessus seule.</p><div class="sys-g"><div class="sys-r"><span class="sp">Appuyer sur ${globe(13, '#1d1d1f').replace('<svg', '<svg style="display:inline;vertical-align:-2px"')} pour</span><span class="sys-pop${st.sysFn ? ' vu' : ''}" id="sysChoix">${st.sysFn ? 'Ne rien faire' : 'Afficher les émojis'}${hautBas(11, '#6e6e73')}</span></div></div>`;
+}
+
+/* la fenêtre compagnon */
+const ORDRE_SEG = ['aujourdhui', 'decouvrir', 'reunions', 'reglages'];
+function majFen(){
+  $$('#segm button').forEach(b => b.classList.toggle('on', b.dataset.seg === st.seg));
+  const b = $(`#segm button[data-seg="${st.seg}"]`), p = $('#pouce');
+  p.style.left = b.offsetLeft + 'px'; p.style.width = b.offsetWidth + 'px';
+  const iSeg = ORDRE_SEG.indexOf(st.seg);
+  $$('.page').forEach(pg => { const i = ORDRE_SEG.indexOf(pg.dataset.page); pg.classList.toggle('on', i === iSeg); pg.classList.toggle('avant', i < iSeg); });
+  $('#reu').classList.toggle('detail', st.reuDetail);
+  $('#reu1').classList.toggle('survol', st.survolReu);
+  $('#nDem').classList.toggle('survol', st.dem);
+  $$('.de-l').forEach(d => d.classList.toggle('ici', d.dataset.de === st.essai));
+  $('#swVol').classList.toggle('on', st.vol);
+}
+function seg(s){ st.seg = s; majFen(); }
+const page = s => $(`.page[data-page="${s}"]`);
+/* la fenêtre sort de l'encoche : elle part de la forme du Centre (noire) et devient du verre */
+function fenSort(depuisCentre){
+  $('#fen').classList.remove('rentre');
+  vFen.poser(depuisCentre ? {x:0, y:0, w:BW * 2, h:HCC, r:32, n:1, a:1} : {...DANS_ENCOCHE, n:1, a:1});
+  vFen.viser({x:0, y:FY, w:FW, h:FH, r:30}, .56, .76);
+  vFen.noir(0, .52, 0);
+}
+function fenRentre(){
+  $('#fen').classList.add('rentre');
+  vFen.viser(DANS_ENCOCHE, .58, .9, .06); vFen.noir(1, .4, .14); vFen.voir(0, .2, .72);
+}
+
+/* fin de la démonstration : Lucarne rentre dans l'encoche, la fenêtre revient */
+async function retourPilule(){
+  vPil.viser({...DANS_ENCOCHE, w:180, h:33, r:10}, .55, .82); vPil.noir(1, .3, .26); await attendre(.8);
+  vPil.voir(0, .1); st.essai = null; majFen(); vFen.voir(1, .3); await attendre(.5);
+}
+/* les places où poser Lucarne (lucarne-position.html) */
+const PL_W = 150, PL_H = 34, MARGE = 14;
+function places(){
+  const W = ecran.clientWidth, H = ecran.clientHeight, y0 = B + 8;
+  return {
+    hg:{x:-W / 2 + MARGE + PL_W / 2, y:y0, w:PL_W, h:PL_H}, hd:{x:W / 2 - MARGE - PL_W / 2, y:y0, w:PL_W, h:PL_H},
+    g:{x:-W / 2 + MARGE + PL_H / 2, y:H / 2 - PL_W / 2 + 10, w:PL_H, h:PL_W}, d:{x:W / 2 - MARGE - PL_H / 2, y:H / 2 - PL_W / 2 + 10, w:PL_H, h:PL_W},
+    bg:{x:-W / 2 + MARGE + PL_W / 2, y:H - MARGE - PL_H, w:PL_W, h:PL_H}, bm:{x:0, y:H - MARGE - PL_H, w:PL_W, h:PL_H}, bd:{x:W / 2 - MARGE - PL_W / 2, y:H - MARGE - PL_H, w:PL_W, h:PL_H},
+  };
+}
+function majPlaces(vu, pres){
+  const W = ecran.clientWidth, P = places();
+  $('#places').innerHTML = Object.entries(P).map(([k, p]) => `<rect class="place${k === pres ? ' pres' : ''}" x="${f2(W / 2 + p.x - p.w / 2)}" y="${f2(p.y)}" width="${p.w}" height="${p.h}" rx="${Math.min(p.w, p.h) / 2}"/>`).join('');
+  $('#places').classList.toggle('vu', vu);
+}
+
+/* ===================== les étapes ===================== */
+function init(){
+  remettre();
+  [vCarte, vFen, vPil].forEach(v => v.poser({...DANS_ENCOCHE, n:1, a:0}));
+  $('#fen').classList.remove('rentre');
+  devant('Finder'); majCarte(); majSysteme(); majFen(); majPlaces(false);
+  $$('.page,.reu-l,.reu-n').forEach(p => p.scrollTop = 0);
+  ilot(REPOS); montre([]);
+  pointeur.classList.remove('appui', 'tient', 'pris');
+  cur(XR(330), 400, {vu:false, saute:true});
+}
+const ETAPES = [
+  {c:'Bonjour', t:'Premier lancement : une carte sort de l’encoche', g:'Rien à faire, on regarde',
+   p:'Pas de grande fenêtre. L’encoche se gonfle, puis une carte en verre en sort, juste dessous, comme quand on approche des AirPods d’un iPhone. Une question à la fois, toujours au même endroit.',
+   async jeu(){
+     await attendre(.5);
+     ilot(bandeau(118, 72, 104)); montre(['naitre'], .18); await attendre(1.05);
+     devant('Lucarne'); montre([], 0); st.q = 'bien'; majCarte(); carteSort(); ilot(REPOS, {rep:.42}); await attendre(1.4);
+   }},
+  {c:'Le micro', t:'Le micro : une raison, un clic', g:'Deux clics',
+   p:'Un grand micro qui respire, et une phrase : il n’écoute que pendant que tu tiens fn. Un clic, macOS pose sa question une seule fois, la coche verte arrive, on passe à la suite.',
+   async jeu(){
+     await vers($('#btCommencer'), .8); await clic($('#btCommencer'));
+     await aller('micro');
+     const bt = pane('micro').querySelector('.prim');
+     await vers(bt, .6); await clic(bt);
+     st.alerte = true; majCarte(); await attendre(.7);
+     await vers($('#autoriser'), .6); await clic();
+     st.alerte = false; st.ok.micro = true; majCarte(); await attendre(1);
+   }},
+  {c:'Écrire', t:'Écrire dans tes apps : le bon volet, un interrupteur', g:'Deux clics',
+   p:'La carte glisse vers la question suivante et change de taille toute seule. Le bouton ouvre directement le bon volet de Réglages Système, à côté : Lucarne y est déjà, un interrupteur suffit.',
+   async jeu(){
+     await aller('acces');
+     const bt = pane('acces').querySelector('.prim');
+     await vers(bt, .6); await clic(bt);
+     st.sys = 'acces'; majSysteme(); devant('Réglages Système'); await attendre(.6);
+     await vers($('#sysInter'), .6); await clic(); st.sysOn = true; majSysteme(); await attendre(.6);
+     st.sys = null; majSysteme(); devant('Lucarne'); st.ok.acces = true; majCarte(); await attendre(1);
+   }},
+  {c:'La touche fn', t:'La touche fn : « Ne rien faire » pour la touche globe', g:'Deux clics',
+   p:'La touche s’enfonce sur la carte, en boucle. Sur le Mac, elle ouvre aussi les émojis : le bouton ouvre le volet Clavier, on choisit « Ne rien faire ». fn est à toi.',
+   async jeu(){
+     await aller('fn');
+     const bt = pane('fn').querySelector('.prim');
+     await vers(bt, .6); await clic(bt);
+     st.sys = 'clavier'; majSysteme(); devant('Réglages Système'); await attendre(.6);
+     await vers($('#sysChoix'), .6); await clic(); st.sysFn = true; majSysteme(); await attendre(.7);
+     st.sys = null; majSysteme(); devant('Lucarne'); st.ok.fn = true; majCarte(); await attendre(1);
+   }},
+  {c:'La clé Groq', t:'La clé Groq : coller, c’est vérifié', g:'Un clic',
+   p:'Groq écrit ta voix en moins d’une seconde. On colle la clé : elle se remplit, un petit rond tourne, puis la coche verte. Elle reste sur ce Mac.',
+   async jeu(){
+     await aller('groq');
+     const bt = pane('groq').querySelector('.prim');
+     await vers(bt, .6); await clic(bt);
+     await tween(.5, u => { st.cle = 'gsk_' + '•'.repeat(Math.round(u * 16)) + (u === 1 ? '7Hq2' : ''); majCarte(); });
+     st.cleEtat = 'verif'; majCarte(); await attendre(.7);
+     st.cleEtat = 'bon'; st.ok.groq = true; majCarte(); await attendre(1);
+   }},
+  {c:'Essai', t:'Essaie : tiens fn et dis « bonjour »', g:'Tenir fn, parler, lâcher',
+   p:'La touche s’enfonce, l’encoche écoute, on lâche : « Bonjour ! » s’écrit dans la carte. Un rond vert se dessine, puis la carte se resserre, redevient noire et rentre dans l’encoche, qui dit « Prête ».',
+   async jeu(){
+     await aller('essai'); cur(XR(330), 400, {vu:false}); await attendre(.5);
+     st.fn = true; majCarte(); niveau(); ilot(compact(132, 132)); montre(['micG', 'onde'], .1); await attendre(1.6);
+     st.fn = false; niveau(); majCarte(); ilot(compact(HC, 132)); montre(['okD'], .05);
+     await tween(.5, u => { st.tape = 'Bonjour !'.slice(0, Math.round(u * 9)); majCarte(); });
+     await attendre(.3); st.reussi = true; majCarte(); await attendre(1.5);
+     montre([], 0); ilot(REPOS); carteRentre(); await attendre(.75);
+     devant('Finder'); ilot(compact(HC, 168)); montre(['pret'], .1); await attendre(1.2);
+   }},
+  {c:'Centre → fenêtre', t:'La fenêtre sort de l’encoche', g:'Survoler, un clic',
+   p:'On survole l’encoche : le Centre s’ouvre, noir. Un clic sur « Lucarne » : le noir se resserre et devient une petite fenêtre en verre. En haut, quatre choix seulement.',
+   async jeu(){
+     montre([], 0); ilot(REPOS); await attendre(.5);
+     await va(XR(14), 18, .8);
+     ilot(bandeau(BW, HCC, NO)); montre(['centre'], .16); await attendre(.75);
+     const bt = $('#btLucarne'); await vers(bt, .55); bt.classList.add('survol'); await clic(bt);
+     bt.classList.remove('survol');
+     montre([], 0); seg('aujourdhui'); fenSort(true); ilot(REPOS, {rep:.4}); devant('Lucarne');
+     await va(XR(300), 330, .9); await attendre(.5);
+   }},
+  {c:'Découvrir', t:'Découvrir : chaque geste de l’îlot, en petit', g:'Un clic',
+   p:'Sept lignes, pas une de plus : le Centre, l’étagère, le minuteur, les rappels à la voix, les réunions, Claude Code, et Lucarne qu’on déplace. Chaque vignette rejoue le geste toute seule.',
+   async jeu(){
+     const b = $('#segm [data-seg="decouvrir"]'); await vers(b, .7); await clic(); seg('decouvrir'); await attendre(.8);
+     const pg = page('decouvrir'), bas = pg.scrollHeight - pg.clientHeight;
+     await va(XR(150), 300, .6);
+     await tween(1.1, u => { pg.scrollTop = bas * douce(u); }); await attendre(.4);
+   }},
+  {c:'Essayer', t:'« Essayer » : on la déplace, en vrai', g:'Appui long, glisser, lâcher',
+   p:'« Essayer » sur Lucarne déplaçable : la fenêtre s’efface, l’encoche fait la démonstration. Appui long, elle se décolle de l’encoche, devient du verre en sortant, et se pose en haut à droite.',
+   async jeu(){
+     const bt = $('[data-essayer="deplacer"]'); await vers(bt, .7); await clic(bt);
+     st.essai = 'deplacer'; majFen(); vFen.voir(.22, .3); await attendre(.3);
+     await va(XR(4), 15, .7);
+     pointeur.classList.add('tient'); await attendre(.45);
+     pointeur.classList.remove('tient'); pointeur.classList.add('pris');
+     vPil.poser({...DANS_ENCOCHE, w:180, h:33, r:10, n:1, a:1}); vPil.viser({w:188, h:36, y:1, r:12}, .3, .7);
+     majPlaces(true, null); await attendre(.3);
+     const P = places(), hd = P.hd, W = ecran.clientWidth;
+     const x0 = XR(4), y0 = 15, x1 = W / 2 + hd.x, y1 = hd.y + hd.h / 2;
+     await tween(1, u => {
+       const e = douce(u), x = lerp(x0, x1, e), y = y0 + (y1 - y0) * e + Math.sin(e * Math.PI) * 26;
+       cur(x - 3, y - 3, {saute:true});
+       vPil.viser({x:x - W / 2, y:y - PL_H / 2, w:lerp(188, PL_W, Math.min(1, e * 2)), h:PL_H, r:17}, .16, .9);
+       if (e > .12) vPil.noir(0, .4);
+       majPlaces(true, e > .7 ? 'hd' : null);
+     });
+     pointeur.classList.remove('pris');
+     vPil.viser({x:hd.x, y:hd.y, w:PL_W, h:PL_H, r:17}, .42, .6); majPlaces(false, 'hd');
+     await attendre(.35); await va(x1 - 70, y1 + 90, .6); await attendre(.4);
+   }},
+  {c:'Réunions', t:'Réunions : la liste, puis la note', g:'Deux clics',
+   p:'La démonstration finie, Lucarne rentre dans l’encoche. Les réunions notées, par jour ; un clic, la note arrive de la droite : l’essentiel, les décisions, qui fait quoi. En bas, on lui pose une question.',
+   async jeu(){
+     await retourPilule();
+     const b = $('#segm [data-seg="reunions"]'); await vers(b, .7); await clic(); seg('reunions'); await attendre(.7);
+     await vers($('#reu1'), .6, -60); st.survolReu = true; majFen(); await clic();
+     st.reuDetail = true; st.survolReu = false; majFen(); await attendre(.8);
+     await vers($('#nDem'), .7, -40); st.dem = true; majFen(); await attendre(.5);
+   }},
+  {c:'Réglages', t:'Réglages : cinq groupes, une ligne chacun', g:'Un clic, faire défiler',
+   p:'Dictée, l’îlot, Réunions, Confidentialité, Compte. Chaque ligne dit ce qu’elle fait, en une phrase. Le reste se règle là où il se voit : dans l’encoche.',
+   async jeu(){
+     st.dem = false; majFen();
+     const b = $('#segm [data-seg="reglages"]'); await vers(b, .7); await clic(); seg('reglages'); await attendre(.7);
+     const pg = page('reglages'), y = $('#swVol').closest('.groupe').offsetTop - 24;
+     await va(XR(120), 300, .5);
+     await tween(.8, u => { pg.scrollTop = y * douce(u); }); await attendre(.2);
+     await vers($('#swVol'), .6); await clic(); st.vol = true; majFen(); await attendre(.7);
+   }},
+  {c:'Rentrer', t:'Un clic ailleurs : elle rentre dans l’encoche', g:'Un clic sur le bureau',
+   p:'La fenêtre ne traîne pas sur l’écran. Un clic sur le bureau : elle se resserre, redevient noire et rentre d’où elle vient. Il ne reste que l’encoche.',
+   async jeu(){
+     await va(XR(-380), 330, .8); await clic();
+     fenRentre(); await attendre(.42);
+     ilot(bandeau(108, 46, 98), {rep:.34}); await attendre(.32); ilot(REPOS, {rep:.4}); devant('Finder');
+     await attendre(.6); await va(XR(-300), 380, .8);
+   }},
+];
+const N = ETAPES.length;
+const PAUSES = [1.4, 1.4, 1.4, 1.4, 1.4, 1.6, 2, 2, 1.6, 2, 2, 2.6];
+
+/* ===================== régie ===================== */
+let etape = 0;
+const fr = t => t.replace(/ ([:»?!;])/g, ' $1').replace(/« /g, '« ');
+$('#pas').innerHTML = ETAPES.map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${fr(e.c)}</button></li>`).join('');
+function nbsp(r){
+  const w = document.createTreeWalker(r, NodeFilter.SHOW_TEXT);
+  for (let n; (n = w.nextNode());) if (/ [:»?!;]|« /.test(n.nodeValue)) n.nodeValue = fr(n.nodeValue);
+}
+function majRegie(n){
+  etape = n;
+  const m = Math.max(1, n), e = ETAPES[m - 1];
+  $('#num').textContent = `Lucarne · direction C, l’îlot d’abord · étape ${m} sur ${N} · ${e.g}`;
+  $('#titre').textContent = fr(e.t); $('#phrase').textContent = fr(e.p);
+  $$('#pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === m));
+}
+async function poser(n){
+  annuler();
+  instant = true; racine.classList.add('snap');
+  try { cibleN = n; enCoursN = 0; init(); for (let i = 1; i <= n; i++){ enCoursN = i; await ETAPES[i - 1].jeu(); } }
+  finally { instant = false; }
+  majRegie(n); rendu();
+  void ecran.offsetWidth;
+  requestAnimationFrame(() => requestAnimationFrame(() => racine.classList.remove('snap')));
+}
+async function jouer(n){
+  majRegie(n);
+  if (REDUIT) return poser(n);
+  racine.classList.remove('snap'); void ecran.offsetWidth;
+  cibleN = 0; enCoursN = n;
+  await ETAPES[n - 1].jeu();
+}
+function arreter(){ jeton++; auto = false; annuler(); }
+const autoCase = $('#autoCase');
+async function tourner(){
+  arreter(); const j = jeton; auto = true;
+  try {
+    await poser(0); await attendre(.9);
+    for (;;){
+      for (let n = 1; n <= N; n++){ await jouer(n); await attendre(PAUSES[n - 1]); }
+      if (!autoCase.checked) break;
+      ecran.style.opacity = 0; await attendre(.3);
+      await poser(0); ecran.style.opacity = 1; await attendre(1.0);
+    }
+  } catch (e){ if (e !== 'stop') console.error(e); }
+  ecran.style.opacity = 1;
+  if (j === jeton) auto = false;
+}
+function lance(n){ arreter(); ecran.style.opacity = 1; poser(n - 1).then(() => jouer(n)).catch(e => { if (e !== 'stop') console.error(e); }); }
+$('#rejouer').addEventListener('click', () => { if (autoCase.checked) tourner(); else lance(Math.max(1, etape)); });
+$('#suivant').addEventListener('click', () => { autoCase.checked = false; lance(etape >= N ? 1 : etape + 1); });
+$('#pas').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; autoCase.checked = false; lance(+b.dataset.e); });
+autoCase.addEventListener('change', () => { if (autoCase.checked) tourner(); else arreter(); });
+function ralenti(oui){ K = oui ? 4 : 1; racine.style.setProperty('--k', K); $('#lentCase').checked = oui; }
+$('#lentCase').addEventListener('change', e => ralenti(e.target.checked));
+
+/* ===================== à la main : la vraie souris ===================== */
+function aLaMain(){ if (auto || autoCase.checked){ autoCase.checked = false; arreter(); } pointeur.classList.remove('vu'); }
+ecran.addEventListener('click', e => {
+  if (FIGE) return;
+  const sg = e.target.closest('#segm button'), es = e.target.closest('[data-essayer]'), rr = e.target.closest('#reu1'), rt = e.target.closest('.retour'), s = e.target.closest('.page .sw');
+  if (!sg && !es && !rr && !rt && !s) return;
+  aLaMain();
+  if (sg){ st.reuDetail = false; seg(sg.dataset.seg); }
+  else if (rr){ st.reuDetail = true; majFen(); }
+  else if (rt){ st.reuDetail = false; majFen(); }
+  else if (s){ s.classList.toggle('on'); if (s.id === 'swVol') st.vol = s.classList.contains('on'); }
+  else if (es){ const k = es.dataset.essayer; if (k === 'deplacer') ETAPES[8].jeu().then(() => attendre(1)).then(retourPilule).catch(() => {}); else essaiCourt(k).catch(() => {}); }
+});
+/* les autres « Essayer » : l'encoche montre le geste, en court */
+async function essaiCourt(k){
+  st.essai = k; majFen(); vFen.voir(.22, .3); await attendre(.3);
+  if (k === 'centre'){ ilot(bandeau(BW, HCC, NO)); montre(['centre'], .16); await attendre(2.2); }
+  else if (k === 'minuteur'){ ilot(compact(HC, 150)); montre(['minD'], .1); await attendre(2.2); }
+  else if (k === 'reunion'){ ilot(compact(132, 140)); montre(['recG', 'recD'], .1); await attendre(2.2); }
+  else if (k === 'claude'){ ilot(compact(132, 132)); montre(['clG', 'clD'], .1); await attendre(2.2); }
+  else if (k === 'etagere'){ ilot(compact(132, HC)); montre(['etaG'], .1); await attendre(2); }
+  else if (k === 'rappel'){
+    ilot(compact(132, 132)); montre(['micG', 'onde'], .1); await attendre(1.5);
+    ilot(bandeau(170, B + 58, 120)); montre(['rapB'], .14); await attendre(2.2);
+  }
+  montre([], 0); ilot(REPOS); st.essai = null; majFen(); vFen.voir(1, .3);
+}
+
+/* ===================== démarrage ===================== */
+nbsp(ecran);
+remettre();
+if (Q.has('lent')) ralenti(true);
+const e0 = clamp(+(Q.get('etape') || 0), 0, N);
+if (FIGE){ autoCase.checked = false; poser(e0).catch(() => {}); }
+else if (Q.has('joue') && e0 >= 1){ autoCase.checked = false; poser(e0 - 1).then(() => setTimeout(() => jouer(e0).catch(() => {}), 400)); }
+else setTimeout(() => tourner(), 300);
+window.lucarne = {poser, jouer, st:() => st};
+</script>
+</body>
+</html>
