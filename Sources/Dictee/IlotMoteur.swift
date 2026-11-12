@@ -1106,6 +1106,7 @@ final class IlotMoteur: ObservableObject {
     /// La souris est sur la pastille : elle grossit un peu (et la lecture montre son titre) après 0,14 s ; elle revient 0,16 s après.
     private var delaiPastille: DispatchWorkItem?
     func survolPastille(_ dedans: Bool) {
+        guard !lucarne.libre else { return }   // hors de l'encoche, la bulle ne s'élargit pas (elle n'a pas de titre à montrer)
         delaiPastille?.cancel()
         let item = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated { self?.pastilleOuverte.cible = dedans ? 1 : 0; self?.demarrerBoucle(); self?.surFenetre() }

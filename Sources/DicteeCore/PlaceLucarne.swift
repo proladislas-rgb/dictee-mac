@@ -292,13 +292,10 @@ public enum GeoLucarne {
 // MARK: hors de l'encoche : le contenu, la bulle, le verre (mission 3)
 
 extension GeoLucarne {
-    /// Le haut-milieu du contenu d'un déplié (le point (0, barre) de la grille de l'encoche) dans la forme `actuelle`, qui va vers `cible`.
-    /// Le contenu est mis en page pour la cible et suit le bord ancré de la forme : depuis un coin du haut il ne bouge pas (la forme se
-    /// déroule sur lui) ; depuis un coin du bas, il monte avec le haut de la forme. Posée (actuelle = cible) : le haut-milieu de la cible.
-    public static func coinContenu(actuelle a: CapsuleLucarne, cible c: CapsuleLucarne, place: PlaceLucarne) -> PointLucarne {
-        let k = place.ancre
-        return PointLucarne(a.x0 + k.x * (a.largeur - c.largeur) + c.largeur / 2, a.y0 + k.y * (a.hauteur - c.hauteur))
-    }
+    /// Le haut-milieu du contenu d'un déplié (le point (0, barre) de la grille de l'encoche) : le haut-milieu de la forme telle qu'elle est.
+    /// Le contenu la suit comme sous l'encoche (centré dans la forme qui grandit) : quand la forme visée change (repli, une carte plus
+    /// haute, une annonce plus étroite), le contenu qui s'efface glisse avec elle, il ne saute jamais.
+    public static func coinContenu(_ a: CapsuleLucarne) -> PointLucarne { PointLucarne(a.centreX, a.y0) }
 
     /// L'écart entre la pilule et sa bulle (la deuxième activité), et la hauteur d'une bulle à côté d'une pilule debout.
     public static let ecartBulle = 8.0
@@ -316,16 +313,16 @@ extension GeoLucarne {
         } else {
             posee = .pilule(cx: p.x1 + ecartBulle + largeur / 2, cy: p.centreY, largeur: largeur, hauteur: p.hauteur)
         }
-        let s = min(1.2, max(0, sortie))
-        // la goutte part du milieu de la pilule, petite, et grandit en sortant
+        // la goutte part du milieu de la pilule, petite, et grandit en sortant ; le rebond du ressort ne la pousse pas plus loin que sa place
+        let s = min(1, max(0, sortie))
         let cx = p.centreX + (posee.centreX - p.centreX) * s, cy = p.centreY + (posee.centreY - p.centreY) * s
-        let k = 0.4 + 0.6 * min(1, s)
+        let k = 0.4 + 0.6 * s
         return .pilule(cx: cx, cy: cy, largeur: posee.largeur * k, hauteur: posee.hauteur * k)
     }
 }
 
-/// Le verre hors de l'encoche (niveau « Liquide » de la maquette lucarne-position.html) : un verre clair, un givre (le fond flouté sous le
-/// contenu : les lettres d'une page derrière ne se mêlent plus au texte) et un voile noir. Le contenu de l'îlot est fait pour le noir
+/// Le verre hors de l'encoche (niveau « Liquide » de la maquette lucarne-position.html) : un verre givré (le fond flouté sous le contenu :
+/// les lettres d'une page derrière ne se mêlent plus au texte) et un voile noir. Le contenu de l'îlot est fait pour le noir
 /// (texte blanc, rouge, ambre, bleu) ; sans lecture du fond (il faudrait l'enregistrement de l'écran), le voile est réglé sur le pire
 /// fond, une page blanche, par le calcul du contraste (WCAG) : blanc ≥ 12, gris à 60 % ≥ 5, rouge et bleu système ≥ 3,4. Le verre se voit
 /// à son bord (liseré, lentille, ombre) ; sur un fond sombre, il est noir comme l'encoche.
@@ -334,9 +331,6 @@ public enum VerreLucarne {
     /// L'ombre posée (repliée, dépliée) : opacité, flou, décalage vers le bas.
     public static let ombrePosee = (opacite: 0.22, flou: 5.0, y: 3.0)
     public static let ombreDepliee = (opacite: 0.32, flou: 11.0, y: 6.0)
-    /// Le givre rentre de ce bord : la lisière reste du verre.
-    public static let rentreeGivre = 5.0
-
     /// Luminance relative (WCAG) d'une composante sRGB.
     public static func luminance(_ c: Double) -> Double {
         c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
@@ -349,11 +343,6 @@ public enum VerreLucarne {
         let a = 0.2126 * luminance(melange(lettre.r)) + 0.7152 * luminance(melange(lettre.g)) + 0.0722 * luminance(melange(lettre.b))
         let b = luminance(dessous)
         return (max(a, b) + 0.05) / (min(a, b) + 0.05)
-    }
-    /// La forme du givre : la capsule rentrée de `rentreeGivre` (ses coins continus rentrés d'autant).
-    public static func givre(_ c: CapsuleLucarne) -> CapsuleLucarne {
-        let e = rentreeGivre, k = { (v: Double) in max(1, (TraceIlot.portee * v - e) / TraceIlot.portee) }
-        return CapsuleLucarne(x0: c.x0 + e, x1: c.x1 - e, y0: c.y0 + e, y1: c.y1 - e, s: c.s < 0 ? c.s : k(c.s), r: k(c.r))
     }
 }
 

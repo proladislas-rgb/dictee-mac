@@ -496,21 +496,22 @@ func controlesPlacesLucarne() {
 
     groupe("Lucarne : le contenu hors de l'encoche")
     do {
-        // posé : le haut-milieu de la cible, depuis chaque place
+        // le contenu suit le haut-milieu de la forme telle qu'elle est : posé, celui de la cible ; en route, il glisse avec elle
         for (nom, e) in faux {
             for p in PlaceLucarne.allCases where !(p == .encoche && e.avecEncoche) {
                 let g = G.grand(p, e, largeur: 467, hauteur: 300, rayon: 34)
-                let k = G.coinContenu(actuelle: g, cible: g, place: p)
+                let k = G.coinContenu(g)
                 verifier(abs(k.x - g.centreX) < 0.001 && abs(k.y - g.y0) < 0.001, "\(nom), \(p.rawValue) : posé, le contenu en haut au milieu de la forme")
             }
         }
-        // en route depuis la pilule : depuis un coin du haut, le contenu ne bouge pas ; depuis un coin du bas, il suit le haut de la forme
-        let pil = G.replie(.hautGauche, macBook), grand = G.grand(.hautGauche, macBook, largeur: 467, hauteur: 300, rayon: 34)
-        let k0 = G.coinContenu(actuelle: pil, cible: grand, place: .hautGauche), k1 = G.coinContenu(actuelle: grand, cible: grand, place: .hautGauche)
-        verifier(abs(k0.x - k1.x) < 0.001 && abs(k0.y - k1.y) < 0.001, "depuis le coin haut gauche : le contenu reste où il sera (la forme se déroule sur lui)")
-        let pb = G.replie(.basDroite, macBook), gb = G.grand(.basDroite, macBook, largeur: 467, hauteur: 300, rayon: 34)
-        let kb = G.coinContenu(actuelle: pb, cible: gb, place: .basDroite)
-        verifier(abs(kb.x - (pb.x1 - 467 / 2)) < 0.001 && abs(kb.y - (pb.y1 - 300)) < 0.001, "depuis le coin bas droit : calé sur le bord droit, il monte avec le haut de la forme")
+        let a = G.replie(.basDroite, macBook), b = G.grand(.basDroite, macBook, largeur: 467, hauteur: 300, rayon: 34)
+        var saut = 0.0, avant = G.coinContenu(a)
+        for i in 1...50 {
+            let u = Double(i) / 50
+            let c = CapsuleLucarne(x0: a.x0 + (b.x0 - a.x0) * u, x1: a.x1 + (b.x1 - a.x1) * u, y0: a.y0 + (b.y0 - a.y0) * u, y1: a.y1 + (b.y1 - a.y1) * u, s: 20, r: 20)
+            let k = G.coinContenu(c); saut = max(saut, hypot(k.x - avant.x, k.y - avant.y)); avant = k
+        }
+        verifier(saut < 12, "de la pilule au déplié en 50 images : le contenu glisse avec la forme, jamais plus de 12 pt d'une image à l'autre (\(Int(saut)) pt)")
 
         groupe("Lucarne : la bulle de la deuxième activité")
         for (nom, e) in faux {
@@ -524,6 +525,7 @@ func controlesPlacesLucarne() {
         }
         let r = G.replie(.hautDroite, macBook), rentree = G.bulle(r, place: .hautDroite, largeur: 74, sortie: 0)
         verifier(abs(rentree.centreX - r.centreX) < 0.001 && rentree.largeur < r.largeur && rentree.hauteur < r.hauteur, "bulle rentrée : cachée sous le milieu de la pilule")
+        verifier(G.bulle(r, place: .hautDroite, largeur: 74, sortie: 1.2) == G.bulle(r, place: .hautDroite, largeur: 74), "le rebond de la sortie ne la pousse pas au-delà de sa place (la fenêtre la contient)")
 
         groupe("Lucarne : le voile du verre (le contenu fait pour le noir reste lisible sur une page blanche)")
         let V = VerreLucarne.self
@@ -534,7 +536,5 @@ func controlesPlacesLucarne() {
         let rouge = (1.0, 0x45 / 255.0, 0x3A / 255.0), bleu = (0x0A / 255.0, 0x84 / 255.0, 1.0), ambre = (1.0, 0x9F / 255.0, 0x0A / 255.0)
         verifier(ct(rouge) >= 3 && ct(bleu) >= 3 && ct(ambre) >= 4.5, "rouge, bleu, ambre système ≥ 3 (\(f(ct(rouge))), \(f(ct(bleu))), \(f(ct(ambre))))")
         verifier(ct((1, 1, 1), fond: 0) >= 20, "sur fond noir : comme l'encoche")
-        let c = CapsuleLucarne.boite(x0: 0, y0: 0, largeur: 200, hauteur: 100, rayon: 20), g = V.givre(c)
-        verifier(g.x0 == 5 && g.x1 == 195 && g.y0 == 5 && g.y1 == 95 && abs(TraceIlot.portee * g.r - (TraceIlot.portee * 20 - 5)) < 1e-9, "le givre rentre de 5 pt, coins rentrés d'autant")
     }
 }

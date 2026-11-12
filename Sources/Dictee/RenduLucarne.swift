@@ -47,7 +47,7 @@ enum RenduLucarne {
             let o = m.origineVue, t = m.tailleVue
             // le givre du vrai verre (un flou du fond sous la forme) : ImageRenderer ne le dessine pas, on floute le faux écran
             let k = m.lucarne.capsule.affichee
-            let givre = VerreLucarne.givre(CapsuleLucarne(x0: k.x0 + ecran.centreX, x1: k.x1 + ecran.centreX, y0: k.y0, y1: k.y1, s: k.s, r: k.r))
+            let givre = CapsuleLucarne(x0: k.x0 + ecran.centreX, x1: k.x1 + ecran.centreX, y0: k.y0, y1: k.y1, s: k.s, r: k.r)
             let bulle = m.bulleLibre.map { CGRect(x: $0.x0 + ecran.centreX, y: $0.y0, width: $0.largeur, height: $0.hauteur) }
             let vue = ZStack(alignment: .topLeading) {
                 FauxEcran(clair: clair)

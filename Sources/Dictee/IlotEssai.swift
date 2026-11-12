@@ -197,8 +197,11 @@ enum IlotEssai {
         c.panneau.envoyerSouris(.leftMouseDown, en: sousBarre); attendre(0.2)
         verifier(m.presse && m.anneauAppui != nil, "pendant l'appui : l'îlot gonfle sous le doigt, l'anneau se remplit")
         attendre(0.4)
-        verifier(m.lucarne.geste.phase == .decollee && m.lucarne.libre && !m.fenetreOuverte && m.courante != .lectureMinuteur && !m.presse,
-                 "vrai appui long (0,6 s) sur la lecture dépliée : elle se range et la Lucarne se décolle (plus de rangée Minuteur)")
+        verifier(m.lucarne.geste.phase == .decollee && !m.fenetreOuverte && m.courante != .lectureMinuteur && !m.presse,
+                 "vrai appui long (0,6 s) sur la lecture dépliée : elle se range (plus de rangée Minuteur)")
+        // la Lucarne attend que l'encoche soit repliée pour se décoller (jamais de capsule de la largeur du corps sur la barre des menus)
+        attendre(1.0) { m.lucarne.repli }
+        verifier(m.lucarne.geste.phase == .decollee && m.lucarne.libre, "… puis, l'encoche repliée, la Lucarne se décolle")
         c.panneau.envoyerSouris(.leftMouseUp, en: sousBarre); attendre(1.0)
         m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 }
         verifier(!m.lucarne.libre && m.lucarne.place == .encoche && m.courante == .lectureCompact && !m.boucleActive,

@@ -445,6 +445,36 @@ extension IlotEssai {
         c.panneau.finDuGlisser(); pause(0.8); attendre(1.5) { m.boucleActive }
         verifier(!m.depot && !m.boucleActive, "glisser fini : les zones se referment \(etat())")
 
+        // --- appui long sur une carte ouverte dans le verre (l'Étagère) : elle se range, la pilule se replie, puis elle se décolle d'elle
+        // (jamais de la grande forme) ; relâchée, elle revient à sa place. (Sur le Centre et les cartes qui gardent les clics dans leur
+        // vide, l'appui long se fait sur la pilule : dans l'encoche, c'est le cou, dans la barre, qui le reçoit.)
+        aller(.hautGauche)
+        var tenu = false
+        m.boutonEnfonce = { tenu }
+        defer { m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 } }
+        m.etagereActive = true; m.etagere = (0..<3).map { FichierEtagere(id: UUID(), nom: "Document \($0 + 1).pdf", url: URL(fileURLWithPath: "/Users/exemple/Document \($0 + 1).pdf"), icone: NSWorkspace.shared.icon(for: .pdf)) }
+        m.ouvrirEtagere(); pause(0.6); attendre(1.5) { m.boucleActive }
+        let ouvert = m.lucarne.capsule.cible
+        let surFond = CGPoint(x: ouvert.centreX, y: ouvert.y1 - 5)
+        tenu = true; c.panneau.envoyerSouris(.leftMouseDown, en: surFond); pause(0.45)
+        verifier(m.courante != .etagere && m.lucarne.geste.phase == .decollee && m.lucarne.repli && !m.lucarneEnMain,
+                 "appui long sur l'Étagère dans le verre : elle se range, la Lucarne attend d'être repliée \(etat())")
+        attendre(1.2) { m.lucarne.repli }
+        let pilule = m.lucarne.capsule.valeur
+        verifier(m.lucarneEnMain && !m.lucarne.repli && pilule.hauteur < 60, "repliée : elle se décolle de sa pilule (\(Int(pilule.largeur)) × \(Int(pilule.hauteur))) \(etat())")
+        c.panneau.envoyerSouris(.leftMouseUp, en: surFond); tenu = false; pause(0.6); attendre(1.5) { m.boucleActive }
+        verifier(m.lucarne.libre && !m.lucarneEnMain && !m.boucleActive, "relâchée : posée à sa place (\(m.lucarne.place.rawValue)), plus rien ne tourne \(etat())")
+        // un bandeau dans le verre ne se décolle pas (il attend sa fin, comme dans l'encoche) : l'appui s'arrête
+        aller(.hautGauche)
+        m.annoncer(bandeau: BandeauIlot(vue: .rappelAjoute, jusqua: m.maintenant().addingTimeInterval(60), ligne1: "Rappel ajouté", ligne2: "Appeler le fournisseur · 15:00"))
+        pause(0.6); attendre(1.5) { m.boucleActive }
+        let b = m.lucarne.capsule.cible, surBandeau = CGPoint(x: b.x0 + 14, y: b.centreY)
+        tenu = true; c.panneau.envoyerSouris(.leftMouseDown, en: surBandeau); pause(0.6)
+        verifier(m.courante == .rappelAjoute && m.lucarne.geste.phase == .repos && !m.lucarneEnMain && m.lucarne.capsule.cible == b,
+                 "appui long sur un bandeau dans le verre : rien ne se décolle \(etat())")
+        c.panneau.envoyerSouris(.leftMouseUp, en: surBandeau); tenu = false; pause(0.3)
+        m.quitterBandeau(); pause(0.6); attendre(1.5) { m.boucleActive }
+
         // --- retour dans l'encoche pour la suite de l'essai
         CatalogueLucarne.vider(m)
         EssaiPlaces.memoire.memoriser(.encoche, pour: EssaiPlaces.ecran)

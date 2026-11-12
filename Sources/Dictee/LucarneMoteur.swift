@@ -53,8 +53,8 @@ extension IlotMoteur {
     // MARK: repère de la vue
 
     /// La zone de dessin du régime libre : assez grande pour la plus grande carte posée depuis n'importe quelle place autour du centre de
-    /// sa pilule (467 pt de large depuis un bord, 348 pt de haut au-dessus de la ligne du Dock), plus l'ombre.
-    static let tailleLibre = CGSize(width: 1000, height: 800)
+    /// sa pilule (467 pt de large depuis un bord, 348 pt de haut au-dessus de la ligne d'un Dock aux icônes de 128 pt), plus l'ombre.
+    static let tailleLibre = CGSize(width: 1000, height: 900)
     /// En régime libre, la vue dessine le point `centreVue` (ou, tenue et en vol, le centre de la capsule) au milieu de sa zone.
     static let milieuLibre = Double(tailleLibre.height) / 2
     /// Rayon de l'anneau de l'appui long (maquette : cercle de 11 pt, trait de 3) et ce qu'il prend autour du pointeur.
@@ -67,8 +67,8 @@ extension IlotMoteur {
 
     /// La taille de la zone de dessin (celle de l'encoche, ou celle du régime libre).
     var tailleVue: CGSize { lucarne.libre ? Self.tailleLibre : CGSize(width: Self.largeur, height: Self.hauteurMax) }
-    /// Tenue ou en vol : la fenêtre suit la capsule.
-    var lucarneEnMain: Bool { lucarne.libre && (lucarne.geste.phase == .decollee || lucarne.vol) }
+    /// Tenue ou en vol : la fenêtre suit la capsule (pas pendant le repli qui précède le décollage : elle est encore posée).
+    var lucarneEnMain: Bool { lucarne.libre && ((lucarne.geste.phase == .decollee && !lucarne.repli) || lucarne.vol) }
 
     /// Le point de l'écran (repère de la Lucarne) dessiné en haut au milieu de la vue : l'encoche (0, 0) ; en régime libre, le centre de
     /// la capsule tenue ou en vol (la vue ne bouge jamais dans la fenêtre), `centreVue` posée.
@@ -77,23 +77,24 @@ extension IlotMoteur {
         let c = lucarneEnMain ? PointLucarne(lucarne.capsule.cx.x, lucarne.capsule.cy.x) : lucarne.centreVue
         return CGPoint(x: c.x, y: c.y - Self.milieuLibre)
     }
-    /// Un point de la vue (x depuis son milieu, y depuis son haut) dans le repère de la Lucarne, et l'inverse (x depuis le bord gauche).
+    /// Un point de la vue (x depuis son milieu, y depuis son haut) dans le repère de la Lucarne.
     func depuisVue(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x + origineVue.x, y: p.y + origineVue.y) }
-    func versVue(_ p: PointLucarne) -> CGPoint {
+    /// Un point du repère de la Lucarne à poser dans la vue (`.position` : x depuis son bord gauche, y depuis son haut).
+    func positionVue(_ p: PointLucarne) -> CGPoint {
         CGPoint(x: CGFloat(p.x) - origineVue.x + tailleVue.width / 2, y: CGFloat(p.y) - origineVue.y)
     }
-    /// Une capsule du repère de la Lucarne dans celui de la vue (x depuis son milieu, y depuis son haut).
-    func versVue(_ c: CapsuleLucarne) -> CapsuleLucarne {
+    /// Une capsule du repère de la Lucarne dans celui de la vue, pour `FormeNoire` (x depuis le milieu de la vue, y depuis son haut).
+    func capsuleVue(_ c: CapsuleLucarne) -> CapsuleLucarne {
         let o = origineVue
         return CapsuleLucarne(x0: c.x0 - o.x, x1: c.x1 - o.x, y0: c.y0 - o.y, y1: c.y1 - o.y, s: c.s, r: c.r)
     }
     /// La capsule dessinée (levée : 4 % plus grande), dans le repère de la vue.
-    var capsuleVue: CapsuleLucarne { versVue(lucarne.capsule.affichee) }
+    var capsuleVue: CapsuleLucarne { capsuleVue(lucarne.capsule.affichee) }
     /// L'anneau de l'appui long : son centre dans la vue et son heure de départ ; nil hors de l'appui. Il s'anime seul (une horloge
     /// d'animation dans sa propre vue, le temps de l'appui) : rien d'autre n'est redessiné.
     var anneauAppui: (centre: CGPoint, debut: Double)? {
         guard lucarne.geste.phase == .appui else { return nil }
-        return (versVue(lucarne.geste.pointeur), lucarne.geste.debut)
+        return (positionVue(lucarne.geste.pointeur), lucarne.geste.debut)
     }
     /// Un appui ou une tenue en cours : la fenêtre garde la souris (pas de clic qui traverse, pas de survol).
     var lucarneOccupee: Bool { lucarne.bouton != nil || lucarne.geste.phase != .repos }
@@ -102,7 +103,8 @@ extension IlotMoteur {
 
     // MARK: la forme posée hors de l'encoche
 
-    /// La pilule repliée de sa place, à la taille de son contenu compact (celui de l'écran visé, ou le logo).
+    /// La pilule repliée de sa place, à la taille de son contenu compact (celui de l'écran visé, ou le logo). Sans caméra, la place du
+    /// haut au milieu est elle aussi une pilule de verre (décision A).
     func capsuleRepliee(_ e: EcranLucarne) -> CapsuleLucarne {
         let debout = lucarne.place.debout
         let g = GenreCompact.de(courante) ?? .logo
@@ -124,26 +126,32 @@ extension IlotMoteur {
         let ouvre = voulue.largeur * voulue.hauteur > cible.largeur * cible.hauteur
         lucarne.capsule.viser(voulue, passage: ouvre ? .ouverture : .fermeture, reduire: reduire)
     }
-    /// La forme vise-t-elle un déplié (quelque chose sous la barre, dans l'encoche) ?
+    /// La forme vise-t-elle un repli (rien sous la barre, dans l'encoche) ?
     var lucarneVisePlie: Bool { geo[2].cibleFinale - Double(geometrie.hauteur) <= 0.5 }
     /// Le contenu déplié est-il à dessiner ? Posée, quand la forme vise un déplié ou n'est pas encore revenue à sa pilule.
     var lucarneDepliee: Bool { lucarneDeplie > 0 || (lucarne.libre && !lucarneEnMain && !lucarneVisePlie) }
-    /// Dépliée (pour le voile du verre, l'ombre et le contenu) : 0 sur la pilule, 1 dès 30 pt d'écart avec elle (le plus petit bandeau
-    /// a déjà du texte courant à lire) ; continu dans les deux sens.
+    /// Dépliée (pour l'ombre et le contenu) : 0 sur la pilule, 1 dès 30 pt d'écart avec elle ; continu dans les deux sens. Une pilule
+    /// visée se compare à elle-même : posée, c'est exactement 0.
     var lucarneDeplie: Double {
         guard lucarne.libre, !lucarneEnMain, let e = lucarne.ecran else { return 0 }
-        let a = lucarne.capsule.affichee, p = capsuleRepliee(e)
-        return min(1, max(abs(a.largeur - p.largeur), abs(a.hauteur - p.hauteur)) / 30)
+        let a = lucarne.capsule.affichee, p = lucarneVisePlie ? lucarne.capsule.cible : capsuleRepliee(e)
+        let ecart = max(abs(a.largeur - p.largeur), abs(a.hauteur - p.hauteur))
+        return ecart < 0.01 ? 0 : min(1, ecart / 30)
     }
-    /// Le haut-milieu du contenu déplié (repère de la Lucarne) : mis en page pour la forme visée, il suit le bord ancré de la forme.
-    var coinContenuLibre: PointLucarne {
-        GeoLucarne.coinContenu(actuelle: lucarne.capsule.valeur, cible: lucarne.capsule.cible, place: lucarne.place)
-    }
-    /// Où poser `IlotCalques` (sa zone de 800 × 380, contenu en (0, barre) au haut-milieu du contenu) dans la vue libre.
+    /// Tenue ou aspirée près de l'encoche : la forme est celle de l'encoche (noire) et son contenu compact est dans ses ailes, comme dans
+    /// l'encoche (pas au milieu, sous la caméra) : au décollage comme à l'arrivée, rien ne disparaît d'un coup.
+    var lucarneAilesEncoche: Bool { lucarne.libre && (lucarne.pres == true || lucarne.aspiree) }
+    /// Pilule debout (milieu des bords) : décidée par la forme visée, pour que le contenu se mette debout en même temps qu'elle.
+    var lucarneDebout: Bool { let c = lucarne.capsule.cible; return c.hauteur > c.largeur }
+    /// Le haut-milieu du contenu déplié (repère de la Lucarne) : celui de la forme telle qu'elle est (`GeoLucarne.coinContenu`).
+    var coinContenuLibre: PointLucarne { GeoLucarne.coinContenu(lucarne.capsule.valeur) }
+    /// Où poser `IlotCalques` (sa zone de 800 × 380, contenu en (0, barre) au haut-milieu du contenu) dans la vue libre ; près de
+    /// l'encoche, dans sa forme : le point (0, 0) de l'encoche au haut-milieu de la capsule.
     var origineCalques: CGPoint? {
         guard lucarne.libre else { return nil }
-        let k = coinContenuLibre, o = origineVue
-        return CGPoint(x: tailleVue.width / 2 + CGFloat(k.x) - o.x - Self.largeur / 2, y: CGFloat(k.y) - o.y - geometrie.hauteur)
+        let k = lucarneAilesEncoche ? PointLucarne(lucarne.capsule.cx.x, lucarne.capsule.affichee.y0 + Double(geometrie.hauteur)) : coinContenuLibre
+        let p = positionVue(k)
+        return CGPoint(x: p.x - Self.largeur / 2, y: p.y - geometrie.hauteur)
     }
     /// Un point de l'écran (repère de la Lucarne) dans le repère des écrans de l'encoche (x depuis le milieu du contenu, y depuis le haut de
     /// l'écran, la barre comprise) : les tests de position du contenu (liste des Dictées, zones de l'étagère) le reçoivent. Identique
@@ -164,10 +172,11 @@ extension IlotMoteur {
     /// La bulle de la deuxième activité hors de l'encoche (repère de la Lucarne), posée ou en train de sortir ; nil sans bulle, pendant la
     /// tenue et le vol.
     var bulleLibre: CapsuleLucarne? {
-        guard lucarne.libre, !lucarneEnMain, let a = pastille, pastilleChute.x > 0.005 else { return nil }
-        return GeoLucarne.bulle(lucarne.capsule.valeur, place: lucarne.place, largeur: largeurBulleLibre(a), sortie: pastilleChute.x)
+        guard lucarne.libre, !lucarneEnMain, lucarneVisePlie, let a = pastille, pastilleChute.x > 0.005 else { return nil }
+        // elle sort de la pilule visée (jamais à côté d'un déplié qui se replie)
+        return GeoLucarne.bulle(lucarne.capsule.cible, place: lucarne.place, largeur: largeurBulleLibre(a), sortie: pastilleChute.x)
     }
-    var bulleLibreVue: CapsuleLucarne? { bulleLibre.map(versVue) }
+    var bulleLibreVue: CapsuleLucarne? { bulleLibre.map(capsuleVue) }
     /// Couchée : son contenu et 10 pt de chaque côté (la bulle de l'encoche) ; debout, la largeur de la pilule.
     func largeurBulleLibre(_ a: ActiviteIlot) -> Double {
         largeurCompacte(.activite(a), debout: lucarne.place.debout) + 20
@@ -196,7 +205,8 @@ extension IlotMoteur {
 
     /// La fenêtre en régime libre (repère de la Lucarne). Tenue et vol : une taille fixe centrée sur la capsule (seule l'origine suit),
     /// l'anneau de l'appui y tient. Posée : la pilule et la forme visée (et la bulle), avec la place de l'ombre ; la fenêtre grandit tout
-    /// de suite et ne rétrécit qu'une fois la forme refermée (`IlotPanneau.ajuster`).
+    /// de suite et ne rétrécit que 0,65 s plus tard, le temps que la forme se referme (`IlotPanneau.ajuster`). Marges (plus larges que
+    /// dans l'encoche, qui n'a pas d'ombre repliée) : 8 sur les côtés, 6 en haut, 12 en bas repliée ; 20, 12 et 32 dépliée.
     func fenetreLibre() -> CGRect {
         let c = lucarne.capsule
         if lucarneEnMain {
@@ -207,7 +217,7 @@ extension IlotMoteur {
         func rect(_ k: CapsuleLucarne) -> CGRect { CGRect(x: k.x0, y: k.y0, width: k.largeur, height: k.hauteur) }
         let p = capsuleRepliee(e), v = c.cible
         var r = rect(p).union(rect(v))
-        if pastilleMontree, let a = pastille { r = r.union(rect(GeoLucarne.bulle(p, place: lucarne.place, largeur: largeurBulleLibre(a)))) }
+        if pastilleMontree, let a = pastille { r = r.union(rect(GeoLucarne.bulle(p, place: lucarne.place, largeur: largeurBulleLibre(a))).insetBy(dx: -4, dy: -4)) }
         let deplie = v.hauteur > p.hauteur + 0.5
         let (cote, haut, bas): (CGFloat, CGFloat, CGFloat) = deplie ? (20, 12, 32) : (8, 6, 12)
         r = CGRect(x: r.minX - cote, y: r.minY - haut, width: r.width + 2 * cote, height: r.height + haut + bas)
@@ -237,8 +247,15 @@ extension IlotMoteur {
         let g = geoCompacte
         return .encoche(TraceIlot.calculer(g, demiCamera: Double(demiCamera), barre: Double(geometrie.hauteur)), epaule: g[3], coin: g[4])
     }
-    /// La forme de l'encoche est à un demi-point de sa cible (la queue du ressort, invisible, peut durer encore une demi-seconde).
-    private var encocheQuasiRepliee: Bool { geo.allSatisfy { abs($0.x - $0.cibleFinale) < 0.5 } }
+    /// La forme de départ est à un demi-point de sa cible (la queue du ressort, invisible, peut durer encore une demi-seconde) : celle
+    /// de l'encoche, ou la capsule libre.
+    private var quasiRepliee: Bool {
+        if lucarne.libre {
+            let a = lucarne.capsule.valeur, c = lucarne.capsule.cible
+            return max(abs(a.x0 - c.x0), abs(a.x1 - c.x1), abs(a.y0 - c.y0), abs(a.y1 - c.y1)) < 0.5
+        }
+        return geo.allSatisfy { abs($0.x - $0.cibleFinale) < 0.5 }
+    }
     /// L'encoche vise-t-elle un déplié (quelque chose sous la barre) ?
     private var encocheDepliee: Bool { traceCible.hauteur > Double(geometrie.hauteur) + 0.5 }
 
@@ -261,7 +278,8 @@ extension IlotMoteur {
         appuyer(false)
         lucarne.ecran = e; lucarne.uuid = uuid; lucarne.place = place
         lucarne.vol = false; lucarne.aspiree = false; lucarne.pres = nil; lucarne.repli = false
-        lucarne.libre = place != .encoche
+        // sans caméra, la place du haut au milieu est une pilule de verre, visible même vide (décision A) : jamais cachée, introuvable
+        lucarne.libre = place != .encoche || !e.avecEncoche
         if lucarne.libre {
             lucarne.capsule = RessortsCapsule(capsuleLibreVoulue(e), noir: 0)
             lucarne.centreVue = PointLucarne(lucarne.capsule.cx.x, lucarne.capsule.cy.x)
@@ -343,21 +361,25 @@ extension IlotMoteur {
         surFenetre(); demarrerBoucle()
     }
 
-    /// 0,4 s d'appui : le Centre (ou une carte) se range, une vibration. Dans l'encoche dépliée, elle attend que la forme soit repliée
-    /// pour se décoller (`decollerDuRepli`) ; une alerte ou un bandeau qui occupe l'encoche ne se déplace pas (il attend un geste ou sa
-    /// fin) : l'appui s'arrête.
+    /// 0,4 s d'appui : le Centre (ou une carte) se range, une vibration ; elle se décolle une fois repliée (`decollerDuRepli`), dans
+    /// l'encoche comme ailleurs. Une alerte ou un bandeau (que « fermer » ne range pas) ne se déplace pas : il attend un geste ou sa fin,
+    /// l'appui s'arrête.
     private func decoller() {
         guard lucarne.ecran != nil else { return }
         lucarne.reveil?.cancel(); lucarne.reveil = nil
         appuyer(false)
+        // pendant le rangement, la forme libre n'est pas « en main » : elle vise sa pilule comme posée
+        lucarne.repli = true
         if fenetreOuverte { fermer() }
-        if !lucarne.libre, encocheDepliee {
+        lucarne.repli = false
+        if lucarne.libre ? !lucarneVisePlie : encocheDepliee {
             lucarne.geste = GesteLucarne()
             surFenetre(); demarrerBoucle()
             return
         }
         lucarne.systeme.vibrer()
-        if !lucarne.libre, !encocheQuasiRepliee {
+        surveillerTenue()
+        if !quasiRepliee {
             lucarne.repli = true
             surFenetre(); demarrerBoucle()
             return
@@ -365,7 +387,7 @@ extension IlotMoteur {
         decollerDuRepli()
     }
 
-    /// La forme de départ est repliée (dans l'encoche, ou la capsule libre) : régime libre, prise sur la forme actuelle, levée ; le point
+    /// La forme de départ est repliée (la forme compacte de l'encoche, ou la pilule) : régime libre, prise sur la forme actuelle, levée ; le point
     /// tenu glisse doucement vers le milieu de la pilule (la forme rejoint le doigt sans saut s'il a bougé pendant le repli).
     private func decollerDuRepli() {
         guard let e = lucarne.ecran else { return }
@@ -473,7 +495,7 @@ extension IlotMoteur {
     /// tenue et le vol, la fenêtre le suit.
     func avancerLucarne(_ dt: Double) -> Bool {
         // l'encoche est repliée (à un demi-point près : la fin du ressort ne se voit pas) : elle se décolle
-        if lucarne.repli, encocheQuasiRepliee { decollerDuRepli() }
+        if lucarne.repli, quasiRepliee { decollerDuRepli() }
         if lucarne.vol, lucarne.capsule.fini { finVol(); return true }
         guard lucarne.libre, !lucarne.capsule.fini else { return false }
         let a = lucarne.capsule
@@ -484,6 +506,8 @@ extension IlotMoteur {
         if lucarne.geste.phase == .decollee { suivre(lucarne.geste.pointeur) }   // le point tenu glisse vers le milieu de la pilule
         else if lucarne.vol, bouge { lucarne.surDeplacement() }
         if lucarne.vol, lucarne.capsule.fini { finVol() }
+        // arrivée : exactement sur sa cible (comme les ressorts de l'encoche), sans reste qui laisserait le déplié dessiné
+        else if lucarne.capsule.fini { lucarne.capsule.poser() }
         // posée, la vue ne suit pas la capsule : un centre qui bouge (la forme grandit depuis sa place) se redessine
         return forme || (bouge && !lucarneEnMain)
     }
