@@ -150,6 +150,7 @@ struct IlotCalques: View {
         case .dictees: DicteesCarte(m: m, d: m.dictees, g: g)
         case .outils: CentreVue(m: m, g: g, page: .outils)
         case .outilPressePapiers: CartePressePapiers(m: m, g: g)
+        case .secondBrain: CarteSecondBrain(m: m, g: g)
         case .outilReformuler: CarteReformuler(m: m, g: g)
         case .outilNote: CarteNote(m: m, g: g)
         }

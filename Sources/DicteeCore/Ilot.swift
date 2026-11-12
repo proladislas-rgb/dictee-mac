@@ -44,6 +44,10 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// Ses cartes, ouvertes d'un clic sur un rond : le presse-papiers (les cinq dernières copies), Reformuler (la dernière dictée ou le
     /// texte choisi, réécrit), Note rapide (dicter une note, les notes gardées).
     case outils, outilPressePapiers, outilReformuler, outilNote
+    /// La carte « Second Brain » (maquette ilot-second-cerveau.html) : ce que l'autre app de Hugues dépose dans ~/.config/second-cerveau/ilot.json
+    /// (messages, choses « à toi », relances). Elle s'ouvre d'un clic sur son bouton du Centre, qui n'existe que si le fichier existe ; elle
+    /// est rangée sous le Centre (point de page du Centre allumé, un défilement y ramène).
+    case secondBrain
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
@@ -155,6 +159,7 @@ public enum GeoIlot {
         .outilPressePapiers: [14, 144, profondeurCentre, 6, 34, 18, 10],
         .outilReformuler: [14, 144, profondeurCentre, 6, 34, 18, 10],
         .outilNote: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        .secondBrain: [14, 144, profondeurCentre, 6, 34, 18, 10],
     ]
     /// Indices des valeurs : largeurs (cou, corps, cou droit) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur
     /// mène ; à la fermeture la hauteur se replie d'abord.
@@ -175,7 +180,7 @@ public enum GeoIlot {
     public static let epaules: Double = 56
     public static func aEpaules(_ v: VueIlot) -> Bool {
         [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .dictees, .claudeCarte,
-         .outils, .outilPressePapiers, .outilReformuler, .outilNote].contains(v)
+         .outils, .outilPressePapiers, .outilReformuler, .outilNote, .secondBrain].contains(v)
     }
 
     /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.

@@ -121,6 +121,18 @@ final class IlotControleur {
     var ouvrir: (URL) -> Void = { NSWorkspace.shared.open($0) }
     /// Montre des fichiers dans le Finder (injectable, comme `ouvrir`).
     var montrer: ([URL]) -> Void = { NSWorkspace.shared.activateFileViewerSelecting($0) }
+    /// Second Brain (IlotSecondBrain.swift) : le dossier de son fichier d'état, la lecture du fichier, le test d'existence d'un chemin et la
+    /// recherche de l'app, tous injectables (l'essai ne lit jamais le vrai ~/.config et n'ouvre rien).
+    let secondBrainSource = SourceSecondBrain()
+    var dossierSecondBrain: () -> URL = { FichierSecondCerveau.dossierParDefaut() }
+    var lireSecondBrain: (URL) -> Data? = { FichierSecondCerveau.lire($0) }
+    var existenceSecondBrain: (String) -> SecondCerveauIlot.Existence = { chemin in
+        var dossier: ObjCBool = false
+        return SecondCerveauIlot.Existence(existe: FileManager.default.fileExists(atPath: chemin, isDirectory: &dossier), dossier: dossier.boolValue)
+    }
+    /// L'app qui sait ouvrir un lien secondbrain:// (nil : aucune).
+    var gestionnaireSecondBrain: (URL) -> URL? = { NSWorkspace.shared.urlForApplication(toOpen: $0) }
+    var appSecondBrain: ([String]) -> URL? = { ids in ids.lazy.compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }.first }
     /// L'heure (injectable).
     var maintenant: () -> Date = { Date() } { didSet { moteur.maintenant = maintenant } }
     /// Les sons et vibrations (injectables : les essais n'en jouent jamais).
@@ -206,6 +218,7 @@ final class IlotControleur {
         capturesSource.surPret = { [weak self] in self?.moteur.capturesAttente = false }
         capturesSource.surArret = { [weak self] in self?.capturesIntrouvables() }
         claudeSource.surLignes = { [weak self] l, relecture in self?.lignesClaude(l, relecture: relecture) }
+        secondBrainSource.surChangement = { [weak self] d in self?.secondBrainLu(d) }
         micro.surChangement = { [weak self] in self?.microChange() }
         moteur.surBulleVue = { [weak self] in self?.reglagesCentre.marquerBulleVue() }
         moteur.surCentreUtilise = { [weak self] in self?.reglagesCentre.marquerCentreUtilise() }
@@ -237,9 +250,11 @@ final class IlotControleur {
         moteur.disposition = DispositionCentre(identifiants: reglagesCentre.disposition())
         if !reglagesCentre.bulleVue() { moteur.montrerBulle() }
         demarrerLesOutils()
+        demarrerSecondBrain()
     }
 
     func arreter() {
+        secondBrainSource.arreter()
         lecture.arreter()
         notificationsSource.arreter()
         energieSource.arreter(); appareilsSource.arreter()
@@ -542,6 +557,7 @@ final class IlotControleur {
         case .centreMicro, .centreTelechargements, .centreClaude, .etagereAllumer, .centreReunion, .centreAvis: agirCentre(action)
         case .eveil, .copieRecopier, .copieColler, .copiesEffacer, .reformulationSource, .reformuler, .reformulationRemplacer, .reformulationCopier,
              .noteVersNotes, .noteSupprimer: agirOutils(action)
+        case .secondBrainOuvrir(let lien): agirSecondBrain(lien)
         case .alerteOK: moteur.quitterAlerte()
         case .rappelPlusTard(let id):
             rappels.reporter(id, depuis: maintenant()); sauver()
