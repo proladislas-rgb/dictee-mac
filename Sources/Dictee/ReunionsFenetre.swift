@@ -281,7 +281,7 @@ final class ReunionsModele: ObservableObject {
         let panneau = NSSavePanel()
         panneau.allowedContentTypes = [.mpeg4Audio]
         panneau.nameFieldStringValue = ExtraitsReunion.nomFichierReunion(r)
-        panneau.title = "Exporter l\u{2019}audio de la réunion"
+        panneau.title = "Télécharger l\u{2019}audio de la réunion"
         let moi = store.fichierSon(r, .moi), eux = store.fichierSon(r, .eux)
         panneau.begin { [weak self] reponse in
             guard reponse == .OK, let url = panneau.url else { return }
@@ -735,9 +735,9 @@ struct NoteReunionVue: View {
                 BoutonNote(titre: m.exportee ? "Enregistrée" : "Exporter", icone: m.exportee ? "checkmark" : "arrow.down.circle", fait: m.exportee) { m.exporterMarkdown(r) }
                 if m.sonDisponible(r) {
                     let a = m.exportAudio
-                    BoutonNote(titre: a == 1 ? "Audio enregistré" : (a != nil ? "Audio \(PreparationNote.pourcent(a ?? 0))" : "Audio"),
-                               icone: a == 1 ? "checkmark" : "waveform", fait: a == 1) { m.exporterAudioReunion(r) }
-                        .help("Exporter toute la réunion en un fichier audio (.m4a), ta voix et celle des autres mélangées")
+                    BoutonNote(titre: a == 1 ? "Audio enregistré" : (a != nil ? "Audio \(PreparationNote.pourcent(a ?? 0))" : "Télécharger l\u{2019}audio"),
+                               icone: a == 1 ? "checkmark" : "arrow.down.to.line", fait: a == 1) { m.exporterAudioReunion(r) }
+                        .help("Télécharger toute la réunion en un fichier audio (.m4a), ta voix et celle des autres mélangées ; rien ne quitte ce Mac")
                 }
                 BoutonNote(titre: "Effacer", discret: true) { m.suppressionEnAttente = true }
             }

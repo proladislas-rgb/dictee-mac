@@ -111,7 +111,7 @@ final class ReglagesModele: ObservableObject {
         remettreAuPropre = reel ? Settings.remettreAuPropre : true
         adapterLeTon = reel ? Settings.adapterLeTon : true
         secoursApple = reel ? Settings.secoursApple : true
-        garderSonReunions = reel ? Settings.garderSonReunions : false
+        garderSonReunions = reel ? Settings.garderSonReunions : true
         proposerLesAppels = reel ? Settings.proposerLesAppels : true
         sons = reel ? Settings.sons : true
         vibration = reel ? Settings.vibration : true

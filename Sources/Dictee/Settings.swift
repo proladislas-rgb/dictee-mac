@@ -166,10 +166,11 @@ enum Settings {
 
     // MARK: Notes de réunion
 
-    /// Garder le son brut des réunions (deux fichiers WAV, un par piste) à côté de la note. Désactivé par défaut : le son n'existe alors
-    /// que le temps de la transcription, en mémoire. Exemple : defaults write com.hugues.dictee garderSonReunions -bool true
+    /// Garder le son brut des réunions (deux fichiers WAV 0600, un par piste) à côté de la note, sur ce Mac : chaque passage et toute la
+    /// réunion se téléchargent en .m4a (comme une note vocale). Allumé par défaut depuis le 13/11 (Hugues : « garder le son et pouvoir le
+    /// télécharger ») ; un choix déjà fait dans Réglages est respecté. Éteint : le son n'existe que le temps de la transcription.
     static var garderSonReunions: Bool {
-        get { defaults.object(forKey: "garderSonReunions") as? Bool ?? false }
+        get { defaults.object(forKey: "garderSonReunions") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "garderSonReunions") }
     }
 

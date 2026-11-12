@@ -457,7 +457,7 @@ struct ReglagesDetailVue: View {
             LigneGroupe(libelle: "Proposer de noter les appels", note: "Quand Zoom, Teams, FaceTime… utilise le micro. Rien ne s\u{2019}enregistre sans ton clic.", premiere: true) {
                 Interrupteur(actif: $r.proposerLesAppels, etiquette: "Proposer de noter les appels")
             }
-            LigneGroupe(libelle: "Garder le son des réunions", note: r.garderSonReunions ? "Le son est gardé à côté de la note, sur ce Mac." : "Le son est effacé dès que la note est prête.") {
+            LigneGroupe(libelle: "Garder le son des réunions", note: r.garderSonReunions ? "Le son reste à côté de la note, sur ce Mac : chaque passage et toute la réunion se téléchargent (.m4a)." : "Le son est effacé dès que la note est prête.") {
                 Interrupteur(actif: $r.garderSonReunions, etiquette: "Garder le son des réunions")
             }
         }
