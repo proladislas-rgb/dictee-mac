@@ -1,19 +1,21 @@
 <!doctype html>
 <!--
-Lucarne — « On va pouvoir la changer de place ? » : la Lucarne peut vivre en haut (dans l'encoche, comme aujourd'hui),
-en bas (une pilule qui flotte au-dessus du Dock et grandit vers le haut), à gauche ou à droite (une pilule debout,
-au milieu du bord, qui grandit vers l'intérieur). Utile aussi sur un Mac sans encoche et sur un écran externe.
-Dans l'encoche, elle reste noire et opaque (elle se fond avec la caméra). Hors de l'encoche, elle passe en verre clair
-(« Liquid Glass » de macOS 26) : flou de ce qui est derrière, bord lumineux fin, texte foncé lisible. Réglage
-« Apparence hors de l'encoche : Verre · Noir ».
-On la déplace de deux façons : Réglages › Lucarne › Position, ou directement au trackpad :
-appui long (0,5 s) SANS bouger = l'action d'aujourd'hui (la rangée Minuteur) ;
-appui long PUIS mouvement de plus de 12 pt = déplacer. Elle se décroche (un peu plus grande, ombre plus forte,
-petit choc haptique), les places possibles s'affichent en pointillés, lâchée elle file vers la plus proche.
-Aucun raccourci clavier ; seule fn reste, pour dicter. Données inventées.
+Lucarne — la déplacer d'un geste, directement sur elle. On reste appuyé sur Lucarne, où qu'elle soit (dans l'encoche
+aussi) : un petit anneau se remplit sous le pointeur (0,4 s), puis elle se décolle (4 % plus grande, une ombre).
+Elle suit le pointeur 1:1 ; les huit places possibles s'affichent en pointillés discrets, la plus proche s'allume.
+On lâche : elle file vers la plus proche avec un ressort (façon « image dans l'image » de l'iPhone). Un geste rapide
+la lance : elle part vers la place dans la direction du lancer (on projette le mouvement, on prend la place la plus proche).
+Les huit places : en haut au milieu (l'encoche, noire), en haut à gauche, en haut à droite (juste sous la barre des menus),
+au milieu des bords gauche et droit (pilule debout), en bas à gauche et en bas à droite (à côté du Dock, jamais dessus),
+en bas au milieu (au-dessus du Dock).
+Près de l'encoche, elle est aimantée : elle reprend la forme de l'encoche, redevient noire et s'y fond.
+Dans l'encoche elle est noire ; ailleurs, du verre clair (« Liquid Glass » de macOS 26), texte foncé.
+Survolée ailleurs, elle s'ouvre vers l'intérieur de l'écran : depuis un coin, en diagonale ; depuis un bord, à l'opposé du bord.
+Plus aucun réglage « Position ». L'appui long ne sert plus au minuteur (il est dans le Centre). Aucun raccourci ; fn pour dicter.
 Format repris de ilot-centre.html (forme `chemin`/`cote` pour l'encoche, mêmes ressorts, faux écran, régie).
-Hors de l'encoche, la forme est une « capsule » aux mêmes coins continus (PORTEE/POIGNEE), arrondie de tous côtés.
-Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt.
+Hors de l'encoche, la forme est une « capsule » aux mêmes coins continus (PORTEE/POIGNEE), arrondie de tous côtés,
+tenue par six ressorts (centre, demi-largeur, demi-hauteur, coins) : un lancer garde sa vitesse jusqu'à la place.
+Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt. Données inventées.
 Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
                    ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)
                    ?horloge=1 (animations cadencées par minuterie, pour les captures automatiques)
@@ -22,7 +24,7 @@ Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 =
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lucarne · où la placer</title>
+<title>Lucarne · la déplacer</title>
 <style>
 :root{
   --k:1;
@@ -149,40 +151,14 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .sug p{font-size:14px;line-height:20px;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:3px}
 .sug span{display:block;font-size:12px;line-height:18px;color:#606060;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* ---- Réglages › Lucarne (petite fenêtre, gris chauds de l'app) ---- */
-.reg{right:16px;top:42px;width:340px;height:280px;z-index:2;pointer-events:auto;background:var(--pan);color:var(--ink);
-  box-shadow:0 0 0 .5px rgba(0,0,0,.65),inset 0 0 0 .5px rgba(255,255,255,.08),0 36px 80px -20px rgba(24,36,60,.55),0 12px 26px -10px rgba(24,36,60,.32)}
-.reg .feux{left:13px;top:12px}
-.reg .feux i:first-child{cursor:pointer}
-.reg-t{height:36px;flex:none;display:grid;place-items:center;font-size:13px;font-weight:700}
-.segm{display:flex;gap:2px;padding:2px;border-radius:9px;background:rgba(255,255,255,.07);margin:0 auto;width:max-content;flex:none}
-.segm button{height:22px;border-radius:7px;padding:0 10px;font-size:12px;font-weight:500;color:var(--ink2)}
-.segm button.on{background:rgba(255,255,255,.16);color:#fff;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.25)}
-.boite{background:var(--box);border-radius:12px;box-shadow:inset 0 0 0 .5px var(--hair2)}
-.reg-b{margin:10px 14px 0;padding:10px 12px}
-.reg-l b{display:block;font-size:13px;line-height:17px;font-weight:600;color:var(--ink)}
-.reg-l span{display:block;font-size:12px;line-height:16px;color:var(--ink3);margin-top:1px}
-.choix{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
-.choix button{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
-.ecr{width:100%;padding:2px;border-radius:7px;box-shadow:inset 0 0 0 1px var(--hair2);transition:box-shadow .2s ease}
-.ecr svg{width:100%;height:auto;border-radius:5px;overflow:hidden}
-.choix b{font-size:11.5px;line-height:15px;font-weight:500;color:var(--ink2)}
-.choix button.on .ecr{box-shadow:inset 0 0 0 2px var(--bleu)}
-.choix button.on b{color:#fff;font-weight:600}
-.reg-r{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding-top:9px;border-top:1px solid var(--hair)}
-.reg-r .reg-l b{font-size:12.5px;white-space:nowrap}
-.mini-seg{display:flex;gap:2px;padding:2px;border-radius:8px;background:rgba(255,255,255,.07)}
-.mini-seg button{height:22px;border-radius:6px;padding:0 9px;font-size:12px;font-weight:500;color:var(--ink2);cursor:pointer}
-.mini-seg button.on{background:rgba(255,255,255,.16);color:#fff;font-weight:600}
-.reg-n{font-size:11.5px;line-height:15px;color:var(--ink3);margin:9px 16px 0}
 
 /* =====================================================================
    La Lucarne : noire dans l'encoche, en verre hors de l'encoche
    ===================================================================== */
 .calque{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
 #places-svg{z-index:4}
-.place{fill:rgba(20,30,50,.05);stroke:rgba(20,30,50,.34);stroke-width:1.1;stroke-dasharray:4 3.5;transition:fill .2s ease,stroke .2s ease}
-.place.pres{fill:rgba(10,132,255,.13);stroke:rgba(10,132,255,.85);stroke-dasharray:none}
+.place{fill:rgba(255,255,255,.18);stroke:rgba(20,30,50,.46);stroke-width:1.2;stroke-dasharray:4 3.5;transition:fill .2s ease,stroke .2s ease}
+.place.pres{fill:rgba(10,132,255,.16);stroke:rgba(10,132,255,.92);stroke-dasharray:none;stroke-width:1.6}
 #places{opacity:0;transition:opacity calc(.22s*var(--k)) ease}
 #places.vu{opacity:1}
 #verre{z-index:5;opacity:0;background:rgba(255,255,255,.06);-webkit-backdrop-filter:blur(20px) saturate(1.9) brightness(1.05);backdrop-filter:blur(20px) saturate(1.9) brightness(1.05)}
@@ -208,11 +184,6 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .eq i:nth-child(5){animation-duration:1.18s;animation-delay:-.2s}
 @keyframes eq{0%{transform:scaleY(.28)}22%{transform:scaleY(.95)}41%{transform:scaleY(.5)}63%{transform:scaleY(1)}82%{transform:scaleY(.36)}100%{transform:scaleY(.28)}}
 .epaule{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;height:17px;color:#fff}
-/* la bulle du minuteur */
-.minu{display:flex;align-items:center;gap:6px;height:19px;font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.1px;color:rgb(var(--amb))}
-.minu.vert{flex-direction:column;gap:2px;height:auto;font-size:12.5px}
-.minu circle{stroke:rgb(var(--amb))}
-.minu circle.fond{opacity:.28}
 
 /* le Centre (repris de ilot-centre.html ; les couleurs suivent le noir ou le verre) */
 .cc{width:420px}
@@ -261,15 +232,21 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 .ban{width:332px;height:40px;display:flex;align-items:center;gap:12px}
 .ban-ic{width:40px;height:40px;border-radius:50%;background:rgb(var(--fg) / .12);display:grid;place-items:center;flex:none;color:rgb(var(--jau))}
 .ban-tx{flex:1;min-width:0}
-
-/* faux pointeur ; l'anneau qui se resserre = appui long */
+/* faux pointeur ; l'appui long : un petit anneau se remplit sous le pointeur, puis s'efface quand elle se décolle */
 .pointeur{position:absolute;left:0;top:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .22s}
 .pointeur.vu{opacity:1}
 .pointeur .fleche{position:relative;width:18px;height:26px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));transform-origin:2px 2px;transition:transform .12s ease}
 .pointeur.appui .fleche{transform:scale(.86)}
-.tenir{position:absolute;left:-13px;top:-13px;width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.95);
-  box-shadow:0 0 0 1px rgba(0,0,0,.18),inset 0 0 0 1px rgba(0,0,0,.12);opacity:0;transform:scale(1.5);transition:opacity .15s ease,transform .15s ease}
-.pointeur.tient .tenir{opacity:1;transform:scale(.62);transition:opacity .12s ease,transform calc(.5s*var(--k)) linear}
+.pointeur.reel .fleche{display:none}
+.tenir{position:absolute;left:-16px;top:-16px;width:32px;height:32px;opacity:0;transition:opacity .15s ease,transform .25s ease}
+.tenir circle{fill:none;stroke-width:3}
+.t-ombre{stroke:rgba(0,0,0,.3)}
+.t-plein{stroke:#fff;stroke-linecap:round;stroke-dasharray:69.2;stroke-dashoffset:69.2;transform:rotate(-90deg);transform-origin:16px 16px;filter:drop-shadow(0 0 1px rgba(0,0,0,.6))}
+.pointeur.tient .tenir{opacity:1}
+.pointeur.tient .t-plein{stroke-dashoffset:0;transition:stroke-dashoffset calc(.4s*var(--k)) linear}
+.pointeur.pris .tenir{opacity:0;transform:scale(1.35)}
+.pointeur.pris .t-plein{stroke-dashoffset:0}
+#ecran.prise{cursor:grabbing}
 
 /* =====================================================================
    La régie, sous la scène (reprise de ilot-centre.html)
@@ -404,20 +381,6 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
     </div>
   </div>
 
-  <!-- ===== Réglages › Lucarne ===== -->
-  <div class="fen reg cache" data-f="reg" aria-label="Réglages de Lucarne">
-    <div class="feux" id="regFermer" title="Fermer"><i></i><i></i><i></i></div>
-    <div class="reg-t">Réglages</div>
-    <div class="segm"><button>Dictée</button><button class="on">Lucarne</button><button>Confidentialité</button><button>Compte</button></div>
-    <div class="boite reg-b">
-      <div class="reg-l"><b>Position</b><span>Où vit la Lucarne sur l’écran.</span></div>
-      <div class="choix" id="choix"></div>
-      <div class="reg-r"><div class="reg-l"><b>Apparence hors de l’encoche</b></div>
-        <div class="mini-seg" id="aspect"><button data-ap="verre">Verre</button><button data-ap="noir">Noir</button></div></div>
-    </div>
-    <p class="reg-n">Sans encoche ou sur un écran externe : choisis un bord.</p>
-  </div>
-
   <!-- ===== le Dock ===== -->
   <div class="dock" id="dock" aria-hidden="true"></div>
 
@@ -425,9 +388,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
   <div class="mb" aria-hidden="true"><div class="menus" id="menus"></div><div class="etats" id="etats"></div></div>
 
   <!-- ===== les places possibles (pendant qu'on la déplace) ===== -->
-  <svg id="places-svg" class="calque" aria-hidden="true"><g id="places">
-    <path class="place" data-p="haut"/><path class="place" data-p="bas"/><path class="place" data-p="gauche"/><path class="place" data-p="droite"/>
-  </g></svg>
+  <svg id="places-svg" class="calque" aria-hidden="true"><g id="places"></g></svg>
 
   <!-- ===== la Lucarne ===== -->
   <div id="verre" class="calque" aria-hidden="true"></div>
@@ -436,13 +397,13 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
       <mask id="hors" maskUnits="userSpaceOnUse" x="-6000" y="-6000" width="12000" height="12000">
         <rect x="-6000" y="-6000" width="12000" height="12000" fill="#fff"/><path id="masque" fill="#000"/></mask>
       <linearGradient id="vFond" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset=".55" stop-color="#fbfbfd" stop-opacity=".58"/><stop offset="1" stop-color="#f3f4f7" stop-opacity=".66"/></linearGradient>
+        <stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".55" stop-color="#fbfbfd" stop-opacity=".76"/><stop offset="1" stop-color="#f3f4f7" stop-opacity=".82"/></linearGradient>
     </defs>
     <g mask="url(#hors)"><path id="ombre" fill="rgb(10,20,40)" opacity="0"/></g>
     <path id="forme" fill="#000" d=""/>
     <g id="vitre" opacity="0">
       <path id="vitreFond" fill="url(#vFond)"/>
-      <path id="vitreTrait" fill="none" stroke="rgba(0,0,0,.14)" stroke-width="1.6"/>
+      <path id="vitreTrait" fill="none" stroke="rgba(0,0,0,.24)" stroke-width="1.6"/>
       <path id="vitreBord" fill="none" stroke="rgba(255,255,255,.95)" stroke-width=".9"/>
     </g>
   </svg>
@@ -453,7 +414,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
     <circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
   </svg>
 
-  <div class="pointeur" id="pointeur" aria-hidden="true"><i class="tenir"></i><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+  <div class="pointeur" id="pointeur" aria-hidden="true"><svg class="tenir" viewBox="0 0 32 32"><circle class="t-ombre" cx="16" cy="16" r="11"/><circle class="t-plein" cx="16" cy="16" r="11"/></svg><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
 </section>
 
 <!-- ===== régie ===== -->
@@ -476,9 +437,9 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
   </div>
   <ol class="r-pas" id="pas"></ol>
   <div class="notes">
-    <div><b>À essayer ici.</b> Décochez Lecture automatique. Survolez la Lucarne : elle s’ouvre. Appui long sur elle (½ s), puis bougez : elle se décroche, lâchez-la près d’un bord. Ou choisissez une place dans Réglages.</div>
-    <div><b>La règle de l’appui long.</b> Appui long sans bouger : comme aujourd’hui, la rangée Minuteur. Appui long puis plus de 12 pt de mouvement : on la déplace. Bouger avant la ½ seconde ne fait rien.</div>
-    <div><b>Noir ou verre.</b> Dans l’encoche, toujours noire (elle se fond avec la caméra). Ailleurs, du verre clair par défaut ; « Noir » reste possible. Même contenu partout ; seul le bord d’où elle grandit change, le texte reste droit.</div>
+    <div><b>À essayer ici.</b> Décochez Lecture automatique. Restez appuyé sur Lucarne, dans l’encoche ou ailleurs : l’anneau se remplit, elle se décolle. Glissez-la et lâchez près d’une place, ou lancez-la d’un coup sec. Remontez-la au milieu en haut pour la remettre dans l’encoche. Survolez-la : le Centre s’ouvre.</div>
+    <div><b>La règle de l’appui long.</b> Appui long sur Lucarne = la déplacer, toujours, où qu’elle soit. Bouger avant que l’anneau soit plein ne fait rien. Le simple survol ouvre le Centre ; le minuteur se lance depuis le Centre. Aucun réglage, aucun raccourci.</div>
+    <div><b>Noir ou verre.</b> Dans l’encoche, toujours noire : elle se fond avec la caméra. Ailleurs, du verre clair avec le même contenu. Huit places : l’encoche, les deux coins du haut, le milieu des deux côtés, en bas au milieu (au-dessus du Dock), et les deux coins du bas, à côté du Dock.</div>
   </div>
 </section>
 
@@ -494,12 +455,13 @@ const NO = 154;               // îlot ouvert : épaules de 64 pt dans la barre
 const BW = 232;               // îlot ouvert : demi-largeur du corps (464 pt)
 const HCC = B + 14 + 26 + 12 + 96 + 10 + 76 + 10 + 40 + 14;   // le Centre dans l'encoche (331)
 const OH = HCC - B, OW = 2 * BW;                             // le Centre hors de l'encoche : 464 × 298
-const PW = 120, PH = 36;      // pilule couchée (en bas, ou tenue à la souris)
-const VW = 40, VH = 112;      // pilule debout (à gauche, à droite)
-const BUW = 74, BUH = 52, GAP = 8;   // la bulle du minuteur
+const PW = 120, PH = 36;      // pilule couchée (dans un coin, en bas au milieu, ou tenue au doigt)
+const VW = 40, VH = 112;      // pilule debout (au milieu du bord gauche ou droit)
+const MARGE = 10;             // écart aux bords de l'écran
 const DOCK = 68;              // Dock 62 pt + 6 pt de marge
 const BAW = 360, BAH = 66;    // la bannière
-const POSES = ['haut', 'bas', 'gauche', 'droite'];
+const TENUE = 1.04;           // tenue au doigt : 4 % plus grande
+const APPUI = .4;             // durée de l'appui long (s)
 const PARAMS = new URLSearchParams(location.search);
 const racine = document.documentElement;
 const $ = s => document.querySelector(s);
@@ -630,7 +592,6 @@ const cloche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><p
 const guillemets = (t, c = '#fff') => `<svg width="${t}" height="${f2(t * .7)}" viewBox="-.45 -.3 3 2.1"><g fill="${c}"><path d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><path transform="translate(1.1 0)" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/></g></svg>`;
 const grilleG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><circle cx="6" cy="6" r="3.3"/><circle cx="14" cy="6" r="3.3"/><rect x="2.7" y="11.2" width="14.6" height="6.4" rx="3.2"/></svg>`;
 const batterie = n => `<svg width="28" height="13" viewBox="0 0 28 13"><rect width="24" height="13" rx="4" fill="#fff"/><text x="12" y="10" font-size="9.6" font-weight="700" text-anchor="middle" fill="#000" font-family="-apple-system,Helvetica,sans-serif">${n}</text><path d="M26 4.6v3.8" stroke="rgba(255,255,255,.5)" stroke-width="1.6" stroke-linecap="round"/></svg>`;
-const anneau = t => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle class="fond" cx="10" cy="10" r="7.4" fill="none" stroke-width="2.6"/><circle cx="10" cy="10" r="7.4" fill="none" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="33 47" transform="rotate(-90 10 10)"/></svg>`;
 const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
 const MENUS = {Chrome:['Fichier', 'Modifier', 'Afficher', 'Historique', 'Favoris', 'Profils', 'Onglet', 'Fenêtre', 'Aide'], Lucarne:['Fichier', 'Édition', 'Présentation', 'Fenêtre', 'Aide']};
 const ICONE = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiPgo8ZGVmcz4KICA8bGluZWFyR3JhZGllbnQgaWQ9ImJnIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMzRTNGNDQiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMxQjFDMUYiLz48L2xpbmVhckdyYWRpZW50PgogIDxsaW5lYXJHcmFkaWVudCBpZD0iaW5rIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMxQTFBMUMiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMwMDAwMDAiLz48L2xpbmVhckdyYWRpZW50PgogIDxsaW5lYXJHcmFkaWVudCBpZD0icmltIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMC4zNSIvPgogICAgPHN0b3Agb2Zmc2V0PSIwLjM1IiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAiLz4KICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwLjA2Ii8+PC9saW5lYXJHcmFkaWVudD4KICA8bGluZWFyR3JhZGllbnQgaWQ9ImdsYXNzcmltIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMC4yMiIvPgogICAgPHN0b3Agb2Zmc2V0PSIwLjUiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMC4wMiIvPgogICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAuMjYiLz48L2xpbmVhckdyYWRpZW50PgogIDxyYWRpYWxHcmFkaWVudCBpZD0ic2hlZW4iIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIiBjeD0iNTEyIiBjeT0iMTAwIiByPSI0NDAiPgogICAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAuMTgiLz4KICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwIi8+PC9yYWRpYWxHcmFkaWVudD4KICA8bGluZWFyR3JhZGllbnQgaWQ9Im9yIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZCMzQwIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjRkY4QTAwIi8+PC9saW5lYXJHcmFkaWVudD4KICA8ZmlsdGVyIGlkPSJib2R5IiB4PSItMjAlIiB5PSItMjAlIiB3aWR0aD0iMTQwJSIgaGVpZ2h0PSIxNDAlIj4KICAgIDxmZURyb3BTaGFkb3cgZHg9IjAiIGR5PSIxNCIgc3RkRGV2aWF0aW9uPSIxNiIgZmxvb2QtY29sb3I9IiMwMDAiIGZsb29kLW9wYWNpdHk9IjAuMjYiLz4KICAgIDxmZURyb3BTaGFkb3cgZHg9IjAiIGR5PSIyIiBzdGREZXZpYXRpb249IjIiIGZsb29kLWNvbG9yPSIjMDAwIiBmbG9vZC1vcGFjaXR5PSIwLjE4Ii8+PC9maWx0ZXI+CiAgPGZpbHRlciBpZD0iZ3NoIiB4PSItMzAlIiB5PSItMzAlIiB3aWR0aD0iMTYwJSIgaGVpZ2h0PSIxNzAlIj4KICAgIDxmZUdhdXNzaWFuQmx1ciBpbj0iU291cmNlQWxwaGEiIHN0ZERldmlhdGlvbj0iMTQiLz48ZmVPZmZzZXQgZHk9IjEwIi8+CiAgICA8ZmVDb21wb25lbnRUcmFuc2Zlcj48ZmVGdW5jQSB0eXBlPSJsaW5lYXIiIHNsb3BlPSIwLjUiLz48L2ZlQ29tcG9uZW50VHJhbnNmZXI+CiAgICA8ZmVDb2xvck1hdHJpeCB2YWx1ZXM9IjAgMCAwIDAgMCAgMCAwIDAgMCAwICAwIDAgMCAwIDAgIDAgMCAwIDEgMCIvPjwvZmlsdGVyPgogIDxmaWx0ZXIgaWQ9ImdzaDIiIHg9Ii0zMCUiIHk9Ii0zMCUiIHdpZHRoPSIxNjAlIiBoZWlnaHQ9IjE3MCUiPgogICAgPGZlR2F1c3NpYW5CbHVyIGluPSJTb3VyY2VBbHBoYSIgc3RkRGV2aWF0aW9uPSI2Ii8+PGZlT2Zmc2V0IGR5PSI0Ii8+CiAgICA8ZmVDb21wb25lbnRUcmFuc2Zlcj48ZmVGdW5jQSB0eXBlPSJsaW5lYXIiIHNsb3BlPSIwLjM1Ii8+PC9mZUNvbXBvbmVudFRyYW5zZmVyPgogICAgPGZlQ29sb3JNYXRyaXggdmFsdWVzPSIwIDAgMCAwIDAgIDAgMCAwIDAgMCAgMCAwIDAgMCAwICAwIDAgMCAxIDAiLz48L2ZpbHRlcj4KICA8ZmlsdGVyIGlkPSJuVyIgeD0iMCIgeT0iMCIgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSI+CiAgICA8ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC45IiBudW1PY3RhdmVzPSIxIiBzZWVkPSIzIi8+CiAgICA8ZmVDb2xvck1hdHJpeCB2YWx1ZXM9IjAgMCAwIDAgMSAgMCAwIDAgMCAxICAwIDAgMCAwIDEgIDEuNiAwIDAgMCAtMC44Ii8+PC9maWx0ZXI+CiAgPGZpbHRlciBpZD0ibkIiIHg9IjAiIHk9IjAiIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPgogICAgPGZlVHVyYnVsZW5jZSB0eXBlPSJmcmFjdGFsTm9pc2UiIGJhc2VGcmVxdWVuY3k9IjAuOSIgbnVtT2N0YXZlcz0iMSIgc2VlZD0iNyIvPgogICAgPGZlQ29sb3JNYXRyaXggdmFsdWVzPSIwIDAgMCAwIDAgIDAgMCAwIDAgMCAgMCAwIDAgMCAwICAxLjYgMCAwIDAgLTAuOCIvPjwvZmlsdGVyPgogIDxjbGlwUGF0aCBpZD0ic3EiPjxwYXRoIGQ9Ik05MjQuMDAsNTEyLjAwIEw5MjMuOTksNTczLjgzIEw5MjMuOTcsNTkzLjU5IEw5MjMuOTQsNjA3Ljk1IEw5MjMuOTAsNjE5LjY1IEw5MjMuODQsNjI5LjcwIEw5MjMuNzcsNjM4LjYwIEw5MjMuNjksNjQ2LjY0IEw5MjMuNjAsNjU0LjAxIEw5MjMuNDksNjYwLjg1IEw5MjMuMzcsNjY3LjI0IEw5MjMuMjQsNjczLjI2IEw5MjMuMTAsNjc4Ljk1IEw5MjIuOTQsNjg0LjM2IEw5MjIuNzcsNjg5LjUyIEw5MjIuNTksNjk0LjQ2IEw5MjIuMzksNjk5LjIxIEw5MjIuMTgsNzAzLjc3IEw5MjEuOTYsNzA4LjE3IEw5MjEuNzMsNzEyLjQyIEw5MjEuNDgsNzE2LjUzIEw5MjEuMjMsNzIwLjUyIEw5MjAuOTYsNzI0LjM5IEw5MjAuNjcsNzI4LjE1IEw5MjAuMzcsNzMxLjgxIEw5MjAuMDcsNzM1LjM3IEw5MTkuNzQsNzM4Ljg1IEw5MTkuNDEsNzQyLjIzIEw5MTkuMDYsNzQ1LjU0IEw5MTguNzAsNzQ4Ljc4IEw5MTguMzMsNzUxLjk0IEw5MTcuOTQsNzU1LjAzIEw5MTcuNTQsNzU4LjA2IEw5MTcuMTMsNzYxLjAyIEw5MTYuNzAsNzYzLjkzIEw5MTYuMjYsNzY2Ljc3IEw5MTUuODEsNzY5LjU3IEw5MTUuMzUsNzcyLjMxIEw5MTQuODcsNzc1LjAwIEw5MTQuMzgsNzc3LjY0IEw5MTMuODgsNzgwLjI0IEw5MTMuMzYsNzgyLjc5IEw5MTIuODMsNzg1LjI5IEw5MTIuMjgsNzg3Ljc2IEw5MTEuNzMsNzkwLjE4IEw5MTEuMTYsNzkyLjU2IEw5MTAuNTcsNzk0LjkxIEw5MDkuOTgsNzk3LjIyIEw5MDkuMzYsNzk5LjQ5IEw5MDguNzQsODAxLjczIEw5MDguMTAsODAzLjkzIEw5MDcuNDUsODA2LjEwIEw5MDYuNzksODA4LjIzIEw5MDYuMTEsODEwLjM0IEw5MDUuNDEsODEyLjQxIEw5MDQuNzEsODE0LjQ1IEw5MDMuOTksODE2LjQ3IEw5MDMuMjUsODE4LjQ1IEw5MDIuNTAsODIwLjQxIEw5MDEuNzQsODIyLjM0IEw5MDAuOTYsODI0LjI0IEw5MDAuMTcsODI2LjExIEw4OTkuMzcsODI3Ljk2IEw4OTguNTUsODI5Ljc4IEw4OTcuNzEsODMxLjU4IEw4OTYuODcsODMzLjM1IEw4OTYuMDAsODM1LjEwIEw4OTUuMTIsODM2LjgzIEw4OTQuMjMsODM4LjUzIEw4OTMuMzIsODQwLjIxIEw4OTIuNDAsODQxLjg2IEw4OTEuNDYsODQzLjUwIEw4OTAuNTEsODQ1LjExIEw4ODkuNTQsODQ2LjcwIEw4ODguNTYsODQ4LjI3IEw4ODcuNTYsODQ5LjgxIEw4ODYuNTUsODUxLjM0IEw4ODUuNTIsODUyLjg1IEw4ODQuNDgsODU0LjMzIEw4ODMuNDIsODU1LjgwIEw4ODIuMzQsODU3LjI0IEw4ODEuMjUsODU4LjY3IEw4ODAuMTQsODYwLjA4IEw4NzkuMDEsODYxLjQ2IEw4NzcuODcsODYyLjgzIEw4NzYuNzEsODY0LjE4IEw4NzUuNTQsODY1LjUyIEw4NzQuMzQsODY2LjgzIEw4NzMuMTQsODY4LjEzIEw4NzEuOTEsODY5LjQxIEw4NzAuNjcsODcwLjY3IEw4NjkuNDEsODcxLjkxIEw4NjguMTMsODczLjE0IEw4NjYuODMsODc0LjM0IEw4NjUuNTIsODc1LjU0IEw4NjQuMTgsODc2LjcxIEw4NjIuODMsODc3Ljg3IEw4NjEuNDYsODc5LjAxIEw4NjAuMDgsODgwLjE0IEw4NTguNjcsODgxLjI1IEw4NTcuMjQsODgyLjM0IEw4NTUuODAsODgzLjQyIEw4NTQuMzMsODg0LjQ4IEw4NTIuODUsODg1LjUyIEw4NTEuMzQsODg2LjU1IEw4NDkuODEsODg3LjU2IEw4NDguMjcsODg4LjU2IEw4NDYuNzAsODg5LjU0IEw4NDUuMTEsODkwLjUxIEw4NDMuNTAsODkxLjQ2IEw4NDEuODYsODkyLjQwIEw4NDAuMjEsODkzLjMyIEw4MzguNTMsODk0LjIzIEw4MzYuODMsODk1LjEyIEw4MzUuMTAsODk2LjAwIEw4MzMuMzUsODk2Ljg3IEw4MzEuNTgsODk3LjcxIEw4MjkuNzgsODk4LjU1IEw4MjcuOTYsODk5LjM3IEw4MjYuMTEsOTAwLjE3IEw4MjQuMjQsOTAwLjk2IEw4MjIuMzQsOTAxLjc0IEw4MjAuNDEsOTAyLjUwIEw4MTguNDUsOTAzLjI1IEw4MTYuNDcsOTAzLjk5IEw4MTQuNDUsOTA0LjcxIEw4MTIuNDEsOTA1LjQxIEw4MTAuMzQsOTA2LjExIEw4MDguMjMsOTA2Ljc5IEw4MDYuMTAsOTA3LjQ1IEw4MDMuOTMsOTA4LjEwIEw4MDEuNzMsOTA4Ljc0IEw3OTkuNDksOTA5LjM2IEw3OTcuMjIsOTA5Ljk4IEw3OTQuOTEsOTEwLjU3IEw3OTIuNTYsOTExLjE2IEw3OTAuMTgsOTExLjczIEw3ODcuNzYsOTEyLjI4IEw3ODUuMjksOTEyLjgzIEw3ODIuNzksOTEzLjM2IEw3ODAuMjQsOTEzLjg4IEw3NzcuNjQsOTE0LjM4IEw3NzUuMDAsOTE0Ljg3IEw3NzIuMzEsOTE1LjM1IEw3NjkuNTcsOTE1LjgxIEw3NjYuNzcsOTE2LjI2IEw3NjMuOTMsOTE2LjcwIEw3NjEuMDIsOTE3LjEzIEw3NTguMDYsOTE3LjU0IEw3NTUuMDMsOTE3Ljk0IEw3NTEuOTQsOTE4LjMzIEw3NDguNzgsOTE4LjcwIEw3NDUuNTQsOTE5LjA2IEw3NDIuMjMsOTE5LjQxIEw3MzguODUsOTE5Ljc0IEw3MzUuMzcsOTIwLjA3IEw3MzEuODEsOTIwLjM3IEw3MjguMTUsOTIwLjY3IEw3MjQuMzksOTIwLjk2IEw3MjAuNTIsOTIxLjIzIEw3MTYuNTMsOTIxLjQ4IEw3MTIuNDIsOTIxLjczIEw3MDguMTcsOTIxLjk2IEw3MDMuNzcsOTIyLjE4IEw2OTkuMjEsOTIyLjM5IEw2OTQuNDYsOTIyLjU5IEw2ODkuNTIsOTIyLjc3IEw2ODQuMzYsOTIyLjk0IEw2NzguOTUsOTIzLjEwIEw2NzMuMjYsOTIzLjI0IEw2NjcuMjQsOTIzLjM3IEw2NjAuODUsOTIzLjQ5IEw2NTQuMDEsOTIzLjYwIEw2NDYuNjQsOTIzLjY5IEw2MzguNjAsOTIzLjc3IEw2MjkuNzAsOTIzLjg0IEw2MTkuNjUsOTIzLjkwIEw2MDcuOTUsOTIzLjk0IEw1OTMuNTksOTIzLjk3IEw1NzMuODMsOTIzLjk5IEw1MTIuMDAsOTI0LjAwIEw0NTAuMTcsOTIzLjk5IEw0MzAuNDEsOTIzLjk3IEw0MTYuMDUsOTIzLjk0IEw0MDQuMzUsOTIzLjkwIEwzOTQuMzAsOTIzLjg0IEwzODUuNDAsOTIzLjc3IEwzNzcuMzYsOTIzLjY5IEwzNjkuOTksOTIzLjYwIEwzNjMuMTUsOTIzLjQ5IEwzNTYuNzYsOTIzLjM3IEwzNTAuNzQsOTIzLjI0IEwzNDUuMDUsOTIzLjEwIEwzMzkuNjQsOTIyLjk0IEwzMzQuNDgsOTIyLjc3IEwzMjkuNTQsOTIyLjU5IEwzMjQuNzksOTIyLjM5IEwzMjAuMjMsOTIyLjE4IEwzMTUuODMsOTIxLjk2IEwzMTEuNTgsOTIxLjczIEwzMDcuNDcsOTIxLjQ4IEwzMDMuNDgsOTIxLjIzIEwyOTkuNjEsOTIwLjk2IEwyOTUuODUsOTIwLjY3IEwyOTIuMTksOTIwLjM3IEwyODguNjMsOTIwLjA3IEwyODUuMTUsOTE5Ljc0IEwyODEuNzcsOTE5LjQxIEwyNzguNDYsOTE5LjA2IEwyNzUuMjIsOTE4LjcwIEwyNzIuMDYsOTE4LjMzIEwyNjguOTcsOTE3Ljk0IEwyNjUuOTQsOTE3LjU0IEwyNjIuOTgsOTE3LjEzIEwyNjAuMDcsOTE2LjcwIEwyNTcuMjMsOTE2LjI2IEwyNTQuNDMsOTE1LjgxIEwyNTEuNjksOTE1LjM1IEwyNDkuMDAsOTE0Ljg3IEwyNDYuMzYsOTE0LjM4IEwyNDMuNzYsOTEzLjg4IEwyNDEuMjEsOTEzLjM2IEwyMzguNzEsOTEyLjgzIEwyMzYuMjQsOTEyLjI4IEwyMzMuODIsOTExLjczIEwyMzEuNDQsOTExLjE2IEwyMjkuMDksOTEwLjU3IEwyMjYuNzgsOTA5Ljk4IEwyMjQuNTEsOTA5LjM2IEwyMjIuMjcsOTA4Ljc0IEwyMjAuMDcsOTA4LjEwIEwyMTcuOTAsOTA3LjQ1IEwyMTUuNzcsOTA2Ljc5IEwyMTMuNjYsOTA2LjExIEwyMTEuNTksOTA1LjQxIEwyMDkuNTUsOTA0LjcxIEwyMDcuNTMsOTAzLjk5IEwyMDUuNTUsOTAzLjI1IEwyMDMuNTksOTAyLjUwIEwyMDEuNjYsOTAxLjc0IEwxOTkuNzYsOTAwLjk2IEwxOTcuODksOTAwLjE3IEwxOTYuMDQsODk5LjM3IEwxOTQuMjIsODk4LjU1IEwxOTIuNDIsODk3LjcxIEwxOTAuNjUsODk2Ljg3IEwxODguOTAsODk2LjAwIEwxODcuMTcsODk1LjEyIEwxODUuNDcsODk0LjIzIEwxODMuNzksODkzLjMyIEwxODIuMTQsODkyLjQwIEwxODAuNTAsODkxLjQ2IEwxNzguODksODkwLjUxIEwxNzcuMzAsODg5LjU0IEwxNzUuNzMsODg4LjU2IEwxNzQuMTksODg3LjU2IEwxNzIuNjYsODg2LjU1IEwxNzEuMTUsODg1LjUyIEwxNjkuNjcsODg0LjQ4IEwxNjguMjAsODgzLjQyIEwxNjYuNzYsODgyLjM0IEwxNjUuMzMsODgxLjI1IEwxNjMuOTIsODgwLjE0IEwxNjIuNTQsODc5LjAxIEwxNjEuMTcsODc3Ljg3IEwxNTkuODIsODc2LjcxIEwxNTguNDgsODc1LjU0IEwxNTcuMTcsODc0LjM0IEwxNTUuODcsODczLjE0IEwxNTQuNTksODcxLjkxIEwxNTMuMzMsODcwLjY3IEwxNTIuMDksODY5LjQxIEwxNTAuODYsODY4LjEzIEwxNDkuNjYsODY2LjgzIEwxNDguNDYsODY1LjUyIEwxNDcuMjksODY0LjE4IEwxNDYuMTMsODYyLjgzIEwxNDQuOTksODYxLjQ2IEwxNDMuODYsODYwLjA4IEwxNDIuNzUsODU4LjY3IEwxNDEuNjYsODU3LjI0IEwxNDAuNTgsODU1LjgwIEwxMzkuNTIsODU0LjMzIEwxMzguNDgsODUyLjg1IEwxMzcuNDUsODUxLjM0IEwxMzYuNDQsODQ5LjgxIEwxMzUuNDQsODQ4LjI3IEwxMzQuNDYsODQ2LjcwIEwxMzMuNDksODQ1LjExIEwxMzIuNTQsODQzLjUwIEwxMzEuNjAsODQxLjg2IEwxMzAuNjgsODQwLjIxIEwxMjkuNzcsODM4LjUzIEwxMjguODgsODM2LjgzIEwxMjguMDAsODM1LjEwIEwxMjcuMTMsODMzLjM1IEwxMjYuMjksODMxLjU4IEwxMjUuNDUsODI5Ljc4IEwxMjQuNjMsODI3Ljk2IEwxMjMuODMsODI2LjExIEwxMjMuMDQsODI0LjI0IEwxMjIuMjYsODIyLjM0IEwxMjEuNTAsODIwLjQxIEwxMjAuNzUsODE4LjQ1IEwxMjAuMDEsODE2LjQ3IEwxMTkuMjksODE0LjQ1IEwxMTguNTksODEyLjQxIEwxMTcuODksODEwLjM0IEwxMTcuMjEsODA4LjIzIEwxMTYuNTUsODA2LjEwIEwxMTUuOTAsODAzLjkzIEwxMTUuMjYsODAxLjczIEwxMTQuNjQsNzk5LjQ5IEwxMTQuMDIsNzk3LjIyIEwxMTMuNDMsNzk0LjkxIEwxMTIuODQsNzkyLjU2IEwxMTIuMjcsNzkwLjE4IEwxMTEuNzIsNzg3Ljc2IEwxMTEuMTcsNzg1LjI5IEwxMTAuNjQsNzgyLjc5IEwxMTAuMTIsNzgwLjI0IEwxMDkuNjIsNzc3LjY0IEwxMDkuMTMsNzc1LjAwIEwxMDguNjUsNzcyLjMxIEwxMDguMTksNzY5LjU3IEwxMDcuNzQsNzY2Ljc3IEwxMDcuMzAsNzYzLjkzIEwxMDYuODcsNzYxLjAyIEwxMDYuNDYsNzU4LjA2IEwxMDYuMDYsNzU1LjAzIEwxMDUuNjcsNzUxLjk0IEwxMDUuMzAsNzQ4Ljc4IEwxMDQuOTQsNzQ1LjU0IEwxMDQuNTksNzQyLjIzIEwxMDQuMjYsNzM4Ljg1IEwxMDMuOTMsNzM1LjM3IEwxMDMuNjMsNzMxLjgxIEwxMDMuMzMsNzI4LjE1IEwxMDMuMDQsNzI0LjM5IEwxMDIuNzcsNzIwLjUyIEwxMDIuNTIsNzE2LjUzIEwxMDIuMjcsNzEyLjQyIEwxMDIuMDQsNzA4LjE3IEwxMDEuODIsNzAzLjc3IEwxMDEuNjEsNjk5LjIxIEwxMDEuNDEsNjk0LjQ2IEwxMDEuMjMsNjg5LjUyIEwxMDEuMDYsNjg0LjM2IEwxMDAuOTAsNjc4Ljk1IEwxMDAuNzYsNjczLjI2IEwxMDAuNjMsNjY3LjI0IEwxMDAuNTEsNjYwLjg1IEwxMDAuNDAsNjU0LjAxIEwxMDAuMzEsNjQ2LjY0IEwxMDAuMjMsNjM4LjYwIEwxMDAuMTYsNjI5LjcwIEwxMDAuMTAsNjE5LjY1IEwxMDAuMDYsNjA3Ljk1IEwxMDAuMDMsNTkzLjU5IEwxMDAuMDEsNTczLjgzIEwxMDAuMDAsNTEyLjAwIEwxMDAuMDEsNDUwLjE3IEwxMDAuMDMsNDMwLjQxIEwxMDAuMDYsNDE2LjA1IEwxMDAuMTAsNDA0LjM1IEwxMDAuMTYsMzk0LjMwIEwxMDAuMjMsMzg1LjQwIEwxMDAuMzEsMzc3LjM2IEwxMDAuNDAsMzY5Ljk5IEwxMDAuNTEsMzYzLjE1IEwxMDAuNjMsMzU2Ljc2IEwxMDAuNzYsMzUwLjc0IEwxMDAuOTAsMzQ1LjA1IEwxMDEuMDYsMzM5LjY0IEwxMDEuMjMsMzM0LjQ4IEwxMDEuNDEsMzI5LjU0IEwxMDEuNjEsMzI0Ljc5IEwxMDEuODIsMzIwLjIzIEwxMDIuMDQsMzE1LjgzIEwxMDIuMjcsMzExLjU4IEwxMDIuNTIsMzA3LjQ3IEwxMDIuNzcsMzAzLjQ4IEwxMDMuMDQsMjk5LjYxIEwxMDMuMzMsMjk1Ljg1IEwxMDMuNjMsMjkyLjE5IEwxMDMuOTMsMjg4LjYzIEwxMDQuMjYsMjg1LjE1IEwxMDQuNTksMjgxLjc3IEwxMDQuOTQsMjc4LjQ2IEwxMDUuMzAsMjc1LjIyIEwxMDUuNjcsMjcyLjA2IEwxMDYuMDYsMjY4Ljk3IEwxMDYuNDYsMjY1Ljk0IEwxMDYuODcsMjYyLjk4IEwxMDcuMzAsMjYwLjA3IEwxMDcuNzQsMjU3LjIzIEwxMDguMTksMjU0LjQzIEwxMDguNjUsMjUxLjY5IEwxMDkuMTMsMjQ5LjAwIEwxMDkuNjIsMjQ2LjM2IEwxMTAuMTIsMjQzLjc2IEwxMTAuNjQsMjQxLjIxIEwxMTEuMTcsMjM4LjcxIEwxMTEuNzIsMjM2LjI0IEwxMTIuMjcsMjMzLjgyIEwxMTIuODQsMjMxLjQ0IEwxMTMuNDMsMjI5LjA5IEwxMTQuMDIsMjI2Ljc4IEwxMTQuNjQsMjI0LjUxIEwxMTUuMjYsMjIyLjI3IEwxMTUuOTAsMjIwLjA3IEwxMTYuNTUsMjE3LjkwIEwxMTcuMjEsMjE1Ljc3IEwxMTcuODksMjEzLjY2IEwxMTguNTksMjExLjU5IEwxMTkuMjksMjA5LjU1IEwxMjAuMDEsMjA3LjUzIEwxMjAuNzUsMjA1LjU1IEwxMjEuNTAsMjAzLjU5IEwxMjIuMjYsMjAxLjY2IEwxMjMuMDQsMTk5Ljc2IEwxMjMuODMsMTk3Ljg5IEwxMjQuNjMsMTk2LjA0IEwxMjUuNDUsMTk0LjIyIEwxMjYuMjksMTkyLjQyIEwxMjcuMTMsMTkwLjY1IEwxMjguMDAsMTg4LjkwIEwxMjguODgsMTg3LjE3IEwxMjkuNzcsMTg1LjQ3IEwxMzAuNjgsMTgzLjc5IEwxMzEuNjAsMTgyLjE0IEwxMzIuNTQsMTgwLjUwIEwxMzMuNDksMTc4Ljg5IEwxMzQuNDYsMTc3LjMwIEwxMzUuNDQsMTc1LjczIEwxMzYuNDQsMTc0LjE5IEwxMzcuNDUsMTcyLjY2IEwxMzguNDgsMTcxLjE1IEwxMzkuNTIsMTY5LjY3IEwxNDAuNTgsMTY4LjIwIEwxNDEuNjYsMTY2Ljc2IEwxNDIuNzUsMTY1LjMzIEwxNDMuODYsMTYzLjkyIEwxNDQuOTksMTYyLjU0IEwxNDYuMTMsMTYxLjE3IEwxNDcuMjksMTU5LjgyIEwxNDguNDYsMTU4LjQ4IEwxNDkuNjYsMTU3LjE3IEwxNTAuODYsMTU1Ljg3IEwxNTIuMDksMTU0LjU5IEwxNTMuMzMsMTUzLjMzIEwxNTQuNTksMTUyLjA5IEwxNTUuODcsMTUwLjg2IEwxNTcuMTcsMTQ5LjY2IEwxNTguNDgsMTQ4LjQ2IEwxNTkuODIsMTQ3LjI5IEwxNjEuMTcsMTQ2LjEzIEwxNjIuNTQsMTQ0Ljk5IEwxNjMuOTIsMTQzLjg2IEwxNjUuMzMsMTQyLjc1IEwxNjYuNzYsMTQxLjY2IEwxNjguMjAsMTQwLjU4IEwxNjkuNjcsMTM5LjUyIEwxNzEuMTUsMTM4LjQ4IEwxNzIuNjYsMTM3LjQ1IEwxNzQuMTksMTM2LjQ0IEwxNzUuNzMsMTM1LjQ0IEwxNzcuMzAsMTM0LjQ2IEwxNzguODksMTMzLjQ5IEwxODAuNTAsMTMyLjU0IEwxODIuMTQsMTMxLjYwIEwxODMuNzksMTMwLjY4IEwxODUuNDcsMTI5Ljc3IEwxODcuMTcsMTI4Ljg4IEwxODguOTAsMTI4LjAwIEwxOTAuNjUsMTI3LjEzIEwxOTIuNDIsMTI2LjI5IEwxOTQuMjIsMTI1LjQ1IEwxOTYuMDQsMTI0LjYzIEwxOTcuODksMTIzLjgzIEwxOTkuNzYsMTIzLjA0IEwyMDEuNjYsMTIyLjI2IEwyMDMuNTksMTIxLjUwIEwyMDUuNTUsMTIwLjc1IEwyMDcuNTMsMTIwLjAxIEwyMDkuNTUsMTE5LjI5IEwyMTEuNTksMTE4LjU5IEwyMTMuNjYsMTE3Ljg5IEwyMTUuNzcsMTE3LjIxIEwyMTcuOTAsMTE2LjU1IEwyMjAuMDcsMTE1LjkwIEwyMjIuMjcsMTE1LjI2IEwyMjQuNTEsMTE0LjY0IEwyMjYuNzgsMTE0LjAyIEwyMjkuMDksMTEzLjQzIEwyMzEuNDQsMTEyLjg0IEwyMzMuODIsMTEyLjI3IEwyMzYuMjQsMTExLjcyIEwyMzguNzEsMTExLjE3IEwyNDEuMjEsMTEwLjY0IEwyNDMuNzYsMTEwLjEyIEwyNDYuMzYsMTA5LjYyIEwyNDkuMDAsMTA5LjEzIEwyNTEuNjksMTA4LjY1IEwyNTQuNDMsMTA4LjE5IEwyNTcuMjMsMTA3Ljc0IEwyNjAuMDcsMTA3LjMwIEwyNjIuOTgsMTA2Ljg3IEwyNjUuOTQsMTA2LjQ2IEwyNjguOTcsMTA2LjA2IEwyNzIuMDYsMTA1LjY3IEwyNzUuMjIsMTA1LjMwIEwyNzguNDYsMTA0Ljk0IEwyODEuNzcsMTA0LjU5IEwyODUuMTUsMTA0LjI2IEwyODguNjMsMTAzLjkzIEwyOTIuMTksMTAzLjYzIEwyOTUuODUsMTAzLjMzIEwyOTkuNjEsMTAzLjA0IEwzMDMuNDgsMTAyLjc3IEwzMDcuNDcsMTAyLjUyIEwzMTEuNTgsMTAyLjI3IEwzMTUuODMsMTAyLjA0IEwzMjAuMjMsMTAxLjgyIEwzMjQuNzksMTAxLjYxIEwzMjkuNTQsMTAxLjQxIEwzMzQuNDgsMTAxLjIzIEwzMzkuNjQsMTAxLjA2IEwzNDUuMDUsMTAwLjkwIEwzNTAuNzQsMTAwLjc2IEwzNTYuNzYsMTAwLjYzIEwzNjMuMTUsMTAwLjUxIEwzNjkuOTksMTAwLjQwIEwzNzcuMzYsMTAwLjMxIEwzODUuNDAsMTAwLjIzIEwzOTQuMzAsMTAwLjE2IEw0MDQuMzUsMTAwLjEwIEw0MTYuMDUsMTAwLjA2IEw0MzAuNDEsMTAwLjAzIEw0NTAuMTcsMTAwLjAxIEw1MTIuMDAsMTAwLjAwIEw1NzMuODMsMTAwLjAxIEw1OTMuNTksMTAwLjAzIEw2MDcuOTUsMTAwLjA2IEw2MTkuNjUsMTAwLjEwIEw2MjkuNzAsMTAwLjE2IEw2MzguNjAsMTAwLjIzIEw2NDYuNjQsMTAwLjMxIEw2NTQuMDEsMTAwLjQwIEw2NjAuODUsMTAwLjUxIEw2NjcuMjQsMTAwLjYzIEw2NzMuMjYsMTAwLjc2IEw2NzguOTUsMTAwLjkwIEw2ODQuMzYsMTAxLjA2IEw2ODkuNTIsMTAxLjIzIEw2OTQuNDYsMTAxLjQxIEw2OTkuMjEsMTAxLjYxIEw3MDMuNzcsMTAxLjgyIEw3MDguMTcsMTAyLjA0IEw3MTIuNDIsMTAyLjI3IEw3MTYuNTMsMTAyLjUyIEw3MjAuNTIsMTAyLjc3IEw3MjQuMzksMTAzLjA0IEw3MjguMTUsMTAzLjMzIEw3MzEuODEsMTAzLjYzIEw3MzUuMzcsMTAzLjkzIEw3MzguODUsMTA0LjI2IEw3NDIuMjMsMTA0LjU5IEw3NDUuNTQsMTA0Ljk0IEw3NDguNzgsMTA1LjMwIEw3NTEuOTQsMTA1LjY3IEw3NTUuMDMsMTA2LjA2IEw3NTguMDYsMTA2LjQ2IEw3NjEuMDIsMTA2Ljg3IEw3NjMuOTMsMTA3LjMwIEw3NjYuNzcsMTA3Ljc0IEw3NjkuNTcsMTA4LjE5IEw3NzIuMzEsMTA4LjY1IEw3NzUuMDAsMTA5LjEzIEw3NzcuNjQsMTA5LjYyIEw3ODAuMjQsMTEwLjEyIEw3ODIuNzksMTEwLjY0IEw3ODUuMjksMTExLjE3IEw3ODcuNzYsMTExLjcyIEw3OTAuMTgsMTEyLjI3IEw3OTIuNTYsMTEyLjg0IEw3OTQuOTEsMTEzLjQzIEw3OTcuMjIsMTE0LjAyIEw3OTkuNDksMTE0LjY0IEw4MDEuNzMsMTE1LjI2IEw4MDMuOTMsMTE1LjkwIEw4MDYuMTAsMTE2LjU1IEw4MDguMjMsMTE3LjIxIEw4MTAuMzQsMTE3Ljg5IEw4MTIuNDEsMTE4LjU5IEw4MTQuNDUsMTE5LjI5IEw4MTYuNDcsMTIwLjAxIEw4MTguNDUsMTIwLjc1IEw4MjAuNDEsMTIxLjUwIEw4MjIuMzQsMTIyLjI2IEw4MjQuMjQsMTIzLjA0IEw4MjYuMTEsMTIzLjgzIEw4MjcuOTYsMTI0LjYzIEw4MjkuNzgsMTI1LjQ1IEw4MzEuNTgsMTI2LjI5IEw4MzMuMzUsMTI3LjEzIEw4MzUuMTAsMTI4LjAwIEw4MzYuODMsMTI4Ljg4IEw4MzguNTMsMTI5Ljc3IEw4NDAuMjEsMTMwLjY4IEw4NDEuODYsMTMxLjYwIEw4NDMuNTAsMTMyLjU0IEw4NDUuMTEsMTMzLjQ5IEw4NDYuNzAsMTM0LjQ2IEw4NDguMjcsMTM1LjQ0IEw4NDkuODEsMTM2LjQ0IEw4NTEuMzQsMTM3LjQ1IEw4NTIuODUsMTM4LjQ4IEw4NTQuMzMsMTM5LjUyIEw4NTUuODAsMTQwLjU4IEw4NTcuMjQsMTQxLjY2IEw4NTguNjcsMTQyLjc1IEw4NjAuMDgsMTQzLjg2IEw4NjEuNDYsMTQ0Ljk5IEw4NjIuODMsMTQ2LjEzIEw4NjQuMTgsMTQ3LjI5IEw4NjUuNTIsMTQ4LjQ2IEw4NjYuODMsMTQ5LjY2IEw4NjguMTMsMTUwLjg2IEw4NjkuNDEsMTUyLjA5IEw4NzAuNjcsMTUzLjMzIEw4NzEuOTEsMTU0LjU5IEw4NzMuMTQsMTU1Ljg3IEw4NzQuMzQsMTU3LjE3IEw4NzUuNTQsMTU4LjQ4IEw4NzYuNzEsMTU5LjgyIEw4NzcuODcsMTYxLjE3IEw4NzkuMDEsMTYyLjU0IEw4ODAuMTQsMTYzLjkyIEw4ODEuMjUsMTY1LjMzIEw4ODIuMzQsMTY2Ljc2IEw4ODMuNDIsMTY4LjIwIEw4ODQuNDgsMTY5LjY3IEw4ODUuNTIsMTcxLjE1IEw4ODYuNTUsMTcyLjY2IEw4ODcuNTYsMTc0LjE5IEw4ODguNTYsMTc1LjczIEw4ODkuNTQsMTc3LjMwIEw4OTAuNTEsMTc4Ljg5IEw4OTEuNDYsMTgwLjUwIEw4OTIuNDAsMTgyLjE0IEw4OTMuMzIsMTgzLjc5IEw4OTQuMjMsMTg1LjQ3IEw4OTUuMTIsMTg3LjE3IEw4OTYuMDAsMTg4LjkwIEw4OTYuODcsMTkwLjY1IEw4OTcuNzEsMTkyLjQyIEw4OTguNTUsMTk0LjIyIEw4OTkuMzcsMTk2LjA0IEw5MDAuMTcsMTk3Ljg5IEw5MDAuOTYsMTk5Ljc2IEw5MDEuNzQsMjAxLjY2IEw5MDIuNTAsMjAzLjU5IEw5MDMuMjUsMjA1LjU1IEw5MDMuOTksMjA3LjUzIEw5MDQuNzEsMjA5LjU1IEw5MDUuNDEsMjExLjU5IEw5MDYuMTEsMjEzLjY2IEw5MDYuNzksMjE1Ljc3IEw5MDcuNDUsMjE3LjkwIEw5MDguMTAsMjIwLjA3IEw5MDguNzQsMjIyLjI3IEw5MDkuMzYsMjI0LjUxIEw5MDkuOTgsMjI2Ljc4IEw5MTAuNTcsMjI5LjA5IEw5MTEuMTYsMjMxLjQ0IEw5MTEuNzMsMjMzLjgyIEw5MTIuMjgsMjM2LjI0IEw5MTIuODMsMjM4LjcxIEw5MTMuMzYsMjQxLjIxIEw5MTMuODgsMjQzLjc2IEw5MTQuMzgsMjQ2LjM2IEw5MTQuODcsMjQ5LjAwIEw5MTUuMzUsMjUxLjY5IEw5MTUuODEsMjU0LjQzIEw5MTYuMjYsMjU3LjIzIEw5MTYuNzAsMjYwLjA3IEw5MTcuMTMsMjYyLjk4IEw5MTcuNTQsMjY1Ljk0IEw5MTcuOTQsMjY4Ljk3IEw5MTguMzMsMjcyLjA2IEw5MTguNzAsMjc1LjIyIEw5MTkuMDYsMjc4LjQ2IEw5MTkuNDEsMjgxLjc3IEw5MTkuNzQsMjg1LjE1IEw5MjAuMDcsMjg4LjYzIEw5MjAuMzcsMjkyLjE5IEw5MjAuNjcsMjk1Ljg1IEw5MjAuOTYsMjk5LjYxIEw5MjEuMjMsMzAzLjQ4IEw5MjEuNDgsMzA3LjQ3IEw5MjEuNzMsMzExLjU4IEw5MjEuOTYsMzE1LjgzIEw5MjIuMTgsMzIwLjIzIEw5MjIuMzksMzI0Ljc5IEw5MjIuNTksMzI5LjU0IEw5MjIuNzcsMzM0LjQ4IEw5MjIuOTQsMzM5LjY0IEw5MjMuMTAsMzQ1LjA1IEw5MjMuMjQsMzUwLjc0IEw5MjMuMzcsMzU2Ljc2IEw5MjMuNDksMzYzLjE1IEw5MjMuNjAsMzY5Ljk5IEw5MjMuNjksMzc3LjM2IEw5MjMuNzcsMzg1LjQwIEw5MjMuODQsMzk0LjMwIEw5MjMuOTAsNDA0LjM1IEw5MjMuOTQsNDE2LjA1IEw5MjMuOTcsNDMwLjQxIEw5MjMuOTksNDUwLjE3IFoiLz48L2NsaXBQYXRoPgo8L2RlZnM+CjxwYXRoIGQ9Ik05MjQuMDAsNTEyLjAwIEw5MjMuOTksNTczLjgzIEw5MjMuOTcsNTkzLjU5IEw5MjMuOTQsNjA3Ljk1IEw5MjMuOTAsNjE5LjY1IEw5MjMuODQsNjI5LjcwIEw5MjMuNzcsNjM4LjYwIEw5MjMuNjksNjQ2LjY0IEw5MjMuNjAsNjU0LjAxIEw5MjMuNDksNjYwLjg1IEw5MjMuMzcsNjY3LjI0IEw5MjMuMjQsNjczLjI2IEw5MjMuMTAsNjc4Ljk1IEw5MjIuOTQsNjg0LjM2IEw5MjIuNzcsNjg5LjUyIEw5MjIuNTksNjk0LjQ2IEw5MjIuMzksNjk5LjIxIEw5MjIuMTgsNzAzLjc3IEw5MjEuOTYsNzA4LjE3IEw5MjEuNzMsNzEyLjQyIEw5MjEuNDgsNzE2LjUzIEw5MjEuMjMsNzIwLjUyIEw5MjAuOTYsNzI0LjM5IEw5MjAuNjcsNzI4LjE1IEw5MjAuMzcsNzMxLjgxIEw5MjAuMDcsNzM1LjM3IEw5MTkuNzQsNzM4Ljg1IEw5MTkuNDEsNzQyLjIzIEw5MTkuMDYsNzQ1LjU0IEw5MTguNzAsNzQ4Ljc4IEw5MTguMzMsNzUxLjk0IEw5MTcuOTQsNzU1LjAzIEw5MTcuNTQsNzU4LjA2IEw5MTcuMTMsNzYxLjAyIEw5MTYuNzAsNzYzLjkzIEw5MTYuMjYsNzY2Ljc3IEw5MTUuODEsNzY5LjU3IEw5MTUuMzUsNzcyLjMxIEw5MTQuODcsNzc1LjAwIEw5MTQuMzgsNzc3LjY0IEw5MTMuODgsNzgwLjI0IEw5MTMuMzYsNzgyLjc5IEw5MTIuODMsNzg1LjI5IEw5MTIuMjgsNzg3Ljc2IEw5MTEuNzMsNzkwLjE4IEw5MTEuMTYsNzkyLjU2IEw5MTAuNTcsNzk0LjkxIEw5MDkuOTgsNzk3LjIyIEw5MDkuMzYsNzk5LjQ5IEw5MDguNzQsODAxLjczIEw5MDguMTAsODAzLjkzIEw5MDcuNDUsODA2LjEwIEw5MDYuNzksODA4LjIzIEw5MDYuMTEsODEwLjM0IEw5MDUuNDEsODEyLjQxIEw5MDQuNzEsODE0LjQ1IEw5MDMuOTksODE2LjQ3IEw5MDMuMjUsODE4LjQ1IEw5MDIuNTAsODIwLjQxIEw5MDEuNzQsODIyLjM0IEw5MDAuOTYsODI0LjI0IEw5MDAuMTcsODI2LjExIEw4OTkuMzcsODI3Ljk2IEw4OTguNTUsODI5Ljc4IEw4OTcuNzEsODMxLjU4IEw4OTYuODcsODMzLjM1IEw4OTYuMDAsODM1LjEwIEw4OTUuMTIsODM2LjgzIEw4OTQuMjMsODM4LjUzIEw4OTMuMzIsODQwLjIxIEw4OTIuNDAsODQxLjg2IEw4OTEuNDYsODQzLjUwIEw4OTAuNTEsODQ1LjExIEw4ODkuNTQsODQ2LjcwIEw4ODguNTYsODQ4LjI3IEw4ODcuNTYsODQ5LjgxIEw4ODYuNTUsODUxLjM0IEw4ODUuNTIsODUyLjg1IEw4ODQuNDgsODU0LjMzIEw4ODMuNDIsODU1LjgwIEw4ODIuMzQsODU3LjI0IEw4ODEuMjUsODU4LjY3IEw4ODAuMTQsODYwLjA4IEw4NzkuMDEsODYxLjQ2IEw4NzcuODcsODYyLjgzIEw4NzYuNzEsODY0LjE4IEw4NzUuNTQsODY1LjUyIEw4NzQuMzQsODY2LjgzIEw4NzMuMTQsODY4LjEzIEw4NzEuOTEsODY5LjQxIEw4NzAuNjcsODcwLjY3IEw4NjkuNDEsODcxLjkxIEw4NjguMTMsODczLjE0IEw4NjYuODMsODc0LjM0IEw4NjUuNTIsODc1LjU0IEw4NjQuMTgsODc2LjcxIEw4NjIuODMsODc3Ljg3IEw4NjEuNDYsODc5LjAxIEw4NjAuMDgsODgwLjE0IEw4NTguNjcsODgxLjI1IEw4NTcuMjQsODgyLjM0IEw4NTUuODAsODgzLjQyIEw4NTQuMzMsODg0LjQ4IEw4NTIuODUsODg1LjUyIEw4NTEuMzQsODg2LjU1IEw4NDkuODEsODg3LjU2IEw4NDguMjcsODg4LjU2IEw4NDYuNzAsODg5LjU0IEw4NDUuMTEsODkwLjUxIEw4NDMuNTAsODkxLjQ2IEw4NDEuODYsODkyLjQwIEw4NDAuMjEsODkzLjMyIEw4MzguNTMsODk0LjIzIEw4MzYuODMsODk1LjEyIEw4MzUuMTAsODk2LjAwIEw4MzMuMzUsODk2Ljg3IEw4MzEuNTgsODk3LjcxIEw4MjkuNzgsODk4LjU1IEw4MjcuOTYsODk5LjM3IEw4MjYuMTEsOTAwLjE3IEw4MjQuMjQsOTAwLjk2IEw4MjIuMzQsOTAxLjc0IEw4MjAuNDEsOTAyLjUwIEw4MTguNDUsOTAzLjI1IEw4MTYuNDcsOTAzLjk5IEw4MTQuNDUsOTA0LjcxIEw4MTIuNDEsOTA1LjQxIEw4MTAuMzQsOTA2LjExIEw4MDguMjMsOTA2Ljc5IEw4MDYuMTAsOTA3LjQ1IEw4MDMuOTMsOTA4LjEwIEw4MDEuNzMsOTA4Ljc0IEw3OTkuNDksOTA5LjM2IEw3OTcuMjIsOTA5Ljk4IEw3OTQuOTEsOTEwLjU3IEw3OTIuNTYsOTExLjE2IEw3OTAuMTgsOTExLjczIEw3ODcuNzYsOTEyLjI4IEw3ODUuMjksOTEyLjgzIEw3ODIuNzksOTEzLjM2IEw3ODAuMjQsOTEzLjg4IEw3NzcuNjQsOTE0LjM4IEw3NzUuMDAsOTE0Ljg3IEw3NzIuMzEsOTE1LjM1IEw3NjkuNTcsOTE1LjgxIEw3NjYuNzcsOTE2LjI2IEw3NjMuOTMsOTE2LjcwIEw3NjEuMDIsOTE3LjEzIEw3NTguMDYsOTE3LjU0IEw3NTUuMDMsOTE3Ljk0IEw3NTEuOTQsOTE4LjMzIEw3NDguNzgsOTE4LjcwIEw3NDUuNTQsOTE5LjA2IEw3NDIuMjMsOTE5LjQxIEw3MzguODUsOTE5Ljc0IEw3MzUuMzcsOTIwLjA3IEw3MzEuODEsOTIwLjM3IEw3MjguMTUsOTIwLjY3IEw3MjQuMzksOTIwLjk2IEw3MjAuNTIsOTIxLjIzIEw3MTYuNTMsOTIxLjQ4IEw3MTIuNDIsOTIxLjczIEw3MDguMTcsOTIxLjk2IEw3MDMuNzcsOTIyLjE4IEw2OTkuMjEsOTIyLjM5IEw2OTQuNDYsOTIyLjU5IEw2ODkuNTIsOTIyLjc3IEw2ODQuMzYsOTIyLjk0IEw2NzguOTUsOTIzLjEwIEw2NzMuMjYsOTIzLjI0IEw2NjcuMjQsOTIzLjM3IEw2NjAuODUsOTIzLjQ5IEw2NTQuMDEsOTIzLjYwIEw2NDYuNjQsOTIzLjY5IEw2MzguNjAsOTIzLjc3IEw2MjkuNzAsOTIzLjg0IEw2MTkuNjUsOTIzLjkwIEw2MDcuOTUsOTIzLjk0IEw1OTMuNTksOTIzLjk3IEw1NzMuODMsOTIzLjk5IEw1MTIuMDAsOTI0LjAwIEw0NTAuMTcsOTIzLjk5IEw0MzAuNDEsOTIzLjk3IEw0MTYuMDUsOTIzLjk0IEw0MDQuMzUsOTIzLjkwIEwzOTQuMzAsOTIzLjg0IEwzODUuNDAsOTIzLjc3IEwzNzcuMzYsOTIzLjY5IEwzNjkuOTksOTIzLjYwIEwzNjMuMTUsOTIzLjQ5IEwzNTYuNzYsOTIzLjM3IEwzNTAuNzQsOTIzLjI0IEwzNDUuMDUsOTIzLjEwIEwzMzkuNjQsOTIyLjk0IEwzMzQuNDgsOTIyLjc3IEwzMjkuNTQsOTIyLjU5IEwzMjQuNzksOTIyLjM5IEwzMjAuMjMsOTIyLjE4IEwzMTUuODMsOTIxLjk2IEwzMTEuNTgsOTIxLjczIEwzMDcuNDcsOTIxLjQ4IEwzMDMuNDgsOTIxLjIzIEwyOTkuNjEsOTIwLjk2IEwyOTUuODUsOTIwLjY3IEwyOTIuMTksOTIwLjM3IEwyODguNjMsOTIwLjA3IEwyODUuMTUsOTE5Ljc0IEwyODEuNzcsOTE5LjQxIEwyNzguNDYsOTE5LjA2IEwyNzUuMjIsOTE4LjcwIEwyNzIuMDYsOTE4LjMzIEwyNjguOTcsOTE3Ljk0IEwyNjUuOTQsOTE3LjU0IEwyNjIuOTgsOTE3LjEzIEwyNjAuMDcsOTE2LjcwIEwyNTcuMjMsOTE2LjI2IEwyNTQuNDMsOTE1LjgxIEwyNTEuNjksOTE1LjM1IEwyNDkuMDAsOTE0Ljg3IEwyNDYuMzYsOTE0LjM4IEwyNDMuNzYsOTEzLjg4IEwyNDEuMjEsOTEzLjM2IEwyMzguNzEsOTEyLjgzIEwyMzYuMjQsOTEyLjI4IEwyMzMuODIsOTExLjczIEwyMzEuNDQsOTExLjE2IEwyMjkuMDksOTEwLjU3IEwyMjYuNzgsOTA5Ljk4IEwyMjQuNTEsOTA5LjM2IEwyMjIuMjcsOTA4Ljc0IEwyMjAuMDcsOTA4LjEwIEwyMTcuOTAsOTA3LjQ1IEwyMTUuNzcsOTA2Ljc5IEwyMTMuNjYsOTA2LjExIEwyMTEuNTksOTA1LjQxIEwyMDkuNTUsOTA0LjcxIEwyMDcuNTMsOTAzLjk5IEwyMDUuNTUsOTAzLjI1IEwyMDMuNTksOTAyLjUwIEwyMDEuNjYsOTAxLjc0IEwxOTkuNzYsOTAwLjk2IEwxOTcuODksOTAwLjE3IEwxOTYuMDQsODk5LjM3IEwxOTQuMjIsODk4LjU1IEwxOTIuNDIsODk3LjcxIEwxOTAuNjUsODk2Ljg3IEwxODguOTAsODk2LjAwIEwxODcuMTcsODk1LjEyIEwxODUuNDcsODk0LjIzIEwxODMuNzksODkzLjMyIEwxODIuMTQsODkyLjQwIEwxODAuNTAsODkxLjQ2IEwxNzguODksODkwLjUxIEwxNzcuMzAsODg5LjU0IEwxNzUuNzMsODg4LjU2IEwxNzQuMTksODg3LjU2IEwxNzIuNjYsODg2LjU1IEwxNzEuMTUsODg1LjUyIEwxNjkuNjcsODg0LjQ4IEwxNjguMjAsODgzLjQyIEwxNjYuNzYsODgyLjM0IEwxNjUuMzMsODgxLjI1IEwxNjMuOTIsODgwLjE0IEwxNjIuNTQsODc5LjAxIEwxNjEuMTcsODc3Ljg3IEwxNTkuODIsODc2LjcxIEwxNTguNDgsODc1LjU0IEwxNTcuMTcsODc0LjM0IEwxNTUuODcsODczLjE0IEwxNTQuNTksODcxLjkxIEwxNTMuMzMsODcwLjY3IEwxNTIuMDksODY5LjQxIEwxNTAuODYsODY4LjEzIEwxNDkuNjYsODY2LjgzIEwxNDguNDYsODY1LjUyIEwxNDcuMjksODY0LjE4IEwxNDYuMTMsODYyLjgzIEwxNDQuOTksODYxLjQ2IEwxNDMuODYsODYwLjA4IEwxNDIuNzUsODU4LjY3IEwxNDEuNjYsODU3LjI0IEwxNDAuNTgsODU1LjgwIEwxMzkuNTIsODU0LjMzIEwxMzguNDgsODUyLjg1IEwxMzcuNDUsODUxLjM0IEwxMzYuNDQsODQ5LjgxIEwxMzUuNDQsODQ4LjI3IEwxMzQuNDYsODQ2LjcwIEwxMzMuNDksODQ1LjExIEwxMzIuNTQsODQzLjUwIEwxMzEuNjAsODQxLjg2IEwxMzAuNjgsODQwLjIxIEwxMjkuNzcsODM4LjUzIEwxMjguODgsODM2LjgzIEwxMjguMDAsODM1LjEwIEwxMjcuMTMsODMzLjM1IEwxMjYuMjksODMxLjU4IEwxMjUuNDUsODI5Ljc4IEwxMjQuNjMsODI3Ljk2IEwxMjMuODMsODI2LjExIEwxMjMuMDQsODI0LjI0IEwxMjIuMjYsODIyLjM0IEwxMjEuNTAsODIwLjQxIEwxMjAuNzUsODE4LjQ1IEwxMjAuMDEsODE2LjQ3IEwxMTkuMjksODE0LjQ1IEwxMTguNTksODEyLjQxIEwxMTcuODksODEwLjM0IEwxMTcuMjEsODA4LjIzIEwxMTYuNTUsODA2LjEwIEwxMTUuOTAsODAzLjkzIEwxMTUuMjYsODAxLjczIEwxMTQuNjQsNzk5LjQ5IEwxMTQuMDIsNzk3LjIyIEwxMTMuNDMsNzk0LjkxIEwxMTIuODQsNzkyLjU2IEwxMTIuMjcsNzkwLjE4IEwxMTEuNzIsNzg3Ljc2IEwxMTEuMTcsNzg1LjI5IEwxMTAuNjQsNzgyLjc5IEwxMTAuMTIsNzgwLjI0IEwxMDkuNjIsNzc3LjY0IEwxMDkuMTMsNzc1LjAwIEwxMDguNjUsNzcyLjMxIEwxMDguMTksNzY5LjU3IEwxMDcuNzQsNzY2Ljc3IEwxMDcuMzAsNzYzLjkzIEwxMDYuODcsNzYxLjAyIEwxMDYuNDYsNzU4LjA2IEwxMDYuMDYsNzU1LjAzIEwxMDUuNjcsNzUxLjk0IEwxMDUuMzAsNzQ4Ljc4IEwxMDQuOTQsNzQ1LjU0IEwxMDQuNTksNzQyLjIzIEwxMDQuMjYsNzM4Ljg1IEwxMDMuOTMsNzM1LjM3IEwxMDMuNjMsNzMxLjgxIEwxMDMuMzMsNzI4LjE1IEwxMDMuMDQsNzI0LjM5IEwxMDIuNzcsNzIwLjUyIEwxMDIuNTIsNzE2LjUzIEwxMDIuMjcsNzEyLjQyIEwxMDIuMDQsNzA4LjE3IEwxMDEuODIsNzAzLjc3IEwxMDEuNjEsNjk5LjIxIEwxMDEuNDEsNjk0LjQ2IEwxMDEuMjMsNjg5LjUyIEwxMDEuMDYsNjg0LjM2IEwxMDAuOTAsNjc4Ljk1IEwxMDAuNzYsNjczLjI2IEwxMDAuNjMsNjY3LjI0IEwxMDAuNTEsNjYwLjg1IEwxMDAuNDAsNjU0LjAxIEwxMDAuMzEsNjQ2LjY0IEwxMDAuMjMsNjM4LjYwIEwxMDAuMTYsNjI5LjcwIEwxMDAuMTAsNjE5LjY1IEwxMDAuMDYsNjA3Ljk1IEwxMDAuMDMsNTkzLjU5IEwxMDAuMDEsNTczLjgzIEwxMDAuMDAsNTEyLjAwIEwxMDAuMDEsNDUwLjE3IEwxMDAuMDMsNDMwLjQxIEwxMDAuMDYsNDE2LjA1IEwxMDAuMTAsNDA0LjM1IEwxMDAuMTYsMzk0LjMwIEwxMDAuMjMsMzg1LjQwIEwxMDAuMzEsMzc3LjM2IEwxMDAuNDAsMzY5Ljk5IEwxMDAuNTEsMzYzLjE1IEwxMDAuNjMsMzU2Ljc2IEwxMDAuNzYsMzUwLjc0IEwxMDAuOTAsMzQ1LjA1IEwxMDEuMDYsMzM5LjY0IEwxMDEuMjMsMzM0LjQ4IEwxMDEuNDEsMzI5LjU0IEwxMDEuNjEsMzI0Ljc5IEwxMDEuODIsMzIwLjIzIEwxMDIuMDQsMzE1LjgzIEwxMDIuMjcsMzExLjU4IEwxMDIuNTIsMzA3LjQ3IEwxMDIuNzcsMzAzLjQ4IEwxMDMuMDQsMjk5LjYxIEwxMDMuMzMsMjk1Ljg1IEwxMDMuNjMsMjkyLjE5IEwxMDMuOTMsMjg4LjYzIEwxMDQuMjYsMjg1LjE1IEwxMDQuNTksMjgxLjc3IEwxMDQuOTQsMjc4LjQ2IEwxMDUuMzAsMjc1LjIyIEwxMDUuNjcsMjcyLjA2IEwxMDYuMDYsMjY4Ljk3IEwxMDYuNDYsMjY1Ljk0IEwxMDYuODcsMjYyLjk4IEwxMDcuMzAsMjYwLjA3IEwxMDcuNzQsMjU3LjIzIEwxMDguMTksMjU0LjQzIEwxMDguNjUsMjUxLjY5IEwxMDkuMTMsMjQ5LjAwIEwxMDkuNjIsMjQ2LjM2IEwxMTAuMTIsMjQzLjc2IEwxMTAuNjQsMjQxLjIxIEwxMTEuMTcsMjM4LjcxIEwxMTEuNzIsMjM2LjI0IEwxMTIuMjcsMjMzLjgyIEwxMTIuODQsMjMxLjQ0IEwxMTMuNDMsMjI5LjA5IEwxMTQuMDIsMjI2Ljc4IEwxMTQuNjQsMjI0LjUxIEwxMTUuMjYsMjIyLjI3IEwxMTUuOTAsMjIwLjA3IEwxMTYuNTUsMjE3LjkwIEwxMTcuMjEsMjE1Ljc3IEwxMTcuODksMjEzLjY2IEwxMTguNTksMjExLjU5IEwxMTkuMjksMjA5LjU1IEwxMjAuMDEsMjA3LjUzIEwxMjAuNzUsMjA1LjU1IEwxMjEuNTAsMjAzLjU5IEwxMjIuMjYsMjAxLjY2IEwxMjMuMDQsMTk5Ljc2IEwxMjMuODMsMTk3Ljg5IEwxMjQuNjMsMTk2LjA0IEwxMjUuNDUsMTk0LjIyIEwxMjYuMjksMTkyLjQyIEwxMjcuMTMsMTkwLjY1IEwxMjguMDAsMTg4LjkwIEwxMjguODgsMTg3LjE3IEwxMjkuNzcsMTg1LjQ3IEwxMzAuNjgsMTgzLjc5IEwxMzEuNjAsMTgyLjE0IEwxMzIuNTQsMTgwLjUwIEwxMzMuNDksMTc4Ljg5IEwxMzQuNDYsMTc3LjMwIEwxMzUuNDQsMTc1LjczIEwxMzYuNDQsMTc0LjE5IEwxMzcuNDUsMTcyLjY2IEwxMzguNDgsMTcxLjE1IEwxMzkuNTIsMTY5LjY3IEwxNDAuNTgsMTY4LjIwIEwxNDEuNjYsMTY2Ljc2IEwxNDIuNzUsMTY1LjMzIEwxNDMuODYsMTYzLjkyIEwxNDQuOTksMTYyLjU0IEwxNDYuMTMsMTYxLjE3IEwxNDcuMjksMTU5LjgyIEwxNDguNDYsMTU4LjQ4IEwxNDkuNjYsMTU3LjE3IEwxNTAuODYsMTU1Ljg3IEwxNTIuMDksMTU0LjU5IEwxNTMuMzMsMTUzLjMzIEwxNTQuNTksMTUyLjA5IEwxNTUuODcsMTUwLjg2IEwxNTcuMTcsMTQ5LjY2IEwxNTguNDgsMTQ4LjQ2IEwxNTkuODIsMTQ3LjI5IEwxNjEuMTcsMTQ2LjEzIEwxNjIuNTQsMTQ0Ljk5IEwxNjMuOTIsMTQzLjg2IEwxNjUuMzMsMTQyLjc1IEwxNjYuNzYsMTQxLjY2IEwxNjguMjAsMTQwLjU4IEwxNjkuNjcsMTM5LjUyIEwxNzEuMTUsMTM4LjQ4IEwxNzIuNjYsMTM3LjQ1IEwxNzQuMTksMTM2LjQ0IEwxNzUuNzMsMTM1LjQ0IEwxNzcuMzAsMTM0LjQ2IEwxNzguODksMTMzLjQ5IEwxODAuNTAsMTMyLjU0IEwxODIuMTQsMTMxLjYwIEwxODMuNzksMTMwLjY4IEwxODUuNDcsMTI5Ljc3IEwxODcuMTcsMTI4Ljg4IEwxODguOTAsMTI4LjAwIEwxOTAuNjUsMTI3LjEzIEwxOTIuNDIsMTI2LjI5IEwxOTQuMjIsMTI1LjQ1IEwxOTYuMDQsMTI0LjYzIEwxOTcuODksMTIzLjgzIEwxOTkuNzYsMTIzLjA0IEwyMDEuNjYsMTIyLjI2IEwyMDMuNTksMTIxLjUwIEwyMDUuNTUsMTIwLjc1IEwyMDcuNTMsMTIwLjAxIEwyMDkuNTUsMTE5LjI5IEwyMTEuNTksMTE4LjU5IEwyMTMuNjYsMTE3Ljg5IEwyMTUuNzcsMTE3LjIxIEwyMTcuOTAsMTE2LjU1IEwyMjAuMDcsMTE1LjkwIEwyMjIuMjcsMTE1LjI2IEwyMjQuNTEsMTE0LjY0IEwyMjYuNzgsMTE0LjAyIEwyMjkuMDksMTEzLjQzIEwyMzEuNDQsMTEyLjg0IEwyMzMuODIsMTEyLjI3IEwyMzYuMjQsMTExLjcyIEwyMzguNzEsMTExLjE3IEwyNDEuMjEsMTEwLjY0IEwyNDMuNzYsMTEwLjEyIEwyNDYuMzYsMTA5LjYyIEwyNDkuMDAsMTA5LjEzIEwyNTEuNjksMTA4LjY1IEwyNTQuNDMsMTA4LjE5IEwyNTcuMjMsMTA3Ljc0IEwyNjAuMDcsMTA3LjMwIEwyNjIuOTgsMTA2Ljg3IEwyNjUuOTQsMTA2LjQ2IEwyNjguOTcsMTA2LjA2IEwyNzIuMDYsMTA1LjY3IEwyNzUuMjIsMTA1LjMwIEwyNzguNDYsMTA0Ljk0IEwyODEuNzcsMTA0LjU5IEwyODUuMTUsMTA0LjI2IEwyODguNjMsMTAzLjkzIEwyOTIuMTksMTAzLjYzIEwyOTUuODUsMTAzLjMzIEwyOTkuNjEsMTAzLjA0IEwzMDMuNDgsMTAyLjc3IEwzMDcuNDcsMTAyLjUyIEwzMTEuNTgsMTAyLjI3IEwzMTUuODMsMTAyLjA0IEwzMjAuMjMsMTAxLjgyIEwzMjQuNzksMTAxLjYxIEwzMjkuNTQsMTAxLjQxIEwzMzQuNDgsMTAxLjIzIEwzMzkuNjQsMTAxLjA2IEwzNDUuMDUsMTAwLjkwIEwzNTAuNzQsMTAwLjc2IEwzNTYuNzYsMTAwLjYzIEwzNjMuMTUsMTAwLjUxIEwzNjkuOTksMTAwLjQwIEwzNzcuMzYsMTAwLjMxIEwzODUuNDAsMTAwLjIzIEwzOTQuMzAsMTAwLjE2IEw0MDQuMzUsMTAwLjEwIEw0MTYuMDUsMTAwLjA2IEw0MzAuNDEsMTAwLjAzIEw0NTAuMTcsMTAwLjAxIEw1MTIuMDAsMTAwLjAwIEw1NzMuODMsMTAwLjAxIEw1OTMuNTksMTAwLjAzIEw2MDcuOTUsMTAwLjA2IEw2MTkuNjUsMTAwLjEwIEw2MjkuNzAsMTAwLjE2IEw2MzguNjAsMTAwLjIzIEw2NDYuNjQsMTAwLjMxIEw2NTQuMDEsMTAwLjQwIEw2NjAuODUsMTAwLjUxIEw2NjcuMjQsMTAwLjYzIEw2NzMuMjYsMTAwLjc2IEw2NzguOTUsMTAwLjkwIEw2ODQuMzYsMTAxLjA2IEw2ODkuNTIsMTAxLjIzIEw2OTQuNDYsMTAxLjQxIEw2OTkuMjEsMTAxLjYxIEw3MDMuNzcsMTAxLjgyIEw3MDguMTcsMTAyLjA0IEw3MTIuNDIsMTAyLjI3IEw3MTYuNTMsMTAyLjUyIEw3MjAuNTIsMTAyLjc3IEw3MjQuMzksMTAzLjA0IEw3MjguMTUsMTAzLjMzIEw3MzEuODEsMTAzLjYzIEw3MzUuMzcsMTAzLjkzIEw3MzguODUsMTA0LjI2IEw3NDIuMjMsMTA0LjU5IEw3NDUuNTQsMTA0Ljk0IEw3NDguNzgsMTA1LjMwIEw3NTEuOTQsMTA1LjY3IEw3NTUuMDMsMTA2LjA2IEw3NTguMDYsMTA2LjQ2IEw3NjEuMDIsMTA2Ljg3IEw3NjMuOTMsMTA3LjMwIEw3NjYuNzcsMTA3Ljc0IEw3NjkuNTcsMTA4LjE5IEw3NzIuMzEsMTA4LjY1IEw3NzUuMDAsMTA5LjEzIEw3NzcuNjQsMTA5LjYyIEw3ODAuMjQsMTEwLjEyIEw3ODIuNzksMTEwLjY0IEw3ODUuMjksMTExLjE3IEw3ODcuNzYsMTExLjcyIEw3OTAuMTgsMTEyLjI3IEw3OTIuNTYsMTEyLjg0IEw3OTQuOTEsMTEzLjQzIEw3OTcuMjIsMTE0LjAyIEw3OTkuNDksMTE0LjY0IEw4MDEuNzMsMTE1LjI2IEw4MDMuOTMsMTE1LjkwIEw4MDYuMTAsMTE2LjU1IEw4MDguMjMsMTE3LjIxIEw4MTAuMzQsMTE3Ljg5IEw4MTIuNDEsMTE4LjU5IEw4MTQuNDUsMTE5LjI5IEw4MTYuNDcsMTIwLjAxIEw4MTguNDUsMTIwLjc1IEw4MjAuNDEsMTIxLjUwIEw4MjIuMzQsMTIyLjI2IEw4MjQuMjQsMTIzLjA0IEw4MjYuMTEsMTIzLjgzIEw4MjcuOTYsMTI0LjYzIEw4MjkuNzgsMTI1LjQ1IEw4MzEuNTgsMTI2LjI5IEw4MzMuMzUsMTI3LjEzIEw4MzUuMTAsMTI4LjAwIEw4MzYuODMsMTI4Ljg4IEw4MzguNTMsMTI5Ljc3IEw4NDAuMjEsMTMwLjY4IEw4NDEuODYsMTMxLjYwIEw4NDMuNTAsMTMyLjU0IEw4NDUuMTEsMTMzLjQ5IEw4NDYuNzAsMTM0LjQ2IEw4NDguMjcsMTM1LjQ0IEw4NDkuODEsMTM2LjQ0IEw4NTEuMzQsMTM3LjQ1IEw4NTIuODUsMTM4LjQ4IEw4NTQuMzMsMTM5LjUyIEw4NTUuODAsMTQwLjU4IEw4NTcuMjQsMTQxLjY2IEw4NTguNjcsMTQyLjc1IEw4NjAuMDgsMTQzLjg2IEw4NjEuNDYsMTQ0Ljk5IEw4NjIuODMsMTQ2LjEzIEw4NjQuMTgsMTQ3LjI5IEw4NjUuNTIsMTQ4LjQ2IEw4NjYuODMsMTQ5LjY2IEw4NjguMTMsMTUwLjg2IEw4NjkuNDEsMTUyLjA5IEw4NzAuNjcsMTUzLjMzIEw4NzEuOTEsMTU0LjU5IEw4NzMuMTQsMTU1Ljg3IEw4NzQuMzQsMTU3LjE3IEw4NzUuNTQsMTU4LjQ4IEw4NzYuNzEsMTU5LjgyIEw4NzcuODcsMTYxLjE3IEw4NzkuMDEsMTYyLjU0IEw4ODAuMTQsMTYzLjkyIEw4ODEuMjUsMTY1LjMzIEw4ODIuMzQsMTY2Ljc2IEw4ODMuNDIsMTY4LjIwIEw4ODQuNDgsMTY5LjY3IEw4ODUuNTIsMTcxLjE1IEw4ODYuNTUsMTcyLjY2IEw4ODcuNTYsMTc0LjE5IEw4ODguNTYsMTc1LjczIEw4ODkuNTQsMTc3LjMwIEw4OTAuNTEsMTc4Ljg5IEw4OTEuNDYsMTgwLjUwIEw4OTIuNDAsMTgyLjE0IEw4OTMuMzIsMTgzLjc5IEw4OTQuMjMsMTg1LjQ3IEw4OTUuMTIsMTg3LjE3IEw4OTYuMDAsMTg4LjkwIEw4OTYuODcsMTkwLjY1IEw4OTcuNzEsMTkyLjQyIEw4OTguNTUsMTk0LjIyIEw4OTkuMzcsMTk2LjA0IEw5MDAuMTcsMTk3Ljg5IEw5MDAuOTYsMTk5Ljc2IEw5MDEuNzQsMjAxLjY2IEw5MDIuNTAsMjAzLjU5IEw5MDMuMjUsMjA1LjU1IEw5MDMuOTksMjA3LjUzIEw5MDQuNzEsMjA5LjU1IEw5MDUuNDEsMjExLjU5IEw5MDYuMTEsMjEzLjY2IEw5MDYuNzksMjE1Ljc3IEw5MDcuNDUsMjE3LjkwIEw5MDguMTAsMjIwLjA3IEw5MDguNzQsMjIyLjI3IEw5MDkuMzYsMjI0LjUxIEw5MDkuOTgsMjI2Ljc4IEw5MTAuNTcsMjI5LjA5IEw5MTEuMTYsMjMxLjQ0IEw5MTEuNzMsMjMzLjgyIEw5MTIuMjgsMjM2LjI0IEw5MTIuODMsMjM4LjcxIEw5MTMuMzYsMjQxLjIxIEw5MTMuODgsMjQzLjc2IEw5MTQuMzgsMjQ2LjM2IEw5MTQuODcsMjQ5LjAwIEw5MTUuMzUsMjUxLjY5IEw5MTUuODEsMjU0LjQzIEw5MTYuMjYsMjU3LjIzIEw5MTYuNzAsMjYwLjA3IEw5MTcuMTMsMjYyLjk4IEw5MTcuNTQsMjY1Ljk0IEw5MTcuOTQsMjY4Ljk3IEw5MTguMzMsMjcyLjA2IEw5MTguNzAsMjc1LjIyIEw5MTkuMDYsMjc4LjQ2IEw5MTkuNDEsMjgxLjc3IEw5MTkuNzQsMjg1LjE1IEw5MjAuMDcsMjg4LjYzIEw5MjAuMzcsMjkyLjE5IEw5MjAuNjcsMjk1Ljg1IEw5MjAuOTYsMjk5LjYxIEw5MjEuMjMsMzAzLjQ4IEw5MjEuNDgsMzA3LjQ3IEw5MjEuNzMsMzExLjU4IEw5MjEuOTYsMzE1LjgzIEw5MjIuMTgsMzIwLjIzIEw5MjIuMzksMzI0Ljc5IEw5MjIuNTksMzI5LjU0IEw5MjIuNzcsMzM0LjQ4IEw5MjIuOTQsMzM5LjY0IEw5MjMuMTAsMzQ1LjA1IEw5MjMuMjQsMzUwLjc0IEw5MjMuMzcsMzU2Ljc2IEw5MjMuNDksMzYzLjE1IEw5MjMuNjAsMzY5Ljk5IEw5MjMuNjksMzc3LjM2IEw5MjMuNzcsMzg1LjQwIEw5MjMuODQsMzk0LjMwIEw5MjMuOTAsNDA0LjM1IEw5MjMuOTQsNDE2LjA1IEw5MjMuOTcsNDMwLjQxIEw5MjMuOTksNDUwLjE3IFoiIGZpbGw9InVybCgjYmcpIiBmaWx0ZXI9InVybCgjYm9keSkiLz4KPGcgY2xpcC1wYXRoPSJ1cmwoI3NxKSI+CiAgPHJlY3QgeD0iMTAwIiB5PSIxMDAiIHdpZHRoPSI4MjQiIGhlaWdodD0iODI0IiBmaWxsPSJ1cmwoI3NoZWVuKSIvPgo8ZGVmcz4KPGZpbHRlciBpZD0iYjQiIHg9Ii01MCUiIHk9Ii01MCUiIHdpZHRoPSIyMDAlIiBoZWlnaHQ9IjIwMCUiPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjQiLz48L2ZpbHRlcj4KPGZpbHRlciBpZD0iYjEwIiB4PSItNTAlIiB5PSItNTAlIiB3aWR0aD0iMjAwJSIgaGVpZ2h0PSIyMDAlIj48ZmVHYXVzc2lhbkJsdXIgc3RkRGV2aWF0aW9uPSIxMCIvPjwvZmlsdGVyPgo8ZmlsdGVyIGlkPSJiMjQiIHg9Ii01MCUiIHk9Ii01MCUiIHdpZHRoPSIyMDAlIiBoZWlnaHQ9IjIwMCUiPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjI0Ii8+PC9maWx0ZXI+CjxmaWx0ZXIgaWQ9ImI0MCIgeD0iLTUwJSIgeT0iLTUwJSIgd2lkdGg9IjIwMCUiIGhlaWdodD0iMjAwJSI+PGZlR2F1c3NpYW5CbHVyIHN0ZERldmlhdGlvbj0iNDAiLz48L2ZpbHRlcj4KPGxpbmVhckdyYWRpZW50IGlkPSJiYXJXIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjRkZGRkZGIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjRDlEQURFIi8+PC9saW5lYXJHcmFkaWVudD4KPGxpbmVhckdyYWRpZW50IGlkPSJiYXJLIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjMkMyQzJGIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMEEwQTBCIi8+PC9saW5lYXJHcmFkaWVudD4KPGxpbmVhckdyYWRpZW50IGlkPSJsZW5zIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAuMjAiLz48c3RvcCBvZmZzZXQ9IjAuNDUiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMCIvPjwvbGluZWFyR3JhZGllbnQ+CjxsaW5lYXJHcmFkaWVudCBpZD0iZWRnZSIgeDE9IjAiIHkxPSIwIiB4Mj0iMCIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwLjQ1Ii8+PHN0b3Agb2Zmc2V0PSIwLjUiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMC4wNCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwLjE2Ii8+PC9saW5lYXJHcmFkaWVudD4KPGxpbmVhckdyYWRpZW50IGlkPSJwaWxsSyIgeDE9IjAiIHkxPSIwIiB4Mj0iMCIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzI2MjYyQSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzAzMDMwNCIvPjwvbGluZWFyR3JhZGllbnQ+CjwvZGVmcz48ZGVmcz4KPGxpbmVhckdyYWRpZW50IGlkPSJmcm0iIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxIj48c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiM2QTZCNzAiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMyQTJCMkYiLz48L2xpbmVhckdyYWRpZW50Pgo8bGluZWFyR3JhZGllbnQgaWQ9ImZybUluIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjMkEyQjJGIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjNkE2QjcwIi8+PC9saW5lYXJHcmFkaWVudD4KPGxpbmVhckdyYWRpZW50IGlkPSJnbGFyZSIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2ZmZiIgc3RvcC1vcGFjaXR5PSIwLjE2Ii8+PHN0b3Agb2Zmc2V0PSIwLjM4IiBzdG9wLWNvbG9yPSIjZmZmIiBzdG9wLW9wYWNpdHk9IjAuMDQiLz48c3RvcCBvZmZzZXQ9IjAuMzkiIHN0b3AtY29sb3I9IiNmZmYiIHN0b3Atb3BhY2l0eT0iMCIvPjwvbGluZWFyR3JhZGllbnQ+CjxjbGlwUGF0aCBpZD0iZ2xhc3MiPjxyZWN0IHg9IjIxMi4wIiB5PSIzODIuMCIgd2lkdGg9IjYwMC4wIiBoZWlnaHQ9IjI0MC4wIiByeD0iMTIwLjAiIC8+PC9jbGlwUGF0aD48L2RlZnM+CjxyZWN0IHg9IjE5OC4wIiB5PSIzOTQuMCIgd2lkdGg9IjYyOC4wIiBoZWlnaHQ9IjI4OC4wIiByeD0iMTU0LjAiIGZpbGw9IiMwMDAiIG9wYWNpdHk9IjAuNiIgZmlsdGVyPSJ1cmwoI2I0MCkiLz4KPHJlY3QgeD0iMTc4LjAiIHk9IjM1Ni4wIiB3aWR0aD0iNjY4LjAiIGhlaWdodD0iMzA4LjAiIHJ4PSIxNTQuMCIgZmlsbD0iIzAwMCIgb3BhY2l0eT0iMC41IiBmaWx0ZXI9InVybCgjYjEwKSIvPgo8cmVjdCB4PSIxNzguMCIgeT0iMzQ4LjAiIHdpZHRoPSI2NjguMCIgaGVpZ2h0PSIzMDguMCIgcng9IjE1NC4wIiBmaWxsPSJ1cmwoI2ZybSkiLz4KPHJlY3QgeD0iMTc5LjUiIHk9IjM0OS41IiB3aWR0aD0iNjY1LjAiIGhlaWdodD0iMzA1LjAiIHJ4PSIxNTIuNSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utb3BhY2l0eT0iMC4zNSIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxyZWN0IHg9IjIwNi4wIiB5PSIzNzYuMCIgd2lkdGg9IjYxMi4wIiBoZWlnaHQ9IjI1Mi4wIiByeD0iMTI2LjAiIGZpbGw9InVybCgjZnJtSW4pIi8+CjxyZWN0IHg9IjIxMi4wIiB5PSIzODIuMCIgd2lkdGg9IjYwMC4wIiBoZWlnaHQ9IjI0MC4wIiByeD0iMTIwLjAiIGZpbGw9InVybCgjcGlsbEspIi8+CjxnIGNsaXAtcGF0aD0idXJsKCNnbGFzcykiPjxyZWN0IHg9IjE3Mi4wIiB5PSIzNDIuMCIgd2lkdGg9IjY4MC4wIiBoZWlnaHQ9IjcwLjAiIHJ4PSIzNS4wIiBmaWxsPSIjMDAwIiBvcGFjaXR5PSIwLjkiIGZpbHRlcj0idXJsKCNiMjQpIi8+CjxyZWN0IHg9IjIxMi4wIiB5PSIzODIuMCIgd2lkdGg9IjYwMC4wIiBoZWlnaHQ9IjI0MC4wIiByeD0iMC4wIiBmaWxsPSJ1cmwoI2dsYXJlKSIvPjwvZz4KPHJlY3QgeD0iMzQ4LjAiIHk9IjQ3Ny4wIiB3aWR0aD0iMjguMCIgaGVpZ2h0PSI1MC4wIiByeD0iMTQuMCIgZmlsbD0idXJsKCNiYXJXKSIvPgo8cmVjdCB4PSIzOTguMCIgeT0iNDUwLjAiIHdpZHRoPSIyOC4wIiBoZWlnaHQ9IjEwNC4wIiByeD0iMTQuMCIgZmlsbD0idXJsKCNiYXJXKSIvPgo8cmVjdCB4PSI0NDguMCIgeT0iNDI4LjAiIHdpZHRoPSIyOC4wIiBoZWlnaHQ9IjE0OC4wIiByeD0iMTQuMCIgZmlsbD0idXJsKCNiYXJXKSIvPgo8cmVjdCB4PSI0OTguMCIgeT0iNDU3LjAiIHdpZHRoPSIyOC4wIiBoZWlnaHQ9IjkwLjAiIHJ4PSIxNC4wIiBmaWxsPSJ1cmwoI2JhclcpIi8+CjxyZWN0IHg9IjU0OC4wIiB5PSI0MzkuMCIgd2lkdGg9IjI4LjAiIGhlaWdodD0iMTI2LjAiIHJ4PSIxNC4wIiBmaWxsPSJ1cmwoI2JhclcpIi8+CjxyZWN0IHg9IjU5OC4wIiB5PSI0NzAuMCIgd2lkdGg9IjI4LjAiIGhlaWdodD0iNjQuMCIgcng9IjE0LjAiIGZpbGw9InVybCgjYmFyVykiLz4KPHJlY3QgeD0iNjQ4LjAiIHk9IjQ4NC4wIiB3aWR0aD0iMjguMCIgaGVpZ2h0PSIzNi4wIiByeD0iMTQuMCIgZmlsbD0idXJsKCNiYXJXKSIvPgogIDxyZWN0IHg9IjEwMCIgeT0iMTAwIiB3aWR0aD0iODI0IiBoZWlnaHQ9IjgyNCIgZmlsdGVyPSJ1cmwoI25XKSIgb3BhY2l0eT0iMC4wNiIvPgogIDxyZWN0IHg9IjEwMCIgeT0iMTAwIiB3aWR0aD0iODI0IiBoZWlnaHQ9IjgyNCIgZmlsdGVyPSJ1cmwoI25CKSIgb3BhY2l0eT0iMC4wNiIvPgogIDxwYXRoIGQ9Ik05MjQuMDAsNTEyLjAwIEw5MjMuOTksNTczLjgzIEw5MjMuOTcsNTkzLjU5IEw5MjMuOTQsNjA3Ljk1IEw5MjMuOTAsNjE5LjY1IEw5MjMuODQsNjI5LjcwIEw5MjMuNzcsNjM4LjYwIEw5MjMuNjksNjQ2LjY0IEw5MjMuNjAsNjU0LjAxIEw5MjMuNDksNjYwLjg1IEw5MjMuMzcsNjY3LjI0IEw5MjMuMjQsNjczLjI2IEw5MjMuMTAsNjc4Ljk1IEw5MjIuOTQsNjg0LjM2IEw5MjIuNzcsNjg5LjUyIEw5MjIuNTksNjk0LjQ2IEw5MjIuMzksNjk5LjIxIEw5MjIuMTgsNzAzLjc3IEw5MjEuOTYsNzA4LjE3IEw5MjEuNzMsNzEyLjQyIEw5MjEuNDgsNzE2LjUzIEw5MjEuMjMsNzIwLjUyIEw5MjAuOTYsNzI0LjM5IEw5MjAuNjcsNzI4LjE1IEw5MjAuMzcsNzMxLjgxIEw5MjAuMDcsNzM1LjM3IEw5MTkuNzQsNzM4Ljg1IEw5MTkuNDEsNzQyLjIzIEw5MTkuMDYsNzQ1LjU0IEw5MTguNzAsNzQ4Ljc4IEw5MTguMzMsNzUxLjk0IEw5MTcuOTQsNzU1LjAzIEw5MTcuNTQsNzU4LjA2IEw5MTcuMTMsNzYxLjAyIEw5MTYuNzAsNzYzLjkzIEw5MTYuMjYsNzY2Ljc3IEw5MTUuODEsNzY5LjU3IEw5MTUuMzUsNzcyLjMxIEw5MTQuODcsNzc1LjAwIEw5MTQuMzgsNzc3LjY0IEw5MTMuODgsNzgwLjI0IEw5MTMuMzYsNzgyLjc5IEw5MTIuODMsNzg1LjI5IEw5MTIuMjgsNzg3Ljc2IEw5MTEuNzMsNzkwLjE4IEw5MTEuMTYsNzkyLjU2IEw5MTAuNTcsNzk0LjkxIEw5MDkuOTgsNzk3LjIyIEw5MDkuMzYsNzk5LjQ5IEw5MDguNzQsODAxLjczIEw5MDguMTAsODAzLjkzIEw5MDcuNDUsODA2LjEwIEw5MDYuNzksODA4LjIzIEw5MDYuMTEsODEwLjM0IEw5MDUuNDEsODEyLjQxIEw5MDQuNzEsODE0LjQ1IEw5MDMuOTksODE2LjQ3IEw5MDMuMjUsODE4LjQ1IEw5MDIuNTAsODIwLjQxIEw5MDEuNzQsODIyLjM0IEw5MDAuOTYsODI0LjI0IEw5MDAuMTcsODI2LjExIEw4OTkuMzcsODI3Ljk2IEw4OTguNTUsODI5Ljc4IEw4OTcuNzEsODMxLjU4IEw4OTYuODcsODMzLjM1IEw4OTYuMDAsODM1LjEwIEw4OTUuMTIsODM2LjgzIEw4OTQuMjMsODM4LjUzIEw4OTMuMzIsODQwLjIxIEw4OTIuNDAsODQxLjg2IEw4OTEuNDYsODQzLjUwIEw4OTAuNTEsODQ1LjExIEw4ODkuNTQsODQ2LjcwIEw4ODguNTYsODQ4LjI3IEw4ODcuNTYsODQ5LjgxIEw4ODYuNTUsODUxLjM0IEw4ODUuNTIsODUyLjg1IEw4ODQuNDgsODU0LjMzIEw4ODMuNDIsODU1LjgwIEw4ODIuMzQsODU3LjI0IEw4ODEuMjUsODU4LjY3IEw4ODAuMTQsODYwLjA4IEw4NzkuMDEsODYxLjQ2IEw4NzcuODcsODYyLjgzIEw4NzYuNzEsODY0LjE4IEw4NzUuNTQsODY1LjUyIEw4NzQuMzQsODY2LjgzIEw4NzMuMTQsODY4LjEzIEw4NzEuOTEsODY5LjQxIEw4NzAuNjcsODcwLjY3IEw4NjkuNDEsODcxLjkxIEw4NjguMTMsODczLjE0IEw4NjYuODMsODc0LjM0IEw4NjUuNTIsODc1LjU0IEw4NjQuMTgsODc2LjcxIEw4NjIuODMsODc3Ljg3IEw4NjEuNDYsODc5LjAxIEw4NjAuMDgsODgwLjE0IEw4NTguNjcsODgxLjI1IEw4NTcuMjQsODgyLjM0IEw4NTUuODAsODgzLjQyIEw4NTQuMzMsODg0LjQ4IEw4NTIuODUsODg1LjUyIEw4NTEuMzQsODg2LjU1IEw4NDkuODEsODg3LjU2IEw4NDguMjcsODg4LjU2IEw4NDYuNzAsODg5LjU0IEw4NDUuMTEsODkwLjUxIEw4NDMuNTAsODkxLjQ2IEw4NDEuODYsODkyLjQwIEw4NDAuMjEsODkzLjMyIEw4MzguNTMsODk0LjIzIEw4MzYuODMsODk1LjEyIEw4MzUuMTAsODk2LjAwIEw4MzMuMzUsODk2Ljg3IEw4MzEuNTgsODk3LjcxIEw4MjkuNzgsODk4LjU1IEw4MjcuOTYsODk5LjM3IEw4MjYuMTEsOTAwLjE3IEw4MjQuMjQsOTAwLjk2IEw4MjIuMzQsOTAxLjc0IEw4MjAuNDEsOTAyLjUwIEw4MTguNDUsOTAzLjI1IEw4MTYuNDcsOTAzLjk5IEw4MTQuNDUsOTA0LjcxIEw4MTIuNDEsOTA1LjQxIEw4MTAuMzQsOTA2LjExIEw4MDguMjMsOTA2Ljc5IEw4MDYuMTAsOTA3LjQ1IEw4MDMuOTMsOTA4LjEwIEw4MDEuNzMsOTA4Ljc0IEw3OTkuNDksOTA5LjM2IEw3OTcuMjIsOTA5Ljk4IEw3OTQuOTEsOTEwLjU3IEw3OTIuNTYsOTExLjE2IEw3OTAuMTgsOTExLjczIEw3ODcuNzYsOTEyLjI4IEw3ODUuMjksOTEyLjgzIEw3ODIuNzksOTEzLjM2IEw3ODAuMjQsOTEzLjg4IEw3NzcuNjQsOTE0LjM4IEw3NzUuMDAsOTE0Ljg3IEw3NzIuMzEsOTE1LjM1IEw3NjkuNTcsOTE1LjgxIEw3NjYuNzcsOTE2LjI2IEw3NjMuOTMsOTE2LjcwIEw3NjEuMDIsOTE3LjEzIEw3NTguMDYsOTE3LjU0IEw3NTUuMDMsOTE3Ljk0IEw3NTEuOTQsOTE4LjMzIEw3NDguNzgsOTE4LjcwIEw3NDUuNTQsOTE5LjA2IEw3NDIuMjMsOTE5LjQxIEw3MzguODUsOTE5Ljc0IEw3MzUuMzcsOTIwLjA3IEw3MzEuODEsOTIwLjM3IEw3MjguMTUsOTIwLjY3IEw3MjQuMzksOTIwLjk2IEw3MjAuNTIsOTIxLjIzIEw3MTYuNTMsOTIxLjQ4IEw3MTIuNDIsOTIxLjczIEw3MDguMTcsOTIxLjk2IEw3MDMuNzcsOTIyLjE4IEw2OTkuMjEsOTIyLjM5IEw2OTQuNDYsOTIyLjU5IEw2ODkuNTIsOTIyLjc3IEw2ODQuMzYsOTIyLjk0IEw2NzguOTUsOTIzLjEwIEw2NzMuMjYsOTIzLjI0IEw2NjcuMjQsOTIzLjM3IEw2NjAuODUsOTIzLjQ5IEw2NTQuMDEsOTIzLjYwIEw2NDYuNjQsOTIzLjY5IEw2MzguNjAsOTIzLjc3IEw2MjkuNzAsOTIzLjg0IEw2MTkuNjUsOTIzLjkwIEw2MDcuOTUsOTIzLjk0IEw1OTMuNTksOTIzLjk3IEw1NzMuODMsOTIzLjk5IEw1MTIuMDAsOTI0LjAwIEw0NTAuMTcsOTIzLjk5IEw0MzAuNDEsOTIzLjk3IEw0MTYuMDUsOTIzLjk0IEw0MDQuMzUsOTIzLjkwIEwzOTQuMzAsOTIzLjg0IEwzODUuNDAsOTIzLjc3IEwzNzcuMzYsOTIzLjY5IEwzNjkuOTksOTIzLjYwIEwzNjMuMTUsOTIzLjQ5IEwzNTYuNzYsOTIzLjM3IEwzNTAuNzQsOTIzLjI0IEwzNDUuMDUsOTIzLjEwIEwzMzkuNjQsOTIyLjk0IEwzMzQuNDgsOTIyLjc3IEwzMjkuNTQsOTIyLjU5IEwzMjQuNzksOTIyLjM5IEwzMjAuMjMsOTIyLjE4IEwzMTUuODMsOTIxLjk2IEwzMTEuNTgsOTIxLjczIEwzMDcuNDcsOTIxLjQ4IEwzMDMuNDgsOTIxLjIzIEwyOTkuNjEsOTIwLjk2IEwyOTUuODUsOTIwLjY3IEwyOTIuMTksOTIwLjM3IEwyODguNjMsOTIwLjA3IEwyODUuMTUsOTE5Ljc0IEwyODEuNzcsOTE5LjQxIEwyNzguNDYsOTE5LjA2IEwyNzUuMjIsOTE4LjcwIEwyNzIuMDYsOTE4LjMzIEwyNjguOTcsOTE3Ljk0IEwyNjUuOTQsOTE3LjU0IEwyNjIuOTgsOTE3LjEzIEwyNjAuMDcsOTE2LjcwIEwyNTcuMjMsOTE2LjI2IEwyNTQuNDMsOTE1LjgxIEwyNTEuNjksOTE1LjM1IEwyNDkuMDAsOTE0Ljg3IEwyNDYuMzYsOTE0LjM4IEwyNDMuNzYsOTEzLjg4IEwyNDEuMjEsOTEzLjM2IEwyMzguNzEsOTEyLjgzIEwyMzYuMjQsOTEyLjI4IEwyMzMuODIsOTExLjczIEwyMzEuNDQsOTExLjE2IEwyMjkuMDksOTEwLjU3IEwyMjYuNzgsOTA5Ljk4IEwyMjQuNTEsOTA5LjM2IEwyMjIuMjcsOTA4Ljc0IEwyMjAuMDcsOTA4LjEwIEwyMTcuOTAsOTA3LjQ1IEwyMTUuNzcsOTA2Ljc5IEwyMTMuNjYsOTA2LjExIEwyMTEuNTksOTA1LjQxIEwyMDkuNTUsOTA0LjcxIEwyMDcuNTMsOTAzLjk5IEwyMDUuNTUsOTAzLjI1IEwyMDMuNTksOTAyLjUwIEwyMDEuNjYsOTAxLjc0IEwxOTkuNzYsOTAwLjk2IEwxOTcuODksOTAwLjE3IEwxOTYuMDQsODk5LjM3IEwxOTQuMjIsODk4LjU1IEwxOTIuNDIsODk3LjcxIEwxOTAuNjUsODk2Ljg3IEwxODguOTAsODk2LjAwIEwxODcuMTcsODk1LjEyIEwxODUuNDcsODk0LjIzIEwxODMuNzksODkzLjMyIEwxODIuMTQsODkyLjQwIEwxODAuNTAsODkxLjQ2IEwxNzguODksODkwLjUxIEwxNzcuMzAsODg5LjU0IEwxNzUuNzMsODg4LjU2IEwxNzQuMTksODg3LjU2IEwxNzIuNjYsODg2LjU1IEwxNzEuMTUsODg1LjUyIEwxNjkuNjcsODg0LjQ4IEwxNjguMjAsODgzLjQyIEwxNjYuNzYsODgyLjM0IEwxNjUuMzMsODgxLjI1IEwxNjMuOTIsODgwLjE0IEwxNjIuNTQsODc5LjAxIEwxNjEuMTcsODc3Ljg3IEwxNTkuODIsODc2LjcxIEwxNTguNDgsODc1LjU0IEwxNTcuMTcsODc0LjM0IEwxNTUuODcsODczLjE0IEwxNTQuNTksODcxLjkxIEwxNTMuMzMsODcwLjY3IEwxNTIuMDksODY5LjQxIEwxNTAuODYsODY4LjEzIEwxNDkuNjYsODY2LjgzIEwxNDguNDYsODY1LjUyIEwxNDcuMjksODY0LjE4IEwxNDYuMTMsODYyLjgzIEwxNDQuOTksODYxLjQ2IEwxNDMuODYsODYwLjA4IEwxNDIuNzUsODU4LjY3IEwxNDEuNjYsODU3LjI0IEwxNDAuNTgsODU1LjgwIEwxMzkuNTIsODU0LjMzIEwxMzguNDgsODUyLjg1IEwxMzcuNDUsODUxLjM0IEwxMzYuNDQsODQ5LjgxIEwxMzUuNDQsODQ4LjI3IEwxMzQuNDYsODQ2LjcwIEwxMzMuNDksODQ1LjExIEwxMzIuNTQsODQzLjUwIEwxMzEuNjAsODQxLjg2IEwxMzAuNjgsODQwLjIxIEwxMjkuNzcsODM4LjUzIEwxMjguODgsODM2LjgzIEwxMjguMDAsODM1LjEwIEwxMjcuMTMsODMzLjM1IEwxMjYuMjksODMxLjU4IEwxMjUuNDUsODI5Ljc4IEwxMjQuNjMsODI3Ljk2IEwxMjMuODMsODI2LjExIEwxMjMuMDQsODI0LjI0IEwxMjIuMjYsODIyLjM0IEwxMjEuNTAsODIwLjQxIEwxMjAuNzUsODE4LjQ1IEwxMjAuMDEsODE2LjQ3IEwxMTkuMjksODE0LjQ1IEwxMTguNTksODEyLjQxIEwxMTcuODksODEwLjM0IEwxMTcuMjEsODA4LjIzIEwxMTYuNTUsODA2LjEwIEwxMTUuOTAsODAzLjkzIEwxMTUuMjYsODAxLjczIEwxMTQuNjQsNzk5LjQ5IEwxMTQuMDIsNzk3LjIyIEwxMTMuNDMsNzk0LjkxIEwxMTIuODQsNzkyLjU2IEwxMTIuMjcsNzkwLjE4IEwxMTEuNzIsNzg3Ljc2IEwxMTEuMTcsNzg1LjI5IEwxMTAuNjQsNzgyLjc5IEwxMTAuMTIsNzgwLjI0IEwxMDkuNjIsNzc3LjY0IEwxMDkuMTMsNzc1LjAwIEwxMDguNjUsNzcyLjMxIEwxMDguMTksNzY5LjU3IEwxMDcuNzQsNzY2Ljc3IEwxMDcuMzAsNzYzLjkzIEwxMDYuODcsNzYxLjAyIEwxMDYuNDYsNzU4LjA2IEwxMDYuMDYsNzU1LjAzIEwxMDUuNjcsNzUxLjk0IEwxMDUuMzAsNzQ4Ljc4IEwxMDQuOTQsNzQ1LjU0IEwxMDQuNTksNzQyLjIzIEwxMDQuMjYsNzM4Ljg1IEwxMDMuOTMsNzM1LjM3IEwxMDMuNjMsNzMxLjgxIEwxMDMuMzMsNzI4LjE1IEwxMDMuMDQsNzI0LjM5IEwxMDIuNzcsNzIwLjUyIEwxMDIuNTIsNzE2LjUzIEwxMDIuMjcsNzEyLjQyIEwxMDIuMDQsNzA4LjE3IEwxMDEuODIsNzAzLjc3IEwxMDEuNjEsNjk5LjIxIEwxMDEuNDEsNjk0LjQ2IEwxMDEuMjMsNjg5LjUyIEwxMDEuMDYsNjg0LjM2IEwxMDAuOTAsNjc4Ljk1IEwxMDAuNzYsNjczLjI2IEwxMDAuNjMsNjY3LjI0IEwxMDAuNTEsNjYwLjg1IEwxMDAuNDAsNjU0LjAxIEwxMDAuMzEsNjQ2LjY0IEwxMDAuMjMsNjM4LjYwIEwxMDAuMTYsNjI5LjcwIEwxMDAuMTAsNjE5LjY1IEwxMDAuMDYsNjA3Ljk1IEwxMDAuMDMsNTkzLjU5IEwxMDAuMDEsNTczLjgzIEwxMDAuMDAsNTEyLjAwIEwxMDAuMDEsNDUwLjE3IEwxMDAuMDMsNDMwLjQxIEwxMDAuMDYsNDE2LjA1IEwxMDAuMTAsNDA0LjM1IEwxMDAuMTYsMzk0LjMwIEwxMDAuMjMsMzg1LjQwIEwxMDAuMzEsMzc3LjM2IEwxMDAuNDAsMzY5Ljk5IEwxMDAuNTEsMzYzLjE1IEwxMDAuNjMsMzU2Ljc2IEwxMDAuNzYsMzUwLjc0IEwxMDAuOTAsMzQ1LjA1IEwxMDEuMDYsMzM5LjY0IEwxMDEuMjMsMzM0LjQ4IEwxMDEuNDEsMzI5LjU0IEwxMDEuNjEsMzI0Ljc5IEwxMDEuODIsMzIwLjIzIEwxMDIuMDQsMzE1LjgzIEwxMDIuMjcsMzExLjU4IEwxMDIuNTIsMzA3LjQ3IEwxMDIuNzcsMzAzLjQ4IEwxMDMuMDQsMjk5LjYxIEwxMDMuMzMsMjk1Ljg1IEwxMDMuNjMsMjkyLjE5IEwxMDMuOTMsMjg4LjYzIEwxMDQuMjYsMjg1LjE1IEwxMDQuNTksMjgxLjc3IEwxMDQuOTQsMjc4LjQ2IEwxMDUuMzAsMjc1LjIyIEwxMDUuNjcsMjcyLjA2IEwxMDYuMDYsMjY4Ljk3IEwxMDYuNDYsMjY1Ljk0IEwxMDYuODcsMjYyLjk4IEwxMDcuMzAsMjYwLjA3IEwxMDcuNzQsMjU3LjIzIEwxMDguMTksMjU0LjQzIEwxMDguNjUsMjUxLjY5IEwxMDkuMTMsMjQ5LjAwIEwxMDkuNjIsMjQ2LjM2IEwxMTAuMTIsMjQzLjc2IEwxMTAuNjQsMjQxLjIxIEwxMTEuMTcsMjM4LjcxIEwxMTEuNzIsMjM2LjI0IEwxMTIuMjcsMjMzLjgyIEwxMTIuODQsMjMxLjQ0IEwxMTMuNDMsMjI5LjA5IEwxMTQuMDIsMjI2Ljc4IEwxMTQuNjQsMjI0LjUxIEwxMTUuMjYsMjIyLjI3IEwxMTUuOTAsMjIwLjA3IEwxMTYuNTUsMjE3LjkwIEwxMTcuMjEsMjE1Ljc3IEwxMTcuODksMjEzLjY2IEwxMTguNTksMjExLjU5IEwxMTkuMjksMjA5LjU1IEwxMjAuMDEsMjA3LjUzIEwxMjAuNzUsMjA1LjU1IEwxMjEuNTAsMjAzLjU5IEwxMjIuMjYsMjAxLjY2IEwxMjMuMDQsMTk5Ljc2IEwxMjMuODMsMTk3Ljg5IEwxMjQuNjMsMTk2LjA0IEwxMjUuNDUsMTk0LjIyIEwxMjYuMjksMTkyLjQyIEwxMjcuMTMsMTkwLjY1IEwxMjguMDAsMTg4LjkwIEwxMjguODgsMTg3LjE3IEwxMjkuNzcsMTg1LjQ3IEwxMzAuNjgsMTgzLjc5IEwxMzEuNjAsMTgyLjE0IEwxMzIuNTQsMTgwLjUwIEwxMzMuNDksMTc4Ljg5IEwxMzQuNDYsMTc3LjMwIEwxMzUuNDQsMTc1LjczIEwxMzYuNDQsMTc0LjE5IEwxMzcuNDUsMTcyLjY2IEwxMzguNDgsMTcxLjE1IEwxMzkuNTIsMTY5LjY3IEwxNDAuNTgsMTY4LjIwIEwxNDEuNjYsMTY2Ljc2IEwxNDIuNzUsMTY1LjMzIEwxNDMuODYsMTYzLjkyIEwxNDQuOTksMTYyLjU0IEwxNDYuMTMsMTYxLjE3IEwxNDcuMjksMTU5LjgyIEwxNDguNDYsMTU4LjQ4IEwxNDkuNjYsMTU3LjE3IEwxNTAuODYsMTU1Ljg3IEwxNTIuMDksMTU0LjU5IEwxNTMuMzMsMTUzLjMzIEwxNTQuNTksMTUyLjA5IEwxNTUuODcsMTUwLjg2IEwxNTcuMTcsMTQ5LjY2IEwxNTguNDgsMTQ4LjQ2IEwxNTkuODIsMTQ3LjI5IEwxNjEuMTcsMTQ2LjEzIEwxNjIuNTQsMTQ0Ljk5IEwxNjMuOTIsMTQzLjg2IEwxNjUuMzMsMTQyLjc1IEwxNjYuNzYsMTQxLjY2IEwxNjguMjAsMTQwLjU4IEwxNjkuNjcsMTM5LjUyIEwxNzEuMTUsMTM4LjQ4IEwxNzIuNjYsMTM3LjQ1IEwxNzQuMTksMTM2LjQ0IEwxNzUuNzMsMTM1LjQ0IEwxNzcuMzAsMTM0LjQ2IEwxNzguODksMTMzLjQ5IEwxODAuNTAsMTMyLjU0IEwxODIuMTQsMTMxLjYwIEwxODMuNzksMTMwLjY4IEwxODUuNDcsMTI5Ljc3IEwxODcuMTcsMTI4Ljg4IEwxODguOTAsMTI4LjAwIEwxOTAuNjUsMTI3LjEzIEwxOTIuNDIsMTI2LjI5IEwxOTQuMjIsMTI1LjQ1IEwxOTYuMDQsMTI0LjYzIEwxOTcuODksMTIzLjgzIEwxOTkuNzYsMTIzLjA0IEwyMDEuNjYsMTIyLjI2IEwyMDMuNTksMTIxLjUwIEwyMDUuNTUsMTIwLjc1IEwyMDcuNTMsMTIwLjAxIEwyMDkuNTUsMTE5LjI5IEwyMTEuNTksMTE4LjU5IEwyMTMuNjYsMTE3Ljg5IEwyMTUuNzcsMTE3LjIxIEwyMTcuOTAsMTE2LjU1IEwyMjAuMDcsMTE1LjkwIEwyMjIuMjcsMTE1LjI2IEwyMjQuNTEsMTE0LjY0IEwyMjYuNzgsMTE0LjAyIEwyMjkuMDksMTEzLjQzIEwyMzEuNDQsMTEyLjg0IEwyMzMuODIsMTEyLjI3IEwyMzYuMjQsMTExLjcyIEwyMzguNzEsMTExLjE3IEwyNDEuMjEsMTEwLjY0IEwyNDMuNzYsMTEwLjEyIEwyNDYuMzYsMTA5LjYyIEwyNDkuMDAsMTA5LjEzIEwyNTEuNjksMTA4LjY1IEwyNTQuNDMsMTA4LjE5IEwyNTcuMjMsMTA3Ljc0IEwyNjAuMDcsMTA3LjMwIEwyNjIuOTgsMTA2Ljg3IEwyNjUuOTQsMTA2LjQ2IEwyNjguOTcsMTA2LjA2IEwyNzIuMDYsMTA1LjY3IEwyNzUuMjIsMTA1LjMwIEwyNzguNDYsMTA0Ljk0IEwyODEuNzcsMTA0LjU5IEwyODUuMTUsMTA0LjI2IEwyODguNjMsMTAzLjkzIEwyOTIuMTksMTAzLjYzIEwyOTUuODUsMTAzLjMzIEwyOTkuNjEsMTAzLjA0IEwzMDMuNDgsMTAyLjc3IEwzMDcuNDcsMTAyLjUyIEwzMTEuNTgsMTAyLjI3IEwzMTUuODMsMTAyLjA0IEwzMjAuMjMsMTAxLjgyIEwzMjQuNzksMTAxLjYxIEwzMjkuNTQsMTAxLjQxIEwzMzQuNDgsMTAxLjIzIEwzMzkuNjQsMTAxLjA2IEwzNDUuMDUsMTAwLjkwIEwzNTAuNzQsMTAwLjc2IEwzNTYuNzYsMTAwLjYzIEwzNjMuMTUsMTAwLjUxIEwzNjkuOTksMTAwLjQwIEwzNzcuMzYsMTAwLjMxIEwzODUuNDAsMTAwLjIzIEwzOTQuMzAsMTAwLjE2IEw0MDQuMzUsMTAwLjEwIEw0MTYuMDUsMTAwLjA2IEw0MzAuNDEsMTAwLjAzIEw0NTAuMTcsMTAwLjAxIEw1MTIuMDAsMTAwLjAwIEw1NzMuODMsMTAwLjAxIEw1OTMuNTksMTAwLjAzIEw2MDcuOTUsMTAwLjA2IEw2MTkuNjUsMTAwLjEwIEw2MjkuNzAsMTAwLjE2IEw2MzguNjAsMTAwLjIzIEw2NDYuNjQsMTAwLjMxIEw2NTQuMDEsMTAwLjQwIEw2NjAuODUsMTAwLjUxIEw2NjcuMjQsMTAwLjYzIEw2NzMuMjYsMTAwLjc2IEw2NzguOTUsMTAwLjkwIEw2ODQuMzYsMTAxLjA2IEw2ODkuNTIsMTAxLjIzIEw2OTQuNDYsMTAxLjQxIEw2OTkuMjEsMTAxLjYxIEw3MDMuNzcsMTAxLjgyIEw3MDguMTcsMTAyLjA0IEw3MTIuNDIsMTAyLjI3IEw3MTYuNTMsMTAyLjUyIEw3MjAuNTIsMTAyLjc3IEw3MjQuMzksMTAzLjA0IEw3MjguMTUsMTAzLjMzIEw3MzEuODEsMTAzLjYzIEw3MzUuMzcsMTAzLjkzIEw3MzguODUsMTA0LjI2IEw3NDIuMjMsMTA0LjU5IEw3NDUuNTQsMTA0Ljk0IEw3NDguNzgsMTA1LjMwIEw3NTEuOTQsMTA1LjY3IEw3NTUuMDMsMTA2LjA2IEw3NTguMDYsMTA2LjQ2IEw3NjEuMDIsMTA2Ljg3IEw3NjMuOTMsMTA3LjMwIEw3NjYuNzcsMTA3Ljc0IEw3NjkuNTcsMTA4LjE5IEw3NzIuMzEsMTA4LjY1IEw3NzUuMDAsMTA5LjEzIEw3NzcuNjQsMTA5LjYyIEw3ODAuMjQsMTEwLjEyIEw3ODIuNzksMTEwLjY0IEw3ODUuMjksMTExLjE3IEw3ODcuNzYsMTExLjcyIEw3OTAuMTgsMTEyLjI3IEw3OTIuNTYsMTEyLjg0IEw3OTQuOTEsMTEzLjQzIEw3OTcuMjIsMTE0LjAyIEw3OTkuNDksMTE0LjY0IEw4MDEuNzMsMTE1LjI2IEw4MDMuOTMsMTE1LjkwIEw4MDYuMTAsMTE2LjU1IEw4MDguMjMsMTE3LjIxIEw4MTAuMzQsMTE3Ljg5IEw4MTIuNDEsMTE4LjU5IEw4MTQuNDUsMTE5LjI5IEw4MTYuNDcsMTIwLjAxIEw4MTguNDUsMTIwLjc1IEw4MjAuNDEsMTIxLjUwIEw4MjIuMzQsMTIyLjI2IEw4MjQuMjQsMTIzLjA0IEw4MjYuMTEsMTIzLjgzIEw4MjcuOTYsMTI0LjYzIEw4MjkuNzgsMTI1LjQ1IEw4MzEuNTgsMTI2LjI5IEw4MzMuMzUsMTI3LjEzIEw4MzUuMTAsMTI4LjAwIEw4MzYuODMsMTI4Ljg4IEw4MzguNTMsMTI5Ljc3IEw4NDAuMjEsMTMwLjY4IEw4NDEuODYsMTMxLjYwIEw4NDMuNTAsMTMyLjU0IEw4NDUuMTEsMTMzLjQ5IEw4NDYuNzAsMTM0LjQ2IEw4NDguMjcsMTM1LjQ0IEw4NDkuODEsMTM2LjQ0IEw4NTEuMzQsMTM3LjQ1IEw4NTIuODUsMTM4LjQ4IEw4NTQuMzMsMTM5LjUyIEw4NTUuODAsMTQwLjU4IEw4NTcuMjQsMTQxLjY2IEw4NTguNjcsMTQyLjc1IEw4NjAuMDgsMTQzLjg2IEw4NjEuNDYsMTQ0Ljk5IEw4NjIuODMsMTQ2LjEzIEw4NjQuMTgsMTQ3LjI5IEw4NjUuNTIsMTQ4LjQ2IEw4NjYuODMsMTQ5LjY2IEw4NjguMTMsMTUwLjg2IEw4NjkuNDEsMTUyLjA5IEw4NzAuNjcsMTUzLjMzIEw4NzEuOTEsMTU0LjU5IEw4NzMuMTQsMTU1Ljg3IEw4NzQuMzQsMTU3LjE3IEw4NzUuNTQsMTU4LjQ4IEw4NzYuNzEsMTU5LjgyIEw4NzcuODcsMTYxLjE3IEw4NzkuMDEsMTYyLjU0IEw4ODAuMTQsMTYzLjkyIEw4ODEuMjUsMTY1LjMzIEw4ODIuMzQsMTY2Ljc2IEw4ODMuNDIsMTY4LjIwIEw4ODQuNDgsMTY5LjY3IEw4ODUuNTIsMTcxLjE1IEw4ODYuNTUsMTcyLjY2IEw4ODcuNTYsMTc0LjE5IEw4ODguNTYsMTc1LjczIEw4ODkuNTQsMTc3LjMwIEw4OTAuNTEsMTc4Ljg5IEw4OTEuNDYsMTgwLjUwIEw4OTIuNDAsMTgyLjE0IEw4OTMuMzIsMTgzLjc5IEw4OTQuMjMsMTg1LjQ3IEw4OTUuMTIsMTg3LjE3IEw4OTYuMDAsMTg4LjkwIEw4OTYuODcsMTkwLjY1IEw4OTcuNzEsMTkyLjQyIEw4OTguNTUsMTk0LjIyIEw4OTkuMzcsMTk2LjA0IEw5MDAuMTcsMTk3Ljg5IEw5MDAuOTYsMTk5Ljc2IEw5MDEuNzQsMjAxLjY2IEw5MDIuNTAsMjAzLjU5IEw5MDMuMjUsMjA1LjU1IEw5MDMuOTksMjA3LjUzIEw5MDQuNzEsMjA5LjU1IEw5MDUuNDEsMjExLjU5IEw5MDYuMTEsMjEzLjY2IEw5MDYuNzksMjE1Ljc3IEw5MDcuNDUsMjE3LjkwIEw5MDguMTAsMjIwLjA3IEw5MDguNzQsMjIyLjI3IEw5MDkuMzYsMjI0LjUxIEw5MDkuOTgsMjI2Ljc4IEw5MTAuNTcsMjI5LjA5IEw5MTEuMTYsMjMxLjQ0IEw5MTEuNzMsMjMzLjgyIEw5MTIuMjgsMjM2LjI0IEw5MTIuODMsMjM4LjcxIEw5MTMuMzYsMjQxLjIxIEw5MTMuODgsMjQzLjc2IEw5MTQuMzgsMjQ2LjM2IEw5MTQuODcsMjQ5LjAwIEw5MTUuMzUsMjUxLjY5IEw5MTUuODEsMjU0LjQzIEw5MTYuMjYsMjU3LjIzIEw5MTYuNzAsMjYwLjA3IEw5MTcuMTMsMjYyLjk4IEw5MTcuNTQsMjY1Ljk0IEw5MTcuOTQsMjY4Ljk3IEw5MTguMzMsMjcyLjA2IEw5MTguNzAsMjc1LjIyIEw5MTkuMDYsMjc4LjQ2IEw5MTkuNDEsMjgxLjc3IEw5MTkuNzQsMjg1LjE1IEw5MjAuMDcsMjg4LjYzIEw5MjAuMzcsMjkyLjE5IEw5MjAuNjcsMjk1Ljg1IEw5MjAuOTYsMjk5LjYxIEw5MjEuMjMsMzAzLjQ4IEw5MjEuNDgsMzA3LjQ3IEw5MjEuNzMsMzExLjU4IEw5MjEuOTYsMzE1LjgzIEw5MjIuMTgsMzIwLjIzIEw5MjIuMzksMzI0Ljc5IEw5MjIuNTksMzI5LjU0IEw5MjIuNzcsMzM0LjQ4IEw5MjIuOTQsMzM5LjY0IEw5MjMuMTAsMzQ1LjA1IEw5MjMuMjQsMzUwLjc0IEw5MjMuMzcsMzU2Ljc2IEw5MjMuNDksMzYzLjE1IEw5MjMuNjAsMzY5Ljk5IEw5MjMuNjksMzc3LjM2IEw5MjMuNzcsMzg1LjQwIEw5MjMuODQsMzk0LjMwIEw5MjMuOTAsNDA0LjM1IEw5MjMuOTQsNDE2LjA1IEw5MjMuOTcsNDMwLjQxIEw5MjMuOTksNDUwLjE3IFoiIGZpbGw9Im5vbmUiIHN0cm9rZT0idXJsKCNyaW0pIiBzdHJva2Utd2lkdGg9IjciLz4KPC9nPgo8L3N2Zz4=';
@@ -711,7 +672,6 @@ const BANNIERE = `<div class="ban"><span class="ban-ic">${cloche(22, 'currentCol
 const CONTENUS = [
   ['mini', `<div class="art">${affiche('m')}</div>`],
   ['onde', '<div class="eq"><i></i><i></i><i></i><i></i><i></i></div>'],
-  ['minu', `<div class="minu" id="minu">${anneau(15)}<span id="minuT">6:12</span></div>`],
   ['batt', `<span class="epaule">${batterie(64)}</span>`],
   ['airp', `<span class="epaule">${airpods(15)}78 %</span>`],
   ['centre', CARTE_CENTRE],
@@ -723,44 +683,50 @@ const c = {}; contenu.querySelectorAll('[data-c]').forEach(n => c[n.dataset.c] =
 const tg = t => contenu.querySelector(`.tg[data-t="${t}"]`);
 
 /* =========================================================
-   L'écran et les places possibles (coordonnées : x depuis le milieu de l'écran, y depuis le haut)
+   L'écran et les huit places (coordonnées : x depuis le milieu de l'écran, y depuis le haut)
    ========================================================= */
 const ecran = $('#ecran');
-let W = 1000, H = 600;
-const YB = () => H - DOCK - 10;                        // bas de la pilule du bas (10 pt au-dessus du Dock)
-const CYB = () => Math.round((B + H - DOCK) / 2);      // milieu des bords gauche et droit
-const XG = () => -W / 2 + GAP, XD = () => W / 2 - GAP;
+let W = 1000, H = 600, DW = 260;                     // DW : demi-largeur du Dock
+const YH = B + 8;                                       // places du haut : juste sous la barre des menus
+const YB = () => H - DOCK - 10;                         // bas de la pilule au-dessus du Dock
+const YDK = () => H - 6 - 31;                           // milieu du Dock : les coins du bas sont à côté de lui
+const CYB = () => Math.round((B + H - DOCK) / 2);       // milieu des bords gauche et droit
+const XG = () => -W / 2 + MARGE, XD = () => W / 2 - MARGE;
 const PILL = PH / 2 / PORTEE, PILV = VW / 2 / PORTEE;
-const pt = (x, y) => ({x0:x, x1:x, y0:y, y1:y, s:0, r:0});
-const pilH = (cx, cy, k = 1) => ({x0:cx - PW * k / 2, x1:cx + PW * k / 2, y0:cy - PH * k / 2, y1:cy + PH * k / 2, s:PILL * k, r:PILL * k});
-const debout = (x0, cy) => ({x0, x1:x0 + VW, y0:cy - VH / 2, y1:cy + VH / 2, s:PILV, r:PILV});
-const bulleDebout = (x0, cy) => ({x0, x1:x0 + VW, y0:cy + VH / 2 + GAP, y1:cy + VH / 2 + GAP + BUH, s:PILV, r:PILV});
-const POSE = {
-  haut:  {i:() => ({x0:-N0, x1:N0, y0:0, y1:B, s:-6, r:10}), b:() => ({x0:N0 + 11, x1:N0 + 11 + BUW, y0:0, y1:B, s:-6, r:10})},
-  bas:   {i:() => pilH(0, YB() - PH / 2), b:() => ({x0:PW / 2 + GAP, x1:PW / 2 + GAP + BUW, y0:YB() - PH, y1:YB(), s:PILL, r:PILL})},
-  gauche:{i:() => debout(XG(), CYB()), b:() => bulleDebout(XG(), CYB())},
-  droite:{i:() => debout(XD() - VW, CYB()), b:() => bulleDebout(XD() - VW, CYB())}
+const boite = (x0, y0, w, h, r) => ({x0, x1:x0 + w, y0, y1:y0 + h, s:r, r});
+const couchee = (cx, cy) => boite(cx - PW / 2, cy - PH / 2, PW, PH, PILL);
+const debout = (x0, cy) => boite(x0, cy - VH / 2, VW, VH, PILV);
+/* chaque place : sa forme repliée (i) et son ancrage (a = [ax, ay], 0 · ½ · 1) : le point qui ne bouge pas quand elle grandit */
+const PLACES = {
+  haut:{i:() => ({x0:-N0, x1:N0, y0:0, y1:B, s:-6, r:10}), a:[.5, 0]},     // l'encoche : le compact d'aujourd'hui
+  hg:  {i:() => couchee(XG() + PW / 2, YH + PH / 2), a:[0, 0]},
+  hd:  {i:() => couchee(XD() - PW / 2, YH + PH / 2), a:[1, 0]},
+  g:   {i:() => debout(XG(), CYB()), a:[0, .5]},
+  d:   {i:() => debout(XD() - VW, CYB()), a:[1, .5]},
+  bg:  {i:() => couchee(XG() + PW / 2, YDK()), a:[0, 1]},
+  bm:  {i:() => couchee(0, YB() - PH / 2), a:[.5, 1]},
+  bd:  {i:() => couchee(XD() - PW / 2, YDK()), a:[1, 1]}
 };
-/* grandir depuis le bord : en bas vers le haut, à gauche vers la droite, à droite vers la gauche */
-const GRAND = {
-  bas:   (w, h, r) => ({x0:-w / 2, x1:w / 2, y0:YB() - h, y1:YB(), s:r, r}),
-  gauche:(w, h, r) => ({x0:XG(), x1:XG() + w, y0:CYB() - h / 2, y1:CYB() + h / 2, s:r, r}),
-  droite:(w, h, r) => ({x0:XD() - w, x1:XD(), y0:CYB() - h / 2, y1:CYB() + h / 2, s:r, r})
-};
-const LOIN = {bas:'y0', gauche:'x1', droite:'x0'};    // le bord qui part loin (un peu plus souple, comme `h` dans l'encoche)
-const absorbe = g => st.pose === 'gauche' ? pt(g.x0 + 22, g.y1 - 20) : pt(g.x1 - 26, g.y1 - 18);   // la bulle rentre dans la Lucarne
+const POSES = Object.keys(PLACES);
 const centreDe = g => [(g.x0 + g.x1) / 2, (g.y0 + g.y1) / 2];
+/* grandir depuis sa place, vers l'intérieur de l'écran : depuis un coin en diagonale, depuis un bord à l'opposé du bord */
+function grand(pose, w, h, r){
+  const g = PLACES[pose].i(), [ax, ay] = PLACES[pose].a;
+  const x0 = clamp(lerp(g.x0, g.x1, ax) - ax * w, -W / 2 + MARGE, W / 2 - MARGE - w);
+  let y0 = clamp(lerp(g.y0, g.y1, ay) - ay * h, B + 8, H - 8 - h);
+  if (y0 + h > YB() && x0 < DW + 8 && x0 + w > -DW - 8) y0 = YB() - h;   // jamais par-dessus le Dock : elle monte au-dessus
+  return boite(x0, y0, w, h, r);
+}
 
 /* =========================================================
    L'état
    ========================================================= */
 const st = {};
 function remettre(){
-  Object.assign(st, {pose:'haut', apparence:'verre', carte:null, ban:false, leve:false, micCoupe:false, dictee:'airpods',
-    dl:'on', claude:'oui', minu:0, reunion:false, reste:372});
+  Object.assign(st, {pose:'haut', carte:null, ban:false, leve:false, micCoupe:false, dictee:'airpods',
+    dl:'on', claude:'oui', minu:0, reunion:false});
 }
 const LECT = () => compact(N0, N0);
-const noirCible = () => st.apparence === 'noir' ? 1 : 0;
 
 function majCentre(){
   const pose = (t, cl, gl, sous) => { const n = tg(t); n.className = 'tg ' + cl; n.querySelector('.gl').innerHTML = gl; n.querySelector('i').textContent = sous; };
@@ -771,27 +737,6 @@ function majCentre(){
   pose('rappel', '', cloche(23, 'currentColor'), 'Dire un rappel');
   contenu.querySelectorAll('.cap').forEach(b => b.classList.toggle('choisi', +b.dataset.min === st.minu));
   $('#reunion').classList.toggle('on', st.reunion);
-}
-function majMinu(){ $('#minuT').textContent = fmt(st.reste); }
-
-/* Réglages : les quatre petits dessins de l'écran, et Verre · Noir */
-function picto(p){
-  const verre = st.apparence === 'verre';
-  const f = verre ? 'fill="#fff" stroke="rgba(0,0,0,.5)" stroke-width=".55"' : 'fill="#000"';
-  const formes = {
-    haut:'<path d="M24.6 0h14.8v1.7a1.5 1.5 0 0 1-1.5 1.5H26.1a1.5 1.5 0 0 1-1.5-1.5z" fill="#000"/><path d="M40.6 0h5.4v1.7a1.5 1.5 0 0 1-1.5 1.5h-2.4a1.5 1.5 0 0 1-1.5-1.5z" fill="#000"/>',
-    bas:`<rect x="27" y="26.4" width="10" height="3.6" rx="1.8" ${f}/><rect x="38.2" y="26.4" width="5.4" height="3.6" rx="1.8" ${f}/>`,
-    gauche:`<rect x="1.6" y="11" width="3.6" height="9.4" rx="1.8" ${f}/><rect x="1.6" y="21.2" width="3.6" height="4.6" rx="1.8" ${f}/>`,
-    droite:`<rect x="58.8" y="11" width="3.6" height="9.4" rx="1.8" ${f}/><rect x="58.8" y="21.2" width="3.6" height="4.6" rx="1.8" ${f}/>`
-  };
-  return `<svg viewBox="0 0 64 36"><defs><linearGradient id="pg${p}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c6d6ea"/><stop offset=".55" stop-color="#e2e6ec"/><stop offset="1" stop-color="#f0e2d6"/></linearGradient></defs>
-    <rect width="64" height="36" fill="url(#pg${p})"/><rect width="64" height="2.6" fill="#fff" opacity=".55"/><rect x="22" y="31.8" width="20" height="2.8" rx="1.4" fill="#fff" opacity=".85"/>
-    ${p !== 'haut' ? '<path d="M28.8 0h6.4v1.3a1.2 1.2 0 0 1-1.2 1.2h-4a1.2 1.2 0 0 1-1.2-1.2z" fill="#000"/>' : ''}${formes[p]}</svg>`;
-}
-const NOMS = {haut:'En haut', bas:'En bas', gauche:'À gauche', droite:'À droite'};
-function majChoix(){
-  $('#choix').innerHTML = POSES.map(p => `<button data-pose="${p}"${p === st.pose ? ' class="on"' : ''}><span class="ecr">${picto(p)}</span><b>${NOMS[p]}</b></button>`).join('');
-  document.querySelectorAll('#aspect button').forEach(b => b.classList.toggle('on', b.dataset.ap === st.apparence));
 }
 
 /* =========================================================
@@ -824,48 +769,44 @@ const fin = () => instant && enCoursN === cibleN;   // dans un état posé, le r
 
 /* =========================================================
    La Lucarne : ressorts, forme, contenu
-   mode 'encoche' → la forme vient de `chemin` (ressorts R) ; mode 'libre' → `capsule` (ressorts P).
+   mode 'encoche' → la forme vient de `chemin` (ressorts R) ; mode 'libre' → `capsule` (ressorts P :
+   centre cx/cy, demi-tailles hw/hh, coins s/r ; une capsule garde ainsi sa vitesse quand on la lance).
    On passe de l'un à l'autre quand elle est compacte en haut : les deux tracés y sont identiques.
-   Q = la bulle du minuteur ; V = noir (1) ou verre (0) ; L = soulevée (appui long).
+   V = noir (1) ou verre (0) ; L = tenue au doigt (0 → 1) ; OX/OY = où le doigt la tient.
    ========================================================= */
 const formeN = $('#forme'), ombreP = $('#ombre'), masque = $('#masque'), vitre = $('#vitre'), vitreF = $('#vitreFond'),
   vitreT = $('#vitreTrait'), vitreB = $('#vitreBord'), verre = $('#verre'), places = $('#places');
 const SVGS = [$('#places-svg'), $('#forme-svg'), $('#encoche-svg')];
-const KC = ['x0', 'y0', 'x1', 'y1', 's', 'r'];
-const nouveau = () => { const o = {}; KC.forEach(k => o[k] = new Ressort(0)); return o; };
+const KP = ['cx', 'cy', 'hw', 'hh', 's', 'r'];
+const enC = g => ({cx:(g.x0 + g.x1) / 2, cy:(g.y0 + g.y1) / 2, hw:(g.x1 - g.x0) / 2, hh:(g.y1 - g.y0) / 2, s:g.s, r:g.r});
+const deC = o => ({x0:o.cx - o.hw, x1:o.cx + o.hw, y0:o.cy - o.hh, y1:o.cy + o.hh, s:o.s, r:o.r});
 const R = {}; CLES.forEach(k => R[k] = new Ressort(LECT()[k]));
-const P = nouveau(), Q = nouveau(), V = new Ressort(1), L = new Ressort(0);
-const TOUS = [...CLES.map(k => R[k]), ...KC.map(k => P[k]), ...KC.map(k => Q[k]), V, L];
-let mode = 'encoche', cible = LECT(), enCours = false, tPrec = 0, tire = false;
+const P = {}; KP.forEach(k => P[k] = new Ressort(0));
+const V = new Ressort(1), L = new Ressort(0), OX = new Ressort(0), OY = new Ressort(0);
+const TOUS = [...CLES.map(k => R[k]), ...KP.map(k => P[k]), V, L, OX, OY];
+let mode = 'encoche', cible = LECT(), enCours = false, tPrec = 0, tire = false, pres, ptr = {x:0, y:0};
 
+places.innerHTML = POSES.map(p => `<path class="place" data-p="${p}"/>`).join('');
 function geo(){
-  W = ecran.clientWidth; H = ecran.clientHeight;
+  W = ecran.clientWidth; H = ecran.clientHeight; DW = $('#dock').offsetWidth / 2;
   SVGS.forEach(s => s.setAttribute('viewBox', `${f2(-W / 2)} 0 ${W} ${H}`));
-  places.querySelectorAll('.place').forEach(n => n.setAttribute('d', capsule(POSE[n.dataset.p].i())));
+  places.querySelectorAll('.place').forEach(n => n.setAttribute('d', capsule(PLACES[n.dataset.p].i())));
 }
-const val = S => { const g = {}; for (const k of KC) g[k] = S[k].x; return g; };
-const vise = S => { const g = {}; for (const k of KC) g[k] = S[k].vise(); return g; };
-function poserS(S, g){ for (const k of KC) if (g[k] !== undefined) S[k].poser(g[k]); }
-function viserS(S, g, rep = .45, z = .8, att = 0, par = {}){
-  for (const k of KC){
-    if (g[k] === undefined) continue;
-    if (instant){ S[k].poser(g[k]); continue; }
+const lire = f => { const o = {}; for (const k of KP) o[k] = f(P[k]); return deC(o); };
+const val = () => lire(r => r.x), vise = () => lire(r => r.vise());
+function poserP(g){ const o = enC(g); for (const k of KP) P[k].poser(o[k]); }
+function viserP(g, rep = .45, z = .8, att = 0, par = {}){
+  const o = enC(g);
+  for (const k of KP){
+    if (instant){ P[k].poser(o[k]); continue; }
     const [r, zz, a] = par[k] || [rep, z, att];
-    S[k].viser(g[k], r, zz, a);
+    P[k].viser(o[k], r, zz, a);
   }
   demarrer();
 }
-/* deux temps : d'abord `a`, puis `b` après t secondes (sans minuterie : le ressort garde sa vitesse) */
-function deuxTemps(S, a, b, t, oa, ob){
-  for (const k of KC){
-    if (instant){ S[k].poser(b[k]); continue; }
-    S[k].viser(a[k], oa[0], oa[1], 0);
-    S[k].futur = {c:b[k], rep:ob[0], z:ob[1]}; S[k].attente = t;
-  }
-  demarrer();
-}
-function noir(v, rep = .45, att = 0){ if (instant) V.poser(v); else V.viser(v, rep, 1, att); demarrer(); }
-function leve(v, rep = .3, z = .9){ if (instant) L.poser(v); else L.viser(v, rep, z, 0); demarrer(); }
+function viser1(S, v, rep, z){ if (instant) S.poser(v); else S.viser(v, rep, z, 0); demarrer(); }
+const noir = (v, rep = .45) => viser1(V, v, rep, 1);
+const leve = (v, rep = .3, z = .9) => viser1(L, v, rep, z);
 
 /* dans l'encoche : la même fonction qu'avant */
 function ilot(g, o = {}){
@@ -894,20 +835,17 @@ function boucle(){
   const t = performance.now(), dt = clamp((t - tPrec) / 1000, 0, .05) / K; tPrec = t;
   const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
   for (let i = 0; i < n; i++) for (const r of TOUS) r.pas(h);
-  let bouge = false;
+  if (tire) colle();
+  let bouge = tire;
   for (const r of TOUS) if (!r.pose()) bouge = true;
   rendu();
   if (bouge) image(boucle); else enCours = false;
 }
-/* sortir de l'encoche : on passe au tracé libre, posé exactement sur le compact d'aujourd'hui */
-function sortir(){
-  if (mode !== 'encoche') return;
-  mode = 'libre'; poserS(P, POSE.haut.i());
-}
-/* revenue au repos dans l'encoche : on rend la main à `chemin` */
+/* revenue au repos dans l'encoche, noire : on rend la main à `chemin` */
 function arrive(){
   if (mode !== 'libre' || st.pose !== 'haut' || st.carte || st.ban || tire || st.leve) return;
-  for (const k of KC) if (P[k].attente > 0 || Math.abs(P[k].x - P[k].cible) > .05 || Math.abs(P[k].v) > .2) return;
+  for (const k of KP) if (P[k].attente > 0 || Math.abs(P[k].x - P[k].cible) > .05 || Math.abs(P[k].v) > .2) return;
+  if (V.x < .995 || L.x > .005) return;
   mode = 'encoche'; CLES.forEach(k => R[k].poser(LECT()[k])); cible = LECT();
 }
 const mix = (a, b, t) => a.map((v, i) => Math.round(lerp(v, b[i], t))).join(' ');
@@ -916,153 +854,167 @@ function placer(nom, x, y){ c[nom].style.left = f2(W / 2 + x) + 'px'; c[nom].sty
 function rendu(){
   arrive();
   const t = clamp(V.x, 0, 1), l = Math.max(0, L.x);
-  let d, gc, a;
+  let gc, a;
   if (mode === 'encoche'){
     const g = {}; for (const k of CLES) g[k] = R[k].x;
-    d = chemin(g); a = clamp((g.h - B - 6) / 40, 0, 1);
+    formeN.setAttribute('d', chemin(g)); a = clamp((g.h - B - 6) / 40, 0, 1);
     gc = {x0:-g.ng, x1:g.nd, y0:0, y1:B};
-  } else { gc = val(P); d = capsule(gc); a = clamp(gc.y0 / 10, 0, 1); }
-  const q = val(Q), tout = capsule(q) + d;
-  formeN.setAttribute('d', tout); formeN.style.opacity = f2(t);
-  // l'ombre : douce, seulement autour (un masque la retire sous le verre)
-  masque.setAttribute('d', tout); ombreP.setAttribute('d', tout);
-  ombreP.setAttribute('opacity', (a * (.2 + .1 * t) + .1 * l).toFixed(3));
-  ombreP.style.filter = `blur(${f2(8 * a + 6 * l)}px)`;
-  ombreP.style.transform = `translateY(${f2(7 * a + 7 * l)}px)`;
-  // le verre : flou de ce qui est derrière (découpé à la forme), voile clair, bord lumineux fin
+  } else {
+    const o = {}; for (const k of KP) o[k] = P[k].x;
+    const k = 1 + (TENUE - 1) * l; o.hw *= k; o.hh *= k; o.s *= k; o.r *= k;     // tenue : un peu plus grande
+    gc = deC(o); formeN.setAttribute('d', capsule(gc)); a = clamp(gc.y0 / 10, 0, 1);
+  }
+  const d = formeN.getAttribute('d');
+  formeN.style.opacity = f2(t);
+  // l'ombre : douce, seulement autour (un masque la retire sous le verre) ; plus forte quand on la tient
+  masque.setAttribute('d', d); ombreP.setAttribute('d', d);
+  ombreP.setAttribute('opacity', (a * (.24 + .1 * t) + .2 * l).toFixed(3));
+  ombreP.style.filter = `blur(${f2(8 * a + 8 * l)}px)`;
+  ombreP.style.transform = `translateY(${f2(6 * a + 8 * l)}px)`;
+  // le verre : flou de ce qui est derrière (découpé à la forme), voile clair, bord fin foncé puis lumineux
   if (t < .999 && mode === 'libre'){
-    vitreF.setAttribute('d', tout); vitreT.setAttribute('d', tout); vitreB.setAttribute('d', tout);
+    vitreF.setAttribute('d', d); vitreT.setAttribute('d', d); vitreB.setAttribute('d', d);
     vitre.setAttribute('opacity', f2(1 - t));
-    verre.style.clipPath = `path('${capsule(q, W / 2) + capsule(gc, W / 2)}')`; verre.style.opacity = f2(1 - t);
+    verre.style.clipPath = `path('${capsule(gc, W / 2)}')`; verre.style.opacity = f2(1 - t);
   } else { vitre.setAttribute('opacity', 0); verre.style.opacity = 0; }
-  // le texte suit : blanc sur le noir, foncé sur le verre
+  // le texte suit : blanc sur le noir, foncé sur le verre (jaune et ambre assombris pour rester lisibles)
   contenu.style.setProperty('--fg', mix([29, 29, 31], [255, 255, 255], t));
-  contenu.style.setProperty('--amb', mix([196, 102, 0], [255, 171, 61], t));
-  contenu.style.setProperty('--jau', mix([168, 116, 0], [255, 214, 10], t));
+  contenu.style.setProperty('--amb', mix([178, 88, 0], [255, 171, 61], t));
+  contenu.style.setProperty('--jau', mix([138, 92, 0], [255, 214, 10], t));
   // le contenu replié suit la forme (vignette au début, onde à la fin ; debout : en haut et en bas)
   const [cx, cy] = centreDe(gc);
   centrer(c.mini, Math.min(gc.x0 + 22, cx), Math.min(gc.y0 + 20, cy));
   centrer(c.onde, Math.max(gc.x1 - 21, cx), Math.max(gc.y1 - 20, cy));
-  $('#minu').classList.toggle('vert', (q.y1 - q.y0) > (q.x1 - q.x0) + 2);
-  centrer(c.minu, (q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2);
 }
-const REPLIE = ['mini', 'onde', 'minu'];
-function ouvrir(){                             // survol : le Centre
-  if (st.carte || tire) return;
+const REPLIE = ['mini', 'onde'];
+function ouvrir(){                             // survol : le Centre, vers l'intérieur de l'écran
+  if (st.carte || tire || (mode === 'libre' && st.pose === 'haut')) return;
   st.carte = 'centre'; st.ban = false;
   montre([], 0);
   if (mode === 'encoche'){
     ilot(bandeau(BW, HCC, NO));
     placer('centre', -BW + 22, B + 14);
-    viserS(Q, pt(NO - 14, 16), .3, 1);
     montre(['batt', 'airp', 'centre'], .14);
   } else {
-    const g = GRAND[st.pose](OW, OH, 30);
-    viserS(P, g, .46, .78, 0, {[LOIN[st.pose]]:[.49, .78, .02]});
+    const g = grand(st.pose, OW, OH, 30);
+    viserP(g, .46, .8);
     placer('centre', g.x0 + 22, g.y0 + 14);
-    viserS(Q, absorbe(g), .3, 1);
     montre(['centre'], .14);
   }
 }
-function banniere(){                           // une confirmation qui sort du bord
+function banniere(){                           // une confirmation qui sort de sa place, vers l'intérieur
   if (mode === 'encoche') return;
   st.ban = true; st.carte = null;
   montre([], 0);
-  const g = GRAND[st.pose](BAW, BAH, 22);
-  viserS(P, g, .46, .78, 0, {[LOIN[st.pose]]:[.49, .78, .02]});
+  const g = grand(st.pose, BAW, BAH, 22);
+  viserP(g, .46, .8);
   placer('ban', g.x0 + 14, g.y0 + 13);
-  viserS(Q, absorbe(g), .3, 1);
   montre(['ban'], .14);
 }
 function replier(){
   st.carte = null; st.ban = false;
   montre([], 0);
   if (mode === 'encoche') ilot(LECT());
-  else viserS(P, POSE[st.pose].i(), .38, 1, .06);
-  viserS(Q, POSE[st.pose].b(), .4, .9, .12);
+  else viserP(PLACES[st.pose].i(), .38, 1, .06);
   montre(REPLIE, .16);
 }
-/* changer de place. vif = lâchée à la souris (plus court, elle est déjà en route) */
-function glisser(pose, vif = false){
-  st.pose = pose; majChoix();
-  st.carte = null; st.ban = false;
-  montre(REPLIE, .16);
-  const gi = POSE[pose].i(), gb = POSE[pose].b();
-  const sousCamera = {x0:-56, x1:56, y0:0, y1:30, s:15 / PORTEE, r:15 / PORTEE};          // cachée sous la caméra
-  const bulleHaut = {x0:N0 + 11, x1:N0 + 11 + BUW, y0:0, y1:PH, s:PILL, r:PILL};
-  if (mode === 'encoche'){
-    // elle sort : d'abord une pilule cachée sous la caméra, puis une seule course jusqu'à sa place ; le noir devient verre en route
-    sortir();
-    deuxTemps(P, sousCamera, gi, .14, [.32, 1], [.84, .86]);
-    deuxTemps(Q, bulleHaut, gb, .2, [.3, 1], [.88, .86]);
-    noir(noirCible(), .6, .26);
-  } else if (pose === 'haut'){
-    // elle rentre : pilule jusque sous la caméra, puis elle s'élargit en ailes ; le verre redevient noir en arrivant
-    deuxTemps(P, sousCamera, gi, vif ? .3 : .46, [vif ? .4 : .6, .86], [.32, .9]);
-    deuxTemps(Q, bulleHaut, gb, vif ? .4 : .56, [vif ? .46 : .66, .86], [.3, .9]);
-    noir(1, .26, vif ? .12 : .26);
+
+/* =========================================================
+   Le geste : appui long (0,4 s) → elle se décolle ; elle suit le pointeur ; on lâche (ou on lance) → la place la plus proche
+   ========================================================= */
+/* l'encoche aimante : 1 tout près, 0 au-delà d'environ 150 pt (plus large que haute, comme l'encoche) */
+function aimant(x, y){ const d = Math.hypot(x / 2, y - B / 2); return clamp(1 - (d - 40) / 110, 0, 1); }
+function marquer(pose){ places.querySelectorAll('.place').forEach(n => n.classList.toggle('pres', n.dataset.p === pose)); }
+function plusProche(x, y, sauf = null){
+  let mieux = 'haut', dmin = Infinity;
+  for (const p of POSES){ if (p === sauf) continue; const [px, py] = centreDe(PLACES[p].i()), d = Math.hypot(px - x, py - y); if (d < dmin){ dmin = d; mieux = p; } }
+  return mieux;
+}
+function haptique(){ if (instant) return; pad.classList.remove('vibre'); void pad.offsetWidth; pad.classList.add('vibre'); }
+/* la forme pendant qu'on la tient : près de l'encoche, la forme de l'encoche (noire) ; ailleurs, une pilule de verre */
+function formeTenue(){
+  const g = pres ? {hw:N0, hh:B / 2, s:-6, r:10} : {hw:PW / 2, hh:PH / 2, s:PILL, r:PILL};
+  for (const k in g) viser1(P[k], g[k], .28, .86);
+  noir(pres ? 1 : 0, .22);
+}
+/* elle suit le pointeur 1:1 (le point tenu glisse doucement vers le milieu de la pilule) ; l'encoche la retient un peu */
+function colle(){
+  const m = aimant(ptr.x, ptr.y), e = m * m * (3 - 2 * m);
+  const hw = P.hw.x * TENUE, hh = P.hh.x * TENUE;
+  const cx = clamp(lerp(ptr.x + OX.x, 0, e), -W / 2 + hw + 4, W / 2 - hw - 4);
+  const cy = clamp(lerp(ptr.y + OY.x, B / 2, e), B / 2, H - hh - 4);
+  P.cx.poser(cx); P.cy.poser(cy);
+  const p = m > .45;
+  if (p !== pres){ pres = p; formeTenue(); }
+  marquer(pres ? 'haut' : plusProche(cx, cy));
+}
+function decrocher(x, y){                      // x, y : là où l'on appuie (coordonnées de Lucarne)
+  let depart = null;
+  if (mode === 'encoche') depart = st.carte ? {x0:-BW, x1:BW, y0:0, y1:cible.h, s:-6, r:30} : PLACES.haut.i();
+  st.carte = null; st.ban = false; montre(REPLIE, .1);
+  if (depart){ mode = 'libre'; poserP(depart); }
+  const [cx, cy] = centreDe(val());
+  ptr = {x, y}; tire = true; st.leve = true; pres = undefined;
+  OX.poser(cx - x); OY.poser(cy - y);
+  viser1(OX, clamp(cx - x, -(PW / 2 - 16), PW / 2 - 16), .3, 1);
+  viser1(OY, clamp(cy - y, -(PH / 2 - 8), PH / 2 - 8), .3, 1);
+  places.classList.add('vu'); ecran.classList.add('prise');
+  leve(1, .26, .7);
+  colle();
+  haptique();
+}
+function suivre(xs, ys){ ptr = {x:xs - W / 2, y:ys}; colle(); demarrer(); }   // xs, ys : pointeur, en coordonnées de l'écran
+/* lancée : parmi les places dans la direction du lancer (à 30° près, sinon 60°), celle qui est la plus proche du point
+   où le geste prolongé d'une demi-seconde l'emmènerait (comme l'iPhone). L'encoche ne se vise pas en lançant : on l'y amène. */
+function viseLancer(cx, cy, v){
+  const px = clamp(cx + v.x * .5, -W / 2, W / 2), py = clamp(cy + v.y * .5, 0, H), a = Math.atan2(v.y, v.x);
+  for (const tol of [30, 60]){
+    let mieux = null, dmin = Infinity;
+    for (const p of POSES){
+      if (p === 'haut') continue;
+      const [qx, qy] = centreDe(PLACES[p].i());
+      let e = Math.abs(Math.atan2(qy - cy, qx - cx) - a) * 180 / Math.PI; if (e > 180) e = 360 - e;
+      const d = Math.hypot(qx - px, qy - py);
+      if (e <= tol && d < dmin){ dmin = d; mieux = p; }
+    }
+    if (mieux) return mieux;
+  }
+  return plusProche(px, py, 'haut');
+}
+/* lâchée : la place la plus proche ; lancée (> 350 pt/s) : la place dans la direction du lancer */
+function lacher(v = null){
+  if (!tire) return;
+  tire = false; st.leve = false; ecran.classList.remove('prise');
+  leve(0, .4, .9);
+  const [cx, cy] = centreDe(val());
+  let pose = 'haut';
+  if (!pres){
+    const lance = v && Math.hypot(v.x, v.y) > 350;
+    pose = lance ? viseLancer(cx, cy, v) : plusProche(cx, cy);
+  }
+  marquer(pose); places.classList.remove('vu');
+  allerA(pose, v);
+}
+function allerA(pose, v){
+  st.pose = pose; st.carte = null; st.ban = false;
+  montre(REPLIE, .1);
+  if (v && !instant){ P.cx.v = v.x; P.cy.v = v.y; }       // le ressort garde la vitesse du lancer
+  const taille = [.3, .9, 0];
+  if (pose === 'haut'){                                  // aspirée par l'encoche : elle redevient noire et s'y fond
+    viserP(PLACES.haut.i(), .36, .9, 0, {hw:taille, hh:taille, s:[.26, 1, 0], r:[.26, 1, 0]});
+    noir(1, .2);
   } else {
-    const ox = vif ? [.42, .8, 0] : [.8, .86, 0], oy = vif ? [.42, .8, 0] : [.68, .86, 0], oc = [.4, 1, 0];
-    viserS(P, gi, .5, .84, 0, {x0:ox, x1:ox, y0:oy, y1:oy, s:oc, r:oc});
-    const qx = [ox[0] + .04, .84, .06], qy = [oy[0] + .04, .84, .06];
-    viserS(Q, gb, .5, .84, .06, {x0:qx, x1:qx, y0:qy, y1:qy, s:oc, r:oc});
-    noir(noirCible(), .4);
+    viserP(PLACES[pose].i(), .5, .8, 0, {hw:taille, hh:taille, s:taille, r:taille});
+    noir(0, .3);
   }
 }
 
 /* =========================================================
-   Déplacer au trackpad : appui long (0,5 s) → elle se décroche ; puis > 12 pt de mouvement → on la tire
-   ========================================================= */
-function marquer(pose){ places.querySelectorAll('.place').forEach(n => n.classList.toggle('pres', n.dataset.p === pose)); }
-function plusProche(x, y){
-  let mieux = 'haut', dmin = Infinity;
-  for (const p of POSES){ const [px, py] = centreDe(POSE[p].i()), d = Math.hypot(px - x, py - y); if (d < dmin){ dmin = d; mieux = p; } }
-  return mieux;
-}
-function haptique(){ if (instant) return; pad.classList.remove('vibre'); void pad.offsetWidth; pad.classList.add('vibre'); }
-function decrocher(){
-  if (st.carte || st.ban) replier();
-  sortir();
-  st.leve = true;
-  const g = POSE[st.pose].i(), k = 1.07, [cx, cy] = centreDe(g);
-  if (st.pose !== 'haut') viserS(P, {x0:cx - (cx - g.x0) * k, x1:cx + (g.x1 - cx) * k, y0:cy - (cy - g.y0) * k, y1:cy + (g.y1 - cy) * k, s:g.s * k, r:g.r * k}, .26, .62);
-  leve(1, .3, .9);
-  haptique();
-}
-function suivre(x, y){                         // x, y : pointeur, en coordonnées de l'écran
-  if (!tire){ tire = true; places.classList.add('vu'); noir(noirCible(), .4); }
-  const X = clamp(x - W / 2, -W / 2 + 4 + PW * .525, W / 2 - 4 - PW * .525 - GAP - BUW);   // elle reste dans l'écran
-  y = clamp(y, PH * .525, H - PH * .525 - 4);
-  viserS(P, pilH(X, y, 1.05), .2, .95);
-  const x0 = X + PW * .525 + GAP;
-  viserS(Q, {x0, x1:x0 + BUW, y0:y - PH / 2, y1:y + PH / 2, s:PILL, r:PILL}, .3, .9);
-  marquer(plusProche(X, y));
-}
-function lacher(){
-  const [x, y] = centreDe(instant ? vise(P) : val(P));
-  tire = false; st.leve = false; leve(0, .45, .9); places.classList.remove('vu'); marquer(null);
-  glisser(plusProche(x, y), true);
-}
-function reposer(){                            // appui long sans bouger : on la repose (l'action d'aujourd'hui garde la main)
-  st.leve = false; leve(0, .4, .9);
-  if (mode === 'libre') viserS(P, POSE[st.pose].i(), .32, .8);
-}
-
-/* =========================================================
-   L'écran : fenêtres, barre des menus, pointeur, mains
+   L'écran : barre des menus, pointeur, mains
    ========================================================= */
 const pointeur = $('#pointeur'), pad = $('#pad');
-const F = {chrome:$('.fen.chrome'), reg:$('[data-f="reg"]')};
-let ordre = ['reg', 'chrome'];
-function devant(nom){
-  ordre = ordre.filter(n => n !== nom).concat(nom);
-  ordre.forEach((n, i) => { F[n].style.zIndex = i + 1; F[n].classList.toggle('arriere', n !== nom && n === 'chrome'); });
-  const app = {chrome:'Chrome', reg:'Lucarne'}[nom];
-  $('#menus').innerHTML = POMME + `<b>${app}</b>` + MENUS[app].map(m => `<span>${m}</span>`).join('');
-}
-function fenetre(nom, vu){ F[nom].classList.toggle('cache', !vu); }
+$('#menus').innerHTML = POMME + '<b>Chrome</b>' + MENUS.Chrome.map(m => `<span>${m}</span>`).join('');
 const XR = dx => ecran.clientWidth / 2 + dx;
-function ou(el){ const r = el.getBoundingClientRect(), e = ecran.getBoundingClientRect(); return [r.left + r.width / 2 - e.left, r.top + r.height / 2 - e.top]; }
 function cur(x, y, o = {}){
   const saute = instant || o.saute;
   pointeur.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
@@ -1071,116 +1023,118 @@ function cur(x, y, o = {}){
   pointeur.classList.toggle('vu', o.vu !== false);
 }
 async function va(x, y, d = .75){ cur(x, y, {duree:d}); await attendre(d); }
-async function vers(el, d = .75, dx = 0, dy = 0){ const [x, y] = ou(el); await va(x + dx, y + dy, d); }
 function doigts(t, mode){ pad.className = 'pad' + (mode ? ' ' + mode : ''); pad.style.setProperty('--t', f2(t) + 'px'); }
-async function clic(){
-  if (instant) return suite();
-  doigts(0, 'un'); pointeur.classList.add('appui');
-  await attendre(.13);
-  pointeur.classList.remove('appui'); doigts(0, '');
+const centreLucarne = () => { const [x, y] = centreDe(vise()); return [W / 2 + x, y]; };
+const placeEcran = p => { const [x, y] = centreDe(PLACES[p].i()); return [W / 2 + x, y]; };
+/* la démonstration du geste : appui long (l'anneau se remplit), elle se décolle */
+async function prendre(xs, ys){
+  pointeur.classList.remove('pris'); pointeur.classList.add('appui', 'tient'); doigts(0, 'un');
+  await attendre(APPUI + .02);
+  decrocher(xs - W / 2, ys);
+  pointeur.classList.remove('tient'); pointeur.classList.add('pris');
+  await attendre(.3);
 }
-const choix = p => document.querySelector(`#choix [data-pose="${p}"] .ecr`);
-const centreLucarne = () => { const [x, y] = centreDe(vise(P)); return [W / 2 + x, y]; };
-/* la démonstration du geste : appui long, décrochage, on tire, on lâche */
-async function tirer(xa, ya, xb, yb, d){
-  pointeur.classList.add('appui', 'tient'); doigts(0, 'un');
-  await attendre(.5);
-  decrocher(); pointeur.classList.remove('tient');
-  await attendre(.32);
+const doux = u => u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+async function trainer(xa, ya, xb, yb, d, courbe = 0, ease = doux){
   await tween(d, u => {
-    const e = u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
-    const x = lerp(xa, xb, e), y = lerp(ya, yb, e) - Math.sin(Math.PI * e) * 26;
+    const e = ease(u), x = lerp(xa, xb, e), y = lerp(ya, yb, e) + Math.sin(Math.PI * e) * courbe;
     cur(x, y, {saute:true}); suivre(x, y);
   });
-  await attendre(.16);
-  pointeur.classList.remove('appui'); doigts(0, '');
-  lacher();
 }
+function relacher(v){ pointeur.classList.remove('appui', 'pris', 'tient'); doigts(0, ''); lacher(v); }
 
 /* =========================================================
    Les étapes
    ========================================================= */
 function init(){
   remettre(); geo();
-  fenetre('reg', false); devant('chrome');
-  mode = 'encoche'; tire = false;
+  mode = 'encoche'; tire = false; pres = undefined;
   CLES.forEach(k => R[k].poser(LECT()[k])); cible = LECT();
-  poserS(P, POSE.haut.i()); poserS(Q, POSE.haut.b()); V.poser(1); L.poser(0);
+  poserP(PLACES.haut.i()); V.poser(1); L.poser(0); OX.poser(0); OY.poser(0);
   placer('batt', -NO + 13, mid(13)); placer('airp', HC + 8, mid(17));
-  places.classList.remove('vu'); marquer(null);
-  majCentre(); majChoix(); majMinu();
+  places.classList.remove('vu'); marquer(null); ecran.classList.remove('prise');
+  majCentre();
   montre(REPLIE);
   cur(XR(250), 380, {vu:false, saute:true});
-  pointeur.classList.remove('appui', 'tient');
+  pointeur.classList.remove('appui', 'tient', 'pris', 'reel');
   doigts(0, '');
 }
 const ETAPES = [
-  {t:'Aujourd’hui : dans l’encoche', g:'Mains au repos',
-   p:'La vidéo joue : la Lucarne l’affiche autour de l’encoche, noire comme elle, et le minuteur à côté dans sa bulle. C’est la place par défaut.',
-   async jeu(){ await attendre(.8); }},
-  {t:'Réglages › Lucarne : Position', g:'Ouvrir Réglages',
-   p:'Dans Réglages, partie Lucarne : « Position », avec quatre petits dessins de l’écran. Juste dessous : « Apparence hors de l’encoche : Verre · Noir ».',
+  {t:'Dans l’encoche, noire', g:'Pointeur sur Lucarne',
+   p:'La vidéo joue : Lucarne l’affiche autour de l’encoche, noire comme elle. Le pointeur arrive sur la petite image de la vidéo.',
    async jeu(){
-     cur(XR(-120), 380, {saute:true}); await attendre(.05);
-     fenetre('reg', true); devant('reg'); await attendre(.4);
-     await vers(choix('haut'), .8, 4, 6); await attendre(.3);
+     await attendre(.4);
+     await va(XR(-N0 + 24), 18, .9); await attendre(.2);
    }},
-  {t:'« En bas » : elle quitte l’encoche', g:'Un clic',
-   p:'Un clic sur « En bas ». Elle sort de l’encoche et glisse jusqu’au-dessus du Dock, en une seule course ; le minuteur la suit. En route, le noir devient du verre clair.',
+  {t:'Appui long : elle se décolle', g:'Rester appuyé (0,4 s)',
+   p:'On reste appuyé sans bouger. Un petit anneau se remplit sous le pointeur, puis Lucarne se décolle : un peu plus grande, avec une ombre. Les huit places apparaissent en pointillés ; la plus proche s’allume.',
    async jeu(){
-     await vers(choix('bas'), .5, 4, 6); await clic();
-     glisser('bas'); await attendre(1.3);
+     await prendre(XR(-N0 + 24), 18);
+     await trainer(XR(-N0 + 24), 18, XR(-N0 + 18), 30, .4);
+     await attendre(.3);
    }},
-  {t:'Survoler : le Centre s’ouvre vers le haut', g:'Pointeur sur la pilule',
-   p:'Même geste qu’en haut : on la survole, elle s’ouvre. Depuis le bas, elle grandit vers le haut, le bas reste collé à sa place. Mêmes boutons, texte foncé sur le verre.',
+  {t:'On la glisse en haut à gauche', g:'Glisser, puis lâcher',
+   p:'Elle suit le pointeur. En quittant l’encoche, le noir devient du verre clair. On lâche près du coin : elle file s’y poser, juste sous la barre des menus.',
    async jeu(){
-     const [x, y] = centreLucarne(); await va(x + 18, y + 6, .9); await attendre(.1);
-     ouvrir(); await attendre(.9);
+     const [xb, yb] = placeEcran('hg'), ox = OX.vise(), oy = OY.vise();
+     await trainer(XR(-N0 + 18), 30, xb - ox + 30, yb - oy + 26, 1.2, 50);
+     await attendre(.12);
+     relacher(null); await attendre(1.0);
+     if (fin()) return;
+     await va(xb + 150, yb + 130, .6);
    }},
-  {t:'Une bannière sort d’en bas', g:'Tenir fn, dire le rappel',
-   p:'On dicte un rappel avec fn. La confirmation sort de la pilule, vers le haut : « Rappel ajouté · demain 13:00 ». Puis elle se range toute seule.',
+  {t:'Survol : le Centre s’ouvre depuis le coin', g:'Pointeur dessus',
+   p:'Comme dans l’encoche, il suffit de la survoler. Depuis le coin en haut à gauche, le Centre s’ouvre en diagonale, vers le milieu de l’écran ; le coin, lui, ne bouge pas.',
    async jeu(){
-     if (st.carte){ await va(XR(-330), 330, .6); replier(); await attendre(.6); }
+     const [x, y] = centreLucarne(); await va(x + 44, y + 6, .8); await attendre(.1);
+     ouvrir(); await attendre(1.0);
+   }},
+  {t:'On la lance vers le bas', g:'Appui long, coup sec',
+   p:'Appui long, puis un petit coup sec vers le bas, et on lâche tout de suite. Pas besoin d’aller jusqu’au bout : elle file d’elle-même vers la place dans la direction du lancer, ici en bas au milieu, au-dessus du Dock.',
+   async jeu(){
+     if (st.carte){ await va(XR(140), 400, .6); replier(); await attendre(.55); }
+     const [x, y] = centreLucarne(); await va(x - 8, y + 2, .7);
+     await prendre(x - 8, y + 2);
+     const dx = 126, dy = 82, d = .13;
+     await trainer(x - 8, y + 2, x - 8 + dx, y + 2 + dy, d, 0, u => u);
+     relacher({x:dx / d, y:dy / d});
+     await attendre(1.2);
+   }},
+  {t:'En bas à gauche, à côté du Dock', g:'Appui long, glisser',
+   p:'Appui long, on la glisse vers le coin en bas à gauche, et on lâche. Elle se pose à côté du Dock, jamais dessus.',
+   async jeu(){
+     const [x, y] = centreLucarne(); await va(x + 10, y + 3, .7);
+     await prendre(x + 10, y + 3);
+     const [xb, yb] = placeEcran('bg');
+     await trainer(x + 10, y + 3, xb - OX.vise() + 24, yb - OY.vise() - 6, 1.1, -30);
+     await attendre(.12);
+     relacher(null); await attendre(1.0);
+     if (fin()) return;
+     await va(xb + 210, yb - 140, .6);
+   }},
+  {t:'Une bannière sort du coin', g:'Tenir fn, dire le rappel',
+   p:'On dicte un rappel avec fn. La confirmation sort de Lucarne, vers le haut et vers la droite : « Rappel ajouté · demain 13:00 ». Puis elle se range toute seule.',
+   async jeu(){
      doigts(0, 'fn'); await attendre(.9); doigts(0, '');
-     banniere(); await attendre(1.8);
+     banniere(); await attendre(1.9);
      if (fin()) return;
      replier(); await attendre(.6);
    }},
-  {t:'« À gauche » : elle glisse au bord', g:'Un clic',
-   p:'Un clic sur « À gauche ». La pilule file vers le bord gauche, au milieu de la hauteur, et se met debout. Le minuteur se range dessous.',
+  {t:'Retour dans l’encoche', g:'Appui long, glisser vers le haut',
+   p:'Appui long, on la remonte vers le haut, au milieu. Près de l’encoche, elle est aspirée : elle reprend sa forme, redevient noire et s’y fond, comme au début.',
    async jeu(){
-     if (st.carte || st.ban) replier();
-     await vers(choix('gauche'), .8, 4, 6); await clic();
-     glisser('gauche'); await attendre(1.3);
-   }},
-  {t:'Survoler : le Centre s’ouvre vers la droite', g:'Fermer Réglages, survoler',
-   p:'On ferme Réglages. Depuis la gauche, la Lucarne grandit vers la droite ; le bord gauche ne bouge pas. Le contenu est le même et le texte reste droit.',
-   async jeu(){
-     await vers($('#regFermer i'), .7, 0, 0); await clic();
-     fenetre('reg', false); devant('chrome'); await attendre(.3);
-     const [x, y] = centreLucarne(); await va(x + 6, y + 14, .9); await attendre(.1);
-     ouvrir(); await attendre(.9);
-   }},
-  {t:'Appui long, puis glisser', g:'Appui long ½ s, puis bouger',
-   p:'Appui long puis on bouge : elle se décroche (plus grande, ombre plus forte, petit choc du trackpad), les places s’affichent en pointillés. Lâchée près du bord droit, elle s’y pose. Appui long sans bouger : la rangée Minuteur, comme aujourd’hui.',
-   async jeu(){
-     if (st.carte){ await va(XR(-40), 210, .6); replier(); await attendre(.55); }
-     const [x, y] = centreLucarne(); await va(x + 2, y + 2, .7);
-     await tirer(x + 2, y + 2, XR(W / 2 - 150), CYB() + 40, 1.5);
-     await attendre(1.2);
-   }},
-  {t:'Retour dans l’encoche', g:'Appui long, tirer vers le haut',
-   p:'Tirée vers le haut, elle est aspirée par l’encoche et reprend sa forme d’aujourd’hui ; le verre redevient noir et le minuteur se recolle à côté.',
-   async jeu(){
-     const [x, y] = centreLucarne(); await va(x - 2, y + 2, .7);
-     await tirer(x - 2, y + 2, XR(-60), 90, 1.3);
-     await attendre(1.0);
+     if (st.ban){ replier(); await attendre(.5); }
+     const [x, y] = centreLucarne(); await va(x - 6, y + 2, .7);
+     await prendre(x - 6, y + 2);
+     await trainer(x - 6, y + 2, XR(-30), 26, 1.4, -60);
+     await attendre(.25);
+     relacher(null); await attendre(1.0);
      if (fin()) return;
-     await va(XR(-260), 400, .8);
+     await va(XR(-260), 330, .8);
    }}
 ];
 const N = ETAPES.length;
-const PAUSES = [1.4, 1.6, 1.8, 1.6, 1.6, 1.8, 1.8, 1.6, 2.6];
+const PAUSES = [1.2, 1.4, 1.6, 1.8, 1.6, 1.6, 1.4, 2.6];
 
 /* =========================================================
    Régie (reprise de ilot-centre.html)
@@ -1190,8 +1144,8 @@ $('#pas').innerHTML = ETAPES.map((e, i) => `<li><button data-e="${i + 1}"><span>
 function majRegie(n){
   etape = n;
   const m = Math.max(1, n), e = ETAPES[m - 1];
-  $('#num').textContent = `Lucarne · où la placer · étape ${m} sur ${N}`;
-  const fr = t => t.replace(/ ([:»?!;])/g, ' $1').replace(/« /g, '« ');
+  $('#num').textContent = `Lucarne · la déplacer · étape ${m} sur ${N}`;
+  const fr = t => t.replace(/ ([:»?!;])/g, ' $1').replace(/« /g, '« ');
   $('#titre').textContent = fr(e.t); $('#phrase').textContent = fr(e.p); $('#geste').textContent = e.g;
   document.querySelectorAll('#pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === m));
 }
@@ -1242,7 +1196,7 @@ function ralenti(oui){ K = oui ? 4 : 1; racine.style.setProperty('--k', K); $('#
 $('#lentCase').addEventListener('change', e => ralenti(e.target.checked));
 
 /* =========================================================
-   À la main : la vraie souris marche aussi (survol, appui long + glisser, Réglages)
+   À la main : la vraie souris fait le même geste (survol, appui long + glisser ou lancer)
    ========================================================= */
 function aLaMain(){ if (auto || autoCase.checked){ autoCase.checked = false; arreter(); } pointeur.classList.remove('vu'); }
 function local(e){ const r = ecran.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top]; }
@@ -1251,34 +1205,50 @@ function dansIlot(x, y){
     if (st.carte) return Math.abs(x) <= BW + 4 && y <= cible.h + 4;
     return y <= cible.h + 4 && Math.abs(x) <= Math.max(cible.ng, cible.nd, cible.bw) + 4;
   }
-  const g = vise(P);
+  const g = vise();
   return x >= g.x0 - 4 && x <= g.x1 + 4 && y >= g.y0 - 4 && y <= g.y1 + 4;
 }
-let tFerme = 0, tSurvol = 0, tAppui = 0, appui = null;
+let tFerme = 0, tSurvol = 0, tAppui = 0, appui = null, traces = [];
+function anneauReel(on, x, y){
+  if (on){ pointeur.classList.add('reel'); pointeur.classList.remove('pris'); cur(W / 2 + x, y, {saute:true}); pointeur.classList.add('tient'); }
+  else pointeur.classList.remove('tient', 'pris', 'vu');
+}
 ecran.addEventListener('pointerdown', e => {
-  if (FIGE || e.button !== 0 || e.target.closest('.reg') || e.target.closest('#contenu button')) return;
+  if (FIGE || e.button !== 0 || e.target.closest('#contenu button')) return;
   const [x, y] = local(e);
   if (dansIlot(x, y)){
     aLaMain(); clearTimeout(tSurvol); tSurvol = 0; clearTimeout(tFerme); tFerme = 0;
-    appui = {x:e.clientX, y:e.clientY};
-    tAppui = setTimeout(() => { tAppui = 0; if (appui) decrocher(); }, 500);   // appui long
+    appui = {x:e.clientX, y:e.clientY, lx:x, ly:y};
+    anneauReel(true, x, y);
+    tAppui = setTimeout(() => {                 // appui long : elle se décolle
+      tAppui = 0; if (!appui) return;
+      decrocher(appui.lx, appui.ly); traces = [{t:performance.now(), x:appui.lx, y:appui.ly}];
+      pointeur.classList.remove('tient'); pointeur.classList.add('pris');
+    }, APPUI * 1000 * K);
     try { ecran.setPointerCapture(e.pointerId); } catch (_){}
+    e.preventDefault();
     return;
   }
   if (st.carte || st.ban){ aLaMain(); replier(); }
 });
 ecran.addEventListener('pointermove', e => {
   if (FIGE) return;
+  const [x, y] = local(e);
   if (appui){
-    const d = Math.hypot(e.clientX - appui.x, e.clientY - appui.y);
-    if (st.leve && (tire || d > 12)){ const [x, y] = local(e); suivre(W / 2 + x, y); }   // appui long PUIS mouvement : on la déplace
-    else if (!st.leve && d > 12){ clearTimeout(tAppui); tAppui = 0; appui = null; }    // bougé trop tôt : rien
+    if (tire){
+      suivre(W / 2 + x, y); cur(W / 2 + x, y, {saute:true});
+      const t = performance.now(); traces.push({t, x, y});
+      while (traces.length > 2 && t - traces[0].t > 100) traces.shift();
+    } else if (Math.hypot(e.clientX - appui.x, e.clientY - appui.y) > 6){   // bougé avant la fin de l'anneau : rien
+      clearTimeout(tAppui); tAppui = 0; appui = null; anneauReel(false);
+    } else { appui.lx = x; appui.ly = y; cur(W / 2 + x, y, {saute:true}); }
     return;
   }
-  const [x, y] = local(e), dedans = dansIlot(x, y);
+  if (tire) return;
+  const dedans = dansIlot(x, y);
   if (dedans){
     clearTimeout(tFerme); tFerme = 0;
-    if (!st.carte && !st.ban && !tSurvol) tSurvol = setTimeout(() => { tSurvol = 0; aLaMain(); ouvrir(); }, 180);
+    if (!st.carte && !st.ban && !tSurvol) tSurvol = setTimeout(() => { tSurvol = 0; aLaMain(); ouvrir(); }, 300);
   } else {
     clearTimeout(tSurvol); tSurvol = 0;
     if ((st.carte || st.ban) && !tFerme && !auto) tFerme = setTimeout(() => { tFerme = 0; replier(); }, 320);
@@ -1286,22 +1256,17 @@ ecran.addEventListener('pointermove', e => {
 });
 const finAppui = () => {
   if (!appui) return;
-  clearTimeout(tAppui); tAppui = 0; appui = null;
-  if (tire) lacher();
-  else if (st.leve) reposer();   // appui long sans bouger : l'action d'aujourd'hui (rangée Minuteur), pas de déplacement
+  clearTimeout(tAppui); tAppui = 0; appui = null; anneauReel(false);
+  if (!tire) return;
+  let v = {x:0, y:0};
+  if (traces.length > 1){
+    const a = traces[0], b = traces[traces.length - 1], dt = Math.max(16, b.t - a.t) / 1000;
+    if (performance.now() - b.t < 80) v = {x:(b.x - a.x) / dt, y:(b.y - a.y) / dt};
+  }
+  lacher(v);
 };
 ecran.addEventListener('pointerup', finAppui);
 ecran.addEventListener('pointercancel', finAppui);
-$('#choix').addEventListener('click', e => {
-  const b = e.target.closest('[data-pose]'); if (FIGE || !b) return;
-  aLaMain(); if (b.dataset.pose !== st.pose) glisser(b.dataset.pose);
-});
-$('#aspect').addEventListener('click', e => {
-  const b = e.target.closest('[data-ap]'); if (FIGE || !b) return;
-  aLaMain(); st.apparence = b.dataset.ap; majChoix();
-  if (mode === 'libre' && st.pose !== 'haut') noir(noirCible(), .45);
-});
-$('#regFermer').addEventListener('click', e => { if (FIGE || e.target !== e.currentTarget.firstElementChild) return; aLaMain(); fenetre('reg', false); devant('chrome'); });
 contenu.addEventListener('click', e => {
   if (FIGE || tire) return;
   const t = e.target.closest('.tg[data-t]'), cap = e.target.closest('.cap'), reu = e.target.closest('#reunion');
@@ -1321,23 +1286,23 @@ contenu.addEventListener('click', e => {
 window.addEventListener('resize', () => {
   geo();
   if (mode === 'libre' && !tire){
-    const g = st.carte ? GRAND[st.pose](OW, OH, 30) : st.ban ? GRAND[st.pose](BAW, BAH, 22) : POSE[st.pose].i();
-    poserS(P, g); poserS(Q, st.carte || st.ban ? absorbe(g) : POSE[st.pose].b());
+    const g = st.carte ? grand(st.pose, OW, OH, 30) : st.ban ? grand(st.pose, BAW, BAH, 22) : PLACES[st.pose].i();
+    poserP(g);
     if (st.carte) placer('centre', g.x0 + 22, g.y0 + 14);
     if (st.ban) placer('ban', g.x0 + 14, g.y0 + 13);
-  } else if (mode === 'encoche' && !st.carte) poserS(Q, POSE.haut.b());
+  }
   placer('batt', -NO + 13, mid(13)); placer('airp', HC + 8, mid(17));
   rendu();
 });
 
-/* la vidéo avance, le minuteur descend (sauf figé) */
+/* la vidéo avance (sauf figé) */
 const video = {pos:202, duree:774};
 function majVideo(){
   $('#vprog').style.width = (100 * video.pos / video.duree).toFixed(2) + '%';
   $('#vtps').textContent = fmt(video.pos) + ' / ' + fmt(video.duree);
 }
 majVideo();
-setInterval(() => { if (FIGE) return; video.pos = (video.pos + 1) % video.duree; majVideo(); if (st.reste > 0){ st.reste--; majMinu(); } }, 1000);
+setInterval(() => { if (FIGE) return; video.pos = (video.pos + 1) % video.duree; majVideo(); }, 1000);
 
 /* =========================================================
    Démarrage
@@ -1347,7 +1312,7 @@ const e0 = clamp(+(PARAMS.get('etape') || 0), 0, N);
 if (FIGE){ autoCase.checked = false; poser(e0).catch(() => {}); }
 else if (PARAMS.has('joue') && e0 >= 1){ autoCase.checked = false; poser(e0 - 1).then(() => setTimeout(() => jouer(e0).catch(() => {}), 400)); }
 else setTimeout(() => tourner(), 300);
-window.lucarne = {poser, jouer, st, P, Q, V, ralenti};
+window.lucarne = {poser, jouer, st, P, V, L, ralenti};
 </script>
 </body>
 </html>
