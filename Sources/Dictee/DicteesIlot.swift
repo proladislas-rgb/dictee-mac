@@ -424,7 +424,8 @@ struct LigneDicteeIlot: View {
         .contentShape(Rectangle())
         .onHover { dedans in if dedans { d.survol = e.id } else if d.survol == e.id { d.survol = nil } }
         .onTapGesture { m.surAction(.dicteeCopier(e.id)) }
-        .animation(m.reduire || m.statique ? nil : .easeOut(duration: 0.12), value: survol)
+        // le survol s'allume d'un coup, sans fondu (comme les listes du Mac) : chaque image d'un fondu redessine toute la forme de l'îlot
+        // sur le processeur (≈ 10 ms) ; en se promenant sur la liste, les fondus s'enchaînaient et occupaient le fil principal
         .animation(m.reduire || m.statique ? nil : .easeOut(duration: 0.18), value: copie)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(Self.formatHeure.string(from: e.date)), \(e.texte)\(e.appNom.map { ", \($0)" } ?? "")")
@@ -534,6 +535,5 @@ private struct LienDictees: View {
         }
         .buttonStyle(.plain)
         .onHover { survol = $0 }
-        .animation(.easeOut(duration: 0.15), value: survol)
     }
 }

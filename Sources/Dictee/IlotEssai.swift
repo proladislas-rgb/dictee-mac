@@ -84,6 +84,14 @@ enum IlotEssai {
         let g = m.geometrie
         print("caméra : \(Int(g.largeur)) × \(Int(g.hauteur)) pt")
 
+        // `--ilot-essai --seulement=survol` : la seule section du survol des Dictées (pour mesurer vite ; l'essai complet la joue aussi)
+        if CommandLine.arguments.contains("--seulement=survol") {
+            IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+            c.arreter()
+            print(echecs == 0 ? "essai terminé : tout est vert" : "essai terminé : \(echecs) échec(s)")
+            return echecs == 0 ? 0 : 1
+        }
+
         // --- repos : l'îlot vide épouse l'encoche
         attendre(0.4)
         verifier(m.courante == .repos && m.resolution.principal == .repos, "rien d'actif : l'îlot est vide")
@@ -1126,6 +1134,7 @@ enum IlotEssai {
         IlotEssai.cheminsDuCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.outils(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
+        IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.secondBrain(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
 
         // --- fin : plus rien ne tourne

@@ -4,6 +4,10 @@ import DicteeCore
 
 /// La vue qui héberge l'îlot : elle accepte le premier clic et dit où est la souris (entrée, déplacement, sortie), en points depuis le centre
 /// de l'encoche et le haut de l'écran. C'est le moteur qui décide si la souris est sur la forme ou sur la pastille.
+/// Les survols de SwiftUI (`.onHover` : « Coller » sur une dictée, le fond des pilules, les liens du pied) passent par CETTE vue : ses zones
+/// de suivi (posées par NSHostingView) et ses `mouseEntered` / `mouseMoved` / `mouseExited`. On les garde et on appelle toujours `super`
+/// (12/11 : retirées et court-circuitées depuis le premier jour, les survols ne suivaient plus la souris : une ligne restait allumée
+/// après un clic, les autres ne s'allumaient jamais).
 final class VueHebergeeIlot<Contenu: View>: NSHostingView<Contenu> {
     var surPointeur: ((CGPoint?) -> Void)?
     /// La molette ou deux doigts sur le trackpad, au-dessus de l'îlot : passer d'une carte à l'autre (lecture, Centre, accueil).
@@ -14,19 +18,26 @@ final class VueHebergeeIlot<Contenu: View>: NSHostingView<Contenu> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     /// Un événement en points depuis le centre de l'encoche et le haut de l'écran (nil : sans fenêtre, il faut le placer autrement).
     func point(_ e: NSEvent) -> CGPoint? { e.window === window ? position(e) : nil }
+    /// Notre zone de suivi, posée seulement si celles de SwiftUI ne suffisent pas (entrée, sortie, mouvements, toujours active, toute la vue).
+    private var zonePropre: NSTrackingArea?
+    static var optionsVoulues: NSTrackingArea.Options { [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect] }
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        for a in trackingAreas { removeTrackingArea(a) }
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .cursorUpdate, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
+        if let z = zonePropre { removeTrackingArea(z); zonePropre = nil }
+        let suffisent = trackingAreas.contains { $0.owner === self && $0.options.isSuperset(of: Self.optionsVoulues) }
+        if !suffisent {
+            let z = NSTrackingArea(rect: .zero, options: Self.optionsVoulues.union(.cursorUpdate), owner: self, userInfo: nil)
+            addTrackingArea(z); zonePropre = z
+        }
     }
     private func position(_ e: NSEvent) -> CGPoint {
         let p = convert(e.locationInWindow, from: nil)
         return CGPoint(x: p.x - bounds.width / 2, y: isFlipped ? p.y : bounds.height - p.y)
     }
-    override func mouseEntered(with event: NSEvent) { fleche(); surPointeur?(position(event)) }
-    override func mouseMoved(with event: NSEvent) { fleche(); surPointeur?(position(event)) }
-    override func cursorUpdate(with event: NSEvent) { fleche() }
-    override func mouseExited(with event: NSEvent) { surPointeur?(nil) }
+    override func mouseEntered(with event: NSEvent) { super.mouseEntered(with: event); fleche(); surPointeur?(position(event)) }
+    override func mouseMoved(with event: NSEvent) { super.mouseMoved(with: event); fleche(); surPointeur?(position(event)) }
+    override func cursorUpdate(with event: NSEvent) { super.cursorUpdate(with: event); fleche() }
+    override func mouseExited(with event: NSEvent) { super.mouseExited(with: event); surPointeur?(nil) }
     private func fleche() { CurseurEnArrierePlan.autoriser(); NSCursor.arrow.set() }
 }
 
@@ -358,6 +369,31 @@ final class IlotPanneau {
         let p = CGPoint(x: ecranPt.x - centre, y: ecran.frame.maxY - ecranPt.y)
         if moteur.contient(p) || (moteur.rectPastille()?.contains(p) ?? false) { laisserPasser(false); pointeur(p) }
     }
+
+    /// Pour les essais : un VRAI mouvement de souris au point `p` (x depuis le centre de l'encoche, y depuis le haut de l'écran), remis
+    /// comme AppKit le fait : en entrant dans la fenêtre, un « entrée » pour CHAQUE zone de suivi de la vue (celle de SwiftUI comprise :
+    /// sans lui, ses `.onHover` ne s'allument jamais), puis les mouvements, et une « sortie » par zone en la quittant. Rien n'est envoyé
+    /// au système.
+    func envoyerMouvement(en p: CGPoint) {
+        guard let f = fenetre, let ecran, let v = vue else { return }
+        let local = NSPoint(x: centre + p.x - f.frame.minX, y: ecran.frame.maxY - p.y - f.frame.minY)
+        let t = ProcessInfo.processInfo.systemUptime
+        let dedans = f.frame.contains(NSPoint(x: centre + p.x, y: ecran.frame.maxY - p.y))
+        func bord(_ type: NSEvent.EventType) {
+            for a in v.trackingAreas where a.options.contains(.mouseEnteredAndExited) {
+                guard let e = NSEvent.enterExitEvent(with: type, location: local, modifierFlags: [], timestamp: t, windowNumber: f.windowNumber, context: nil,
+                                                     eventNumber: 0, trackingNumber: unsafeBitCast(a, to: Int.self), userData: nil) else { continue }
+                if type == .mouseEntered { v.mouseEntered(with: e) } else { v.mouseExited(with: e) }
+            }
+        }
+        if dedans != sourisDansLaFenetre { sourisDansLaFenetre = dedans; bord(dedans ? .mouseEntered : .mouseExited) }
+        guard dedans, let e = NSEvent.mouseEvent(with: .mouseMoved, location: local, modifierFlags: [], timestamp: t,
+                                                 windowNumber: f.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0) else { return }
+        v.mouseMoved(with: e)
+    }
+    private var sourisDansLaFenetre = false
+    /// Pour les essais : la vue de l'îlot (ses zones de suivi, sa mise en page).
+    var vueEssai: NSView? { vue }
 
     /// Pour les essais : un vrai événement souris remis à la fenêtre (il passe par les gestes SwiftUI, comme un clic réel), au point `p`
     /// (x depuis le centre de l'encoche, y depuis le haut de l'écran). Rien n'est envoyé au système : la fenêtre seule le reçoit.
