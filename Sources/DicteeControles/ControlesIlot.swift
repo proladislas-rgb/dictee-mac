@@ -1159,7 +1159,21 @@ func controlesEtagereRapide(_ t0: Date) {
     pv = vg.lire(noms: noms2, a: tc.addingTimeInterval(1), mesure: mesure2)
     verifier(pv.isEmpty, "1 s plus tard : la capture est là, on attend qu'elle soit stable")
     pv = vg.lire(noms: noms2, a: tc.addingTimeInterval(2), mesure: mesure2)
-    verifier(pv.map(\.nom).contains(png.nom), "2 s : la capture glissée est annoncée (\(pv.map(\.nom))) ; ce qui était là au lancement, jamais")
+    // l'annonce « Capture d’écran · Sur l’étagère » : une rafale (moins de 2 s) = une annonce, une capture n'est annoncée qu'une fois
+    var ra = RafaleCaptures()
+    verifier(ra.ajouter([nfd], a: tc) && ra.titre == "Capture d\u{2019}écran" && RafaleCaptures.sousTitre == "Sur l\u{2019}étagère" && RafaleCaptures.duree == 2.5,
+             "une capture : « Capture d’écran », « Sur l’étagère », 2,5 s")
+    verifier(ra.ajouter(["B.png"], a: tc.addingTimeInterval(1.2)) && ra.ajouter(["C.png"], a: tc.addingTimeInterval(2.9)) && ra.titre == "3 captures",
+             "trois captures, chacune moins de 2 s après la précédente : une seule annonce, « 3 captures » (\(ra.titre))")
+    verifier(!ra.ajouter([nfc], a: tc.addingTimeInterval(3.5)) && ra.titre == "3 captures",
+             "sa copie du dossier des captures (glisser annulé, même nom en NFC) : pas annoncée deux fois")
+    verifier(ra.ajouter(["D.png"], a: tc.addingTimeInterval(8)) && ra.titre == "Capture d\u{2019}écran", "plus de 2 s après : une nouvelle annonce, qui repart de un")
+    verifier(ra.ajouter(["D.png", "E.png", "E.png"], a: tc.addingTimeInterval(8.5)) && ra.noms == ["D.png", "E.png"], "un double dans la même arrivée : compté une fois")
+    verifier(VueIlot.etagereCapture.estBandeau && GeoIlot.ajusteAuContenu(.etagereCapture) && !VueIlot.etagereCapture.estAlerte,
+             "l'annonce est un bandeau qui épouse son contenu (et non une alerte : aucun son, aucun geste attendu)")
+    verifier(ArbitrageIlot.etage(dictee: true, reunion: false, ecran: .etagereCapture) == 1 && ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .etagereCapture) == 5,
+             "arbitrage : la dictée passe avant, l'annonce est au dernier étage")
+    verifier(pv.map(\.nom).contains(png.nom),"2 s : la capture glissée est annoncée (\(pv.map(\.nom))) ; ce qui était là au lancement, jamais")
 
     groupe("Îlot : l'étagère plus rapide, le Centre avec les fichiers en haut")
     let d = DispositionCentre()

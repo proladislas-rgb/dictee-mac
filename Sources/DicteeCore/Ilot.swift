@@ -32,6 +32,9 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// gauche (`etagerePile`) ; un glisser de fichiers commence n'importe où, l'îlot appelle « Glisse ici » (`etagereAppel`) ; l'envoi
     /// AirDrop (« Envoi… », « Envoyé », « Annulé ») ; des fichiers partis dans une app, avec « Remettre » quelques secondes.
     case etagerePile, etagereAppel, etagereEnvoi, etagerePartis
+    /// Une capture d'écran vient d'arriver sur l'étagère (option « Captures d'écran ici ») : sa miniature, « Capture d’écran »,
+    /// « Sur l’étagère » ; un clic ouvre l'étagère.
+    case etagereCapture
     /// Le Centre (maquette design/maquettes/ilot-centre.html) : tout ce qui se règle depuis l'îlot, à la souris. Une rangée de gros boutons
     /// ronds (micro, micro de la dictée, téléchargements, Claude Code) et deux grandes cases (minuteur, étagère). On y passe depuis la lecture
     /// dépliée (bouton « Centre », points de page, défilement) ; l'îlot vide s'ouvre directement dessus.
@@ -50,7 +53,7 @@ public enum VueIlot: String, CaseIterable, Sendable {
         switch self {
         case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
              .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .volume, .luminosite, .claudeAttend, .claudeTermine,
-             .etagereEnvoi, .etagerePartis: return true
+             .etagereEnvoi, .etagerePartis, .etagereCapture: return true
         default: return false
         }
     }
@@ -145,7 +148,7 @@ public enum GeoIlot {
         // le corps 54 pt au-delà de la caméra (plus que la maquette, 28 : sinon le congé et le coin haut n’ont pas leur place)
         .etagereAppel: [0, 54, 38, 6, 24, 14, 10],
         // l'envoi AirDrop et les fichiers partis : des bandeaux qui épousent leur contenu
-        .etagereEnvoi: bandeau, .etagerePartis: bandeau,
+        .etagereEnvoi: bandeau, .etagerePartis: bandeau, .etagereCapture: bandeau,
         .centre: [14, 144, profondeurCentre, 6, 34, 18, 10],
         // les Dictées : la largeur du Centre (on passe de l'un à l'autre sans que la forme s'élargisse), la hauteur de la liste
         .dictees: [14, 144, profondeurDictees, 6, 34, 18, 10],

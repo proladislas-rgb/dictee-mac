@@ -163,6 +163,10 @@ extension IlotMoteur {
                                   droite: .boutons([.init(titre: seul ? "Ouvrir" : "Afficher", etiquette: seul ? "Ouvrir \(premier.nom)" : "Afficher dans le Finder",
                                                           action: .fichiersOuvrir(d.urls))]),
                                   icones: d.icones, coteSymbole: ContenuAnnonce.coteIcone, coupureL1: seul ? .middle : .tail, glisser: seul ? premier.url : nil)
+        case .etagereCapture:
+            guard let b else { return nil }
+            return ContenuAnnonce(glyphe: GlypheIlot(nom: "camera.viewfinder", couleur: .white, taille: 21), l1: b.ligne1, l2: b.ligne2,
+                                  icones: b.vignette.map { [$0] } ?? [], coteSymbole: ContenuAnnonce.coteIcone)
         case .claudeAttend:
             // « second-cerveau attend ta réponse », et les premiers mots de sa question (le message de la notification de Claude Code)
             let s = b?.claude

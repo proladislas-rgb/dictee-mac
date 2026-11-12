@@ -294,3 +294,35 @@ public struct SuiviGlisser: Equatable, Sendable {
     /// Le presse-papiers a changé depuis l'appui : quelque chose est vraiment en train d'être glissé. Sans appui vu, non.
     public func nouveau(compte: Int) -> Bool { compteAuClic.map { $0 != compte } ?? false }
 }
+
+/// L'annonce de l'îlot quand des captures arrivent sur l'étagère (« Capture d’écran · Sur l’étagère », 2,5 s, sans son). Plusieurs en
+/// moins de `fenetre` secondes : une seule annonce, « 3 captures ». Une capture déjà annoncée (même nom : sa copie qui remplace la
+/// glissée après un glisser annulé) ne s'annonce pas deux fois.
+public struct RafaleCaptures: Equatable, Sendable {
+    public static let fenetre: TimeInterval = 2
+    public static let duree: TimeInterval = 2.5
+    public static let sousTitre = "Sur l\u{2019}étagère"
+    /// Les noms déjà annoncés gardés en mémoire (les plus récents).
+    static let memoire = 50
+    /// Les captures de la rafale en cours, et quand la dernière est arrivée.
+    public private(set) var noms: [String] = []
+    public private(set) var derniere: Date?
+    private var annoncees: [String] = []
+    public init() {}
+
+    /// Des captures viennent d'arriver sur l'étagère : vrai s'il y a quelque chose à annoncer (au moins une jamais annoncée).
+    @discardableResult
+    public mutating func ajouter(_ nouveaux: [String], a t: Date) -> Bool {
+        var neufs: [String] = []
+        for n in nouveaux where !annoncees.contains(n) && !neufs.contains(n) { neufs.append(n) }
+        guard !neufs.isEmpty else { return false }
+        let suite = derniere.map { t.timeIntervalSince($0) <= Self.fenetre } ?? false
+        noms = (suite ? noms : []) + neufs
+        derniere = t
+        annoncees = Array((annoncees + neufs).suffix(Self.memoire))
+        return true
+    }
+
+    /// « Capture d’écran » ; « 3 captures ».
+    public var titre: String { noms.count > 1 ? "\(noms.count) captures" : "Capture d\u{2019}écran" }
+}

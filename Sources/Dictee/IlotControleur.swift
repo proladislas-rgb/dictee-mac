@@ -147,6 +147,8 @@ final class IlotControleur {
     /// seulement) ; les captures arrivées pas encore vues (« Nouveau », en mémoire seulement).
     var partisEnAttente: [ElementEtagere] = []
     var nouveautes = Set<UUID>()
+    /// L'annonce « Capture d’écran · Sur l’étagère » : la rafale en cours et les captures déjà annoncées (en mémoire seulement).
+    var rafaleCaptures = RafaleCaptures()
     /// AirDrop (le panneau de macOS choisit l'appareil) : injectable, l'essai n'envoie jamais rien. Rend faux si AirDrop ne peut pas
     /// envoyer ces fichiers (éteint, pas de Wi-Fi) ; sinon, la réponse du service arrive plus tard.
     var envoyerParAirDrop: ([URL], @escaping (EnvoiEtagere.Etat) -> Void) -> Bool = { urls, fin in EnvoiAirDrop.envoyer(urls, fin: fin) }

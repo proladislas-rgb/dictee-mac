@@ -286,6 +286,40 @@ extension IlotEssai {
         attendre(4) { c.etagere.elements.count == avantGlisser + 1 }
         verifier(c.etagere.elements.count == avantGlisser + 2 && c.etagere.elements.last?.nom == deplacee.lastPathComponent,
                  "vignette partie d'elle-même : la capture déplacée dans le dossier des captures arrive (\(c.etagere.elements.map(\.nom)))")
+        verifier(m.bandeau == nil, "la carte Étagère ouverte : pas d'annonce, la tuile « Nouveau » suffit")
+
+        // --- l'annonce « Capture d’écran · Sur l’étagère » (Hugues 12/11) : carte fermée, une capture glissée arrive
+        m.fermer(); pause(0.8)
+        let vignette2 = temporaire.appendingPathComponent("NSIRD_screencaptureui_Zz9Yx8", isDirectory: true)
+        try? FileManager.default.createDirectory(at: vignette2, withIntermediateDirectories: true)
+        pause(0.2)
+        let nomA = "Capture d\u{2019}écran 2026-11-12 à 00.30.00.png"
+        _ = creer(nomA, vignette2)
+        attendre(4) { m.bandeau?.vue != .etagereCapture }; pause(0.4)
+        let ba = m.bandeau
+        verifier(m.courante == .etagereCapture && ba?.ligne1 == "Capture d\u{2019}écran" && ba?.ligne2 == "Sur l\u{2019}étagère" && ba?.vignette != nil && ba?.sonore == false,
+                 "une capture arrive : l'îlot l'annonce, sa miniature, « Capture d’écran », « Sur l’étagère », sans son (\(m.courante.rawValue), \(ba?.ligne1 ?? "rien"))")
+        verifier((ba?.jusqua.timeIntervalSince(c.maintenant()) ?? 0) <= 2.5, "annonce courte : 2,5 s au plus")
+        verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && m.trace.hauteur > Double(g.hauteur) + 40,
+                 "l'annonce : sous la barre, rien de plus de 66 pt dans la barre des menus (\(String(format: "%.1f", m.trace.bande - Double(m.demiCamera))) pt)")
+        let zoneCapture = m.grille.zoneAnnonce(.etagereCapture)
+        clic(CGPoint(x: zoneCapture.midX, y: zoneCapture.midY), 0.9)
+        verifier(m.courante == .etagere && m.bandeau == nil, "vrai clic sur l'annonce : l'îlot s'ouvre sur l'étagère (\(m.courante.rawValue))")
+        // glisser annulé : la copie arrive dans le dossier des captures, remplace la glissée… sans seconde annonce
+        m.fermer(); pause(0.8)
+        let cacheA = captures.appendingPathComponent(".capture-en-cours")
+        try? Data("essai".utf8).write(to: cacheA)
+        try? FileManager.default.moveItem(at: cacheA, to: captures.appendingPathComponent(nomA))
+        attendre(4) { !c.etagere.elements.contains { $0.nom == nomA && !CapturesGlissees.estGlissee($0.chemin) } }; pause(0.4)
+        verifier(c.etagere.elements.filter { $0.nom == nomA }.count == 1 && m.bandeau == nil, "la copie qui remplace la glissée ne s'annonce pas deux fois")
+        // trois captures coup sur coup : une seule annonce, « 3 captures »
+        for i in 1...3 { _ = creer("Capture d\u{2019}écran 2026-11-12 à 00.31.0\(i).png", captures); pause(0.3) }
+        attendre(4) { m.bandeau?.ligne1 != "3 captures" }
+        verifier(m.courante == .etagereCapture && m.bandeau?.ligne1 == "3 captures" && m.bandeau?.ligne2 == "Sur l\u{2019}étagère",
+                 "une rafale de trois : une seule annonce, « 3 captures · Sur l’étagère » (\(m.bandeau?.ligne1 ?? "rien"))")
+        attendre(3.5) { m.bandeau != nil }
+        verifier(m.bandeau == nil, "puis elle se retire d'elle-même")
+        m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
         m.fermer(); pause(0.8)
         verifier(m.etagere.allSatisfy { !$0.nouveau }, "la carte vue puis fermée : plus « Nouveau »")
         m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)

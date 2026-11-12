@@ -311,6 +311,40 @@ extension IlotControleur {
         for id in tri.remplaces { etagere.retirer(id); iconesEtagere[id] = nil; nouveautes.remove(id) }
         guard !tri.ranger.isEmpty else { if !tri.remplaces.isEmpty { sauverEtagere(); montrerEtagere() }; return }
         ranger(tri.ranger.map { URL(fileURLWithPath: $0) }, nouveau: true)
+        // celles qui ont trouvé leur place (étagère pleine de fichiers rangés à la main : pas toutes)
+        let ranges = tri.ranger.filter { c in etagere.elements.contains { $0.nom == (c as NSString).lastPathComponent } }
+        if let derniere = ranges.last { annoncerCaptures(ranges.map { ($0 as NSString).lastPathComponent }, vignette: URL(fileURLWithPath: derniere)) }
+    }
+
+    /// « Capture d’écran · Sur l’étagère » (2,5 s, sans son ; « 3 captures » pour une rafale). Pas pendant la dictée ni la réunion (il
+    /// attend, comme tout bandeau), ni par-dessus une autre annonce encore à l'écran, ni quand la carte Étagère est déjà sous les yeux
+    /// (la tuile « Nouveau » suffit). Une capture déjà annoncée (sa copie après un glisser annulé) ne s'annonce pas deux fois.
+    func annoncerCaptures(_ noms: [String], vignette url: URL) {
+        let t = maintenant()
+        guard moteur.capturesActives, rafaleCaptures.ajouter(noms, a: t), moteur.courante != .etagere else { return }
+        if moteur.alerte != nil { return }
+        if let b = moteur.bandeau, b.vue != .etagereCapture, b.jusqua > t { return }
+        moteur.annoncer(bandeau: BandeauIlot(vue: .etagereCapture, jusqua: t.addingTimeInterval(RafaleCaptures.duree), ligne1: rafaleCaptures.titre,
+                                             ligne2: RafaleCaptures.sousTitre, vignette: Self.vignetteCapture(url)))
+    }
+
+    /// La miniature d'une capture (lue à 96 px, coins arrondis, un filet clair) ; illisible : l'icône du Finder.
+    nonisolated static func vignetteCapture(_ url: URL) -> NSImage {
+        let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceThumbnailMaxPixelSize: 96,
+                                        kCGImageSourceCreateThumbnailWithTransform: true]
+        guard let s = CGImageSourceCreateWithURL(url as CFURL, nil), let cg = CGImageSourceCreateThumbnailAtIndex(s, 0, options as CFDictionary) else {
+            return NSWorkspace.shared.icon(forFile: url.path)
+        }
+        let echelle = ContenuAnnonce.coteIcone / CGFloat(max(cg.width, cg.height))
+        let taille = NSSize(width: CGFloat(cg.width) * echelle, height: CGFloat(cg.height) * echelle)
+        return NSImage(size: taille, flipped: false) { r in
+            let chemin = NSBezierPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), xRadius: 5, yRadius: 5)
+            NSGraphicsContext.saveGraphicsState(); chemin.addClip()
+            NSImage(cgImage: cg, size: taille).draw(in: r)
+            NSGraphicsContext.restoreGraphicsState()
+            NSColor.white.withAlphaComponent(0.25).setStroke(); chemin.lineWidth = 1; chemin.stroke()
+            return true
+        }
     }
     /// macOS a refusé l'accès au dossier des captures : l'interrupteur revient sur éteint, la carte dit où le rendre.
     func capturesRefusees() {

@@ -40,6 +40,8 @@ struct BandeauIlot {
     var partis: PartisEtagere?
     /// Un envoi AirDrop depuis la zone « AirDrop » (bandeau `.etagereEnvoi`).
     var envoi: EnvoiEtagere?
+    /// La miniature de la dernière capture arrivée sur l'étagère (bandeau `.etagereCapture`).
+    var vignette: NSImage?
 }
 
 /// « 3 fichiers partis dans Mail · Remettre » : les icônes (une pile), la phrase, et le compte à rebours (l'anneau se vide jusqu'à
@@ -874,6 +876,8 @@ final class IlotMoteur: ObservableObject {
 
     /// Clic sur la forme (hors boutons) : épingle ou relâche l'état déplié. L'îlot vide s'ouvre sur le Centre.
     func clicForme() {
+        // « Capture d’écran · Sur l’étagère » : un clic ouvre l'étagère
+        if bandeau?.vue == .etagereCapture, alerte == nil, !cache { bandeau = nil; ouvrirEtagere(); return }
         guard !cache, !resolution.verrou, resolution.survol != nil else { return }
         intention?.cancel(); fermeture?.cancel()
         if epingle { fermer(); return }
