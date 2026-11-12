@@ -11,7 +11,9 @@ en bas au milieu (au-dessus du Dock).
 Près de l'encoche, elle est aimantée : elle reprend la forme de l'encoche, redevient noire et s'y fond.
 Dans l'encoche elle est noire ; ailleurs, du verre clair (« Liquid Glass » d'iOS 26 / macOS 26), texte foncé.
 Verre à trois niveaux (sélecteur dans la régie) : Actuel (flou fort, voile dense), Marqué (par défaut : peu de flou, lentille
-sur les bords qui tord et grossit ce qui est derrière, givre seulement sous le texte, reflet et lisière), Très marqué (lentille au maximum).
+sur les bords qui tord et grossit ce qui est derrière, givre seulement sous le texte, reflet et lisière), Très marqué (lentille au maximum),
+Liquide (par défaut, la variante « claire » d'iOS 26 : presque transparent, lentille de ~42 pt tout autour avec franges rouge/bleu, biseau,
+flou léger sans voile au centre, pastilles en gouttes de verre, texte blanc ou noir selon la luminosité de la scène, sondée une fois).
 Survolée ailleurs, elle s'ouvre vers l'intérieur de l'écran : depuis un coin, en diagonale ; depuis un bord, à l'opposé du bord.
 Plus aucun réglage « Position ». L'appui long ne sert plus au minuteur (il est dans le Centre). Aucun raccourci ; fn pour dicter.
 Format repris de ilot-centre.html (forme `chemin`/`cote` pour l'encoche, mêmes ressorts, faux écran, régie).
@@ -21,7 +23,8 @@ Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt. 
 Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
                    ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)
                    ?horloge=1 (animations cadencées par minuterie, pour les captures automatiques)
-                   ?verre=actuel|marque|tres (niveau du verre, Marqué par défaut)   ·   ?tenue=x,y (avec fige : tenue au point x, y)
+                   ?verre=actuel|marque|tres|liquide (niveau du verre)   ·   ?tenue=x,y (avec fige : tenue au point x, y)
+                   ?verre=liquide (par défaut)   ·   ?place=hg|hd|g|d|bg|bm|bd&ouvre=centre|ban (avec fige : posée là, Centre ou bannière ouverts)
 -->
 <html lang="fr">
 <head>
@@ -166,6 +169,26 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 #places.vu{opacity:1}
 #verre{z-index:5;opacity:0;background:rgba(255,255,255,.06);-webkit-backdrop-filter:blur(20px) saturate(1.9) brightness(1.05);backdrop-filter:blur(20px) saturate(1.9) brightness(1.05)}
 #givre{z-index:5;opacity:0}
+/* la sonde de luminosité de la scène (calculée une fois) : tout devient touchable, Lucarne disparaît le temps du calcul */
+#ecran.sonde *{pointer-events:auto!important}
+#ecran.sonde :is(#contenu,#forme-svg,#verre,#givre,#places-svg,.pointeur){visibility:hidden!important}
+/* niveau Liquide : la lisibilité vient du contenu (blanc ou noir selon le fond sous chaque zone, ombre douce) */
+#contenu.liq .vclair{--amb:255 171 61;--jau:255 214 10;--sec:.82;text-shadow:0 1px 3px rgba(0,0,0,.5),0 0 1px rgba(0,0,0,.35)}
+#contenu.liq .vsombre{--sec:.72;text-shadow:0 0 6px rgba(255,255,255,.75),0 0 1px rgba(255,255,255,.6)}
+#contenu.liq .vclair svg{filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))}
+#contenu.liq .vsombre svg{filter:drop-shadow(0 0 3px rgba(255,255,255,.7))}
+/* les pastilles deviennent de petites gouttes de verre : leur propre lentille, leur reflet, leur biseau */
+#contenu.liq .goutte{position:relative;isolation:isolate;background:rgba(255,255,255,.16);
+  box-shadow:inset 1.4px 1.6px 0 -.4px rgba(255,255,255,.95),inset -1.2px -1.4px 0 -.4px rgba(255,255,255,.5),inset 0 0 12px rgba(255,255,255,.28),0 0 0 .5px rgba(0,0,0,.16),0 4px 12px -3px rgba(0,0,0,.22)}
+#contenu.liq .vclair .goutte,#contenu.liq .goutte.vclair{background:rgba(255,255,255,.1)}
+#contenu.liq .goutte::before{content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;pointer-events:none;
+  background:radial-gradient(85% 60% at var(--rx,30%) 0%,rgba(255,255,255,.62),rgba(255,255,255,0) 62%),radial-gradient(60% 45% at calc(100% - var(--rx,30%)) 100%,rgba(255,255,255,.28),rgba(255,255,255,0) 70%)}
+#contenu.liq .tg.rouge .rd{background:rgba(255,69,58,.8)}
+#contenu.liq .tg.bleu .rd{background:rgba(10,132,255,.8)}
+#contenu.liq .tg.corail .rd{background:rgba(232,131,92,.84)}
+#contenu.liq .tg.vide .rd{background:rgba(255,255,255,.08)}
+#contenu.liq .tl-eta{border-color:rgb(var(--fg) / .45)}
+#contenu.liq .cap.choisi{background:rgba(255,159,10,.9)}
 #verre.boite,#givre.boite{right:auto;bottom:auto}   /* posé au cadre de la forme : le filtre ne travaille que là */
 #forme-svg{z-index:5}
 #contenu{z-index:6;--fg:255 255 255;--amb:255 171 61;--jau:255 214 10}
@@ -174,7 +197,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
 /* le contenu arrive après la forme : fondu, flou, léger zoom */
 .e{opacity:0;filter:blur(7px);transform:translateY(var(--sy,0px)) scale(.965);
   transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
-.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+.e.on{opacity:1;filter:none;transform:none;pointer-events:auto;
   transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
 .t15{font-size:15px;line-height:19px;font-weight:600;letter-spacing:-.2px}
 .t125{font-size:12.5px;line-height:16px;font-weight:500;color:rgb(var(--fg) / var(--sec,.55));margin-top:3px}
@@ -404,7 +427,14 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
   <!-- la lentille du verre : déplacement des bords (carte calculée pour la forme), appliqué au fond déjà flouté -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="lentille" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" x="0" y="0" width="100" height="100" color-interpolation-filters="sRGB">
     <feImage id="carteLentille" x="0" y="0" width="100" height="100" preserveAspectRatio="none" result="carte"/>
-    <feDisplacementMap in="SourceGraphic" in2="carte" scale="0" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
+    <feDisplacementMap class="dep" in="SourceGraphic" in2="carte" scale="0" xChannelSelector="R" yChannelSelector="G" result="dr"/>
+    <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/>
+    <feDisplacementMap class="dep" in="SourceGraphic" in2="carte" scale="0" xChannelSelector="R" yChannelSelector="G" result="dg"/>
+    <feColorMatrix in="dg" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"/>
+    <feDisplacementMap class="dep" in="SourceGraphic" in2="carte" scale="0" xChannelSelector="R" yChannelSelector="G" result="db"/>
+    <feColorMatrix in="db" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"/>
+    <feBlend in="r" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="b" mode="screen"/></filter></svg>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" id="gouttes"></svg>
   <div id="verre" class="calque" aria-hidden="true"></div>
   <div id="givre" class="calque" aria-hidden="true"></div>
   <svg id="forme-svg" class="calque" aria-hidden="true">
@@ -419,6 +449,10 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
       <linearGradient id="vLisiereBas" x1="0" y1="0" x2="0" y2="1">
         <stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".22"/></linearGradient>
       <!-- l'épaisseur du verre : une lueur le long du bord, plus forte en haut à gauche -->
+      <linearGradient id="vLisiere2" x1="1" y1="1" x2=".55" y2=".2">
+        <stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+      <radialGradient id="vCentre" cx=".5" cy=".5" r=".62">
+        <stop offset="0" id="vCentre0" stop-color="#fff" stop-opacity=".2"/><stop offset=".7" id="vCentre1" stop-color="#fff" stop-opacity=".12"/><stop offset="1" id="vCentre2" stop-color="#fff" stop-opacity="0"/></radialGradient>
       <linearGradient id="vEpais" x1="0" y1="0" x2=".5" y2="1">
         <stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".5" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity=".55"/></linearGradient>
       <!-- le reflet spéculaire du haut (il glisse un peu quand on la tient ou la déplace) -->
@@ -431,6 +465,7 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
     <path id="forme" fill="#000" d=""/>
     <g id="vitre" opacity="0">
       <path id="vitreFond" fill="url(#vFond)"/>
+      <path id="vitreCentre" fill="url(#vCentre)" opacity="0"/>
       <g clip-path="url(#dansForme)" id="vitreEffets">
         <path id="vitreEpais" fill="none" stroke="url(#vEpais)" stroke-width="7" filter="url(#flouBord)"/>
         <path id="vitreReflet" fill="url(#vReflet)"/>
@@ -466,14 +501,14 @@ html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
         <label><input type="checkbox" id="autoCase" checked> Lecture automatique</label>
         <label><input type="checkbox" id="lentCase"> Ralenti ×4</label>
       </div>
-      <div class="r-verre"><span>Verre</span><div class="r-seg" id="verreChoix"><button data-v="actuel">Actuel</button><button data-v="marque">Marqué</button><button data-v="tres">Très marqué</button></div></div>
+      <div class="r-verre"><span>Verre</span><div class="r-seg" id="verreChoix"><button data-v="actuel">Actuel</button><button data-v="marque">Marqué</button><button data-v="tres">Très marqué</button><button data-v="liquide">Liquide</button></div></div>
     </div>
   </div>
   <ol class="r-pas" id="pas"></ol>
   <div class="notes">
     <div><b>À essayer ici.</b> Décochez Lecture automatique. Restez appuyé sur Lucarne, dans l’encoche ou ailleurs : l’anneau se remplit, elle se décolle. Glissez-la et lâchez près d’une place, ou lancez-la d’un coup sec. Remontez-la au milieu en haut pour la remettre dans l’encoche. Survolez-la : le Centre s’ouvre.</div>
     <div><b>La règle de l’appui long.</b> Appui long sur Lucarne = la déplacer, toujours, où qu’elle soit. Bouger avant que l’anneau soit plein ne fait rien. Le simple survol ouvre le Centre ; le minuteur se lance depuis le Centre. Aucun réglage, aucun raccourci.</div>
-    <div><b>Noir ou verre.</b> Dans l’encoche, toujours noire : elle se fond avec la caméra. Ailleurs, du verre clair avec le même contenu ; le sélecteur « Verre » compare trois niveaux, la lentille tord ce qui passe dessous. Huit places : l’encoche, les deux coins du haut, le milieu des deux côtés, en bas au milieu (au-dessus du Dock), et les deux coins du bas, à côté du Dock.</div>
+    <div><b>Noir ou verre.</b> Dans l’encoche, toujours noire : elle se fond avec la caméra. Ailleurs, du verre clair avec le même contenu ; le sélecteur « Verre » compare quatre niveaux. Liquide (par défaut) : presque transparent, une lentille épaisse tout autour qui tord ce qui passe dessous, des boutons en gouttes de verre, et un texte blanc ou noir selon ce qu’il y a derrière. Huit places : l’encoche, les deux coins du haut, le milieu des deux côtés, en bas au milieu (au-dessus du Dock), et les deux coins du bas, à côté du Dock.</div>
   </div>
 </section>
 
@@ -894,10 +929,12 @@ function placer(nom, x, y){ c[nom].style.left = f2(W / 2 + x) + 'px'; c[nom].sty
 const NIVEAUX = {
   actuel:{flou:20, sat:1.9, lum:1.05, lentille:0, bord:0, voile:[.9, .76, .82], voileTexte:[.9, .76, .82], givre:0, voileGivre:0, reflet:0, epais:0, lisiere:false, ombre:1},
   marque:{flou:3, sat:1.7, lum:1.05, lentille:56, bord:28, voile:[.2, .1, .16], voileTexte:[.5, .38, .44], givre:16, voileGivre:.6, reflet:.75, epais:.65, lisiere:true, ombre:1.25},
+  liquide:{flou:.8, sat:1.1, lum:1, lentille:140, bord:42, voile:[.07, .03, .06], voileTexte:[.07, .03, .06], givre:3.5, voileGivre:0, rentre:.4, reflet:1, epais:1.25, lisiere:true, ombre:1.35, liquide:true, aberration:.03},
   tres:  {flou:1.2, sat:2, lum:1.06, lentille:110, bord:40, voile:[.1, .03, .08], voileTexte:[.44, .3, .38], givre:14, voileGivre:.56, reflet:1, epais:.95, lisiere:true, ombre:1.4}
 };
-let niveau = ({actuel:'actuel', marque:'marque', tres:'tres'})[PARAMS.get('verre')] || 'marque', NV = NIVEAUX[niveau];
-const givre = $('#givre'), lentImg = $('#carteLentille'), lentDep = $('#lentille feDisplacementMap'), lentF = $('#lentille'),
+let niveau = ({actuel:'actuel', marque:'marque', tres:'tres', liquide:'liquide'})[PARAMS.get('verre')] || 'liquide', NV = NIVEAUX[niveau];
+const givre = $('#givre'), lentImg = $('#carteLentille'), lentDeps = [...document.querySelectorAll('#lentille .dep')], lentF = $('#lentille'),
+  vitreC = $('#vitreCentre'), vCentre = [$('#vCentre0'), $('#vCentre1'), $('#vCentre2')],
   vitreE = $('#vitreEffets'), vitreEp = $('#vitreEpais'), vitreR = $('#vitreReflet'), vitreBa = $('#vitreBas'), clipF = $('#clipForme'),
   reflet = $('#vReflet'), stopsFond = [...document.querySelectorAll('#vFond stop')];
 /* la carte de la lentille : pour chaque point de la forme (rectangle aux coins ronds), on va chercher le fond plus vers
@@ -945,45 +982,150 @@ function dessinerVerre(gc, d, tv, l){
   verre.style.clipPath = `path('${capsule(loc(gc))}')`;
   let filtre = `blur(${N.flou}px) saturate(${f2(lerp(N.sat, Math.min(N.sat, 1.5), texte))}) brightness(${N.lum})`;
   if (N.lentille){
-    const bande = Math.min(N.bord, petit * lerp(.5, .3, texte)), rr = Math.min(PORTEE * Math.max(gc.r, 0), petit / 2);
-    const echelle = Math.min(N.lentille, bande * 2.6) * (1 + .3 * l);
+    const bande = Math.min(N.bord, petit * (N.liquide ? .5 : lerp(.5, .3, texte))), rr = Math.min(PORTEE * Math.max(gc.r, 0), petit / 2);
+    const echelle = Math.min(N.lentille, bande * (N.liquide ? 3.2 : 2.6)) * (1 + (N.liquide ? .5 : .3) * l);
     const bouge = Math.abs(P.hw.v) + Math.abs(P.hh.v) > 40 && !instant;     // pendant qu'elle grandit : la dernière carte, étirée
     if (!bouge || !carteVue){ const u = carte(w, h, rr, bande); if (u !== carteVue){ lentImg.setAttribute('href', u); carteVue = u; } }
     for (const [k, v] of [['width', bw], ['height', bh]]) lentF.setAttribute(k, v);
     lentImg.setAttribute('x', f2(gc.x0 + W / 2 - bx)); lentImg.setAttribute('y', f2(gc.y0 - by));
     lentImg.setAttribute('width', f2(w)); lentImg.setAttribute('height', f2(h));
-    lentDep.setAttribute('scale', f2(echelle));
+    const ab = N.aberration || 0;                                   // rouge, vert, bleu un peu décalés : franges de 1 à 2 pt au bord
+    lentDeps.forEach((n, i) => n.setAttribute('scale', f2(echelle * (1 + ab * i))));
     filtre += ' url(#lentille)';
   }
   verre.style.backdropFilter = verre.style.webkitBackdropFilter = filtre;
   verre.style.opacity = f2(tv);
   // le givre : seulement sous le texte, au centre (les bords restent de la lentille)
   if (N.givre && texte > 0){
-    const e = Math.min(N.bord, petit * .3) * .8;
+    const e = N.liquide ? Math.min(N.bord, petit * .5) * N.rentre : Math.min(N.bord, petit * .3) * .8;
     givre.style.clipPath = `path('${capsule(loc(rentree(gc, e)))}')`;
-    givre.style.backdropFilter = givre.style.webkitBackdropFilter = `blur(${N.givre}px) saturate(1.6)`;
+    givre.style.backdropFilter = givre.style.webkitBackdropFilter = `blur(${N.givre}px) saturate(${N.liquide ? 1.15 : 1.6})`;   // Liquide : un flou sans voile, juste assez pour effacer les lettres derrière
     givre.style.background = `rgba(255,255,255,${f2(N.voileGivre)})`;
     givre.style.opacity = f2(tv * texte);
   } else givre.style.opacity = 0;
   // le voile, plus dense quand il y a du texte dessus
-  stopsFond.forEach((s, i) => s.setAttribute('stop-opacity', f2(lerp(N.voile[i], N.voileTexte[i], texte))));
+  const fond = N.liquide ? lumZone(gc.x0 + W / 2, gc.y0, w, h) : 1, sombre = fond < .5;     // le fond moyen sous la forme
+  const teintes = N.liquide && sombre ? ['#000', '#000', '#000'] : ['#fff', '#fbfbfd', '#f3f4f7'];
+  stopsFond.forEach((s, i) => { s.setAttribute('stop-color', teintes[i]); s.setAttribute('stop-opacity', f2(lerp(N.voile[i], N.voileTexte[i], texte) * (N.liquide && sombre ? 1.4 : 1))); });
+  // Liquide : un voile très léger au centre, sous le texte, clair ou sombre selon le fond (à peine)
+  if (N.liquide && texte > 0){
+    vitreC.setAttribute('d', d); vitreC.setAttribute('opacity', f2(texte));
+    vCentre.forEach((s, i) => { s.setAttribute('stop-color', sombre ? '#000' : '#fff'); s.setAttribute('stop-opacity', f2([sombre ? .22 : .2, sombre ? .14 : .12, 0][i])); });
+  } else vitreC.setAttribute('opacity', 0);
   vitreF.setAttribute('d', d); vitreT.setAttribute('d', d); vitreB.setAttribute('d', d); vitreBa.setAttribute('d', d);
   // lisière : claire en haut à gauche, sombre en bas (Actuel : un trait blanc régulier)
   vitreB.setAttribute('stroke', N.lisiere ? 'url(#vLisiere)' : 'rgba(255,255,255,.95)');
   vitreB.setAttribute('stroke-width', N.lisiere ? 1.3 : .9);
   vitreBa.setAttribute('opacity', N.lisiere ? 1 : 0);
+  // Liquide : biseau — trait vif en haut à gauche, second reflet doux en bas à droite (au lieu du bas sombre)
+  vitreBa.setAttribute('stroke', N.liquide ? 'url(#vLisiere2)' : 'url(#vLisiereBas)');
+  vitreBa.setAttribute('stroke-width', N.liquide ? 1.5 : 1.2);
+  if (N.liquide) vitreB.setAttribute('stroke-width', 1.7);
   // épaisseur et reflet spéculaire (ils glissent un peu avec le mouvement et quand on la tient)
   if (N.reflet){
     clipF.setAttribute('d', d); vitreEp.setAttribute('d', d); vitreR.setAttribute('d', d);
-    vitreEp.setAttribute('stroke-width', f2(clamp(petit * .22, 5, 12)));
+    vitreEp.setAttribute('stroke-width', f2(N.liquide ? clamp(petit * .3, 7, 18) : clamp(petit * .22, 5, 12)));
     vitreEp.setAttribute('opacity', f2(N.epais));
-    const dx = clamp(-elan / 2200, -.22, .22) - (cxs / W) * .2;
+    let dx = clamp(-elan / (N.liquide ? 1300 : 2200), -.3, .3) - (cxs / W) * .2;
+    // survol (Liquide) : le reflet se tourne vers le pointeur
+    if (N.liquide && survol.x > gc.x0 + W / 2 && survol.x < gc.x1 + W / 2 && survol.y > gc.y0 && survol.y < gc.y1) dx += ((survol.x - W / 2 - gc.x0) / w - .3) * .45;
+    contenu.style.setProperty('--rx', f2(clamp(30 + dx * 120, 5, 95)) + '%');
     reflet.setAttribute('cx', f2(.3 + dx)); reflet.setAttribute('fx', f2(.3 + dx));
     reflet.setAttribute('r', f2(.7 + .12 * l));
     vitreR.setAttribute('opacity', f2(N.reflet * (.8 + .2 * l) * lerp(1, .55, texte)));
     vitreE.setAttribute('opacity', 1);
   } else vitreE.setAttribute('opacity', 0);
   vitre.setAttribute('opacity', f2(tv));
+  vibrance(tv);
+}
+/* ---------- Liquide : la luminosité de la scène, pour choisir blanc ou noir sous chaque zone ---------- */
+let grille = null;
+const survol = {x:-1e4, y:-1e4};
+const lumRGB = (r, g, b) => (.299 * r + .587 * g + .114 * b) / 255;
+function rgba(s){ const m = s && s.match(/rgba?\(([^)]+)\)/); if (!m) return null; const v = m[1].split(/[ ,\/]+/).filter(Boolean).map(Number); return [v[0], v[1], v[2], v.length > 3 ? v[3] : 1]; }
+function hex(s){ const m = s && s.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i); if (!m) return rgba(s); let h = m[1]; if (h.length === 3) h = [...h].map(c => c + c).join(''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), 1]; }
+function degrade(id){
+  const g = document.getElementById(id); if (!g) return null;
+  const st = [...g.querySelectorAll('stop')]; if (!st.length) return null;
+  const v = st.map(s => { const c = hex(s.getAttribute('stop-color') || getComputedStyle(s).stopColor) || [255, 255, 255, 1]; return [...c.slice(0, 3), +(s.getAttribute('stop-opacity') ?? 1)]; });
+  return [0, 1, 2, 3].map(k => v.reduce((a, x) => a + x[k], 0) / v.length);
+}
+function opacite(el){ let o = 1; for (let n = el; n && n instanceof SVGElement; n = n.parentElement) o *= +getComputedStyle(n).opacity; return o; }
+function couleurDe(el){
+  if (el === ecran) return [lumRGB(219, 228, 238), 1];
+  if (el instanceof SVGElement){
+    if (!(el instanceof SVGGeometryElement || el.tagName === 'text')) return null;
+    const cs = getComputedStyle(el), f = cs.fill; if (!f || f === 'none') return null;
+    const u = f.match(/url\("?#([^")]+)"?\)/), c = u ? degrade(u[1]) : rgba(f); if (!c) return null;
+    return [lumRGB(c[0], c[1], c[2]), c[3] * +cs.fillOpacity * opacite(el)];
+  }
+  if (el.tagName === 'IMG') return [.5, 1];
+  const cs = getComputedStyle(el), bg = rgba(cs.backgroundColor);
+  if (bg && bg[3] > 0) return [lumRGB(bg[0], bg[1], bg[2]), bg[3] * +cs.opacity];
+  if (cs.backgroundImage.includes('gradient')){
+    const v = [...cs.backgroundImage.matchAll(/rgba?\([^)]+\)/g)].map(m => rgba(m[0])); if (!v.length) return null;
+    const a = v.reduce((s, x) => s + x[3], 0) / v.length, l = v.reduce((s, x) => s + lumRGB(x[0], x[1], x[2]) * x[3], 0) / Math.max(.001, a * v.length);
+    return [l, a * +cs.opacity];
+  }
+  return null;
+}
+function lumEn(liste){
+  let acc = 0, reste = 1;
+  for (const el of liste){ const c = couleurDe(el); if (!c || c[1] <= .02) continue; const a = Math.min(1, c[1]); acc += reste * a * c[0]; reste *= 1 - a; if (reste < .03) break; }
+  return acc + reste * .8;
+}
+function sonder(){
+  const r = ecran.getBoundingClientRect(), pas = 12, gw = Math.ceil(W / pas), gh = Math.ceil(H / pas), g = new Float32Array(gw * gh);
+  ecran.classList.add('sonde');
+  try { for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) g[j * gw + i] = lumEn(document.elementsFromPoint(r.left + i * pas + pas / 2, r.top + j * pas + pas / 2)); }
+  finally { ecran.classList.remove('sonde'); }
+  grille = {g, gw, gh, pas};
+}
+function lumZone(x, y, w, h){                      // x, y : coin haut gauche, en coordonnées de l'écran
+  if (!grille) sonder();
+  const {g, gw, gh, pas} = grille;
+  const i0 = clamp(Math.floor(x / pas), 0, gw - 1), i1 = clamp(Math.floor((x + w) / pas), 0, gw - 1);
+  const j0 = clamp(Math.floor(y / pas), 0, gh - 1), j1 = clamp(Math.floor((y + h) / pas), 0, gh - 1);
+  let s = 0, n = 0; for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++){ s += g[j * gw + i]; n++; }
+  return n ? s / n : .8;
+}
+const ZONES = '.cc-nom, .pil, .tg, .tl, .tr, .ban-ic, .ban-tx';
+let vibreT = 0, vibreOn = false;
+function vibrance(tv){
+  const actif = !!NV.liquide && mode === 'libre' && tv > .5;
+  contenu.classList.toggle('liq', actif);
+  if (!actif){
+    if (vibreOn){
+      vibreOn = false;
+      contenu.querySelectorAll(ZONES).forEach(z => { z.classList.remove('vclair', 'vsombre'); z.style.removeProperty('--fg'); });
+      contenu.querySelectorAll('.goutte').forEach(el => { el.style.backdropFilter = el.style.webkitBackdropFilter = ''; });
+    }
+    return;
+  }
+  if (!vibreOn){ vibreOn = true; gouttes(); }
+  const now = performance.now(); if (!instant && !FIGE && now - vibreT < 90) return; vibreT = now;
+  const er = ecran.getBoundingClientRect();
+  contenu.querySelectorAll(ZONES).forEach(z => {
+    const r = z.getBoundingClientRect(); if (!r.width) return;
+    const L = lumZone(r.left - er.left, r.top - er.top, r.width, r.height);
+    let clair = z.classList.contains('vclair') ? L < .58 : z.classList.contains('vsombre') ? L < .48 : L < .53;   // un peu d'hystérésis
+    z.classList.toggle('vclair', clair); z.classList.toggle('vsombre', !clair);
+    z.style.setProperty('--fg', clair ? '255 255 255' : '22 22 24');
+  });
+}
+/* les gouttes : chaque pastille a sa lentille, calculée à sa taille */
+function gouttes(){
+  const svg = $('#gouttes');
+  contenu.querySelectorAll('.tg .rd, .tl, .tr, .pil, .cap, .ban-ic').forEach(el => {
+    el.classList.add('goutte');
+    const w = el.offsetWidth, h = el.offsetHeight; if (!w || !h) return;
+    const rr = el.classList.contains('tl') ? 20 : Math.min(w, h) / 2, id = `goutte-${w}-${h}-${Math.round(rr)}`;
+    if (!document.getElementById(id)){
+      const p = Math.min(w, h);
+      svg.insertAdjacentHTML('beforeend', `<filter id="${id}" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" x="0" y="0" width="${w}" height="${h}" color-interpolation-filters="sRGB"><feImage x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none" href="${carte(w, h, rr, p * .38)}" result="c"/><feDisplacementMap in="SourceGraphic" in2="c" scale="${f2(p * .6)}" xChannelSelector="R" yChannelSelector="G"/></filter>`);
+    }
+    el.style.backdropFilter = el.style.webkitBackdropFilter = `blur(1.5px) url(#${id}) saturate(1.3) brightness(1.05)`;
+  });
 }
 function choisirVerre(n){
   niveau = n; NV = NIVEAUX[n];
@@ -1156,6 +1298,7 @@ const pointeur = $('#pointeur'), pad = $('#pad');
 $('#menus').innerHTML = POMME + '<b>Chrome</b>' + MENUS.Chrome.map(m => `<span>${m}</span>`).join('');
 const XR = dx => ecran.clientWidth / 2 + dx;
 function cur(x, y, o = {}){
+  survol.x = x; survol.y = y;
   const saute = instant || o.saute;
   pointeur.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
   pointeur.style.transform = `translate(${f2(x)}px,${f2(y)}px)`;
@@ -1385,6 +1528,8 @@ ecran.addEventListener('pointermove', e => {
     return;
   }
   if (tire) return;
+  survol.x = W / 2 + x; survol.y = y;
+  if (NV.liquide && mode === 'libre') demarrer();         // le reflet se tourne vers le pointeur
   const dedans = dansIlot(x, y);
   if (dedans){
     clearTimeout(tFerme); tFerme = 0;
@@ -1424,7 +1569,7 @@ contenu.addEventListener('click', e => {
   majCentre();
 });
 window.addEventListener('resize', () => {
-  geo();
+  geo(); grille = null;
   if (mode === 'libre' && !tire){
     const g = st.carte ? grand(st.pose, OW, OH, 30) : st.ban ? grand(st.pose, BAW, BAH, 22) : PLACES[st.pose].i();
     poserP(g);
@@ -1452,13 +1597,23 @@ $('#verreChoix').addEventListener('click', e => { const b = e.target.closest('[d
 choisirVerre(niveau);
 const e0 = clamp(+(PARAMS.get('etape') || 0), 0, N);
 /* ?tenue=x,y (avec fige) : Lucarne tenue au doigt au point x, y de l'écran (pour juger la lentille au-dessus du Dock ou de la vidéo) */
+function sceneURL(){
+  const pl = PARAMS.get('place'); if (!pl || !PLACES[pl]) return;
+  instant = true;
+  try {
+    if (mode === 'encoche'){ mode = 'libre'; poserP(PLACES.haut.i()); }
+    allerA(pl); cur(XR(-400), 300, {vu:false, saute:true});
+    if (PARAMS.get('ouvre') === 'centre') ouvrir(); else if (PARAMS.get('ouvre') === 'ban') banniere();
+  } finally { instant = false; }
+  rendu();
+}
 function tenueURL(){
   const v = (PARAMS.get('tenue') || '').split(',').map(Number); if (v.length !== 2 || v.some(isNaN)) return;
   instant = true;
   try { const [x, y] = centreLucarne(); decrocher(x - W / 2, y); suivre(v[0], v[1]); } finally { instant = false; }
   rendu();
 }
-if (FIGE){ autoCase.checked = false; poser(e0).then(tenueURL).catch(() => {}); }
+if (FIGE){ autoCase.checked = false; poser(e0).then(sceneURL).then(tenueURL).catch(() => {}); }
 else if (PARAMS.has('joue') && e0 >= 1){ autoCase.checked = false; poser(e0 - 1).then(() => setTimeout(() => jouer(e0).catch(() => {}), 400)); }
 else setTimeout(() => tourner(), 300);
 window.lucarne = {poser, jouer, st, P, V, L, ralenti};
