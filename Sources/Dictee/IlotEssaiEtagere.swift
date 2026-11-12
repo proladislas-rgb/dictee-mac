@@ -86,7 +86,7 @@ extension IlotEssai {
         // --- 6 · survol de l'îlot : le Centre avec les fichiers en haut ; un vrai clic sur un fichier l'ouvre
         c.ranger([photo, devis]); pause(0.4)
         c.panneau.simulerPointeur(forme: true); pause(0.9)
-        let hFichiers = barre + DispositionCentre.plan(etagere: true, ronds: !m.rondsCentre.isEmpty, cases: true, bande: false).profondeur
+        let hFichiers = barre + DispositionCentre.plan(etagere: true, ronds: !m.rondsCentre.isEmpty, cases: true, bande: false, nomsSurDeuxLignes: m.nomsSurDeuxLignes).profondeur
         verifier(m.courante == .centre && abs(m.geo[2].x - hFichiers) < 0.5, "survol : le Centre, les 3 fichiers en haut (\(Int(m.geo[2].x)) pt de haut)")
         verifier(m.geo[2].x + 15 <= Double(IlotMoteur.hauteurMax) && m.trace.bande <= hc + GeoIlot.aileMax + 0.01, "… dans la zone de dessin (ombre comprise) et ≤ 66 pt dans la barre")
         guard let r = PlanCentre.cadre(.etagere, m) else { verifier(false, "la rangée de l'étagère existe"); return }

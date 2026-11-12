@@ -156,6 +156,8 @@ final class IlotControleur {
     /// Second Brain (IlotSecondBrain.swift) : le dossier de son fichier d'état, la lecture du fichier, le test d'existence d'un chemin et la
     /// recherche de l'app, tous injectables (l'essai ne lit jamais le vrai ~/.config et n'ouvre rien).
     let secondBrainSource = SourceSecondBrain()
+    /// Les modes de Concentration (IlotConcentration.swift) : son système (Raccourcis) et son fichier sont injectables.
+    lazy var concentration = PiloteConcentration(moteur: moteur)
     var dossierSecondBrain: () -> URL = { FichierSecondCerveau.dossierParDefaut() }
     var lireSecondBrain: (URL) -> Data? = { FichierSecondCerveau.lire($0) }
     var existenceSecondBrain: (String) -> SecondCerveauIlot.Existence = { chemin in
@@ -328,6 +330,7 @@ final class IlotControleur {
         // le réveil gardé (Verbe relancé, Mac redémarré) : il reprend, ou sonne s'il est passé pendant que Verbe était fermé
         demarrerLeReveil()
         demarrerGroq()
+        concentration.demarrer()
     }
 
     /// Ce que le Centre montre, relu des réglages ; un Centre rangé avant l'arrivée du calendrier le reçoit une fois, à sa place.
@@ -344,6 +347,7 @@ final class IlotControleur {
 
     func arreter() {
         secondBrainSource.arreter()
+        concentration.arreter()
         lecture.arreter()
         notificationsSource.arreter()
         energieSource.arreter(); appareilsSource.arreter()
@@ -715,6 +719,7 @@ final class IlotControleur {
         case .secondBrainOuvrir(let lien): agirSecondBrain(lien)
         case .reveilRegler, .reveilAnnuler, .reveilEncore, .reveilOK: agirReveil(action)
         case .groqDetail: detailGroq()
+        case .concentration(let a): concentration.agir(a)
         case .alerteOK: moteur.quitterAlerte()
         case .rappelPlusTard(let id):
             rappels.reporter(id, depuis: maintenant()); sauver()

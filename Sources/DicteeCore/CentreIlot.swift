@@ -22,7 +22,7 @@ public enum CartesIlot {
     /// des Outils allumé, et un défilement y ramène.
     /// La carte Second Brain est rangée sous le Centre (son bouton y est) : même chose, le point du Centre reste allumé.
     public static func parent(_ v: VueIlot) -> VueIlot? {
-        if v == .secondBrain { return .centre }
+        if v == .secondBrain || v == .concentration { return .centre }
         return [.outilPressePapiers, .outilReformuler, .outilNote].contains(v) ? .outils : nil
     }
 

@@ -192,6 +192,8 @@ enum ActionIlot {
     /// La réunion (IlotReunion.swift) : « Noter » ou « Non » sur « Noter cet appel ? », pause, reprise, arrêt, « Ajouter un point »,
     /// « Ce que j'ai raté » (et le retour au direct), « Ouvrir » sur « Note prête ».
     case reunionNoter, reunionRefuser, reunionPause, reunionReprendre, reunionArreter, reunionPoint, reunionRattrapage, reunionDirect, reunionOuvrirNote
+    /// Les modes de Concentration (IlotConcentration.swift).
+    case concentration(ActionConcentration)
 }
 
 /// La case Minuteur du Centre a deux onglets (maquette ilot-bibliotheque.html, étape 7) : le minuteur (5 · 10 · 25 min) et le réveil
@@ -284,7 +286,9 @@ enum CourbesIlot {
 final class IlotMoteur: ObservableObject {
     /// Zone de dessin : l'origine des coordonnées de la maquette (centre de l'encoche) est au milieu, en haut.
     static let largeur: CGFloat = 800
-    static let hauteurMax: CGFloat = 380
+    /// 384 : le Centre le plus chargé (les fichiers de l'étagère en haut, six ronds dont les noms passent sur deux lignes : 336 pt sous
+    /// une barre de 32) et son ombre (15 pt) y tiennent.
+    static let hauteurMax: CGFloat = 384
 
     @Published private(set) var rev = 0
     var geometrie = GeometrieEncoche()
@@ -395,6 +399,8 @@ final class IlotMoteur: ObservableObject {
     /// Second Brain (IlotSecondBrain.swift) : ce que son fichier d'état dit en ce moment ; nil = pas de fichier (ou illisible) = pas de case.
     /// Une donnée qui change la hauteur de sa carte passe par `donneesChangees()` (le contrôleur l'appelle).
     var secondBrain: SecondCerveauIlot?
+    /// La Concentration (IlotConcentration.swift) : le mode allumé, le dernier, le mode choisi dans la carte ; poussée par son pilote.
+    var concentration = AffichageConcentration() { didSet { if concentration != oldValue { rev += 1 } } }
     /// La bulle « Nouveau : survole l'îlot » (une seule fois, au premier lancement) et l'aide « Fais défiler ou clique ici » sous le
     /// bouton Centre de la lecture (jusqu'au premier passage de la lecture au Centre). Le contrôleur les garde en mémoire.
     private(set) var bulleNouveau = false
@@ -583,6 +589,7 @@ final class IlotMoteur: ObservableObject {
         e.bandeau = bandeau?.vue
         e.reunion = reunion != nil
         e.annonceReunion = annonceReunion?.vue
+        e.concentration = concentration.actif != nil
         return e
     }
 
@@ -1503,6 +1510,8 @@ final class IlotMoteur: ObservableObject {
         // le réveil et « 9:00 » : 10 + glyphe + 6 + texte + 10
         case .reveil: return 26 + MesureIlot.symbole("alarm", 12) + MesureIlot.texte((reveil ?? dernierReveil)?.libelle() ?? "10:30", 12.5, .semibold, chiffres: true)
         case .alerte: return 30
+        // l'icône du mode : 10 + 13 + 10
+        case .concentration: return 33
         // le point rouge et le temps : 10 + 7 + 6 + texte + 10
         case .reunion: return 33 + MesureIlot.texte(FormatIlot.chrono((reunion ?? derniereReunion).temps(a: maintenant())).replacingOccurrences(of: "[0-9]", with: "0", options: .regularExpression), 12.5, .semibold, chiffres: true)
         }

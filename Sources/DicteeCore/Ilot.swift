@@ -74,13 +74,17 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// Les annonces de la réunion, qui attendent un geste ou la fin de ce qu'elles disent (jamais de survol) : « Noter cet appel ? »,
     /// « Note en préparation… », « Note prête · Ouvrir », un message court (« Micro non autorisé »).
     case reunionPropose, reunionPrepare, reunionPrete, reunionMessage
+    /// Les modes de Concentration (maquette ilot-concentration.html, ConcentrationIlot.swift) : replié, l'icône du mode dans l'aile gauche ;
+    /// au survol, où en est le mode (« Arrêter », « +30 min ») ; la carte des modes, rangée sous le Centre ; les bannières « Travail ·
+    /// jusqu'à 15:30 » (une ligne) et « Fin de Travail ».
+    case concentrationCompact, concentrationStatut, concentration, concentrationLance, concentrationFin
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
         switch self {
         case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
              .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .microFn, .volume, .luminosite, .claudeAttend, .claudeTermine,
-             .etagereEnvoi, .etagerePartis, .lucarne, .etagereCapture, .reveilRegle, .groq, .dicteeMac: return true
+             .etagereEnvoi, .etagerePartis, .lucarne, .etagereCapture, .reveilRegle, .groq, .dicteeMac, .concentrationLance, .concentrationFin: return true
         default: return false
         }
     }
@@ -114,7 +118,7 @@ public enum GeoIlot {
     public static let ligneVignette: Double = 6 + 40
     /// Les écrans dont le cou droit n'est pas celui de gauche : la pile de l'étagère n'a qu'une aile, à gauche ; à droite, la caméra seule
     /// (les icônes de la barre des menus à droite de l'encoche restent dégagées). Valeur au-delà de la demi-caméra.
-    public static let couDroit: [VueIlot: Double] = [.etagerePile: 0]
+    public static let couDroit: [VueIlot: Double] = [.etagerePile: 0, .concentrationCompact: 0]
     /// La lecture dépliée jusqu'à ses commandes (pochette, titre, barre, boutons) : la rangée Minuteur (appui long) se pose dessous.
     public static let profondeurLecture: Double = 175
     /// Le pied de la lecture dépliée : le bouton « Centre » (30 pt) et sa marge (maquette : 12 pt dessus, 14 dessous ; ici 6 + 30 + 4,
@@ -212,6 +216,13 @@ public enum GeoIlot {
         .reunionEtendu: [14, 144, profondeurReunion, 6, 34, 18, 10],
         // les annonces : des bandeaux qui épousent leur contenu
         .reunionPropose: bandeau, .reunionPrepare: bandeauPreparation, .reunionPrete: bandeau, .reunionMessage: bandeau,
+        // la Concentration repliée : l'icône du mode (18 pt) dans l'aile gauche (cou de 40 pt), rien à droite (`couDroit`) ; ses cartes ont la
+        // largeur du Centre ; ses bannières épousent leur contenu, l'icône du mode restant dans l'aile pendant « Travail · jusqu'à 15:30 »
+        .concentrationCompact: compact(MesuresConcentration.cou),
+        .concentrationStatut: [14, 144, MesuresConcentration.profondeurStatut, 6, 34, 18, 10],
+        .concentration: [14, 144, MesuresConcentration.profondeurCarte, 6, 34, 18, 10],
+        .concentrationLance: [MesuresConcentration.cou, 150, MesuresConcentration.banniere, 6, 28, 16, 10],
+        .concentrationFin: [MesuresConcentration.cou, 150, MesuresConcentration.banniereFin, 6, 28, 16, 10],
     ]
     /// Indices des valeurs : largeurs (cou, corps, cou droit) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur
     /// mène ; à la fermeture la hauteur se replie d'abord.
@@ -234,7 +245,7 @@ public enum GeoIlot {
     public static let epaules: Double = 56
     public static func aEpaules(_ v: VueIlot) -> Bool {
         [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .dictees, .claudeCarte,
-         .outils, .outilPressePapiers, .outilReformuler, .outilNote, .secondBrain, .bibliotheque, .reunionEtendu].contains(v)
+         .outils, .outilPressePapiers, .outilReformuler, .outilNote, .secondBrain, .bibliotheque, .reunionEtendu, .concentrationStatut, .concentration].contains(v)
     }
 
     /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.
@@ -303,6 +314,8 @@ public enum ActiviteIlot: String, Sendable, Equatable {
     case reveil
     /// Une réunion s'enregistre (ou est en pause) : elle passe avant tout le reste, le reste va dans la bulle.
     case reunion
+    /// Un mode de Concentration allumé par Verbe (l'icône du mode dans l'aile).
+    case concentration
 }
 
 /// Ce qui est vrai à l'instant, pour décider qui a l'îlot et qui a la pastille.
@@ -321,6 +334,7 @@ public struct EtatIlot: Equatable, Sendable {
     public var bandeau: VueIlot?           // un bandeau passager
     public var reunion = false             // une réunion s'enregistre (ou est en pause)
     public var annonceReunion: VueIlot?    // « Noter cet appel ? », « Note en préparation… », « Note prête », un message
+    public var concentration = false       // un mode de Concentration allumé par Verbe
     public init() {}
 }
 
@@ -355,6 +369,9 @@ public enum ArbitrageIlot {
         if e.minuteur { p.append(.minuteur) }
         if e.claude, !e.claudeAttend { p.append(.claude) }
         // le réveil attend des heures (toute la nuit) : il passe après tout le reste, et cède l'îlot à la moindre activité
+        // la Concentration dure des heures, comme le réveil : un fond qui cède l'îlot à toute autre activité (avant le réveil : elle est là
+        // maintenant, le réveil attend demain)
+        if e.concentration { p.append(.concentration) }
         if e.reveil { p.append(.reveil) }
         if let echange, p.contains(echange) { p = [echange] + p.filter { $0 != echange } }
         return p
@@ -371,6 +388,8 @@ public enum ArbitrageIlot {
         // au survol, le Centre : sa case Minuteur montre le réveil (onglet Réveil), on le change ou l'annule d'un clic
         case .reveil: return (.reveilCompact, .centre)
         case .reunion: return (.reunionCompact, .reunionEtendu)
+        // au survol : où en est le mode (« Arrêter », « +30 min »)
+        case .concentration: return (.concentrationCompact, .concentrationStatut)
         case .alerte: return (.repos, .repos)
         }
     }
