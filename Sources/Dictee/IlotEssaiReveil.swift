@@ -246,7 +246,7 @@ extension IlotEssai {
             c.reglagesCentre.disposition = { rangee }; c.reglagesCentre.enregistrerDisposition = { rangee = $0 }
             c.reglagesCentre.nouveautes = { donnees }; c.reglagesCentre.marquerNouveautes = { donnees = $0 }
             let d1 = c.dispositionAvecNouveautes()
-            verifier(d1 == DispositionCentre() && donnees == ["calendrier"] && rangee == nil,
+            verifier(d1 == DispositionCentre() && donnees == ["calendrier", "concentration"] && rangee == nil,
                      "lancement, Centre jamais rangé : le calendrier y est, retenu comme donné (\(donnees))")
             rangee = d1.identifiants.filter { $0 != "calendrier" }   // « Modifier » : Calendrier retiré, « OK »
             let d2 = c.dispositionAvecNouveautes()

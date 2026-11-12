@@ -142,6 +142,7 @@ enum PlanCentre {
     /// ments » ; nil s'il ne se coupe pas.
     static func deuxLignes(_ s: String) -> String? {
         if s == "Téléchargements" { return "Télécharge-\nments" }
+        if s == "Concentration" { return "Concentra-\ntion" }
         let espaces = s.indices.filter { s[$0] == " " }
         guard let milieu = espaces.min(by: { abs(s.distance(from: s.startIndex, to: $0) - s.count / 2) < abs(s.distance(from: s.startIndex, to: $1) - s.count / 2) }) else { return nil }
         var r = s; r.replaceSubrange(milieu...milieu, with: "\n"); return r
@@ -220,6 +221,7 @@ extension ElementCentre {
         case .noteRapide: return "Dicter une note"
         case .secondBrain: return SecondCerveauIlot.nomApp
         case .groq: return "Groq"
+        case .concentration: return "Concentration"
         }
     }
 }
@@ -291,6 +293,7 @@ extension IlotMoteur {
         case .notes: return notes.isEmpty ? "Aucune" : (notes.count == 1 ? "1 note" : "\(notes.count) notes")
         case .secondBrain: return secondBrain?.etat ?? ""
         case .groq: return groq.map { TexteGroq.court($0, a: maintenant()) } ?? "\u{2014}"
+        case .concentration: return concentration.occupe ? "Un instant\u{2026}" : concentration.rond.etat
         case .reunion, .minuteur, .etagere, .noteRapide: return ""
         }
     }
@@ -304,6 +307,7 @@ extension IlotMoteur {
         case .claudeCarte: return "Claude"
         case .outils: return "Outils"
         case .reunionEtendu: return "Réunion"
+        case .concentrationStatut: return "Concentration"
         case .agendaEtendu: return "Rendez-vous"
         case .rappelEtendu, .rappelListe: return "Rappel"
         default: return nil
@@ -554,6 +558,8 @@ struct CentreVue: View {
                        etiquette: u.map { TexteGroq.ligne($0, a: m.maintenant()) + ". Voir le détail" } ?? "Groq : voir le détail") {
                 JaugeGroq(utilise: u?.utilise ?? 0, couleur: JaugeGroq.couleur(niveau))
             } action: { agir(.groqDetail) }
+        case .concentration:
+            TuileConcentration(m: m, nom: e.nom, nomAffiche: nomAffiche, etat: etat, colonne: l, tailles: t, edition: ed, rang: rang, retirer: retirer)
         case .reunion, .minuteur, .etagere, .noteRapide:
             EmptyView()
         }
@@ -596,6 +602,8 @@ struct TuileRonde<Glyphe: View>: View {
     var fond: Color?
     var pointille = false
     var anneau = false
+    /// La couleur de l'anneau (bleu : macOS pose sa question ; la couleur du dernier mode de Concentration, qu'un clic relance).
+    var couleurAnneau = CouleursIlot.bleu
     /// Ce qui fait « rebondir » le rond (par défaut : son état). « Encore 52 min » change chaque minute : le rond ne rebondit qu'à
     /// l'allumage et à l'arrêt.
     var declencheur: String? = nil
@@ -638,7 +646,7 @@ struct TuileRonde<Glyphe: View>: View {
                 } else {
                     Circle().fill(fond ?? Color.white.opacity(0.14)).brightness(survol && !edition ? 0.08 : 0)
                 }
-                if anneau { Circle().strokeBorder(CouleursIlot.bleu, lineWidth: 2) }
+                if anneau { Circle().strokeBorder(couleurAnneau, lineWidth: 2) }
                 glyphe()
             }
             .frame(width: PlanCentre.rond, height: PlanCentre.rond)

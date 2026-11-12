@@ -99,6 +99,10 @@ enum IlotEssai {
             c.reglagesCentre.reglerCaptures = { EssaiEtagere.captures = $0 }
             // l'app Rappels : jamais EventKit ni une vraie fenêtre d'autorisation ; les réglages des rappels et de la question, simulés
             c.rappelsApple = RappelsAppleFactice()
+            // la Concentration : jamais la vraie app Raccourcis (rien de créé, signé, ouvert ni lancé), jamais le vrai fichier
+            c.concentration.systeme = RaccourcisFactices().systeme
+            c.concentration.store = ConcentrationStore(url: dossier.appendingPathComponent("concentration.json"))
+            c.concentration.dossierTemporaire = dossier
             IlotEssai.reglagesLucarneDEssai(c)
             c.vignetteSysteme = ReglageVignette(lire: { EssaiEtagere.vignette }, ecrire: { EssaiEtagere.vignette = $0 },
                                                 memoire: { EssaiEtagere.vignetteAvant }, retenir: { EssaiEtagere.vignetteAvant = $0 })
@@ -116,11 +120,13 @@ enum IlotEssai {
         // une section seule (pour la mettre au point sans attendre tout l'essai) : `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`), ou
         // `--ilot-essai --seulement=survol` (le survol des Dictées, pour mesurer vite ; l'essai complet la joue aussi)
         let seul = CommandLine.arguments.contains("--seulement=survol") ? "survol" : ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"]
-        if let seul, ["bibliotheque", "reveil", "survol"].contains(seul) {
+        if let seul, ["bibliotheque", "reveil", "survol", "concentration"].contains(seul) {
             attendre(0.4)
             if seul == "bibliotheque" {
                 IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
                                        fenetres: { fenetres }, relancer: { fabriquer() })
+            } else if seul == "concentration" {
+                IlotEssai.concentration(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
             } else if seul == "reveil" {
                 IlotEssai.reveilEtCalendrier(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
             } else {
@@ -1128,8 +1134,9 @@ enum IlotEssai {
             occ.dictee = false; c.occupationChangee(); attendre(0.9)
             // le Centre et les fichiers tout en haut (maquette ilot-etagere-rapide.html, étape 6)
             m.clicForme(); attendre(0.9)
-            let hCentre = barre + GeoIlot.profondeur(.centre)
-            let hCentreFichiers = barre + DispositionCentre.plan(etagere: true, ronds: true, cases: true, bande: false).profondeur
+            // un nom sur deux lignes (cinq ronds depuis la Concentration : « Télécharge- / ments ») allonge la rangée d'une ligne
+            let hCentre = barre + DispositionCentre.plan(ronds: true, cases: true, bande: true, nomsSurDeuxLignes: m.nomsSurDeuxLignes).profondeur
+            let hCentreFichiers = barre + DispositionCentre.plan(etagere: true, ronds: true, cases: true, bande: false, nomsSurDeuxLignes: m.nomsSurDeuxLignes).profondeur
             verifier(m.courante == .centre && abs(m.geo[2].x - hCentreFichiers) < 0.5 && m.etagere.count == 3 && PlanCentre.cadre(.etagere, m) != nil,
                      "Centre : les 3 fichiers tout en haut (\(Int(m.geo[2].x)) pt de haut)")
             // un fichier supprimé, un autre déplacé et renommé, pendant que l'accueil est ouvert
@@ -1189,6 +1196,7 @@ enum IlotEssai {
                                fenetres: { fenetres }, relancer: { fabriquer() })
         IlotEssai.reveilEtCalendrier(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
         IlotEssai.reunion(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.concentration(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
         IlotEssai.noteApresAppel(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.sonDeReunionGarde(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.voixSeparees(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })

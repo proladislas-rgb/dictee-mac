@@ -161,6 +161,7 @@ struct IlotCalques: View {
         case .reunionCompact: ReunionAiles(m: m, g: g)
         case .reunionEtendu: CarteReunion(m: m, g: g)
         case .reunionPropose, .reunionPrepare, .reunionPrete, .reunionMessage: if let c = m.contenuAnnonce(v) { annonce(v, c) }
+        case .concentrationCompact, .concentrationStatut, .concentration, .concentrationLance, .concentrationFin: EcranConcentration(m: m, g: g, v: v)
         }
     }
 
@@ -883,6 +884,8 @@ struct PastilleVue: View {
             .accessibilityLabel("Réveil, \((m.reveil ?? m.dernierReveil)?.libelle() ?? "")")
         case .reunion:
             PastilleReunion(m: m)
+        case .concentration:
+            PastilleConcentration(m: m)
         case .alerte:
             EmptyView()
         }

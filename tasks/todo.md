@@ -490,3 +490,16 @@ télécharger directement les bouts où les gens parlent, comme WhatsApp, à cô
 
 ## Plus tard (idée de Hugues, 12/11 15 h) — après tout le reste
 - Synchroniser avec l iPhone : notifications sur le téléphone (« dans 5 minutes, tu as un rappel »…). Second chantier, à ouvrir seulement quand tout ce qui est décidé est fini et la vidéo faite.
+
+## Concentration dans l'îlot (12/11) — branche concentration-ilot (worktree ~/dictee-mac-concentration)
+Demande de Hugues : choisir depuis l'îlot un mode de Concentration (Ne pas déranger, Travail, Personnel, Sommeil, Réduire les
+interruptions) et une durée (1 h, jusqu'à ce soir, jusqu'à l'arrêt), voir le mode actif dans l'îlot, l'arrêter d'un clic.
+Maquette validée : design/maquettes/ilot-concentration.html (étapes 1 à 7 ; l'étape 8, Lucarne en verre dans un coin, attend la
+mission 3 de la Lucarne déplaçable, pas sur main).
+- [x] Recherche : allumer (Raccourcis : action « Définir la concentration », `shortcuts run`), lire (INFocusStatusCenter, fichiers de
+      ~/Library/DoNotDisturb, service privé, raccourci « Concentration actuelle ») ; preuves sans rien changer au système
+- [x] DicteeCore/ConcentrationIlot.swift : modes, durées, état, textes, raccourci (plist), commandes, lecture de `shortcuts list` ; contrôles
+- [x] Dictee/ConcentrationSysteme.swift : la couche système injectable (lister, signer, ouvrir, lancer) + le faux des essais
+- [x] Dictee/IlotConcentration.swift : contrôleur (raccourci guidé au premier clic, fin de durée = un seul réveil), rond du Centre,
+      carte des modes, carte « où en est le mode », aile, bannières ; accroches d'une ligne ailleurs
+- [ ] Essai `--ilot-essai` section Concentration (vrais NSEvent, fausse couche) ; rendus ilot-33* ; relecture opus ; commits, push

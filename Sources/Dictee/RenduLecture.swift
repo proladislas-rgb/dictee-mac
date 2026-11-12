@@ -798,6 +798,38 @@ enum RenduLecture {
             ecrire(bureau(hauteur: barre + CGFloat(GeoIlot.profondeurReunion) + 30, geo: gg) { ilot(scene(geo: gg, carte(reunion(3725)))) }, "ilot-32q-reunion-carte-camera-\(Int(cam))-plus-d-une-heure")
             ecrire(bureau(hauteur: barre + 70, geo: gg) { ilot(scene(geo: gg) { m in m.reunionChangee(reunion(3725), annonce: nil) }) }, "ilot-32r-reunion-compact-camera-\(Int(cam))-plus-d-une-heure")
         }
+        // 33 · les modes de Concentration (maquette ilot-concentration.html, étapes 1 à 7) : le rond du Centre, la carte des modes, Travail
+        // choisi (le raccourci à ajouter), la bannière d'une ligne, l'icône dans l'aile, la carte du mode au survol, la fin, la relance, la bulle
+        let travail = EtatConcentration(mode: .travail, duree: .uneHeure, debut: t0)
+        let travailEnCours = EtatConcentration(mode: .travail, duree: .uneHeure, debut: t0.addingTimeInterval(-18 * 60))
+        let hStatut = geometrie.hauteur + CGFloat(MesuresConcentration.profondeurStatut + GeoIlot.piedLecture) + 30
+        func centreConc(_ a: AffichageConcentration, carte: Bool = false) -> (IlotMoteur) -> Void {
+            centreVide { m in m.disposition = DispositionCentre(); m.concentration = a; if carte { m.ouvrirOutil(.concentration) } }
+        }
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(centreConc(AffichageConcentration()))) }, "ilot-33a-concentration-1-rond-desactivee")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(centreConc(AffichageConcentration(), carte: true))) }, "ilot-33b-concentration-2-la-carte")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(centreConc(AffichageConcentration(choisi: .travail, raccourciManquant: true), carte: true))) },
+               "ilot-33c-concentration-3-travail-raccourci-a-ajouter")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(centreConc(AffichageConcentration(choisi: .travail), carte: true))) },
+               "ilot-33d-concentration-3-travail-combien-de-temps-sombre")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { m in m.concentration = AffichageConcentration(actif: travail)
+            m.bandeau = BandeauIlot(vue: .concentrationLance, jusqua: t0, ligne1: BanniereConcentration.lance(travail), ligne2: "") }) }, "ilot-33e-concentration-3-banniere-une-ligne")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { m in m.concentration = AffichageConcentration(actif: travail) }) }, "ilot-33f-concentration-4-icone-dans-l-aile")
+        ecrire(bureau(hauteur: hStatut) { ilot(scene { m in m.concentration = AffichageConcentration(actif: travailEnCours); m.donneesChangees(); m.survole = true }) },
+               "ilot-33g-concentration-5-ou-en-est-le-mode")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in m.concentration = AffichageConcentration(dernier: .init(mode: .travail, duree: .uneHeure), finDe: .travail)
+            m.bandeau = BandeauIlot(vue: .concentrationFin, jusqua: t0, ligne1: BanniereConcentration.fin(.travail), ligne2: BanniereConcentration.finSous) }) }, "ilot-33h-concentration-6-fin-de-travail")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(centreConc(AffichageConcentration(dernier: .init(mode: .travail, duree: .uneHeure))))) }, "ilot-33i-concentration-7-relancer-travail-1-h")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(centreConc(AffichageConcentration(actif: travail)))) }, "ilot-33j-concentration-rond-travail-allume")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(centreConc(AffichageConcentration(actif: EtatConcentration(mode: .reduire, duree: .jusquALArret, debut: t0)), carte: true))) },
+               "ilot-33k-concentration-carte-reduire-allume-sombre")
+        ecrire(bureau(hauteur: hStatut) { ilot(scene { m in m.concentration = AffichageConcentration(actif: EtatConcentration(mode: .sommeil, duree: .jusquALArret, debut: t0))
+            m.donneesChangees(); m.survole = true }) }, "ilot-33l-concentration-sommeil-jusqu-a-l-arret")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene(lecture: videoLongue) { m in m.lecturePresente = true; m.concentration = AffichageConcentration(actif: travail) }) },
+               "ilot-33m-concentration-dans-la-bulle-pendant-video")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in m.concentration = AffichageConcentration(dernier: .init(mode: .travail, duree: .uneHeure))
+            m.bandeau = BandeauIlot(vue: .concentrationFin, jusqua: t0, ligne1: "Raccourcis n\u{2019}a pas allumé Travail", ligne2: "Réessaie dans un instant") }) },
+               "ilot-33n-concentration-echec")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)
