@@ -162,7 +162,14 @@ enum IlotEssai {
         attendre(0.8)
         let grandeFenetre = c.panneau.cadre
         verifier((grandeFenetre?.height ?? 0) > Double(g.hauteur) + 120, "la fenêtre grandit avec l'îlot (\(Int(grandeFenetre?.width ?? 0)) × \(Int(grandeFenetre?.height ?? 0)))")
-        verifier(!m.boucleActive, "îlot déplié et posé : plus de boucle (les ressorts sont arrivés ; bouge encore : \(m.ceQuiBouge))")
+        // la hauteur (0,48 s, amortissement 0,75 : un petit rebond) n'est posée, à 0,01 pt et 0,05 pt/s près, qu'au bout de 1,05 s
+        // d'animation ; la boucle démarre APRÈS que SwiftUI a construit la carte dépliée (19 ms Mac au calme, 34 à 44 ms Mac occupé,
+        // mesuré le 12/11). Ce contrôle tombait ≈ 1,08 s après le dépliage : 10 ms de marge, il échouait dès que le Mac était occupé
+        // (déjà le 12/11 à 3 h 34, avant les fusions). On attend la fin de la boucle, 0,25 s au plus : une boucle qui ne s'arrête
+        // pas, ou un dépliage qui tarde vraiment, échoue toujours.
+        let attente0 = Date()
+        attendre(0.25) { m.boucleActive }
+        verifier(!m.boucleActive, "îlot déplié et posé : plus de boucle (les ressorts sont arrivés \(Int(Date().timeIntervalSince(attente0) * 1000)) ms plus tard ; bouge encore : \(m.ceQuiBouge))")
         c.panneau.simulerPointeur(forme: false); attendre(0.25)
         verifier(m.courante == .lectureEtendu, "souris sortie depuis 0,25 s : encore ouvert (délai de 0,32 s)")
         c.panneau.simulerPointeur(forme: true); attendre(0.6)
