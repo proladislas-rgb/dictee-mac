@@ -487,3 +487,6 @@ télécharger directement les bouts où les gens parlent, comme WhatsApp, à cô
 - [ ] À montrer à Hugues : lâchée au milieu de l'écran (jusqu'à ~450 pt sous l'encoche), la Lucarne retourne dans l'encoche (place la plus proche).
 
 - [x] (12/11 11 h 45) Nom VOXILE confirmé par Hugues. À faire : renommage (app, textes, manuel, README, dépôt) en gardant l identifiant com.hugues.dictee (autorisations macOS).
+
+## Plus tard (idée de Hugues, 12/11 15 h) — après tout le reste
+- Synchroniser avec l iPhone : notifications sur le téléphone (« dans 5 minutes, tu as un rappel »…). Second chantier, à ouvrir seulement quand tout ce qui est décidé est fini et la vidéo faite.
