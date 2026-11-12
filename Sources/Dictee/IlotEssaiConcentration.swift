@@ -182,10 +182,15 @@ extension IlotEssai {
         refermer()
         attendre(4) { m.bandeau != nil }
         decaler(2 * 3600)
+        let offAvant = fx.lances.filter { $0.entree.hasPrefix("off:") }.count
+        // le réveil du Mac et l'échéance tombent ensemble : une seule extinction
+        NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didWakeNotification, object: NSWorkspace.shared)
         NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didWakeNotification, object: NSWorkspace.shared)
         attendre(3) { m.concentration.actif != nil }
         attendre(1) { m.bandeau?.vue != .concentrationFin }
+        pause(0.5)
         verifier(fx.lances.last?.entree == "off:com.apple.focus.work" && m.concentration.actif == nil, "le Mac se réveille après l'heure : Travail s'éteint (« off »)")
+        verifier(fx.lances.filter { $0.entree.hasPrefix("off:") }.count == offAvant + 1, "deux réveils d'affilée : une seule extinction, une seule bannière")
         verifier(m.bandeau?.vue == .concentrationFin && m.bandeau?.ligne1 == "Fin de Travail" && m.bandeau?.ligne2 == BanniereConcentration.finSous,
                  "« Fin de Travail » (étape 6), sans nombre de notifications inventé")
         // la bannière part à SON heure (décalée) : on l'attend avant de remettre l'horloge

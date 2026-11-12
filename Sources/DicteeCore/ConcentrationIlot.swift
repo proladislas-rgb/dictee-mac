@@ -183,9 +183,24 @@ public struct MemoireConcentration: Codable, Equatable, Sendable {
     public init(actif: EtatConcentration? = nil, dernier: DernierConcentration? = nil, raccourci: String? = nil) {
         self.actif = actif; self.dernier = dernier; self.raccourci = raccourci
     }
+    /// Chaque partie se relit seule : une partie illisible (un mode d'une version plus récente) est oubliée, le reste (le raccourci
+    /// surtout : sans lui, Raccourcis en ajouterait un second) est gardé. nil : pas du JSON.
     public static func depuis(_ d: Data) -> MemoireConcentration? {
         let dec = JSONDecoder(); dec.dateDecodingStrategy = .iso8601
         return try? dec.decode(MemoireConcentration.self, from: d)
+    }
+    private enum Cles: String, CodingKey { case actif, dernier, raccourci }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Cles.self)
+        actif = try? c.decodeIfPresent(EtatConcentration.self, forKey: .actif)
+        dernier = try? c.decodeIfPresent(DernierConcentration.self, forKey: .dernier)
+        raccourci = try? c.decodeIfPresent(String.self, forKey: .raccourci)
+    }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Cles.self)
+        try c.encodeIfPresent(actif, forKey: .actif)
+        try c.encodeIfPresent(dernier, forKey: .dernier)
+        try c.encodeIfPresent(raccourci, forKey: .raccourci)
     }
     public func donnees() -> Data? {
         let enc = JSONEncoder(); enc.dateEncodingStrategy = .iso8601; enc.outputFormatting = [.sortedKeys]
@@ -358,7 +373,14 @@ public enum RaccourciConcentration {
     /// Le raccourci que Verbe vient d'ajouter : un identifiant qui n'était pas là avant l'import (`avant`), au nom de « Concentration
     /// Verbe » (ou « Concentration Verbe 2 » si Hugues en avait déjà un). Jamais un raccourci qui existait déjà : Verbe ne lance que le sien.
     public static func nouveau(dans liste: [Installe], avant: Set<String>) -> String? {
-        liste.last { i in !avant.contains(i.identifiant) && (i.nom == nom || i.nom.hasPrefix(nom + " ")) }?.identifiant
+        liste.last { i in
+            guard !avant.contains(i.identifiant) else { return false }
+            // « Concentration Verbe », ou « Concentration Verbe 2 » (le numéro que Raccourcis ajoute) ; jamais « … copie »
+            if i.nom == nom { return true }
+            guard i.nom.hasPrefix(nom + " ") else { return false }
+            let suite = i.nom.dropFirst(nom.count + 1)
+            return !suite.isEmpty && suite.allSatisfy(\.isNumber)
+        }?.identifiant
     }
     /// Le raccourci retenu est-il toujours là ?
     public static func present(_ identifiant: String, dans liste: [Installe]) -> Bool {

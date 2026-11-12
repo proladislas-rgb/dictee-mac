@@ -82,8 +82,9 @@ func controlesConcentration() {
     let mem = MemoireConcentration(actif: a, dernier: dernier, raccourci: "0A1B2C3D-0000-4000-8000-00000000ABCD")
     verifier(mem.donnees().flatMap(MemoireConcentration.depuis) == mem, "mode allumé, dernier mode et raccourci : relus à l'identique")
     verifier(MemoireConcentration.depuis(Data("{".utf8)) == nil && MemoireConcentration.depuis(Data("{}".utf8)) == MemoireConcentration(), "fichier abîmé : rien ; vide : rien d'allumé")
-    verifier(MemoireConcentration.depuis(Data("{\"actif\":{\"mode\":\"lecture\",\"duree\":\"1h\",\"debut\":\"2026-11-12T13:30:00Z\"}}".utf8)) == nil,
-             "un mode inconnu (version plus récente) : fichier ignoré, pas de mode imaginaire")
+    let plusRecent = MemoireConcentration.depuis(Data("{\"actif\":{\"mode\":\"lecture\",\"duree\":\"1h\",\"debut\":\"2026-11-12T13:30:00Z\"},\"raccourci\":\"0A1B2C3D-0000-4000-8000-00000000ABCD\"}".utf8))
+    verifier(plusRecent?.actif == nil && plusRecent?.raccourci == "0A1B2C3D-0000-4000-8000-00000000ABCD",
+             "un mode inconnu (version plus récente) : pas de mode imaginaire, mais le raccourci est gardé (pas de second raccourci)")
 
     groupe("Concentration : le raccourci « Concentration Verbe »")
     typealias K = RaccourciConcentration
@@ -131,8 +132,9 @@ func controlesConcentration() {
              && lus[1].identifiant == "0A1B2C3D-0000-4000-8000-00000000ABCD", "`shortcuts list --show-identifiers` : nom (même avec des parenthèses) et identifiant")
     verifier(K.nouveau(dans: lus, avant: ["0A1B2C3D-0000-4000-8000-00000000ABCD", "11111111-2222-4333-8444-555555555555"]) == "99999999-0000-4000-8000-000000000001",
              "après l'import : le NOUVEAU « Concentration Verbe 2 » (Hugues en avait déjà un)")
-    verifier(K.nouveau(dans: lus, avant: Set(lus.map(\.identifiant))) == nil && K.nouveau(dans: [lus[3]], avant: []) == nil,
-             "rien de nouveau : aucun ; « Concentration Verbeuse » n'est pas le nôtre")
+    verifier(K.nouveau(dans: lus, avant: Set(lus.map(\.identifiant))) == nil && K.nouveau(dans: [lus[3]], avant: []) == nil
+             && K.nouveau(dans: [.init(nom: "Concentration Verbe copie", identifiant: "99999999-0000-4000-8000-000000000003")], avant: []) == nil,
+             "rien de nouveau : aucun ; « Concentration Verbeuse » et « Concentration Verbe copie » ne sont pas le nôtre")
     verifier(K.present("0a1b2c3d-0000-4000-8000-00000000abcd", dans: lus) && !K.present("0A1B2C3D-0000-4000-8000-0000000000FF", dans: lus), "le raccourci retenu est-il toujours là ?")
     verifier(K.lireEtat("") == .aucun && K.lireEtat("\n") == .aucun && K.lireEtat("Travail\n") == .mode(.travail) && K.lireEtat("Repos") == .mode(.sommeil)
              && K.lireEtat("Lecture") == .autre("Lecture"), "« etat » : rien, un mode connu, ou un mode à Hugues")

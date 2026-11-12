@@ -69,6 +69,14 @@ Choix : ce que Verbe allume, il le sait (fichier `concentration.json`, 0600). Qu
 allumé, le raccourci répond à `etat` (une fois par minute au plus). Le rond montre alors le mode allumé ailleurs. Cette lecture ne
 touche jamais à ce que Verbe a allumé, ni à son échéance.
 
+**Limites connues (relecture du 12/11).**
+- Le raccourci répond « ok » après « Définir la concentration », même si macOS n'allume rien (un mode Travail jamais configuré dans
+  Réglages, Réduire les interruptions sans Apple Intelligence). Verbe dirait alors le mode allumé. Le vérifier demanderait de lire
+  « Concentration actuelle » à chaque lancement, une réponse qui n'a pas pu être essayée ici.
+- Une commande coupée après 20 s (Raccourcis bloqué) est dite « pas allumé », alors que le raccourci a pu agir après coup.
+- Revenir cliquer l'îlot ne fait pas passer Verbe au premier plan : le raccourci ajouté est reconnu au premier changement d'app, à
+  l'ouverture de la carte ou au clic suivant sur un mode ou une durée.
+
 **Ce qui n'est pas fait (et pourquoi).**
 - « 3 notifications retenues » (maquette) : aucune interface ne les compte, et les bannières n'apparaissent pas pendant une
   concentration. Le texte dit « Les notifications reviennent ». « Changer de mode » prend la place de cette ligne.

@@ -29,7 +29,13 @@ extension IlotEssai {
             microChoisi: { memoire.micro }, choisirMicro: { memoire.micro = $0 },
             bulleVue: { memoire.bulle }, marquerBulleVue: { memoire.bulle = true },
             centreUtilise: { memoire.utilise }, marquerCentreUtilise: { memoire.utilise = true },
-            allumerMicro: { memoire.micros += 1 }, allumerClaude: { memoire.claude += 1 }, allumerEtagere: { memoire.etagere += 1 })
+            allumerMicro: { memoire.micros += 1 }, allumerClaude: { memoire.claude += 1 }, allumerEtagere: { memoire.etagere += 1 },
+            disposition: { nil }, enregistrerDisposition: { _ in })
+        // les dispositions aussi en mémoire : sans elles, l'essai écrivait ilotCentreBoutons et ilotOutilsBoutons dans le domaine « Dictee »
+        c.reglagesCentre.dispositionOutils = { nil }
+        c.reglagesCentre.enregistrerDispositionOutils = { _ in }
+        c.reglagesCentre.nouveautes = { [] }
+        c.reglagesCentre.marquerNouveautes = { _ in }
         IlotEssai.reglagesLucarneDEssai(c)
         let racine = dossier.appendingPathComponent("centre", isDirectory: true)
         let inst = InstallationClaude(reglages: racine.appendingPathComponent("point-claude/settings.json"), dossierVerbe: racine.appendingPathComponent("Dictee", isDirectory: true))

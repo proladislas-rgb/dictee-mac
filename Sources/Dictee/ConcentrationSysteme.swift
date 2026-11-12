@@ -63,7 +63,12 @@ extension SystemeConcentration {
         let fini = DispatchSemaphore(value: 0)
         p.terminationHandler = { _ in fini.signal() }
         do { try p.run() } catch { Log.ecrire("concentration : Raccourcis introuvable (\(error.localizedDescription))"); return nil }
-        if let entree, let e = entreePipe { e.fileHandleForWriting.write(entree); try? e.fileHandleForWriting.close() }
+        if let entree, let e = entreePipe {
+            // jamais de SIGPIPE ni d'exception si `shortcuts` s'arrête avant d'avoir lu (l'app en mourrait)
+            _ = fcntl(e.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
+            try? e.fileHandleForWriting.write(contentsOf: entree)
+            try? e.fileHandleForWriting.close()
+        }
         // la sortie est lue pendant que la commande tourne (un tuyau plein la bloquerait)
         var lu = Data()
         let lecture = DispatchSemaphore(value: 0)
@@ -75,7 +80,8 @@ extension SystemeConcentration {
             Log.ecrire("concentration : « shortcuts \(arguments.first ?? "") » sans réponse après \(Int(delai)) s, coupé")
             return nil
         }
-        _ = lecture.wait(timeout: .now() + 1)
+        // la sortie pas finie de lire une seconde après la fin : on ne la lit pas (l'autre fil l'écrit encore)
+        guard lecture.wait(timeout: .now() + 1) == .success else { return nil }
         return (p.terminationStatus, String(decoding: lu, as: UTF8.self))
     }
 }
@@ -84,10 +90,9 @@ extension SystemeConcentration {
 /// envoyé). Rien : pas de fichier.
 struct ConcentrationStore {
     var url: URL
+    /// Le chemin seulement : le dossier n'est créé qu'à la première écriture (construire le pilote, essais compris, ne touche à rien).
     static var urlParDefaut: URL {
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("concentration.json")
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee/concentration.json")
     }
     func lire() -> MemoireConcentration {
         guard let d = try? Data(contentsOf: url) else { return MemoireConcentration() }
@@ -99,6 +104,7 @@ struct ConcentrationStore {
     }
     func ecrire(_ m: MemoireConcentration) {
         guard let d = m.donnees() else { return }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? d.write(to: url, options: .atomic)
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }

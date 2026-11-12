@@ -68,6 +68,9 @@ final class PiloteConcentration {
     /// Un mode et une durée choisis avant que le raccourci soit ajouté : lancés dès qu'il l'est.
     private var enAttente: (mode: ModeConcentration, duree: DureeConcentration)?
     private var derniereLecture: Date?
+    /// Quand Raccourcis a montré sa question pour la dernière fois : un clic sur un mode ne la remontre qu'après 5 s (Hugues l'a fermée
+    /// sans ajouter), jamais à chaque clic pendant qu'elle est là.
+    private var dernierOuvert: Date?
     private let file = DispatchQueue(label: "verbe.concentration", qos: .userInitiated)
     /// Combien de commandes sont parties vers Raccourcis (l'essai vérifie que rien ne part au repos).
     private(set) var commandesEnvoyees = 0
@@ -112,8 +115,9 @@ final class PiloteConcentration {
             guard !affichage.occupe else { return }
             affichage.choisi = mode; affichage.message = nil
             publier()
-            // le premier clic sur un mode : sans raccourci, Raccourcis propose de l'ajouter (une fois)
-            if memoire.raccourci == nil { preparerLeRaccourci() }
+            // le premier clic sur un mode : sans raccourci, Raccourcis propose de l'ajouter ; ajouté entre-temps (l'îlot ne prend pas le
+            // premier plan quand on revient le cliquer : aucun changement d'app), il est reconnu ici et ce qui attendait part
+            if memoire.raccourci == nil { if importPret { verifierLImport(rouvrir: true) } else { preparerLeRaccourci() } }
         case .duree(let d):
             guard !affichage.occupe, let mode = affichage.choisi ?? affichage.actif?.mode else { return }
             allumer(mode, d, depuis: .carte)
@@ -134,8 +138,11 @@ final class PiloteConcentration {
         publier()
         moteur.epinglerLeCentre()
         moteur.ouvrirOutil(.concentration)
+        if importPret { verifierLImport(rouvrir: false) }
         lireLEtat()
     }
+    /// Le raccourci signé est prêt et Raccourcis l'a montré : on peut le reconnaître (ou le rouvrir).
+    private var importPret: Bool { (importEnCours?.avant ?? nil) != nil }
 
     enum Origine { case centre, carte, statut, fin }
 
@@ -163,9 +170,18 @@ final class PiloteConcentration {
 
     /// Éteint `mode` (« Arrêter », le rond du Centre, l'heure venue).
     private func eteindre(_ mode: ModeConcentration, depuis origine: Origine) {
+        let vise = memoire.actif
         commande(.eteindre(mode), sansRaccourci: nil, proposer: origine != .fin) { [weak self] ok in
             guard let self else { return }
-            guard ok else { self.echec("\(mode.nom) est resté allumé", origine: origine); return }
+            // un autre mode a été allumé pendant que celui-ci s'éteignait : ce résultat ne le concerne pas
+            guard self.memoire.actif == vise else { return }
+            guard ok else {
+                self.echec("\(mode.nom) est resté allumé", origine: origine)
+                // à l'heure dite : un seul nouvel essai dans une minute (jamais en boucle : le suivant attend le réveil ou le lancement)
+                if origine == .fin, self.memoire.actif != nil, !self.nouvelEssai { self.nouvelEssai = true; self.programmerLaFin(dans: 60) }
+                return
+            }
+            self.nouvelEssai = false
             self.memoire.actif = nil
             self.store.ecrire(self.memoire)
             self.affichage.actif = nil; self.affichage.externe = nil
@@ -207,7 +223,7 @@ final class PiloteConcentration {
                 return
             }
             let reponse = s.lancer(id, c.texte)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let ok = c == .lire ? reponse != nil : reponse == RaccourciConcentration.reponseOK
+            let ok = reponse == RaccourciConcentration.reponseOK
             // un échec : le raccourci est-il encore là ? (supprimé par Hugues : on le proposera de nouveau)
             let disparu = !ok && (s.lister().map { !RaccourciConcentration.present(id, dans: $0) } ?? false)
             DispatchQueue.main.async { MainActor.assumeIsolated {
@@ -228,6 +244,7 @@ final class PiloteConcentration {
 
     /// Le raccourci que Hugues vient d'ajouter : retenu (le seul que Verbe lance), le fichier temporaire effacé, et ce qui attendait part.
     private func raccourciAjoute(_ id: String) {
+        enAttente = nil
         memoire.raccourci = id
         store.ecrire(memoire)
         affichage.raccourciManquant = false
@@ -246,8 +263,10 @@ final class PiloteConcentration {
         importEnCours = (avant: nil, dossier: dossier)
         affichage.raccourciManquant = true; publier()
         file.async { [weak self] in
-            let avant = Set((s.lister() ?? []).map(\.identifiant))
-            let ok = RaccourciConcentration.donnees().map { s.preparer($0, fichier) } ?? false
+            // sans la liste d'avant, on ne saurait pas reconnaître LE nôtre : on n'ouvre rien
+            let liste = s.lister()
+            let avant = Set((liste ?? []).map(\.identifiant))
+            let ok = liste != nil && (RaccourciConcentration.donnees().map { s.preparer($0, fichier) } ?? false)
             DispatchQueue.main.async { MainActor.assumeIsolated {
                 guard let self else { return }
                 guard ok else {
@@ -259,24 +278,48 @@ final class PiloteConcentration {
                 }
                 self.importEnCours = (avant: avant, dossier: dossier)
                 Log.ecrire("concentration : Raccourcis propose d'ajouter « \(RaccourciConcentration.nom) »")
-                self.observateurApps = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.verifierLImport() }
-                }
+                self.ecouterLeRetour()
+                self.dernierOuvert = self.maintenant
                 s.ouvrir(fichier)
             } }
         }
     }
 
-    /// Hugues a changé d'app (il revient de Raccourcis) : le raccourci est-il là ? Si oui, ce qui attendait part.
-    func verifierLImport() {
-        guard let avant = importEnCours?.avant ?? nil else { return }
+    /// Écoute le premier changement d'app vers une autre app que Raccourcis (Hugues en revient) ; retirée à ce premier retour (ajouté ou
+    /// non : la carte et les modes vérifient ensuite d'eux-mêmes), jamais d'écoute qui traîne.
+    private func ecouterLeRetour() {
+        guard observateurApps == nil else { return }
+        observateurApps = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] n in
+            let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            MainActor.assumeIsolated {
+                guard let self, app?.bundleIdentifier != Self.bundleRaccourcis else { return }
+                if let o = self.observateurApps { NSWorkspace.shared.notificationCenter.removeObserver(o); self.observateurApps = nil }
+                self.verifierLImport(rouvrir: false)
+            }
+        }
+    }
+    static let bundleRaccourcis = "com.apple.shortcuts"
+
+    /// Le raccourci est-il là ? Si oui, ce qui attendait part. Sinon, sur un geste (`rouvrir`), Raccourcis montre de nouveau sa question
+    /// (Hugues l'avait fermée sans ajouter).
+    func verifierLImport(rouvrir: Bool) {
+        guard let avant = importEnCours?.avant ?? nil, let dossier = importEnCours?.dossier else { return }
         let s = systeme
         file.async { [weak self] in
             let id = s.lister().flatMap { RaccourciConcentration.nouveau(dans: $0, avant: avant) }
             DispatchQueue.main.async { MainActor.assumeIsolated {
-                guard let self, let id, self.memoire.raccourci == nil else { return }
+                guard let self, self.memoire.raccourci == nil else { return }
+                guard let id else {
+                    if rouvrir, self.dernierOuvert.map({ self.maintenant.timeIntervalSince($0) > 5 }) ?? true {
+                        self.ecouterLeRetour()
+                        self.dernierOuvert = self.maintenant
+                        s.ouvrir(dossier.appendingPathComponent(RaccourciConcentration.nom + ".shortcut"))
+                    }
+                    return
+                }
+                let attente = self.enAttente
                 self.raccourciAjoute(id)
-                if let (m, d) = self.enAttente { self.enAttente = nil; self.allumer(m, d, depuis: .carte) }
+                if let (m, d) = attente { self.allumer(m, d, depuis: .carte) }
             } }
         }
     }
@@ -301,18 +344,25 @@ final class PiloteConcentration {
     // MARK: la fin et la lecture
 
     /// Le mode est-il fini ? Alors on l'éteint ; sinon on attend son échéance.
+    /// Le réveil du Mac et l'échéance arrivent ensemble : l'échéance est annulée avant d'éteindre, et rien ne part pendant qu'une commande
+    /// est en route (elle sera revue à sa fin, ou au prochain réveil).
     func verifierLaFin() {
         guard let actif = memoire.actif else { return }
-        if actif.estFini(a: maintenant) { eteindre(actif.mode, depuis: .fin) } else { programmerLaFin() }
+        guard actif.estFini(a: maintenant) else { programmerLaFin(); return }
+        echeance?.cancel(); echeance = nil
+        if affichage.occupe { programmerLaFin(dans: 2); return }
+        eteindre(actif.mode, depuis: .fin)
     }
+    /// L'extinction à l'heure a échoué une fois : un seul nouvel essai.
+    private var nouvelEssai = false
 
-    /// Une seule échéance, sur l'horloge MURALE (le temps passé en veille compte) ; « jusqu'à l'arrêt » : aucune.
-    private func programmerLaFin() {
+    /// Une seule échéance, sur l'horloge MURALE (le temps passé en veille compte) ; « jusqu'à l'arrêt » : aucune. `dans` : un nouvel essai.
+    private func programmerLaFin(dans delai: TimeInterval? = nil) {
         echeance?.cancel(); echeance = nil
         guard let fin = memoire.actif?.fin else { return }
         let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.verifierLaFin() } }
         echeance = item
-        DispatchQueue.main.asyncAfter(wallDeadline: .now() + max(0.05, fin.timeIntervalSince(maintenant)), execute: item)
+        DispatchQueue.main.asyncAfter(wallDeadline: .now() + max(0.05, delai ?? fin.timeIntervalSince(maintenant)), execute: item)
     }
 
     /// La carte des modes s'ouvre et Verbe n'a rien allumé : quel mode est allumé ailleurs (Centre de contrôle) ? Une fois par minute au
@@ -329,7 +379,7 @@ final class PiloteConcentration {
                 guard let self, let reponse, self.memoire.actif == nil else { return }
                 switch RaccourciConcentration.lireEtat(reponse) {
                 case .aucun: self.affichage.externe = nil
-                case .mode(let m): self.affichage.externe = m.nom
+                case .mode(let m): self.affichage.externe = m.nom   // son nom de l'îlot : le rond reprend sa couleur
                 case .autre(let n): self.affichage.externe = n
                 }
                 self.publier()
@@ -741,7 +791,9 @@ struct TuileConcentration: View {
             case .dernier(let d):
                 return (d.mode.teinte.opacity(0.3), true, d.mode.teinte, Color.white.opacity(0.8), d.mode.teinte, d.mode, "Relancer \(r.etat)")
             case .autre(let n):
-                return (ModeConcentration.nePasDeranger.teinte, false, .clear, Color.white.opacity(0.85), .white, nil, "\(n) allumé dans macOS : choisir un mode")
+                // un mode connu (allumé dans le Centre de contrôle) garde sa couleur et son icône ; un mode à Hugues, la lune
+                let connu = ModeConcentration.allCases.first { $0.nom == n }
+                return ((connu ?? .nePasDeranger).teinte, false, .clear, Color.white.opacity(0.85), .white, connu, "\(n) allumé dans macOS : choisir un mode")
             }
         }()
         TuileRonde(nom: nom, nomAffiche: nomAffiche, etat: a.occupe ? "Un instant\u{2026}" : etat, couleurEtat: style.encre, fond: style.fond,
