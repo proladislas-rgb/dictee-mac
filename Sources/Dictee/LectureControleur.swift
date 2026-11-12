@@ -103,6 +103,7 @@ final class LectureControleur {
         case .rien:
             if modele.morceau != nil { vider() }
         case .etat(let m):
+            confirmationCommande?.cancel(); confirmationCommande = nil
             let nouveau = m.cle != modele.morceau?.cle
             if nouveau, imageDeSecours { imageDeSecours = false; modele.image = nil }
             if m.cheminImage != cheminImage { chargerImage(m.cheminImage) }
@@ -243,13 +244,35 @@ final class LectureControleur {
     // MARK: commandes de l'îlot
 
     /// Mise à jour immédiate de ce qu'on voit (la barre et le bouton répondent au doigt) ; l'état réel du système la remplace dans la foulée.
+    /// Si le système ne dit rien (MediaRemote ne prévient que d'un changement : la commande n'a rien changé, par exemple la vidéo restée en
+    /// pause après la reprise de fin de dictée), l'état deviné revient à l'état d'avant au bout de `delaiConfirmation` : jamais des barres
+    /// qui bougent sur une vidéo en pause (Hugues 12/11, 23 h 47).
     private func appliquerLocalement(joue: Bool? = nil, position: Double? = nil) {
         guard var m = modele.morceau else { return }
+        if let joue, joue != m.joue { attendreConfirmation(avant: m.joue, cle: m.cle) }
         let maintenant = Date()
         if let p = m.positionA(maintenant) { m.position = p; m.depuis = maintenant }
         if let joue { m.joue = joue; if joue, m.vitesse <= 0 { m.vitesse = 1 } }
         if let position { m.position = position; m.depuis = maintenant }
         modele.morceau = m
+    }
+
+    /// Combien de temps on attend que le système confirme un changement de lecture (pause, reprise) avant de revenir à son dernier état.
+    static let delaiConfirmationCommande: TimeInterval = 2
+    private var confirmationCommande: DispatchWorkItem?
+    private func attendreConfirmation(avant: Bool, cle: String) {
+        confirmationCommande?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, var m = self.modele.morceau, m.cle == cle, m.joue != avant else { return }
+                Log.ecrire("lecture : le système n'a rien confirmé en \(Int(Self.delaiConfirmationCommande)) s, l'état revient à « \(avant ? "joue" : "en pause") »")
+                m.joue = avant
+                self.modele.morceau = m
+                self.recalculer()
+            }
+        }
+        confirmationCommande = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.delaiConfirmationCommande, execute: item)
     }
 
     private func basculer() {

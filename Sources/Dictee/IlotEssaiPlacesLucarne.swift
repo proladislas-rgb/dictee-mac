@@ -971,3 +971,73 @@ extension IlotEssai {
         }
     }
 }
+
+extension IlotEssai {
+    /// Les égaliseurs (barres de son) à l'écran dans la fenêtre de l'îlot : combien, et combien bougent.
+    @MainActor
+    static func egaliseurs(_ c: IlotControleur) -> (total: Int, animes: Int) {
+        var total = 0, animes = 0
+        func parcourir(_ v: NSView) {
+            if let e = v as? EgaliseurLecture.Vue, e.window != nil { total += 1; if e.anime { animes += 1 } }
+            v.subviews.forEach(parcourir)
+        }
+        if let v = c.panneau.fenetre?.contentView { parcourir(v) }
+        return (total, animes)
+    }
+
+    /// Une vidéo en pause (Hugues 12/11, 23 h 47) : la bulle de la lecture garde des barres immobiles au repos, pendant la tenue, le glisser
+    /// et après le lâcher ; elle joue : les barres bougent.
+    @MainActor
+    static func lectureEnPauseLucarne(_ c: IlotControleur, verifier: (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void) {
+        func pause(_ s: Double) { attendre(s) { true } }
+        let m = c.moteur
+        print("— la vidéo en pause : barres immobiles, posée comme tenue")
+        let morceauAvant = c.lecture.modele.morceau
+        var tenu = false
+        m.boutonEnfonce = { tenu }
+        defer {
+            m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 }
+            c.lecture.modele.morceau = morceauAvant; c.lecture.surIlot(morceauAvant != nil); m.donneesChangees()
+        }
+        CatalogueLucarne.vider(m)
+        EssaiPlaces.memoire.poser(.hautDroite, sur: EssaiPlaces.ecran)
+        c.panneau.recaler(); m.poser(); pause(0.3)
+        c.lecture.modele.morceau = MorceauEnCours(titre: "Vidéo · Titre", app: "essai.lecture", joue: true, duree: 214, position: 97)
+        c.lecture.surIlot(true); m.donneesChangees(); pause(0.8)
+        let enJeu = egaliseurs(c)
+        verifier(enJeu.total > 0 && enJeu.animes == enJeu.total, "la vidéo joue : ses barres bougent (\(enJeu.animes) sur \(enJeu.total))")
+        // la pause arrive du système (Hugues met la vidéo en pause dans Chrome), par le vrai chemin : aucun `donneesChangees` de l'essai
+        if var enPause = c.lecture.modele.morceau { enPause.joue = false; c.lecture.systeme.surEvenement(.etat(enPause)) }
+        pause(0.5)
+        var bilan: [String] = []
+        func noter(_ moment: String) { let e = egaliseurs(c); if e.animes > 0 { bilan.append("\(moment) : \(e.animes) sur \(e.total) bougent") } }
+        noter("au repos")
+        let depart = CGPoint(x: m.lucarne.capsule.cx.x, y: m.lucarne.capsule.cy.x)
+        tenu = true; c.panneau.envoyerSouris(.leftMouseDown, en: depart); pause(0.25); noter("pendant l'appui")
+        pause(0.35); noter("décollée")
+        let loin = CGPoint(x: depart.x - 260, y: depart.y + 300)
+        for i in 1...20 {
+            let u = CGFloat(i) / 20
+            c.panneau.envoyerSouris(.leftMouseDragged, en: CGPoint(x: depart.x + (loin.x - depart.x) * u, y: depart.y + (loin.y - depart.y) * u)); pause(0.016)
+            if i % 5 == 0 { noter("glisser \(i)") }
+        }
+        pause(0.3); noter("tenue")
+        c.panneau.envoyerSouris(.leftMouseUp, en: loin); tenu = false; pause(1.2); noter("après le lâcher")
+        verifier(bilan.isEmpty && egaliseurs(c).total > 0,
+                 "la vidéo en pause : barres immobiles au repos, à l'appui, pendant le glisser et après le lâcher\(bilan.isEmpty ? "" : " — " + bilan.joined(separator: " ; "))")
+        // la cause vue chez Hugues : une commande (la reprise de fin de dictée, un clic) met l'état deviné à « joue » ; si la vidéo ne
+        // repart pas, le système ne dit rien (il ne prévient que d'un changement) et les barres bougeaient sur une vidéo en pause.
+        // Ici la commande ne part pas (aucun programme d'aide dans l'essai) : l'état doit revenir au vrai tout seul.
+        let exclusive = c.lecture.systeme.appExclusive
+        c.lecture.systeme.appExclusive = "essai.aucune-app"
+        c.lecture.modele.surBascule(); pause(0.4)
+        let deviné = egaliseurs(c).animes > 0 && c.lecture.modele.joue
+        pause(Double(LectureControleur.delaiConfirmationCommande) + 0.4)
+        verifier(deviné && !c.lecture.modele.joue && egaliseurs(c).animes == 0,
+                 "une reprise que le système ne confirme pas (la vidéo reste en pause) : « joue » deviné \(deviné ? "oui" : "non"), puis revenu à « en pause » au bout de \(Int(LectureControleur.delaiConfirmationCommande)) s, barres immobiles (\(c.lecture.modele.joue ? "joue encore" : "en pause"), \(egaliseurs(c).animes) bougent)")
+        c.lecture.systeme.appExclusive = exclusive
+        CatalogueLucarne.vider(m)
+        EssaiPlaces.memoire.poser(.encoche, sur: EssaiPlaces.ecran)
+        c.panneau.recaler(); m.poser(); pause(0.4)
+    }
+}

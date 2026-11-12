@@ -136,6 +136,7 @@ enum IlotEssai {
                 if seul == "places-survol" { IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) }
             } else if seul == "dictee" {
                 IlotEssai.dicteeLucarneCablee(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+                IlotEssai.lectureEnPauseLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
             } else if seul == "voix" {
                 IlotEssai.voix(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers })
             } else if seul == "concentration" {
@@ -1193,6 +1194,7 @@ enum IlotEssai {
         IlotEssai.bordsLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.dicteeLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.dicteeLucarneCablee(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.lectureEnPauseLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.secondBrain(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
