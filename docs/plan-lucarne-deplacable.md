@@ -177,3 +177,16 @@ Restent à faire (relecteur) : M1 rendre le clavier pendant le décollage (`orde
 - M5 le calcul de contraste est un modèle (fond uni, rayon du halo ignoré) : dit dans son commentaire ; la lisibilité se juge sur les rendus.
 - Mineurs : la fenêtre de la dictée en verre suit la pilule visée (son vide ne prend plus de clics en mains libres) ; `passerSur` vérifie la tenue avant de changer d'écran ; une alerte ou un bandeau n'a pas d'actions « Déplacer vers… » (comme le geste) ; `prefsDock` oublié à la fermeture ; le Dock relu par le même accès que celui qu'on observe ; essai « lâchée au milieu » non tautologique (place attendue calculée avant le lâcher) ; faux écran principal toujours à encoche (caméra de MacBook fictive si le vrai n'en a pas) : les sections de la Lucarne ne sont plus jamais sautées en silence.
 - Restent (notés) : fenêtre de dictée pas recalée si l'écran change PENDANT une dictée ; la forme tenue peut dépasser dans la zone morte entre deux écrans de hauteurs différentes ; l'essai de la dictée simule le branchement de l'AppDelegate (`occupation`, `placementLibre`) au lieu de l'exercer ; la mini-miniature de la lecture reste calée sur l'encoche du principal (elle ne sort plus quand la dictée est hors de l'encoche).
+
+## Retour de Hugues du 12/11 au soir (sur a8a2aad installé), branche `verre-transparent`
+- **« Vraiment beaucoup plus transparent »** (capture : la carte Lecture sur une vidéo et le Bloc-notes, une plaque grise où rien ne
+  passe). Cause mesurée par UNE capture du vrai verre (sonde jetable, fenêtre non activée comme l'îlot, < 3 s dans un coin) : le
+  `.glassEffect(.clear)` de macOS 26 n'a rien de « clair » sur Mac : c'est un dépoli très flou qui efface tout le texte d'une page derrière,
+  gris fumé dans la fenêtre sombre de l'îlot (le voile de 0,09 n'y changeait presque rien). Aucune couche opaque de notre côté (contrôlé).
+  Réglages (`VerreLucarne`) : voile 0 partout ; la couche du verre système atténuée (`IntensiteVerre`) et prise dans sa variante claire :
+  0,35 pour la pilule (le fond passe presque net sous un léger voile flou), 0,6 pour le Centre et les cartes (juste milieu : à 0,35 sur une
+  page blanche pleine de texte, les lignes de la page se lisaient au travers des libellés du Centre ; rendus des deux niveaux) ; le bord porte la forme (`LisereVerre` : biseau plus vif, reflet
+  intérieur sur deux épaisseurs, trait sombre fin) ; halo du contenu un peu plus dense (0,75 / 0,35). Les faux verres des rendus sont calés
+  sur cette capture (fond net + dépoli flou éclairci à 0,35 + lentille de bord atténuée), avec un nouveau fond « vidéo + Bloc-notes ».
+- L'essai du verre vérifie pour chaque écran (dont la carte Lecture, ajoutée) × place : la forme posée n'est plus noire, et aucune couche
+  opaque sous le contenu (part de la forme couverte, rendu sans le verre système).

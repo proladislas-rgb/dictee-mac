@@ -53,7 +53,7 @@ enum RenduLucarne {
             let bulle = m.bulleLibre.map { $0.decale(dx: ecran.centreX) }
             let vue = ZStack(alignment: .topLeading) {
                 FauxEcran(fond: fond)
-                FauxVerre(forme: forme, fond: fond)
+                FauxVerre(forme: forme, fond: fond, deplie: m.lucarneDeplie)
                 if let b = bulle { FauxVerre(forme: b, fond: fond) }
                 IlotVue(m: m)
                     .frame(width: t.width, height: t.height)
@@ -78,8 +78,8 @@ enum RenduLucarne {
         let places: [(PlaceLucarne, String)] = [(.hautGauche, "haut-gauche"), (.hautDroite, "haut-droite"), (.basGauche, "bas-gauche"),
                                                 (.basDroite, "bas-droite"), (.gauche, "gauche"), (.droite, "droite")]
         for (p, n) in places {
-            // la Terre (lourde en PNG : un dépôt public) seulement depuis un coin du bas et un du haut
-            for fond in FondRendu.allCases where fond != .terre || p == .basGauche || p == .hautDroite {
+            // la Terre et la vidéo (lourdes en PNG : un dépôt public) seulement depuis un coin du bas et un du haut
+            for fond in FondRendu.allCases where (fond != .terre && fond != .video) || p == .basGauche || p == .hautDroite {
                 // repliée : le minuteur, et le micro coupé dans la bulle
                 ecrire(scene(p, nil) { m in m.minuteur = MinuteurIlot(minutes: 10, depuis: t0.addingTimeInterval(-128)); m.microCoupe = true }, p, fond: fond, "lucarne-\(n)-pilule-\(fond.rawValue)")
                 ecrire(scene(p, "Centre"), p, fond: fond, "lucarne-\(n)-centre-\(fond.rawValue)")
@@ -111,7 +111,7 @@ enum RenduLucarne {
         }
         // la dictée (fn) à la place de la Lucarne, en verre : dans un coin du bas et un du haut, le texte en direct, mains libres
         for (p, n) in [(PlaceLucarne.basGauche, "bas-gauche"), (.hautDroite, "haut-droite")] {
-            for fond in [FondRendu.clair, .terre] {
+            for fond in [FondRendu.clair, .terre, .video] {
                 let d = EncocheModele()
                 d.ouverte = true; d.ruban = true; d.mainsLibres = p == .hautDroite
                 d.texte = "Je te rappelle demain pour confirmer le devis"
@@ -139,10 +139,11 @@ enum RenduLucarne {
     }
 }
 
-/// Le fond des rendus : une page blanche (le pire cas pour le texte blanc), une page sombre, ou un fond d'écran sombre (la Terre dans la
-/// nuit, comme chez Hugues : on doit la voir au travers du verre).
+/// Le fond des rendus : une page blanche (le pire cas pour le texte blanc), une page sombre, un fond d'écran sombre (la Terre dans la
+/// nuit, comme chez Hugues : on doit la voir au travers du verre), ou une vidéo colorée à côté d'une fenêtre de Bloc-notes (sa capture
+/// du 12/11 au soir).
 enum FondRendu: String, CaseIterable {
-    case clair, sombre, terre
+    case clair, sombre, terre, video
 }
 
 private extension CapsuleLucarne {
@@ -161,6 +162,8 @@ private struct FauxEcran: View {
         ZStack(alignment: .topLeading) {
             if fond == .terre {
                 Terre()
+            } else if fond == .video {
+                VideoColoree()
             } else {
                 LinearGradient(colors: clair ? [Color(hex: 0xDCE6F2), Color(hex: 0xF4E9DA)] : [Color(hex: 0x1C2233), Color(hex: 0x0E0F14)], startPoint: .topLeading, endPoint: .bottomTrailing)
                 // la fenêtre : une page de texte (blanche ou sombre) qui couvre presque tout l'écran
@@ -197,6 +200,51 @@ private struct FauxEcran: View {
             .padding(.horizontal, 12).frame(width: 600, height: 64)
             .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(clair ? Color.white.opacity(0.55) : Color.white.opacity(0.18)))
             .offset(x: t.width / 2 - 300, y: t.height - 68)
+        }
+        .frame(width: t.width, height: t.height, alignment: .topLeading)
+    }
+}
+
+/// Une vidéo plein écran, très colorée (un ciel de couchant, un soleil, des collines, un personnage, un titre incrusté), et à droite une
+/// fenêtre de Bloc-notes : de quoi voir au travers du verre si les couleurs et les lettres passent nettes.
+private struct VideoColoree: View {
+    var body: some View {
+        let t = RenduLucarne.taille
+        ZStack(alignment: .topLeading) {
+            Canvas { ctx, taille in
+                let w = taille.width, h = taille.height
+                ctx.fill(Path(CGRect(origin: .zero, size: taille)), with: .linearGradient(
+                    Gradient(colors: [Color(hex: 0x2A1B5C), Color(hex: 0xC2367A), Color(hex: 0xFF8A3D), Color(hex: 0xFFD45E)]),
+                    startPoint: .zero, endPoint: CGPoint(x: 0, y: h * 0.7)))
+                ctx.fill(Path(ellipseIn: CGRect(x: w * 0.18, y: h * 0.38, width: 210, height: 210)), with: .color(Color(hex: 0xFFF1A8)))
+                var colline = Path(); colline.move(to: CGPoint(x: 0, y: h * 0.62))
+                colline.addCurve(to: CGPoint(x: w, y: h * 0.58), control1: CGPoint(x: w * 0.3, y: h * 0.45), control2: CGPoint(x: w * 0.6, y: h * 0.75))
+                colline.addLine(to: CGPoint(x: w, y: h)); colline.addLine(to: CGPoint(x: 0, y: h)); colline.closeSubpath()
+                ctx.fill(colline, with: .color(Color(hex: 0x1F7A4D)))
+                for i in 0..<14 {
+                    let x = Double(i) * w / 13
+                    ctx.fill(Path(CGRect(x: x, y: h * 0.70 + Double(i % 3) * 18, width: 26, height: 60)), with: .color(Color(hex: 0x0E3B2A)))
+                    ctx.fill(Path(ellipseIn: CGRect(x: x - 22, y: h * 0.62 + Double(i % 3) * 18, width: 70, height: 70)), with: .color(Color(hex: i % 2 == 0 ? 0x2FAF5E : 0x3BC7C0)))
+                }
+                // un personnage
+                ctx.fill(Path(ellipseIn: CGRect(x: w * 0.36, y: h * 0.42, width: 70, height: 70)), with: .color(Color(hex: 0xF2C29B)))
+                ctx.fill(Path(roundedRect: CGRect(x: w * 0.345, y: h * 0.50, width: 110, height: 200), cornerRadius: 30), with: .color(Color(hex: 0x1E66F5)))
+            }
+            Text("LE COIN TECH").font(.system(size: 64, weight: .black)).foregroundStyle(.white).shadow(radius: 4)
+                .offset(x: 60, y: t.height * 0.78)
+            // la fenêtre du Bloc-notes, à droite
+            VStack(alignment: .leading, spacing: 9) {
+                Text("Notes de livraison").font(.system(size: 20, weight: .bold)).foregroundStyle(Color(hex: 0x1D1D1F))
+                ForEach(0..<24, id: \.self) { i in
+                    Text("\(i + 1). Appeler le transporteur, vérifier l'adresse, le créneau de 13 h à 14 h et le code.")
+                        .font(.system(size: 13)).foregroundStyle(Color(hex: 0x1D1D1F).opacity(0.85))
+                }
+            }
+            .padding(24)
+            .frame(width: 640, height: t.height - 160, alignment: .topLeading)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .offset(x: t.width - 700, y: 60)
         }
         .frame(width: t.width, height: t.height, alignment: .topLeading)
     }
@@ -248,15 +296,21 @@ private extension SystemRandomNumberGenerator {
     }
 }
 
-/// Le faux verre clair d'un rendu, fidèle au verre « Liquide » : à travers la forme, le faux écran presque net (flou de 0,8 pt) ; sur une
-/// bande au bord (la lentille), le même écran grossi de 9 % depuis le centre de la forme : ce qui passe sous le bord est déformé, comme
-/// dans la maquette ; un reflet clair suit le haut du bord.
+/// Le faux verre clair d'un rendu, calé sur la capture du vrai verre du 12/11 au soir : le `.clear` de macOS est un dépoli clair très
+/// flou ; atténué à `VerreLucarne.intensite` (0,35 replié, 0,6 déplié), il ne laisse qu'un léger voile flou sur le fond net. Ici : le faux écran net dans la forme,
+/// par-dessus ce dépoli (le même écran très flou, éclairci) à la même opacité, et sur une bande étroite au bord (la lentille) l'écran
+/// grossi depuis le centre de la forme (atténué de même) : ce qui passe sous le bord est un peu déformé ; le liseré fait le reste.
 private struct FauxVerre: View {
     var forme: CapsuleLucarne
     var fond: FondRendu
+    /// 0 : repliée (la pilule, la bulle, la dictée), 1 : dépliée.
+    var deplie: Double = 0
+    /// Le dépoli du verre système (flou, éclaircissement) ; la lentille du bord : sa largeur, son grossissement, son flou.
+    static let depoli = (flou: 12.0, blanc: 0.3)
+    static let lentille = (bande: 9.0, grossi: 1.06, flou: 0.7)
     var body: some View {
         let t = RenduLucarne.taille
-        let petit = min(forme.largeur, forme.hauteur), bande = min(14, petit * 0.28)
+        let petit = min(forme.largeur, forme.hauteur), bande = min(Self.lentille.bande, petit * 0.22)
         let dedans = CapsuleLucarne(x0: forme.x0 + bande, x1: forme.x1 - bande, y0: forme.y0 + bande, y1: forme.y1 - bande,
                                     s: max(1, forme.s - bande / TraceIlot.portee), r: max(1, forme.r - bande / TraceIlot.portee))
         let centre = UnitPoint(x: forme.centreX / Double(t.width), y: forme.centreY / Double(t.height))
@@ -264,9 +318,14 @@ private struct FauxVerre: View {
             FormeNoire(points: TraceLucarne.calculer(c)).fill(Color.black).frame(width: t.width, height: t.height).offset(x: -t.width / 2)
         }
         return ZStack(alignment: .topLeading) {
-            FauxEcran(fond: fond).blur(radius: 0.8)
-                .mask(alignment: .topLeading) { masque(forme) }
-            FauxEcran(fond: fond).scaleEffect(1.09, anchor: centre).blur(radius: 1.2)
+            ZStack(alignment: .topLeading) {
+                FauxEcran(fond: fond).blur(radius: Self.depoli.flou)
+                Color.white.opacity(Self.depoli.blanc)
+            }
+            .frame(width: t.width, height: t.height, alignment: .topLeading)
+            .opacity(VerreLucarne.intensite(deplie: deplie))
+            .mask(alignment: .topLeading) { masque(forme) }
+            FauxEcran(fond: fond).scaleEffect(Self.lentille.grossi, anchor: centre).blur(radius: Self.lentille.flou)
                 .mask(alignment: .topLeading) {
                     ZStack(alignment: .topLeading) {
                         masque(forme)
@@ -275,6 +334,8 @@ private struct FauxVerre: View {
                     .compositingGroup()
                     .frame(width: t.width, height: t.height, alignment: .topLeading)
                 }
+                // la lentille appartient au verre système : atténuée comme lui
+                .opacity(VerreLucarne.intensite(deplie: deplie))
         }
         .frame(width: t.width, height: t.height, alignment: .topLeading)
     }

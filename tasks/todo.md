@@ -553,6 +553,10 @@ Et le verre : « vraiment beaucoup plus transparent ».
 - [x] Mesures `say` → Groq (`--transcrire`) : sans biais « Voxil, … » (3 voix sur 3), avec biais « Voxile, … » (3/3).
 - [x] Textes qui apprennent le mot d'appel : Découvrir (tuile Rappels, scène animée).
 - [x] Essai : section Lucarne (Lucarne n'est plus un mot d'appel, « Voxil » l'est) ; contrôles purs.
-- [ ] Verre : voile 0, verre système atténué/clair selon la sonde, liseré plus marqué, halo plus dense ; faux verres au nouveau niveau
-      (Terre, page blanche, vidéo + Bloc-notes) ; essai « aucune couche opaque sous le contenu, hors encoche » sur chaque écran × place.
+- [x] Verre : une capture du vrai verre (sonde jetable, design/rendus-lucarne/verre-reel-sonde.png) : le `.clear` de macOS est un dépoli
+      gris qui efface la page derrière. Voile 0 ; couche du verre système claire et atténuée (0,35 pilule, 0,6 Centre et cartes) ; liseré
+      plus marqué ; halo plus dense ; faux verres calés sur la capture (Terre, page blanche, vidéo + Bloc-notes) ; essai « forme jamais
+      noire, aucune couche opaque sous le contenu » sur 20 écrans × 6 places (au plus 18 % couvert ; un voile de 0,95 le fait échouer).
+- [ ] À juger par Hugues sur l'app installée : la pilule à 0,35, le Centre à 0,6 (juste milieu) ; les libellés gris du Centre restent
+      faibles sur une page blanche pleine de texte.
 - [ ] Relecture opus, push (pas de fusion).

@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import DicteeCore
 
 /// La Lucarne déplaçable pendant l'essai : de faux écrans, un faux Dock, une mémoire des places en mémoire, une vibration comptée.
@@ -295,6 +296,12 @@ enum CatalogueLucarne {
             Ecran(nom: "carte Claude", vue: .claudeCarte) { m in m.claude = session; m.sessionsClaude = [session]; m.ouvrirCarteClaude() },
             Ecran(nom: "Second Brain", vue: .secondBrain) { m in m.ouvrirSecondBrain() },
             Ecran(nom: "Étagère", vue: .etagere) { m in m.etagereActive = true; m.etagere = fichiers(3); m.ouvrirEtagere() },
+            // la carte Lecture (12/11 soir, la capture de Hugues : une plaque grise où rien ne transparaissait)
+            Ecran(nom: "Lecture", vue: .lectureEtendu) { m in
+                m.lecture.morceau = MorceauEnCours(titre: "Je détestais la mode des iPods, donc j\u{2019}en ai racheté un", artiste: "Le Coin Tech",
+                                                   app: "com.google.Chrome", joue: true, duree: 754, position: 202)
+                m.lecturePresente = true; m.donneesChangees(); m.survole = true
+            },
             Ecran(nom: "Réunion", vue: .reunionEtendu) { m in
                 var r = ReunionIlot(); r.depuis = t0.addingTimeInterval(-754); m.reunion = r; m.donneesChangees(); m.clicForme()
             },
@@ -324,6 +331,38 @@ enum CatalogueLucarne {
 }
 
 extension IlotEssai {
+    /// La part de la forme posée hors de l'encoche que son dessin couvre presque entièrement (opacité ≥ 0,85), sans le verre de macOS
+    /// (le faux verre des rendus, à peine blanc) : le contenu (texte, symboles, pochette) en couvre un peu ; une couche opaque glissée
+    /// sous lui (un fond de carte, une pochette floutée, la forme restée noire) la couvrirait presque toute. nil : rendu impossible.
+    @MainActor
+    static func partOpaque(_ m: IlotMoteur) -> Double? {
+        let avant = m.statique
+        m.statique = true
+        defer { m.statique = avant }
+        let t = m.tailleVue, k = m.capsuleVue
+        let rendu = ImageRenderer(content: LucarneLibreVue(m: m).frame(width: t.width, height: t.height))
+        rendu.scale = 1
+        guard let image = rendu.cgImage else { return nil }
+        let l = image.width, h = image.height
+        var pixels = [UInt8](repeating: 0, count: l * h * 4)
+        guard let ctx = CGContext(data: &pixels, width: l, height: h, bitsPerComponent: 8, bytesPerRow: l * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: l, height: h))
+        // le rectangle de la forme, sans ses coins arrondis (la première ligne en mémoire est le haut de l'image)
+        let marge = min(k.r, k.hauteur / 2, k.largeur / 2) * 0.6
+        let x0 = max(0, Int(Double(t.width) / 2 + k.x0 + marge)), x1 = min(l, Int(Double(t.width) / 2 + k.x1 - marge))
+        let y0 = max(0, Int(k.y0 + marge)), y1 = min(h, Int(k.y1 - marge))
+        guard x1 > x0, y1 > y0 else { return nil }
+        var couverts = 0
+        for y in y0..<y1 {
+            let ligne = y * l * 4
+            for x in x0..<x1 where pixels[ligne + x * 4 + 3] >= 217 { couverts += 1 }
+        }
+        return Double(couverts) / Double((x1 - x0) * (y1 - y0))
+    }
+    /// Au-delà, une couche opaque est posée sous le contenu (mesuré le 12/11 au soir sur les 17 écrans × 6 places : voir l'essai).
+    static let partOpaqueAdmise = 0.4
+
     /// L'état de la Lucarne en une ligne (messages des essais).
     @MainActor
     static func etatLucarne(_ m: IlotMoteur) -> String {
@@ -386,6 +425,7 @@ extension IlotEssai {
         let t0 = m.maintenant()
         let ecrans = CatalogueLucarne.ecrans(t0: t0)
         var bilan: [String] = []
+        var partOpaqueMax = 0.0
 
         for p in places {
             // --- repliée : la pilule de verre, son contenu compact, la bulle de la deuxième activité vers l'intérieur
@@ -418,13 +458,18 @@ extension IlotEssai {
                 let coin = m.coinContenuLibre
                 let contenu = abs(coin.x - k.centreX) < 0.01 && abs(coin.y - k.y0) < 0.01
                 let ici = CGPoint(x: k.centreX, y: k.y0 + min(40, k.hauteur / 2)), dehors = CGPoint(x: c.panneau.cadreVoulu.minX + 2, y: c.panneau.cadreVoulu.minY + 2)
+                // le fond doit transparaître : la forme en verre (jamais restée noire), et rien d'opaque posé sous le contenu
+                let noir = m.lucarne.capsule.fonduNoir, opaque = IlotEssai.partOpaque(m)
+                partOpaqueMax = max(partOpaqueMax, opaque ?? 1)
                 let probleme = v != x.vue ? "écran \(v.rawValue)" : (!mesure ? "taille \(Int(k.largeur)) × \(Int(k.hauteur)) pour \(Int(largeur)) × \(Int(hauteur))" :
                     (tient(k) ?? (!interieur || !vertical ? "pas ouvert vers l'intérieur" : (!contenu ? "contenu décalé" :
-                    (m.lucarneDeplie < 1 ? "voile de lecture absent" : (!m.contient(ici) || m.contient(dehors) ? "clics" : (m.boucleActive ? "boucle au repos" : nil)))))))
+                    (m.lucarneDeplie < 1 ? "voile de lecture absent" : (!m.contient(ici) || m.contient(dehors) ? "clics" : (m.boucleActive ? "boucle au repos" :
+                    (noir > 0.001 ? "forme encore noire (\(String(format: "%.2f", noir)))" :
+                    ((opaque ?? 1) > IlotEssai.partOpaqueAdmise ? "couche opaque sous le contenu (\(Int((opaque ?? 1) * 100)) % de la forme couverte)" : nil)))))))))
                 if let probleme { bilan.append("\(p.rawValue) · \(x.nom) : \(probleme)") }
             }
         }
-        verifier(bilan.isEmpty, "\(ecrans.count) écrans × \(places.count) places : en verre, entiers, vers l'intérieur, lisibles, clics justes, rien ne tourne\(bilan.isEmpty ? "" : " — " + bilan.joined(separator: " ; "))")
+        verifier(bilan.isEmpty, "\(ecrans.count) écrans × \(places.count) places : en verre (jamais noire, aucune couche opaque sous le contenu : au plus \(Int(partOpaqueMax * 100)) % de la forme couverte), entiers, vers l'intérieur, lisibles, clics justes, rien ne tourne\(bilan.isEmpty ? "" : " — " + bilan.joined(separator: " ; "))")
 
         // --- en vrai temps, depuis le coin bas gauche (au-dessus de la ligne du Dock) : le survol ouvre le Centre, il se range en partant
         aller(.basGauche)
