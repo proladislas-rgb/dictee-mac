@@ -71,11 +71,12 @@ extension IlotEssai {
         let texte = mo.store.url.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
         verifier(texte.contains("Devis-cuisine.pdf") && !texte.contains("zzzzzzzz"), "le fichier garde des chemins et des signets, jamais le contenu des fichiers")
 
-        // --- étape 1 : le Centre, un vrai clic sur la case Étagère ; dans son en-tête, la pilule « Bibliothèque »
+        // --- étape 1 : le Centre (l'étagère garde des fichiers : ils sont en haut, maquette ilot-etagere-rapide.html), un vrai clic sur
+        // « Tout » ; dans l'en-tête de la carte Étagère, la pilule « Bibliothèque »
         m.clicForme(); pause(0.9)
-        let ce = PlanCentre.cadreCase(m, .etagere)
-        clic(CGPoint(x: ce.minX + 60, y: ce.minY + 11 + 8), 0.9)
-        verifier(m.courante == .etagere, "vrai clic sur la case Étagère : la carte Étagère (\(m.courante))")
+        let re = PlanCentre.cadre(.etagere, m) ?? .zero
+        clic(CGPoint(x: re.minX + RangeeEtagere.xTout(), y: re.midY), 0.9)
+        verifier(m.courante == .etagere, "vrai clic sur « Tout » (les fichiers en haut du Centre) : la carte Étagère (\(m.courante))")
         poseeSurLaCible()
         let hEt = barre + GeoIlot.profondeur(.etagere)
         verifier(abs(m.geo[2].x - hEt) < 0.5, "carte Étagère avec sa pilule « Bibliothèque » : \(Int(m.geo[2].x)) pt (attendu \(Int(hEt))), les tuiles toujours là (\(m.etagere.count))")
@@ -243,6 +244,8 @@ extension IlotEssai {
         // --- l'étagère vide, la bibliothèque pleine : la case du Centre ouvre quand même la carte (et sa ligne)
         c.agir(.etagereVider); pause(0.3)
         m.clicForme(); pause(0.9)
+        // l'étagère vide : plus de fichiers en haut, la case Étagère est revenue parmi les cases
+        let ce = PlanCentre.cadreCase(m, .etagere)
         clic(CGPoint(x: ce.minX + 60, y: ce.minY + 11 + 8), 0.9)
         verifier(m.courante == .etagere && m.etagere.isEmpty && mo.bib.entrees.count >= 3, "étagère vidée (la bibliothèque garde tout) : la case Étagère ouvre la carte, et sa ligne « Bibliothèque »")
         refermer()

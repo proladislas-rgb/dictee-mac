@@ -80,7 +80,7 @@ extension IlotEssai {
         verifier(m.secondBrain == nil && !m.rondsCentre.contains(.secondBrain) && !m.disposition.elements.contains(.secondBrain), "sans dossier ni fichier : pas de case, aucun vide dans le Centre")
         c.panneau.simulerPointeur(forme: true); pause(1.0)
         verifier(m.courante == .centre && !m.rondsCentre.contains(.secondBrain), "le Centre s'ouvre sans bouton Second Brain")
-        let hCentreSans = m.geo[2].x
+        let hCentreSans = m.geo[2].x, deuxLignesSans = m.nomsSurDeuxLignes
         refermer()
 
         // --- le dossier apparaît (étape par étape), puis le fichier (écriture atomique) : la case apparaît toute seule
@@ -96,7 +96,11 @@ extension IlotEssai {
 
         // --- le Centre : le rond est là, Minuteur et Étagère n'ont pas bougé ; un clic ouvre la carte
         c.panneau.simulerPointeur(forme: true); pause(1.0)
-        verifier(m.courante == .centre && abs(m.geo[2].x - hCentreSans) < 0.5, "Centre : même hauteur qu'avant (\(Int(m.geo[2].x)) pt) : Minuteur et Étagère ne descendent pas")
+        // un rond de plus peut faire passer un nom sur deux lignes (six ronds : « Télécharge- / ments ») : la rangée s'allonge alors d'une
+        // ligne, et d'elle seule
+        let ligneEnPlus = m.nomsSurDeuxLignes && !deuxLignesSans ? DispositionCentre.ligneNom : 0
+        verifier(m.courante == .centre && abs(m.geo[2].x - hCentreSans - ligneEnPlus) < 0.5,
+                 "Centre : même hauteur qu'avant (\(Int(m.geo[2].x)) pt, + \(Int(ligneEnPlus)) pt si un nom passe sur deux lignes) : Minuteur et Étagère ne descendent pas autrement")
         let rondSB = PlanCentre.centreRond(m, .secondBrain)
         let cadreRonds = PlanCentre.cadreRonds(m)
         verifier(cadreRonds.contains(rondSB) && m.rondsCentre.count <= DispositionCentre.maxRonds, "le rond Second Brain est dans la rangée des ronds (\(m.rondsCentre.count) sur \(DispositionCentre.maxRonds))")
