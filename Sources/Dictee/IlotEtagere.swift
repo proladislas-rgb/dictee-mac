@@ -192,6 +192,11 @@ extension IlotControleur {
             sauverEtagere(); montrerEtagere()
             Log.ecrire("étagère : \(r.ajoutes.count) fichier(s) remis")
             moteur.quitterBandeau()
+        case .etagerePartisFermer:
+            // la croix : on n'attend pas la fin de l'anneau ; les fichiers restent partis (plus de « Remettre » pour eux)
+            Log.ecrire("étagère : « Remettre » fermé d'un clic, \(partisEnAttente.count) fichier(s) restent partis")
+            partisEnAttente = []
+            if moteur.bandeau?.vue == .etagerePartis { moteur.quitterBandeau() }
         case .etagereCaptures:
             // le premier clic allume : macOS demande l'accès au dossier des captures à ce moment-là, jamais avant
             let oui = !moteur.capturesActives

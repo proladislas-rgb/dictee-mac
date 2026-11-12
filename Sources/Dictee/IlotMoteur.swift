@@ -124,6 +124,8 @@ enum ActionIlot {
     /// « Remettre » les ramène quelques secondes.
     case etagereSortis([UUID], NSPoint)
     case etagereRemettre
+    /// La croix de « Remettre » : l'annonce part tout de suite, les fichiers restent partis.
+    case etagerePartisFermer
     /// L'interrupteur « Captures d'écran ici » de la carte Étagère ; la ligne « Accès refusé » (elle ouvre Réglages Système).
     case etagereCaptures, etagereCapturesReglages, etagereVignette
     /// Les Outils (IlotOutils.swift) : garder le Mac éveillé (nil : l'arrêter) ;

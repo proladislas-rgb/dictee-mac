@@ -263,7 +263,7 @@ struct IlotCalques: View {
                     .aspectIlot(m.aspect(v, rang: 2), ancre: .center)
             }
             if let k = c.compte {
-                AnneauCompte(fin: k.fin, duree: k.duree, maintenant: m.maintenant)
+                BoutonFermerCompte(fin: k.fin, duree: k.duree, maintenant: m.maintenant) { if let a = c.fermer { m.surAction(a) } }
                     .padding(.leading, ContenuAnnonce.espaceBoutons - ContenuAnnonce.espace)
                     .aspectIlot(m.aspect(v, rang: 3), ancre: .center)
             }
@@ -936,9 +936,35 @@ struct BoutonRondIlot: View {
 
 // MARK: compte à rebours, attente
 
-/// L'anneau de « Remettre » (maquette : 16 pt, il se vide) : il part de ce qui reste jusqu'à `fin` et se vide d'un trait, sur une
-/// animation de SwiftUI (aucune minuterie : rien ne tourne une fois le bandeau parti). Si la fin recule (la souris sur l'îlot retient le
-/// bandeau), il repart de là.
+/// La croix de « Remettre » : un clic ferme l'annonce tout de suite. Autour d'elle, l'anneau du compte à rebours, discret, dit qu'elle
+/// partira aussi d'elle-même (on peut attendre). Comme les pilules : un vrai bouton, un fond qui s'éclaire au survol.
+struct BoutonFermerCompte: View {
+    var fin: Date
+    var duree: TimeInterval
+    var maintenant: () -> Date
+    var action: () -> Void
+    @State private var survol = false
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle().fill(Color.white.opacity(survol ? 0.24 : 0.14))
+                AnneauCompte(fin: fin, duree: duree, maintenant: maintenant)
+                Image(systemName: "xmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
+            }
+            .frame(width: ContenuAnnonce.coteCompte, height: ContenuAnnonce.coteCompte)
+            .contentShape(Circle())
+        }
+        .buttonStyle(AppuiIlot(echelle: 0.88))
+        .onHover { survol = $0 }
+        .animation(.easeOut(duration: 0.12), value: survol)
+        .accessibilityLabel("Fermer")
+        .accessibilityHint("Les fichiers restent partis")
+    }
+}
+
+/// L'anneau du compte à rebours (sur le bord de la croix de « Remettre ») : il part de ce qui reste jusqu'à `fin` et se vide d'un
+/// trait, sur une animation de SwiftUI (aucune minuterie : rien ne tourne une fois le bandeau parti). Si la fin recule (la souris sur
+/// l'îlot retient le bandeau), il repart de là.
 struct AnneauCompte: View {
     var fin: Date
     var duree: TimeInterval
@@ -950,16 +976,12 @@ struct AnneauCompte: View {
     }
     static func part(fin: Date, duree: TimeInterval, a t: Date) -> Double { duree > 0 ? min(1, max(0, fin.timeIntervalSince(t) / duree)) : 0 }
     var body: some View {
-        ZStack {
-            Circle().stroke(Color.white.opacity(0.2), lineWidth: 2.4)
-            Circle().trim(from: 0, to: reste).stroke(Color.white.opacity(0.78), style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-        }
-        .padding(1.2)
-        .frame(width: ContenuAnnonce.coteCompte, height: ContenuAnnonce.coteCompte)
-        .onAppear { vider() }
-        .onChange(of: fin) { vider() }
-        .accessibilityHidden(true)
+        Circle().trim(from: 0, to: reste).stroke(Color.white.opacity(0.6), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+            .rotationEffect(.degrees(-90))
+            .padding(1)
+            .onAppear { vider() }
+            .onChange(of: fin) { vider() }
+            .accessibilityHidden(true)
     }
     private func vider() {
         let r = max(0, fin.timeIntervalSince(maintenant()))

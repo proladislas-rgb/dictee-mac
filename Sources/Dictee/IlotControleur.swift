@@ -654,7 +654,7 @@ final class IlotControleur {
             if let id = session?.id { moteur.retirerEnAttente { $0.claude?.id == id } }
             if moteur.bandeau?.vue == .claudeAttend || moteur.bandeau?.vue == .claudeTermine { moteur.quitterBandeau() } else { moteur.fermer() }
             ramenerSession(session)
-        case .etagereOuvrir, .etagereRetirer, .etagereVider, .etagereSortis, .etagereRemettre, .etagereCaptures, .etagereCapturesReglages, .etagereVignette:
+        case .etagereOuvrir, .etagereRetirer, .etagereVider, .etagereSortis, .etagereRemettre, .etagerePartisFermer, .etagereCaptures, .etagereCapturesReglages, .etagereVignette:
             agirEtagere(action)
         case .microChoisir(let airpods):
             let bt = lireMicros().first { $0.transport == .bluetooth }
