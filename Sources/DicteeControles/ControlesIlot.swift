@@ -258,7 +258,7 @@ func controlesIlot() {
         verifier(a.avantDictee(micro: mac, coupe: true) == .bloquer(mac) && a.coupe == false,
                  "fn, la dictée écouterait le micro du Mac (imposé), resté coupé : elle ne part PAS (c'est lui qui est coupé, pas le micro par défaut)")
         verifier(a.rouvrirPourDicter(mac) == R(commande: .rouvrir(mac), annonce: .ouvert) && !a.coupe,
-                 "« Rouvrir et dicter » : c'est le micro du Mac qui est rouvert (son UID), les AirPods ne sont pas touchés")
+                 "« Rouvrir le micro » : c'est le micro du Mac qui est rouvert (son UID), les AirPods ne sont pas touchés")
         verifier(a.systeme(defaut: mac, coupe: false) == .rien && !a.coupe, "AirPods rangés : le micro du Mac, rouvert, est montré ouvert")
 
         // fn sur un micro coupé : rien ne s'ouvre en douce (Hugues, 11/11 : « micro coupé : rouvert (dictée) » à chaque fn)
@@ -268,7 +268,7 @@ func controlesIlot() {
         verifier(x.avantDictee(micro: mac, coupe: true) == .bloquer(mac), "un deuxième appui : toujours bloqué (le micro reste coupé tant que Hugues ne le rouvre pas)")
         verifier(x.dictee(enCours: true, micro: mac) == .rien && x.dictee(enCours: false) == .rien && x.coupe,
                  "même si une dictée démarrait quand même : aucune commande (ni réouverture, ni recoupage)")
-        verifier(x.rouvrirPourDicter(mac) == R(commande: .rouvrir(mac), annonce: .ouvert) && !x.coupe, "« Rouvrir et dicter » : rouvert, « Micro ouvert »")
+        verifier(x.rouvrirPourDicter(mac) == R(commande: .rouvrir(mac), annonce: .ouvert) && !x.coupe, "« Rouvrir le micro » : rouvert, « Micro ouvert »")
         verifier(x.systeme(defaut: mac, coupe: false) == .rien, "l'écho de la réouverture : rien")
         verifier(x.avantDictee(micro: mac, coupe: false) == .dicter, "puis fn : la dictée part")
         verifier(x.avantDictee(micro: nil, coupe: false) == .dicter, "aucun micro connu : on laisse la dictée décider (elle dira « micro impossible »)")
@@ -1084,12 +1084,15 @@ func controlesEtagereRapide(_ t0: Date) {
         verifier(E.depuisLeService(partage: false, domaine: NSCocoaErrorDomain, code: NSUserCancelledError) == .annule, "didFailToShareItems, NSUserCancelledError : « Annulé »")
         verifier(E.depuisLeService(partage: false, domaine: NSCocoaErrorDomain, code: 4) == .indisponible && E.depuisLeService(partage: false, domaine: "autre", code: NSUserCancelledError) == .indisponible,
                  "une autre erreur (ou un autre domaine) : « AirDrop indisponible », jamais « Annulé » par erreur")
-        let tous: [E] = [.enCours, .lance, .annule, .indisponible]
+        let tous: [E] = [.enCours, .lance, .annule, .indisponible, .glisse]
         verifier(tous.allSatisfy { !$0.titre.lowercased().contains("envoyé") && !$0.sousTitre(quoi: "Plan.jpg", surEtagere: true).lowercased().hasPrefix("envoyé") },
                  "aucun texte ne dit « Envoyé » (aucune interface ne confirme la fin d'un transfert AirDrop)")
         verifier(E.lance.titre == "Envoi lancé vers AirDrop" && E.lance.sousTitre(quoi: "Plan.jpg", surEtagere: false) == "Plan.jpg"
                  && E.lance.sousTitre(quoi: "Plan.jpg", surEtagere: true) == "Plan.jpg \u{00B7} reste sur l\u{2019}étagère", "« Envoi lancé vers AirDrop » ; « reste sur l'étagère » quand il y est")
         verifier(E.annule.titre == "Annulé" && E.annule.sousTitre(quoi: "x", surEtagere: true) == "Rien n\u{2019}a été envoyé", "« Annulé · Rien n'a été envoyé »")
+        verifier(E.glisse.titre == "Glissé vers AirDrop" && !E.glisse.titre.lowercased().contains("lancé") && E.glisse.sousTitre(quoi: "Plan.jpg", surEtagere: true) == "Plan.jpg \u{00B7} reste sur l\u{2019}étagère"
+                 && tous.allSatisfy { !$0.peutDevenir(.glisse) && !E.glisse.peutDevenir($0) },
+                 "glissé sur le panneau AirDrop (aucun service ne répond) : « Glissé vers AirDrop », jamais « Envoi lancé » ; rien ne le remplace")
         verifier(E.enCours.peutDevenir(.lance) && E.enCours.peutDevenir(.annule) && E.lance.peutDevenir(.annule), "« Envoi… » devient la réponse ; « lancé » peut encore être annulé (dans le panneau)")
         verifier(!E.lance.peutDevenir(.lance) && !E.annule.peutDevenir(.lance) && !E.annule.peutDevenir(.annule) && !E.indisponible.peutDevenir(.lance),
                  "après « Annulé » ou un échec, plus rien ne change ; « lancé » ne se répète pas")

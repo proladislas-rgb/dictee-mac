@@ -214,14 +214,15 @@ extension IlotControleur {
     /// bandeau ; l'anneau se vide pendant ce temps). Les fichiers eux-mêmes n'ont pas bougé : l'app en a fait une copie ou une pièce jointe.
     func sortis(_ ids: [UUID], en point: NSPoint) {
         let app = appSous(point)
-        // lâchés sur le panneau AirDrop : l'envoi part, les fichiers restent sur l'étagère (rien ne dit qu'ils sont arrivés)
+        // lâchés sur le panneau AirDrop de macOS : les fichiers restent sur l'étagère ; Verbe ne sait pas s'ils ont été lâchés sur un
+        // appareil (aucun service ne répond), il dit seulement le geste : « Glissé vers AirDrop »
         if app == EnvoiAirDropEtat.nom {
             let l = etagere.elements.filter { ids.contains($0.id) }
             guard !l.isEmpty else { return }
             Log.ecrire("étagère : \(l.count) fichier(s) glissé(s) vers AirDrop, gardé(s) sur l'étagère")
             moteur.fermer()
-            let b = BandeauIlot(vue: .etagereEnvoi, jusqua: maintenant().addingTimeInterval(EnvoiAirDropEtat.lance.duree), ligne1: "", ligne2: "",
-                                envoi: EnvoiEtagere(etat: .lance, noms: l.map(\.nom), icone: iconesEtagere[l[0].id], surEtagere: true))
+            let b = BandeauIlot(vue: .etagereEnvoi, jusqua: maintenant().addingTimeInterval(EnvoiAirDropEtat.glisse.duree), ligne1: "", ligne2: "",
+                                envoi: EnvoiEtagere(etat: .glisse, noms: l.map(\.nom), icone: iconesEtagere[l[0].id], surEtagere: true))
             moteur.annoncer(bandeau: b)
             return
         }

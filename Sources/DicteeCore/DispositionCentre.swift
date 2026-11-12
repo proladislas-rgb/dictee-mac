@@ -59,7 +59,7 @@ extension ElementCentre {
         case .pressePapiers: return "Les 5 dernières choses copiées"
         case .reformuler: return "Réécrit ta dernière dictée"
         case .notes: return "Tes notes rapides, gardées ici"
-        case .noteRapide: return "Ta prochaine dictée devient une note"
+        case .noteRapide: return "Un clic, tu parles, c\u{2019}est noté"
         }
     }
     /// La plus longue phrase d'aide permise (en caractères) : au-delà, ce n'est plus une aide de survol.

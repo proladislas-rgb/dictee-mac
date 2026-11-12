@@ -24,6 +24,7 @@ extension IlotEssai {
             allumerMicro: { memoire.micros += 1 }, allumerClaude: {}, allumerEtagere: {},
             disposition: { nil }, enregistrerDisposition: { _ in },
             minuteurActif: { memoire.minuteur }, allumerMinuteur: { memoire.minuteur = true; memoire.minuteurAllume += 1 })
+        IlotEssai.reglagesLucarneDEssai(c)
         m.disposition = DispositionCentre()
         let faux = (c.micro as? MicroFactice) ?? MicroFactice()
         if !(c.micro is MicroFactice) { c.micro = faux }
@@ -205,5 +206,6 @@ extension IlotEssai {
                                           bulleVue: { true }, marquerBulleVue: {}, centreUtilise: { true }, marquerCentreUtilise: {},
                                           allumerMicro: {}, allumerClaude: {}, allumerEtagere: {}, disposition: { nil }, enregistrerDisposition: { _ in },
                                           minuteurActif: { true }, allumerMinuteur: {})
+        IlotEssai.reglagesLucarneDEssai(c)
     }
 }

@@ -40,6 +40,36 @@ struct BandeauIlot {
     var partis: PartisEtagere?
     /// Un envoi AirDrop depuis la zone « AirDrop » (bandeau `.etagereEnvoi`).
     var envoi: EnvoiEtagere?
+    /// Ce que l'îlot répond à « Lucarne, … » ou dit de l'app Rappels (bandeau `.lucarne`).
+    var lucarne: MessageLucarne?
+}
+
+/// Le bandeau `.lucarne` : une commande dite qui n'a pas abouti (rien n'est collé : la phrase est là, avec « Copier »), ou l'app Rappels.
+enum MessageLucarne: Equatable {
+    /// « Je n'ai pas compris » et la phrase.
+    case incomprise(String)
+    /// « Il me manque l'heure » et la phrase.
+    case sansHeure(String)
+    /// « Cette heure est passée » et la phrase (rien n'est ajouté).
+    case passe(String)
+    /// Au premier rappel : « Aussi dans l'app Rappels ? », « Oui » / « Non ».
+    case questionRappelsApple
+    /// Refus (dans l'îlot, ou dans la fenêtre de macOS, ou déjà dans Réglages Système) : dit une fois.
+    case rappelsRestentIci(systeme: Bool)
+    /// « Oui » et l'accès donné : les rappels (n) sont aussi dans l'app Rappels.
+    case dansRappelsApple(Int)
+}
+
+/// La note dictée d'un clic, dans la carte Note rapide : elle écoute (le niveau du micro, le texte en direct), puis l'écrit. Un objet à
+/// part : le niveau change vingt fois par seconde, seule la zone de la carte le suit (pas tout l'îlot).
+@MainActor
+final class EcouteNote: ObservableObject {
+    enum Phase: Equatable { case repos, ecoute, ecriture }
+    @Published var phase: Phase = .repos
+    @Published var niveau: Float = 0
+    @Published var texte = ""
+    /// Au repos, sous « Dicter une note » : ce qui vient de se passer (« Je n'ai rien entendu, réessaie »), quelques secondes.
+    @Published var message: String?
 }
 
 /// « 3 fichiers partis dans Mail · Remettre » : les icônes (une pile), la phrase, et le compte à rebours (l'anneau se vide jusqu'à
@@ -97,9 +127,9 @@ enum ActionIlot {
     case fichiersOuvrir([URL])
     /// « Rouvrir » sur le micro coupé déplié.
     case microRouvrir
-    /// « Rouvrir et dicter » sur le bandeau de fn (le micro de la dictée était coupé, rien n'a été enregistré) : il est rouvert, le
+    /// « Rouvrir le micro » sur le bandeau de fn (le micro de la dictée était coupé, rien n'a été enregistré) : il est rouvert, le
     /// prochain appui sur fn dicte.
-    case microRouvrirEtDicter
+    case microRouvrirPourDicter
     /// « Ouvrir » (ou « Voir ») sur une session de Claude Code : ramène la fenêtre du Terminal où elle tourne (sinon l'app).
     case claudeOuvrir(SessionClaude?)
     /// L'étagère : ouvrir un fichier (clic sur sa tuile), le retirer (« × »), tout vider.
@@ -128,8 +158,13 @@ enum ActionIlot {
     case copieRecopier(UUID), copieColler(UUID), copiesEffacer
     /// Reformuler : la source (dernière dictée, texte choisi), une réécriture, « Remplacer », « Copier » ;
     case reformulationSource(SourceReformulation), reformuler(StyleReformulation), reformulationRemplacer, reformulationCopier
-    /// Note rapide : l'envoyer dans l'app Notes, la supprimer.
+    /// Note rapide : l'envoyer dans l'app Notes, la supprimer ; « Dicter une note » (un clic : l'écoute commence), « Terminé » ;
+    /// « En faire un rappel » sous une note qui dit un jour ou une heure.
     case noteVersNotes(UUID), noteSupprimer(UUID)
+    case noteDicter, noteTerminer, noteEnRappel(UUID)
+    /// « Lucarne, … » qui n'a pas abouti : « Copier » la phrase (rien n'a été collé) ; la réponse à « Aussi dans l'app Rappels ? ».
+    case lucarneCopier(String)
+    case rappelsApple(Bool)
 }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
@@ -347,6 +382,14 @@ final class IlotMoteur: ObservableObject {
     var noteNeuve: UUID? { didSet { if noteNeuve != oldValue { rev += 1 } } }
     var envoisNotes: [UUID: EnvoiNote] = [:] { didSet { rev += 1 } }
     var survolNote: UUID? { didSet { if survolNote != oldValue { rev += 1 } } }
+    /// La note dictée d'un clic (« J'écoute… », le niveau, le texte en direct, puis « J'écris la note… »).
+    let ecouteNote = EcouteNote()
+    /// Sous la note qui vient d'arriver, quand elle dit un jour ou une heure : « En faire un rappel · demain 13:00 ».
+    var suggestionRappel: (note: UUID, texte: String, quand: Date)? {
+        didSet { if suggestionRappel?.note != oldValue?.note || suggestionRappel?.quand != oldValue?.quand { rev += 1 } }
+    }
+    /// La suggestion se montre sous la première note, tant que c'est celle qu'elle vise.
+    var suggestionVisible: Bool { suggestionRappel != nil && suggestionRappel?.note == notes.first?.id }
     /// Le bouton ou la case du Centre (ou des Outils) dont la phrase d'aide est montrée (au survol, après un court instant).
     var bulleAide: ElementCentre? { didSet { if bulleAide != oldValue { rev += 1 } } }
     private var attenteAide: DispatchWorkItem?
@@ -1070,7 +1113,7 @@ final class IlotMoteur: ObservableObject {
     func ouvrirOutil(_ v: VueIlot) {
         guard !cache, !resolution.verrou, CartesIlot.parent(v) != nil else { return }
         intention?.cancel(); fermeture?.cancel()
-        if v == .outilNote { defilementNotes = 0 }
+        if v == .outilNote { defilementNotes = 0; if ecouteNote.phase == .repos { suggestionRappel = nil } }
         sousVue = v; epingle = true; survole = true
         donneesChangees(); surDepliageMoniteur()
     }
@@ -1094,12 +1137,13 @@ final class IlotMoteur: ObservableObject {
         fermeture = item
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.dureeNoteMontree, execute: item)
     }
-    /// Une dictée qui commence maintenant deviendra-t-elle une note ? Oui si la carte Note rapide (ou la page Outils, dont la bande dit
-    /// « Dicter une note · maintiens fn ») est ouverte ET choisie : épinglée d'un clic, ou sous la souris. La carte rouverte toute seule
-    /// après une note ne compte pas : Hugues est peut-être déjà reparti dans son mail.
+    /// Une dictée à fn qui commence maintenant deviendra-t-elle une note ? Oui si la carte Note rapide est ouverte ET choisie : épinglée
+    /// d'un clic, ou sous la souris (fn y reste possible, en plus du bouton « Dicter une note »). La carte rouverte toute seule après une
+    /// note ne compte pas : Hugues est peut-être déjà reparti dans son mail. La page Outils non plus (sa bande ne parle plus de fn : un
+    /// clic dessus dicte).
     var noteDictable: Bool {
         guard fenetreOuverte, !cache, !editionCentre, epingle || pointeurSurForme else { return false }
-        return courante == .outilNote || (courante == .outils && dispositionOutils.bande)
+        return courante == .outilNote
     }
     /// Fait défiler la liste des notes de `dy` pt (sens d'AppKit), bornée à ce qui dépasse.
     func defilerNotes(_ dy: CGFloat) {

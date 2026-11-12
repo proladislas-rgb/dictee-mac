@@ -117,44 +117,19 @@ public enum AnalyseCommandeIlot {
     /// « rappelle-moi d'appeler Paul à 15 h », « rappelle-moi de réserver la salle dans 20 minutes », « … demain à 9 h 30 ».
     public static func rappel(_ texte: String, maintenant: Date, calendrier: Calendar = .current, exigerPrefixe: Bool = true) -> (texte: String, quand: Date)? {
         // la casse du texte est gardée (« Appeler Paul ») : seuls les mots-clés sont cherchés sans casse
-        var t = nettoyer(texte)
+        let t = nettoyer(texte)
         var corps: String?
         for debut in ["rappelle-moi ", "rappelle moi ", "rappelez-moi ", "rappelle-moi, "] where t.lowercased().hasPrefix(debut) { corps = String(t.dropFirst(debut.count)); break }
         // dans le formulaire de rappel (l'accueil de l'îlot est ouvert), « appeler Paul à 15 h » suffit : le préfixe est facultatif
         if corps == nil, !exigerPrefixe { corps = t }
         guard var reste = corps else { return nil }
         for lien in ["de ", "d'", "que ", "qu'"] where reste.lowercased().hasPrefix(lien) { reste.removeFirst(lien.count); break }
-        t = reste
-        // « dans N minutes / heures »
-        if let r = t.range(of: " dans ", options: [.backwards, .caseInsensitive]) {
-            let duree = String(t[r.upperBound...]).trimmingCharacters(in: .whitespaces).lowercased()
-            let mots = duree.split(separator: " ").map(String.init)
-            if mots.count == 2, let n = nombre(mots[0]) {
-                let u = mots[1]
-                let secondes: Double? = u.hasPrefix("minute") || u == "min" ? n * 60 : (u.hasPrefix("heure") ? n * 3600 : nil)
-                if let secondes, secondes > 0, secondes <= 24 * 3600 {
-                    let sujet = majuscule(String(t[..<r.lowerBound]))
-                    return sujet.isEmpty ? nil : (sujet, maintenant.addingTimeInterval(secondes))
-                }
-            }
-        }
-        // « à 15 h », « à 15h30 », « à 15 h 30 », « à 9:30 », avec « demain » possible
-        var demain = false
-        var avant = t
-        if avant.lowercased().hasSuffix(" demain") { demain = true; avant.removeLast(7) }
-        guard let r = avant.range(of: " à ", options: [.backwards, .caseInsensitive]) else { return nil }
-        var heureTexte = String(avant[r.upperBound...]).trimmingCharacters(in: .whitespaces).lowercased()
-        var sujetBrut = String(avant[..<r.lowerBound])
-        if heureTexte.hasPrefix("demain ") { demain = true; heureTexte.removeFirst(7) }
-        if sujetBrut.lowercased().hasSuffix(" demain") { demain = true; sujetBrut.removeLast(7) }
-        guard let (h, m) = heureEtMinute(heureTexte) else { return nil }
-        var c = calendrier.dateComponents([.year, .month, .day], from: maintenant)
-        c.hour = h; c.minute = m; c.second = 0
-        guard var quand = calendrier.date(from: c) else { return nil }
-        if demain { quand = calendrier.date(byAdding: .day, value: 1, to: quand) ?? quand }
-        else if quand <= maintenant { quand = calendrier.date(byAdding: .day, value: 1, to: quand) ?? quand }
-        let sujet = majuscule(sujetBrut)
-        return sujet.isEmpty ? nil : (sujet, quand)
+        // le jour et l'heure, où qu'ils soient dans la phrase (« demain vers 13-14 h », « dans 20 minutes », « lundi à 9 h ») ; le texte
+        // remis à l'infinitif (« Appelez Paul » → « Appeler Paul »)
+        // un moment déjà passé (« aujourd'hui à 9 h » dit à 14 h) : pas de rappel qui sonnerait aussitôt
+        guard let m = MomentDicte.extraire(reste, maintenant: maintenant, calendrier: calendrier), m.quand > maintenant else { return nil }
+        let sujet = TexteRappel.propre(m.reste)
+        return sujet == "Rappel" && m.reste.isEmpty ? nil : (sujet, m.quand)
     }
 
     static func heureEtMinute(_ s: String) -> (Int, Int)? {

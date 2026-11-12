@@ -30,6 +30,7 @@ extension IlotEssai {
             bulleVue: { memoire.bulle }, marquerBulleVue: { memoire.bulle = true },
             centreUtilise: { memoire.utilise }, marquerCentreUtilise: { memoire.utilise = true },
             allumerMicro: { memoire.micros += 1 }, allumerClaude: { memoire.claude += 1 }, allumerEtagere: { memoire.etagere += 1 })
+        IlotEssai.reglagesLucarneDEssai(c)
         let racine = dossier.appendingPathComponent("centre", isDirectory: true)
         let inst = InstallationClaude(reglages: racine.appendingPathComponent("point-claude/settings.json"), dossierVerbe: racine.appendingPathComponent("Dictee", isDirectory: true))
         c.installationClaude = inst

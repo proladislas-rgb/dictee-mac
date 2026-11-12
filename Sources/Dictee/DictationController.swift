@@ -14,6 +14,8 @@ final class DictationController {
     final class Session {
         let id: Int
         let mainsLibres: Bool
+        /// Faux pour la note dictée d'un clic dans l'îlot : pas d'encoche de dictée (l'îlot montre « J'écoute… »), jamais de collage.
+        var encoche = true
         let appCible: NSRunningApplication?
         let debut = ProcessInfo.processInfo.systemUptime
         var relachement: Double?
@@ -69,6 +71,16 @@ final class DictationController {
     var surFilet: ((String, NSRunningApplication?) -> Void)?
     /// Appelé avec le texte final avant le collage : vrai si c'était une commande de l'îlot (le texte n'est alors pas collé).
     var surInterception: ((String) -> Bool)?
+    /// « Lucarne, … » cherché sur le texte de Groq, AVANT la remise au propre (l'IA, le lexique ou les raccourcis pourraient changer ou
+    /// retirer le mot d'appel, et la commande serait collée dans l'app) : vrai si c'était pour Lucarne (rien n'est collé).
+    var surCommandeLucarne: ((String) -> Bool)?
+    /// Le texte de la note dictée d'un clic, lié à SA dictée (jamais à une échéance) : vrai s'il est devenu une note (ou une commande).
+    var surNoteParClic: ((String) -> Bool)?
+    /// La dictée sans encoche (la note dictée d'un clic dans l'îlot) : le niveau du micro et le texte en direct vont à l'îlot ; une fin
+    /// sans texte le lui dit (rien entendu, rien reconnu).
+    var surNiveauSansEncoche: ((Float) -> Void)?
+    var surTexteSansEncoche: ((String) -> Void)?
+    var surRienEcrit: (() -> Void)?
     /// À appeler quand le micro vient d'être autorisé : prépare le moteur pour un départ instantané.
     func microAutorise() { audio.preparer() }
     /// Appelé quand la capture commence (`true`) ou finit (`false`) : l'icône de la barre des menus montre un trait ambre.
@@ -103,9 +115,23 @@ final class DictationController {
         }
     }
 
+    /// « Dicter une note » dans l'îlot : une dictée lancée d'un clic, sans encoche (l'îlot montre l'écoute) ; fn n'est pas tenue. Faux si
+    /// elle n'a pas pu partir (micro non autorisé, micro coupé : l'îlot ou l'encoche le disent).
+    func commencerSansEncoche() -> Bool {
+        guard etat == .repos else { return false }
+        commencer(mainsLibres: true, encoche: false)
+        return etat != .repos
+    }
+    /// « Terminé » (ou le silence) : la note dictée d'un clic s'arrête ; la touche fn repart de zéro.
+    func terminerSansEncoche() {
+        guard courante?.encoche == false else { return }
+        terminer()
+        surFinIndependante?()
+    }
+
     // MARK: début
 
-    private func commencer(mainsLibres: Bool) {
+    private func commencer(mainsLibres: Bool, encoche: Bool = true) {
         guard etat == .repos else { return }
         guard Permissions.microOK else {
             Log.ecrire("dictée refusée : micro non autorisé")
@@ -124,6 +150,7 @@ final class DictationController {
                                                                                        champ: { champ.dejaConnu() }, recents: Array(recents)),
                                              correcteur: PreparationLexique.correcteur())
         let s = Session(id: compteur, mainsLibres: mainsLibres, appCible: appCible, transcripteur: transcripteur, champ: champ)
+        s.encoche = encoche
         courante = s
         let champLu = s.champ, bundle = s.appCible?.bundleIdentifier
         let unites = NettoyageParUnites(mots: Dictionnaire.mots(), relecture: s.relecture) {
@@ -142,17 +169,27 @@ final class DictationController {
         etat = .ecoute(mainsLibres: mainsLibres)
         surDebut?()
         surCapture?(true)
-        Log.ecrire("dictée \(s.id) : appui fn (\(mainsLibres ? "mains libres" : "tenu")), app cible = \(s.appCible?.bundleIdentifier ?? "inconnue")")
+        Log.ecrire("dictée \(s.id) : \(encoche ? "appui fn (\(mainsLibres ? "mains libres" : "tenu"))" : "note dictée d\u{2019}un clic dans l\u{2019}îlot"), app cible = \(s.appCible?.bundleIdentifier ?? "inconnue")")
 
         if let pid = s.appCible?.processIdentifier, Permissions.accessibiliteOK { s.champ.lireAuDebut(pid: pid) }
         s.pipeline.surMorceau = { transcripteur.envoyer($0) }
         if transcripteur.anticipationActive { s.pipeline.surAnticipation = { transcripteur.anticiper($0) } }
         s.pipeline.surNiveau = { [weak self] n in
-            DispatchQueue.main.async { MainActor.assumeIsolated { if self?.courante?.id == s.id { self?.panneau.niveau(n) } } }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self, self.courante?.id == s.id else { return }
+                    if s.encoche { self.panneau.niveau(n) } else { self.surNiveauSansEncoche?(n) }
+                }
+            }
         }
         if let direct = PrechauffageParole.creer() {
             direct.surTexte = { [weak self] texte in
-                DispatchQueue.main.async { MainActor.assumeIsolated { if self?.courante?.id == s.id { self?.panneau.mettreAJourTexte(texte) } } }
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        guard let self, self.courante?.id == s.id else { return }
+                        if s.encoche { self.panneau.mettreAJourTexte(texte) } else { self.surTexteSansEncoche?(texte) }
+                    }
+                }
             }
             s.pipeline.surTamponBrut = { [weak direct] tampon in direct?.alimenter(tampon) }
             s.direct = direct
@@ -160,7 +197,10 @@ final class DictationController {
         // L'encoche s'ouvre tout de suite en mains libres ; en mode « tenir », après 0,12 s, pour qu'un appui court
         // (annulé) ne fasse pas clignoter l'encoche.
         ouvertureRetardee?.cancel()
-        if mainsLibres {
+        if !encoche {
+            // la note d'un clic : l'îlot montre l'écoute, l'encoche de dictée ne s'ouvre pas ; le son de départ dit que ça écoute
+            jouerDebut(s)
+        } else if mainsLibres {
             panneau.ouvrir(app: s.appCible, mainsLibres: true)
             jouerDebut(s)
         } else {
@@ -230,6 +270,7 @@ final class DictationController {
             Log.ecrire("dictée \(s.id) : rien entendu, rien à écrire")
             s.direct?.annuler()
             fermerSiLibre()
+            if !s.encoche { surRienEcrit?() }
             return
         }
         let restant = max(0.2, Settings.delaiGroq - (ProcessInfo.processInfo.systemUptime - relache))
@@ -243,6 +284,7 @@ final class DictationController {
         case .texte:
             Log.ecrire("dictée \(s.id) : Groq n'a rien reconnu (\(attente) ms)")
             fermerSiLibre()
+            if !s.encoche { surRienEcrit?() }
         case .echec(let raison):
             Log.ecrire("dictée \(s.id) : Groq en échec après \(attente) ms (\(raison)) -> secours Apple")
             await utiliserLeSecours(s, relachement: relache)
@@ -257,6 +299,7 @@ final class DictationController {
         guard Settings.secoursApple else {
             Log.ecrire("dictée \(s.id) : secours Apple désactivé dans les Réglages, rien à écrire")
             s.direct?.annuler()
+            if !s.encoche { surRienEcrit?() }
             if courante == nil { panneau.afficherMessage("Impossible de dicter, réessaie", app: s.appCible) }
             return
         }
@@ -274,6 +317,7 @@ final class DictationController {
         texte = texte.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !texte.isEmpty else {
             Log.ecrire("dictée \(s.id) : pas de texte de secours, rien à écrire")
+            if !s.encoche { surRienEcrit?() }
             if courante == nil { panneau.afficherMessage("Impossible de dicter, réessaie", app: s.appCible) }
             return
         }
@@ -301,6 +345,14 @@ final class DictationController {
 
     /// Mise en forme selon l'app cible, puis collage au curseur.
     private func ecrire(_ brut: String, session s: Session, relachement relache: Double) async {
+        // « Lucarne, … » sur le texte de Groq : une commande ne passe jamais par la remise au propre (ni l'IA, ni le lexique)
+        if AnalyseCommandeIlot.sansAppel(brut) != nil, surCommandeLucarne?(brut) == true {
+            s.unites?.annulerTout(); s.nettoyageAnticipe?.tache.cancel()
+            Log.ecrire("dictée \(s.id) : commande pour Lucarne (lue sur le texte de Groq), rien n\u{2019}est collé")
+            fermerSiLibre()
+            Retours.fin()
+            return
+        }
         let kind = TextFormatter.kind(bundleID: s.appCible?.bundleIdentifier)
         let (champ, sourceChamp) = await s.champ.contexte()
         let contexte = Settings.adapterLeTon ? RemiseAuPropre.contexte(bundleID: s.appCible?.bundleIdentifier, role: champ?.role, titreFenetre: champ?.titreFenetre) : .general
@@ -315,7 +367,15 @@ final class DictationController {
         let apresRaccourcis = RaccourcisVocaux.appliquer(apresAdresses, raccourcis: MotsModele.partage.raccourcis)
         let texteFinal = TextFormatter.prepare(apresRaccourcis, for: kind)
         if let comparaison = ComparaisonJournal.ligne(groq: brut, final: texteFinal) { Log.ecrire("dictée \(s.id) : \(comparaison)") }
-        // Commande de l'îlot (« minuteur 10 minutes ») : seulement si l'accueil de l'îlot était ouvert au début de la dictée ; sinon jamais touchée.
+        // la note d'un clic : son texte va à la carte, même arrivé tard ; JAMAIS collé dans l'app au premier plan (même vide ou refusé)
+        if !s.encoche {
+            if surNoteParClic?(texteFinal) == true { Retours.fin(); return }
+            Log.ecrire("dictée \(s.id) : note d\u{2019}un clic non retenue, rien n\u{2019}est collé")
+            surRienEcrit?()
+            return
+        }
+        // Commande de l'îlot (« minuteur 10 minutes ») : seulement si l'accueil de l'îlot était ouvert au début de la dictée ; sinon jamais
+        // touchée. « Lucarne, … » y est cherché encore, en secours, sur le texte final.
         if surInterception?(texteFinal) == true {
             Log.ecrire("dictée \(s.id) : commande de l\u{2019}îlot, rien n\u{2019}est collé")
             fermerSiLibre()
@@ -486,6 +546,7 @@ final class DictationController {
         ouvertureRetardee?.cancel()
         panneau.fermer()
         audio.arreter { }
+        if !s.encoche { surRienEcrit?() }
     }
 
     private func annulerParBouton() {

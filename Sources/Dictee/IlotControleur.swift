@@ -45,7 +45,7 @@ final class IlotControleur {
     /// Le micro du Mac (CoreAudio ; un micro factice dans les essais, jamais le vrai).
     var micro: PiloteMicro = MicroSysteme() { didSet { micro.surChangement = { [weak self] in self?.microChange() } } }
     private(set) var veilleMicro = VeilleMicro()
-    /// Le micro de la dictée qu'un appui sur fn a trouvé coupé : « Rouvrir et dicter » rouvre celui-là (son UID).
+    /// Le micro de la dictée qu'un appui sur fn a trouvé coupé : « Rouvrir le micro » rouvre celui-là (son UID).
     private(set) var microBloque: String?
     /// Le micro de la dictée lu par `autoriserDictee` à l'appui sur fn : la dictée qui démarre aussitôt ne le relit pas.
     private var microDeLaDicteeLu: String?
@@ -105,6 +105,22 @@ final class IlotControleur {
     /// ⌘C vient d'être tapé : un seul réveil, le temps que l'app écrive dans le presse-papiers.
     var reveilCopie: DispatchWorkItem?
 
+    // MARK: « Lucarne, … », l'app Rappels, la note dictée d'un clic (IlotLucarne.swift)
+    /// L'app Rappels d'Apple (EventKit ; un faux dans l'essai, jamais le vrai, jamais de vraie demande d'autorisation).
+    var rappelsApple: PiloteRappelsApple = RappelsAppleSysteme()
+    /// La question « Aussi dans l'app Rappels ? » attend que « Rappel ajouté » ait été vu ; posée une fois par lancement au plus.
+    var questionRappelsApple: DispatchWorkItem?
+    var questionRappelsPosee = false
+    /// La note dictée d'un clic : démarrer ou arrêter la dictée sans encoche (rempli par l'AppDelegate ; l'essai les simule).
+    var surDicterNote: () -> Bool = { false }
+    var surTerminerNote: () -> Void = {}
+    var finDeNote: FinDeNote?
+    var minuterieNote: Timer?
+    /// La note d'un clic écrit encore (« J'écris la note… ») : un seul réveil la remet au repos si rien n'arrive.
+    var echeanceNote: DispatchWorkItem?
+    /// Une dictée sans encoche est en cours : la lecture qui se met en pause pour elle n'efface pas l'îlot (il montre l'écoute).
+    var noteParClic = false
+
     /// Ce qui occupe l'encoche en dehors de la dictée de ce contrôleur (rempli par l'AppDelegate).
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
     /// Recolle un texte dans la dernière app (rempli par l'AppDelegate).
@@ -140,7 +156,7 @@ final class IlotControleur {
     }
 
     private(set) var minuteur: MinuteurIlot?
-    private(set) var rappels: ListeRappels
+    var rappels: ListeRappels
     var stockage: RappelsStore
     /// L'étagère (IlotEtagere.swift) : les signets des fichiers gardés, leur fichier, et leurs icônes du Finder (lues une fois).
     var etagere: EtagereIlot
@@ -347,7 +363,7 @@ final class IlotControleur {
 
     /// fn vient d'être appuyée, la dictée n'a pas encore démarré (aucun son capté) : peut-elle partir ? Coupé veut dire coupé (Hugues,
     /// 11/11 au soir : fn rouvrait le micro en douce). Le micro qu'écouterait la dictée est coupé : non, l'îlot dit « Micro coupé » et
-    /// propose « Rouvrir et dicter » ; le micro par défaut est coupé mais la dictée en écoute un autre, ouvert : oui, et l'îlot le dit
+    /// propose « Rouvrir le micro » ; le micro par défaut est coupé mais la dictée en écoute un autre, ouvert : oui, et l'îlot le dit
     /// (une fois par coupure). Réglage « Micro coupé » éteint : Verbe ne suit pas les micros, la dictée part.
     func autoriserDictee() -> Bool {
         guard micro.actif else { return true }
@@ -371,11 +387,11 @@ final class IlotControleur {
             return true
         }
     }
-    /// Combien de temps « Micro coupé · Rouvrir et dicter » reste (le temps d'aller cliquer).
+    /// Combien de temps « Micro coupé · Rouvrir le micro » reste (le temps d'aller cliquer).
     static let dureeMicroFn: TimeInterval = 6
     /// Un bandeau qui répond à un geste (fn) : il s'affiche même sur le Centre épinglé (qui retiendrait sinon les bandeaux) ; seule une
     /// dictée ou une réunion en cours le fait attendre.
-    private func annoncerTout(_ b: BandeauIlot) {
+    func annoncerTout(_ b: BandeauIlot) {
         if moteur.centreRetientLesBandeaux { moteur.epingle = false }
         moteur.annoncer(bandeau: b)
     }
@@ -471,8 +487,9 @@ final class IlotControleur {
                 armeFormulaire = courante == .rappelListe
                 armeJusqua = .distantFuture
             }
-            // la carte Note rapide (ou la page Outils et sa bande) est ouverte et choisie : cette dictée devient une note (pas collée)
-            if moteur.noteDictable { noteArmeeJusqua = .distantFuture }
+            // la carte Note rapide (ou la page Outils et sa bande) est ouverte et choisie : cette dictée devient une note (pas collée) ;
+            // la note dictée d'un clic, elle, est liée à sa propre dictée (`noteParClicEcrite`), jamais à cette échéance
+            if moteur.noteDictable, !noteParClic { noteArmeeJusqua = .distantFuture }
         } else {
             // armée sans échéance pendant toute la dictée (une dictée de plus d'une minute aurait sinon collé la note dans l'app au
             // premier plan) ; au relâchement de fn, le temps de la transcription
@@ -489,11 +506,13 @@ final class IlotControleur {
         if !enCours, let b = annonceFinDictee { annonceFinDictee = nil; moteur.annoncer(bandeau: b) }
         lecture.dicteeChange(enCours: enCours)
         appliquerLesMasques()
+        // la note d'un clic finie autrement que par « Terminé » ou le silence (fn relâchée, annulée) : elle s'écrit
+        if !enCours { noteParClic = false; if moteur.ecouteNote.phase == .ecoute { noteEnEcriture() } }
     }
 
     private func appliquerLesMasques() {
         let o = occupation()
-        let dictee = o.dictee || lecture.dicteeConfirmee
+        let dictee = o.dictee || (lecture.dicteeConfirmee && !noteParClic)
         let masque = o.filet || o.miseAJour || o.autreAnnonce
         guard dictee != moteur.dictee || o.reunion != moteur.reunion || masque != moteur.masque else { return }
         moteur.dictee = dictee; moteur.reunion = o.reunion; moteur.masque = masque
@@ -583,19 +602,24 @@ final class IlotControleur {
         case .centreMicro, .centreTelechargements, .centreClaude, .etagereAllumer, .centreReunion, .centreAvis: agirCentre(action)
         case .eveil, .copieRecopier, .copieColler, .copiesEffacer, .reformulationSource, .reformuler, .reformulationRemplacer, .reformulationCopier,
              .noteVersNotes, .noteSupprimer: agirOutils(action)
+        case .noteDicter, .noteTerminer, .noteEnRappel, .lucarneCopier, .rappelsApple: agirLucarne(action)
         case .alerteOK: moteur.quitterAlerte()
         case .rappelPlusTard(let id):
             rappels.reporter(id, depuis: maintenant()); sauver()
+            if let r = rappels.rappel(id) { suivreDansRappels(r, .deplacer) }
             moteur.quitterAlerte()
             let t = rappels.rappels.first { $0.id == id }
             moteur.annoncer(bandeau: BandeauIlot(vue: .rappelReporte, jusqua: maintenant().addingTimeInterval(2.8), ligne1: "Je vous le redis dans 10 min", ligne2: t?.texte ?? "",
                                                  meta: FormatIlot.heure(maintenant().addingTimeInterval(600))))
         case .rappelFait(let id):
             let t = rappels.rappels.first { $0.id == id }?.texte ?? ""
+            if let r = rappels.rappel(id) { suivreDansRappels(r, .cocher) }
             rappels.fait(id); sauver()
             moteur.quitterAlerte()
             moteur.annoncer(bandeau: BandeauIlot(vue: .rappelFait, jusqua: maintenant().addingTimeInterval(2.2), ligne1: "Fait", ligne2: t))
         case .rappelAnnuler(let id):
+            if let r = rappels.rappel(id) { suivreDansRappels(r, .supprimer) }
+            questionRappelsApple?.cancel()
             rappels.annuler(id); sauver(); moteur.quitterBandeau()
         case .rappelFormulaire: moteur.ouvrirFormulaireRappel()
         case .rendezVousRejoindre(let e):
@@ -610,7 +634,7 @@ final class IlotControleur {
         case .microRouvrir:
             moteur.fermer()
             executer(veilleMicro.rouvrir())
-        case .microRouvrirEtDicter:
+        case .microRouvrirPourDicter:
             moteur.quitterBandeau()
             guard micro.actif, let u = microBloque else { return }
             microBloque = nil
@@ -714,15 +738,18 @@ final class IlotControleur {
 
     @discardableResult
     func ajouterUnRappel(texte: String, quand: Date) -> Rappel? {
-        guard Settings.ilotRappels, let r = rappels.ajouter(texte: texte, echeance: quand, maintenant: maintenant()) else { return nil }
+        guard reglagesCentre.rappelsActifs(), let r = rappels.ajouter(texte: texte, echeance: quand, maintenant: maintenant()) else { return nil }
         sauver()
         dernierRappelAjoute = r.id
         moteur.fermer()
-        moteur.annoncer(bandeau: BandeauIlot(vue: .rappelAjoute, jusqua: maintenant().addingTimeInterval(3), ligne1: "Rappel ajouté",
+        moteur.annoncer(bandeau: BandeauIlot(vue: .rappelAjoute, jusqua: maintenant().addingTimeInterval(Self.dureeRappelAjoute), ligne1: "Rappel ajouté",
                                              ligne2: r.texte + " \u{00B7} " + ListeRappels.jour(de: quand, maintenant: maintenant()), meta: FormatIlot.heure(quand), rappelId: r.id))
+        synchroniserApresAjout(r)
         return r
     }
-    private func sauver() {
+    /// « Rappel ajouté » reste 3 s (assez pour lire et « Annuler »).
+    static let dureeRappelAjoute: TimeInterval = 3
+    func sauver() {
         stockage.ecrire(rappels)
         moteur.rappelsSonnes = rappels.enAttente
         moteur.rappelsAVenir = rappels.aVenir(a: maintenant())
@@ -738,8 +765,10 @@ final class IlotControleur {
     }
     /// Les rappels dont l'heure est venue sonnent (y compris ceux arrivés à échéance pendant que Verbe était fermé).
     func verifierLesRappels() {
-        guard Settings.ilotRappels else { return }
+        guard reglagesCentre.rappelsActifs() else { return }
         let t = maintenant()
+        // cochés sur l'iPhone (ou dans l'app Rappels) avant l'heure : ils ne sonnent pas une deuxième fois ici
+        retirerCeuxFaitsDansRappels(rappels.dus(a: t))
         let dus = rappels.dus(a: t)
         for r in dus { rappels.marquerSonne(r.id, a: t) }
         stockage.ecrire(rappels)
@@ -822,9 +851,26 @@ final class IlotControleur {
 
     // MARK: commandes dictées
 
+    /// « Lucarne, … » lu sur une dictée (le texte de Groq d'abord, avant toute remise au propre ; puis le texte final, en secours) : vrai
+    /// si elle était pour Lucarne. Ce qui était armé pour cette dictée (note, commande de l'îlot ouvert) tombe ; une note dictée d'un
+    /// clic qui était en fait une commande rend la carte à son bouton.
+    func intercepterLucarne(_ texte: String) -> Bool {
+        guard commandeLucarne(texte) else { return false }
+        noteArmeeJusqua = .distantPast; armeJusqua = .distantPast; armeFormulaire = false
+        if moteur.ecouteNote.phase != .repos {
+            echeanceNote?.cancel(); echeanceNote = nil
+            minuterieNote?.invalidate(); minuterieNote = nil; finDeNote = nil
+            let e = moteur.ecouteNote
+            e.phase = .repos; e.texte = ""; e.niveau = 0; e.message = nil
+        }
+        return true
+    }
+
     /// Appelée avec le texte final d'une dictée, avant le collage. Vrai si c'était une commande de l'îlot (le texte n'est alors PAS collé).
     /// Ne s'applique que si l'accueil de l'îlot était ouvert au début de la dictée : une dictée normale n'est jamais mangée.
     func intercepter(_ texte: String) -> Bool {
+        // « Lucarne, … » (ou « Verbe, … ») en tête : une commande, îlot ouvert ou fermé, dans n'importe quelle app ; jamais collée
+        if intercepterLucarne(texte) { return true }
         // Note rapide : la carte était ouverte au début de la dictée, le texte devient une note
         if noteArmeeJusqua > maintenant() {
             noteArmeeJusqua = .distantPast
@@ -839,7 +885,7 @@ final class IlotControleur {
             guard Settings.ilotMinuteur else { return false }
             lancerLeMinuteur(secondes: secondes, bandeau: true)
         case .rappel(let t, let quand):
-            guard Settings.ilotRappels, ajouterUnRappel(texte: t, quand: quand) != nil else { return false }
+            guard reglagesCentre.rappelsActifs(), ajouterUnRappel(texte: t, quand: quand) != nil else { return false }
         }
         Log.ecrire("îlot : commande dictée exécutée (\(formulaire ? "formulaire" : "accueil"))")
         return true

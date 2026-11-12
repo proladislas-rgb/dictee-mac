@@ -209,6 +209,9 @@ public enum EnvoiAirDropEtat: Equatable, Sendable {
     case lance
     /// Le panneau (ou l'envoi) a été annulé.
     case annule
+    /// Un fichier de l'étagère glissé sur le panneau AirDrop de macOS : AUCUN service ne répond (le panneau est à macOS), rien ne dit
+    /// qu'il a été lâché sur un appareil : « Glissé vers AirDrop », jamais « Envoi lancé ».
+    case glisse
     /// AirDrop ne peut pas envoyer (Wi-Fi ou Bluetooth éteint), ou le service a échoué.
     case indisponible
 
@@ -225,9 +228,9 @@ public enum EnvoiAirDropEtat: Equatable, Sendable {
     /// une fois annulé ou en échec, plus rien.
     public func peutDevenir(_ e: EnvoiAirDropEtat) -> Bool {
         switch self {
-        case .enCours: return e != .enCours
+        case .enCours: return e != .enCours && e != .glisse
         case .lance: return e == .annule
-        case .annule, .indisponible: return false
+        case .annule, .indisponible, .glisse: return false
         }
     }
     public var titre: String {
@@ -236,13 +239,14 @@ public enum EnvoiAirDropEtat: Equatable, Sendable {
         case .lance: return "Envoi lancé vers AirDrop"
         case .annule: return "Annulé"
         case .indisponible: return "AirDrop indisponible"
+        case .glisse: return "Glissé vers AirDrop"
         }
     }
     /// `quoi` : le nom du fichier, ou « 3 fichiers » ; `surEtagere` : ces fichiers sont (et restent) sur l'étagère.
     public func sousTitre(quoi: String, surEtagere: Bool) -> String {
         switch self {
         case .enCours: return quoi + " \u{00B7} choisis l\u{2019}appareil"
-        case .lance: return surEtagere ? quoi + " \u{00B7} reste sur l\u{2019}étagère" : quoi
+        case .lance, .glisse: return surEtagere ? quoi + " \u{00B7} reste sur l\u{2019}étagère" : quoi
         case .annule: return "Rien n\u{2019}a été envoyé"
         case .indisponible: return "Allume le Wi-Fi et le Bluetooth"
         }
@@ -253,7 +257,7 @@ public enum EnvoiAirDropEtat: Equatable, Sendable {
         case .enCours: return 300
         case .lance: return 3
         case .annule: return 2.2
-        case .indisponible: return 3
+        case .indisponible, .glisse: return 3
         }
     }
 }

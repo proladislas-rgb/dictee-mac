@@ -17,7 +17,7 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// Un fichier (ou plusieurs, en rafale) vient d'arriver dans Téléchargements, AirDrop compris.
     case telecharge
     /// Le micro est coupé (micro barré rouge, « Coupé ») ; au survol, son nom et « Rouvrir » ; rouvert : un bandeau vert court.
-    /// `microFn` : fn appuyée pendant que le micro est coupé : « Micro coupé · Rouvrir et dicter » (la dictée n'est pas partie), ou
+    /// `microFn` : fn appuyée pendant que le micro est coupé : « Micro coupé · Rouvrir le micro » (la dictée n'est pas partie), ou
     /// « Le micro des AirPods est coupé · Verbe dicte avec le micro du Mac » (elle est partie, sur un autre micro).
     case microCompact, microEtendu, microOuvert, microFn
     /// Une touche de volume ou de luminosité : le haut-parleur (ou le soleil) dans l'aile gauche, une barre fine dans l'aile droite.
@@ -46,13 +46,16 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// Ses cartes, ouvertes d'un clic sur un rond : le presse-papiers (les cinq dernières copies), Reformuler (la dernière dictée ou le
     /// texte choisi, réécrit), Note rapide (dicter une note, les notes gardées).
     case outils, outilPressePapiers, outilReformuler, outilNote
+    /// « Lucarne, … » (CommandesLucarne.swift) : ce que l'îlot répond à une commande dite qui n'a pas abouti (« Je n'ai pas compris » et la
+    /// phrase, « Il me manque l'heure »), et l'app Rappels d'Apple (« Aussi dans l'app Rappels ? », « Tes rappels restent ici »).
+    case lucarne
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
         switch self {
         case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
              .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .microFn, .volume, .luminosite, .claudeAttend, .claudeTermine,
-             .etagereEnvoi, .etagerePartis: return true
+             .etagereEnvoi, .etagerePartis, .lucarne: return true
         default: return false
         }
     }
@@ -112,7 +115,7 @@ public enum GeoIlot {
         // rangée prend la place du pied
         .lectureMinuteur: [44, 144, profondeurLecture + rangeeMinuteur, 6, 34, 18, 10],
         .rappelEtendu: alerte, .rappelCompact: compact(48), .rappelAjoute: bandeau,
-        .rappelFait: bandeau, .rappelReporte: bandeau, .rappelListe: [14, 144, 136, 6, 34, 18, 10],
+        .rappelFait: bandeau, .rappelReporte: bandeau, .rappelListe: [14, 144, 136, 6, 34, 18, 10], .lucarne: bandeau,
         .agendaAvant: bandeau, .agendaCompact: compact(50), .agendaEtendu: [50, 150, 130, 6, 34, 18, 10], .agendaDebut: bandeau,
         .notification: bandeau, .notifications: bandeau,
         // l'accueil, devenu la carte sous le Centre : le prochain rendez-vous, « Dire un rappel », la dernière dictée (3 lignes de 42 pt).
@@ -335,7 +338,7 @@ public enum ArbitrageIlot {
         if dictee { return 1 }
         if reunion { return 2 }
         switch ecran {
-        case .minuteurFini, .rappelEtendu, .agendaDebut, .agendaAvant, .agendaCompact, .rappelCompact, .rappelAjoute,
+        case .minuteurFini, .rappelEtendu, .agendaDebut, .agendaAvant, .agendaCompact, .rappelCompact, .rappelAjoute, .lucarne,
              .microCompact, .microEtendu, .microOuvert, .microFn: return 3
         case .lectureCompact, .lectureEtendu, .lectureMinuteur: return 4
         default: return 5

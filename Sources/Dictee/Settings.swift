@@ -223,6 +223,16 @@ enum Settings {
         get { defaults.object(forKey: "ilotRappels") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotRappels") }
     }
+    /// La réponse à « Aussi dans l'app Rappels ? » (« oui », « non » ; absent : jamais demandé). Posée une fois, au premier rappel.
+    static var ilotRappelsApple: String? {
+        get { defaults.string(forKey: "ilotRappelsApple") }
+        set { defaults.set(newValue, forKey: "ilotRappelsApple") }
+    }
+    /// « Tes rappels restent ici » a été dit (on ne le redit jamais).
+    static var ilotRappelsAppleRefusDit: Bool {
+        get { defaults.bool(forKey: "ilotRappelsAppleRefusDit") }
+        set { defaults.set(newValue, forKey: "ilotRappelsAppleRefusDit") }
+    }
     /// Rendez-vous des calendriers du Mac dans l'îlot. ÉTEINT par défaut : l'autorisation n'est demandée qu'à l'activation, jamais au lancement.
     static var ilotCalendrier: Bool {
         get { defaults.object(forKey: "ilotCalendrier") as? Bool ?? false }
@@ -246,7 +256,7 @@ enum Settings {
         set { defaults.set(newValue, forKey: "ilotTelechargements") }
     }
     /// « Micro coupé » : le bouton Micro du Centre coupe le micro du Mac et le rouvre, l'îlot le rappelle tant qu'il est coupé, et fn ne
-    /// dicte pas sur un micro coupé (« Rouvrir et dicter »). ALLUMÉ par défaut : rien n'est demandé à macOS (couper un micro n'écoute rien).
+    /// dicte pas sur un micro coupé (« Rouvrir le micro »). ALLUMÉ par défaut : rien n'est demandé à macOS (couper un micro n'écoute rien).
     static var ilotMicro: Bool {
         get { defaults.object(forKey: "ilotMicro") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "ilotMicro") }

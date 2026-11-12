@@ -180,13 +180,14 @@ extension IlotMoteur {
             return ContenuAnnonce(glyphe: nil, l1: "Micro coupé", l2: nomMicro ?? "Micro du Mac",
                                   droite: .boutons([.init(titre: "Rouvrir", icone: "mic.fill", etiquette: "Rouvrir le micro", action: .microRouvrir)]))
         case .microFn:
-            // fn sur un micro coupé : rien n'a été enregistré, « Rouvrir et dicter » ; ou la dictée est passée par un autre micro (sans bouton)
+            // fn sur un micro coupé : rien n'a été enregistré, « Rouvrir le micro » (puis fn : le bouton ne promet pas une dictée qu'il ne
+            // lance pas) ; ou la dictée est passée par un autre micro (sans bouton)
             guard let b else { return nil }
             let bloque = b.ligne1 == "Micro coupé"
             return ContenuAnnonce(glyphe: GlypheIlot(nom: bloque ? "mic.slash.fill" : "mic.fill", couleur: bloque ? CouleursIlot.rouge : .white, taille: 20),
                                   l1: b.ligne1, l2: b.ligne2,
-                                  droite: bloque ? .boutons([.init(titre: "Rouvrir et dicter", icone: "mic.fill", etiquette: "Rouvrir le micro, puis dicter avec fn",
-                                                                   action: .microRouvrirEtDicter)]) : .rien)
+                                  droite: bloque ? .boutons([.init(titre: "Rouvrir le micro", icone: "mic.fill", etiquette: "Rouvrir le micro, puis appuyer sur fn pour dicter",
+                                                                   action: .microRouvrirPourDicter)]) : .rien)
         case .etagerePartis:
             // « 3 fichiers partis dans Mail », « Remettre » et l'anneau qui se vide (maquette ilot-etagere-rapide.html, étapes 7 et 8)
             guard let b, let p = b.partis else { return nil }
@@ -208,8 +209,38 @@ extension IlotMoteur {
                 return ContenuAnnonce(glyphe: GlypheIlot(nom: "arrow.up.circle.fill", couleur: Color(hex: 0x5EB0FF), taille: 22), l1: l1, l2: l2)
             case .annule:
                 return ContenuAnnonce(glyphe: GlypheIlot(nom: "xmark.circle.fill", couleur: Color.white.opacity(0.55), taille: 22), l1: l1, l2: l2)
+            case .glisse:
+                // glissé sur le panneau de macOS : rien ne répond, l'îlot ne dit que le geste (ni flèche bleue, ni coche)
+                return ContenuAnnonce(glyphe: GlypheIlot(nom: "arrow.up.circle", couleur: Color.white.opacity(0.75), taille: 22), l1: l1, l2: l2)
             case .indisponible:
                 return ContenuAnnonce(glyphe: GlypheIlot(nom: "exclamationmark.circle.fill", couleur: CouleursIlot.ambre, taille: 22), l1: l1, l2: l2)
+            }
+        case .lucarne:
+            // « Lucarne, … » : jamais d'échec silencieux (la phrase est là, « Copier » la garde) ; l'app Rappels : demandé une fois
+            guard let b, let msg = b.lucarne else { return nil }
+            switch msg {
+            case .incomprise(let phrase), .sansHeure(let phrase), .passe(let phrase):
+                let (nom, l1): (String, String)
+                switch msg {
+                case .sansHeure: (nom, l1) = ("clock.badge.questionmark", "Il me manque l\u{2019}heure")
+                case .passe: (nom, l1) = ("clock.badge.exclamationmark", "Cette heure est passée")
+                default: (nom, l1) = ("questionmark.bubble.fill", "Je n\u{2019}ai pas compris")
+                }
+                // l'aperçu seul est coupé ; « Copier » rend la phrase entière
+                return ContenuAnnonce(glyphe: GlypheIlot(nom: nom, couleur: CouleursIlot.ambre, taille: 21),
+                                      l1: l1, l2: "\u{00AB}\u{00A0}" + TexteDictePropre.apercu(phrase) + "\u{00A0}\u{00BB}",
+                                      droite: .boutons([.init(titre: "Copier", etiquette: "Copier la phrase (rien n\u{2019}a été collé)", action: .lucarneCopier(phrase))]))
+            case .questionRappelsApple:
+                return ContenuAnnonce(glyphe: GlypheIlot(nom: "checklist", couleur: CouleursIlot.jaune, taille: 21), l1: "Aussi dans l\u{2019}app Rappels\u{00A0}?",
+                                      l2: "Tes rappels arriveront sur l\u{2019}iPhone",
+                                      droite: .boutons([.init(titre: "Non", etiquette: "Non, garder les rappels ici seulement", action: .rappelsApple(false)),
+                                                        .init(titre: "Oui", style: .jaune, etiquette: "Oui, les mettre aussi dans l\u{2019}app Rappels", action: .rappelsApple(true))]))
+            case .rappelsRestentIci(let systeme):
+                return ContenuAnnonce(glyphe: GlypheIlot(nom: "bell.fill", couleur: CouleursIlot.jaune, taille: 21), l1: "Tes rappels restent ici",
+                                      l2: systeme ? "Accès refusé \u{00B7} Réglages Système pour changer" : "Ils sonnent sur ce Mac seulement")
+            case .dansRappelsApple(let n):
+                return ContenuAnnonce(glyphe: GlypheIlot(nom: "checkmark.circle.fill", couleur: CouleursIlot.vert, taille: 22),
+                                      l1: n > 1 ? "\(n) rappels dans l\u{2019}app Rappels" : "Aussi dans l\u{2019}app Rappels", l2: "Tu les verras sur l\u{2019}iPhone")
             }
         default:
             return nil

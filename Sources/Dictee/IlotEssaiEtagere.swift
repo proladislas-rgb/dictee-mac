@@ -174,11 +174,11 @@ extension IlotEssai {
         glisserDepuis(tuile2)
         EssaiEtagere.app = "AirDrop"
         EssaiEtagere.finGlisser?(.copy, NSPoint(x: 600, y: 300)); pause(0.6)
-        verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Devis-cuisine.pdf"] && m.bandeau?.envoi?.etat == .lance && m.bandeau?.envoi?.surEtagere == true
-                 && m.contenuAnnonce(.etagereEnvoi)?.l2 == "Devis-cuisine.pdf \u{00B7} reste sur l\u{2019}étagère",
-                 "glissé vers AirDrop : « Envoi lancé vers AirDrop · reste sur l'étagère », rien n'est retiré (\(c.etagere.elements.map(\.nom)))")
+        verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Devis-cuisine.pdf"] && m.bandeau?.envoi?.etat == .glisse && m.bandeau?.envoi?.surEtagere == true
+                 && m.contenuAnnonce(.etagereEnvoi)?.l1 == "Glissé vers AirDrop" && m.contenuAnnonce(.etagereEnvoi)?.l2 == "Devis-cuisine.pdf \u{00B7} reste sur l\u{2019}étagère",
+                 "glissé sur le panneau AirDrop : « Glissé vers AirDrop · reste sur l'étagère » (jamais « Envoi lancé » : rien ne le dit), rien n'est retiré (\(c.etagere.elements.map(\.nom)))")
         EssaiEtagere.app = "Mail"
-        pause(EnvoiAirDropEtat.lance.duree + 0.4)
+        pause(EnvoiAirDropEtat.glisse.duree + 0.4)
         verifier(m.bandeau == nil && c.etagere.elements.count == 2, "puis le bandeau s'en va, les fichiers sont toujours là")
 
         // --- 1 · les zones quittées pendant un glisser ne se rouvrent qu'à 60 pt (il visait un onglet, une barre d'outils sous l'encoche)

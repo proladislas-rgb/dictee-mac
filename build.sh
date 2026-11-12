@@ -78,6 +78,8 @@ cat > "$ASSEMBLAGE/Contents/Info.plist" <<PLIST
   <string>Verbe écoute le son de ton Mac (la voix des autres pendant un appel) seulement quand tu notes une réunion.</string>
   <key>NSCalendarsFullAccessUsageDescription</key>
   <string>Verbe lit tes rendez-vous (10 minutes avant, au début) pour les montrer dans l'encoche. Rien n'est enregistré ni envoyé : il relit seulement les prochaines heures.</string>
+  <key>NSRemindersFullAccessUsageDescription</key>
+  <string>Verbe met aussi dans l'app Rappels les rappels que tu lui dictes (« Lucarne, rappelle-moi… »), pour qu'ils arrivent sur ton iPhone. Il ne lit ni ne change tes autres rappels.</string>
   <key>NSBluetoothAlwaysUsageDescription</key>
   <string>Verbe montre dans l'encoche la batterie de tes AirPods et de tes appareils Bluetooth quand ils se connectent. Rien n'est enregistré ni envoyé.</string>
   <key>NSDownloadsFolderUsageDescription</key>

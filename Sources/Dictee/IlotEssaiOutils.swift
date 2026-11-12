@@ -282,14 +282,80 @@ extension IlotEssai {
         clic(CGPoint(x: PlanReformuler.zone(m.grille).minX + 30, y: PlanReformuler.zone(m.grille).minY + 13), 0.8)
         verifier(m.courante == .outils, "« ‹ Outils »")
 
-        // --- Note rapide : la bande « Dicter une note », une dictée qui devient une note
-        clic(PlanCentre.cadreBande(m, page: .outils).origin.applying(.init(translationX: 80, y: 20)), 0.9)
-        verifier(m.courante == .outilNote && m.notes.isEmpty, "vrai clic sur « Dicter une note » : la carte Note rapide")
-        pose("carte Note rapide vide")
+        // --- Note rapide au clic (11/11 au soir : « Maintiens fn tant que cette carte est ouverte » n'était pas compris) : la bande « Dicter
+        // une note » ouvre la carte ET commence l'écoute ; « J'écoute… », le niveau, le texte en direct ; 2 s de silence ou « Terminé »
+        // l'arrêtent ; la note arrive, la carte reste ; « En faire un rappel » quand elle dit un jour ou une heure. La dictée elle-même est
+        // simulée (jamais le vrai micro) : ce que ferait DictationController (début, fin) passe par les mêmes fermetures.
         var occ = OccupationEncoche(); c.occupation = { occ }
+        var ecoutes = 0, arrets = 0
+        c.surDicterNote = { ecoutes += 1; c.dicteeChange(enCours: true); return true }
+        c.surTerminerNote = { arrets += 1; c.dicteeChange(enCours: false) }
+        let colles0 = colles.count
+        clic(PlanCentre.cadreBande(m, page: .outils).origin.applying(.init(translationX: 80, y: 20)), 0.9)
+        verifier(m.courante == .outilNote && m.notes.isEmpty && ecoutes == 1 && m.ecouteNote.phase == .ecoute && !m.cache && m.epingle,
+                 "vrai clic sur la bande « Dicter une note » : la carte, et l'écoute commence tout de suite (« J'écoute… »), sans encoche de dictée")
+        pose("carte Note rapide, « J'écoute… »")
+        c.texteDeNote("J\u{2019}ai demain une livraison")
+        for _ in 0..<10 { c.niveauDeNote(0.15); pause(0.05) }
+        for _ in 0..<20 { c.niveauDeNote(0.75); pause(0.05) }
+        verifier(m.ecouteNote.texte == "J\u{2019}ai demain une livraison" && m.ecouteNote.phase == .ecoute && !m.cache && m.courante == .outilNote,
+                 "le texte en direct dans la carte ; l'îlot reste visible pendant qu'on parle (la lecture en pause ne l'efface pas)")
+        for _ in 0..<10 { c.niveauDeNote(0.16); pause(0.05) }
+        attendre(2.5) { m.ecouteNote.phase == .ecoute }
+        verifier(m.ecouteNote.phase == .ecriture && arrets == 1, "2 s de silence : l'écoute s'arrête toute seule, « J'écris la note… » (\(arrets) arrêt)")
+        // le texte de CETTE dictée (DictationController le remet à `noteParClicEcrite`, sans échéance)
+        verifier(c.noteParClicEcrite("J\u{2019}ai demain une livraison vers 13-14h."), "le texte devient une note (pas collé dans l'app)")
+        pause(0.6)
+        verifier(m.courante == .outilNote && m.epingle && m.ecouteNote.phase == .repos && m.notes.first?.texte == "J\u{2019}ai demain une livraison vers 13-14h." && colles.count == colles0,
+                 "la note en haut, la carte reste ouverte et épinglée, le bouton « Dicter une note » revient")
+        // « demain » : le jour qui commence entre minuit et 4 h (l'îlot nomme alors le jour)
+        let demain13 = Calendar.current.date(bySettingHour: 13, minute: 0, second: 0, of: MomentDicte.demain(c.maintenant()))!
+        let libelle = "En faire un rappel \u{00B7} " + ListeRappels.jour(de: demain13, maintenant: c.maintenant()) + " 13:00"
+        verifier(m.suggestionVisible && m.suggestionRappel?.texte == "Livraison" && m.suggestionRappel?.quand == demain13 && LigneSuggestion.libelle(m) == libelle,
+                 "elle ressemble à un rappel : « \(libelle) » sous la note")
+        pose("carte Note rapide, « En faire un rappel »")
+        let nRappels = c.rappels.rappels.count
+        clic(PlanNote.pointSuggestion(m), 0.6)
+        verifier(c.rappels.rappels.count == nRappels + 1 && c.rappels.rappels.last?.texte == "Livraison" && c.rappels.rappels.last?.echeance == demain13 && m.courante == .rappelAjoute,
+                 "vrai clic sur « En faire un rappel » : « Livraison », demain 13:00, « Rappel ajouté » (\(m.courante))")
+        verifier(m.notes.first?.texte == "J\u{2019}ai demain une livraison vers 13-14h." && m.suggestionRappel == nil, "la note reste, la proposition part")
+        if let r = c.rappels.rappels.last { c.agir(.rappelAnnuler(r.id)) }
+        pause(0.4)
+        // le grand bouton de la carte, puis « Terminé » (de vrais clics) ; une note sans jour ni heure ne propose rien
+        m.clicForme(); pause(0.8); m.ouvrirOutil(.outilNote); pause(0.9)
+        clic(PlanNote.pointDicter(m), 0.4)
+        verifier(m.ecouteNote.phase == .ecoute && ecoutes == 2, "vrai clic sur « Dicter une note » (le grand bouton de la carte) : « J'écoute… »")
+        clic(PlanNote.pointTermine(m), 0.4)
+        verifier(m.ecouteNote.phase == .ecriture && arrets == 2, "vrai clic sur « Terminé » : l'écoute s'arrête")
+        verifier(c.noteParClicEcrite("Idée : un mode nuit pour l\u{2019}îlot."), "une note")
+        pause(0.5)
+        verifier(m.notes.count == 2 && !m.suggestionVisible && m.courante == .outilNote, "sans jour ni heure : rien de proposé")
+        // rien dit : 8 s, puis « Je n'ai rien entendu »
+        clic(PlanNote.pointDicter(m), 0.4)
+        attendre(FinDeNote.sansParole + 1.5) { m.ecouteNote.phase == .ecoute }
+        verifier(m.ecouteNote.phase == .ecriture && arrets == 3, "rien dit en 8 s : l'écoute s'arrête seule")
+        c.noteSansTexte()
+        verifier(m.ecouteNote.phase == .repos && m.ecouteNote.message != nil && m.notes.count == 2, "rien entendu : « Je n'ai rien entendu, réessaie », aucune note")
+        pose("carte Note rapide, rien entendu")
+        // le texte arrive APRÈS le filet (réseau lent, secours d'Apple sur une longue note) : il devient une note quand même, rien de perdu
+        verifier(c.noteParClicEcrite("Une note arrivée en retard.") && m.notes.first?.texte == "Une note arrivée en retard." && m.ecouteNote.message == nil && colles.count == colles0,
+                 "texte arrivé après « Je n'ai rien entendu » : une note quand même (jamais jetée), le message part")
+        // après une note au clic, rien ne reste armé : une dictée suivante, carte fermée, va dans l'app
+        verifier(c.noteArmeeJusqua <= c.maintenant(), "la note au clic n'arme pas la dictée suivante")
+        // la dictée ne peut pas partir (micro coupé, par exemple : l'îlot le dit lui-même) : la carte ne prétend pas écouter
+        // (un vrai geste vient au moins un instant après l'écran : cliquer dans le même tour de boucle que le changement d'état tombe sur
+        // l'arbre SwiftUI d'avant, que le clic traverse)
+        c.surDicterNote = { false }
+        pause(0.5)
+        clic(PlanNote.pointDicter(m), 0.4)
+        verifier(m.ecouteNote.phase == .repos && ecoutes == 3 && m.courante == .outilNote, "la dictée ne peut pas partir : la carte reste sur le bouton (\(m.courante), épinglée \(m.epingle))")
+        for n in m.notes { m.surAction(.noteSupprimer(n.id)) }
+        pause(0.4)
+        verifier(m.notes.isEmpty, "les notes de l'essai retirées")
+        // fn reste possible, en plus, quand la carte est ouverte et choisie
+        pose("carte Note rapide vide")
         c.dicteeChange(enCours: true); occ.dictee = true; c.occupationChangee(); pause(0.4)
         verifier(m.cache, "fn maintenue : l'encoche de la dictée prend la place, l'îlot s'efface")
-        let colles0 = colles.count
         verifier(c.intercepter("Rappeler le plombier jeudi pour le devis de la salle de bain."), "la dictée faite carte ouverte devient une note (pas collée)")
         c.dicteeChange(enCours: false); occ.dictee = false; c.occupationChangee(); pause(1.0)
         verifier(m.courante == .outilNote && m.notes.first?.texte == "Rappeler le plombier jeudi pour le devis de la salle de bain." && m.noteNeuve == m.notes.first?.id && colles.count == colles0,
@@ -314,13 +380,12 @@ extension IlotEssai {
         verifier(longue && m.notes.first?.texte == "Une idée dictée pendant plus d\u{2019}une minute." && colles.count == colles0,
                  "dictée de 75 s, carte ouverte : une note, rien de collé dans l'app")
         if let id = m.notes.first?.id, longue { m.surAction(.noteSupprimer(id)); pause(0.3) }
-        // la page Outils : sa bande dit « maintiens fn », la dictée y devient une note aussi
+        // la page Outils : sa bande ne parle plus de fn (un clic dicte) ; fn y fait donc une dictée normale, jamais une note en douce
         m.ouvrirOutil(.outilNote); pause(0.5); m.allerA(.outils); pause(0.8)
         c.dicteeChange(enCours: true); c.dicteeChange(enCours: false)
         let parBande = c.intercepter("Acheter du pain.")
         pause(0.6)
-        verifier(parBande && m.notes.first?.texte == "Acheter du pain." && m.courante == .outilNote && colles.count == colles0,
-                 "page Outils ouverte (bande « Dicter une note · maintiens fn ») : la dictée devient une note (\(m.courante))")
+        verifier(!parBande && m.notes.first?.texte != "Acheter du pain.", "page Outils ouverte, fn : une dictée normale (la bande ne promet plus rien pour fn) (\(m.courante))")
         if let id = m.notes.first?.id, parBande { m.surAction(.noteSupprimer(id)); pause(0.3) }
         // une dictée faite carte fermée : collée normalement
         m.fermer(); pause(0.6)

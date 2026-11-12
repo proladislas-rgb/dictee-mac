@@ -112,7 +112,7 @@ struct ReglagesVue: View {
             LigneReglage(libelle: "Étagère", note: "Glisse des fichiers sur l\u{2019}encoche : ils y restent. Tu les retrouves en cliquant sur l\u{2019}îlot, et tu les reprends en les glissant vers une app. Verbe garde un lien vers chaque fichier, jamais une copie.") {
                 Interrupteur(actif: $r.ilotEtagere, etiquette: "Étagère")
             }
-            LigneReglage(libelle: "Micro coupé", note: "Le bouton Micro du Centre de l\u{2019}îlot coupe le micro du Mac et le rouvre, pendant un appel par exemple ; l\u{2019}îlot replié dit « Coupé » en rouge. Coupé veut dire coupé : fn ne dicte pas, l\u{2019}îlot propose « Rouvrir et dicter ». Si la dictée passe par un autre micro, ouvert (celui du Mac quand les AirPods sont coupés), elle dicte, et l\u{2019}îlot le dit.") {
+            LigneReglage(libelle: "Micro coupé", note: "Le bouton Micro du Centre de l\u{2019}îlot coupe le micro du Mac et le rouvre, pendant un appel par exemple ; l\u{2019}îlot replié dit « Coupé » en rouge. Coupé veut dire coupé : fn ne dicte pas, l\u{2019}îlot propose « Rouvrir le micro ». Si la dictée passe par un autre micro, ouvert (celui du Mac quand les AirPods sont coupés), elle dicte, et l\u{2019}îlot le dit.") {
                 Interrupteur(actif: $r.ilotMicro, etiquette: "Micro coupé")
             }
             LigneReglage(libelle: "Volume et luminosité dans l\u{2019}îlot", note: "Les touches du volume et de la luminosité s\u{2019}affichent dans l\u{2019}îlot, à la place de l\u{2019}affichage de macOS. Avec ⌥⇧, par petits pas.") {

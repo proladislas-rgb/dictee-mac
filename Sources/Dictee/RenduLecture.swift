@@ -305,7 +305,7 @@ enum RenduLecture {
         ecrire(bureau(hauteur: geometrie.hauteur + 300) { ilot(scene { $0.microCoupe = true; $0.nomMicro = "Micro MacBook Air"; $0.survole = true }) }, "ilot-19c-micro-coupe-survol")
         ecrire(bureau(hauteur: grandBureau, clair: false) { ilot(scene(lecture: videoLongue) { $0.lecturePresente = true; $0.microCoupe = true; $0.nomMicro = "AirPods Pro de Hugues"; $0.survole = true }) }, "ilot-19d-micro-coupe-survol-airpods")
         ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .microOuvert, jusqua: t0, ligne1: "Micro ouvert", ligne2: "") }) }, "ilot-19e-micro-ouvert")
-        // fn sur un micro coupé (11/11 au soir) : la dictée ne part pas, « Rouvrir et dicter » ; ou elle passe par un autre micro, ouvert
+        // fn sur un micro coupé (11/11 au soir) : la dictée ne part pas, « Rouvrir le micro » ; ou elle passe par un autre micro, ouvert
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.microCoupe = true; $0.bandeau = BandeauIlot(vue: .microFn, jusqua: t0, ligne1: "Micro coupé", ligne2: "Rien n\u{2019}a été enregistré") }) }, "ilot-19h-fn-micro-coupe")
         let autre = MicroIlot.autreMicro(coupe: "AirPods Pro de Hugues", dictee: "Micro MacBook Air")
         ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene { $0.microCoupe = true; $0.bandeau = BandeauIlot(vue: .microFn, jusqua: t0, ligne1: autre.titre, ligne2: autre.sousTitre) }) }, "ilot-19i-fn-autre-micro")
@@ -421,6 +421,8 @@ enum RenduLecture {
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene(envoi(.lance))) }, "ilot-24h-etagere-airdrop-lance")
         ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene(envoi(.lance, surEtagere: true))) }, "ilot-24s-etagere-airdrop-lance-reste-sur-etagere")
         ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene(envoi(.annule))) }, "ilot-24i-etagere-airdrop-annule")
+        // un fichier de l'étagère glissé sur le panneau AirDrop de macOS : seul le geste est dit (rien ne répond)
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene(envoi(.glisse, surEtagere: true))) }, "ilot-24t-etagere-glisse-vers-airdrop")
         ecrire(bureau(hauteur: geometrie.hauteur + 345) { ilot(scene { m in m.etagereActive = true; m.etagere = trois; m.energie = batterie; m.survole = true }) }, "ilot-24j-centre-fichiers-en-haut")
         ecrire(bureau(hauteur: geometrie.hauteur + 345, clair: false) { ilot(scene(lecture: videoLongue) { m in m.etagereActive = true; m.etagere = cinq; m.lecturePresente = true
             m.donneesChangees(); m.allerA(.centre) }) }, "ilot-24k-centre-fichiers-en-haut-depuis-video")
@@ -559,6 +561,35 @@ enum RenduLecture {
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.epinglerLeCentre(); m.bulleAide = .eveil })) }, "ilot-26e-aide-outils-garder-eveille")
         ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(lecture: videoLongue, outils { m in m.epinglerLeCentre(); m.bulleAide = .pressePapiers })) }, "ilot-26f-aide-outils-presse-papiers-sombre")
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.epinglerLeCentre(); m.bulleAide = .noteRapide })) }, "ilot-26g-aide-outils-dicter-une-note")
+        // la note dictée d'un clic (11/11 au soir : « Maintiens fn tant que cette carte est ouverte » n'était pas compris) : « J'écoute… »,
+        // le niveau, le texte en direct, « Terminé » ; « J'écris la note… » ; « En faire un rappel · demain 13:00 » sous la note
+        let noteLivraison = NoteRapide(texte: "J\u{2019}ai demain une livraison vers 13-14h.", date: t0)
+        let demain13 = cal.date(bySettingHour: 13, minute: 0, second: 0, of: cal.date(byAdding: .day, value: 1, to: t0)!)!
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.notes = Array(notesExemple.suffix(2)); m.ouvrirOutil(.outilNote)
+            m.ecouteNote.phase = .ecoute; m.ecouteNote.niveau = 0.7; m.ecouteNote.texte = "J\u{2019}ai demain une livraison vers 13" })) }, "ilot-25l-note-j-ecoute")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(lecture: videoLongue, outils { m in m.ouvrirOutil(.outilNote); m.ecouteNote.phase = .ecoute })) },
+               "ilot-25m-note-j-ecoute-debut-sombre")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.notes = Array(notesExemple.suffix(2)); m.ouvrirOutil(.outilNote)
+            m.ecouteNote.phase = .ecriture; m.ecouteNote.texte = "J\u{2019}ai demain une livraison vers 13-14h" })) }, "ilot-25n-note-j-ecris")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.notes = [noteLivraison] + notesExemple.suffix(2); m.ouvrirOutil(.outilNote)
+            m.noteNeuve = noteLivraison.id; m.suggestionRappel = (noteLivraison.id, "Livraison", demain13) })) }, "ilot-25o-note-en-faire-un-rappel")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.notes = Array(notesExemple.suffix(2)); m.ouvrirOutil(.outilNote)
+            m.ecouteNote.message = "Je n\u{2019}ai rien entendu, réessaie" })) }, "ilot-25p-note-rien-entendu")
+        // « Lucarne, … » dit n'importe où : la confirmation, ce qui n'est pas compris (jamais collé), l'app Rappels (demandé une fois)
+        func lucarne(_ msg: MessageLucarne) -> (IlotMoteur) -> Void { { $0.bandeau = BandeauIlot(vue: .lucarne, jusqua: t0, ligne1: "", ligne2: "", lucarne: msg) } }
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelAjoute, jusqua: t0, ligne1: "Rappel ajouté", ligne2: "Livraison \u{00B7} demain", meta: "13:00") }) },
+               "ilot-27a-lucarne-rappel-ajoute-livraison")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene(lucarne(.incomprise("Lucarne, ouvre le dossier des factures.")))) }, "ilot-27b-lucarne-pas-compris")
+        ecrire(bureau(hauteur: petitBureau + 20, clair: false) { ilot(scene(lucarne(.incomprise("Lucarne, est-ce que tu peux me commander une pizza aux quatre fromages pour ce soir, vers vingt heures trente, avec un dessert ?")))) },
+               "ilot-27c-lucarne-pas-compris-long-sombre")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene(lucarne(.sansHeure("Lucarne, rappelle-moi d\u{2019}appeler Paul.")))) }, "ilot-27d-lucarne-il-manque-l-heure")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene(lucarne(.questionRappelsApple))) }, "ilot-27e-rappels-apple-question")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene(lucarne(.passe("Lucarne, rappelle-moi aujourd\u{2019}hui à 9 h d\u{2019}appeler Paul.")))) }, "ilot-27h-lucarne-heure-passee")
+        // dit entre minuit et 4 h : le jour est nommé au lieu de « demain » (on vit encore la veille)
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene { $0.bandeau = BandeauIlot(vue: .rappelAjoute, jusqua: t0, ligne1: "Rappel ajouté", ligne2: "Livraison \u{00B7} vendredi 13", meta: "13:00") }) },
+               "ilot-27i-lucarne-rappel-ajoute-la-nuit")
+        ecrire(bureau(hauteur: petitBureau + 20) { ilot(scene(lucarne(.dansRappelsApple(1)))) }, "ilot-27f-rappels-apple-ajoute")
+        ecrire(bureau(hauteur: petitBureau + 20, clair: false) { ilot(scene(lucarne(.rappelsRestentIci(systeme: true)))) }, "ilot-27g-rappels-restent-ici-sombre")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)

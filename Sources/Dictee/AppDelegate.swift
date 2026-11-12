@@ -386,6 +386,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.reunionControleur.lancer()
         }
         dictee.surInterception = { [weak self] texte in self?.ilot.intercepter(texte) ?? false }
+        dictee.surCommandeLucarne = { [weak self] texte in self?.ilot.intercepterLucarne(texte) ?? false }
+        dictee.surNoteParClic = { [weak self] texte in self?.ilot.noteParClicEcrite(texte) ?? false }
+        // « Dicter une note » dans l'îlot : une dictée lancée d'un clic, sans encoche (la carte montre l'écoute), jamais collée
+        ilot.surDicterNote = { [weak self] in self?.dictee.commencerSansEncoche() ?? false }
+        ilot.surTerminerNote = { [weak self] in self?.dictee.terminerSansEncoche() }
+        dictee.surNiveauSansEncoche = { [weak self] n in self?.ilot.niveauDeNote(n) }
+        dictee.surTexteSansEncoche = { [weak self] t in self?.ilot.texteDeNote(t) }
+        dictee.surRienEcrit = { [weak self] in self?.ilot.noteSansTexte() }
         clavier.onReinitialisation = { [weak self] in self?.ilot.aiguillageNiveau = AiguillageNiveau() }
         clavier.onCopie = { [weak self] in self?.ilot.copieTapee() }
         // « Volume et luminosité » : les touches spéciales passent par la même écoute ; avalées seulement si l'îlot les montre

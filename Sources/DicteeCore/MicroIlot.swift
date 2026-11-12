@@ -4,7 +4,7 @@ import Foundation
 // Le bouton Micro du Centre de l'îlot coupe le micro d'entrée par défaut du Mac et le rouvre (plus de raccourci clavier depuis le 11/11 :
 // le Centre est le seul chemin, seule la touche fn reste, pour dicter) ; tant qu'il est coupé, l'îlot le montre (micro barré rouge,
 // « Coupé »). Coupé veut dire coupé (Hugues, 11/11 au soir : fn rouvrait le micro en douce, il ne s'y attendait pas) : fn ne démarre
-// PAS la dictée sur un micro coupé, l'îlot le dit et propose « Rouvrir et dicter ». Si la dictée écoute un AUTRE micro, ouvert (le micro
+// PAS la dictée sur un micro coupé, l'îlot le dit et propose « Rouvrir le micro ». Si la dictée écoute un AUTRE micro, ouvert (le micro
 // du Mac pendant que les AirPods sont coupés), elle part, et l'îlot le dit. Ce que fait le système (Réglages Système) fait foi.
 
 /// Ce que Verbe sait des micros et ce qu'il doit faire. L'îlot montre `coupe` (le micro PAR DÉFAUT, celui que les apps entendent) ;
@@ -76,7 +76,7 @@ public struct VeilleMicro: Equatable, Sendable {
         return Reponse(commande: .rouvrir(d), annonce: .ouvert)
     }
 
-    /// « Rouvrir et dicter » : rouvre le micro qu'écoute la dictée (`u`, celui qu'un appui sur fn a trouvé coupé), même si ce n'est pas
+    /// « Rouvrir le micro » : rouvre le micro qu'écoute la dictée (`u`, celui qu'un appui sur fn a trouvé coupé), même si ce n'est pas
     /// celui par défaut. Le prochain appui sur fn dicte.
     public mutating func rouvrirPourDicter(_ u: String) -> Reponse {
         if u == defaut { return coupe ? rouvrir() : Reponse(commande: .rouvrir(u), annonce: .ouvert) }

@@ -415,8 +415,12 @@ extension IlotControleur {
         moteur.notes = listeNotes.notes
         moteur.noteNeuve = n.id
         Log.ecrire("note rapide : ajoutée (\(n.texte.count) caractères)")
-        // montrée sans être épinglée : la dictée suivante redevient normale si Hugues est passé à autre chose
-        if moteur.cache { noteAOuvrir = true } else { moteur.montrerNote() }
+        let parClic = moteur.ecouteNote.phase != .repos
+        noteEcrite(n)
+        // dictée d'un clic, la carte ouverte et épinglée : elle reste comme elle est (la note arrive dessous, « En faire un rappel »
+        // éventuel) ; sinon montrée sans être épinglée : la dictée suivante redevient normale si Hugues est passé à autre chose
+        if parClic, !moteur.cache, moteur.courante == .outilNote { moteur.donneesChangees() }
+        else if moteur.cache { noteAOuvrir = true } else { moteur.montrerNote() }
         return true
     }
     private func envoyerVersNotes(_ id: UUID) {

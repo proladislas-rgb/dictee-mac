@@ -65,6 +65,9 @@ enum IlotEssai {
             c.estUneCapture = { IlotControleur.estUneCapture($0, prefixe: nil) }
             c.reglagesCentre.captures = { EssaiEtagere.captures }
             c.reglagesCentre.reglerCaptures = { EssaiEtagere.captures = $0 }
+            // l'app Rappels : jamais EventKit ni une vraie fenêtre d'autorisation ; les réglages des rappels et de la question, simulés
+            c.rappelsApple = RappelsAppleFactice()
+            IlotEssai.reglagesLucarneDEssai(c)
             return c
         }
         // un glisser qui PART de l'îlot n'est jamais remis au système (il prendrait la vraie souris) : l'essai le reçoit
@@ -390,7 +393,7 @@ enum IlotEssai {
             verifier(!m.microCoupe && m.courante == .microOuvert, "rouvert dans Réglages Système : « Micro ouvert »")
             attendre(1.6)
             // coupé veut dire coupé (Hugues, 11/11 au soir : « micro coupé : rouvert (dictée) » à chaque fn) : fn ne rouvre rien, la dictée
-            // ne part pas, l'îlot le dit et propose « Rouvrir et dicter »
+            // ne part pas, l'îlot le dit et propose « Rouvrir le micro »
             c.basculerLeMicro(); attendre(0.6)
             let n1 = faux.commandes.count
             verifier(!c.autoriserDictee() && faux.commandes.count == n1 && faux.coupe, "fn pendant que c'est coupé : la dictée ne part pas, aucune commande (rien de rouvert, rien d'enregistré)")
@@ -400,17 +403,17 @@ enum IlotEssai {
             verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01, "le bandeau : \(Int(m.trace.bande - Double(m.demiCamera))) pt dans la barre (≤ 66)")
             do {
                 let za = m.grille.zoneAnnonce(.microFn), lc = m.contenus[.microFn] ?? 0
-                let bw = MesureIlot.bouton(ContenuAnnonce.Bouton(titre: "Rouvrir et dicter", icone: "mic.fill"))
+                let bw = MesureIlot.bouton(ContenuAnnonce.Bouton(titre: "Rouvrir le micro", icone: "mic.fill"))
                 verifier(lc > bw && lc <= m.grille.zone(.microFn).width + 0.5,
-                         "symbole, texte et « Rouvrir et dicter » mesurés (\(Int(lc)) pt) tiennent dans le bandeau (\(Int(m.grille.zone(.microFn).width)) pt) : rien de tronqué")
+                         "symbole, texte et « Rouvrir le micro » mesurés (\(Int(lc)) pt) tiennent dans le bandeau (\(Int(m.grille.zone(.microFn).width)) pt) : rien de tronqué")
                 // un deuxième appui : toujours bloqué, rien de rouvert
                 verifier(!c.autoriserDictee() && faux.commandes.count == n1, "un deuxième appui sur fn : toujours rien")
                 attendre(0.5)
-                // vrai clic sur « Rouvrir et dicter » (calé à droite du bandeau)
+                // vrai clic sur « Rouvrir le micro » (calé à droite du bandeau)
                 let pb = CGPoint(x: za.maxX - bw / 2, y: za.midY)
                 c.panneau.envoyerSouris(.leftMouseDown, en: pb); attendre(0.06); c.panneau.envoyerSouris(.leftMouseUp, en: pb); attendre(0.6)
                 verifier(Array(faux.commandes.dropFirst(n1)) == ["rouvrir integre"] && !faux.coupe && !m.microCoupe,
-                         "vrai clic sur « Rouvrir et dicter » : le micro est rouvert (\(Array(faux.commandes.dropFirst(n1))))")
+                         "vrai clic sur « Rouvrir le micro » : le micro est rouvert (\(Array(faux.commandes.dropFirst(n1))))")
                 verifier(m.courante == .microOuvert, "« Micro ouvert » (\(m.courante))")
             }
             attendre(1.8)
@@ -426,8 +429,8 @@ enum IlotEssai {
             verifier(!c.autoriserDictee(), "fn sur le Centre épinglé, micro coupé : refusé")
             attendre(0.8)
             verifier(m.courante == .microFn, "… et l'îlot le dit quand même (\(m.courante))")
-            m.survole = false; c.agir(.microRouvrirEtDicter); attendre(0.6)
-            verifier(!faux.coupe, "« Rouvrir et dicter » (action) : rouvert")
+            m.survole = false; c.agir(.microRouvrirPourDicter); attendre(0.6)
+            verifier(!faux.coupe, "« Rouvrir le micro » (action) : rouvert")
             attendre(1.8)
             // micro du Mac ouvert, les AirPods arrivent (micro par défaut) puis sont coupés ; la dictée écoute le micro du Mac : elle part,
             // et l'îlot le dit à la fin, une fois
@@ -454,9 +457,9 @@ enum IlotEssai {
             let n5 = faux.commandes.count
             verifier(!c.autoriserDictee() && faux.commandes.count == n5, "le micro du Mac (celui de la dictée) coupé aussi : refusé, rien de rouvert")
             attendre(0.6)
-            c.agir(.microRouvrirEtDicter); attendre(0.5)
+            c.agir(.microRouvrirPourDicter); attendre(0.5)
             verifier(Array(faux.commandes.dropFirst(n5)) == ["rouvrir integre"] && faux.coupes["airpods"] == true,
-                     "« Rouvrir et dicter » rouvre le micro du Mac (celui de la dictée), pas les AirPods")
+                     "« Rouvrir le micro » rouvre le micro du Mac (celui de la dictée), pas les AirPods")
             faux.debrancher("airpods"); faux.microDictee = nil; attendre(0.4)
             c.basculerLeMicro(); attendre(0.6)
             verifier(m.microCoupe, "AirPods rangés, le micro du Mac coupé : l'îlot le montre")
@@ -1118,6 +1121,7 @@ enum IlotEssai {
         IlotEssai.cheminsDuCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.outils(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
+        IlotEssai.lucarne(c, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers })
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)

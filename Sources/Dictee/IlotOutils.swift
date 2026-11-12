@@ -8,7 +8,7 @@ import DicteeCore
 //   Centre ; on y arrive par « Outils › » dans l'en-tête du Centre, par le 2e point de page, ou en faisant défiler ;
 // - les cartes des outils (ici) : le presse-papiers (les cinq dernières copies, un clic recopie, « Coller » au survol, « Tout effacer »),
 //   Reformuler (la dernière dictée ou le texte choisi, « Plus pro », « Plus court », « En anglais », « Remplacer », « Copier »), Note
-//   rapide (la prochaine dictée devient une note, les notes avec l'heure, « Vers Notes », supprimer).
+//   rapide (« Dicter une note » : un clic, on parle, c'est noté ; les notes avec l'heure, « Vers Notes », supprimer).
 // La logique pure est dans DicteeCore/OutilsIlot.swift ; ce qui touche au système dans OutilsControleur.swift.
 
 // MARK: - ce que les cartes montrent (poussé par le contrôleur)
@@ -202,20 +202,20 @@ struct PanneauEveil: View {
     }
 }
 
-/// La bande « Dicter une note » (40 pt) : elle ouvre la carte Note rapide ; la prochaine dictée (fn) y devient une note.
+/// La bande « Dicter une note » (40 pt) : un clic ouvre la carte Note rapide ET commence l'écoute (11/11 au soir : « Maintiens fn tant
+/// que cette carte est ouverte » n'était pas compris ; un clic, on parle, c'est noté).
 struct BandeNoteRapide: View {
     @ObservedObject var m: IlotMoteur
     @State private var survol = false
 
     var body: some View {
         let ed = m.editionCentre
-        Button { if !ed { m.epinglerLeCentre(); m.ouvrirOutil(.outilNote) } } label: {
+        Button { if !ed { m.epinglerLeCentre(); m.ouvrirOutil(.outilNote); m.surAction(.noteDicter) } } label: {
             HStack(spacing: 10) {
                 Image(systemName: "mic.fill").font(.system(size: 14, weight: .semibold)).foregroundStyle(CouleursIlot.rouge).frame(width: 16)
                 Text("Dicter une note").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1).fixedSize()
                 Spacer(minLength: 12)
-                Text("maintiens").font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1).fixedSize()
-                ToucheFnIlot(hauteur: 20)
+                Text("un clic, tu parles").font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1).fixedSize()
             }
             .padding(.leading, 14).padding(.trailing, 12)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -228,7 +228,7 @@ struct BandeNoteRapide: View {
         .overlay(alignment: .topLeading) {
             if ed { BadgeRetirer(nom: "Dicter une note") { m.retirerDuCentre(.noteRapide) }.offset(x: -6, y: -6) }
         }
-        .accessibilityLabel("Dicter une note : maintiens fn, ce que tu dis devient une note")
+        .accessibilityLabel("Dicter une note : un clic, puis parle ; ce que tu dis devient une note")
     }
 }
 
@@ -670,7 +670,20 @@ enum PlanNote {
     static let ligne: CGFloat = 32, lignesMax = 4, bas: CGFloat = 12
     static var listeMax: CGFloat { ligne * CGFloat(lignesMax) }
     static func zone(_ g: GrilleIlot) -> CGRect { g.zoneCarte(.outilNote, haut: haut, bas: bas) }
-    static func hauteurListe(_ m: IlotMoteur) -> CGFloat { ligne * CGFloat(max(1, m.notes.count)) }
+    static func hauteurListe(_ m: IlotMoteur) -> CGFloat { ligne * CGFloat(max(1, m.notes.count) + (m.suggestionVisible ? 1 : 0)) }
+    /// La rangée d'une note dans la liste : la suggestion « En faire un rappel » prend la rangée sous la première note.
+    static func rang(_ i: Int, _ m: IlotMoteur) -> Int { i == 0 || !m.suggestionVisible ? i : i + 1 }
+    /// Essais : « En faire un rappel » sous la première note.
+    static func pointSuggestion(_ m: IlotMoteur) -> CGPoint {
+        let l = cadreListe(m, m.grille)
+        return CGPoint(x: l.minX + 46 + LigneSuggestion.largeurPilule(m) / 2, y: l.minY + ligne * 1.5 - m.defilementNotes)
+    }
+    /// Essais : le bouton « Dicter une note » (toute la zone), puis « Terminé » pendant l'écoute.
+    static func pointDicter(_ m: IlotMoteur) -> CGPoint { let c = cadreZone(m.grille); return CGPoint(x: c.midX, y: c.midY) }
+    static func pointTermine(_ m: IlotMoteur) -> CGPoint {
+        let c = cadreZone(m.grille)
+        return CGPoint(x: c.maxX - 14 - PiluleOutil.largeur("Terminé", icone: "checkmark", taille: 13, padding: 14) / 2, y: c.midY)
+    }
     static func profondeur(_ m: IlotMoteur) -> CGFloat {
         haut + entete + ecart + zoneDictee + ecart + etiquette + ecartListe + min(listeMax, hauteurListe(m)) + bas
     }
@@ -686,11 +699,11 @@ enum PlanNote {
         // le « × » n'est là qu'au survol de la ligne
         let croix = i < m.notes.count && m.survolNote == m.notes[i].id
         let lx: CGFloat = croix ? 20 + 2 + 4 : 0, lv = PiluleOutil.largeur("Vers Notes", icone: "arrow.up.forward", taille: 12, padding: 10)
-        return CGPoint(x: l.maxX - 4 - lx - lv / 2, y: l.minY + ligne * (CGFloat(i) + 0.5) - m.defilementNotes)
+        return CGPoint(x: l.maxX - 4 - lx - lv / 2, y: l.minY + ligne * (CGFloat(rang(i, m)) + 0.5) - m.defilementNotes)
     }
     static func pointSupprimer(_ i: Int, _ m: IlotMoteur) -> CGPoint {
         let l = cadreListe(m, m.grille)
-        return CGPoint(x: l.maxX - 4 - 10, y: l.minY + ligne * (CGFloat(i) + 0.5) - m.defilementNotes)
+        return CGPoint(x: l.maxX - 4 - 10, y: l.minY + ligne * (CGFloat(rang(i, m)) + 0.5) - m.defilementNotes)
     }
 }
 
@@ -725,7 +738,10 @@ struct CarteNote: View {
                             .frame(maxWidth: .infinity, minHeight: PlanNote.ligne)
                             .allowsHitTesting(false)
                     }
-                    ForEach(m.notes) { n in LigneNote(m: m, n: n, a: t).frame(height: PlanNote.ligne) }
+                    ForEach(m.notes) { n in
+                        LigneNote(m: m, n: n, a: t).frame(height: PlanNote.ligne)
+                        if n.id == m.notes.first?.id, m.suggestionVisible { LigneSuggestion(m: m, a: t).frame(height: PlanNote.ligne) }
+                    }
                 }
                 .frame(width: liste.width, alignment: .topLeading)
                 .offset(y: -decale)
@@ -743,27 +759,116 @@ struct CarteNote: View {
         .frame(width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax, alignment: .topLeading)
     }
 
-    /// « Dicter une note » : maintiens fn tant que cette carte est ouverte, ce que tu dis devient une note (pas collé dans l'app).
-    private var zoneDictee: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "mic.fill").font(.system(size: 17, weight: .semibold)).foregroundStyle(.white)
-                .frame(width: 42, height: 42).background(Circle().fill(Color.white.opacity(0.14)))
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Dicter une note").font(.system(size: 14.5, weight: .bold)).foregroundStyle(.white)
-                HStack(spacing: 5) {
-                    Text("Maintiens"); ToucheFnIlot(); Text("tant que cette carte est ouverte")
-                }
-                .font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5))
-            }
-            .lineLimit(1)
-            Spacer(minLength: 0)
+    /// « Dicter une note » : un grand bouton (un clic, l'écoute commence) ; pendant l'écoute, le niveau, le texte en direct et
+    /// « Terminé » (un silence de 2 s arrête aussi) ; puis « J'écris la note… ». fn reste possible, carte ouverte.
+    private var zoneDictee: some View { ZoneDicteeNote(m: m, ecoute: m.ecouteNote) }
+}
+
+struct ZoneDicteeNote: View {
+    @ObservedObject var m: IlotMoteur
+    @ObservedObject var ecoute: EcouteNote
+    @State private var survol = false
+    private static let forme = RoundedRectangle(cornerRadius: 20, style: .continuous)
+
+    var body: some View {
+        switch ecoute.phase {
+        case .repos: bouton
+        case .ecoute, .ecriture: enCours
         }
-        .padding(.leading, 12).padding(.trailing, 14)
+    }
+
+    private var bouton: some View {
+        Button { m.epinglerLeCentre(); m.surAction(.noteDicter) } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "mic.fill").font(.system(size: 17, weight: .semibold)).foregroundStyle(.white)
+                    .frame(width: 42, height: 42).background(Circle().fill(CouleursIlot.rouge.opacity(survol ? 1 : 0.88)))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Dicter une note").font(.system(size: 14.5, weight: .bold)).foregroundStyle(.white)
+                    Text(ecoute.message ?? "Clique et parle, je m\u{2019}arrête quand tu te tais").font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(ecoute.message != nil ? Color(hex: 0xFFB340) : Color.white.opacity(0.5))
+                }
+                .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, 12).padding(.trailing, 14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Self.forme.fill(Color.white.opacity(survol ? 0.14 : 0.09)))
+            .contentShape(Self.forme)
+        }
+        .buttonStyle(AppuiIlot(echelle: 0.98))
+        .onHover { survol = $0 }
+        .accessibilityLabel("Dicter une note")
+        .accessibilityHint("Un clic, puis parle : la note s\u{2019}écrit quand tu te tais ou quand tu cliques Terminé")
+    }
+
+    /// Pendant l'écoute : le rond rouge respire avec la voix, « J'écoute… », le texte en direct (la fin, si c'est long), « Terminé ».
+    private var enCours: some View {
+        let ecrit = ecoute.phase == .ecriture
+        let n = CGFloat(min(1, max(0, ecoute.niveau)))
+        return ZStack(alignment: .trailing) {
+            // le fond prend les clics (l'îlot ne se range pas) ; le texte n'en prend aucun ; « Terminé » est posé à côté, en frère
+            Self.forme.fill(Color.white.opacity(0.09)).contentShape(Self.forme).onTapGesture {}
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle().fill(CouleursIlot.rouge.opacity(ecrit ? 0 : 0.28)).scaleEffect(1 + 0.42 * n)
+                    Circle().fill(ecrit ? Color.white.opacity(0.14) : CouleursIlot.rouge)
+                    if ecrit { RouetIlot(anime: !m.reduire && !m.statique).frame(width: 20, height: 20) }
+                    else { Image(systemName: "mic.fill").font(.system(size: 17, weight: .semibold)).foregroundStyle(.white) }
+                }
+                .frame(width: 42, height: 42)
+                .animation(m.statique || m.reduire ? nil : .easeOut(duration: 0.12), value: n)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ecrit ? "J\u{2019}écris la note\u{2026}" : "J\u{2019}écoute\u{2026}").font(.system(size: 14.5, weight: .bold)).foregroundStyle(.white)
+                    Text(ecoute.texte.isEmpty ? (ecrit ? "Un instant" : "Parle, je m\u{2019}arrête après 2 s de silence") : ecoute.texte)
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(ecoute.texte.isEmpty ? 0.5 : 0.85))
+                        .truncationMode(.head)
+                }
+                .lineLimit(1)
+                Spacer(minLength: ecrit ? 0 : PiluleOutil.largeur("Terminé", icone: "checkmark", taille: 13, padding: 14) + 10)
+            }
+            .padding(.leading, 12).padding(.trailing, 14)
+            .allowsHitTesting(false)
+            if !ecrit {
+                PiluleOutil(titre: "Terminé", icone: "checkmark", style: .blanc, hauteur: 30, taille: 13, padding: 14, etiquette: "Terminé : écrire la note") {
+                    m.surAction(.noteTerminer)
+                }
+                .padding(.trailing, 14)
+            }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white.opacity(0.09)))
-        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous)).onTapGesture {}
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Dicter une note : maintiens fn tant que cette carte est ouverte")
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(ecrit ? "J\u{2019}écris la note" : "J\u{2019}écoute")
+        .accessibilityValue(ecoute.texte)
+    }
+}
+
+/// Sous la note qui vient d'arriver, quand elle dit un jour ou une heure : « En faire un rappel · demain 13:00 » (un clic).
+struct LigneSuggestion: View {
+    @ObservedObject var m: IlotMoteur
+    var a: Date
+
+    static func libelle(_ m: IlotMoteur) -> String {
+        guard let s = m.suggestionRappel else { return "En faire un rappel" }
+        return "En faire un rappel \u{00B7} " + ListeRappels.jour(de: s.quand, maintenant: m.maintenant()) + " " + FormatIlot.heure(s.quand)
+    }
+    static func largeurPilule(_ m: IlotMoteur) -> CGFloat { PiluleOutil.largeur(libelle(m), icone: "bell.fill", taille: 12, padding: 10) }
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            Color.clear.contentShape(Rectangle()).onTapGesture {}
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.turn.down.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.white.opacity(0.35))
+                    .frame(width: 32, alignment: .trailing)
+                    .allowsHitTesting(false)
+                if let s = m.suggestionRappel {
+                    PiluleOutil(titre: Self.libelle(m), icone: "bell.fill", style: .ambreDoux, hauteur: 24, taille: 12, padding: 10,
+                                etiquette: "Faire de cette note un rappel : " + s.texte + ", " + Self.libelle(m)) {
+                        m.epinglerLeCentre(); m.surAction(.noteEnRappel(s.note))
+                    }
+                }
+            }
+            .padding(.leading, 8)
+        }
     }
 }
 

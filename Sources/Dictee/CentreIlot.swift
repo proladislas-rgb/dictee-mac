@@ -980,6 +980,14 @@ struct ReglagesCentre {
     /// Le minuteur (Réglages › Îlot) : éteint, un clic sur « 5 », « 10 » ou « 25 » dans le Centre l'allume, puis lance le minuteur.
     var minuteurActif: () -> Bool = { Settings.ilotMinuteur }
     var allumerMinuteur: () -> Void = { Settings.ilotMinuteur = true }
+    /// Les rappels (Réglages › Îlot) : éteints, « Lucarne, rappelle-moi… » les rallume (une demande dite en toutes lettres).
+    var rappelsActifs: () -> Bool = { Settings.ilotRappels }
+    var allumerRappels: () -> Void = { Settings.ilotRappels = true }
+    /// L'app Rappels d'Apple : la réponse à « Aussi dans l'app Rappels ? » (nil : jamais répondu), et le refus déjà dit.
+    var choixRappelsApple: () -> ChoixRappelsApple? = { Settings.ilotRappelsApple.flatMap(ChoixRappelsApple.init(rawValue:)) }
+    var enregistrerChoixRappelsApple: (ChoixRappelsApple) -> Void = { Settings.ilotRappelsApple = $0.rawValue }
+    var refusRappelsDit: () -> Bool = { Settings.ilotRappelsAppleRefusDit }
+    var marquerRefusRappelsDit: () -> Void = { Settings.ilotRappelsAppleRefusDit = true }
 }
 
 extension IlotControleur {
