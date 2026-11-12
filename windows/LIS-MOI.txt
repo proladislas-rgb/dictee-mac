@@ -1,0 +1,51 @@
+VERBE — la dictée vocale pour Windows
+=====================================
+
+Tu cliques n'importe où (mail, Word, WhatsApp, recherche Google...), tu TIENS Ctrl + la touche Windows,
+tu parles, tu relâches : le texte propre s'écrit là où est le curseur.
+Gratuit. Windows 10 ou 11.
+
+
+INSTALLER (2 minutes, une seule fois)
+-------------------------------------
+1. Mets Verbe.exe où tu veux (par exemple dans Documents) et double-clique dessus.
+
+2. Windows affiche « Windows a protégé votre ordinateur » (l'app n'est pas signée, c'est payant) :
+   clique sur « Informations complémentaires », puis sur « Exécuter quand même ».
+
+3. En haut de l'écran, une pilule noire s'ouvre et demande une clé Groq. C'est gratuit :
+   - clique sur « Obtenir une clé gratuite » (ou va sur console.groq.com) ;
+   - crée un compte (Google ou e-mail) ;
+   - menu « API Keys » > « Create API Key » > copie la clé (elle commence par gsk_) ;
+   - colle-la dans la pilule noire et clique sur « Enregistrer ».
+
+4. Si Windows demande l'accès au micro, accepte.
+
+
+UTILISER
+--------
+- Tenir Ctrl + Windows, parler, relâcher ......... le texte s'écrit au curseur
+- Appuyer brièvement sur Ctrl + Windows ........... mains libres (réappuie pour finir)
+- Échap ........................................... annule, rien n'est écrit
+- Souris sur la pilule noire en haut de l'écran ... bouton micro (dicter à la souris) et réglages :
+                                                    langue, sons, clé, quitter
+
+Verbe enlève les « euh » et applique les corrections dites à voix haute
+(« mardi, non plutôt mercredi » donne « mercredi »).
+« À la ligne » et « nouveau paragraphe » marchent.
+Le texte prend la forme de l'app : paragraphes dans un mail, ton direct dans une messagerie,
+une seule ligne dans un terminal.
+Sans internet, la dictée est gardée et un bouton « Réessayer » apparaît.
+
+
+BON À SAVOIR
+------------
+- Pour que Verbe s'ouvre avec Windows : touches Windows + R, tape  shell:startup  puis Entrée,
+  et mets dans ce dossier un raccourci vers Verbe.exe.
+- Quitter : réglages de la pilule > « Quitter Verbe », ou clic droit sur l'icône Verbe près de l'horloge.
+- Le micro ne capte rien : Paramètres > Confidentialité et sécurité > Microphone >
+  « Autoriser les applications de bureau à accéder au microphone ».
+- Une app lancée « en tant qu'administrateur » ne reçoit pas le texte (Windows l'interdit).
+- Ta voix part chez Groq pour être transcrite. Ta clé reste chiffrée sur ton PC.
+- Désinstaller : quitte Verbe, supprime Verbe.exe et le dossier %APPDATA%\Verbe
+- En cas de souci, le journal est dans %APPDATA%\Verbe\journal.txt (il ne contient jamais le texte dicté).
