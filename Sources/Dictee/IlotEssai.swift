@@ -121,7 +121,7 @@ enum IlotEssai {
         // une section seule (pour la mettre au point sans attendre tout l'essai) : `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`, `places`, `places-survol`, `concentration`, `voix`), ou
         // `--ilot-essai --seulement=survol` (le survol des Dictées, pour mesurer vite ; l'essai complet la joue aussi)
         let seul = CommandLine.arguments.contains("--seulement=survol") ? "survol" : ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"]
-        if let seul, ["bibliotheque", "reveil", "survol", "places", "places-survol", "concentration", "voix", "dictee"].contains(seul) {
+        if let seul, ["bibliotheque", "reveil", "survol", "places", "places-survol", "concentration", "voix", "dictee", "verre"].contains(seul) {
             attendre(0.4)
             if seul == "bibliotheque" {
                 IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
@@ -134,6 +134,8 @@ enum IlotEssai {
                 // `places-survol` : le survol des Dictées juste après (comme dans l'essai complet) : la Lucarne revenue dans l'encoche ne
                 // doit rien laisser qui alourdisse l'îlot
                 if seul == "places-survol" { IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) }
+            } else if seul == "verre" {
+                IlotEssai.verreCentre(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
             } else if seul == "dictee" {
                 IlotEssai.dicteeLucarneCablee(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
                 IlotEssai.lectureEnPauseLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
@@ -1195,6 +1197,7 @@ enum IlotEssai {
         IlotEssai.dicteeLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.dicteeLucarneCablee(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.lectureEnPauseLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.verreCentre(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.secondBrain(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },

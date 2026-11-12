@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import AVFoundation
 import ServiceManagement
 import EventKit
@@ -35,7 +36,7 @@ final class ReglagesModele: ObservableObject {
     /// Pas d'encoche sur l'écran principal : l'icône est toujours là (`PresenceIcone`), l'interrupteur la montre allumée, grisé.
     @Published var iconeToujours = false
     /// L'intensité du verre de la Lucarne : 0 discret, 1 très appuyé (0,5 par défaut).
-    @Published var intensiteVerre: Double { didSet { if !installe { return }; Settings.intensiteVerre = intensiteVerre; ReglageVerre.partage.intensite = intensiteVerre } }
+    @Published var intensiteVerre: Double { didSet { if !installe { return }; ReglageVerre.partage.regler(intensiteVerre) } }
     @Published var ilotMicro: Bool { didSet { if !installe { return }; Settings.ilotMicro = ilotMicro; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotNiveaux: Bool { didSet { if !installe { return }; Settings.ilotNiveaux = ilotNiveaux; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
     @Published var ilotEtagere: Bool { didSet { if !installe { return }; Settings.ilotEtagere = ilotEtagere; NotificationCenter.default.post(name: .verbeIlotReglages, object: nil) } }
@@ -97,6 +98,7 @@ final class ReglagesModele: ObservableObject {
     /// Réglage « Appuyer sur 🌐 pour » (voir `ToucheGlobe`) ; `nil` = clé absente.
     @Published private(set) var globeValeur: Int?
     private var installe = false
+    private var verre: AnyCancellable?
     private let reel: Bool
     /// Mises à jour : l'état partagé avec la ligne sous l'encoche (réel), ou un exemple pour les rendus.
     let maj: MiseAJourModele
@@ -139,6 +141,13 @@ final class ReglagesModele: ObservableObject {
         ouvrirAuDemarrage = reel ? SMAppService.mainApp.status == .enabled : false
         micros = [MicroChoix(id: ChoixMicro.automatique, nom: "Automatique"), MicroChoix(id: ChoixMicro.systeme, nom: "Micro du système")]
         installe = true
+        // le curseur du Centre de l'îlot change la même valeur : celui des Réglages le suit (ne lit que ReglageVerre : aussi en essai)
+        verre = ReglageVerre.partage.$intensite.removeDuplicates().sink { [weak self] v in
+            MainActor.assumeIsolated {
+                guard let self, abs(self.intensiteVerre - v) > 0.001 else { return }
+                self.installe = false; self.intensiteVerre = v; self.installe = true
+            }
+        }
         if reel {
             NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { guard let self else { return }; let t = !PresenceIcone.encochePrincipale; if self.iconeToujours != t { self.iconeToujours = t } }

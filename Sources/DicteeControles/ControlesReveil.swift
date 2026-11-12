@@ -118,6 +118,9 @@ func controlesReveil() {
     let pleinR = D.relire(identifiants: ["micro", "dictee", "telechargements", "claude", "rappel", "derniere-dictee"], dejaProposees: [])
     // depuis 222bcee : une nouveauté sans place n'est plus retenue (elle arrivera quand une place se libère)
     verifier(pleinR.aRetenir == nil && pleinR.ajoutees.isEmpty, "rangée pleine : rien d'ajouté, rien de retenu (la nouveauté attend une place libre)")
+    let pv = D.plan(ronds: true, cases: true, bande: true, verre: true)
+    verifier(pv.profondeur == GeoIlot.profondeurCentre + D.ecart + D.rangeeVerre && pv.hauts[.verre] == GeoIlot.profondeurCentre - D.bas + D.ecart,
+             "le curseur Verre (Lucarne en verre) : une rangée de plus tout en bas, le reste ne bouge pas")
     let p2 = D.plan(ronds: true, cases: true, bande: true, nomsSurDeuxLignes: true)
     verifier(p2.profondeur == GeoIlot.profondeurCentre + D.ligneNom && p2.hauts[.cases] == 158 + D.ligneNom, "un nom sur deux lignes : la rangée des ronds s'allonge d'une ligne (14 pt), le reste descend")
     verifier(D.poidsCase(.minuteur) == 1.16 && D.poidsCase(.etagere) == 0.84, "cases côte à côte : Minuteur 1,16, Étagère 0,84 (maquette)")

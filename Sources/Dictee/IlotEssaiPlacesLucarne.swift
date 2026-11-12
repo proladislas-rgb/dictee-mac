@@ -1041,3 +1041,70 @@ extension IlotEssai {
         c.panneau.recaler(); m.poser(); pause(0.4)
     }
 }
+
+extension IlotEssai {
+    /// Le curseur « Verre » du Centre (13/11, Hugues : l'intensité du verre réglable depuis l'îlot, comme la luminosité du Centre de
+    /// contrôle), avec de vrais événements souris : absent dans l'encoche (noire) ; en verre, un clic pose la valeur, un glisser de plus
+    /// d'une seconde la suit sans décoller la Lucarne, le Centre reste ouvert ; les Réglages suivent, et le curseur suit les Réglages.
+    /// Jamais les vrais réglages : la valeur est gardée dans une fermeture de l'essai.
+    @MainActor
+    static func verreCentre(_ c: IlotControleur, verifier: (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void) {
+        func pause(_ s: Double) { attendre(s) { true } }
+        let m = c.moteur
+        print("— le curseur « Verre » du Centre")
+        let rv = ReglageVerre.partage
+        let avant = rv.intensite, enregistrerAvant = rv.enregistrer
+        var ecrits: [Double] = []
+        rv.enregistrer = { ecrits.append($0) }
+        var tenu = false
+        m.boutonEnfonce = { tenu }
+        func aller(_ p: PlaceLucarne) {
+            CatalogueLucarne.vider(m)
+            EssaiPlaces.memoire.poser(p, sur: EssaiPlaces.ecran)
+            c.panneau.recaler(); m.poser(); pause(0.4)
+        }
+        defer {
+            m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 }
+            rv.enregistrer = enregistrerAvant; rv.intensite = avant
+            aller(.encoche)
+        }
+        // dans l'encoche : l'îlot est noir, pas de verre à régler
+        aller(.encoche)
+        m.clicForme(); pause(0.9)
+        verifier(m.courante == .centre && PlanCentre.cadre(.verre, m) == nil, "Lucarne dans l'encoche (noire) : pas de curseur Verre dans le Centre")
+        m.fermer(); pause(0.8)
+        // en verre, en haut à droite : un clic court sur la pilule ouvre le Centre
+        aller(.hautDroite)
+        let pil = m.lucarne.capsule.cible
+        let surPilule = CGPoint(x: pil.centreX, y: pil.centreY)
+        c.panneau.envoyerSouris(.leftMouseDown, en: surPilule); pause(0.08); c.panneau.envoyerSouris(.leftMouseUp, en: surPilule); pause(1.0)
+        guard m.courante == .centre, let r = PlanCentre.cadre(.verre, m) else {
+            verifier(false, "Lucarne en verre : le Centre s'ouvre et montre le curseur Verre (\(m.courante.rawValue))"); return
+        }
+        verifier(abs(CGFloat(m.geo[2].x) - m.grille.hauteur(.centre)) < 0.6,
+                 "le Centre en verre a la hauteur de ce qu'il montre, curseur compris (\(Int(m.geo[2].x)) pt pour \(Int(m.grille.hauteur(.centre))))")
+        let piste = CurseurVerreCentre.piste(r), h = CurseurVerreCentre.hauteurPiste
+        func point(_ u: CGFloat) -> CGPoint { m.depuisContenu(CGPoint(x: piste.minX + h / 2 + (piste.width - h) * u, y: piste.midY)) }
+        func bas(_ p: CGPoint) { tenu = true; c.panneau.envoyerSouris(.leftMouseDown, en: p) }
+        func haut(_ p: CGPoint) { c.panneau.envoyerSouris(.leftMouseUp, en: p); tenu = false }
+        // un clic à 20 %
+        bas(point(0.2)); pause(0.08); haut(point(0.2)); pause(0.4)
+        verifier(abs(rv.intensite - 0.2) < 0.051 && abs((ecrits.last ?? -1) - rv.intensite) < 0.001 && m.courante == .centre && m.lucarne.place == .hautDroite,
+                 "un vrai clic à 20 % de la piste : intensité \(rv.intensite), gardée, le Centre reste ouvert, la Lucarne à sa place")
+        // un glisser lent (plus d'une seconde, au-delà des 0,4 s de l'appui long) de 20 % à 85 %
+        bas(point(0.2))
+        for i in 1...30 { c.panneau.envoyerSouris(.leftMouseDragged, en: point(0.2 + 0.65 * CGFloat(i) / 30)); pause(0.035) }
+        pause(0.2); haut(point(0.85)); pause(0.6)
+        verifier(abs(rv.intensite - 0.85) < 0.051 && m.courante == .centre && m.lucarne.place == .hautDroite && !m.lucarneEnMain && m.lucarne.geste.phase == .repos,
+                 "un vrai glisser de 20 à 85 % en plus d'une seconde : intensité \(rv.intensite), la Lucarne ne se décolle pas, le Centre reste ouvert \(IlotEssai.etatLucarne(m))")
+        // les deux curseurs n'en font qu'un : les Réglages suivent le Centre, et l'inverse
+        let reglages = ReglagesModele(reel: false)
+        let suitLeCentre = abs(reglages.intensiteVerre - rv.intensite) < 0.001
+        reglages.intensiteVerre = 0.4; pause(0.2)
+        verifier(suitLeCentre && abs(rv.intensite - 0.4) < 0.001 && abs((ecrits.last ?? -1) - 0.4) < 0.001,
+                 "Réglages et Centre : la même valeur (Réglages à \(reglages.intensiteVerre), Centre à \(rv.intensite)), bouger l'un déplace l'autre")
+        bas(point(1)); pause(0.08); haut(point(1)); pause(0.3)
+        verifier(abs(reglages.intensiteVerre - 1) < 0.001, "le curseur du Centre au bout : les Réglages affichent « \(VerreLucarne.nomIntensite(reglages.intensiteVerre)) »")
+        m.clicAilleurs(); pause(0.6)
+    }
+}
