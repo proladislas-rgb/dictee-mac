@@ -268,6 +268,33 @@ func controlesPlacesLucarne() {
         verifier(ok, "de s = −6 à +12 : le tracé n'a pas de saut de boîte")
     }
 
+    groupe("Lucarne : quitter l'encoche et y revenir sans saut")
+    do {
+        // chaque forme repliée de l'encoche (rien sous la barre), sur des barres de 32 à 38 pt : la capsule tirée de sa trace redonne
+        // exactement le même tracé (le passage du régime de l'encoche au régime libre, et retour, ne se voit pas)
+        var pareils = 0, total = 0
+        for barre in [32.0, 33, 37, 38] {
+            for v in VueIlot.allCases where GeoIlot.profondeur(v) == 0 && v != .repos {
+                let g = GeoIlot.valeurs(v, hauteurBarre: barre, demiCamera: 89.5)
+                let p = TraceIlot.calculer(g, demiCamera: 89.5, barre: barre)
+                let q = TraceLucarne.calculer(.encoche(p, epaule: g[3], coin: g[4]))
+                total += 1
+                if q.commandes == p.commandes { pareils += 1 } else { print("    écart : \(v) barre \(barre)") }
+            }
+        }
+        verifier(total > 5 && pareils == total, "formes repliées : la capsule de l'encoche redonne le même tracé (\(pareils)/\(total))")
+        // l'encoche vide (la caméra seule, coins carrés en haut) : même boîte
+        let g = GeoIlot.valeurs(.repos, hauteurBarre: 33, demiCamera: 89.5)
+        let p = TraceIlot.calculer(g, demiCamera: 89.5, barre: 33)
+        let c = CapsuleLucarne.encoche(p, epaule: g[3], coin: g[4])
+        verifier(c.x0 == -89.5 && c.x1 == 89.5 && c.y0 == 0 && c.y1 == 33, "encoche vide : la capsule épouse la caméra (−89,5…89,5 × 0…33)")
+        // une forme dépliée (le Centre) : la capsule prend son corps et sa hauteur (elle se replie ensuite en pilule, tenue)
+        let gc = GeoIlot.valeurs(.centre, hauteurBarre: 33, demiCamera: 89.5)
+        let pc = TraceIlot.calculer(gc, demiCamera: 89.5, barre: 33)
+        let cc = CapsuleLucarne.encoche(pc, epaule: gc[3], coin: gc[4])
+        verifier(cc.x0 == -pc.corps && cc.x1 == pc.corps && cc.y1 == pc.hauteur && cc.s < 0, "Centre ouvert : la capsule part de son corps et de sa hauteur, épaules creuses")
+    }
+
     groupe("Lucarne : les ressorts")
     do {
         let depart = G.replie(.hautGauche, macBook), arrivee = G.replie(.basDroite, macBook)

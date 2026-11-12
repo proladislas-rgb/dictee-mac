@@ -100,6 +100,7 @@ enum IlotEssai {
             // l'app Rappels : jamais EventKit ni une vraie fenêtre d'autorisation ; les réglages des rappels et de la question, simulés
             c.rappelsApple = RappelsAppleFactice()
             IlotEssai.reglagesLucarneDEssai(c)
+            IlotEssai.systemeLucarneDEssai(c)
             c.vignetteSysteme = ReglageVignette(lire: { EssaiEtagere.vignette }, ecrire: { EssaiEtagere.vignette = $0 },
                                                 memoire: { EssaiEtagere.vignetteAvant }, retenir: { EssaiEtagere.vignetteAvant = $0 })
             return c
@@ -113,14 +114,16 @@ enum IlotEssai {
         let g = m.geometrie
         print("caméra : \(Int(g.largeur)) × \(Int(g.hauteur)) pt")
 
-        // une section seule (pour la mettre au point sans attendre tout l'essai) : `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`), ou
+        // une section seule (pour la mettre au point sans attendre tout l'essai) : `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`, `places`), ou
         // `--ilot-essai --seulement=survol` (le survol des Dictées, pour mesurer vite ; l'essai complet la joue aussi)
         let seul = CommandLine.arguments.contains("--seulement=survol") ? "survol" : ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"]
-        if let seul, ["bibliotheque", "reveil", "survol"].contains(seul) {
+        if let seul, ["bibliotheque", "reveil", "survol", "places"].contains(seul) {
             attendre(0.4)
             if seul == "bibliotheque" {
                 IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
                                        fenetres: { fenetres }, relancer: { fabriquer() })
+            } else if seul == "places" {
+                IlotEssai.placesLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
             } else if seul == "reveil" {
                 IlotEssai.reveilEtCalendrier(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
             } else {
@@ -176,55 +179,36 @@ enum IlotEssai {
         m.clicForme(); attendre(0.1)
         verifier(m.courante == .lectureCompact, "second clic : se replie")
 
-        // --- appui long sur la lecture : la rangée Minuteur (maquette apple-acces/1-controles.html)
-        m.clicForme(); attendre(0.9)
-        verifier(m.courante == .lectureEtendu, "lecture dépliée avant l'appui long")
-        verifier(m.appuiLong(minuteurActif: true), "appui long sur la lecture dépliée : accepté")
-        attendre(0.05)
-        verifier(m.courante == .lectureMinuteur && m.visible(.lectureEtendu) && m.aspect(.lectureEtendu, rang: 0).opacite > 0.99,
-                 "la rangée arrive SOUS la lecture, qui ne s'efface pas (titre toujours opaque)")
-        verifier(abs(m.ouverture(.lecture) - 1) < 0.001, "la pochette reste posée pendant que l'îlot s'allonge")
-        attendre(1.5)
-        let hRangee = c.panneau.cadre?.height ?? 0
-        verifier(Double(m.geo[2].x) > Double(g.hauteur) + 175 + 50 && !m.boucleActive, "îlot allongé de la rangée (\(Int(m.geo[2].x)) pt), puis plus de boucle")
-        verifier(Double(hRangee) >= m.geo[2].x, "la fenêtre couvre l'îlot allongé (\(Int(hRangee)) pt)")
-        c.agir(.minuteurLancerSousLecture(minutes: 10)); attendre(0.05)
-        verifier(m.ouverture(.lecture) <= 1.001, "repli depuis la rangée : la pochette part de sa place, sans bond (\(String(format: "%.2f", m.ouverture(.lecture))))")
-        attendre(1.0)
-        verifier(m.bandeau == nil && m.courante == .lectureCompact && m.pastille == .minuteur && abs((c.minuteur?.restant(a: c.maintenant()) ?? 0) - 600) < 2,
-                 "« 10 min » : l'îlot se replie sur la lecture, le minuteur part dans la pastille, sans bandeau")
-        c.agir(.minuteurArreter); attendre(0.5)
-        verifier(m.appuiLong(minuteurActif: false) == false && m.courante == .lectureCompact, "minuteur éteint dans les réglages : l'appui long ne fait rien")
-        // vrais événements souris remis à la fenêtre (gestes SwiftUI) : clic court, appui long, clic sur une durée
+        // --- appui long sur la lecture : il déplace la Lucarne (plus de rangée Minuteur, le minuteur se lance du Centre) ; vrais événements
+        // souris remis à la fenêtre (la vue d'hébergement lit leur point, le geste SwiftUI dit « sur la forme »)
         let milieu = CGPoint(x: 0, y: g.hauteur / 2)
         c.panneau.envoyerSouris(.leftMouseDown, en: milieu); attendre(0.08); c.panneau.envoyerSouris(.leftMouseUp, en: milieu); attendre(0.9)
         verifier(m.courante == .lectureEtendu, "vrai clic court sur la lecture : elle se déplie (comme avant)")
-        c.panneau.envoyerSouris(.leftMouseDown, en: CGPoint(x: 0, y: g.hauteur + 10)); attendre(0.2)
-        verifier(m.presse, "pendant l'appui : l'îlot gonfle sous le doigt")
+        m.boutonEnfonce = { true }
+        let sousBarre = CGPoint(x: 0, y: g.hauteur + 10)
+        c.panneau.envoyerSouris(.leftMouseDown, en: sousBarre); attendre(0.2)
+        verifier(m.presse && m.anneauAppui != nil, "pendant l'appui : l'îlot gonfle sous le doigt, l'anneau se remplit")
         attendre(0.4)
-        c.panneau.envoyerSouris(.leftMouseUp, en: CGPoint(x: 0, y: g.hauteur + 10)); attendre(0.9)
-        verifier(m.courante == .lectureMinuteur && !m.presse, "vrai appui long (0,6 s) : la rangée Minuteur s'ouvre")
-        // appui puis glissé hors de l'îlot : pas d'appui long, pas de clic
-        m.fermer(); attendre(0.9)
-        m.debutAppui(origine: CGPoint(x: 1, y: 1)); m.debutAppui(origine: CGPoint(x: 1, y: 1), distance: 30); attendre(0.6)
-        m.finAppui(deplace: true); attendre(0.6)
-        verifier(m.courante == .lectureCompact && !m.presse, "appui puis glissé hors de l'îlot : ni rangée ni dépliage")
+        verifier(m.lucarne.geste.phase == .decollee && m.lucarne.libre && !m.fenetreOuverte && m.courante != .lectureMinuteur && !m.presse,
+                 "vrai appui long (0,6 s) sur la lecture dépliée : elle se range et la Lucarne se décolle (plus de rangée Minuteur)")
+        c.panneau.envoyerSouris(.leftMouseUp, en: sousBarre); attendre(1.0)
+        m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 }
+        verifier(!m.lucarne.libre && m.lucarne.place == .encoche && m.courante == .lectureCompact && !m.boucleActive,
+                 "relâchée tout près : aspirée dans l'encoche, la lecture en compact, plus de boucle")
+        // appui puis glissé de 10 pt avant 0,4 s : ni clic ni décollage
+        c.panneau.envoyerSouris(.leftMouseDown, en: milieu); attendre(0.1)
+        c.panneau.envoyerSouris(.leftMouseDragged, en: CGPoint(x: 10, y: milieu.y)); attendre(0.5)
+        c.panneau.envoyerSouris(.leftMouseUp, en: CGPoint(x: 10, y: milieu.y)); attendre(0.6)
+        verifier(m.courante == .lectureCompact && !m.lucarne.libre && !m.presse, "appui puis glissé de 10 pt : ni dépliage ni décollage")
         // appui interrompu par une dictée (le relâchement n'arrive jamais) : le clic suivant marche
-        m.debutAppui(origine: CGPoint(x: 2, y: 2)); attendre(0.1)
+        c.panneau.envoyerSouris(.leftMouseDown, en: milieu); attendre(0.1)
         var occA = OccupationEncoche(); c.occupation = { occA }
         occA.dictee = true; c.occupationChangee(); attendre(0.6)
-        verifier(!m.presse, "dictée pendant l'appui : l'îlot n'est plus gonflé")
+        verifier(!m.presse && m.lucarne.geste.phase == .repos && !m.lucarne.libre, "dictée pendant l'appui : l'îlot n'est plus gonflé, rien ne se décolle")
         occA.dictee = false; c.occupationChangee(); c.occupation = { OccupationEncoche() }; attendre(0.9)
-        m.debutAppui(origine: CGPoint(x: 3, y: 3)); attendre(0.05); m.finAppui(deplace: false); attendre(0.9)
+        c.panneau.envoyerSouris(.leftMouseDown, en: milieu); attendre(0.08); c.panneau.envoyerSouris(.leftMouseUp, en: milieu); attendre(0.9)
         verifier(m.courante == .lectureEtendu, "après un appui resté en plan : le clic suivant déplie normalement")
-        c.panneau.envoyerSouris(.leftMouseDown, en: milieu); attendre(0.6); c.panneau.envoyerSouris(.leftMouseUp, en: milieu); attendre(0.9)
-        // « 25 min » : la dernière pilule, calée sur la marge droite
-        let w = m.grille.corps(.lectureMinuteur)
-        let cap = CGPoint(x: w - GrilleIlot.marge - 30, y: g.hauteur + 175 + 3 + 21)
-        c.panneau.envoyerSouris(.leftMouseDown, en: cap); attendre(0.08); c.panneau.envoyerSouris(.leftMouseUp, en: cap); attendre(1.0)
-        verifier(abs((c.minuteur?.restant(a: c.maintenant()) ?? 0) - 1500) < 2 && m.courante == .lectureCompact && m.pastille == .minuteur,
-                 "vrai clic sur « 25 min » : minuteur de 25 min en pastille, la lecture garde l'îlot")
-        c.agir(.minuteurArreter); attendre(0.5)
+        m.fermer(); attendre(0.9)
         // la commande dictée marche aussi quand la lecture est dépliée (l'accueil n'est pas ouvrable pendant une vidéo)
         m.clicForme(); attendre(0.6)
         var occL = OccupationEncoche()
@@ -1176,6 +1160,7 @@ enum IlotEssai {
         IlotEssai.outils(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
         IlotEssai.lucarne(c, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers })
+        IlotEssai.placesLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.secondBrain(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },

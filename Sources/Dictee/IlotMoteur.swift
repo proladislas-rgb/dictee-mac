@@ -543,7 +543,9 @@ final class IlotMoteur: ObservableObject {
     private var intention: DispatchWorkItem?
     private var fermeture: DispatchWorkItem?
     private var prochainReveil: DispatchWorkItem?
-    private let cadence = CadenceEcran()
+    let cadence = CadenceEcran()
+    /// La Lucarne déplaçable (LucarneMoteur.swift) : sa place, sa capsule hors de l'encoche, l'appui long.
+    var lucarne = EtatLucarne()
     private var dernierPas: TimeInterval = 0
 
     static let delaiIntention: TimeInterval = 0.28
@@ -587,7 +589,7 @@ final class IlotMoteur: ObservableObject {
     /// Tout a pu changer : on recalcule qui a l'îlot, qui a la pastille, et on déforme la forme vers la nouvelle cible.
     func donneesChangees() {
         if cache {
-            if appuiEnCours { annulerAppui() }
+            interrompreLucarne()
             if depot || appel { depot = false; appel = false; depotSurvole = false; depotZone = nil; depotRange = false; finDepot?.cancel() }
             if resolution.principal != .repos || courante != .repos || pastille != nil {
                 resolution = ResolutionIlot(principal: .repos, survol: nil, verrou: true, pastille: nil)
@@ -1058,51 +1060,23 @@ final class IlotMoteur: ObservableObject {
     /// L'îlot est enfoncé sous le doigt (il gonfle un peu), en attendant l'appui long.
     private(set) var presse = false
     func appuyer(_ oui: Bool) {
-        let voulu = oui && !cache && FamilleIlot.de(courante) == .lecture && courante != .lectureMinuteur
+        let voulu = oui && !cache
         guard voulu != presse else { return }
         presse = voulu; rev += 1
     }
-    /// Le bouton de la souris s'enfonce sur la forme (hors boutons). Relâché avant 0,4 s : un clic (`clicForme`) ; tenu 0,4 s : l'appui
-    /// long, déclenché pendant que le bouton est encore enfoncé (comme sur l'iPhone). Un seul geste SwiftUI pour les deux : sur le Mac,
-    /// le clic de SwiftUI prenait le dessus sur son appui long, qui ne se déclenchait jamais.
-    private var minuterieAppui: DispatchWorkItem?
-    private var appuiEnCours = false
-    private var appuiLongFait = false
-    private var appuiDeplace = false
-    private var origineAppui: CGPoint?
-    static let dureeAppuiLong: TimeInterval = 0.4
-    /// Appelé à chaque mouvement du bouton enfoncé : `origine` (le point d'appui) distingue un nouvel appui d'un ancien resté en plan
-    /// (relâchement jamais reçu) ; `distance` au-delà de 12 pt annule l'appui long (on ne l'ouvre pas pointeur parti).
-    func debutAppui(origine: CGPoint = .zero, distance: CGFloat = 0) {
-        if appuiEnCours, origine != origineAppui { annulerAppui() }
-        if appuiEnCours {
-            if distance > 12, !appuiDeplace { minuterieAppui?.cancel(); minuterieAppui = nil; appuiDeplace = true; appuyer(false) }
-            return
-        }
-        appuiEnCours = true; appuiLongFait = false; appuiDeplace = false; origineAppui = origine
-        appuyer(true)
-        let item = DispatchWorkItem { [weak self] in
-            MainActor.assumeIsolated { guard let self, self.appuiEnCours else { return }; self.appuiLongFait = self.appuiLong() }
-        }
-        minuterieAppui = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.dureeAppuiLong, execute: item)
-    }
-    /// Le bouton remonte. `deplace` : la souris a glissé de plus de 12 pt (ni clic ni appui long).
-    func finAppui(deplace: Bool) {
-        guard appuiEnCours else { return }
-        let long = appuiLongFait, glisse = deplace || appuiDeplace
-        annulerAppui()
-        if !long, !glisse { clicForme() }
-    }
-    /// Oublie l'appui en cours (la fenêtre a disparu sous le doigt, pendant une dictée : le relâchement n'arrivera jamais).
-    func annulerAppui() {
-        minuterieAppui?.cancel(); minuterieAppui = nil
-        appuiEnCours = false; appuiLongFait = false; appuiDeplace = false; origineAppui = nil
-        appuyer(false)
+    /// Le geste SwiftUI de la forme : le bouton s'est enfoncé sur elle, hors d'un bouton. Avec la vue d'hébergement (qui retient où et
+    /// quand), l'appui long commence (LucarneMoteur.swift) : relâché avant 0,4 s, c'est un clic ; tenu, la Lucarne se décolle. Un seul
+    /// geste SwiftUI : sur le Mac, son clic prenait le dessus sur son appui long, qui ne se déclenchait jamais.
+    func appuiSurForme() {
+        guard !cache else { return }
+        intention?.cancel(); fermeture?.cancel()
+        formeAppuyee()
     }
 
     /// Appui long (0,4 s) sur la lecture : sous elle, la rangée Minuteur de l'accueil (comme l'appui long sur la Dynamic Island).
     /// Faux si rien ne s'est passé (pas de lecture, minuteur éteint dans les réglages, îlot verrouillé).
+    /// Plus branché au geste (l'appui long déplace la Lucarne, le minuteur se lance du Centre) : retiré avec `.lectureMinuteur` à la
+    /// mission 4 du plan de la Lucarne déplaçable ; seuls les rendus l'appellent encore.
     @discardableResult
     func appuiLong(minuteurActif: Bool = Settings.ilotMinuteur) -> Bool {
         presse = false; rev += 1
@@ -1416,11 +1390,13 @@ final class IlotMoteur: ObservableObject {
         if !pastilleOuverte.fini { l.append("bulle ouverte \(pastilleOuverte.x)→\(pastilleOuverte.cible)") }
         if !contenuPose { l.append("contenu (apparitions)") }
         if !apparitionsExtra.values.allSatisfy(fini) { l.append("extras \(apparitionsExtra.filter { !fini($0.value) }.keys.map { "\($0)" })") }
+        if let lu = lucarneQuiBouge { l.append(lu) }
         return l.isEmpty ? "rien" : l.joined(separator: ", ")
     }
-    private var tousLesRessorts: Bool {
+    private var ilotPose: Bool {
         geo.allSatisfy(\.fini) && secousse.fini && pastilleChute.fini && pastilleOuverte.fini && jaugeVolume.fini && jaugeLuminosite.fini && contenuPose
     }
+    private var tousLesRessorts: Bool { ilotPose && lucarnePosee }
     /// La boucle d'animation, calée sur l'écran (CADisplayLink : 60 ou 120 images par seconde), ne tourne que si quelque chose bouge.
     func demarrerBoucle() {
         rev += 1
@@ -1437,13 +1413,15 @@ final class IlotMoteur: ObservableObject {
     }
     func avancer(_ dt: Double) {
         tAnim += dt
+        let ilotBouge = !ilotPose
         for i in 0..<geo.count { if geo[i].fini { geo[i].poser() } else { geo[i].avancer(dt) } }
         if secousse.fini { secousse.poser() } else { secousse.avancer(dt) }
         if pastilleChute.fini { pastilleChute.poser() } else { pastilleChute.avancer(dt) }
         if pastilleOuverte.fini { pastilleOuverte.poser() } else { pastilleOuverte.avancer(dt) }
         if jaugeVolume.fini { jaugeVolume.poser() } else { jaugeVolume.avancer(dt) }
         if jaugeLuminosite.fini { jaugeLuminosite.poser() } else { jaugeLuminosite.avancer(dt) }
-        rev += 1
+        // la Lucarne tenue ou en vol : seule sa place change, la fenêtre la suit sans redessiner la vue
+        if avancerLucarne(dt) || ilotBouge { rev += 1 }
         if tousLesRessorts { cadence.arreter(); vider(); surFenetre() }
     }
 
@@ -1451,6 +1429,7 @@ final class IlotMoteur: ObservableObject {
     func poser() {
         for i in 0..<geo.count { geo[i].poser() }
         secousse.poser(); pastilleChute.poser(); pastilleOuverte.poser(); jaugeVolume.poser(); jaugeLuminosite.poser()
+        poserLucarneRessorts()
         tAnim += 30
         cadence.arreter()
         rev += 1
@@ -1489,6 +1468,7 @@ final class IlotMoteur: ObservableObject {
     }
     /// La souris est-elle sur la forme elle-même (pas sur le vide à côté du cou, où sont les menus) ?
     func contient(_ point: CGPoint) -> Bool {
+        if lucarne.libre { return contientLibre(point) }
         // rectangle centré sur 0 : les coordonnées du chemin sont celles du point (x depuis le centre, y depuis le haut)
         let chemin = FormeNoire(points: trace).path(in: CGRect(x: -IlotMoteur.largeur / 2, y: 0, width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax))
         return chemin.contains(point) || chemin.contains(CGPoint(x: point.x, y: point.y + 1.5))
@@ -1545,12 +1525,14 @@ final class IlotMoteur: ObservableObject {
         return rentree + (bordPastille - rentree) * CGFloat(pastilleChute.x)
     }
     func rectPastille() -> CGRect? {
-        // tant que la bulle n'est pas sortie, sa place ne prend aucun clic (l'icône de la barre à côté reste cliquable)
-        guard let p = pastille, pastilleMontree, pastilleChute.x >= 0.5 else { return nil }
+        // tant que la bulle n'est pas sortie, sa place ne prend aucun clic (l'icône de la barre à côté reste cliquable) ; hors de
+        // l'encoche, pas de bulle
+        guard !lucarne.libre, let p = pastille, pastilleMontree, pastilleChute.x >= 0.5 else { return nil }
         return CGRect(x: bordPastille, y: 0, width: largeurPastilleActuelle(p), height: hauteurPastille)
     }
     /// Le rectangle que la fenêtre doit couvrir (centre = 0) : la forme voulue, la pastille et une marge pour l'ombre et la secousse.
     func fenetreVoulue() -> CGRect {
+        if lucarne.libre { return fenetreLibre() }
         var r = rectCible()
         if let p = rectPastille(), !cache {
             let l = largeurPastilleOuverte(pastille ?? .minuteur)
@@ -1561,7 +1543,7 @@ final class IlotMoteur: ObservableObject {
         // replié (rien sous la barre) : pas un point sous la barre des menus, c'est là que sont les onglets des apps (Chrome…)
         let replie = r.height <= CGFloat(geometrie.hauteur) + 0.5
         let cote: CGFloat = petit ? 2 : 18, bas: CGFloat = replie ? 0 : (petit ? 6 : 30)
-        return CGRect(x: r.minX - cote, y: 0, width: r.width + 2 * cote, height: r.height + bas)
+        return avecAnneau(CGRect(x: r.minX - cote, y: 0, width: r.width + 2 * cote, height: r.height + bas))
     }
 }
 
@@ -1571,12 +1553,14 @@ final class CadenceEcran: NSObject {
     private var lien: CADisplayLink?
     private var minuterie: Timer?
     var tic: () -> Void = {}
+    /// L'écran où vit l'îlot (la Lucarne peut être sur un autre que le premier) : la boucle bat à son rythme.
+    weak var ecran: NSScreen?
     var active: Bool { lien != nil || minuterie != nil }
     /// Les essais (`--ilot-essai`) tournent sur la minuterie : écran éteint, le lien de l'écran ne bat plus et rien ne bougerait.
     nonisolated(unsafe) static var minuterieSeulement = false
     func demarrer() {
         guard !active else { return }
-        if !Self.minuterieSeulement, let ecran = NSScreen.screens.first {
+        if !Self.minuterieSeulement, let ecran = ecran ?? NSScreen.screens.first {
             let l = ecran.displayLink(target: self, selector: #selector(image(_:)))
             l.add(to: .main, forMode: .common)
             lien = l

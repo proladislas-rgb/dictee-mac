@@ -38,6 +38,12 @@ final class VueHebergeeIlot<Contenu: View>: NSHostingView<Contenu> {
     override func mouseMoved(with event: NSEvent) { super.mouseMoved(with: event); fleche(); surPointeur?(position(event)) }
     override func cursorUpdate(with event: NSEvent) { super.cursorUpdate(with: event); fleche() }
     override func mouseExited(with event: NSEvent) { super.mouseExited(with: event); surPointeur?(nil) }
+    /// Le bouton de la souris (appui long, tenue, lâcher de la Lucarne) : l'événement part au panneau AVANT SwiftUI, qui lit son point
+    /// GLOBAL (`cgEvent.location`) : la fenêtre bouge sous le pointeur pendant la tenue, ses coordonnées locales ne disent plus rien.
+    var surBouton: ((NSEvent) -> Void)?
+    override func mouseDown(with event: NSEvent) { surBouton?(event); super.mouseDown(with: event) }
+    override func mouseDragged(with event: NSEvent) { surBouton?(event); super.mouseDragged(with: event) }
+    override func mouseUp(with event: NSEvent) { surBouton?(event); super.mouseUp(with: event) }
     private func fleche() { CurseurEnArrierePlan.autoriser(); NSCursor.arrow.set() }
 }
 
@@ -63,12 +69,14 @@ final class PanneauIlot: NSPanel {
 @MainActor
 final class IlotPanneau {
     let moteur: IlotMoteur
-    private var fenetre: PanneauIlot?
+    private(set) var fenetre: PanneauIlot?
     private var vue: VueHebergeeIlot<IlotVue>?
     private var conteneur: NSView?
-    private var centre: CGFloat = 0
-    private var ecran: NSScreen?
-    private var cadreVoulu = CGRect.zero
+    private(set) var centre: CGFloat = 0
+    private(set) var ecran: NSScreen?
+    var cadreVoulu = CGRect.zero
+    /// Le cadre appliqué est celui du régime libre de la Lucarne (centré sur sa capsule) : un changement de régime s'applique tout de suite.
+    private(set) var cadreLibre = false
     private var reduction: DispatchWorkItem?
     private var moniteurClic: Any?
     private var surveilleEcran: NSObjectProtocol?
@@ -85,6 +93,7 @@ final class IlotPanneau {
         self.moteur = moteur
         moteur.surFenetre = { [weak self] in self?.ajuster() }
         moteur.surMoniteur = { [weak self] actif in if actif { self?.installerMoniteur() } else { self?.retirerMoniteur() } }
+        moteur.lucarne.surDeplacement = { [weak self] in self?.deplacerLibre() }
     }
 
     // MARK: vie
@@ -125,6 +134,7 @@ final class IlotPanneau {
         moteur.reduire = reduire
         centre = c
         ecran = e
+        mesurerLucarne(e)
     }
     /// Une encoche réelle (caméra) : l'îlot vide a sa place dans l'encoche. Sans encoche, l'îlot vide n'existe pas.
     private var encocheReelle: Bool { ecran != nil && moteur.geometrie.reelle }
@@ -146,7 +156,8 @@ final class IlotPanneau {
         let v = VueHebergeeIlot(rootView: IlotVue(m: moteur))
         v.frame = NSRect(x: 0, y: 0, width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax)
         v.autoresizingMask = []
-        v.surPointeur = { [weak self] p in self?.pointeur(p) }
+        v.surPointeur = { [weak self] p in guard let self else { return }; self.pointeur(p.map(self.moteur.depuisVue)) }
+        v.surBouton = { [weak self] e in self?.bouton(e) }
         v.surDefilement = { [weak self] e in self?.defilement(e) }
         // le fond de la fenêtre reçoit les fichiers lâchés (l'étagère) ; la vue SwiftUI au-dessus n'en veut pas, ils lui passent dessous
         let c = ConteneurIlot(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
@@ -162,7 +173,7 @@ final class IlotPanneau {
     /// Place la fenêtre sur ce que l'îlot veut couvrir. Elle grandit tout de suite, rétrécit 0,65 s plus tard (le temps que la forme se referme).
     func ajuster() {
         guard let f = fenetre, let ecran else { return }
-        let veut = moteur.cache || (!encocheReelle && moteur.resolution.principal == .repos && moteur.pastille == nil && !moteur.depot && !moteur.appel)
+        let veut = moteur.cache || (!encocheReelle && !moteur.lucarne.libre && moteur.resolution.principal == .repos && moteur.pastille == nil && !moteur.depot && !moteur.appel)
         if veut {
             laisserPasser(false)
             if f.isVisible, moteur.courante == .repos, moteur.geo.allSatisfy(\.fini) { f.orderOut(nil) }
@@ -170,7 +181,7 @@ final class IlotPanneau {
             return
         }
         let r = moteur.fenetreVoulue()
-        let grandit = r.width > cadreVoulu.width + 0.5 || r.height > cadreVoulu.height + 0.5 || !f.isVisible
+        let grandit = r.width > cadreVoulu.width + 0.5 || r.height > cadreVoulu.height + 0.5 || !f.isVisible || poserToutDeSuite(r)
         if grandit { appliquer(r) }
         else if r != cadreVoulu {
             reduction?.cancel()
@@ -196,14 +207,19 @@ final class IlotPanneau {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7, execute: item)
     }
 
-    private func appliquer(_ r: CGRect) {
+    /// `r` : repère de la Lucarne (x depuis le centre de l'encoche, y depuis le haut de l'écran) ; la vue y est posée d'après `origineVue`
+    /// (le point dessiné en haut au milieu d'elle).
+    func appliquer(_ r: CGRect) {
         guard let f = fenetre, let ecran else { return }
         reduction?.cancel()
         cadreVoulu = r
-        let cadre = NSRect(x: centre + r.minX, y: ecran.frame.maxY - r.height, width: r.width, height: r.height)
+        cadreLibre = moteur.lucarne.libre
+        let o = moteur.origineVue
+        let cadre = NSRect(x: centre + r.minX, y: ecran.frame.maxY - r.maxY, width: r.width, height: r.height)
         f.setFrame(cadre, display: false)
         conteneur?.frame = NSRect(origin: .zero, size: cadre.size)
-        vue?.frame = NSRect(x: -r.minX - IlotMoteur.largeur / 2, y: cadre.height - IlotMoteur.hauteurMax, width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax)
+        vue?.frame = NSRect(x: o.x - r.minX - IlotMoteur.largeur / 2, y: cadre.height - IlotMoteur.hauteurMax - (o.y - r.minY),
+                            width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax)
         reevaluerPointeur()
     }
 
@@ -228,6 +244,8 @@ final class IlotPanneau {
     // MARK: souris
 
     private func pointeur(_ p: CGPoint?) {
+        // un appui ou une tenue de la Lucarne : la fenêtre garde la souris jusqu'au relâchement
+        if moteur.lucarneOccupee { return }
         guard let p else {
             if sousForme { sousForme = false; moteur.survolForme(false) }
             if sousPastille { sousPastille = false; moteur.survolPastille(false) }
@@ -236,7 +254,8 @@ final class IlotPanneau {
         // la forme elle-même : le vide à côté du cou (où sont les menus) ne compte pas
         let surForme = moteur.contient(p)
         let surPastille = moteur.rectPastille()?.contains(p) ?? false
-        if surForme != sousForme { sousForme = surForme; moteur.survolForme(surForme) }
+        // hors de l'encoche, la capsule ne s'ouvre pas encore au survol (son contenu arrive avec la mission 3)
+        if surForme != sousForme { sousForme = surForme; moteur.survolForme(surForme && !moteur.lucarne.libre) }
         if surPastille != sousPastille { sousPastille = surPastille; moteur.survolPastille(surPastille) }
         laisserPasser(!(surForme || surPastille))
     }
@@ -255,7 +274,7 @@ final class IlotPanneau {
         let dy = Double(e.hasPreciseScrollingDeltas ? e.scrollingDeltaY : e.scrollingDeltaY * 10)
         let dx = Double(e.hasPreciseScrollingDeltas ? e.scrollingDeltaX : e.scrollingDeltaX * 10)
         // où est le pointeur (la liste des Dictées défile sous lui) ; un événement sans fenêtre (essais) est placé depuis l'écran
-        let p = vue?.point(e) ?? pointEcran(e.locationInWindow)
+        let p = vue?.point(e).map(moteur.depuisVue) ?? pointEcran(e.locationInWindow)
         moteur.recevoirDefilement(dy: dy, dx: dx, phase: phase, inertie: e.momentumPhase != [], en: p)
     }
 
@@ -506,7 +525,8 @@ final class IlotPanneau {
     /// l'îlot appelle (« Glisse ici ») tout de suite, puis s'ouvre en grand en approchant. Un texte glissé n'ouvre rien.
     func glisser(_ p: CGPoint, nouveau: () -> Bool = { true }, fichiers: () -> Bool) {
         // un fichier qui PART de l'îlot (bandeau « Téléchargé », tuile de l'étagère) n'ouvre jamais rien sous lui-même
-        guard etagereActive, !moteur.glisserSortant, !moteur.cache else { return }
+        // hors de l'encoche, pas de zones de dépôt (elles arrivent avec le contenu de la Lucarne libre, mission 3)
+        guard etagereActive, !moteur.glisserSortant, !moteur.cache, !moteur.lucarne.libre else { return }
         if glisserDeFichiers == nil {
             guard nouveau() else { return }
             glisserDeFichiers = fichiers()
@@ -607,7 +627,7 @@ final class IlotPanneau {
     /// glisser parti de Verbe lui-même (`interne` : une tuile de la carte, le fichier du bandeau « Téléchargé ») n'ouvre rien. Vrai : un
     /// lâcher à cet endroit serait accepté.
     func glisserSurLIlot(_ p: CGPoint, interne: Bool = false) -> Bool {
-        guard etagereActive, !moteur.cache, !interne, !moteur.glisserSortant else { return false }
+        guard etagereActive, !moteur.cache, !interne, !moteur.glisserSortant, !moteur.lucarne.libre else { return false }
         glisserDeFichiers = true
         if !moteur.appel, !depotLache { moteur.montrerAppel(true); if moteur.appel { guetterLaFin(true) } }
         approcher(p)

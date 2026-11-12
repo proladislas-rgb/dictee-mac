@@ -270,11 +270,11 @@ struct IlotCalques: View {
             .animation(m.reduire ? nil : .spring(response: 0.25, dampingFraction: 0.75), value: m.miniatureSurvolee)
             .glisserFichier(c.glisser, m)
             // une source AppKit (comme les tuiles de l'étagère) : `onDrag` de SwiftUI ne part jamais ici, le geste de la forme
-            // (DragGesture(minimumDistance: 0), clic et appui long) prend la souris avant lui. Le clic simple, lui, reste au geste de la
-            // forme, qui voit aussi les événements de cette vue (il ouvre l'étagère) : le donner aussi à la vue l'ouvrirait puis la
-            // refermerait. Hors rendu seulement (ImageRenderer ne dessine pas les vues AppKit)
+            // (DragGesture(minimumDistance: 0)) prend la souris avant lui. Le clic simple aussi passe par cette vue (il ouvre l'étagère) :
+            // le geste de la forme voit ses événements, mais seul un appui reçu par la vue d'hébergement fait un clic ou un appui long.
+            // Hors rendu seulement (ImageRenderer ne dessine pas les vues AppKit)
             .overlay { if let s = c.source, !m.statique {
-                SourceFichiers(fichiers: [s], m: m, clic: nil, survol: { m.miniatureSurvolee = $0 },
+                SourceFichiers(fichiers: [s], m: m, clic: { m.clicForme() }, survol: { m.miniatureSurvolee = $0 },
                                etiquette: "Glisser la capture vers une app ; un clic ouvre l\u{2019}étagère")
             } }
             .aspectIlot(m.aspect(v, rang: 0), ancre: .center)
@@ -921,16 +921,21 @@ struct EgaliseurPetit: NSViewRepresentable {
 // MARK: racine
 
 /// Le contenu de la fenêtre de l'îlot : la forme noire (sans liseré ; une ombre douce seulement une fois dépliée), ses écrans rognés
-/// à la forme, la pastille.
+/// à la forme, la pastille ; hors de l'encoche, la capsule de la Lucarne (LucarneVues.swift). L'anneau de l'appui long par-dessus.
 struct IlotVue: View {
     @ObservedObject var m: IlotMoteur
 
     var body: some View {
         let _ = m.rev
+        Group { if m.lucarne.libre { LucarneLibreVue(m: m) } else { encoche } }
+            .overlay(alignment: .topLeading) { AnneauAppuiLucarne(m: m) }
+    }
+
+    private var encoche: some View {
         let g = m.grille
         let forme = FormeNoire(points: m.trace)
         let s = Double(min(1, max(0, (CGFloat(m.geo[2].x) - g.barre) / 70)))
-        ZStack(alignment: .topLeading) {
+        return ZStack(alignment: .topLeading) {
             // la bulle passe SOUS l'îlot : elle sort de l'aile droite par-dessous, sans jamais couvrir l'onde ni l'heure de l'aile
             PastilleVue(m: m)
             // l'ombre n'existe que SOUS la barre des menus : à côté du cou, elle aurait assombri les icônes voisines
@@ -941,11 +946,10 @@ struct IlotVue: View {
             IlotCalques(m: m, g: g)
                 .clipShape(forme)
                 .contentShape(forme)
-                // clic (épingle ou relâche) et appui long de 0,4 s (sur la lecture : la rangée Minuteur), chronométrés par le moteur ;
-                // l'îlot gonfle un peu sous le doigt pendant l'appui. Les boutons du contenu gardent leurs clics.
-                .gesture(DragGesture(minimumDistance: 0)
-                    .onChanged { v in m.debutAppui(origine: v.startLocation, distance: hypot(v.translation.width, v.translation.height)) }
-                    .onEnded { v in m.finAppui(deplace: hypot(v.translation.width, v.translation.height) > 12) })
+                // l'appui sur la forme, hors des boutons (qui gardent leurs clics) : la vue d'hébergement suit le bouton de la souris, le
+                // moteur chronomètre (relâché avant 0,4 s : un clic qui épingle ou relâche ; tenu : la Lucarne se décolle) ; l'îlot
+                // gonfle un peu sous le doigt pendant l'appui
+                .gesture(DragGesture(minimumDistance: 0).onChanged { _ in m.appuiSurForme() })
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { m.clicForme() }
         }

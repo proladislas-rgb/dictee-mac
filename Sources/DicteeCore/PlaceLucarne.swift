@@ -57,6 +57,12 @@ public struct CapsuleLucarne: Equatable, Sendable {
     public static func boite(x0: Double, y0: Double, largeur: Double, hauteur: Double, rayon: Double) -> CapsuleLucarne {
         CapsuleLucarne(x0: x0, x1: x0 + largeur, y0: y0, y1: y0 + hauteur, s: rayon, r: rayon)
     }
+    /// La forme de l'encoche en capsule : la trace d'un écran (`TraceIlot.calculer`) avec son épaule et son coin du bas (valeurs 3 et 4 de
+    /// `GeoIlot`). Pour une forme repliée (rien sous la barre), `TraceLucarne` redonne exactement le même tracé : la Lucarne quitte
+    /// l'encoche, ou y revient, sans saut.
+    public static func encoche(_ p: TraceIlot.Points, epaule: Double, coin: Double) -> CapsuleLucarne {
+        CapsuleLucarne(x0: -p.corpsGauche, x1: p.corpsDroit, y0: 0, y1: p.hauteur, s: -max(0, epaule), r: max(0, coin))
+    }
     /// Une pilule (couchée ou debout) de cette taille, centrée en (cx, cy).
     public static func pilule(cx: Double, cy: Double, largeur: Double, hauteur: Double) -> CapsuleLucarne {
         let rayon = min(largeur, hauteur) / 2 / TraceIlot.portee
