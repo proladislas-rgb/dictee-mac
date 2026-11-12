@@ -69,6 +69,12 @@ final class DictationController {
     var surEchecInsertion: ((String) -> Void)?
     /// Appelé quand le texte n'est pas arrivé dans l'app : (texte, app visée). L'encoche reste ouverte avec le texte à copier.
     var surFilet: ((String, NSRunningApplication?) -> Void)?
+    /// Appelé quand une dictée est passée par la reconnaissance du Mac (Groq n'a pas répondu, et pourquoi) : l'îlot le signale.
+    var surRelais: ((EchecGroq) -> Void)?
+    /// Appelé quand Groq a de nouveau donné le texte d'une dictée (le prochain relais se dira en entier).
+    var surGroqReussi: (() -> Void)?
+    /// Appelé quand la dictée aurait dû passer par le Mac mais qu'il n'est pas prêt (langue en téléchargement) : l'îlot le dit.
+    var surRelaisIndisponible: ((String) -> Void)?
     /// Appelé avec le texte final avant le collage : vrai si c'était une commande de l'îlot (le texte n'est alors pas collé).
     var surInterception: ((String) -> Bool)?
     /// « Lucarne, … » cherché sur le texte de Groq, AVANT la remise au propre (l'IA, le lexique ou les raccourcis pourraient changer ou
@@ -182,7 +188,7 @@ final class DictationController {
                 }
             }
         }
-        if let direct = PrechauffageParole.creer() {
+        if let direct = PrechauffageParole.creer(mots: PrechauffageParole.motsContexte()) {
             direct.surTexte = { [weak self] texte in
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
@@ -280,22 +286,25 @@ final class DictationController {
         case .texte(let texte) where !texte.isEmpty:
             Log.ecrire("dictée \(s.id) : réponse Groq complète \(attente) ms après le relâchement (\(Settings.modeleWhisper.identifiant)), \"\(Log.apercu(texte))\"")
             if s.transcripteur.nombreDeMorceaux <= 2 { var l = Settings.latences; l.noter(attente, modele: Settings.modeleWhisper); Settings.latences = l }
+            surGroqReussi?()
             await ecrire(texte, session: s, relachement: relache)
         case .texte:
             Log.ecrire("dictée \(s.id) : Groq n'a rien reconnu (\(attente) ms)")
             fermerSiLibre()
             if !s.encoche { surRienEcrit?() }
-        case .echec(let raison):
-            Log.ecrire("dictée \(s.id) : Groq en échec après \(attente) ms (\(raison)) -> secours Apple")
-            await utiliserLeSecours(s, relachement: relache)
+        case .echec(let raison, let echec):
+            Log.ecrire("dictée \(s.id) : Groq en échec après \(attente) ms (\(raison)) -> relais sur le Mac")
+            await utiliserLeSecours(s, relachement: relache, echec: echec ?? .autre)
         case .delai:
-            Log.ecrire("dictée \(s.id) : Groq trop lent (> \(Settings.delaiGroq) s) -> secours Apple")
-            await utiliserLeSecours(s, relachement: relache)
+            Log.ecrire("dictée \(s.id) : Groq trop lent (> \(Settings.delaiGroq) s) -> relais sur le Mac")
+            await utiliserLeSecours(s, relachement: relache, echec: .delai)
         }
     }
 
-    /// Texte de la dictée d'Apple (faite sur l'appareil) quand Groq ne répond pas.
-    private func utiliserLeSecours(_ s: Session, relachement relache: Double) async {
+    /// Texte de la reconnaissance du Mac (macOS 26, faite sur l'appareil) quand Groq ne répond pas (limite, réseau, panne, clé absente).
+    /// Le même chemin que le texte de Groq ensuite : correction à l'oreille (lexique), remise au propre si Groq la permet encore, adresses,
+    /// raccourcis, mise en forme selon l'app. La dictée suivante retente Groq (rien n'est retenu ici, sinon le signe dans l'îlot).
+    private func utiliserLeSecours(_ s: Session, relachement relache: Double, echec: EchecGroq) async {
         guard Settings.secoursApple else {
             Log.ecrire("dictée \(s.id) : secours Apple désactivé dans les Réglages, rien à écrire")
             s.direct?.annuler()
@@ -315,14 +324,19 @@ final class DictationController {
             }
         }
         texte = texte.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !texte.isEmpty else {
-            Log.ecrire("dictée \(s.id) : pas de texte de secours, rien à écrire")
+        guard RelaisDictee.utiliserLeMac(echec: echec, relaisPermis: true, texteDuMac: texte) else {
+            Log.ecrire("dictée \(s.id) : pas de texte du Mac, rien à écrire (\(PrechauffageParole.disponibilite))")
             if !s.encoche { surRienEcrit?() }
-            if courante == nil { panneau.afficherMessage("Impossible de dicter, réessaie", app: s.appCible) }
+            if case .telechargement(let p) = PrechauffageParole.disponibilite {
+                surRelaisIndisponible?("Le Mac télécharge le français \u{00B7} \(p) %")
+            } else if courante == nil { panneau.afficherMessage("Impossible de dicter, réessaie", app: s.appCible) }
             return
         }
-        Log.ecrire("dictée \(s.id) : texte de secours Apple utilisé, \"\(Log.apercu(texte))\"")
+        // les mots du lexique mal entendus, comme pour un morceau de Groq
+        texte = await PreparationLexique.correcteur()(texte, 0)
+        Log.ecrire("dictée \(s.id) : texte du Mac utilisé (\(echec.rawValue)), \"\(Log.apercu(texte))\"")
         await ecrire(texte, session: s, relachement: relache)
+        surRelais?(echec)
     }
 
     /// La pause d'avant le relâchement a fait partir le dernier morceau et Groq a déjà répondu : on remet au propre sans attendre.

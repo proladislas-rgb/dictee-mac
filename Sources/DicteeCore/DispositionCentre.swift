@@ -27,6 +27,8 @@ public enum ElementCentre: String, CaseIterable, Sendable {
     case noteRapide = "note-rapide"
     /// Second Brain (l'autre app de Hugues) : un rond qui ouvre sa carte. Il n'est « disponible » que si son fichier d'état existe.
     case secondBrain = "second-brain"
+    /// Ce que Groq laisse pour la transcription (jauge en anneau, page Outils ; 12/11 : « j'ai peur d'arriver à mes limites sur Groq »).
+    case groq
 
     public enum Genre: Sendable { case rond, grandeCase, bande }
 
@@ -40,7 +42,7 @@ public enum ElementCentre: String, CaseIterable, Sendable {
     /// La page où il vit.
     public var page: PageCentre {
         switch self {
-        case .eveil, .pressePapiers, .reformuler, .notes, .noteRapide: return .outils
+        case .eveil, .pressePapiers, .reformuler, .notes, .noteRapide, .groq: return .outils
         default: return .centre
         }
     }
@@ -67,6 +69,7 @@ extension ElementCentre {
         case .notes: return "Tes notes rapides, gardées ici"
         case .noteRapide: return "Un clic, tu parles, c\u{2019}est noté"
         case .secondBrain: return "Ce qui t\u{2019}attend dans Second Brain"
+        case .groq: return "Ton usage de Groq aujourd\u{2019}hui"
         }
     }
     /// La plus longue phrase d'aide permise (en caractères) : au-delà, ce n'est plus une aide de survol.
@@ -85,12 +88,14 @@ public struct DispositionCentre: Equatable, Sendable {
     /// AirPods), Téléchargements, Claude Code, le minuteur et l'étagère, la bande « Noter la réunion ». « Modifier » propose d'ajouter
     /// Rappel et Dernière dictée (maquette, étape 9). Le calendrier s'y ajoute (maquette ilot-bibliotheque.html, étape 10), avant Claude.
     public static let parDefaut: [ElementCentre] = [.micro, .dictee, .telechargements, .calendrier, .claude, .minuteur, .etagere, .reunion]
-    /// La page Outils telle qu'elle est la première fois (maquette, étape 8) : les quatre outils et la bande « Dicter une note ».
-    public static let parDefautOutils: [ElementCentre] = [.eveil, .pressePapiers, .reformuler, .notes, .noteRapide]
+    /// La page Outils telle qu'elle est la première fois (maquette, étape 8) : les quatre outils, la jauge de Groq (12/11) et la bande
+    /// « Dicter une note ».
+    public static let parDefautOutils: [ElementCentre] = [.eveil, .pressePapiers, .reformuler, .notes, .groq, .noteRapide]
     public static func parDefaut(_ page: PageCentre) -> [ElementCentre] { page == .centre ? parDefaut : parDefautOutils }
-    /// Ce qui est arrivé après coup dans le Centre par défaut : un Centre déjà rangé (« Modifier ») le reçoit UNE fois, à sa place
-    /// (`avecNouveautes`) ; retiré ensuite, il ne revient plus.
-    public static let nouveautes: [ElementCentre] = [.calendrier]
+    /// Ce qui est arrivé après coup dans une disposition par défaut (le calendrier dans le Centre, la jauge de Groq dans les Outils) : une
+    /// page déjà rangée (« Modifier ») le reçoit UNE fois, à sa place (`avecNouveautes`) ; retiré ensuite, il ne revient plus. Chacun
+    /// n'entre que dans sa page (`page`) ; les deux pages partagent la liste de ce qui a déjà été donné.
+    public static let nouveautes: [ElementCentre] = [.calendrier, .groq]
 
     /// La page que cette disposition décrit : seuls ses éléments y entrent, « Ajouter : » ne propose qu'eux.
     public let page: PageCentre
@@ -115,17 +120,17 @@ public struct DispositionCentre: Equatable, Sendable {
     /// Ce qui est rangé dans les réglages.
     public var identifiants: [String] { elements.map(\.rawValue) }
 
-    /// Un Centre rangé avant l'arrivée d'une nouveauté (le calendrier) la reçoit à sa place par défaut : devant ce qui la suit dans le
-    /// Centre par défaut (Claude Code), sinon après le dernier de son genre. `dejaProposees` : les nouveautés déjà données une fois
+    /// Une page rangée avant l'arrivée d'une nouveauté (le calendrier, la jauge de Groq) la reçoit à sa place par défaut : devant ce qui la
+    /// suit dans la disposition par défaut de sa page (Claude Code), sinon après le dernier de son genre. `dejaProposees` : les nouveautés déjà données une fois
     /// (retirées depuis, elles ne reviennent pas). Rend la disposition et ce qui a été proposé cette fois (à retenir), ajouté ou non (une
     /// rangée pleine ne reçoit rien : « Modifier » le propose).
     public func avecNouveautes(dejaProposees: Set<String>) -> (disposition: DispositionCentre, proposees: [ElementCentre]) {
         var d = self
         var proposees: [ElementCentre] = []
-        for n in Self.nouveautes where !dejaProposees.contains(n.rawValue) {
+        for n in Self.nouveautes where n.page == page && !dejaProposees.contains(n.rawValue) {
             proposees.append(n)
             guard !d.elements.contains(n), d.peutAjouter(n) else { continue }
-            let suivants = Self.parDefaut.drop { $0 != n }.dropFirst().filter { $0.genre == n.genre }
+            let suivants = Self.parDefaut(page).drop { $0 != n }.dropFirst().filter { $0.genre == n.genre }
             if let s = suivants.first(where: { d.elements.contains($0) }), let i = d.elements.firstIndex(of: s) { d.elements.insert(n, at: i) }
             else { d.ajouter(n) }
         }
@@ -136,11 +141,11 @@ public struct DispositionCentre: Equatable, Sendable {
     /// nouveautés déjà données (nil : rien à écrire) ; `ajoutees` : ce qui vient d'entrer dans un Centre rangé (la disposition est à
     /// enregistrer). Jamais rangé (nil) : le Centre par défaut CONTIENT déjà les nouveautés, elles sont donc retenues comme données ;
     /// sinon, retirées plus tard par « Modifier », elles reviendraient au lancement suivant.
-    public static func relire(identifiants: [String]?, dejaProposees: Set<String>)
+    public static func relire(identifiants: [String]?, dejaProposees: Set<String>, page: PageCentre = .centre)
         -> (disposition: DispositionCentre, aRetenir: [String]?, ajoutees: [ElementCentre]) {
-        let d = DispositionCentre(identifiants: identifiants)
+        let d = DispositionCentre(identifiants: identifiants, page: page)
         guard identifiants != nil else {
-            let manquantes = nouveautes.map(\.rawValue).filter { !dejaProposees.contains($0) }
+            let manquantes = nouveautes.filter { $0.page == page }.map(\.rawValue).filter { !dejaProposees.contains($0) }
             return (d, manquantes.isEmpty ? nil : (dejaProposees.union(manquantes)).sorted(), [])
         }
         let r = d.avecNouveautes(dejaProposees: dejaProposees)

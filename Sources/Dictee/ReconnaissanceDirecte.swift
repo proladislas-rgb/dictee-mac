@@ -2,6 +2,11 @@ import AVFoundation
 import Speech
 import CoreMedia
 
+extension Notification.Name {
+    /// La reconnaissance du Mac a changé d'état (prête, téléchargement de la langue en cours) : les Réglages et l'îlot relisent.
+    static let verbeParole = Notification.Name("verbe.parole")
+}
+
 /// Texte en direct (pour l'encoche) et texte de secours si Groq ne répond pas : reconnaissance d'Apple,
 /// toujours faite sur l'appareil. Le texte collé est celui de Groq ; celui-ci ne sert qu'à l'affichage et au secours.
 protocol ReconnaissanceDirecte: AnyObject {
@@ -26,15 +31,37 @@ enum PrechauffageParole {
     nonisolated(unsafe) private(set) static var mode: Mode = .enAttente
     private static let lock = NSLock()
 
-    enum Disponibilite: Equatable { case pret, enPreparation, indisponible(String) }
-    /// Ce que les Réglages peuvent affirmer du secours Apple : seulement « prêt » une fois la préparation réussie.
+    enum Disponibilite: Equatable { case pret, enPreparation, telechargement(Int), indisponible(String) }
+    /// Ce que les Réglages peuvent affirmer du secours Apple : seulement « prêt » une fois la préparation réussie ; pendant que macOS
+    /// télécharge la langue, où il en est (en %).
     static var disponibilite: Disponibilite {
         switch etat {
         case .analyseur, .classique: return .pret
-        case .enAttente: return .enPreparation
+        case .enAttente: return progression.map { .telechargement(Int(($0 * 100).rounded(.down))) } ?? .enPreparation
         case .indisponible(let raison): return .indisponible(raison)
         }
     }
+    /// Le téléchargement de la langue par macOS (0 à 1) ; nil s'il n'y en a pas en cours.
+    nonisolated(unsafe) private static var progressionEnCours: Double?
+    static var progression: Double? { lock.lock(); defer { lock.unlock() }; return progressionEnCours }
+    private static func poserProgression(_ p: Double?) {
+        lock.lock(); let change = progressionEnCours != p; progressionEnCours = p; lock.unlock()
+        if change { DispatchQueue.main.async { NotificationCenter.default.post(name: .verbeParole, object: nil) } }
+    }
+
+    /// Les mots du lexique donnés à la reconnaissance du Mac (noms propres, mots de métier) : elle les reconnaît mieux. 100 au plus,
+    /// relus toutes les 10 minutes (pas à chaque dictée).
+    static func motsContexte(a t: Double = ProcessInfo.processInfo.systemUptime) -> [String] {
+        lock.lock()
+        if let c = motsEnCache, t - c.lus < 600 { lock.unlock(); return c.mots }
+        lock.unlock()
+        var vus = Set<String>()
+        let tous = Dictionnaire.mots() + LexiqueStore.partage.entrees().map(\.mot)
+        let mots = Array(tous.filter { !$0.isEmpty && vus.insert($0.lowercased()).inserted }.prefix(100))
+        lock.lock(); motsEnCache = (mots, t); lock.unlock()
+        return mots
+    }
+    nonisolated(unsafe) private static var motsEnCache: (mots: [String], lus: Double)?
 
     static var etat: Mode { lock.lock(); defer { lock.unlock() }; return mode }
     private static func poser(_ m: Mode) { lock.lock(); mode = m; lock.unlock() }
@@ -53,6 +80,15 @@ enum PrechauffageParole {
             if statut != .installed {
                 Log.ecrire("parole : modèle de langue « \(locale.identifier) » pas encore installé (\(statut)), demande d'installation au système")
                 if let demande = try await AssetInventory.assetInstallationRequest(supporting: [transcripteur]) {
+                    // la progression se lit pendant le téléchargement (Réglages, îlot), puis disparaît
+                    poserProgression(0)
+                    let suivi = Task {
+                        while !Task.isCancelled {
+                            poserProgression(demande.progress.fractionCompleted)
+                            try? await Task.sleep(for: .milliseconds(500))
+                        }
+                    }
+                    defer { suivi.cancel(); poserProgression(nil) }
                     try await demande.downloadAndInstall()
                 }
                 statut = await AssetInventory.status(forModules: [transcripteur])
@@ -69,6 +105,7 @@ enum PrechauffageParole {
             }
             poser(.analyseur(format: format, locale: locale))
             Log.ecrire("parole : prête (SpeechAnalyzer, \(locale.identifier), \(Int(format.sampleRate)) Hz)")
+            DispatchQueue.main.async { NotificationCenter.default.post(name: .verbeParole, object: nil) }
         } catch {
             Log.ecrire("parole : préparation impossible (\(error.localizedDescription)), repli sur la reconnaissance classique")
             await preparerClassique()
@@ -93,10 +130,43 @@ enum PrechauffageParole {
         }
     }
 
-    /// Une reconnaissance pour la dictée qui commence, ou `nil` si rien n'est prêt.
-    static func creer() -> (any ReconnaissanceDirecte)? {
+    /// Pour l'essai en ligne de commande (`--relais-essai`) : la reconnaissance du Mac seulement si la langue est DÉJÀ installée. Rien n'est
+    /// téléchargé, aucune autorisation n'est demandée (le repli classique, qui en demande une, n'est jamais essayé ici).
+    /// `reserver` : les langues du Mac sont réservées app par app (AssetInventory) ; un programme lancé depuis le Terminal n'a pas celle de
+    /// Verbe. Avec `reserver`, l'essai réserve le français pour lui-même le temps de l'essai (macOS reprend la langue déjà sur le disque ;
+    /// la progression s'affiche s'il doit la télécharger), puis `liberer()` rend la réservation.
+    static func preparerSansDemander(reserver: Bool = false) async -> String? {
+        let souhaitee = Locale(identifier: "fr-FR")
+        guard SpeechTranscriber.isAvailable, let locale = await SpeechTranscriber.supportedLocale(equivalentTo: souhaitee) else { return "SpeechTranscriber indisponible" }
+        let transcripteur = SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [.volatileResults], attributeOptions: [])
+        var statut = await AssetInventory.status(forModules: [transcripteur])
+        if statut != .installed, reserver {
+            do {
+                try await AssetInventory.reserve(locale: locale)
+                if let demande = try await AssetInventory.assetInstallationRequest(supporting: [transcripteur]) {
+                    let suivi = Task {
+                        while !Task.isCancelled { print(String(format: "langue du Mac : %.0f %%", demande.progress.fractionCompleted * 100)); try? await Task.sleep(for: .seconds(1)) }
+                    }
+                    defer { suivi.cancel() }
+                    try await demande.downloadAndInstall()
+                }
+                statut = await AssetInventory.status(forModules: [transcripteur])
+            } catch { return "réservation de la langue impossible (\(error.localizedDescription))" }
+        }
+        guard statut == .installed else { return "langue \(locale.identifier) non installée pour ce programme (\(statut)) : relancer avec --reserver" }
+        guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcripteur]) else { return "format audio introuvable" }
+        poser(.analyseur(format: format, locale: locale))
+        return nil
+    }
+    /// Rend la réservation prise par l'essai.
+    static func liberer() async {
+        if case .analyseur(_, let locale) = etat { await AssetInventory.release(reservedLocale: locale) }
+    }
+
+    /// Une reconnaissance pour la dictée qui commence, ou `nil` si rien n'est prêt. `mots` : le lexique, pour mieux reconnaître les noms.
+    static func creer(mots: [String] = []) -> (any ReconnaissanceDirecte)? {
         switch etat {
-        case .analyseur(let format, let locale): return AnalyseurDirect(format: format, locale: locale)
+        case .analyseur(let format, let locale): return AnalyseurDirect(format: format, locale: locale, mots: mots)
         case .classique: return ClassiqueDirect()
         case .enAttente, .indisponible: return nil
         }
@@ -121,7 +191,7 @@ final class AnalyseurDirect: ReconnaissanceDirecte, @unchecked Sendable {
     private var tache: Task<Void, Never>?
     private var resultats: Task<Void, Never>?
 
-    init(format: AVAudioFormat, locale: Locale) {
+    init(format: AVAudioFormat, locale: Locale, mots: [String] = []) {
         self.format = format
         transcripteur = SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [.volatileResults], attributeOptions: [])
         analyseur = SpeechAnalyzer(modules: [transcripteur])
@@ -138,6 +208,13 @@ final class AnalyseurDirect: ReconnaissanceDirecte, @unchecked Sendable {
             }
         }
         tache = Task { [analyseur, flux] in
+            // les mots du lexique (noms, mots de métier) : la reconnaissance du Mac les préfère (AnalysisContext, macOS 26)
+            if !mots.isEmpty {
+                let contexte = AnalysisContext()
+                contexte.contextualStrings[.general] = mots
+                do { try await analyseur.setContext(contexte) }
+                catch { Log.ecrire("parole : mots du lexique refusés (\(error.localizedDescription))") }
+            }
             do { try await analyseur.start(inputSequence: flux) }
             catch { Log.ecrire("parole : démarrage de l'analyse impossible (\(error.localizedDescription))") }
         }

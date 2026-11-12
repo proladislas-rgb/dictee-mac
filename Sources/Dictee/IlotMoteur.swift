@@ -48,6 +48,8 @@ struct BandeauIlot {
     var vignette: NSImage?
     /// La capture elle-même : la miniature se glisse vers une app (comme la vignette de macOS).
     var capture: URL?
+    /// Ce que dit un bandeau de Groq (`.groq`) : limite proche, atteinte, dictée passée par le Mac, détail de la jauge.
+    var groq: GenreBandeauGroq?
 }
 
 /// Le bandeau `.lucarne` : une commande dite qui n'a pas abouti (rien n'est collé : la phrase est là, avec « Copier »), ou l'app Rappels.
@@ -183,6 +185,8 @@ enum ActionIlot {
     case reveilRegler(heure: Int, minute: Int, basculer: Bool), reveilAnnuler, reveilEncore, reveilOK
     /// Le rond Calendrier du Centre : éteint, un clic l'allume (macOS demande l'accès une fois) ; allumé, un clic l'éteint.
     case centreCalendrier
+    /// La jauge de Groq (page Outils) : le détail de l'usage.
+    case groqDetail
 }
 
 /// La case Minuteur du Centre a deux onglets (maquette ilot-bibliotheque.html, étape 7) : le minuteur (5 · 10 · 25 min) et le réveil
@@ -420,6 +424,8 @@ final class IlotMoteur: ObservableObject {
     /// « Garder éveillé » en cours (nil : la veille est normale), et son panneau ouvert (« combien de temps ? »).
     var eveil: EveilIlot? { didSet { if eveil != oldValue { rev += 1 } } }
     var panneauEveil = false { didSet { if panneauEveil != oldValue { rev += 1 } } }
+    /// L'usage de Groq (la jauge de la page Outils) ; nil tant que le contrôleur ne l'a pas lu.
+    var groq: EtatGroq? { didSet { if groq != oldValue { rev += 1 } } }
     /// Le panneau se montre tant qu'on choisit, ou tant que le Mac est gardé éveillé (pour voir jusqu'à quand, et l'éteindre).
     var panneauEveilVisible: Bool { panneauEveil || eveil != nil }
     /// Le presse-papiers : les cinq dernières copies (en mémoire), celle qui vient d'être recopiée ou collée, celle sous le pointeur.

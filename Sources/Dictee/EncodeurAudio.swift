@@ -4,11 +4,13 @@ import DicteeCore
 /// Codage du son envoyé à Groq. FLAC (sans perte, environ 40 % plus léger que le WAV) avec l'encodeur d'Apple ;
 /// WAV si le codage échoue ou si le réglage `formatEnvoi` vaut `wav`.
 enum EncodeurAudio {
-    struct Fichier { var donnees: Data; var nom: String; var type: String }
+    /// Le son codé, et sa durée (comptée dans l'usage de Groq : ses limites sont en secondes d'audio).
+    struct Fichier { var donnees: Data; var nom: String; var type: String; var duree: Double = 0 }
 
     static func encoder(_ echantillons: [Int16], flac: Bool = Settings.envoiFLAC) -> Fichier {
-        if flac, let d = flacEnMemoire(echantillons) { return Fichier(donnees: d, nom: "audio.flac", type: "audio/flac") }
-        return Fichier(donnees: WAV.encode(samples: echantillons), nom: "audio.wav", type: "audio/wav")
+        let duree = Double(echantillons.count) / 16_000
+        if flac, let d = flacEnMemoire(echantillons) { return Fichier(donnees: d, nom: "audio.flac", type: "audio/flac", duree: duree) }
+        return Fichier(donnees: WAV.encode(samples: echantillons), nom: "audio.wav", type: "audio/wav", duree: duree)
     }
 
     /// AVAudioFile n'écrit que dans un fichier : un fichier temporaire, relu puis effacé aussitôt (quelques millisecondes).

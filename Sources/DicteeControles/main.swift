@@ -1915,6 +1915,7 @@ controlesPrecision()
 controlesIlot()
 controlesLucarne()
 controlesSecondBrain()
+controlesGroq()
 
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)

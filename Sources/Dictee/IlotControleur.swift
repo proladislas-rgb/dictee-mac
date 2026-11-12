@@ -120,6 +120,13 @@ final class IlotControleur {
     var echeanceNote: DispatchWorkItem?
     /// Une dictée sans encoche est en cours : la lecture qui se met en pause pour elle n'efface pas l'îlot (il montre l'écoute).
     var noteParClic = false
+    // MARK: Groq (IlotGroq.swift) : l'usage et le téléchargement de la langue du Mac sont lus par des fermetures (l'essai les remplace)
+    var lireEtatGroq: (Date) -> EtatGroq = { UsageGroqStore.partage.etat(a: $0) }
+    var lireProgressionParole: () -> Double? = { PrechauffageParole.progression }
+    var alerteGroq = AlerteGroq()
+    var suiviRelais = RelaisDictee.Suivi()
+    var observateurGroq: NSObjectProtocol?
+    var reveilGroq: DispatchWorkItem?
 
     /// Ce qui occupe l'encoche en dehors de la dictée de ce contrôleur (rempli par l'AppDelegate).
     var occupation: () -> OccupationEncoche = { OccupationEncoche() }
@@ -317,6 +324,7 @@ final class IlotControleur {
         demarrerSecondBrain()
         // le réveil gardé (Verbe relancé, Mac redémarré) : il reprend, ou sonne s'il est passé pendant que Verbe était fermé
         demarrerLeReveil()
+        demarrerGroq()
     }
 
     /// Ce que le Centre montre, relu des réglages ; un Centre rangé avant l'arrivée du calendrier le reçoit une fois, à sa place.
@@ -343,6 +351,7 @@ final class IlotControleur {
         activerClaude(false)
         agenda.arreter()
         arreterLesOutils()
+        arreterGroq()
         panneau.fermer()
         [reveilMinuteur, reveilRappels, reveilAgenda, echeanceReveil].forEach { $0?.cancel() }
         if let o = observateurReveilMac { NSWorkspace.shared.notificationCenter.removeObserver(o) }
@@ -659,6 +668,8 @@ final class IlotControleur {
         // les Outils : le presse-papiers a-t-il changé (son compteur seulement, le contenu s'il a bougé) ; Reformuler relit son texte
         verifierPressePapiers()
         if moteur.courante == .outilReformuler { relireSourceReformulation() }
+        // la jauge de Groq : la fenêtre des 24 h glisse, l'état se relit à chaque dépliage
+        moteur.groq = lireEtatGroq(maintenant())
         lecture.ilotDeplie()
     }
     private func ageLisible(_ date: Date) -> String {
@@ -695,6 +706,7 @@ final class IlotControleur {
         case .noteDicter, .noteTerminer, .noteEnRappel, .lucarneCopier, .rappelsApple: agirLucarne(action)
         case .secondBrainOuvrir(let lien): agirSecondBrain(lien)
         case .reveilRegler, .reveilAnnuler, .reveilEncore, .reveilOK: agirReveil(action)
+        case .groqDetail: detailGroq()
         case .alerteOK: moteur.quitterAlerte()
         case .rappelPlusTard(let id):
             rappels.reporter(id, depuis: maintenant()); sauver()

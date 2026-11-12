@@ -221,6 +221,17 @@ extension IlotMoteur {
                                   l1: b.ligne1, l2: b.ligne2,
                                   droite: bloque ? .boutons([.init(titre: "Rouvrir le micro", icone: "mic.fill", etiquette: "Rouvrir le micro, puis appuyer sur fn pour dicter",
                                                                    action: .microRouvrirPourDicter)]) : .rien)
+        case .groq:
+            // Groq : la limite proche (jauge ambre), atteinte (pause), la dictée passée par le Mac (l'ordinateur), le détail de la jauge
+            guard let b else { return nil }
+            let g: GlypheIlot
+            switch b.groq ?? .detail {
+            case .bas: g = GlypheIlot(nom: "gauge.with.dots.needle.67percent", couleur: CouleursIlot.ambre, taille: 21)
+            case .epuise: g = GlypheIlot(nom: "pause.circle.fill", couleur: CouleursIlot.ambre, taille: 22)
+            case .relais, .attente: g = GlypheIlot(nom: "laptopcomputer", couleur: .white, taille: 19)
+            case .detail: g = GlypheIlot(nom: "waveform", couleur: JaugeGroq.couleur(groq?.niveau ?? .ok), taille: 20)
+            }
+            return ContenuAnnonce(glyphe: g, l1: b.ligne1, l2: b.ligne2)
         case .etagerePartis:
             // « 3 fichiers partis dans Mail », « Remettre » et l'anneau qui se vide (maquette ilot-etagere-rapide.html, étapes 7 et 8)
             guard let b, let p = b.partis else { return nil }

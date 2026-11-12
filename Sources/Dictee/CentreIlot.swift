@@ -206,6 +206,7 @@ extension ElementCentre {
         case .notes: return "Notes"
         case .noteRapide: return "Dicter une note"
         case .secondBrain: return SecondCerveauIlot.nomApp
+        case .groq: return "Groq"
         }
     }
 }
@@ -276,6 +277,7 @@ extension IlotMoteur {
         case .reformuler: return derniereDictee != nil ? "Dernière dictée" : "Texte choisi"
         case .notes: return notes.isEmpty ? "Aucune" : (notes.count == 1 ? "1 note" : "\(notes.count) notes")
         case .secondBrain: return secondBrain?.etat ?? ""
+        case .groq: return groq.map { TexteGroq.court($0, a: maintenant()) } ?? "\u{2014}"
         case .reunion, .minuteur, .etagere, .noteRapide: return ""
         }
     }
@@ -528,6 +530,16 @@ struct CentreVue: View {
                        etiquette: "\(SecondCerveauIlot.nomApp) : ouvrir la carte" + (sb?.resume.map { ", " + $0 } ?? "")) {
                 SigneSecondBrain(taille: 24, point: .white, trait: Color.white.opacity(0.5))
             } action: { m.epinglerLeCentre(); m.ouvrirSecondBrain() }
+        case .groq:
+            // la jauge : l'anneau = la part utilisée de la limite la plus serrée (vert, ambre sous 15 %, rouge à la limite)
+            let u = m.groq
+            let niveau = u?.niveau ?? .ok
+            TuileRonde(nom: e.nom, nomAffiche: nomAffiche, etat: etat, couleurEtat: JaugeGroq.encre(niveau), fond: nil,
+                       declencheur: "\(niveau)", colonne: l, tailleNom: t.nom, tailleEtat: t.etat, reduire: fige, edition: ed, rang: rang,
+                       statique: m.statique, retirer: retirer,
+                       etiquette: u.map { TexteGroq.ligne($0, a: m.maintenant()) + ". Voir le détail" } ?? "Groq : voir le détail") {
+                JaugeGroq(utilise: u?.utilise ?? 0, couleur: JaugeGroq.couleur(niveau))
+            } action: { agir(.groqDetail) }
         case .reunion, .minuteur, .etagere, .noteRapide:
             EmptyView()
         }
@@ -1236,7 +1248,7 @@ struct ReglagesCentre {
     /// Le calendrier (Réglages › Îlot, ou le rond Calendrier du Centre).
     var calendrier: () -> Bool = { Settings.ilotCalendrier }
     var reglerCalendrier: (Bool) -> Void = { Settings.ilotCalendrier = $0 }
-    /// Les nouveautés déjà données une fois à un Centre rangé (`DispositionCentre.avecNouveautes`).
+    /// Les nouveautés déjà données une fois à une page rangée, Centre et Outils (`DispositionCentre.relire`).
     var nouveautes: () -> [String] = { Settings.ilotCentreNouveautes }
     var marquerNouveautes: ([String]) -> Void = { Settings.ilotCentreNouveautes = $0 }
 }

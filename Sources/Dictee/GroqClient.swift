@@ -17,6 +17,18 @@ enum GroqErreur: Error, CustomStringConvertible {
     }
 }
 
+extension GroqErreur {
+    /// Pourquoi Groq n'a pas donné le texte, pour le relais sur le Mac (DicteeCore : `EchecGroq`).
+    var echec: EchecGroq {
+        switch self {
+        case .pasDeCle: return .pasDeCle
+        case .reseau: return .reseau
+        case .http(let c): return EchecGroq.depuis(codeHTTP: c, reseau: false, pasDeCle: false)
+        case .reponseIllisible: return .autre
+        }
+    }
+}
+
 /// Relève les durées réseau d'une requête (URLSessionTaskMetrics) : connexion neuve ou réutilisée, protocole,
 /// temps de connexion / TLS, envoi, attente du serveur, réception. Sert au journal (jamais de contenu, jamais la clé).
 final class MesureReseau: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
@@ -73,9 +85,11 @@ final class GroqClient: @unchecked Sendable {
 
     /// Nombre de requêtes Whisper lancées depuis le démarrage (le banc d'essai s'en sert pour compter son coût).
     private var compteRequetes = 0
-    private func compterEnvoi(_ modele: ModeleWhisper) {
+    private func compterEnvoi(_ modele: ModeleWhisper, secondes: Double) {
         verrou.lock(); compteRequetes += 1; verrou.unlock()
         BudgetRequetes.whisper(modele).noterEnvoi()
+        // l'usage du jour (secondes d'audio, comptées sur ce Mac : aucun en-tête de Groq ne les donne)
+        UsageGroqStore.partage.noterEnvoi(secondes: secondes, modele: modele)
     }
     var requetesEnvoyees: Int { verrou.lock(); defer { verrou.unlock() }; return compteRequetes }
 
@@ -160,7 +174,7 @@ final class GroqClient: @unchecked Sendable {
         req.setValue("multipart/form-data; boundary=\(frontiere)", forHTTPHeaderField: "Content-Type")
         req.httpBody = corps
 
-        compterEnvoi(modele)
+        compterEnvoi(modele, secondes: fichier.duree)
         let mesure = MesureReseau()
         let data: Data, reponse: URLResponse
         do { (data, reponse) = try await session.data(for: req, delegate: mesure) }
@@ -170,6 +184,7 @@ final class GroqClient: @unchecked Sendable {
         if !mesure.resume.isEmpty { Log.ecrire("réseau \(etiquette) : \(mesure.resume), \(corps.count / 1024) Ko envoyés") }
 
         guard let http = reponse as? HTTPURLResponse else { throw GroqErreur.reponseIllisible }
+        UsageGroqStore.partage.noterReponse(modele: modele, http: http, corps: data)
         let budget = BudgetRequetes.whisper(modele)
         budget.noterRestantJour(http.value(forHTTPHeaderField: "x-ratelimit-remaining-requests").flatMap { Int($0) })
         if http.statusCode == 429 {

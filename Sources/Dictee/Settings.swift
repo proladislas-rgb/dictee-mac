@@ -326,7 +326,8 @@ enum Settings {
         get { defaults.stringArray(forKey: "ilotOutilsBoutons") }
         set { defaults.set(newValue, forKey: "ilotOutilsBoutons") }
     }
-    /// Les nouveautés déjà données une fois à un Centre rangé (le calendrier) : retirées ensuite, elles ne reviennent pas.
+    /// Les nouveautés déjà données une fois à une page rangée (le calendrier au Centre, la jauge de Groq aux Outils) : retirées ensuite,
+    /// elles ne reviennent pas (DispositionCentre.relire).
     static var ilotCentreNouveautes: [String] {
         get { defaults.stringArray(forKey: "ilotCentreNouveautes") ?? [] }
         set { defaults.set(newValue, forKey: "ilotCentreNouveautes") }

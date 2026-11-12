@@ -710,6 +710,34 @@ enum RenduLecture {
                "ilot-31m-calendrier-12-rejoindre-et-noter")
         ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(centreVide { m in var d = DispositionCentre(); d.ajouter(.rappel); m.disposition = d; m.reveil = neuf; m.calendrierActif = true })) },
                "ilot-31n-centre-six-ronds-noms-sur-deux-lignes-sombre")
+        // Groq (12/11, « j'ai peur d'arriver à mes limites sur Groq ») : la jauge de la page Outils (tout va bien, bientôt à la limite, en
+        // pause), le détail au clic, les annonces, la dictée passée par le Mac (bandeau la première fois, puis « Mac » dans les ailes)
+        func usageGroq(minutes: Double, pause: Double? = nil, turbo: Bool = true) -> EtatGroq {
+            var k = CompteurGroq()
+            let large = ModeleWhisper.precis.identifiant, rapide = ModeleWhisper.rapide.identifiant
+            k.noterEnvoi(secondesAudio: minutes * 60, modele: large, a: t0.addingTimeInterval(-4 * 3600))
+            k.noterReponse(modele: large, statut: 200, entete: { ["x-ratelimit-limit-requests": "2000", "x-ratelimit-remaining-requests": "1814"][$0] }, messageErreur: nil, a: t0)
+            if let pause {
+                k.noterReponse(modele: large, statut: 429, entete: { $0 == "retry-after" ? "\(Int(pause))" : nil }, messageErreur: "(ASD)", a: t0)
+                if turbo { k.noterReponse(modele: rapide, statut: 429, entete: { $0 == "retry-after" ? "\(Int(pause))" : nil }, messageErreur: "(ASD)", a: t0) }
+            }
+            return EtatGroq.calculer(k, modele: large, secours: rapide, a: t0)
+        }
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.groq = usageGroq(minutes: 42) })) }, "ilot-29a-groq-jauge-tout-va-bien")
+        ecrire(bureau(hauteur: hCentre, clair: false) { ilot(scene(lecture: videoLongue, outils { m in m.groq = usageGroq(minutes: 421) })) }, "ilot-29b-groq-jauge-bientot-sombre")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.groq = usageGroq(minutes: 480, pause: 3600) })) }, "ilot-29c-groq-jauge-en-pause")
+        ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.groq = usageGroq(minutes: 42); m.epinglerLeCentre(); m.bulleAide = .groq })) }, "ilot-29d-groq-aide-au-survol")
+        let detail = TexteGroq.detail(usageGroq(minutes: 42), a: t0)
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in m.groq = usageGroq(minutes: 42); m.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: detail.titre, ligne2: detail.sousTitre, groq: .detail) }) },
+               "ilot-29e-groq-detail")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: "Groq : il reste 12 %", ligne2: "421 min sur 480 aujourd\u{2019}hui", groq: .bas) }) },
+               "ilot-29f-groq-annonce-bientot")
+        ecrire(bureau(hauteur: petitBureau + 30, clair: false) { ilot(scene { $0.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: "Groq en pause jusqu\u{2019}à 15:00", ligne2: "Dictée sur le Mac", groq: .epuise) }) },
+               "ilot-29g-groq-annonce-en-pause-sombre")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: "Dicté sur le Mac", ligne2: "Pas de réseau", groq: .relais) }) }, "ilot-29h-groq-dicte-sur-le-mac")
+        ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .dicteeMac, jusqua: t0, ligne1: "Mac", ligne2: "") }) }, "ilot-29i-groq-ailes-mac")
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: "Dictée sur le Mac pas encore prête", ligne2: "Le Mac télécharge le français \u{00B7} 42 %", groq: .attente) }) },
+               "ilot-29j-groq-langue-en-telechargement")
         // sans image du système ni miniature : l'icône de l'app en petit sur fond sombre, teinte tirée de l'icône
         func sansImage(_ c: Contenu, joue: Bool = true) -> LectureModele {
             let m = modele(c, joue: joue)
