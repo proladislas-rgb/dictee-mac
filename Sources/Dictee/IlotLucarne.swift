@@ -125,6 +125,14 @@ extension IlotControleur {
             }
             if ajouterUnRappel(texte: t, quand: quand) != nil { Log.ecrire("lucarne : rappel ajouté (\(ListeRappels.jour(de: quand, maintenant: maintenant())) \(FormatIlot.heure(quand)))") }
             else { direLucarne(.incomprise(texte.trimmingCharacters(in: .whitespacesAndNewlines))) }
+        case .commande(.reveil(let heure, let minute)):
+            // le réveil (case Minuteur, onglet Réveil) : demandé en toutes lettres, « Minuteur et réveil » éteint se rallume
+            if !reglagesCentre.minuteurActif() {
+                reglagesCentre.allumerMinuteur()
+                NotificationCenter.default.post(name: .verbeIlotReglagesRelus, object: nil)
+            }
+            reglerLeReveil(heure: heure, minute: minute, aLaVoix: true)
+            Log.ecrire("lucarne : réveil réglé")
         case .incomprise(let phrase):
             direLucarne(.incomprise(phrase))
             Log.ecrire("lucarne : rien de reconnu (\(phrase.split(separator: " ").count) mots), rien n'est collé")

@@ -74,7 +74,7 @@ extension IlotEssai {
 
         // --- « Modifier » : vrai clic ; la hauteur ne change pas (les ajouts prennent la ligne de l'en-tête)
         ouvrirLeCentre()
-        verifier(m.courante == .centre && m.rondsCentre == [.micro, .telechargements, .claude], "le Centre, sans AirPods : Micro, Téléchargements, Claude Code (\(m.rondsCentre.map(\.rawValue)))")
+        verifier(m.courante == .centre && m.rondsCentre == [.micro, .telechargements, .calendrier, .claude], "le Centre, sans AirPods : Micro, Téléchargements, Calendrier, Claude Code (\(m.rondsCentre.map(\.rawValue)))")
         attendre(1.0) { m.boucleActive }
         let hAvant = m.geo[2].x
         clic(pilule(EnteteCentre.titreModifier), 0.6)
@@ -93,9 +93,9 @@ extension IlotEssai {
 
         // --- « – » retire, « + » ajoute (à la fin des ronds : l'ordre d'ajout)
         clic(moins(.telechargements), 0.6)
-        verifier(m.rondsCentre == [.micro, .claude] && m.editionCentre && rangee == nil, "vrai clic sur le « – » de Téléchargements : retiré (rien d'enregistré avant « OK »)")
+        verifier(m.rondsCentre == [.micro, .calendrier, .claude] && m.editionCentre && rangee == nil, "vrai clic sur le « – » de Téléchargements : retiré (rien d'enregistré avant « OK »)")
         if let p = pastille(.rappel) { clic(p, 0.6) } else { verifier(false, "pastille « + Rappel » introuvable") }
-        verifier(m.rondsCentre == [.micro, .claude, .rappel], "vrai clic sur « + Rappel » : il arrive au bout de la rangée (\(m.rondsCentre.map(\.rawValue)))")
+        verifier(m.rondsCentre == [.micro, .calendrier, .claude, .rappel], "vrai clic sur « + Rappel » : il arrive au bout de la rangée (\(m.rondsCentre.map(\.rawValue)))")
         verifier(EnteteCentre.ajouts(m, largeur: entete().width).tous == [.telechargements, .derniereDictee], "Téléchargements, retiré, est proposé à son tour")
         // le « – » de la bande « Noter la réunion » : 50 pt de moins
         attendre(1.0) { m.boucleActive }
@@ -119,7 +119,7 @@ extension IlotEssai {
 
         // --- ranger en glissant : un vrai glisser de Rappel tout à gauche, puis du Minuteur sur la droite
         glisser(de: PlanCentre.centreRond(m, .rappel), a: CGPoint(x: PlanCentre.cadreRonds(m).minX + 20, y: PlanCentre.centreRond(m, .micro).y))
-        verifier(m.rondsCentre == [.rappel, .micro, .claude] && m.editionCentre, "vrai glisser de Rappel vers la gauche : il passe en premier (\(m.rondsCentre.map(\.rawValue)))")
+        verifier(m.rondsCentre == [.rappel, .micro, .calendrier, .claude] && m.editionCentre, "vrai glisser de Rappel vers la gauche : il passe en premier (\(m.rondsCentre.map(\.rawValue)))")
         let cm = PlanCentre.cadreCase(m, .minuteur), ce = PlanCentre.cadreCase(m, .etagere)
         glisser(de: CGPoint(x: cm.midX, y: cm.midY), a: CGPoint(x: ce.midX + 20, y: ce.midY))
         verifier(m.disposition.cases == [.etagere, .minuteur], "vrai glisser du Minuteur sur l'Étagère : elles s'échangent (\(m.disposition.cases.map(\.rawValue)))")
@@ -127,7 +127,7 @@ extension IlotEssai {
 
         // --- « OK » enregistre ; relu au lancement suivant, tout revient à l'identique
         clic(pilule(EnteteCentre.titreOK), 0.6)
-        let attendu = ["rappel", "micro", "dictee", "claude", "etagere", "minuteur", "reunion"]
+        let attendu = ["rappel", "micro", "dictee", "calendrier", "claude", "etagere", "minuteur", "reunion"]
         verifier(!m.editionCentre && rangee == attendu && enregistrements == 1 && m.courante == .centre,
                  "vrai clic sur « OK » : enregistré (\(rangee?.joined(separator: ", ") ?? "rien")), le Centre reste ouvert")
         verifier(DispositionCentre(identifiants: rangee) == m.disposition, "relu au lancement suivant : le même Centre")
@@ -145,7 +145,7 @@ extension IlotEssai {
         ouvrirLeCentre()
         clic(pilule(EnteteCentre.titreModifier), 0.5)
         if let p = pastille(.derniereDictee) { clic(p, 0.5) } else { verifier(false, "pastille « + Dernière dictée » introuvable") }
-        verifier(m.rondsCentre == [.rappel, .micro, .claude, .derniereDictee], "+ Dernière dictée : quatre ronds")
+        verifier(m.rondsCentre == [.rappel, .micro, .calendrier, .claude, .derniereDictee], "+ Dernière dictée : cinq ronds")
         // les noms et les états sous les ronds : mesurés, jamais plus larges que leur colonne (5 ronds : « Téléchargements », « Dire un rappel »)
         for nb in [4, 5] {
             let col = PlanCentre.cadreRonds(m).width / CGFloat(nb)
@@ -159,15 +159,15 @@ extension IlotEssai {
                 verifier(ok, "« \(t) » \(nb) fois côte à côte (colonnes de \(Int(col)) pt) : \(String(format: "%.1f", tailles[0].taille)) pt, \(Int(PlanCentre.ecartNoms)) pt au moins entre voisins")
             }
         }
-        // les AirPods arrivent : la rangée est pleine (5), la pastille « Dictée »… il n'y en a pas : la dictée est déjà dans la disposition
+        // les AirPods arrivent : la rangée est pleine (6), la pastille « Dictée »… il n'y en a pas : la dictée est déjà dans la disposition
         c.lireMicros = { [PeripheriqueEntree(uid: "essai-airpods", nom: "AirPods Pro", transport: .bluetooth)] }; c.relireChoixMicro(); m.donneesChangees(); pause(0.6)
-        verifier(m.rondsCentre == [.rappel, .micro, .dictee, .claude, .derniereDictee], "AirPods là : cinq ronds, la dictée à sa place (\(m.rondsCentre.map(\.rawValue)))")
+        verifier(m.rondsCentre == [.rappel, .micro, .dictee, .calendrier, .claude, .derniereDictee], "AirPods là : six ronds, la dictée à sa place (\(m.rondsCentre.map(\.rawValue)))")
         clic(moins(.dictee), 0.5)
-        verifier(m.rondsCentre.count == 4 && EnteteCentre.ajouts(m, largeur: entete().width).tous.first == .dictee, "« – » sur Dictée : quatre ronds ; « + Dictée » proposé")
+        verifier(m.rondsCentre.count == 5 && EnteteCentre.ajouts(m, largeur: entete().width).tous.first == .dictee, "« – » sur Dictée : cinq ronds ; « + Dictée » proposé")
         if let p = pastille(.telechargements) { clic(p, 0.5) } else { verifier(false, "pastille « + Téléchargements » introuvable") }
-        verifier(m.rondsCentre.count == 5 && !m.disposition.peutAjouter(.dictee, disponible: m.disponibleDansLeCentre), "cinq ronds : la rangée est pleine")
+        verifier(m.rondsCentre.count == 6 && !m.disposition.peutAjouter(.dictee, disponible: m.disponibleDansLeCentre), "six ronds : la rangée est pleine")
         if let p = pastille(.dictee) { clic(p, 0.5) } else { verifier(false, "pastille « Dictée » (éteinte) introuvable") }
-        verifier(m.rondsCentre.count == 5 && !m.disposition.elements.contains(.dictee), "rangée pleine : la pastille « Dictée » est éteinte, un clic n'ajoute rien")
+        verifier(m.rondsCentre.count == 6 && !m.disposition.elements.contains(.dictee), "rangée pleine : la pastille « Dictée » est éteinte, un clic n'ajoute rien")
         // fermer pendant « Modifier » (clic sur la forme, hors des boutons) : c'est enregistré
         clic(CGPoint(x: 0, y: entete().midY), 0.9)
         verifier(!m.editionCentre && m.courante != .centre && rangee?.contains("derniere-dictee") == true && rangee?.contains("dictee") == false && enregistrements == 2,

@@ -24,6 +24,8 @@ struct BandeauIlot {
     var sonore = false
     /// Le rappel qu'on peut annuler depuis le bandeau « Rappel ajouté ».
     var rappelId: UUID?
+    /// « Réveil réglé » dicté l'îlot fermé : la phrase, que « Annuler » recolle (seulement en mémoire, le temps du bandeau).
+    var texteDicte: String?
     var evenement: EvenementAgenda?
     var rendezVous: EvenementAgenda? { evenement }
     /// Les écouteurs qui viennent de se connecter (bandeau `.appareil`).
@@ -171,7 +173,21 @@ enum ActionIlot {
     case rappelsApple(Bool)
     /// Second Brain : ouvrir le lien d'une ligne (ou, sans lien, le lien général, ou l'app) — IlotSecondBrain.swift.
     case secondBrainOuvrir(String?)
+    /// La carte Bibliothèque (BibliothequeCarte.swift) : ouvrir un fichier (un clic sur sa ligne), l'épingler ou le détacher, le retirer
+    /// de la bibliothèque (le fichier reste où il est), annuler ce retrait, donner ou rendre le clavier au champ « Rechercher un fichier ».
+    case bibliothequeOuvrir(String), bibliothequeEpingler(String), bibliothequeRetirer(String), bibliothequeAnnuler
+    case bibliothequeClavier(Bool)
+    /// Le réveil (IlotReveil.swift) : réglé d'un clic dans la case Minuteur du Centre (onglet Réveil), annulé (un clic sur l'heure choisie,
+    /// « Annuler » du bandeau), repoussé (« Encore 10 min ») ou arrêté (« OK ») quand il sonne.
+    /// `basculer` : une pastille (un second clic sur l'heure réglée l'annule) ; « OK » d'« Autre… » règle toujours.
+    case reveilRegler(heure: Int, minute: Int, basculer: Bool), reveilAnnuler, reveilEncore, reveilOK
+    /// Le rond Calendrier du Centre : éteint, un clic l'allume (macOS demande l'accès une fois) ; allumé, un clic l'éteint.
+    case centreCalendrier
 }
+
+/// La case Minuteur du Centre a deux onglets (maquette ilot-bibliotheque.html, étape 7) : le minuteur (5 · 10 · 25 min) et le réveil
+/// (7:00 · 8:00 · 9:00 · Autre…).
+enum OngletMinuteur: Equatable { case minuteur, reveil }
 
 /// Les activités dont le contenu voyage d'un état à l'autre (la pochette, l'anneau et l'heure du minuteur, la cloche, le calendrier) :
 /// une seule pièce qui grandit et glisse à sa place, jamais deux qui se croisent.
@@ -281,8 +297,26 @@ final class IlotMoteur: ObservableObject {
     var rendezVous: EvenementAgenda? { didSet { if let rendezVous { dernierRendezVous = rendezVous } } }
     var rendezVousProche = false
     var rendezVousSuivant: EvenementAgenda?
+    /// Le réveil réglé (un seul) ; le dernier vu, pour l'écran qui s'efface et l'alerte qui sonne.
+    var reveil: ReveilIlot? { didSet { if let reveil { dernierReveil = reveil } } }
+    private(set) var dernierReveil: ReveilIlot?
+    /// L'onglet de la case Minuteur choisi d'un clic (nil : celui qui a quelque chose à montrer, `ongletMontre`) ; oublié quand l'îlot
+    /// se range.
+    var ongletMinuteur: OngletMinuteur? { didSet { if ongletMinuteur != oldValue { rev += 1 } } }
+    /// « Autre… » : l'heure qu'on règle avec − et + (nil : les heures proposées).
+    var reveilAutre: (heure: Int, minute: Int)? { didSet { rev += 1 } }
+    /// L'onglet montré : celui qu'on a choisi, sinon le réveil s'il est réglé et qu'aucun minuteur ne tourne, sinon le minuteur.
+    var ongletMontre: OngletMinuteur { ongletMinuteur ?? (reveil != nil && minuteur == nil ? .reveil : .minuteur) }
+    /// Le rond Calendrier : macOS pose sa question (« Un instant… »), ou l'accès a été refusé (« Accès refusé »).
+    var calendrierAttente = false { didSet { if calendrierAttente != oldValue { rev += 1 } } }
+    var calendrierRefuse = false { didSet { if calendrierRefuse != oldValue { rev += 1 } } }
     var lecturePresente = false
-    var alerte: AlerteIlot? { didSet { if let alerte { alerteVu = alerte; if let r = alerte.rappel { dernierRappel = r }; if let e = alerte.evenement { dernierRendezVous = e } } } }
+    var alerte: AlerteIlot? { didSet {
+        if let alerte { alerteVu = alerte; if let r = alerte.rappel { dernierRappel = r }; if let e = alerte.evenement { dernierRendezVous = e } }
+        if alerte?.vue == .reveilFini, oldValue?.vue != .reveilFini { sonnerieReveil = UUID() }
+    } }
+    /// Change à chaque réveil qui sonne : le réveil de l'alerte se secoue (deux fois, puis plus rien ne tourne).
+    private(set) var sonnerieReveil: UUID?
     var bandeau: BandeauIlot? { didSet { if let bandeau { bandeauVu = bandeau } } }
     /// Rendus PNG : pas d'animation Core Animation (ImageRenderer ne sait pas les dessiner).
     var statique = false
@@ -376,6 +410,8 @@ final class IlotMoteur: ObservableObject {
     private var defilement = DefilementIlot()
     /// La carte Dictées : sa recherche, sa liste (lue dans l'historique), ce qu'on y survole, déplie, copie.
     let dictees = DicteesIlot()
+    /// La carte Bibliothèque : sa recherche, son filtre, son tri, ce qu'on y survole et choisit (le modèle est branché par le contrôleur).
+    let bibliotheque = BibliothequeCarte()
 
     // MARK: les Outils, 2e page du Centre (IlotOutils.swift pour leurs vues, OutilsControleur.swift pour ce qui touche au système)
     /// Ce que la page Outils montre, dans l'ordre (« Modifier », comme le Centre) ; le contrôleur la relit des réglages au lancement.
@@ -481,7 +517,7 @@ final class IlotMoteur: ObservableObject {
     private(set) var pointeurSurForme = false
     private var intention: DispatchWorkItem?
     private var fermeture: DispatchWorkItem?
-    private var reveil: DispatchWorkItem?
+    private var prochainReveil: DispatchWorkItem?
     private let cadence = CadenceEcran()
     private var dernierPas: TimeInterval = 0
 
@@ -495,6 +531,9 @@ final class IlotMoteur: ObservableObject {
         dictees.agir = { [weak self] a in self?.surAction(a) }
         dictees.surChangement = { [weak self] in self?.donneesChangees() }
         dictees.maintenant = { [weak self] in self?.maintenant() ?? Date() }
+        bibliotheque.agir = { [weak self] a in self?.surAction(a) }
+        bibliotheque.surChangement = { [weak self] in self?.donneesChangees() }
+        bibliotheque.maintenant = { [weak self] in self?.maintenant() ?? Date() }
     }
 
     // MARK: arbitrage
@@ -512,6 +551,7 @@ final class IlotMoteur: ObservableObject {
         // sans encoche (écran externe, MacBook fermé), l'îlot vide n'existe pas : pas de pile dans la barre des menus toute la journée ;
         // l'étagère reste au Centre et au glisser
         e.etagere = etagereActive && !etagere.isEmpty && geometrie.reelle
+        e.reveil = reveil != nil
         e.alerte = alerte?.vue
         e.bandeau = bandeau?.vue
         return e
@@ -532,6 +572,7 @@ final class IlotMoteur: ObservableObject {
             // une dictée (ou une réunion) commence pendant une recherche dans les Dictées : le clavier retourne à l'app AVANT que le
             // texte dicté n'y soit écrit (sinon il irait dans le champ de l'îlot)
             if dictees.rechercheActive { dictees.rechercheActive = false; surAction(.dicteesClavier(false)) }
+            if bibliotheque.rechercheActive { bibliotheque.rechercheActive = false; surAction(.bibliothequeClavier(false)) }
             majExtras()
             surFenetre(); demarrerBoucle()
             return
@@ -546,7 +587,7 @@ final class IlotMoteur: ObservableObject {
         if resolution.verrou { epingle = false; survole = false; sousVue = nil }
         if ancien.principal != resolution.principal, !(survole || epingle) { sousVue = nil }
         if sousVue == .lectureMinuteur, FamilleIlot.de(resolution.principal) != .lecture || resolution.verrou { sousVue = nil }
-        if sousVue == .etagere, !etagereActive { sousVue = nil }
+        if sousVue == .etagere || sousVue == .bibliotheque, !etagereActive { sousVue = nil }
         if depot || appel, !etagereActive { depot = false; appel = false; depotSurvole = false; depotZone = nil }
         // l'îlot se range : le panneau « Garder éveillé » se replie s'il n'y a rien à montrer, les survols s'oublient
         if !fenetreOuverte {
@@ -572,6 +613,12 @@ final class IlotMoteur: ObservableObject {
         // la recherche repart de zéro à la prochaine ouverture
         if dictees.rechercheActive, cache || courante != .dictees || !fenetreOuverte { dictees.rechercheActive = false; surAction(.dicteesClavier(false)) }
         if !fenetreOuverte, courante != .dictees, !dictees.requete.isEmpty || dictees.deplie != nil || dictees.decalage != 0 { dictees.reinitialiser() }
+        // de même pour la Bibliothèque : quittée, le clavier est rendu ; l'îlot rangé, elle repart de zéro (pendant un glisser des fichiers
+        // choisis, rien ne change : ils sont en route)
+        if bibliotheque.rechercheActive, cache || courante != .bibliotheque || !fenetreOuverte { bibliotheque.rechercheActive = false; surAction(.bibliothequeClavier(false)) }
+        if !fenetreOuverte, courante != .bibliotheque, !glisserSortant, bibliotheque.aRemettre { bibliotheque.reinitialiser() }
+        // la case Minuteur : l'îlot rangé, elle reprend son onglet par défaut et ses heures proposées
+        if !fenetreOuverte, ongletMinuteur != nil || reveilAutre != nil { ongletMinuteur = nil; reveilAutre = nil }
         // la ligne d'avis reste jusqu'à ce qu'on l'ait vue : posée Centre fermé (macOS a répondu après coup), elle attend la prochaine
         // ouverture ; vue, elle part quand le Centre se range
         if avisCentre != nil { if courante == .centre { avisVu = true } else if avisVu, !fenetreOuverte { avisCentre = nil } }
@@ -630,6 +677,9 @@ final class IlotMoteur: ObservableObject {
         dictees.largeurTexte = PlanDictees.largeurTexte(demiCamera: demiCamera)
         let pd = CarteDictees.profondeur(liste: dictees.miseEnPage().hauteur)
         if pd != GeoIlot.profondeurDictees { d[.dictees] = CGFloat(pd - GeoIlot.profondeurDictees) }
+        // la Bibliothèque épouse sa liste de même (« Aucun fichier », trois lignes…), jusqu'à 164 pt ; elle défile au-delà
+        let pb = CarteBibliotheque.profondeur(liste: bibliotheque.miseEnPage().hauteur)
+        if pb != CarteBibliotheque.profondeurMax { d[.bibliotheque] = CGFloat(pb - CarteBibliotheque.profondeurMax) }
         return d
     }
 
@@ -670,7 +720,7 @@ final class IlotMoteur: ObservableObject {
         if avant != v, v == .claudeCarte { defilementClaude = 0 }
         if avant != v, v == .outilNote { defilementNotes = 0 }
         if avant != v, v == resolution.survol || v == .accueil || v == .rappelListe || v == .etagere || v == .centre || v == .dictees
-            || v == .claudeCarte || v == .outils || CartesIlot.parent(v) != nil { surDepliage() }
+            || v == .claudeCarte || v == .outils || v == .bibliotheque || CartesIlot.parent(v) != nil { surDepliage() }
         // la carte Étagère vue puis quittée : les captures arrivées ne sont plus « Nouveau »
         if avant == .etagere, v != .etagere { surEtagereVue() }
     }
@@ -809,7 +859,7 @@ final class IlotMoteur: ObservableObject {
     /// Le Centre est épinglé (ou sa carte Étagère, ouverte depuis lui) : les bandeaux attendent qu'il se range.
     var centreRetientLesBandeaux: Bool {
         !cache && epingle && (courante == .centre || courante == .etagere || courante == .dictees || courante == .claudeCarte || courante == .outils
-                              || CartesIlot.parent(courante) != nil)
+                              || courante == .bibliotheque || CartesIlot.parent(courante) != nil)
     }
     /// Des bandeaux attendent que le Centre se range (et non la fin d'une dictée, que le contrôleur guette lui-même).
     private var attenteDuCentre = false
@@ -874,12 +924,12 @@ final class IlotMoteur: ObservableObject {
     func quitterBandeau() { bandeau = nil; donneesChangees() }
 
     private func programmerReveil() {
-        reveil?.cancel()
+        prochainReveil?.cancel()
         let echeances = [alerte?.jusqua, bandeau?.jusqua].compactMap { $0 }
         guard let prochaine = echeances.min() else { return }
         let attente = max(0.02, prochaine.timeIntervalSince(maintenant()))
         let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.reveilleToi() } }
-        reveil = item
+        prochainReveil = item
         DispatchQueue.main.asyncAfter(deadline: .now() + attente, execute: item)
     }
     private func reveilleToi() {
@@ -1037,7 +1087,7 @@ final class IlotMoteur: ObservableObject {
     /// d'un clic dans SA fenêtre (un autre processus), et le Centre doit rester là pour montrer la réponse (« Allumé », ou la ligne
     /// « Accès refusé »).
     func clicAilleurs() {
-        guard !telechargementsAttente, !capturesAttente else { return }
+        guard !telechargementsAttente, !capturesAttente, !calendrierAttente else { return }
         fermer()
     }
 
@@ -1107,6 +1157,16 @@ final class IlotMoteur: ObservableObject {
     func ouvrirEtagere() {
         guard etagereActive, !cache else { return }
         sousVue = .etagere; epingle = true; survole = true
+        donneesChangees(); surDepliageMoniteur()
+    }
+    /// La bibliothèque garde (ou montre) au moins un fichier : la case Étagère du Centre s'ouvre même l'étagère vide.
+    var bibliothequeNonVide: Bool { !(bibliotheque.modele?.tout.isEmpty ?? true) }
+    /// La pilule « Bibliothèque » (en-tête de la carte Étagère) : la carte Bibliothèque. Elle reste ouverte (on y cherche, on y
+    /// choisit) ; « ‹ Étagère » ramène à l'étagère.
+    func ouvrirBibliotheque() {
+        guard etagereActive, !cache else { return }
+        intention?.cancel(); fermeture?.cancel()
+        sousVue = .bibliotheque; epingle = true; survole = true
         donneesChangees(); surDepliageMoniteur()
     }
 
@@ -1220,6 +1280,8 @@ final class IlotMoteur: ObservableObject {
         if courante == .etagere { allerA(.centre); return }
         // la carte d'un outil : on revient à la page Outils
         if let p = CartesIlot.parent(courante) { allerA(p); return }
+        // la Bibliothèque : la molette fait défiler sa liste, jamais changer de carte (« ‹ Étagère » pour revenir)
+        if courante == .bibliotheque { return }
         guard let c = carteCourante, let v = CartesIlot.voisine(cartes, de: c, pas: pas) else { return }
         allerA(v)
     }
@@ -1241,6 +1303,10 @@ final class IlotMoteur: ObservableObject {
         let surListe = courante == .dictees && p.map { PlanDictees.cadreListe(grille).contains($0) } == true && dictees.defile
         if defilement.pourLaListe(phase: phase, inertie: inertie, surListe: surListe) {
             if courante == .dictees, abs(dy) >= abs(dx) { dictees.defiler(dy) }
+            return
+        }
+        if courante == .bibliotheque {
+            if let p, PlanBibliotheque.cadreListe(grille).contains(p), bibliotheque.defile, abs(dy) >= abs(dx) { bibliotheque.defiler(dy) }
             return
         }
         if let pas = defilement.recevoir(dy: dy, dx: dx, phase: phase, inertie: inertie, t: t) { defiler(pas) }
@@ -1417,6 +1483,8 @@ final class IlotMoteur: ObservableObject {
         case .claude:
             let t = texteClaude(claude ?? dernierClaude, taille: 12.5)
             return t.isEmpty ? 33 : 39 + MesureIlot.texte(t, 12.5, .semibold, chiffres: true)
+        // le réveil et « 9:00 » : 10 + glyphe + 6 + texte + 10
+        case .reveil: return 26 + MesureIlot.symbole("alarm", 12) + MesureIlot.texte((reveil ?? dernierReveil)?.libelle() ?? "10:30", 12.5, .semibold, chiffres: true)
         case .alerte: return 30
         }
     }

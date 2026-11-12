@@ -10,6 +10,9 @@ public enum VueIlot: String, CaseIterable, Sendable {
     case lectureCompact, lectureEtendu, lectureMinuteur
     case rappelEtendu, rappelCompact, rappelAjoute, rappelFait, rappelReporte, rappelListe
     case agendaAvant, agendaCompact, agendaEtendu, agendaDebut
+    /// Le réveil (maquette ilot-bibliotheque.html, étapes 7 à 9) : replié, le réveil dans l'aile gauche et « 9:00 » dans l'aile droite ;
+    /// réglé à la voix, le bandeau « Réveil réglé · 9:00 » (rien n'a été collé) ; à l'heure, l'alerte (« Encore 10 min », « OK »).
+    case reveilCompact, reveilRegle, reveilFini
     case notification, notifications
     case accueil
     /// Des écouteurs (ou une souris, un clavier) se connectent ; le chargeur est branché ; la batterie est faible.
@@ -56,18 +59,22 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// (messages, choses « à toi », relances). Elle s'ouvre d'un clic sur son bouton du Centre, qui n'existe que si le fichier existe ; elle
     /// est rangée sous le Centre (point de page du Centre allumé, un défilement y ramène).
     case secondBrain
+    /// La Bibliothèque (maquette ilot-bibliotheque.html, étapes 2 à 5) : depuis la carte Étagère (sa pilule « Bibliothèque »), tout ce
+    /// qui est passé par l'étagère, plus les sources qu'on allume (Téléchargés, AirDrop, captures). « ‹ Étagère », la recherche, le tri,
+    /// les pastilles, les épinglés en haut, puis par date ; épingler, retirer, choisir plusieurs fichiers et les glisser ensemble.
+    case bibliotheque
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
         switch self {
         case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
              .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .microFn, .volume, .luminosite, .claudeAttend, .claudeTermine,
-             .etagereEnvoi, .etagerePartis, .lucarne, .etagereCapture: return true
+             .etagereEnvoi, .etagerePartis, .lucarne, .etagereCapture, .reveilRegle: return true
         default: return false
         }
     }
     /// Ces écrans sont des alertes : l'îlot s'ouvre de lui-même, vibre, sonne, et attend un geste.
-    public var estAlerte: Bool { self == .minuteurFini || self == .rappelEtendu || self == .agendaDebut }
+    public var estAlerte: Bool { self == .minuteurFini || self == .rappelEtendu || self == .agendaDebut || self == .reveilFini }
     /// Volume et luminosité : un bandeau qui suit les touches du clavier (1,5 s après la dernière).
     public var estNiveau: Bool { self == .volume || self == .luminosite }
 }
@@ -107,6 +114,9 @@ public enum GeoIlot {
     /// Les Dictées à leur plus haut (la liste à sa hauteur maximale) : la table la donne, une liste plus courte la raccourcit (`enPlus`,
     /// `CarteDictees.profondeur`).
     public static let profondeurDictees: Double = CarteDictees.profondeurMax
+    /// Le rendez-vous qui commence : 16 de marge, la ligne (titre, « Maintenant · Google Meet », l'heure ; 40), 10, les deux boutons
+    /// (32), 16.
+    public static let profondeurDebutRendezVous: Double = 16 + 40 + 10 + 32 + 16
     /// Repos d'une activité : rien sous la barre, le cou serré contre la caméra (la place de la pochette, de l'anneau, de l'heure).
     static func compact(_ cou: Double) -> [Double] { [cou, cou, 0, 6, 10, 0, 0] }
     /// Bandeau passager : cou étroit (les menus restent visibles), deux lignes sous la barre. Le corps s'ajuste à son contenu (comme la
@@ -125,7 +135,12 @@ public enum GeoIlot {
         .lectureMinuteur: [44, 144, profondeurLecture + rangeeMinuteur, 6, 34, 18, 10],
         .rappelEtendu: alerte, .rappelCompact: compact(48), .rappelAjoute: bandeau,
         .rappelFait: bandeau, .rappelReporte: bandeau, .rappelListe: [14, 144, 136, 6, 34, 18, 10], .lucarne: bandeau,
-        .agendaAvant: bandeau, .agendaCompact: compact(50), .agendaEtendu: [50, 150, 130, 6, 34, 18, 10], .agendaDebut: bandeau,
+        // le rendez-vous qui commence : la ligne de l'annonce, puis « Rejoindre » et « Noter la réunion » côte à côte (maquette
+        // ilot-bibliotheque.html, étape 12) : 16 + 40 + 10 + 32 + 16
+        .agendaAvant: bandeau, .agendaCompact: compact(50), .agendaEtendu: [50, 150, 130, 6, 34, 18, 10], .agendaDebut: [14, 150, profondeurDebutRendezVous, 6, 30, 16, 10],
+        // le réveil replié : le réveil (15 pt) dans l'aile gauche, « 10:30 » (38 pt mesurés) dans l'aile droite ; 50 + 6 = 56 pt dans la
+        // barre. La maquette mettait les deux dans l'aile gauche : ensemble ils font 51 pt, ça ne tiendrait pas dans une aile (44 pt utiles)
+        .reveilCompact: compact(50), .reveilRegle: bandeau, .reveilFini: alerte,
         .notification: bandeau, .notifications: bandeau,
         // l'accueil, devenu la carte sous le Centre : le prochain rendez-vous, « Dire un rappel », la dernière dictée (3 lignes de 42 pt).
         // Le minuteur, le choix du micro et l'étagère sont passés dans le Centre
@@ -148,8 +163,8 @@ public enum GeoIlot {
         .claudeMinimal: compact(36), .claudeCompact: compact(60), .claudeCarte: [14, 144, profondeurCentre, 6, 34, 18, 10],
         .claudeAttend: bandeau, .claudeTermine: bandeau,
         // l'étagère, de la largeur de l'accueil : les deux zones « Étagère » et « AirDrop » (14 + 112 + 14 pt, maquette) ; la carte :
-        // l'en-tête (42 pt), une rangée de tuiles (72 pt), la ligne « Captures d'écran ici » (40 pt) ; une deuxième rangée de tuiles
-        // s'ajoute (`enPlus`) au-delà de cinq fichiers
+        // l'en-tête (42 pt, avec « Bibliothèque »), une rangée de tuiles (72 pt), la ligne « Captures d'écran ici » (40 pt) ; une deuxième
+        // rangée de tuiles s'ajoute (`enPlus`) au-delà de cinq fichiers
         .etagereDepot: [14, 144, 14 + 112 + 14, 6, 30, 16, 10],
         .etagere: [14, 144, 10 + 42 + 8 + 72 + 10 + ligneCaptures + 12, 6, 34, 18, 10],
         // replié, l'étagère garde des fichiers : la pile et le nombre dans l'aile GAUCHE seule (46 + épaule de 6 = 52 pt au-delà de la
@@ -170,6 +185,8 @@ public enum GeoIlot {
         .outilReformuler: [14, 144, profondeurCentre, 6, 34, 18, 10],
         .outilNote: [14, 144, profondeurCentre, 6, 34, 18, 10],
         .secondBrain: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        // la Bibliothèque : la largeur du Centre (et de l'étagère), la hauteur de sa liste (`enPlus`, `CarteBibliotheque.profondeur`)
+        .bibliotheque: [14, 144, CarteBibliotheque.profondeurMax, 6, 34, 18, 10],
     ]
     /// Indices des valeurs : largeurs (cou, corps, cou droit) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur
     /// mène ; à la fermeture la hauteur se replie d'abord.
@@ -190,7 +207,7 @@ public enum GeoIlot {
     public static let epaules: Double = 56
     public static func aEpaules(_ v: VueIlot) -> Bool {
         [.minuteurEtendu, .lectureEtendu, .lectureMinuteur, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .dictees, .claudeCarte,
-         .outils, .outilPressePapiers, .outilReformuler, .outilNote, .secondBrain].contains(v)
+         .outils, .outilPressePapiers, .outilReformuler, .outilNote, .secondBrain, .bibliotheque].contains(v)
     }
 
     /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.
@@ -255,6 +272,8 @@ public enum ActiviteIlot: String, Sendable, Equatable {
     case micro
     /// Claude Code travaille (ou attend une réponse) dans le Terminal.
     case claude
+    /// Un réveil est réglé (il attend son heure dans les ailes).
+    case reveil
 }
 
 /// Ce qui est vrai à l'instant, pour décider qui a l'îlot et qui a la pastille.
@@ -268,6 +287,7 @@ public struct EtatIlot: Equatable, Sendable {
     public var claudeAttend = false        // … il attend une réponse (il passe alors avant la lecture)
     public var claudeListe = false         // … il a quelque chose à dire : une liste de tâches (« 3/7 ») ou le nom de sa tâche
     public var etagere = false             // l'étagère (allumée) garde des fichiers : replié, la pile dans l'aile gauche
+    public var reveil = false              // un réveil est réglé
     public var alerte: VueIlot?            // minuteurFini, rappelEtendu ou agendaDebut, en cours
     public var bandeau: VueIlot?           // un bandeau passager
     public init() {}
@@ -300,6 +320,8 @@ public enum ArbitrageIlot {
         if e.lecture { p.append(.lecture) }
         if e.minuteur { p.append(.minuteur) }
         if e.claude, !e.claudeAttend { p.append(.claude) }
+        // le réveil attend des heures (toute la nuit) : il passe après tout le reste, et cède l'îlot à la moindre activité
+        if e.reveil { p.append(.reveil) }
         if let echange, p.contains(echange) { p = [echange] + p.filter { $0 != echange } }
         return p
     }
@@ -312,6 +334,8 @@ public enum ArbitrageIlot {
         case .lecture: return (.lectureCompact, .lectureEtendu)
         case .micro: return (.microCompact, .microEtendu)
         case .claude: return (.claudeCompact, .claudeCarte)
+        // au survol, le Centre : sa case Minuteur montre le réveil (onglet Réveil), on le change ou l'annule d'un clic
+        case .reveil: return (.reveilCompact, .centre)
         case .alerte: return (.repos, .repos)
         }
     }
@@ -348,7 +372,7 @@ public enum ArbitrageIlot {
         if dictee { return 1 }
         if reunion { return 2 }
         switch ecran {
-        case .minuteurFini, .rappelEtendu, .agendaDebut, .agendaAvant, .agendaCompact, .rappelCompact, .rappelAjoute, .lucarne,
+        case .minuteurFini, .rappelEtendu, .agendaDebut, .agendaAvant, .agendaCompact, .rappelCompact, .rappelAjoute, .lucarne, .reveilFini,
              .microCompact, .microEtendu, .microOuvert, .microFn: return 3
         case .lectureCompact, .lectureEtendu, .lectureMinuteur: return 4
         default: return 5

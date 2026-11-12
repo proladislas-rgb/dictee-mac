@@ -10,11 +10,14 @@ public enum PageCentre: String, CaseIterable, Sendable {
     case centre, outils
 }
 
-/// Ce que le Centre peut montrer. Trois genres : les gros boutons ronds (une rangée, cinq au plus), les deux grandes cases (Minuteur,
+/// Ce que le Centre peut montrer. Trois genres : les gros boutons ronds (une rangée, six au plus), les deux grandes cases (Minuteur,
 /// Étagère) et la grande bande (« Noter la réunion », ou « Dicter une note » sur la page Outils). L'identifiant (`rawValue`) est ce qui
 /// est rangé dans les réglages : ne jamais le changer.
 public enum ElementCentre: String, CaseIterable, Sendable {
-    case micro, dictee, telechargements, claude, rappel
+    case micro, dictee, telechargements
+    /// Le calendrier du Mac (maquette ilot-bibliotheque.html, étape 10) : éteint, un clic l'allume (macOS demande l'accès une fois).
+    case calendrier
+    case claude, rappel
     case derniereDictee = "derniere-dictee"
     case reunion, minuteur, etagere
     /// La page Outils : Garder éveillé, Presse-papiers, Reformuler, Notes, et la bande « Dicter une note ».
@@ -51,6 +54,7 @@ extension ElementCentre {
         case .micro: return "Coupe ou rouvre le micro du Mac"
         case .dictee: return "Le micro qu\u{2019}écoute la dictée"
         case .telechargements: return "Te prévient quand un fichier arrive"
+        case .calendrier: return "Tes rendez-vous, rejoindre en un clic"
         case .claude: return "Suit Claude Code au travail"
         case .rappel: return "Dis un rappel, il sonne à l\u{2019}heure"
         case .derniereDictee: return "Recolle ta dernière dictée"
@@ -74,15 +78,19 @@ extension ElementCentre {
 
 /// Ce que le Centre montre, dans l'ordre. Les ronds se rangent entre eux, les cases entre elles ; la bande est toujours en bas.
 public struct DispositionCentre: Equatable, Sendable {
-    /// La rangée des ronds en tient cinq (maquette : colonnes de 84 pt) : au-delà, les noms ne tiendraient plus.
-    public static let maxRonds = 5
+    /// La rangée des ronds en tient six (maquette ilot-bibliotheque.html : colonnes de 70 pt ; un nom trop long y passe sur deux lignes,
+    /// `PlanCentre.tailles`) : au-delà, les noms ne tiendraient plus.
+    public static let maxRonds = 6
     /// Ce que le Centre montre la première fois (maquette, étape 3) : le micro, le choix du micro de la dictée (seulement avec des
     /// AirPods), Téléchargements, Claude Code, le minuteur et l'étagère, la bande « Noter la réunion ». « Modifier » propose d'ajouter
-    /// Rappel et Dernière dictée (maquette, étape 9).
-    public static let parDefaut: [ElementCentre] = [.micro, .dictee, .telechargements, .claude, .minuteur, .etagere, .reunion]
+    /// Rappel et Dernière dictée (maquette, étape 9). Le calendrier s'y ajoute (maquette ilot-bibliotheque.html, étape 10), avant Claude.
+    public static let parDefaut: [ElementCentre] = [.micro, .dictee, .telechargements, .calendrier, .claude, .minuteur, .etagere, .reunion]
     /// La page Outils telle qu'elle est la première fois (maquette, étape 8) : les quatre outils et la bande « Dicter une note ».
     public static let parDefautOutils: [ElementCentre] = [.eveil, .pressePapiers, .reformuler, .notes, .noteRapide]
     public static func parDefaut(_ page: PageCentre) -> [ElementCentre] { page == .centre ? parDefaut : parDefautOutils }
+    /// Ce qui est arrivé après coup dans le Centre par défaut : un Centre déjà rangé (« Modifier ») le reçoit UNE fois, à sa place
+    /// (`avecNouveautes`) ; retiré ensuite, il ne revient plus.
+    public static let nouveautes: [ElementCentre] = [.calendrier]
 
     /// La page que cette disposition décrit : seuls ses éléments y entrent, « Ajouter : » ne propose qu'eux.
     public let page: PageCentre
@@ -107,7 +115,41 @@ public struct DispositionCentre: Equatable, Sendable {
     /// Ce qui est rangé dans les réglages.
     public var identifiants: [String] { elements.map(\.rawValue) }
 
-    /// Les ronds montrés : ceux qui sont disponibles (le choix du micro n'existe qu'avec des AirPods), cinq au plus.
+    /// Un Centre rangé avant l'arrivée d'une nouveauté (le calendrier) la reçoit à sa place par défaut : devant ce qui la suit dans le
+    /// Centre par défaut (Claude Code), sinon après le dernier de son genre. `dejaProposees` : les nouveautés déjà données une fois
+    /// (retirées depuis, elles ne reviennent pas). Rend la disposition et ce qui a été proposé cette fois (à retenir), ajouté ou non (une
+    /// rangée pleine ne reçoit rien : « Modifier » le propose).
+    public func avecNouveautes(dejaProposees: Set<String>) -> (disposition: DispositionCentre, proposees: [ElementCentre]) {
+        var d = self
+        var proposees: [ElementCentre] = []
+        for n in Self.nouveautes where !dejaProposees.contains(n.rawValue) {
+            proposees.append(n)
+            guard !d.elements.contains(n), d.peutAjouter(n) else { continue }
+            let suivants = Self.parDefaut.drop { $0 != n }.dropFirst().filter { $0.genre == n.genre }
+            if let s = suivants.first(where: { d.elements.contains($0) }), let i = d.elements.firstIndex(of: s) { d.elements.insert(n, at: i) }
+            else { d.ajouter(n) }
+        }
+        return (d, proposees)
+    }
+
+    /// Au lancement : ce que le Centre montre, relu des réglages, avec ce qu'il faut y écrire. `aRetenir` : la liste complète des
+    /// nouveautés déjà données (nil : rien à écrire) ; `ajoutees` : ce qui vient d'entrer dans un Centre rangé (la disposition est à
+    /// enregistrer). Jamais rangé (nil) : le Centre par défaut CONTIENT déjà les nouveautés, elles sont donc retenues comme données ;
+    /// sinon, retirées plus tard par « Modifier », elles reviendraient au lancement suivant.
+    public static func relire(identifiants: [String]?, dejaProposees: Set<String>)
+        -> (disposition: DispositionCentre, aRetenir: [String]?, ajoutees: [ElementCentre]) {
+        let d = DispositionCentre(identifiants: identifiants)
+        guard identifiants != nil else {
+            let manquantes = nouveautes.map(\.rawValue).filter { !dejaProposees.contains($0) }
+            return (d, manquantes.isEmpty ? nil : (dejaProposees.union(manquantes)).sorted(), [])
+        }
+        let r = d.avecNouveautes(dejaProposees: dejaProposees)
+        guard !r.proposees.isEmpty else { return (d, nil, []) }
+        let ajoutees = r.proposees.filter { r.disposition.elements.contains($0) && !d.elements.contains($0) }
+        return (r.disposition, dejaProposees.union(r.proposees.map(\.rawValue)).sorted(), ajoutees)
+    }
+
+    /// Les ronds montrés : ceux qui sont disponibles (le choix du micro n'existe qu'avec des AirPods), six au plus.
     public func ronds(disponible: (ElementCentre) -> Bool = { _ in true }) -> [ElementCentre] {
         Array(elements.filter { $0.genre == .rond && disponible($0) }.prefix(Self.maxRonds))
     }
@@ -160,9 +202,15 @@ public struct DispositionCentre: Equatable, Sendable {
     // MARK: la place
 
     /// Les rangées du Centre sous la barre (maquette) : 14 pt de marge, l'en-tête (26), puis chaque rangée présente avec son écart (12 pt
-    /// sous l'en-tête, 10 entre deux rangées) : les ronds (96), les cases (76), la bande (40) ; 14 pt de marge en bas.
+    /// sous l'en-tête, 10 entre deux rangées) : les ronds (96), les cases (76), la bande (40) ; 14 pt de marge en bas. Un nom de rond sur
+    /// deux lignes (six ronds : « Télécharge-ments ») allonge la rangée des ronds d'une ligne (`ligneNom`).
     public static let haut: Double = 14, entete: Double = 26, ronds: Double = 96, cases: Double = 76, bande: Double = 40, bas: Double = 14
     public static let ecartEntete: Double = 12, ecart: Double = 10
+    /// Une ligne de plus sous les ronds (un nom en 11,5 pt sur deux lignes).
+    public static let ligneNom: Double = 14
+    /// Les grandes cases côte à côte : la case Minuteur un peu plus large que l'Étagère (maquette ilot-bibliotheque.html : 1,16 / 0,84),
+    /// pour son sélecteur « Minuteur · Réveil » et ses quatre heures.
+    public static func poidsCase(_ e: ElementCentre) -> Double { e == .minuteur ? 1.16 : 0.84 }
 
     public enum Rangee: Sendable { case etagere, ronds, cases, bande }
     /// La rangée des fichiers de l'étagère, en haut du Centre quand elle en garde (maquette ilot-etagere-rapide.html, étape 6).
@@ -185,11 +233,11 @@ public struct DispositionCentre: Equatable, Sendable {
     }
 
     /// Le haut de chaque rangée présente, depuis le haut du corps (sous la barre), et la profondeur totale.
-    public static func plan(etagere e: Bool = false, ronds r: Bool, cases c: Bool, bande b: Bool) -> (hauts: [Rangee: Double], profondeur: Double) {
+    public static func plan(etagere e: Bool = false, ronds r: Bool, cases c: Bool, bande b: Bool, nomsSurDeuxLignes: Bool = false) -> (hauts: [Rangee: Double], profondeur: Double) {
         var y = haut + entete
         var hauts: [Rangee: Double] = [:]
         var premiere = true
-        for (rangee, presente, h) in [(Rangee.etagere, e, rangeeEtagere), (.ronds, r, ronds), (.cases, c, cases), (.bande, b, bande)] where presente {
+        for (rangee, presente, h) in [(Rangee.etagere, e, rangeeEtagere), (.ronds, r, ronds + (nomsSurDeuxLignes ? ligneNom : 0)), (.cases, c, cases), (.bande, b, bande)] where presente {
             y += premiere ? ecartEntete : ecart
             premiere = false
             hauts[rangee] = y

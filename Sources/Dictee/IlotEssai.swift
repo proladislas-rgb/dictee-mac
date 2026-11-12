@@ -35,10 +35,22 @@ enum IlotEssai {
         var notes = 0
         var pressePapiers: [String] = []
         var fenetres: [Onglet] = []
+        var ecransRallumes = 0
         func fabriquer() -> IlotControleur {
-            // l'étagère et les notes rapides aussi dans le dossier temporaire : jamais le vrai etagere.json ni le vrai notes.json
+            // l'étagère et la bibliothèque aussi dans le dossier temporaire : jamais le vrai etagere.json ni le vrai bibliotheque.json ; les
+            // sources de la bibliothèque lisent des dossiers temporaires (jamais Téléchargements ni le Bureau), sans toucher aux réglages
+            let bib = BibliothequeModele(store: BibliothequeStore(url: dossier.appendingPathComponent("bibliotheque.json")), sources: [])
+            bib.dossiers = DossiersBibliotheque(telechargements: dossier.appendingPathComponent("bibliotheque/Téléchargements", isDirectory: true),
+                                                captures: dossier.appendingPathComponent("bibliotheque/Captures", isDirectory: true))
+            bib.reglerSources = { _ in }
+            // les fichiers des dossiers d'essai sont datés par leur date de création (posée par l'essai), pas par leur arrivée dans le dossier
+            bib.lireDossiers = { s, d in SourcesBibliotheque.lire(s, dossiers: d).map { e in
+                var x = e; if let c = try? FileManager.default.attributesOfItem(atPath: e.chemin)[.creationDate] as? Date { x.date = c }; return x } }
+            // le réveil aussi dans le dossier temporaire (jamais le vrai reveil.json), l'écran jamais rallumé ; le calendrier jamais demandé ni lu
+            // les notes rapides aussi (jamais le vrai notes.json)
             let c = IlotControleur(stockage: RappelsStore(url: fichier), etagere: EtagereStore(url: dossier.appendingPathComponent("etagere.json")),
-                                   notes: NotesStore(url: dossier.appendingPathComponent("notes.json")))
+                                   notes: NotesStore(url: dossier.appendingPathComponent("notes.json")), bibliotheque: bib,
+                                   reveil: ReveilStore(url: dossier.appendingPathComponent("reveil.json")))
             // les Outils : jamais la vraie veille, le vrai presse-papiers, Groq, l'Accessibilité ni l'app Notes
             c.eveilPilote = EveilFactice()
             c.pressePapiers = PressePapiersFactice()
@@ -50,8 +62,19 @@ enum IlotEssai {
             c.envoyerNoteVersNotes = { _, fini in fini(false) }
             c.reglagesCentre.dispositionOutils = { nil }
             c.reglagesCentre.enregistrerDispositionOutils = { _ in }
+            c.allumerEcran = { ecransRallumes += 1 }
+            c.statutCalendrier = { .nonDemande }
+            c.demanderCalendrier = { false }
+            c.lireEvenements = { _ in [] }
+            c.reglagesCentre.calendrier = { false }
+            c.reglagesCentre.reglerCalendrier = { _ in }
+            c.reglagesCentre.nouveautes = { [] }
+            c.reglagesCentre.marquerNouveautes = { _ in }
+            c.reglagesCentre.disposition = { nil }
+            c.reglagesCentre.enregistrerDisposition = { _ in }
             c.maintenant = { Date().addingTimeInterval(decalage) }
-            c.sons = IlotControleur.SonsIlot(minuteurFini: { compteurs.minuteur += 1 }, rappel: { compteurs.rappel += 1 }, doux: { compteurs.doux += 1 }, silencieux: { compteurs.silence += 1 })
+            c.sons = IlotControleur.SonsIlot(minuteurFini: { compteurs.minuteur += 1 }, rappel: { compteurs.rappel += 1 }, doux: { compteurs.doux += 1 }, silencieux: { compteurs.silence += 1 },
+                                             reveil: { compteurs.minuteur += 1 })
             c.ouvrir = { liensOuverts.append($0) }
             c.montrer = { finder.append($0) }
             c.surNoter = { _ in notes += 1 }
@@ -87,6 +110,19 @@ enum IlotEssai {
         let g = m.geometrie
         print("caméra : \(Int(g.largeur)) × \(Int(g.hauteur)) pt")
 
+        // `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`) : une section seule (pour la mettre au point sans attendre tout l'essai)
+        if let seul = ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"], ["bibliotheque", "reveil"].contains(seul) {
+            attendre(0.4)
+            if seul == "bibliotheque" {
+                IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
+                                       fenetres: { fenetres }, relancer: { fabriquer() })
+            } else {
+                IlotEssai.reveilEtCalendrier(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
+            }
+            c.arreter()
+            print(echecs == 0 ? "essai terminé : tout est vert" : "essai terminé : \(echecs) échec(s)")
+            return echecs == 0 ? 0 : 1
+        }
         // --- repos : l'îlot vide épouse l'encoche
         attendre(0.4)
         verifier(m.courante == .repos && m.resolution.principal == .repos, "rien d'actif : l'îlot est vide")
@@ -1131,6 +1167,9 @@ enum IlotEssai {
         IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
         IlotEssai.lucarne(c, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers })
         IlotEssai.secondBrain(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
+                               fenetres: { fenetres }, relancer: { fabriquer() })
+        IlotEssai.reveilEtCalendrier(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)

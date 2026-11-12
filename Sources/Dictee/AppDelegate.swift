@@ -23,7 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var lecture: LectureControleur { ilot.lecture }
     private var microDejaPrepare = false
     private lazy var reunionControleur = ReunionController()
-    private lazy var fenetrePrincipale = FenetrePrincipale(dictees: ModeleDictees(), controleurReunions: reunionControleur)
+    private lazy var fenetrePrincipale = FenetrePrincipale(dictees: ModeleDictees(), controleurReunions: reunionControleur, bibliotheque: ilot.bibliotheque)
     private var survolStatus: SurvolStatus?
     private var derniereAppExterne: NSRunningApplication?
     private var abonnements = Set<AnyCancellable>()

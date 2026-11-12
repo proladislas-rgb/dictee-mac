@@ -120,9 +120,11 @@ struct IlotCalques: View {
         case .lectureEtendu: LectureEtendue(m: m, lecture: m.lecture, g: g)
         case .lectureMinuteur: rangeeMinuteurLecture
         case .minuteurEtendu: minuteurEtendu
-        case .minuteurLance, .minuteurFini, .rappelEtendu, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .agendaDebut,
-             .notification, .notifications:
+        case .minuteurLance, .minuteurFini, .rappelEtendu, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant,
+             .notification, .notifications, .reveilRegle, .reveilFini:
             if let c = m.contenuAnnonce(v) { annonce(v, c) }
+        case .agendaDebut: agendaDebut
+        case .reveilCompact: reveilAiles
         case .rappelCompact: heureAile(.rappelCompact, FormatIlot.heure(m.rappelVu?.echeance ?? m.maintenant()), CouleursIlot.jaune)
         case .rappelListe: rappelListe
         case .agendaCompact:
@@ -153,6 +155,7 @@ struct IlotCalques: View {
         case .secondBrain: CarteSecondBrain(m: m, g: g)
         case .outilReformuler: CarteReformuler(m: m, g: g)
         case .outilNote: CarteNote(m: m, g: g)
+        case .bibliotheque: BibliothequeCarteVue(m: m, b: m.bibliotheque, g: g)
         }
     }
 
@@ -217,6 +220,7 @@ struct IlotCalques: View {
             Group {
                 if !c.icones.isEmpty { IconesFichiers(icones: c.icones, cote: c.coteSymbole) }
                 else if c.etoile { EtoileClaude(couleur: CouleursIlot.corail).frame(width: 21, height: 21) }
+                else if c.reveil { ClocheSecouee(taille: 23, sonnerie: m.reduire || m.statique ? nil : m.sonnerieReveil, symbole: "alarm", couleur: CouleursIlot.ambre) }
                 else if let glyphe = c.glyphe { glyphe } else { Color.clear }
             }
             .frame(width: c.coteSymbole, height: c.coteSymbole)
@@ -409,7 +413,57 @@ struct IlotCalques: View {
     }
     private var filet: some View { Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1) }
 
+    // MARK: réveil
+
+    /// Le réveil replié : le réveil (ambre) dans l'aile gauche, l'heure (« 9:00 ») dans l'aile droite (56 pt dans la barre de chaque côté).
+    private var reveilAiles: some View {
+        let v = VueIlot.reveilCompact
+        let c = g.centreAile(v, droite: false)
+        let r = m.reveil ?? m.dernierReveil
+        return ZStack(alignment: .topLeading) {
+            GlypheIlot(nom: "alarm", couleur: CouleursIlot.ambre, taille: 15)
+                .posee(CGRect(x: c - 13, y: 0, width: 26, height: g.barre), m.aspect(v, rang: 0), ancre: .center, .center)
+            heureAile(v, r?.libelle() ?? "", CouleursIlot.ambre)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Réveil")
+        .accessibilityValue(r?.libelle() ?? "")
+    }
+
     // MARK: agenda
+
+    /// Le rendez-vous qui commence (maquette ilot-bibliotheque.html, étape 12) : la ligne de l'annonce (calendrier, « Point client
+    /// commence », « Maintenant · Google Meet », l'heure), puis « Rejoindre » (vert) et « Noter la réunion », de même largeur, jusqu'aux marges.
+    private var agendaDebut: some View {
+        let v = VueIlot.agendaDebut
+        let z = g.zone(v)
+        let e = m.rdvVu
+        return ZStack(alignment: .topLeading) {
+            if let c = m.contenuAnnonce(v) {
+                HStack(spacing: ContenuAnnonce.espace) {
+                    Group { if let gl = c.glyphe { gl } }.frame(width: c.coteSymbole, height: c.coteSymbole)
+                        .aspectIlot(m.aspect(v, rang: 0), ancre: .center)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(c.l1).font(TexteIlot.l1).tracking(ContenuAnnonce.interlettreL1).foregroundStyle(.white).lineLimit(1).truncationMode(.tail)
+                        Text(c.l2).font(TexteIlot.l2).foregroundStyle(CouleursIlot.encre2).lineLimit(1).truncationMode(.tail)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .aspectIlot(m.aspect(v, rang: 1), ancre: .topLeading)
+                    if case .meta(let t) = c.droite { meta(t).fixedSize().aspectIlot(m.aspect(v, rang: 2), ancre: .topTrailing) }
+                }
+                .frame(width: z.width, height: 40)
+                .offset(x: IlotMoteur.largeur / 2 + z.minX, y: z.minY)
+            }
+            if let e {
+                HStack(spacing: ContenuAnnonce.espaceBoutons) {
+                    ForEach(Array(ContenuAgenda.boutonsDebut(e).enumerated()), id: \.offset) { _, b in
+                        CapIlot(titre: b.titre, icone: b.icone, style: b.style, etiquette: b.etiquette, remplir: true) { if let a = b.action { m.surAction(a) } }
+                    }
+                }
+                .posee(CGRect(x: z.minX, y: z.minY + 50, width: z.width, height: 32), m.aspect(v, rang: 3), ancre: .top)
+            }
+        }
+    }
 
     /// Le rendez-vous déplié : le corps a la largeur de son contenu, et les actions forment une rangée de pilules de même largeur
     /// qui va jusqu'à la marge droite (comme les boutons d'une activité en direct) : plus de tiers droit vide.
@@ -497,7 +551,7 @@ struct IlotCalques: View {
         return VStack(spacing: 0) {
             ligneAccueil(v, 0, glyphe: GlypheIlot(nom: GlypheIlot.calendrier, couleur: CouleursIlot.rouge, taille: 17),
                          titre: e?.titre ?? (m.calendrierActif ? "Rien de prévu" : "Calendrier éteint"),
-                         sous: e.map { FormatIlot.heure($0.debut) + " \u{00B7} " + PlanAgenda.dans($0.debut.timeIntervalSince(m.maintenant())) } ?? (m.calendrierActif ? "Aucun rendez-vous à venir" : "Activable dans les réglages")) {
+                         sous: e.map { FormatIlot.heure($0.debut) + " \u{00B7} " + PlanAgenda.dans($0.debut.timeIntervalSince(m.maintenant())) } ?? (m.calendrierActif ? "Aucun rendez-vous à venir" : "Un clic sur Calendrier, dans le Centre")) {
                 if let e, e.lien != nil { CapIlot(titre: "Rejoindre", icone: "video.fill", style: .vert, hauteur: 28) { m.surAction(.rendezVousRejoindre(e)) } }
             }
             ligneAccueil(v, 1, glyphe: GlypheIlot(nom: "bell.fill", couleur: CouleursIlot.jaune, taille: 16), titre: "Rappel", sous: "Dis \u{00AB}\u{00A0}appeler Paul à 15 h\u{00A0}\u{00BB}") {
@@ -776,6 +830,15 @@ struct PastilleVue: View {
             .accessibilityLabel("Micro coupé")
         case .claude:
             PastilleClaude(m: m)
+        case .reveil:
+            HStack(spacing: 6) {
+                GlypheIlot(nom: "alarm", couleur: CouleursIlot.ambre, taille: 12)
+                Text((m.reveil ?? m.dernierReveil)?.libelle() ?? "").font(.system(size: 12.5, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(CouleursIlot.ambre).lineLimit(1).fixedSize()
+            }
+            .padding(.leading, 10)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Réveil, \((m.reveil ?? m.dernierReveil)?.libelle() ?? "")")
         case .alerte:
             EmptyView()
         }

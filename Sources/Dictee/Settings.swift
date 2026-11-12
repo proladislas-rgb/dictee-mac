@@ -281,6 +281,13 @@ enum Settings {
         get { defaults.object(forKey: "ilotCapturesEtagere") as? Bool ?? false }
         set { defaults.set(newValue, forKey: "ilotCapturesEtagere") }
     }
+    /// La Bibliothèque montre, en plus de l'étagère, les sources qu'on allume (fenêtre › Bibliothèque › « Ce que la bibliothèque
+    /// montre ») : Téléchargés, Reçus par AirDrop, Captures d'écran. ÉTEINTES par défaut : macOS demande l'accès au dossier
+    /// (Téléchargements, Bureau) au premier clic sur l'interrupteur, jamais au lancement.
+    static var bibliothequeSources: Set<SourceBibliotheque> {
+        get { Set((defaults.stringArray(forKey: "bibliothequeSources") ?? []).compactMap(SourceBibliotheque.init(rawValue:))) }
+        set { defaults.set(SourceBibliotheque.optionnelles.filter(newValue.contains).map(\.rawValue), forKey: "bibliothequeSources") }
+    }
     /// « Claude au travail » : l'îlot montre où en est Claude Code (crochets branchés depuis les Réglages). ALLUMÉ par défaut : tant que
     /// les crochets ne sont pas branchés, le dossier des sessions reste vide et rien ne s'affiche.
     static var ilotClaude: Bool {
@@ -318,6 +325,11 @@ enum Settings {
     static var ilotOutilsBoutons: [String]? {
         get { defaults.stringArray(forKey: "ilotOutilsBoutons") }
         set { defaults.set(newValue, forKey: "ilotOutilsBoutons") }
+    }
+    /// Les nouveautés déjà données une fois à un Centre rangé (le calendrier) : retirées ensuite, elles ne reviennent pas.
+    static var ilotCentreNouveautes: [String] {
+        get { defaults.stringArray(forKey: "ilotCentreNouveautes") ?? [] }
+        set { defaults.set(newValue, forKey: "ilotCentreNouveautes") }
     }
     /// Pour un micro sans muet, coupé en mettant son volume d'entrée à 0 : son ancien volume, par micro (UID CoreAudio), pour le rendre.
     static var microVolumesGardes: [String: Double] {

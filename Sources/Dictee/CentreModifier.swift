@@ -12,17 +12,20 @@ import DicteeCore
 enum AvisCentre: Equatable {
     /// macOS a refusé l'accès au dossier Téléchargements : la ligne mène à Réglages Système (un clic).
     case telechargementsRefuses
+    /// macOS a refusé l'accès aux calendriers (rond Calendrier) : la ligne mène à Réglages Système (un clic).
+    case calendrierRefuse
     /// Les crochets de Claude Code n'ont pas pu être écrits (settings.json illisible, ou écriture refusée) : rien n'a été changé.
     case claudeImpossible(ecriture: Bool)
 
     var texte: String {
         switch self {
         case .telechargementsRefuses: return "Accès refusé : ouvre Réglages Système"
+        case .calendrierRefuse: return "Calendrier refusé : ouvre Réglages Système"
         case .claudeImpossible(let ecriture): return ecriture ? "Écriture impossible : rien n\u{2019}a changé" : "settings.json illisible : rien n\u{2019}a changé"
         }
     }
     /// Un clic sur la ligne fait quelque chose (ouvrir Réglages Système).
-    var cliquable: Bool { self == .telechargementsRefuses }
+    var cliquable: Bool { self == .telechargementsRefuses || self == .calendrierRefuse }
     static let police: CGFloat = 12
     /// Le symbole (11 pt), l'écart (5 pt), le texte, le chevron (9 pt + 4).
     var largeur: CGFloat { 11 + 5 + MesureIlot.texte(texte, Self.police, .semibold) + (cliquable ? 13 : 0) }

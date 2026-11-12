@@ -17,6 +17,9 @@ struct FenetreVue: View {
     @ObservedObject var reunions: ReunionsModele
     @ObservedObject var controleur: ReunionController
     @ObservedObject var journee: JourneeModele
+    /// La Bibliothèque (partagée avec l'îlot) et l'état de son onglet.
+    @ObservedObject var bibliotheque: BibliothequeModele = BibliothequeModele(enMemoire: [])
+    @ObservedObject var etatBibliotheque: BibliothequeFenetreEtat = BibliothequeFenetreEtat()
     var surRevoirPriseEnMain: () -> Void = {}
     var surAutorisations: () -> Void = {}
     var surCle: () -> Void = {}
@@ -38,6 +41,8 @@ struct FenetreVue: View {
                     ReunionsVue(m: reunions, store: reunions.store, controleur: controleur, curseurFactice: curseurFactice)
                 case .mots:
                     MotsVue(m: mots, curseurFactice: curseurFactice).padding(.horizontal, DicteesFenetreVue.margeH)
+                case .bibliotheque:
+                    BibliothequeFenetreVue(b: bibliotheque, e: etatBibliotheque)
                 case .reglages:
                     ReglagesVue(r: reglages, store: store, surRevoirPriseEnMain: surRevoirPriseEnMain, surAutorisations: surAutorisations, surCle: surCle, surDesinstaller: surDesinstaller)
                         .padding(.horizontal, DicteesFenetreVue.margeH)
@@ -61,6 +66,7 @@ struct BarreOngletsVue: View {
             OngletBarre(titre: Onglet.journee.rawValue, actif: nav.onglet == .journee) { nav.onglet = .journee }
             OngletBarre(titre: Onglet.reunions.rawValue, actif: nav.onglet == .reunions) { nav.onglet = .reunions }
             OngletBarre(titre: Onglet.mots.rawValue, actif: nav.onglet == .mots, pastille: mots.propositions.enAttente.count) { nav.onglet = .mots }
+            OngletBarre(titre: Onglet.bibliotheque.rawValue, actif: nav.onglet == .bibliotheque) { nav.onglet = .bibliotheque }
         }
         .padding(.leading, 8)
         .fixedSize()
@@ -118,6 +124,9 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
     let reunions = ReunionsModele()
     let controleurReunions: ReunionController
     let journee: JourneeModele
+    /// La Bibliothèque : le même modèle que l'îlot ; l'état de l'onglet est à lui.
+    let bibliotheque: BibliothequeModele
+    let etatBibliotheque = BibliothequeFenetreEtat()
     private(set) lazy var reglages = ReglagesModele.partage
     private var fenetre: NSWindow?
     var surRevoirPriseEnMain: () -> Void = {}
@@ -125,8 +134,8 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
     var surCle: () -> Void = {}
     var surDesinstaller: () -> Void = {}
 
-    init(dictees: ModeleDictees, controleurReunions: ReunionController) {
-        self.dictees = dictees; self.controleurReunions = controleurReunions
+    init(dictees: ModeleDictees, controleurReunions: ReunionController, bibliotheque: BibliothequeModele) {
+        self.dictees = dictees; self.controleurReunions = controleurReunions; self.bibliotheque = bibliotheque
         journee = JourneeModele(dictees: dictees, reunions: reunions)
         super.init()
         journee.surOuvrirNote = { [weak self] id in self?.ouvrirNote(id) }
@@ -143,6 +152,8 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
         if onglet == .dictees { dictees.reinitialiser() }
         if onglet == .reunions, reunions.ouverte == nil { reunions.reinitialiser() }
         if onglet == .journee { journee.reinitialiser() }
+        // la Bibliothèque : ses signets et les dossiers des sources allumées, relus hors du fil principal
+        if onglet == .bibliotheque { bibliotheque.rafraichir(force: true) }
         // Verbe reste une app d'arrière-plan (pas d'icône « active » dans le Dock) même fenêtre ouverte : une app « normale »
         // ne peut plus afficher l'encoche par-dessus une app en plein écran (constaté dans le Terminal en plein écran).
         // Pour l'ouvrir : icône gardée dans le Dock, Applications, Launchpad ou Spotlight (réouverture gérée par l'AppDelegate).
@@ -210,6 +221,7 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate, NSToolbarDelegate {
         f.collectionBehavior.insert(.moveToActiveSpace)
         f.minSize = NSSize(width: 560, height: 420)
         f.contentView = NSHostingView(rootView: FenetreVue(nav: nav, dictees: dictees, store: dictees.store, mots: MotsModele.partage, reglages: reglages, reunions: reunions, controleur: controleurReunions, journee: journee,
+                                                           bibliotheque: bibliotheque, etatBibliotheque: etatBibliotheque,
                                                            surRevoirPriseEnMain: { [weak self] in self?.surRevoirPriseEnMain() },
                                                            surAutorisations: { [weak self] in self?.surAutorisations() },
                                                            surCle: { [weak self] in self?.surCle() },

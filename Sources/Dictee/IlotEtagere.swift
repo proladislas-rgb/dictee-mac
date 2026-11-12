@@ -105,6 +105,8 @@ extension IlotControleur {
         if nouveau { nouveautes.formUnion(r.ajoutes.map(\.id)) }
         // les fichiers viennent d'être lâchés (donc accessibles) : leur icône est lue tout de suite
         for e in r.ajoutes { iconesEtagere[e.id] = NSWorkspace.shared.icon(forFile: e.chemin) }
+        // la bibliothèque garde tout ce qui passe par l'étagère (l'étagère, elle, n'en garde que 10)
+        bibliotheque.noterEtagere(r.ajoutes)
         sauverEtagere()
         montrerEtagere()
         // jamais de nom de fichier au journal
@@ -163,6 +165,7 @@ extension IlotControleur {
     /// Ce que l'îlot montre : le nom, le chemin, l'icône du Finder (lue une fois par fichier, hors du fil principal ; en attendant,
     /// celle du type de fichier, qui ne touche pas au disque).
     func montrerEtagere() {
+        bibliotheque.surEtagere = etagere.elements.count
         moteur.etagere = etagere.elements.map { e in
             FichierEtagere(id: e.id, nom: e.nom, url: URL(fileURLWithPath: e.chemin), icone: iconesEtagere[e.id] ?? SignetsEtagere.iconeDuType(e.chemin),
                            nouveau: nouveautes.contains(e.id))
@@ -823,8 +826,11 @@ struct DepotEtagere: View {
     }
 }
 
-/// La carte Étagère (depuis le Centre) : « ‹ Centre », l'en-tête et « Tout vider », les fichiers (cinq par rangée), puis l'option
-/// « Captures d'écran ici ».
+/// La carte Étagère (depuis la case Étagère du Centre) : « ‹ Centre », l'en-tête, « Tout vider » et « Bibliothèque », les fichiers
+/// (cinq par rangée), puis l'option « Captures d'écran ici ».
+/// Intégration (12/11) : la maquette ilot-bibliotheque.html mettait « Bibliothèque · Tout voir » en ligne au bas de la carte ; avec les
+/// lignes des captures (correctif-captures), une étagère de deux rangées dépassait la zone de dessin (413 pt pour 350). La Bibliothèque
+/// s'ouvre donc d'une pilule de l'en-tête, et la carte garde sa hauteur d'avant.
 struct CarteEtagere: View {
     @ObservedObject var m: IlotMoteur
     var g: GrilleIlot
@@ -838,6 +844,12 @@ struct CarteEtagere: View {
     static func cadreVignette(_ g: GrilleIlot) -> CGRect {
         let z = g.zone(.etagere, haut: 10, bas: 12)
         return CGRect(x: z.minX, y: z.maxY - CGFloat(GeoIlot.ligneCaptures), width: z.width, height: CGFloat(GeoIlot.ligneCaptures))
+    }
+    /// La pilule « Bibliothèque », au bout de l'en-tête (essais : où cliquer) : ses 60 derniers points, dedans quelle que soit sa
+    /// largeur mesurée.
+    static func cadreBibliotheque(_ g: GrilleIlot) -> CGRect {
+        let z = g.zone(.etagere, haut: 10, bas: 12)
+        return CGRect(x: z.maxX - 60, y: z.minY + 7, width: 60, height: 28)
     }
     var body: some View {
         let v = VueIlot.etagere
@@ -856,6 +868,9 @@ struct CarteEtagere: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if n > 0 { CapIlot(titre: "Tout vider", hauteur: 28, etiquette: "Vider l\u{2019}étagère") { m.surAction(.etagereVider) }.fixedSize() }
+                // la Bibliothèque (maquette ilot-bibliotheque.html, étape 1) : tout ce qui est passé par l'étagère, et plus
+                CapIlot(titre: "Bibliothèque", icone: "books.vertical.fill", hauteur: 28, etiquette: "Tout voir : la bibliothèque") { m.ouvrirBibliotheque() }
+                    .fixedSize()
             }
             .frame(height: 42)
             .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1).padding(.leading, 34) }

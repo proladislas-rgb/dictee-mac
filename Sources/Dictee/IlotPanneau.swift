@@ -264,7 +264,7 @@ final class IlotPanneau {
         appDuClavier = NSWorkspace.shared.frontmostApplication.flatMap { $0.bundleIdentifier == Bundle.main.bundleIdentifier ? nil : $0 }
         f.clavier = true
         f.makeKey()
-        Log.ecrire("îlot : le champ des dictées prend le clavier")
+        Log.ecrire("îlot : le champ de recherche prend le clavier")
     }
     /// La carte quittée, l'îlot rangé, Échap, une dictée qui commence : le clavier retourne à l'app d'où l'on vient. La fenêtre cesse
     /// d'être la fenêtre clé (retirée puis remise aussitôt, dans le même passage : rien ne clignote) ; si le premier plan a changé
@@ -289,6 +289,7 @@ final class IlotPanneau {
         guard clavierPris, let f = fenetre, f.clavier else { return }
         f.clavier = false; clavierPris = false; appDuClavier = nil
         if moteur.dictees.rechercheActive { moteur.dictees.rechercheActive = false }
+        if moteur.bibliotheque.rechercheActive { moteur.bibliotheque.rechercheActive = false }
     }
     /// Essais : la fenêtre de l'îlot est-elle la fenêtre clé ? (Toujours faux en essai : on ne la rend jamais clé.)
     var estCle: Bool { fenetre?.isKeyWindow ?? false }

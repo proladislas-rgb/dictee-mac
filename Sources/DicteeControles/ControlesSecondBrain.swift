@@ -204,8 +204,8 @@ func controlesSecondBrain() {
     verifier(!d.ajouter(.secondBrain, disponible: dispo(false)) && d.ajouter(.secondBrain, disponible: dispo(true)), "ajouté seulement quand le fichier existe")
     verifier(d.ronds(disponible: dispo(true)).contains(.secondBrain) && !d.ronds(disponible: dispo(false)).contains(.secondBrain), "montré avec le fichier, caché sans (aucun vide), sans être retiré de la disposition")
     verifier(DispositionCentre(identifiants: d.identifiants).elements.contains(.secondBrain) && DispositionCentre(identifiants: ["micro", "second-brain", "inconnu"]).elements == [.micro, .secondBrain], "rangé dans les réglages et relu")
-    var pleine = DispositionCentre([.micro, .dictee, .telechargements, .claude, .rappel])
-    verifier(!pleine.ajouter(.secondBrain, disponible: dispo(true)), "cinq ronds déjà : pas de sixième")
+    var pleine = DispositionCentre([.micro, .dictee, .telechargements, .calendrier, .claude, .rappel])
+    verifier(!pleine.ajouter(.secondBrain, disponible: dispo(true)), "six ronds déjà (DispositionCentre.maxRonds) : pas de septième")
     // la carte tient dans la hauteur du Centre, quel que soit ce qu'elle montre
     var pire = 0.0, plusBas = 999.0
     for m in 0...3 { for t in 0...3 { for r in 0...3 {

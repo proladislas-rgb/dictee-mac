@@ -3,7 +3,7 @@ import EventKit
 import DicteeCore
 
 /// Les rendez-vous des calendriers du Mac (EventKit : tout ce que l'app Calendrier affiche, Google compris s'il y est ajouté).
-/// L'autorisation n'est JAMAIS demandée au lancement : seulement quand Hugues active le calendrier dans les Réglages.
+/// L'autorisation n'est JAMAIS demandée au lancement : seulement quand Hugues allume le calendrier (Réglages, ou le rond du Centre).
 /// Rien n'est enregistré par Verbe : les rendez-vous des prochaines heures sont relus quand il le faut.
 @MainActor
 final class AgendaSysteme {
@@ -14,7 +14,9 @@ final class AgendaSysteme {
 
     enum Statut: Equatable { case nonDemande, autorise, refuse }
 
-    var statut: Statut {
+    var statut: Statut { Self.statutSysteme }
+    /// Où en est l'accès aux calendriers (lu sans rien demander).
+    static var statutSysteme: Statut {
         switch EKEventStore.authorizationStatus(for: .event) {
         case .fullAccess: return .autorise
         case .notDetermined: return .nonDemande
@@ -22,7 +24,8 @@ final class AgendaSysteme {
         }
     }
 
-    /// Demande l'accès (fenêtre du système, une seule fois). Appelé seulement quand l'interrupteur des Réglages passe à « activé ».
+    /// Demande l'accès (fenêtre du système, une seule fois). Appelé seulement quand on allume le calendrier (l'interrupteur des Réglages,
+    /// ou le rond Calendrier du Centre).
     func demander() async -> Bool {
         guard statut != .autorise else { return true }
         guard statut == .nonDemande else { return false }
