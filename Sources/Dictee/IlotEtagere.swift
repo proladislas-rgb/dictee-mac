@@ -868,8 +868,12 @@ struct CarteEtagere: View {
                 GlypheIlot(nom: "tray.full.fill", couleur: CouleursIlot.bleu, taille: 16).frame(width: 22, height: 22)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Étagère").font(TexteIlot.ligne).tracking(-0.1).foregroundStyle(.white).lineLimit(1)
-                    Text(n == 0 ? "Vide" : EtagereIlot.resume(n) + " \u{00B7} glisse-" + (n > 1 ? "les" : "le") + " vers une app")
-                        .font(TexteIlot.l2).foregroundStyle(CouleursIlot.encre2).lineLimit(1).truncationMode(.tail)
+                    // avec « Tout vider » et « Bibliothèque », la phrase entière ne tient pas toujours : sa forme courte, jamais coupée
+                    ViewThatFits(in: .horizontal) {
+                        Text(n == 0 ? "Vide" : EtagereIlot.resume(n) + " \u{00B7} glisse-" + (n > 1 ? "les" : "le") + " vers une app").lineLimit(1).fixedSize()
+                        Text(n == 0 ? "Vide" : EtagereIlot.resume(n)).lineLimit(1)
+                    }
+                    .font(TexteIlot.l2).foregroundStyle(CouleursIlot.encre2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if n > 0 { CapIlot(titre: "Tout vider", hauteur: 28, etiquette: "Vider l\u{2019}étagère") { m.surAction(.etagereVider) }.fixedSize() }
