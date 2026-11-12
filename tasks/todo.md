@@ -475,3 +475,10 @@ télécharger directement les bouts où les gens parlent, comme WhatsApp, à cô
       écran allumé, ou alléger le rendu d'un défilement (toutes les lignes observent `d` : un changement de survol les redessine).
 - Contrôles 3561/3561. Essai complet (avec le correctif du survol, avant celui du ressort) : 1 échec (le ressort), survol 355/355,
   pire 24,67 ms. Les deux essais complets verts restent à faire avant `git push origin main`.
+
+## 12/11 vers 11 h 30 — Lucarne déplaçable, mission 2
+- [x] Geste et fenêtre, capsule noire : branche `lucarne-geste` (b42434f, a7cfa5f), poussée, NON fusionnée, worktree ~/dictee-mac-lucarne2. 3564/3564 ; section places de l'essai verte 3 fois ; essai complet = seulement les 2 échecs connus de main (avant les correctifs 97374b3 / be6ea24).
+- [ ] Relecture indépendante (opus) sur `git diff main...lucarne-geste` : pas terminée, à relancer AVANT la fusion.
+- [ ] Ne PAS livrer la branche seule : hors de l'encoche, la capsule est noire et muette (pas d'alerte visible) jusqu'à la mission 3 (verre, contenu, bannières depuis la place).
+- [ ] Fusion : conflits attendus dans IlotMoteur (tousLesRessorts → ilotPose + lucarnePosee, appuiSurForme) avec les correctifs de l'essai.
+- [ ] À montrer à Hugues : lâchée au milieu de l'écran (jusqu'à ~450 pt sous l'encoche), la Lucarne retourne dans l'encoche (place la plus proche).
