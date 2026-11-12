@@ -135,9 +135,6 @@
     </Window.Resources>
 
     <Grid>
-        <!-- Zone de survol au repos : presque transparente mais attrape la souris autour de la petite pilule -->
-        <Border x:Name="zone" Width="240" Height="26" VerticalAlignment="Top" HorizontalAlignment="Center" Background="#01000000"/>
-
         <Border x:Name="pilule" Width="110" Height="8" Margin="0,6,0,0" VerticalAlignment="Top" HorizontalAlignment="Center"
                 Background="Black" CornerRadius="4" ClipToBounds="True" BorderBrush="#1FFFFFFF" BorderThickness="0.5">
             <Border.Effect>

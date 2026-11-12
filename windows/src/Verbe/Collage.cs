@@ -37,7 +37,7 @@ static class Collage
             Natif.Touche(Natif.VK_V, true), Natif.Touche(Natif.VK_CONTROL, true));
 
         // L'app cible lit le presse-papiers un peu après Ctrl+V : on lui laisse le temps avant de remettre l'ancien contenu.
-        await Task.Delay(350);
+        await Task.Delay(650);
         if (ancien != null) await Essayer(() => Clipboard.SetDataObject(ancien, true));
     }
 

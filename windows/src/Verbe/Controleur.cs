@@ -167,30 +167,43 @@ sealed class Controleur
         if (etat != Etat.Ecoute) return;
         etat = Etat.Traitement;
         minuterie.Stop();
+        annulation = new CancellationTokenSource();   // dès maintenant : Échap pendant l'arrêt du micro annule aussi
+        var jeton = annulation.Token;
         var c = cible;
-        ilot.AllerTraitement(c?.Icone());
-        var pcm = await micro.Arreter();
-        if (reglages.Sons) Jouer(sonFin);
-
-        double duree = Wav.Duree(pcm), crete = Wav.Crete(pcm);
-        if (duree < 0.3) { Liberer(); ilot.AllerRepos(); return; }
-        if (crete < 0.003)
+        bool parti = false;
+        try
         {
-            Liberer();
-            ilot.AllerMessage("Le micro ne capte rien. Vérifie Paramètres › Confidentialité › Microphone.", "", libelleAction: "Ouvrir",
-                action: () => Ouvrir("ms-settings:privacy-microphone"));
-            return;
+            ilot.AllerTraitement(c?.Icone());
+            var pcm = await micro.Arreter();
+            if (reglages.Sons) Jouer(sonFin);
+            if (jeton.IsCancellationRequested) { ilot.AllerMessage("Annulé", "\uE711", Brushes.White, secondes: 1.0); return; }
+
+            double duree = Wav.Duree(pcm), crete = Wav.Crete(pcm);
+            if (duree < 0.3) { ilot.AllerRepos(); return; }
+            if (crete < 0.003)
+            {
+                ilot.AllerMessage("Le micro ne capte rien. Vérifie Paramètres › Confidentialité › Microphone.", "", libelleAction: "Ouvrir",
+                    action: () => Ouvrir("ms-settings:privacy-microphone"));
+                return;
+            }
+            if (crete < 0.015) { ilot.AllerMessage("Rien entendu", "", Brushes.White, secondes: 1.4); return; }
+            parti = true;
+            await Envoyer(pcm, c, annulation);
         }
-        if (crete < 0.015) { Liberer(); ilot.AllerMessage("Rien entendu", "", Brushes.White, secondes: 1.4); return; }
-        await Envoyer(pcm, c);
+        catch (Exception e)
+        {
+            Journal.Ecrire("fin de dictée : " + e);
+            ilot.AllerMessage("Un souci inattendu. Réessaie.");
+        }
+        finally { if (!parti) Liberer(); }
     }
 
-    async Task Envoyer(byte[] pcm, FenetreCible? c)
+    async Task Envoyer(byte[] pcm, FenetreCible? c, CancellationTokenSource? jeton = null)
     {
         etat = Etat.Traitement;
         clavier.AvalerEchap = true;
         ilot.AllerTraitement(c?.Icone());
-        annulation = new CancellationTokenSource();
+        annulation = jeton ?? new CancellationTokenSource();
         try
         {
             var contexte = RemiseAuPropre.ContexteDe(c?.Programme, c?.Titre);
@@ -201,6 +214,8 @@ sealed class Controleur
             if (r.Texte == null) { ilot.AllerMessage("Rien entendu", "", Brushes.White, secondes: 1.4); return; }
             try
             {
+                // L'îlot a le clavier (carte de la clé juste fermée) : on le rend à l'app de départ avant de coller.
+                if (c != null && Natif.GetForegroundWindow() == ilot.Handle) { Natif.Activer(c.Handle); await Task.Delay(150); }
                 await Collage.Coller(r.Texte);
                 ilot.AllerFait();
             }
@@ -244,7 +259,7 @@ sealed class Controleur
     void Liberer()
     {
         if (etat == Etat.Traitement) etat = Etat.Libre;
-        clavier.AvalerEchap = etat == Etat.Carte;
+        clavier.AvalerEchap = false;
         annulation?.Dispose(); annulation = null;
     }
 
@@ -265,14 +280,14 @@ sealed class Controleur
     {
         if (etat is Etat.Ecoute or Etat.Traitement) return;
         etat = Etat.Carte;
-        clavier.AvalerEchap = true;
+        clavier.AvalerEchap = false;   // hors dictée, Échap n'est jamais pris aux autres apps (il ferme quand même la carte)
         ilot.AllerReglages(reglages.Langue, reglages.Sons);
     }
 
     void OuvrirCle(string titre, string? texte)
     {
         etat = Etat.Carte;
-        clavier.AvalerEchap = true;    // Échap ferme la carte
+        clavier.AvalerEchap = false;   // Échap ferme la carte sans être pris aux autres apps
         ilot.ViderCle();
         ilot.AllerCle(titre, texte);
     }

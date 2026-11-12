@@ -67,7 +67,8 @@ sealed class Micro
         var fin = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         e.RecordingStopped += (_, _) => fin.TrySetResult(true);
         arret = fin;
-        e.StartRecording();   // lève une exception s'il n'y a aucun micro
+        try { e.StartRecording(); }   // lève une exception s'il n'y a aucun micro
+        catch { e.Dispose(); arret = null; throw; }
         entree = e;
     }
 

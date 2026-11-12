@@ -42,14 +42,16 @@ sealed class Reglages
         catch (Exception e) { Journal.Ecrire("réglages non enregistrés : " + e.GetType().Name); }
     }
 
-    /// La clé : variable d'environnement GROQ_API_KEY si elle existe, sinon celle enregistrée.
+    /// La clé : celle enregistrée dans Verbe, sinon la variable d'environnement GROQ_API_KEY.
     public string? Cle()
     {
+        if (!string.IsNullOrEmpty(CleChiffree))
+        {
+            try { return Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(CleChiffree), Sel, DataProtectionScope.CurrentUser)); }
+            catch { }
+        }
         var env = Environment.GetEnvironmentVariable("GROQ_API_KEY");
-        if (!string.IsNullOrWhiteSpace(env)) return env.Trim();
-        if (string.IsNullOrEmpty(CleChiffree)) return null;
-        try { return Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(CleChiffree), Sel, DataProtectionScope.CurrentUser)); }
-        catch { return null; }
+        return string.IsNullOrWhiteSpace(env) ? null : env.Trim();
     }
 
     public void DefinirCle(string cle)

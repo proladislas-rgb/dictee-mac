@@ -16,10 +16,27 @@ public partial class App : Application
         unique = new Mutex(true, @"Local\Verbe-dictee-windows", out bool premier);
         if (!premier) { Shutdown(); return; }   // déjà ouvert : l'îlot est là-haut
 
-        DispatcherUnhandledException += (_, a) => { Journal.Ecrire("exception : " + a.Exception); a.Handled = true; };
+        DispatcherUnhandledException += (_, a) =>
+        {
+            Journal.Ecrire("exception : " + a.Exception);
+            a.Handled = true;
+            if (controleur == null) Arreter(a.Exception);   // au démarrage : jamais de processus invisible qui garde le verrou
+        };
         AppDomain.CurrentDomain.UnhandledException += (_, a) => Journal.Ecrire("exception fatale : " + a.ExceptionObject);
         Journal.Ecrire($"démarrage Verbe {typeof(App).Assembly.GetName().Version?.ToString(3)} sur {Environment.OSVersion}");
 
+        try { Ouvrir(e); }
+        catch (Exception x) { Journal.Ecrire("démarrage impossible : " + x); Arreter(x); }
+    }
+
+    void Arreter(Exception x)
+    {
+        MessageBox.Show("Verbe n'a pas pu démarrer : " + x.Message + "\n\nLe détail est dans %APPDATA%\\Verbe\\journal.txt.", "Verbe", MessageBoxButton.OK, MessageBoxImage.Error);
+        Shutdown(1);
+    }
+
+    void Ouvrir(StartupEventArgs e)
+    {
         var reglages = Reglages.Charger();
         var ilot = new IlotFenetre();
         ilot.Show();

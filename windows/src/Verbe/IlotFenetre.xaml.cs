@@ -40,7 +40,11 @@ public partial class IlotFenetre : Window
     double niveauCible;
     readonly DateTime origine = DateTime.Now;
     readonly DispatcherTimer minuterieMessage = new();
-    readonly DispatcherTimer minuterieSurvol = new() { Interval = TimeSpan.FromMilliseconds(120) };
+    readonly DispatcherTimer minuterieSouris = new() { Interval = TimeSpan.FromMilliseconds(90) };
+    DateTime sortieSouris = DateTime.MaxValue;
+    bool sourisEntreeDansCarte;
+    bool pointsLances;
+    IntPtr avantCle;          // la fenêtre qui avait le clavier avant la carte de la clé : elle le retrouve à la fermeture
     readonly DispatcherTimer minuteriePleinEcran = new() { Interval = TimeSpan.FromSeconds(1.2) };
     Action? actionMessage;
     bool pleinEcran;
@@ -56,9 +60,7 @@ public partial class IlotFenetre : Window
         version.Text = "pour Windows · " + (typeof(IlotFenetre).Assembly.GetName().Version?.ToString(3) ?? "");
 
         pilule.SizeChanged += (_, _) => pilule.CornerRadius = new CornerRadius(Math.Min(pilule.ActualHeight / 2, 26));
-        zone.MouseEnter += (_, _) => SurvolEntre();
-        pilule.MouseEnter += (_, _) => SurvolEntre();
-        minuterieSurvol.Tick += (_, _) => SurvolVerifie();
+        minuterieSouris.Tick += (_, _) => SuivreSouris();
         minuterieMessage.Tick += (_, _) => { minuterieMessage.Stop(); if (VueActuelle is Vue.Message or Vue.Fait) Montrer(Vue.Repos); };
         minuteriePleinEcran.Tick += (_, _) => VerifierPleinEcran();
 
@@ -84,8 +86,9 @@ public partial class IlotFenetre : Window
         {
             hwnd = new WindowInteropHelper(this).Handle;
             RendreInactivable(true);
+            RendreTraversable(true);
         };
-        Loaded += (_, _) => { Placer(); minuteriePleinEcran.Start(); };
+        Loaded += (_, _) => { Placer(); minuteriePleinEcran.Start(); minuterieSouris.Start(); };
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (_, _) => Dispatcher.BeginInvoke(Placer);
     }
 
@@ -101,12 +104,17 @@ public partial class IlotFenetre : Window
 
     /// Jamais de vol du clavier : un clic sur l'îlot laisse le curseur dans l'app où l'on écrit.
     /// Seule la carte de la clé (champ de saisie) rend la fenêtre activable, le temps de taper.
-    void RendreInactivable(bool oui)
+    void RendreInactivable(bool oui) => PoserStyle(Natif.WS_EX_NOACTIVATE, oui);
+
+    /// Au repos, la fenêtre entière laisse passer les clics (onglets, barres de titre sous la petite pilule) ;
+    /// le survol est alors détecté en suivant la position de la souris.
+    void RendreTraversable(bool oui) => PoserStyle(Natif.WS_EX_TRANSPARENT, oui);
+
+    void PoserStyle(long drapeau, bool oui)
     {
         if (hwnd == IntPtr.Zero) return;
-        long ex = GetEx();
-        ex |= Natif.WS_EX_TOOLWINDOW | Natif.WS_EX_TOPMOST;
-        ex = oui ? ex | Natif.WS_EX_NOACTIVATE : ex & ~Natif.WS_EX_NOACTIVATE;
+        long ex = GetEx() | Natif.WS_EX_TOOLWINDOW | Natif.WS_EX_TOPMOST;
+        ex = oui ? ex | drapeau : ex & ~drapeau;
         Natif.SetWindowLongPtr(hwnd, Natif.GWL_EXSTYLE, new IntPtr(ex));
     }
     long GetEx() => Natif.GetWindowLongPtr(hwnd, Natif.GWL_EXSTYLE).ToInt64();
@@ -148,11 +156,17 @@ public partial class IlotFenetre : Window
         var avant = VueActuelle;
         VueActuelle = v;
         AuPremierPlan();
-        if (avant == Vue.Cle && v != Vue.Cle) RendreInactivable(true);
-        if (v != Vue.Traitement) (FindResource("Points") as Storyboard)?.Stop(this);
+        RendreTraversable(v == Vue.Repos);
+        if (avant == Vue.Cle && v != Vue.Cle)
+        {
+            RendreInactivable(true);
+            Natif.Activer(avantCle);   // le clavier retourne à l'app où l'on écrivait
+        }
+        if (v != Vue.Traitement && pointsLances) { pointsLances = false; (FindResource("Points") as Storyboard)?.Stop(this); }
         if (v != Vue.Ecoute) CompositionTarget.Rendering -= Animer;
         if (v is not (Vue.Message or Vue.Fait)) minuterieMessage.Stop();
-        if (v == Vue.Repos) minuterieSurvol.Stop();
+        sortieSouris = DateTime.MaxValue;
+        sourisEntreeDansCarte = false;
 
         var t = taille ?? TailleDe(v);
         // Le repli est plus calme que l'ouverture (moins de dépassement).
@@ -178,17 +192,29 @@ public partial class IlotFenetre : Window
 
     // ── survol au repos ──
 
-    void SurvolEntre()
+    /// Toutes les 90 ms : la souris arrive-t-elle sur la petite pilule (ouvrir), quitte-t-elle l'îlot (replier) ?
+    void SuivreSouris()
     {
-        if (VueActuelle != Vue.Repos || pleinEcran) return;
-        Montrer(Vue.Survol);
-        minuterieSurvol.Start();
-    }
-
-    void SurvolVerifie()
-    {
-        if (VueActuelle != Vue.Survol) { minuterieSurvol.Stop(); return; }
-        if (!pilule.IsMouseOver && !zone.IsMouseOver) { minuterieSurvol.Stop(); Montrer(Vue.Repos); }
+        if (hwnd == IntPtr.Zero || !IsLoaded || !Natif.GetCursorPos(out var c)) return;
+        var v = VueActuelle;
+        if (v == Vue.Repos)
+        {
+            if (pleinEcran) return;
+            // une bande de 240 × 30 autour de la petite pilule, plus facile à viser qu'un trait de 8 px
+            var centre = PointToScreen(new Point(Width / 2, 0));
+            var echelle = PointToScreen(new Point(1, 1)) - PointToScreen(new Point(0, 0));
+            if (Math.Abs(c.X - centre.X) <= 120 * echelle.X && c.Y >= centre.Y - 2 && c.Y <= centre.Y + 30 * echelle.Y) Montrer(Vue.Survol);
+            return;
+        }
+        if (v is not (Vue.Survol or Vue.Reglages)) return;
+        var a = pilule.PointToScreen(new Point(-12, -12));
+        var b = pilule.PointToScreen(new Point(pilule.ActualWidth + 12, pilule.ActualHeight + 12));
+        bool dedans = c.X >= a.X && c.X <= b.X && c.Y >= Math.Min(a.Y, 0) && c.Y <= b.Y;
+        if (dedans) { sortieSouris = DateTime.MaxValue; sourisEntreeDansCarte = true; return; }
+        if (sortieSouris == DateTime.MaxValue) sortieSouris = DateTime.Now;
+        if (v == Vue.Survol && DateTime.Now - sortieSouris > TimeSpan.FromMilliseconds(250)) Montrer(Vue.Repos);
+        // Les réglages se referment quand la souris les quitte (après y être entrée : ouverts depuis l'icône près de l'horloge, la souris est loin).
+        if (v == Vue.Reglages && sourisEntreeDansCarte && DateTime.Now - sortieSouris > TimeSpan.FromSeconds(1.5)) DemandeFermerCarte?.Invoke();
     }
 
     void VerifierPleinEcran()
@@ -197,7 +223,6 @@ public partial class IlotFenetre : Window
         if (p == pleinEcran) return;
         pleinEcran = p;
         if (VueActuelle == Vue.Repos) pilule.BeginAnimation(OpacityProperty, new DoubleAnimation(p ? 0 : 0.92, TimeSpan.FromMilliseconds(200)));
-        zone.IsHitTestVisible = !p;
     }
 
     // ── vues publiques ──
@@ -244,6 +269,7 @@ public partial class IlotFenetre : Window
         iconeTraitement.Visibility = icone == null ? Visibility.Collapsed : Visibility.Visible;
         Montrer(Vue.Traitement);
         (FindResource("Points") as Storyboard)?.Begin(this, true);
+        pointsLances = true;
     }
 
     public void AllerFait(string texte = "Écrit")
@@ -289,12 +315,13 @@ public partial class IlotFenetre : Window
         etatCle.Foreground = (Brush)FindResource("Orange");
         boutonEnregistrerCle.IsEnabled = true;
         bool deja = VueActuelle == Vue.Cle;
+        if (!deja) { var f = Natif.GetForegroundWindow(); avantCle = f == hwnd ? IntPtr.Zero : f; }
         Montrer(Vue.Cle);
         if (!deja)
         {
             RendreInactivable(false);
+            Natif.Activer(hwnd);
             Activate();
-            Natif.SetForegroundWindow(hwnd);
             champCle.Focus();
             System.Windows.Input.Keyboard.Focus(champCle);
             champCle.SelectAll();

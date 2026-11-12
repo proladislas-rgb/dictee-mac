@@ -27,6 +27,16 @@ static class Natif
     [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vKey);
     public static bool Enfoncee(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
 
+    // ── boucle de messages du fil du crochet ──
+    public const uint WM_QUIT = 0x0012;
+    [StructLayout(LayoutKind.Sequential)] public struct MSG { public IntPtr hwnd; public uint message; public IntPtr wParam, lParam; public uint time; public int ptX, ptY; }
+    [DllImport("user32.dll")] public static extern int GetMessage(out MSG msg, IntPtr hWnd, uint min, uint max);
+    [DllImport("user32.dll")] public static extern bool TranslateMessage(ref MSG msg);
+    [DllImport("user32.dll")] public static extern IntPtr DispatchMessage(ref MSG msg);
+    [DllImport("user32.dll")] public static extern bool PostThreadMessage(uint idThread, uint msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint code, uint mapType);
+
     // ── envoi de touches ──
     public const uint INPUT_KEYBOARD = 1, KEYEVENTF_KEYUP = 0x0002;
     [StructLayout(LayoutKind.Sequential)] public struct INPUT { public uint type; public InputUnion U; }
@@ -41,7 +51,7 @@ static class Natif
     public static INPUT Touche(int vk, bool relachee, bool deVerbe = true) => new()
     {
         type = INPUT_KEYBOARD,
-        U = new InputUnion { ki = new KEYBDINPUT { wVk = (ushort)vk, dwFlags = relachee ? KEYEVENTF_KEYUP : 0, dwExtraInfo = deVerbe ? Marque : IntPtr.Zero } },
+        U = new InputUnion { ki = new KEYBDINPUT { wVk = (ushort)vk, wScan = (ushort)MapVirtualKey((uint)vk, 0), dwFlags = relachee ? KEYEVENTF_KEYUP : 0, dwExtraInfo = deVerbe ? Marque : IntPtr.Zero } },
     };
 
     public static void Envoyer(params INPUT[] touches) => SendInput((uint)touches.Length, touches, Marshal.SizeOf<INPUT>());
@@ -55,7 +65,7 @@ static class Natif
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
 
     public const int GWL_EXSTYLE = -20;
-    public const long WS_EX_TOOLWINDOW = 0x80, WS_EX_TOPMOST = 0x8, WS_EX_NOACTIVATE = 0x08000000;
+    public const long WS_EX_TOOLWINDOW = 0x80, WS_EX_TOPMOST = 0x8, WS_EX_TRANSPARENT = 0x20, WS_EX_NOACTIVATE = 0x08000000;
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] public static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr v);
 
@@ -64,6 +74,21 @@ static class Natif
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
+    [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
+    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+
+    /// Met une fenêtre au premier plan malgré le verrou de Windows (attache le temps de l'appel au fil de la fenêtre active).
+    public static void Activer(IntPtr h)
+    {
+        if (h == IntPtr.Zero || !IsWindow(h)) return;
+        var avant = GetForegroundWindow();
+        uint filAvant = GetWindowThreadProcessId(avant, out _), soi = GetCurrentThreadId();
+        bool attache = filAvant != 0 && filAvant != soi && AttachThreadInput(soi, filAvant, true);
+        SetForegroundWindow(h);
+        if (attache) AttachThreadInput(soi, filAvant, false);
+    }
 
     public const uint MONITOR_DEFAULTTONEAREST = 2;
     [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
