@@ -255,3 +255,41 @@ Ancienne lecture (gardée si Hugues la confirme) : l'îlot ouvert devient une pi
 - [x] Réunion effacée ou renommée pendant l'enregistrement / la préparation : rien n'est recréé, le titre et les orateurs changés sont gardés
 - [x] « Ce que j'ai raté » : seulement les 3 dernières minutes d'un long tour ; puces mesurées à la vraie police, coupées à un mot entier
 - [x] Contrôles (2 282), essai de l'îlot (section « le son gardé tant qu'il peut servir »), rendus comparés (nouveau : reunions-14-pas-entierement-relue)
+
+## Voix séparées dans les notes de réunion (FluidAudio, 12/11) — branche voix-reunions
+Accord de Hugues : « oui part sur FluidAudio ». La transcription reste chez Groq ; seule la séparation des voix est faite sur le Mac.
+- [x] FluidAudio 0.18.2 (version exacte), seul le module « Diarizer » (ni synthèse vocale, ni normalisation de texte) ; pipeline
+      hors ligne pyannote community-1 (découpe + empreintes WeSpeaker + regroupement VBx), passages exclusifs, moteur neuronal + processeur.
+- [x] Logique pure (DicteeCore/VoixReunion.swift) : tours de parole → « Personne 1, 2… » sur les passages « Eux » (chevauchement,
+      tour le plus proche à 1,5 s près, voix de moins de 3 s fondues, moins de 2 voix = repli « Eux ») ; renommage dans toute la note
+      (passages, en bref, sujets, décisions, étapes, participants, export) ; empreinte de voix gardée avec l'orateur + `reconnaitre`
+      (structure pour « voix connue », pas encore branchée) ; progression (relecture et voix en parallèle, téléchargement visible).
+- [x] App (Dictee/SeparationVoix.swift) : modèle dans ~/Library/Application Support/Dictee/Modeles (téléchargé au premier usage
+      depuis Hugging Face, effacé par « Désinstaller »), chargé le temps d'une séparation, une à la fois, WAV « Eux » lu sans tout
+      charger ; branchée dans la préparation de la note (pendant la relecture) et « Refaire la note » ; repli « Eux » + avertissement.
+- [x] La rédaction de la note lit « Personne 1 : … » ; la garde contre l'invention accepte « Personne 2 » dans « qui ».
+- [x] Contrôles (2 325 verts) + essai `--ilot-essai` « voix séparées » (séparation, relecture et rédaction factices, ni micro ni son).
+- [x] `Verbe --voix-mesure piste.wav [--verite tours.tsv] [--modeles DOSSIER]` ; `--reunion-test … [--modeles DOSSIER]` sépare aussi.
+
+### Mesures (12/11, MacBook Air M5 16 Go, d'autres équipes compilaient en même temps : temps à ±40 %)
+Son de test fabriqué (`say` : Thomas, Amélie, Jacques ; tours de 1 à 4 phrases, silences de 0,25 à 1,2 s ; aucune vraie réunion).
+- Taille de Verbe.app (`./build.sh --sans-installer`) : 17,8 Mo → 25,4 Mo (+7,6 Mo, tout dans l'exécutable : 17,5 → 25,2 Mo).
+  Compressée (zip, ≈ ce qu'on télécharge) : 4,9 Mo → 7,3 Mo (+2,4 Mo). Piste : `strip -x` de l'exécutable ferait 7,6 Mo (avant) /
+  12,5 Mo (après) — non fait (build.sh pas touché, les rapports de plantage perdraient des noms).
+- Modèle téléchargé une fois : 21-22 Mo sur le disque (4 modèles CoreML + paramètres). Téléchargement : 14 s, une autre fois 134 s
+  (Hugging Face lent, une reprise après délai dépassé). Chargement ensuite : 0,1 s.
+- 20 min de son « Eux », 3 voix : séparation en 5,5 à 8,5 s (140 à 220× plus vite que le temps réel) ; mémoire de pointe du processus
+  ≈ 500 Mo pendant ces quelques secondes (≈ 700 Mo si on laisse aussi la carte graphique : d'où le moteur neuronal + processeur ;
+  la taille des lots ne change rien), puis 46 Mo une fois les modèles libérés. 3 min : 2,6 s.
+  (Une première série avait donné ≈ 250-300 Mo de pointe ; les séries suivantes ≈ 500 Mo, sans changement de code expliquant l'écart.)
+- Justesse sur 20 min : 3 voix trouvées sur 3 ; 91,3 % du temps de parole à la bonne voix ; 93,4 % des passages de la transcription au
+  bon orateur (347 passages simulés). Amélie (voix de femme) presque parfaite (111/114) ; Thomas/Jacques (deux voix d'homme de
+  synthèse) confondus sur 19 passages de Jacques sur 116. Sur 3 min : 94,4 % / 98 %.
+- Bout en bout (`--reunion-test`, vraie relecture Groq + vraie séparation, 3 min, 3 voix + Moi) : 24 passages « Eux » relus, tous
+  au bon orateur (Amélie → Personne 1, Thomas → Personne 2, Jacques → Personne 3) ; la note dit « Personne 2 : Envoyer le contact… ».
+
+### Pas fait / à faire
+- [ ] Hugues : essayer en vrai (un appel à 2-3 personnes ; regarder la progression « Téléchargement du modèle de voix » la 1re fois).
+- [ ] Reconnaître une voix déjà nommée d'une réunion à l'autre (empreintes gardées, `SeparationVoix.reconnaitre` prêt, rien de branché).
+- [ ] Renommer d'un clic sur le nom dans une ligne de la transcription (aujourd'hui : clic sur « Personne 1 » dans l'en-tête de la note).
+- [ ] La transcription du direct pendant l'appel reste « Moi / Eux » (la séparation se fait après l'appel).

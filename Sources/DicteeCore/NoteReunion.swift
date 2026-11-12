@@ -31,7 +31,7 @@ public enum NoteReunion {
     - Ne calcule pas de date : recopie ce qui est dit dans « quand » (« jeudi », « avant le vingt novembre »). L'application en tire la vraie date.
     - « decisions » : seulement ce qui a été décidé, convenu ou fait pendant la réunion, c'est-à-dire accepté ou arrêté par les participants. Un souhait, une préférence ou une demande d'un participant (« on aimerait », « je voudrais », « on préférerait », « j'aimerais bien ») n'est PAS une décision tant que personne n'a répondu « d'accord » ou « je retiens ». Une idée évoquée, un « on verra », un « peut-être » non plus : mets-les dans le résumé si elles comptent. Exemple : Paul dit « On aimerait recevoir les machines à Lyon en premier » et Moi répond « Je ne peux pas vous donner de date » : c'est un point du résumé, pas une décision. Autres exemples de vraies décisions : Nathalie dit « on préférerait payer en deux fois » et Moi répond « Alors je retiens le paiement en deux fois » ; Nathalie dit « prenons l'offre complète sans l'option » et Moi répond « Très bien, je note : offre complète, sans la formation ». Dès qu'une proposition est acceptée (« très bien », « d'accord », « je note », « je retiens », « c'est noté »), c'est une décision : ne la laisse pas seulement dans le résumé. Chaque décision est COURTE (10 mots au maximum).
     - Une décision a un « quand » seulement si une échéance ou une condition est dite pour elle (« signature avant le vingt novembre »), sinon null.
-    - « actions » : les prochaines étapes. Une action est une tâche que quelqu'un s'est engagé à faire. « qui » est le prénom dit dans la réunion, « Moi » si c'est la personne dont la voix est « Moi », sinon null. Un engagement pris par un autre participant (« je peux vous donner les chiffres vendredi ») est aussi une action, même si son prénom n'est pas connu (« qui » : null). Chaque action commence par un verbe (« Envoyer les fiches produits à Marc »).
+    - « actions » : les prochaines étapes. Une action est une tâche que quelqu'un s'est engagé à faire. « qui » est le prénom dit dans la réunion, « Moi » si c'est la personne dont la voix est « Moi », « Personne 2 » (par exemple) si c'est cette voix et que son prénom n'est pas dit, sinon null. Un engagement pris par un autre participant (« je peux vous donner les chiffres vendredi ») est aussi une action, même si son prénom n'est pas connu (« qui » : null). Chaque action commence par un verbe (« Envoyer les fiches produits à Marc »).
     - Écris en français, de façon sobre : des phrases courtes et simples, sans formule de politesse ni mots creux.
     """
 
@@ -46,8 +46,8 @@ public enum NoteReunion {
     """
 
     private static let contexte = """
-    « Moi » est la personne qui utilise l'application. « Eux » regroupe tous les autres participants : leurs voix ne sont pas séparées, \
-    leurs prénoms ne sont connus que s'ils sont dits. La transcription vient d'une reconnaissance vocale et peut contenir des erreurs de mots.
+    « Moi » est la personne qui utilise l'application. Les autres participants sont « Personne 1 », « Personne 2 »… quand leurs voix ont \
+    été séparées (automatiquement : l'attribution peut se tromper), sinon « Eux » les regroupe tous. Leurs prénoms ne sont connus que s'ils sont dits. La transcription vient d'une reconnaissance vocale et peut contenir des erreurs de mots.
     """
 
     private static let formeNote = """

@@ -24,7 +24,7 @@ struct GenerationNote {
     func rediger(segments: [SegmentReunion], duree: Double, debut: Date,
                  surEtape: @escaping @Sendable (String) -> Void = { _ in },
                  avance: @escaping @Sendable (Int, Int) -> Void = { _, _ in }) async throws -> (note: NoteBrute, retraits: [String]) {
-        let garde = GardeInvention(segments: segments)
+        let garde = GardeInvention(segments: segments, motsConnus: DecoupeReunion.nomsDesVoix(segments))
         let parties = DecoupeReunion.parties(segments, maxCaracteres: tailleDePartie)
         var brute: NoteBrute
         if parties.count <= 1 {

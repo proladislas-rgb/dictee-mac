@@ -44,6 +44,8 @@ final class ReunionController: ObservableObject {
     var rediger: RedigerNote = { segments, duree, debut, avance in
         try await GenerationNote().rediger(segments: segments, duree: duree, debut: debut, avance: avance)
     }
+    /// La séparation des voix de la piste « Eux » (sur ce Mac, FluidAudio ; factice dans les essais, nil : pas de séparation).
+    var separation: SeparationVoixAudio? = .surLeMac
     private var finPoint: DispatchWorkItem?
     private var rattrapage: Task<Void, Never>?
 
@@ -295,7 +297,7 @@ final class ReunionController: ObservableObject {
     func finir(_ r0: Reunion, passages: [Locuteur: [PassageParole]], direct: [SegmentReunion], fichiers: [Locuteur: URL],
                echecsDirect: Int = 0, sonMuet: Bool = false) async {
         let prepare = await Self.preparer(r0, passages: passages, direct: direct, fichiers: fichiers, relecture: relecture, rediger: rediger,
-                                          surNote: { [weak self] r in
+                                          separation: separation, surNote: { [weak self] r in
             Task { @MainActor in
                 // jamais par-dessus la note déjà rangée (la transcription relue n'est enregistrée que si la réunion attend encore)
                 guard let self, let actuelle = self.store.reunion(id: r.id), actuelle.etat == .transcription else { return }
@@ -347,19 +349,62 @@ final class ReunionController: ObservableObject {
     }
     static let avertissementSonGarde = "Le son de l\u{2019}appel est gardé"
     static let avertissementRelecture = "pas pu être relu"
+    nonisolated static let avertissementVoix = "Les voix des autres participants n\u{2019}ont pas été séparées"
+
+    /// La séparation des voix de la piste « Eux », hors du fil principal, en tâche de fond (elle tourne pendant la relecture). Rend les
+    /// voix, ou nil et la raison à dire dans la note ; nil sans raison quand il n'y a rien à séparer (pas de son « Eux », aucun passage).
+    nonisolated static func lancerLaSeparation(_ separation: SeparationVoixAudio?, fichier: URL?, passages: [PassageParole]?,
+                                               avance: @escaping @Sendable (SeparationVoixAudio.Avance) -> Void) -> Task<(VoixSeparees?, String?), Never>? {
+        guard let separation, let fichier, FileManager.default.fileExists(atPath: fichier.path), passages.map({ !$0.isEmpty }) ?? true else { return nil }
+        return Task.detached(priority: .utility) {
+            do {
+                return (try await separation.separer(fichier, avance), nil)
+            } catch {
+                Log.ecrire("voix : séparation impossible (\(error)) -> « Eux »")
+                let raison = SeparationVoixLocale.modelePresent(SeparationVoixLocale.dossierParDefaut)
+                    ? "la séparation a échoué" : "le modèle de voix n\u{2019}a pas pu être téléchargé, pas de réseau ?"
+                return (nil, "\(avertissementVoix) (\(raison)) : ils restent « Eux ».")
+            }
+        }
+    }
+
+    /// Les passages relus avec leurs voix (« Personne 1 »…) quand la séparation en a trouvé au moins deux ; sinon inchangés.
+    nonisolated static func avecLesVoix(_ segments: [SegmentReunion], voix: VoixSeparees?) -> (segments: [SegmentReunion], orateurs: [OrateurReunion]) {
+        guard let voix else { return (segments, []) }
+        let a = SeparationVoix.attribuer(segments, voix: voix)
+        Log.ecrire("voix : \(a.orateurs.count) personne(s) dans la note\(a.separees ? "" : " (moins de deux voix : « Eux »)")")
+        return (a.segments, a.orateurs)
+    }
 
     /// La relecture puis la note, sans rien du contrôleur (l'essai l'appelle avec une relecture et une rédaction factices) : la réunion
     /// prête (ou « sans note » si la rédaction ou la relecture a échoué), nil seulement si rien n'a été entendu (aucun passage, ou une
     /// relecture complète qui n'a rien trouvé) : une relecture en échec ne fait JAMAIS effacer l'appel. `surNote` : la transcription relue, juste avant
     /// la rédaction (elle est enregistrée tout de suite : rien ne se perd si la rédaction échoue ou si Verbe est fermé).
     nonisolated static func preparer(_ depart: Reunion, passages: [Locuteur: [PassageParole]], direct: [SegmentReunion], fichiers: [Locuteur: URL],
-                                     relecture: RelectureAudio, rediger: RedigerNote, surNote: @escaping @Sendable (Reunion) -> Void = { _ in },
+                                     relecture: RelectureAudio, rediger: RedigerNote, separation: SeparationVoixAudio? = nil,
+                                     surNote: @escaping @Sendable (Reunion) -> Void = { _ in },
                                      avance: @escaping @Sendable (Double, String) -> Void) async -> Reunion? {
-        avance(0, PreparationNote.relecture)
-        let relu = await relecture.relire(passages: passages, direct: direct, fichiers: fichiers, duree: depart.duree) { fait, total in
-            avance(PreparationNote.progresRelecture(fait: fait, sur: total), PreparationNote.relecture)
+        // la relecture (réseau) et la séparation des voix (sur le Mac) tournent en même temps ; la barre suit les deux
+        let suivi = Verrouille(AvancementNote(separation: separation != nil))
+        let montre = Verrouille<(Int, String)>((-1, ""))
+        let publier: @Sendable ((inout AvancementNote) -> Void) -> Void = { f in
+            let a = suivi.modifier { x -> AvancementNote in f(&x); return x }
+            // la séparation avance par pas de 2 s de son (des centaines) : l'îlot n'est prévenu qu'au demi-point près
+            let cle = (Int(a.progres * 200), a.etape)
+            if montre.remplacer(cle) != cle { avance(a.progres, a.etape) }
         }
-        let (fusion, echos) = FusionPistes.transcription(moi: relu.segments.filter { $0.locuteur == .moi }, eux: relu.segments.filter { $0.locuteur == .eux },
+        let voixEnCours = lancerLaSeparation(separation, fichier: fichiers[.eux], passages: passages[.eux]) { a in
+            publier { x in if case .telechargement(let p) = a { x.telechargement(p) } else if case .separation(let p) = a { x.separation(p) } }
+        }
+        publier { x in if voixEnCours == nil { x.voix = nil; x.voixFinie = true } }
+        let relu = await relecture.relire(passages: passages, direct: direct, fichiers: fichiers, duree: depart.duree) { fait, total in
+            publier { $0.relecture = total > 0 ? Double(fait) / Double(total) : 1 }
+        }
+        publier { $0.relectureFinie = true }
+        let (voix, sansVoix) = await voixEnCours?.value ?? (nil, nil)
+        publier { $0.voixFinie = true }
+        let (relus, orateurs) = avecLesVoix(relu.segments, voix: voix)
+        let (fusion, echos) = FusionPistes.transcription(moi: relus.filter { $0.locuteur == .moi }, eux: relus.filter { $0.locuteur == .eux },
                                                          dureeMax: RelectureReunion.tourMax)
         if echos > 0 { Log.ecrire("réunion : \(echos) écho(s) du haut-parleur retiré(s) de la piste Moi") }
         guard depart.duree >= 3 else { return nil }
@@ -376,6 +421,8 @@ final class ReunionController: ObservableObject {
             return r
         }
         r.segments = fusion
+        r.orateurs = orateurs.isEmpty ? nil : orateurs
+        if let sansVoix { r.avertissements.append(sansVoix) }
         if relu.echoues > 0 {
             r.avertissements.append("\(relu.echoues) passage\(relu.echoues > 1 ? "s" : "") de l\u{2019}appel n\u{2019}\(relu.echoues > 1 ? "ont" : "a") pas pu être relu\(relu.echoues > 1 ? "s" : "") (réseau ou limite de Groq) : c\u{2019}est la transcription du direct.")
         }
@@ -428,12 +475,25 @@ final class ReunionController: ObservableObject {
         libelleEnCours = "Note en préparation…"
         let fichiers = [Locuteur.moi: store.fichierSon(r, .moi), .eux: store.fichierSon(r, .eux)]
         let relire = r.relue != true && sonLa
+        let separation = relire ? separation : nil
         return Task {
             if relire {
+                let voixEnCours = Self.lancerLaSeparation(separation, fichier: fichiers[.eux], passages: r.passagesEux) { _ in }
                 let relu = await relecture.relire(passages: r.passagesParVoix, direct: r.segments, fichiers: fichiers, duree: r.duree) { _, _ in }
+                let (voix, sansVoix) = await voixEnCours?.value ?? (nil, nil)
                 if relu.relue {
-                    r.segments = FusionPistes.transcription(moi: relu.segments.filter { $0.locuteur == .moi }, eux: relu.segments.filter { $0.locuteur == .eux },
+                    let (relus, orateurs) = Self.avecLesVoix(relu.segments, voix: voix)
+                    r.segments = FusionPistes.transcription(moi: relus.filter { $0.locuteur == .moi }, eux: relus.filter { $0.locuteur == .eux },
                                                             dureeMax: RelectureReunion.tourMax).segments
+                    // les noms déjà donnés restent à leur voix (même numéro, et « Moi » / « Eux » renommés) ; une voix nouvelle prend « Personne n »
+                    let pistes = (r.orateurs ?? []).filter { SeparationVoix.rang(id: $0.id) == nil }
+                    let separees = orateurs.map { o in
+                        var x = o; if let ancien = r.orateurs?.first(where: { $0.id == o.id }) { x.nom = ancien.nom }; return x
+                    }
+                    r.orateurs = pistes + separees
+                    if r.orateurs?.isEmpty == true { r.orateurs = nil }
+                    r.avertissements.removeAll { $0.hasPrefix(Self.avertissementVoix) }
+                    if let sansVoix { r.avertissements.append(sansVoix) }
                 }
                 if relu.lots > 0 { r.relue = relu.complete }
                 if relu.complete { r.avertissements.removeAll { $0.contains(Self.avertissementRelecture) } }

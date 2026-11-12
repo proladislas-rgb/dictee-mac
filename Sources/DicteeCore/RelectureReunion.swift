@@ -146,7 +146,11 @@ public enum RelectureReunion {
 public enum PreparationNote {
     public static let relecture = "Relecture de tout l\u{2019}appel"
     public static let redaction = "Résumé, décisions, prochaines étapes"
-    public static let etapes = [relecture, redaction]
+    /// La séparation des voix des autres participants (sur le Mac), quand elle finit après la relecture.
+    public static let voix = "Séparation des voix"
+    /// Premier usage seulement : le modèle de séparation des voix se télécharge.
+    public static let telechargementVoix = "Téléchargement du modèle de voix"
+    public static let etapes = [relecture, voix, telechargementVoix, redaction]
     /// La relecture va jusqu'à 70 %, la rédaction de la note le reste.
     public static let partRelecture = 0.7
 

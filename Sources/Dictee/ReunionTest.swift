@@ -1,10 +1,11 @@
 import AVFoundation
 import DicteeCore
 
-/// `Verbe --reunion-test moi.wav eux.wav [--sortie DOSSIER] [--sans-note]` : fait passer deux fichiers son (les deux pistes d'une
+/// `Verbe --reunion-test moi.wav eux.wav [--sortie DOSSIER] [--sans-note] [--modeles DOSSIER]` : fait passer deux fichiers son (les deux pistes d'une
 /// réunion) par exactement la chaîne d'une vraie réunion — découpe aux pauses, transcription Whisper au fil de l'eau avec les
 /// budgets partagés, son écrit calé sur l'heure de la réunion, puis après « l'arrêt » : relecture de tout l'enregistrement par
-/// whisper-large-v3, fusion Moi / Eux, note par sujets — et écrit la note en JSON et en Markdown dans DOSSIER (par défaut `.build/reunion-test`).
+/// whisper-large-v3, voix des autres séparées sur le Mac (modèle dans le dossier de `--modeles`, celui de Verbe sinon), fusion,
+/// note par sujets — et écrit la note en JSON et en Markdown dans DOSSIER (par défaut `.build/reunion-test`).
 /// Réseau seulement : ni micro, ni son du Mac, ni accessibilité, ni calendrier. N'écrit jamais dans les réunions de l'app.
 enum ReunionTest {
     static func executer(moi: String, eux: String, arguments: [String]) -> Int32 {
@@ -14,13 +15,15 @@ enum ReunionTest {
         var dossier = ".build/reunion-test"
         if let i = arguments.firstIndex(of: "--sortie"), i + 1 < arguments.count { dossier = arguments[i + 1] }
         let sansNote = arguments.contains("--sans-note")
+        let modeles = arguments.firstIndex(of: "--modeles").flatMap { $0 + 1 < arguments.count ? URL(fileURLWithPath: (arguments[$0 + 1] as NSString).expandingTildeInPath, isDirectory: true) : nil }
+            ?? SeparationVoixLocale.dossierParDefaut
         let url = URL(fileURLWithPath: (dossier as NSString).expandingTildeInPath, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
 
         var sortie: Int32 = 0
         let fini = DispatchSemaphore(value: 0)
         Task.detached {
-            sortie = await lancer(moi: moi, eux: eux, dossier: url, sansNote: sansNote)
+            sortie = await lancer(moi: moi, eux: eux, dossier: url, sansNote: sansNote, modeles: modeles)
             fini.signal()
         }
         fini.wait()
@@ -28,7 +31,7 @@ enum ReunionTest {
         return sortie
     }
 
-    private static func lancer(moi: String, eux: String, dossier: URL, sansNote: Bool) async -> Int32 {
+    private static func lancer(moi: String, eux: String, dossier: URL, sansNote: Bool, modeles: URL) async -> Int32 {
         let t0 = ProcessInfo.processInfo.systemUptime
         let transcripteur = TranscriptionReunion(correcteur: nil)   // la correction à l'oreille passe par le fil principal, bloqué ici par l'attente
         let segments = Verrouille<[SegmentReunion]>([])
@@ -61,8 +64,10 @@ enum ReunionTest {
             let rediger: ReunionController.RedigerNote = { segments, duree, debut, avance in
                 try await GenerationNote().rediger(segments: segments, duree: duree, debut: debut, surEtape: { print("  \($0)") }, avance: avance)
             }
+            let separation = SeparationVoixAudio { url, avance in try await SeparationVoixLocale.separer(url, modeles: modeles, avance: avance).voix }
             guard let prepare = await ReunionController.preparer(depart, passages: passages.valeur, direct: brut, fichiers: fichiers, relecture: RelectureAudio(),
-                                                                 rediger: rediger, avance: { p, etape in print("  \(PreparationNote.pourcent(p)) \(etape)") }) else {
+                                                                 rediger: rediger, separation: separation,
+                                                                 avance: { p, etape in print("  \(PreparationNote.pourcent(p)) \(etape)") }) else {
                 print("Rien entendu."); return 1
             }
             r = prepare

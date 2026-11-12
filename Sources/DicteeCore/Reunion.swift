@@ -27,13 +27,19 @@ public struct SegmentReunion: Codable, Equatable, Identifiable, Sendable {
     public var idOrateur: String { orateur ?? locuteur.rawValue }
 }
 
-/// Une voix de la réunion. Aujourd'hui une par piste (« Moi » : le micro, « Eux » : le son du Mac). Le nom se change une fois pour
-/// toutes : chaque passage renvoie à l'orateur par son identifiant, jamais par son nom.
+/// Une voix de la réunion : « Moi » (le micro), « Eux » (le son du Mac), ou, quand les voix du son du Mac ont été séparées,
+/// « Personne 1 », « Personne 2 »… (`SeparationVoix`). Le nom se change une fois pour toutes : chaque passage renvoie à l'orateur
+/// par son identifiant, jamais par son nom.
 public struct OrateurReunion: Codable, Equatable, Identifiable, Sendable {
     public var id: String
     public var nom: String
     public var piste: Locuteur
-    public init(id: String, nom: String, piste: Locuteur) { self.id = id; self.nom = nom; self.piste = piste }
+    /// L'empreinte de la voix (séparation des voix) : de quoi la reconnaître plus tard (`SeparationVoix.reconnaitre`). Gardée sur ce
+    /// Mac seulement, avec la réunion ; nil pour « Moi », « Eux » et les notes d'avant la séparation.
+    public var empreinte: [Float]?
+    public init(id: String, nom: String, piste: Locuteur, empreinte: [Float]? = nil) {
+        self.id = id; self.nom = nom; self.piste = piste; self.empreinte = empreinte
+    }
     /// L'orateur d'une piste tant qu'on ne sépare pas les voix.
     public static func dePiste(_ l: Locuteur) -> OrateurReunion { OrateurReunion(id: l.rawValue, nom: l.libelle, piste: l) }
 }
@@ -174,14 +180,15 @@ public struct Reunion: Codable, Equatable, Identifiable, Sendable {
         return t.isEmpty ? "Réunion du \(FormatReunion.jourHeure(debut))" : t
     }
 
-    /// Voix distinctes dans la transcription (1 ou 2 : Moi, Eux).
+    /// Voix distinctes dans la transcription (Moi, Eux, ou Moi et les personnes séparées).
     public var voix: Int { Set(segments.map(\.idOrateur)).count }
 
     /// L'orateur d'un passage (son nom tel que renommé).
     public func orateur(de s: SegmentReunion) -> OrateurReunion { orateur(id: s.idOrateur, piste: s.locuteur) }
 
     public func orateur(id: String, piste: Locuteur = .eux) -> OrateurReunion {
-        orateurs?.first { $0.id == id } ?? (Locuteur(rawValue: id).map(OrateurReunion.dePiste) ?? OrateurReunion(id: id, nom: id, piste: piste))
+        orateurs?.first { $0.id == id } ?? (Locuteur(rawValue: id).map(OrateurReunion.dePiste)
+            ?? OrateurReunion(id: id, nom: SeparationVoix.nomParDefaut(id: id) ?? id, piste: piste))
     }
 
     /// Les orateurs qu'on entend, dans l'ordre où ils parlent pour la première fois.
@@ -192,18 +199,27 @@ public struct Reunion: Codable, Equatable, Identifiable, Sendable {
     }
 
     /// Renomme un orateur une fois pour toutes : chaque passage le suit (il ne garde que l'identifiant), et les prochaines étapes
-    /// et participants qui portaient l'ancien nom prennent le nouveau. Un nom vide rend le nom de la piste.
+    /// et participants qui portaient l'ancien nom prennent le nouveau. Un nom vide rend le nom par défaut (« Eux », « Personne 2 »).
+    /// Un nom qui n'est pas celui d'une piste (« Personne 2 », « Claire ») est aussi remplacé dans le texte de la note (en bref,
+    /// sujets, décisions, prochaines étapes), mot entier seulement ; « Moi » et « Eux », mots courants, n'y sont jamais touchés.
     public mutating func renommer(orateur id: String, en nom: String) {
         let ancien = orateur(id: id)
         let n = nom.trimmingCharacters(in: .whitespacesAndNewlines)
-        let nouveau = n.isEmpty ? (Locuteur(rawValue: id)?.libelle ?? ancien.nom) : n
+        let nouveau = n.isEmpty ? (SeparationVoix.nomParDefaut(id: id) ?? ancien.nom) : n
         guard nouveau != ancien.nom else { return }
         var liste = orateurs ?? orateursEntendus
         if let i = liste.firstIndex(where: { $0.id == id }) { liste[i].nom = nouveau } else { liste.append(OrateurReunion(id: id, nom: nouveau, piste: ancien.piste)) }
         orateurs = liste
         for i in actions.indices where actions[i].qui == ancien.nom { actions[i].qui = nouveau }
         if let i = participants.firstIndex(of: ancien.nom) { participants[i] = nouveau }
-        else if ancien.nom == Locuteur.eux.libelle, !participants.contains(nouveau) { participants.append(nouveau) }
+        else if (ancien.nom == Locuteur.eux.libelle || SeparationVoix.estNomParDefaut(ancien.nom)), !participants.contains(nouveau) { participants.append(nouveau) }
+        guard Locuteur(rawValue: ancien.nom.lowercased()) == nil else { return }
+        let r = { (t: String) in NomDansLeTexte.remplacer(ancien.nom, par: nouveau, dans: t) }
+        enBref = enBref.map(r)
+        dit = dit.map(r)
+        decisions = decisions.map(r)
+        sujets = sujets?.map { s in SujetReunion(titre: r(s.titre), puces: s.puces.map { PuceReunion(texte: r($0.texte), sous: $0.sous.map(r)) }) }
+        for i in actions.indices { actions[i].quoi = r(actions[i].quoi) }
     }
 
     public var motsTranscrits: Int { segments.reduce(0) { $0 + Historique.compterMots($1.texte) } }
@@ -217,6 +233,24 @@ public struct Reunion: Codable, Equatable, Identifiable, Sendable {
             return d
         }
         set { passagesMoi = newValue[.moi]; passagesEux = newValue[.eux] }
+    }
+}
+
+/// Remplacer un nom dans un texte, mot entier seulement (« Personne 1 » n'est pas touché dans « Personne 12 »).
+public enum NomDansLeTexte {
+    public static func remplacer(_ ancien: String, par nouveau: String, dans texte: String) -> String {
+        guard !ancien.isEmpty, texte.contains(ancien) else { return texte }
+        var sortie = ""
+        var reste = texte[...]
+        while let r = reste.range(of: ancien) {
+            let avant = r.lowerBound > reste.startIndex ? reste[reste.index(before: r.lowerBound)] : nil
+            let apres = r.upperBound < reste.endIndex ? reste[r.upperBound] : nil
+            let entier = !(avant.map { $0.isLetter || $0.isNumber } ?? false) && !(apres.map { $0.isLetter || $0.isNumber } ?? false)
+            sortie += reste[..<r.lowerBound]
+            sortie += entier ? nouveau : String(reste[r])
+            reste = reste[r.upperBound...]
+        }
+        return sortie + reste
     }
 }
 

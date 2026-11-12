@@ -288,6 +288,7 @@ extension IlotEssai {
             }
             c.relecture = rel
             c.rediger = rediger
+            c.separation = nil   // jamais la vraie séparation des voix dans l'essai (elle téléchargerait son modèle)
             return c
         }
         func reunion(_ n: Int) -> Reunion {
@@ -423,6 +424,117 @@ extension IlotEssai {
         }
         verifier(RattrapageVue.puce("Paul envoie le devis jeudi.", largeur: 424) == "Paul envoie le devis jeudi.", "une puce courte reste entière")
         verifier(MesureIlot.lignes("Un mot", 13.5, .regular, largeur: 400) == 1 && MesureIlot.lignes(longue + " " + longue, 13.5, .regular, largeur: 400) >= 3, "mesure des lignes : 1 pour un texte court, 3 ou plus pour un très long")
+        try? FileManager.default.removeItem(at: d)
+    }
+
+    /// Les voix des autres séparées après l'appel (« Personne 1, Personne 2… ») : le vrai contrôleur et la vraie chaîne d'après l'appel,
+    /// avec une relecture, une séparation et une rédaction factices. Ni micro, ni son du Mac, ni réseau, ni modèle : les deux pistes
+    /// sont des fichiers fabriqués dans un dossier à part.
+    @MainActor
+    static func voixSeparees(dossier: URL, verifier: @escaping (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void) {
+        print("Réunions : les voix des autres séparées (séparation factice)")
+        let d = dossier.appendingPathComponent("reunions-voix", isDirectory: true)
+        try? FileManager.default.removeItem(at: d)
+        let store = ReunionStore(dossier: d, lire: false)
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        func reunion(_ n: Int, eux: [PassageParole] = [PassageParole(debut: 5, fin: 48)]) -> Reunion {
+            var r = Reunion(debut: Date(timeIntervalSince1970: 1_800_100_000 + Double(n) * 3600), duree: 60, etat: .transcription, sonGarde: false)
+            r.passagesParVoix = [.moi: [PassageParole(debut: 0, fin: 4)], .eux: eux]
+            for l in [Locuteur.moi, .eux] {
+                guard let w = EcrivainWAV(url: store.fichierSon(r, l)) else { verifier(false, "fichier son créé"); return r }
+                w.ajouter([Int16](repeating: 100, count: 16_000 * 60)); w.fermer()
+            }
+            store.enregistrer(r)
+            return r
+        }
+        // la relecture : « Moi » une phrase, « Eux » quatre phrases de 10 s (heures de la réunion : 5, 15, 25, 35 s)
+        var rel = RelectureAudio()
+        rel.transcrire = { lot, _, _ in
+            if lot.locuteur == .moi { return [PhraseWhisper(debut: 0.3, fin: 3.5, texte: "On commence ?")] }
+            let x = 5 - lot.debut   // le lot commence un peu avant 5 s (marge)
+            return ["Bonjour à tous.", "Les machines arrivent mardi.", "D'accord, c'est noté.", "Je vous envoie le devis."].enumerated().map { i, t in
+                PhraseWhisper(debut: x + Double(i) * 10 + 0.2, fin: x + Double(i) * 10 + 9.5, texte: t)
+            }
+        }
+        let fichiersRecus = Verrouille<[URL]>([])
+        let separee = SeparationVoixAudio { url, avance in
+            _ = fichiersRecus.remplacer(fichiersRecus.valeur + [url])
+            avance(.telechargement(0.5)); avance(.telechargement(1)); avance(.separation(0.5)); avance(.separation(1))
+            return VoixSeparees(tours: [TourDeParole(voix: "S4", debut: 5, fin: 15), TourDeParole(voix: "S1", debut: 15, fin: 25),
+                                        TourDeParole(voix: "S4", debut: 25, fin: 35), TourDeParole(voix: "S1", debut: 35, fin: 48)],
+                                empreintes: ["S4": [0.1, 0.2], "S1": [0.3, 0.4]])
+        }
+        let lus = Verrouille<String>("")
+        let rediger: ReunionController.RedigerNote = { segments, _, _, _ in
+            _ = lus.remplacer(DecoupeReunion.texte(segments))
+            return (NoteBrute(titre: "Devis", enBref: "Personne 2 envoie le devis.", sujets: [SujetReunion(titre: "Livraison", puces: [PuceReunion(texte: "Personne 1 annonce les machines mardi.")])]), [])
+        }
+        func controleur(_ s: SeparationVoixAudio?) -> ReunionController {
+            let c = ReunionController(store: store)
+            c.relecture = rel; c.rediger = rediger; c.separation = s
+            return c
+        }
+        func finir(_ c: ReunionController, _ r: Reunion) {
+            var fini = false
+            Task { await c.finir(r, passages: r.passagesParVoix, direct: [], fichiers: [.moi: store.fichierSon(r, .moi), .eux: store.fichierSon(r, .eux)]); fini = true }
+            attendre(10) { !fini }
+            verifier(fini, "le traitement se termine")
+        }
+
+        // 1. deux voix : « Personne 1 », « Personne 2 », dans la note et la transcription
+        let r1 = reunion(1)
+        finir(controleur(separee), r1)
+        guard var v1 = store.reunion(id: r1.id) else { verifier(false, "la réunion est rangée"); return }
+        verifier(fichiersRecus.valeur == [store.fichierSon(r1, .eux)], "la séparation ne reçoit que la piste « Eux » (le son du Mac), jamais « Moi »")
+        verifier(v1.orateursEntendus.map(\.nom) == ["Moi", "Personne 1", "Personne 2"], "les orateurs : Moi, Personne 1, Personne 2 (\(v1.orateursEntendus.map(\.nom)))")
+        let eux = v1.segments.filter { $0.locuteur == .eux }
+        verifier(eux.map(\.orateur) == ["p1", "p2", "p1", "p2"] && eux.map(\.texte).first == "Bonjour à tous.",
+                 "chaque phrase relue à sa voix ; deux voix qui alternent ne sont pas recollées en un seul tour (\(eux.map { "\($0.orateur ?? "-") \($0.texte)" }))")
+        verifier(lus.valeur.contains("Personne 1 : Bonjour à tous.") && lus.valeur.contains("Personne 2 : Les machines") && lus.valeur.contains("Moi : On commence"),
+                 "la rédaction de la note lit « Personne 1 », « Personne 2 » et « Moi »")
+        verifier(v1.orateurs?.map(\.empreinte) == [[0.1, 0.2], [0.3, 0.4]], "l'empreinte de chaque voix est gardée avec la réunion")
+        verifier(v1.etat == .prete && v1.relue == true && !v1.avertissements.contains { $0.hasPrefix(ReunionController.avertissementVoix) }, "note prête, aucun avertissement sur les voix")
+        store.attendreEcritures(); attendre(2) { store.sonPresent(r1, .eux) }
+        verifier(!store.sonPresent(r1, .eux), "la séparation finie avant la note : le son peut partir comme avant")
+        v1.renommer(orateur: "p2", en: "Claire"); store.enregistrer(v1)
+        let w1 = store.reunion(id: r1.id)
+        verifier(w1?.enBref == "Claire envoie le devis." && w1?.orateur(de: eux[1]).nom == "Claire" && w1?.orateur(de: eux[0]).nom == "Personne 1",
+                 "« Personne 2 » renommée « Claire » : toute la note suit (\(w1?.enBref ?? "-"))")
+        store.attendreEcritures()
+        let md = (try? String(contentsOf: d.appendingPathComponent(ArchiveReunions.nomDeBase(r1) + ".md"), encoding: .utf8)) ?? ""
+        verifier(md.contains("**Claire**") && md.contains("**Personne 1**") && !md.contains("**Personne 2**"), "le Markdown enregistré porte le nouveau nom")
+
+        // 2. séparation impossible (pas de réseau pour le modèle) : repli « Eux », la note se fait quand même
+        let r2 = reunion(2)
+        finir(controleur(SeparationVoixAudio { _, _ in throw URLError(.notConnectedToInternet) }), r2)
+        let v2 = store.reunion(id: r2.id)
+        verifier(v2?.etat == .prete && v2?.orateursEntendus.map(\.nom) == ["Moi", "Eux"], "séparation impossible : « Moi / Eux », note prête (\(v2?.orateursEntendus.map(\.nom) ?? []))")
+        verifier(v2?.avertissements.contains { $0.hasPrefix(ReunionController.avertissementVoix) } == true, "la note dit que les voix n'ont pas été séparées")
+
+        // 3. rien du son du Mac (micro seul) : aucune séparation lancée
+        _ = fichiersRecus.remplacer([])
+        let r3 = reunion(3, eux: [])
+        finir(controleur(separee), r3)
+        verifier(fichiersRecus.valeur.isEmpty && store.reunion(id: r3.id)?.orateursEntendus.map(\.nom) == ["Moi"], "aucun passage « Eux » : la séparation n'est pas lancée")
+
+        // 4. la progression (premier usage : le téléchargement du modèle se voit), et une seule voix : « Eux »
+        let r4 = reunion(4)
+        let avances = Verrouille<[(Double, String)]>([])
+        let uneVoix = SeparationVoixAudio { _, avance in
+            avance(.telechargement(0.3)); avance(.telechargement(1)); avance(.separation(1))
+            return VoixSeparees(tours: [TourDeParole(voix: "S0", debut: 5, fin: 48)])
+        }
+        var prepare: Reunion?
+        var fini = false
+        Task {
+            prepare = await ReunionController.preparer(r4, passages: r4.passagesParVoix, direct: [], fichiers: [.moi: store.fichierSon(r4, .moi), .eux: store.fichierSon(r4, .eux)],
+                                                     relecture: rel, rediger: rediger, separation: uneVoix) { p, e in _ = avances.remplacer(avances.valeur + [(p, e)]) }
+            fini = true
+        }
+        attendre(10) { !fini }
+        let etapes = avances.valeur.map(\.1)
+        verifier(etapes.contains(PreparationNote.telechargementVoix) && etapes.last == PreparationNote.redaction, "l'îlot montre « \(PreparationNote.telechargementVoix) » au premier usage, puis la rédaction")
+        verifier(prepare?.orateursEntendus.map(\.nom) == ["Moi", "Eux"] && prepare?.orateurs == nil, "une seule voix trouvée : « Eux », comme avant")
         try? FileManager.default.removeItem(at: d)
     }
 }

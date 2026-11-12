@@ -27,13 +27,24 @@ if arguments.contains("--declencheurs") {
     exit(MainActor.assumeIsolated { MesurerRelecture.executer(arguments: arguments) })
 }
 
-// Dictee --reunion-test moi.wav eux.wav [--sortie DOSSIER] [--sans-note]  (deux pistes -> transcription Moi / Eux -> note ; réseau seulement)
+// Dictee --reunion-test moi.wav eux.wav [--sortie DOSSIER] [--sans-note] [--modeles DOSSIER]  (deux pistes -> transcription, voix séparées
+// sur le Mac -> note ; réseau : Groq, et le premier téléchargement du modèle de voix)
 if let i = arguments.firstIndex(of: "--reunion-test") {
     guard i + 2 < arguments.count, !arguments[i + 1].hasPrefix("--"), !arguments[i + 2].hasPrefix("--") else {
         FileHandle.standardError.write(Data("Usage : Dictee --reunion-test moi.wav eux.wav [--sortie DOSSIER] [--sans-note]\n".utf8))
         exit(2)
     }
     exit(ReunionTest.executer(moi: arguments[i + 1], eux: arguments[i + 2], arguments: arguments))
+}
+
+// Dictee --voix-mesure piste-eux.wav [--verite tours.tsv] [--modeles DOSSIER]  (séparation des voix sur le Mac : temps, mémoire,
+// taille du modèle, justesse ; ni micro, ni son du Mac, ni Groq ; réseau seulement pour le premier téléchargement du modèle)
+if let i = arguments.firstIndex(of: "--voix-mesure") {
+    guard i + 1 < arguments.count, !arguments[i + 1].hasPrefix("--") else {
+        FileHandle.standardError.write(Data("Usage : Dictee --voix-mesure piste-eux.wav [--verite tours.tsv] [--modeles DOSSIER]\n".utf8))
+        exit(2)
+    }
+    exit(MesureVoix.executer(chemin: arguments[i + 1], arguments: arguments))
 }
 
 // Dictee --nettoyer "texte" --app com.apple.mail  (remise au propre, réseau seulement)

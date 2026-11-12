@@ -614,7 +614,7 @@ struct NoteReunionVue: View {
                         .onChange(of: nomFocus) { _, f in if !f, renomme == o.id { valider(o) } }
                         .onAppear { nomFocus = true }
                 } else {
-                    Button { nouveauNom = o.id == Locuteur.eux.rawValue && o.nom == Locuteur.eux.libelle ? "" : o.nom; renomme = o.id } label: {
+                    Button { nouveauNom = SeparationVoix.estNomParDefaut(o.nom) ? "" : o.nom; renomme = o.id } label: {
                         HStack(spacing: 5) {
                             Circle().fill(CouleursOrateur.couleur(o, dans: r)).frame(width: 7, height: 7)
                             Text(o.nom).font(Polices.commande(12.5)).foregroundStyle(Palette.texte2)

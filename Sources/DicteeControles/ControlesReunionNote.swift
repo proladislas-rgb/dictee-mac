@@ -59,7 +59,8 @@ func controlesReunionNote() {
         verifier(PreparationNote.progresRedaction(fait: 0, sur: 3) == 0.7 && PreparationNote.progresRedaction(fait: 3, sur: 3) < 1 && PreparationNote.progresRedaction(fait: 3, sur: 3) > 0.9,
                  "la rédaction va de 70 % à 97 % (100 % seulement quand la note est prête)")
         verifier(PreparationNote.pourcent(0.344) == "34\u{202F}%" && PreparationNote.pourcent(1.4) == "100\u{202F}%", "pourcentage à la française, borné")
-        verifier(PreparationNote.etapes == [PreparationNote.relecture, PreparationNote.redaction], "deux étapes : la relecture de tout l'appel, puis le résumé")
+        verifier(PreparationNote.etapes == [PreparationNote.relecture, PreparationNote.voix, PreparationNote.telechargementVoix, PreparationNote.redaction],
+                 "les étapes : la relecture de tout l'appel (avec la séparation des voix, et le téléchargement de son modèle la première fois), puis le résumé")
         let a = AnnonceReunion.prepare(etape: PreparationNote.relecture, progres: 0.34)
         verifier(a.vue == .reunionPrepare && a != .prepare(etape: PreparationNote.relecture, progres: 0.5), "l'annonce porte sa progression (l'îlot se redessine quand elle avance)")
         let p = GeoIlot.valeurs(.reunionPrepare, hauteurBarre: 33), b = GeoIlot.valeurs(.reunionPrete, hauteurBarre: 33)

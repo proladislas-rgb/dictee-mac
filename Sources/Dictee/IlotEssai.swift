@@ -972,6 +972,7 @@ enum IlotEssai {
         IlotEssai.reunion(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.noteApresAppel(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.sonDeReunionGarde(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.voixSeparees(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)
