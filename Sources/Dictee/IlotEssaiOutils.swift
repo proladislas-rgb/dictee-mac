@@ -510,9 +510,11 @@ extension IlotEssai {
         c.groqChange(); pause(0.4)
         verifier(m.bandeau == nil, "toujours sous 15 % : pas redit (\(m.courante))")
         // la limite atteinte, le turbo aussi : « Dictée gratuite en pause jusqu'à … · Le Mac écrit à ta place »
+        // l'heure de fin lue au même instant que la pause (sinon, à une minute ronde ou vers minuit, l'essai tombe à côté)
+        let debutPause = c.maintenant()
         usage = etat(minutesJour: 480, pause: 3600, turboAussi: true)
         c.groqChange(); pause(0.9)
-        let heure = TexteGroq.quand(c.maintenant().addingTimeInterval(3600), a: c.maintenant())
+        let heure = TexteGroq.quand(debutPause.addingTimeInterval(3600), a: c.maintenant())
         verifier(m.bandeauVu?.ligne1 == "Dictée gratuite en pause jusqu\u{2019}à " + heure && m.bandeauVu?.ligne2 == "Le Mac écrit à ta place" && m.bandeauVu?.groq == .epuise,
                  "limite atteinte : « \(m.bandeauVu?.ligne1 ?? "") · \(m.bandeauVu?.ligne2 ?? "") »")
         verifier(c.reveilGroq != nil, "un seul réveil à la fin de la pause (aucune minuterie qui tourne)")
