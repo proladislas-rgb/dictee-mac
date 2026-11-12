@@ -31,7 +31,7 @@ extension AnalyseCommandeIlot {
         let reste = TexteDicte.sansPolitesse(appel.reste)
         guard !reste.isEmpty else { return .autre }
         if TexteRappel.sansDeclencheur(reste) != nil { return .pourLucarne(.rappel) }
-        if TexteNote.sansDeclencheur(reste) != nil { return .pourLucarne(.note) }
+        if TexteNote.demandee(reste, interpelle: appel.interpelle) { return .pourLucarne(.note) }
         let demande = TexteRappel.estUnReveil(reste) || minuteur(reste) != nil
         guard appel.interpelle || demande || TexteRappel.commenceParUneTete(reste) else { return .autre }
         // « Lucarne, j'ai demain une livraison… » : un rappel dès que le jour ou l'heure est dit, après une tête ou une tâche
@@ -55,19 +55,34 @@ public enum TexteNote {
         "nouvelle note", "une note", "note-moi", "note moi", "notez", "note",
     ]
 
-    /// Le reste après « note : », « prends une note pour dire que »… ; nil sans déclencheur. Un mot entier seulement (« notre », « noté »
-    /// ne sont pas « note »).
-    static func sansDeclencheur(_ s: String) -> String? {
+    /// Seuls, sans virgule après le mot d'appel, ils ne suffisent pas (« Lucarne une note de 15 sur 20 », « Verbe note… » peuvent parler
+    /// de Lucarne) ; les autres sont une demande en toutes lettres.
+    static let ambigus: Set<String> = ["une note", "nouvelle note", "notez", "note"]
+
+    /// Le déclencheur en tête (un mot entier seulement : « notre », « noté » ne sont pas « note »), et ce qui suit.
+    static func declencheur(_ s: String) -> (mot: String, reste: Substring)? {
         let bas = s.lowercased()
         for d in declencheurs where bas.hasPrefix(d) {
             if let c = bas.dropFirst(d.count).first, c.isLetter || c == "-" || c == "'" { continue }
-            var reste = String(s.dropFirst(d.count)).trimmingCharacters(in: CharacterSet(charactersIn: " ,:;.!?-"))
-            for lien in ["pour dire que ", "que ", "qu'", "de ", "d'", "sur "] where reste.lowercased().hasPrefix(lien) {
-                reste = String(reste.dropFirst(lien.count)); break
-            }
-            return reste.trimmingCharacters(in: .whitespaces)
+            return (d, s.dropFirst(d.count))
         }
         return nil
+    }
+    /// Une note demandée : un déclencheur sans ambiguïté, ou n'importe lequel quand on s'adresse à Lucarne (« Lucarne, note… »).
+    static func demandee(_ s: String, interpelle: Bool) -> Bool {
+        guard let d = declencheur(s) else { return false }
+        return interpelle || !ambigus.contains(d.mot)
+    }
+
+    /// Le reste après « note : », « prends une note pour dire que »… ; nil sans déclencheur. Seuls « que » et « pour dire que » tombent
+    /// (« une note de 15 sur 20 », « note sur le budget » gardent leur sens).
+    static func sansDeclencheur(_ s: String) -> String? {
+        guard let d = declencheur(s) else { return nil }
+        var reste = String(d.reste).trimmingCharacters(in: CharacterSet(charactersIn: " ,:;.!?-"))
+        for lien in ["pour dire que ", "que ", "qu'"] where reste.lowercased().hasPrefix(lien) {
+            reste = String(reste.dropFirst(lien.count)); break
+        }
+        return reste.trimmingCharacters(in: .whitespaces)
     }
 
     /// La note telle qu'on l'écrit : sans « s'il te plaît », une majuscule, un point au bout.
@@ -186,10 +201,10 @@ public enum EnvoiVoix: Equatable, Sendable {
     /// Tous les libellés d'un genre : le bouton garde la largeur du plus long (il ne change pas de taille sous le pointeur).
     public static func libelles(_ g: GenreVoix) -> [String] { [EnvoiVoix.aEnvoyer, .enCours, .fait, .refuse].map { $0.libelle(g) } }
 
-    /// Un rappel : il a son double dans l'app Rappels (fait), la question de macOS est en cours, l'accès est refusé, ou rien n'est parti.
-    public static func rappel(lie: Bool, enCours: Bool, acces: AccesRappelsApple) -> EnvoiVoix {
+    /// Un rappel, après un clic : il a son double dans l'app Rappels (fait), l'accès est refusé, ou rien n'est parti (pendant la fenêtre
+    /// de macOS, le contrôleur montre `.enCours`).
+    public static func rappel(lie: Bool, acces: AccesRappelsApple) -> EnvoiVoix {
         if lie { return .fait }
-        if enCours { return .enCours }
         return acces == .refuse ? .refuse : .aEnvoyer
     }
 }

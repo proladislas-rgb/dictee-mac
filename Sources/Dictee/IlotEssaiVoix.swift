@@ -40,7 +40,8 @@ extension IlotEssai {
         func appuyer() { session += 1; occ.dictee = true; c.dicteeChange(enCours: true); c.occupationChangee(); pause(0.3) }
         func direct(_ texte: String) -> Bool {
             let pris = c.voixEnDirect(session: session, texte: texte)
-            if pris { occ.dictee = false }
+            // l'encoche se range : sa fermeture relit les masques (dans l'app, le `$ouverte` du panneau ; ici, à la main)
+            if pris { occ.dictee = false; c.occupationChangee() }
             pause(0.4)
             return pris
         }
@@ -76,6 +77,7 @@ extension IlotEssai {
         let t = EcouteVoix.horloge()
         verifier(m.voix.onde.hauteur(15, a: t) > 0.3 && m.voix.onde.hauteur(15, a: t) > m.voix.onde.hauteur(0, a: t),
                  "le niveau du micro fait monter l'onde, plus haut au milieu (\(String(format: "%.2f", m.voix.onde.hauteur(15, a: t))))")
+        verifier(!m.peutMontrerNiveau, "une touche de volume pendant l'onde : elle reste à macOS (rien d'avalé, rien qui attende)")
         // une annonce pendant qu'on parle : elle attend (aucun son, rien ne recouvre l'onde)
         c.appareilConnecte(AppareilIlot(nom: "AirPods Pro", genre: .ecouteurs, gauche: 80, droit: 78, etui: 45)); pause(0.3)
         verifier(m.courante == .voixEcoute && m.bandeau?.vue == .voixEcoute, "des écouteurs se connectent pendant qu'on parle : l'annonce attend (\(m.courante))")
@@ -182,6 +184,18 @@ extension IlotEssai {
         appuyer()
         verifier(!direct("Lucarne, rappelle-moi demain") && m.cache, "une alerte attend un geste : la dictée garde l'encoche, l'îlot ne la prend pas")
         relacher(); m.quitterAlerte(); pause(0.6)
+
+        // --- sans texte en direct (la reconnaissance du Mac absente, ou mains libres) : l'encoche garde la dictée ; la commande s'écrit
+        // pendant qu'elle est encore ouverte : la carte attend qu'elle se range
+        appuyer(); occ.dictee = true; c.dicteeChange(enCours: false)
+        verifier(c.intercepterLucarne("Lucarne, note : rappeler le plombier.") && m.cache && m.bandeau?.vue != .voixCarte,
+                 "la commande écrite encoche encore ouverte : la carte attend (\(m.courante))")
+        occ.dictee = false; c.occupationChangee(); pause(1.0)
+        verifier(m.courante == .voixCarte && m.voix.carte?.titre == "Rappeler le plombier", "l'encoche rangée : la carte arrive (\(m.courante))")
+        // --- une alerte pendant la carte : elle passe (le rappel ou la note sont déjà gardés), la carte s'en va
+        m.annoncer(alerte: AlerteIlot(vue: .minuteurFini, jusqua: nil, libelle: "10 min")); pause(0.6)
+        verifier(m.courante == .minuteurFini && !m.voix.retient, "un minuteur qui finit pendant la carte : l'alerte passe tout de suite (\(m.courante))")
+        m.quitterAlerte(); pause(0.5)
 
         // --- au repos : plus rien ne tourne
         for r in c.rappels.rappels { c.agir(.rappelAnnuler(r.id)) }

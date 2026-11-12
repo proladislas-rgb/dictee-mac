@@ -91,7 +91,8 @@ final class DictationController {
     var surRienEcrit: (() -> Void)?
     /// La voix d'un rappel ou d'une note (IlotVoix.swift) : le texte en direct d'une dictée fn tenue ; vrai si l'îlot la prend (« Lucarne,
     /// rappelle-moi… ») : l'encoche se range, le niveau du micro va à l'onde de l'îlot. Puis la fin de cette dictée (texte écrit, commande
-    /// faite, rien entendu, annulée), une fois : l'onde s'en va si la carte ne l'a pas remplacée.
+    /// faite, rien entendu, annulée), dite au plus tôt et parfois deux fois (l'îlot ne fait rien la deuxième) : l'onde s'en va si la carte
+    /// ne l'a pas remplacée.
     var surVoixEnDirect: ((Int, String) -> Bool)?
     var surVoixNiveau: ((Float) -> Void)?
     var surVoixFin: ((Int) -> Void)?

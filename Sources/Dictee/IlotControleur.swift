@@ -492,11 +492,11 @@ final class IlotControleur {
     }
     /// Combien de temps « Micro coupé · Rouvrir le micro » reste (le temps d'aller cliquer).
     static let dureeMicroFn: TimeInterval = 6
-    /// Un bandeau qui répond à un geste (fn) : il s'affiche même sur le Centre épinglé (qui retiendrait sinon les bandeaux) ; seule une
-    /// dictée ou une réunion en cours le fait attendre.
+    /// Un bandeau qui répond à un geste (fn) : il s'affiche même sur le Centre épinglé (qui retiendrait sinon les bandeaux) et à la place
+    /// de la carte de fin de la voix ; seule une dictée (son onde comprise) ou une réunion en cours le fait attendre.
     func annoncerTout(_ b: BandeauIlot) {
         if moteur.centreRetientLesBandeaux { moteur.epingle = false }
-        moteur.annoncer(bandeau: b)
+        moteur.annoncer(bandeau: b, passeLaCarte: true)
     }
 
     /// Envoie la commande à CoreAudio (au micro qu'elle vise), puis montre ce qui est vrai (l'activité, et le bandeau vert « Micro

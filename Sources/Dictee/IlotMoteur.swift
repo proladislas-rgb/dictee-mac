@@ -891,13 +891,14 @@ final class IlotMoteur: ObservableObject {
 
     // MARK: alertes et bandeaux
 
-    /// Une alerte ou un bandeau arrive. Pendant la dictée (et la voix dite à Lucarne, jusqu'à sa carte de fin), il attend la fin (aucun
-    /// son qui pourrait gêner ou être capté) ; pendant une réunion il s'affiche, sans son (le contrôleur n'en joue aucun).
+    /// Une alerte ou un bandeau arrive. Pendant la dictée (et l'onde de la voix dite à Lucarne), il attend la fin (aucun son qui pourrait
+    /// gêner ou être capté) ; pendant la carte de fin de la voix, seul un bandeau ordinaire attend (une alerte, ou la réponse à un geste
+    /// `passeLaCarte`, la remplacent : le rappel ou la note sont déjà gardés) ; pendant une réunion il s'affiche, sans son.
     /// Pendant que le Centre est épinglé (une suite de réglages : Téléchargements puis un fichier qui arrive, les AirPods qu'on branche
     /// pour choisir leur micro), un bandeau attend aussi qu'il se range : il ne le referme pas sous le pointeur. Une alerte (minuteur
     /// fini, rappel, rendez-vous qui commence) passe, elle : elle attend un geste.
-    func annoncer(alerte a: AlerteIlot? = nil, bandeau b: BandeauIlot? = nil) {
-        if cache || voix.retient { enAttente.append((a, b)); return }
+    func annoncer(alerte a: AlerteIlot? = nil, bandeau b: BandeauIlot? = nil, passeLaCarte: Bool = false) {
+        if cache || (voix.retient && !(voix.phase == .repos && (a != nil || passeLaCarte))) { enAttente.append((a, b)); return }
         if a == nil, b != nil, centreRetientLesBandeaux { enAttente.append((nil, b)); attenteDuCentre = true; return }
         afficherMaintenant(alerte: a, bandeau: b)
     }
@@ -938,7 +939,7 @@ final class IlotMoteur: ObservableObject {
     /// L'îlot peut-il montrer une touche de volume ou de luminosité ? Pas pendant la dictée, la réunion ou une autre annonce de l'encoche
     /// (il est effacé), ni pendant une alerte (elle attend un geste), ni quand il est déplié, épinglé ou sur une carte (le lecteur ouvert
     /// se refermerait sous les doigts), ni pendant un glisser de fichiers : la touche reste alors à macOS, avec son propre affichage.
-    var peutMontrerNiveau: Bool { !cache && alerte == nil && !fenetreOuverte && !depot && !appel && !glisserSortant }
+    var peutMontrerNiveau: Bool { !cache && !voix.retient && alerte == nil && !fenetreOuverte && !depot && !appel && !glisserSortant }
 
     /// Une touche de volume ou de luminosité vient d'être appliquée : le bandeau reste 1,5 s après la DERNIÈRE touche ; la barre part
     /// de `avant` (la valeur d'avant la touche) et glisse sur son ressort. Une touche tenue (répétitions) prolonge le même bandeau,

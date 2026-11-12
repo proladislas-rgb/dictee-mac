@@ -109,7 +109,7 @@ extension IlotMoteur {
 // MARK: - le contrôleur
 
 extension IlotControleur {
-    /// La carte reste 8 s (le temps de lire et de cliquer ; la souris dessus la garde), puis 2,5 s une fois envoyée.
+    /// La carte reste 8 s (le temps de lire et de cliquer ; la souris dessus la garde) ; un rappel envoyé la raccourcit à 2,5 s.
     static let dureeCarteVoix: TimeInterval = 8
     static let dureeApresEnvoi: TimeInterval = 2.5
     /// Le filet de l'attente : la plus longue dictée prend quelques secondes à s'écrire ; au-delà, l'onde s'en va.
@@ -123,17 +123,17 @@ extension IlotControleur {
         let v = moteur.voix
         let lu = AnalyseCommandeIlot.directVoix(texte, maintenant: maintenant())
         if v.session == session, v.phase == .ecoute {
-            if v.genre == nil, case .pourLucarne(let g?) = lu { v.genre = g; moteur.donneesChangees(); Log.ecrire("voix : \(g.rawValue) compris") }
+            if v.genre == nil, case .pourLucarne(let g?) = lu { v.genre = g; moteur.donneesChangees(); Log.ecrire("voix : genre compris (\(g.rawValue))") }
             return true
         }
+        // ni pendant une question de macOS posée depuis le Centre (Téléchargements, captures, calendrier) : le Centre resterait ouvert
         guard v.phase == .repos, !noteParClic, moteur.alerte == nil, moteur.reunion == nil, moteur.annonceReunion == nil, !moteur.masque,
+              !moteur.telechargementsAttente, !moteur.capturesAttente, !moteur.calendrierAttente,
               case .pourLucarne(let g) = lu else { return false }
         v.filet?.cancel(); v.filet = nil
         v.session = session; v.genre = g; v.onde = OndeVoix(); v.phase = .ecoute
+        // l'encoche de la dictée se range juste après (le contrôleur de la dictée) : sa fermeture relit les masques (`occupationChangee`)
         moteur.montrerEcouteVoix()
-        // l'encoche de la dictée se range juste après (le contrôleur de la dictée) ; sa fermeture se publie avant d'être faite : on relit
-        // les masques au tour suivant
-        DispatchQueue.main.async { [weak self] in self?.occupationChangee() }
         Log.ecrire("voix : l'îlot prend la dictée (\(g?.rawValue ?? "genre pas encore compris"))")
         return true
     }
@@ -163,8 +163,10 @@ extension IlotControleur {
     }
 
     /// La dictée prise par l'îlot a fini (texte collé, rien entendu, annulée…) sans carte : l'onde s'en va, ce qui attendait passe.
+    /// Après une carte (ou un second appel), rien à faire.
     func finDeVoix(session: Int) {
-        guard moteur.voix.session == session, moteur.voix.retient else { return }
+        guard moteur.voix.session == session, moteur.voix.phase != .repos else { return }
+        Log.ecrire("voix : la dictée prise par l'îlot finit sans carte (texte collé, rien entendu ou annulée)")
         terminerVoix()
     }
 
@@ -182,7 +184,7 @@ extension IlotControleur {
     /// donné) ; la carte montre où il en est.
     func montrerCarteRappel(_ r: Rappel, phrase: String) {
         if PlanCarteRappel.envoyerTout(choix: reglagesCentre.choixRappelsApple(), acces: rappelsApple.acces) { creerDansRappelsApple([r], annoncer: false) }
-        moteur.voix.envoiRappel = EnvoiVoix.rappel(lie: rappels.rappel(r.id)?.idApple != nil, enCours: false, acces: rappelsApple.acces)
+        moteur.voix.envoiRappel = EnvoiVoix.rappel(lie: rappels.rappel(r.id)?.idApple != nil, acces: rappelsApple.acces)
         montrerCarte(CarteVoix.rappel(id: r.id, texte: r.texte, echeance: r.echeance, phrase: phrase, maintenant: maintenant()))
     }
 
@@ -207,7 +209,8 @@ extension IlotControleur {
         switch (a, c.objet) {
         case (.envoyer, .rappel(let id)): envoyerRappel(id)
         case (.envoyer, .note(let id)):
-            if moteur.envoiVoix == .refuse { ouvrir(Self.reglagesAutomatisation); return }
+            // refusé : le volet Automatisation ; au clic suivant (autorisé entre-temps), Notes est réessayé
+            if moteur.envoiVoix == .refuse { ouvrir(Self.reglagesAutomatisation); moteur.envoisNotes[id] = nil; return }
             guard moteur.envoiVoix == .aEnvoyer else { return }
             // l'AppleScript de « Vers Notes » (Outils) : Notes peut mettre quelques secondes à s'ouvrir, la carte attend
             agirOutils(.noteVersNotes(id))
@@ -219,20 +222,20 @@ extension IlotControleur {
             guard let n = listeNotes.note(id) else { return }
             copier(n.texte)
             moteur.voix.copie = true
-            prolongerCarte(Self.dureeApresEnvoi)
+            prolongerCarte(Self.dureeApresEnvoi)   // jamais moins qu'avant (un envoi vers Notes peut être en route)
             Log.ecrire("voix : note copiée (\(n.texte.count) caractères)")
         default: break
         }
     }
 
-    /// « Envoyer dans Rappels » : ce clic vaut le « Oui » d'avant (les rappels suivants partiront seuls) ; la fenêtre de macOS la
-    /// première fois ; refusé : le volet des Réglages.
+    /// « Envoyer dans Rappels » : ce rappel-là part (la fenêtre de macOS la première fois) ; une fois parti, le clic vaut le « Oui »
+    /// d'avant (les rappels suivants partiront seuls). Refusé : le volet des Réglages (l'état est relu à chaque clic).
     private func envoyerRappel(_ id: UUID) {
         guard let r = rappels.rappel(id), r.idApple == nil, moteur.voix.envoiRappel != .enCours else { return }
-        reglagesCentre.enregistrerChoixRappelsApple(.oui)
         switch rappelsApple.acces {
         case .refuse:
             ouvrir(Self.reglagesRappels)
+            rappelEnvoye(id)
             Log.ecrire("voix : accès à l'app Rappels refusé, le volet des Réglages est ouvert")
         case .autorise:
             creerDansRappelsApple([r], annoncer: false)
@@ -242,24 +245,27 @@ extension IlotControleur {
             prolongerCarte(Self.dureeCarteVoix)
             rappelsApple.demander { [weak self] accorde in
                 guard let self else { return }
-                // ceux qui attendaient partent aussi, comme après le « Oui » d'avant
-                if accorde { self.creerDansRappelsApple(self.rappels.sansDoubleApple(a: self.maintenant()), annoncer: false) }
+                if accorde, let r = self.rappels.rappel(id) { self.creerDansRappelsApple([r], annoncer: false) }
                 else { Log.ecrire("voix : l'app Rappels refusée dans la fenêtre de macOS, le rappel reste dans Lucarne") }
                 self.rappelEnvoye(id)
             }
         }
     }
+    /// Après un clic : l'état relu ; parti, c'est le « Oui » (enregistré) et la carte part 2,5 s plus tard ; sinon elle reste le temps
+    /// de lire le refus.
     private func rappelEnvoye(_ id: UUID) {
         let lie = rappels.rappel(id)?.idApple != nil
-        moteur.voix.envoiRappel = EnvoiVoix.rappel(lie: lie, enCours: false, acces: rappelsApple.acces)
-        if lie { prolongerCarte(Self.dureeApresEnvoi) }
-        moteur.donneesChangees()
+        if lie { reglagesCentre.enregistrerChoixRappelsApple(.oui) }
+        moteur.voix.envoiRappel = EnvoiVoix.rappel(lie: lie, acces: rappelsApple.acces)
+        prolongerCarte(Self.dureeApresEnvoi, raccourcir: lie)
     }
 
-    /// La carte reste encore `duree` secondes (seulement si c'est elle qui est là).
-    private func prolongerCarte(_ duree: TimeInterval) {
-        guard moteur.bandeau?.vue == .voixCarte else { return }
-        moteur.bandeau?.jusqua = maintenant().addingTimeInterval(duree)
+    /// La carte reste encore `duree` secondes, jamais moins qu'avant (sauf `raccourcir` : un rappel envoyé) ; seulement si c'est elle
+    /// qui est là.
+    private func prolongerCarte(_ duree: TimeInterval, raccourcir: Bool = false) {
+        guard let b = moteur.bandeau, b.vue == .voixCarte else { return }
+        let fin = maintenant().addingTimeInterval(duree)
+        moteur.bandeau?.jusqua = raccourcir ? fin : max(b.jusqua, fin)
         moteur.donneesChangees()
     }
 }
@@ -280,10 +286,13 @@ enum PlanVoix {
         CGRect(x: -CGFloat(M.ondeLargeur) / 2, y: g.barre + CGFloat(M.ondeHaut), width: CGFloat(M.ondeLargeur), height: CGFloat(M.ondeHauteur))
     }
     static func libelle(_ g: GrilleIlot) -> CGRect { CGRect(x: -100, y: g.barre + CGFloat(M.libelleHaut), width: 200, height: CGFloat(M.libelleHauteur)) }
-    /// Le bouton d'envoi : la largeur de son plus long libellé (il ne change pas de taille quand il devient « ✓ Dans Rappels »).
-    static func largeurEnvoi(_ genre: GenreVoix) -> CGFloat {
-        EnvoiVoix.libelles(genre).map { MesureIlot.texte($0, tailleBouton, .semibold) }.max()! + 2 * 14 + 4
-    }
+    /// Le bouton d'envoi : la largeur de son plus long libellé (il ne change pas de taille quand il devient « ✓ Dans Rappels »). Mesurée
+    /// une fois (la vue est réévaluée à chaque pas d'une animation).
+    static let largeursEnvoi: [GenreVoix: CGFloat] = Dictionary(uniqueKeysWithValues: [GenreVoix.rappel, .note].map { g in
+        (g, EnvoiVoix.libelles(g).map { MesureIlot.texte($0, tailleBouton, .semibold) }.max()! + 2 * 14 + 4)
+    })
+    static func largeurEnvoi(_ genre: GenreVoix) -> CGFloat { largeursEnvoi[genre] ?? 0 }
+    static let largeurSecondaire = ["Annuler", "Copier", "Copié"].map { MesureIlot.texte($0, 12.5, .semibold) }.max()! + 16
     static func cadreEnvoi(_ g: GrilleIlot, genre: GenreVoix) -> CGRect {
         let z = zoneCarte(g)
         return CGRect(x: z.minX + CGFloat(M.coche + M.ecartCoche), y: z.maxY - CGFloat(M.bouton), width: largeurEnvoi(genre), height: CGFloat(M.bouton))
@@ -291,7 +300,7 @@ enum PlanVoix {
     static func titreSecondaire(_ genre: GenreVoix, copie: Bool) -> String { genre == .rappel ? "Annuler" : (copie ? "Copié" : "Copier") }
     static func cadreSecondaire(_ g: GrilleIlot, genre: GenreVoix) -> CGRect {
         let z = zoneCarte(g)
-        let l = max(MesureIlot.texte("Annuler", 12.5, .semibold), MesureIlot.texte("Copier", 12.5, .semibold), MesureIlot.texte("Copié", 12.5, .semibold)) + 16
+        let l = largeurSecondaire
         return CGRect(x: z.maxX - l, y: z.maxY - CGFloat(M.bouton), width: l, height: CGFloat(M.bouton))
     }
 }
@@ -353,7 +362,7 @@ struct OndeVoixVue: View {
     var anime: Bool
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: nil, paused: !anime)) { _ in
+        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !anime)) { _ in
             Canvas { ctx, taille in
                 let t = voix.instantFige ?? EcouteVoix.horloge()
                 let n = OndeVoix.barres, l: CGFloat = 3
@@ -397,6 +406,8 @@ struct GlypheVoix: View {
 
 /// La carte de fin (maquette, étapes 3, 4, 6, 7) : coché, titre, jour et heure, résumé ; « Envoyer dans … » et « Annuler » / « Copier ».
 struct CarteVoixVue: View {
+    /// Avant toute carte (jamais affichée : la vue n'existe qu'avec une carte), pour ne rien créer à chaque évaluation.
+    private static let vide = CarteVoix(objet: .note(UUID()), titre: "", quand: nil, resume: "")
     @ObservedObject var m: IlotMoteur
     @ObservedObject var voix: EcouteVoix
     var g: GrilleIlot
@@ -404,7 +415,7 @@ struct CarteVoixVue: View {
     var body: some View {
         let v = VueIlot.voixCarte
         let z = PlanVoix.zoneCarte(g)
-        let c = voix.carte ?? CarteVoix(objet: .note(UUID()), titre: "", quand: nil, resume: "")
+        let c = voix.carte ?? Self.vide
         let colonne = CGFloat(MesuresVoix.coche + MesuresVoix.ecartCoche)
         ZStack(alignment: .topLeading) {
             // le vide de la carte ne fait rien (on visait un bouton) ; seulement tant qu'elle est là

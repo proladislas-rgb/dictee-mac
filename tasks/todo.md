@@ -526,10 +526,17 @@ mission 3 de la Lucarne déplaçable, pas sur main).
 ## Voix et rappel dans l'îlot (12/11 soir) — branche voix-rappel (worktree ~/dictee-mac-voix)
 Demande de Hugues : quand il dicte une note ou un rappel, une onde de voix vivante ; à la fin une carte (coché, date, titre, petit
 résumé) qui propose de l'envoyer dans Rappels ou dans Notes. Maquette : design/maquettes/ilot-voix-rappel.html (9 étapes).
-- [ ] DicteeCore/VoixIlot.swift : genre en direct (« Lucarne, rappelle-moi… » / « Lucarne, note… »), commande note, titre, résumé,
+- [x] DicteeCore/VoixIlot.swift : genre en direct (« Lucarne, rappelle-moi… » / « Lucarne, note… »), commande note, titre, résumé,
       date, état d'envoi, onde (niveaux réels du micro sur les ressorts de NiveauxVoix), mesures ; contrôles purs
-- [ ] Dictee/IlotVoix.swift : l'écoute (onde + libellé), la carte de fin, Envoyer / Annuler / Copier ; accroches d'une ligne ailleurs
-- [ ] Rappels : la carte remplace « Rappel ajouté » pour « Lucarne, … » ; « ✓ Dans Rappels » si déjà parti, sinon le bouton (un clic =
+- [x] Dictee/IlotVoix.swift : l'écoute (onde + libellé), la carte de fin, Envoyer / Annuler / Copier ; accroches d'une ligne ailleurs
+- [x] Rappels : la carte remplace « Rappel ajouté » pour « Lucarne, … » ; « ✓ Dans Rappels » si déjà parti, sinon le bouton (un clic =
       la réponse « Oui » d'avant) ; Notes : l'AppleScript existant (« Vers Notes » des Outils), autorisation au premier clic
-- [ ] Essai `--ilot-essai` (section voix, vrais clics, faux Rappels et fausses Notes), rendus ilot-34* et lucarne-ecran-voix-*
-- [ ] Relecture opus, commits, push (pas de fusion)
+- [x] Essai `--ilot-essai` (section voix, vrais clics, faux Rappels et fausses Notes), rendus ilot-34* et lucarne-ecran-voix-*
+- [x] Relecture opus, commits, push (pas de fusion)
+- Résultats : 3914/3914 contrôles ; `--ilot-essai` complet (release) tout vert, 1337 ok ; section voix 38 ok (3 fois verte) ; 19 écrans × 6 places
+  de la Lucarne en verre verts ; `defaults read Dictee` vide. Rendus : design/rendus-ilot/ilot-34*, design/rendus-lucarne/lucarne-ecran-voix-*.
+- [ ] À vérifier par Hugues dans l'app (impossible dans l'essai : vrai micro, vraie reconnaissance en direct) : fn tenue + « Lucarne,
+      rappelle-moi demain à 13 h… » → l'encoche se range, l'onde suit la voix ; 1er « Envoyer dans Rappels » (fenêtre de macOS) ;
+      1er « Envoyer dans Notes » (autorisation Automatisation pour Notes).
+- [ ] À trancher : « Modifier » de la maquette remplacé par « Annuler » (pas d'éditeur de rappel dans l'îlot) ; le titre et le résumé
+      sont tirés du texte sur le Mac (sans IA) ; mains libres : l'encoche garde ✕ ✓, seule la carte de fin vient.

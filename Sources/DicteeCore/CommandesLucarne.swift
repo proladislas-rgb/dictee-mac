@@ -55,7 +55,7 @@ extension AnalyseCommandeIlot {
         // « crée-moi un rappel… », « rappelle-moi de… », « n'oublie pas que… » : ce qui suit est le rappel
         let declencheur = TexteRappel.sansDeclencheur(reste)
         // « Lucarne, note : … » : une note (« note un rappel » est un rappel, vu juste avant)
-        if declencheur == nil, let n = TexteNote.sansDeclencheur(reste) { let t = TexteNote.propre(n); return t.isEmpty ? .incomprise(phrase: phrase) : .note(texte: t) }
+        if declencheur == nil, TexteNote.demandee(reste, interpelle: appel.interpelle), let n = TexteNote.sansDeclencheur(reste) { let t = TexteNote.propre(n); return t.isEmpty ? .incomprise(phrase: phrase) : .note(texte: t) }
         let demande = declencheur != nil || TexteRappel.estUnReveil(reste)
         // « Lucarne est prête, je te l'envoie demain » (sans virgule, sans demande) : une phrase sur Lucarne, collée comme les autres
         guard appel.interpelle || demande || TexteRappel.commenceParUneTete(reste) else { return .aucune }

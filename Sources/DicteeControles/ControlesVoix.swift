@@ -37,6 +37,12 @@ func controlesVoix() {
              "« note un rappel… » reste un rappel")
     verifier(lu("Lucarne, note :") == .incomprise(phrase: "Lucarne, note :"), "« note » sans rien après : « Je n'ai pas compris » (rien de vide n'est gardé)")
     verifier(lu("Lucarne, notre devis est prêt") == .incomprise(phrase: "Lucarne, notre devis est prêt"), "« notre » n'est pas une note")
+    verifier(lu("Lucarne, note sur le budget : réduire les frais.") == .note(texte: "Sur le budget : réduire les frais.")
+             && lu("Lucarne, une note de 15 sur 20 pour Paul") == .note(texte: "De 15 sur 20 pour Paul."),
+             "seuls « que » et « pour dire que » tombent : « sur le budget », « de 15 sur 20 » gardent leur sens")
+    verifier(lu("Lucarne une note de 15 sur 20 pour Paul") == .aucune && direct("Verbe note bien les retards") == .autre
+             && lu("Lucarne prends une note : appeler le garage") == .note(texte: "Appeler le garage."),
+             "sans virgule, « note » / « une note » seuls parlent peut-être DE Lucarne : collés ; « prends une note » est une demande")
 
     groupe("Voix : le titre et le résumé")
     verifier(ResumeVoix.titre("La livraison", sansArticle: true) == "Livraison" && ResumeVoix.titre("Le prix sur la première page", sansArticle: true) == "Prix sur la première page",
@@ -74,10 +80,9 @@ func controlesVoix() {
     verifier(EnvoiVoix.aEnvoyer.libelle(.rappel) == "Envoyer dans Rappels" && EnvoiVoix.fait.libelle(.rappel) == "Dans Rappels"
              && EnvoiVoix.aEnvoyer.libelle(.note) == "Envoyer dans Notes" && EnvoiVoix.fait.libelle(.note) == "Dans Notes", "les libellés de la maquette")
     verifier(EnvoiVoix.libelles(.rappel).count == 4 && Set(EnvoiVoix.libelles(.note)).count == 4, "quatre états, quatre libellés (le bouton prend la largeur du plus long)")
-    verifier(EnvoiVoix.rappel(lie: true, enCours: false, acces: .refuse) == .fait && EnvoiVoix.rappel(lie: false, enCours: true, acces: .nonDemande) == .enCours
-             && EnvoiVoix.rappel(lie: false, enCours: false, acces: .refuse) == .refuse && EnvoiVoix.rappel(lie: false, enCours: false, acces: .nonDemande) == .aEnvoyer
-             && EnvoiVoix.rappel(lie: false, enCours: false, acces: .autorise) == .aEnvoyer,
-             "déjà dans Rappels : fait ; la fenêtre de macOS : envoi ; refusé : « Autoriser dans Réglages » ; sinon « Envoyer dans Rappels »")
+    verifier(EnvoiVoix.rappel(lie: true, acces: .refuse) == .fait && EnvoiVoix.rappel(lie: false, acces: .refuse) == .refuse
+             && EnvoiVoix.rappel(lie: false, acces: .nonDemande) == .aEnvoyer && EnvoiVoix.rappel(lie: false, acces: .autorise) == .aEnvoyer,
+             "déjà dans Rappels : fait ; refusé : « Autoriser dans Réglages » ; sinon « Envoyer dans Rappels »")
     verifier(PlanCarteRappel.envoyerTout(choix: .oui, acces: .autorise) && !PlanCarteRappel.envoyerTout(choix: nil, acces: .autorise)
              && !PlanCarteRappel.envoyerTout(choix: .non, acces: .autorise) && !PlanCarteRappel.envoyerTout(choix: .oui, acces: .nonDemande),
              "il part seul seulement si Hugues l'a déjà voulu (« Oui » ou un clic sur la carte) et que l'accès est donné ; sinon, rien sans son clic")
