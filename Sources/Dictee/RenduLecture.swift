@@ -445,7 +445,10 @@ enum RenduLecture {
                                     partis: PartisEtagere(nombre: 3, app: "Mail", icones: trois.suffix(2).reversed().map(\.icone), duree: 5)) }) }, "ilot-24l-etagere-partis-remettre")
         var capture = etagere([("Capture d\u{2019}écran 2026-11-11 à 14.32.10.png", .png)])
         capture[0].nouveau = true
-        ecrire(bureau(hauteur: grandBureau + 20) { ilot(scene { m in m.etagereActive = true; m.etagere = Array(trois.prefix(1)) + capture; m.capturesActives = true; m.energie = batterie; m.ouvrirEtagere() }) }, "ilot-24m-carte-capture-nouveau")
+        // l'option allumée : la ligne « Vignette des captures en haut » s'ajoute dessous (éteinte ; puis allumée, au premier clic, qui explique)
+        ecrire(bureau(hauteur: grandBureau + 66) { ilot(scene { m in m.etagereActive = true; m.etagere = Array(trois.prefix(1)) + capture; m.capturesActives = true; m.energie = batterie; m.ouvrirEtagere() }) }, "ilot-24m-carte-capture-nouveau")
+        ecrire(bureau(hauteur: grandBureau + 66) { ilot(scene { m in m.etagereActive = true; m.etagere = Array(trois.prefix(1)) + capture; m.capturesActives = true
+            m.vignetteEnHaut = true; m.vignetteExpliquee = true; m.energie = batterie; m.ouvrirEtagere() }) }, "ilot-24s-carte-vignette-en-haut")
         ecrire(bureau(hauteur: grandBureau + 20, clair: false) { ilot(scene { m in m.etagereActive = true; m.etagere = trois; m.capturesRefusees = true; m.ouvrirEtagere() }) }, "ilot-24n-carte-captures-acces-refuse")
         ecrire(bureau(hauteur: grandBureau + 20) { ilot(scene { m in m.etagereActive = true; m.etagere = trois; m.capturesIntrouvable = true; m.ouvrirEtagere() }) }, "ilot-24q-carte-captures-dossier-introuvable")
         ecrire(bureau(hauteur: petitBureau + 140) { ilot(miCourse(scene { m in m.etagereActive = true; m.etagere = trois; m.montrerAppel(true) }, 0.16) { $0.montrerDepot(true) }) }, "ilot-24o-etagere-appel-vers-zones-mi-course")

@@ -10,6 +10,9 @@ enum EssaiEtagere {
     static var airDropPossible = true
     static var app: String? = "Mail"
     static var captures = false
+    /// Le faux réglage « show-thumbnail » de Capture d'écran (nil : jamais réglé) et la valeur retenue par Lucarne : jamais les vrais.
+    static var vignette: Bool? = nil
+    static var vignetteAvant: String? = nil
     static var glisses: [[URL]] = []
     static var finGlisser: ((NSDragOperation, NSPoint) -> Void)?
 }
@@ -220,7 +223,7 @@ extension IlotEssai {
         m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
         // relu à chaque clic : une rangée de plus sur l'étagère (6 fichiers et plus) descend la ligne « Captures d'écran ici »
         var interrupteur: CGPoint {
-            let cc = CarteEtagere.cadreCaptures(m.grille)
+            let cc = CarteEtagere.cadreCaptures(m.grille, vignette: m.capturesActives)
             return CGPoint(x: cc.maxX - 12 - InterrupteurIlot.largeur / 2, y: cc.midY)
         }
         verifier(!m.capturesActives && !c.capturesSource.actif && !c.capturesGlisseesSource.actif, "au départ : éteint, aucun dossier lu")
@@ -320,12 +323,61 @@ extension IlotEssai {
         attendre(3.5) { m.bandeau != nil }
         verifier(m.bandeau == nil, "puis elle se retire d'elle-même")
         m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
+
+        // --- « Vignette des captures en haut » (Hugues 12/11) : le FAUX réglage de Capture d'écran, jamais le vrai
+        let vraiAvant = CFPreferencesCopyAppValue(VignetteCaptures.cle as CFString, ReglageVignette.domaine) as? Bool
+        let vraiRetenu = UserDefaults.standard.string(forKey: "ilotVignetteAvant")
+        var interrupteurVignette: CGPoint {
+            let cv = CarteEtagere.cadreVignette(m.grille)
+            return CGPoint(x: cv.maxX - 12 - InterrupteurIlot.largeur / 2, y: cv.midY)
+        }
+        EssaiEtagere.vignette = nil; EssaiEtagere.vignetteAvant = nil
+        verifier(m.courante == .etagere && m.capturesActives && !m.vignetteEnHaut && m.trace.hauteur >= Double(g.hauteur) + GeoIlot.ligneVignette,
+                 "l'option allumée : la ligne « Vignette des captures en haut » est là, éteinte (celle de macOS est affichée)")
+        clic(interrupteurVignette, 0.8)
+        verifier(EssaiEtagere.vignette == false && EssaiEtagere.vignetteAvant == "absente" && m.vignetteEnHaut && m.vignetteExpliquee && m.courante == .etagere,
+                 "vrai clic : la vignette de macOS est coupée (faux réglage « show-thumbnail » = non), l'ancienne valeur retenue (« absente »), la ligne explique")
+        // sans vignette, macOS enregistre la capture tout de suite (fichier caché puis renommé) : l'annonce suit de près
+        m.fermer(); pause(0.8)
+        verifier(!m.vignetteExpliquee, "la carte fermée : l'explication s'en va")
+        let nomB = "Capture d\u{2019}écran 2026-11-12 à 00.40.00.png"
+        let cacheB = captures.appendingPathComponent(".capture-en-cours")
+        try? Data("essai".utf8).write(to: cacheB)
+        let t0B = Date()
+        try? FileManager.default.moveItem(at: cacheB, to: captures.appendingPathComponent(nomB))
+        attendre(3) { m.bandeau?.vue != .etagereCapture }
+        let delaiB = Date().timeIntervalSince(t0B)
+        verifier(m.courante == .etagereCapture && delaiB < 1.2, "la capture enregistrée : annoncée en \(String(format: "%.2f", delaiB)) s (0,3 s de stabilité au lieu de 1 s)")
+        verifier(m.contenuAnnonce(.etagereCapture)?.glisser?.lastPathComponent == nomB && m.bandeau?.capture?.lastPathComponent == nomB,
+                 "la miniature de l'annonce se glisse vers une app : c'est le fichier de la capture (même mécanique que « Téléchargé »)")
+        var tenu = true
+        m.boutonEnfonce = { tenu }
+        m.glisserSortantCommence(); pause(3.2)
+        verifier(m.bandeau?.vue == .etagereCapture && m.glisserSortant, "glissée vers le Terminal : l'annonce reste tant que le bouton est tenu (elle est la source du glisser)")
+        tenu = false; pause(0.5)
+        m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 }
+        attendre(2) { m.bandeau != nil }
+        verifier(m.bandeau == nil && c.etagere.elements.contains { $0.nom == nomB }, "relâchée : l'annonce se retire, la capture reste sur l'étagère")
+        // éteint : la valeur d'avant revient, exactement (« absente » : la clé retirée)
+        m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
+        clic(interrupteurVignette, 0.8)
+        verifier(EssaiEtagere.vignette == nil && EssaiEtagere.vignetteAvant == nil && !m.vignetteEnHaut, "second clic : la vignette de macOS revient (réglage retiré, comme avant)")
+        EssaiEtagere.vignette = true
+        clic(interrupteurVignette, 0.6); clic(interrupteurVignette, 0.6)
+        verifier(EssaiEtagere.vignette == true && EssaiEtagere.vignetteAvant == nil && !m.vignetteEnHaut, "réglé à « oui » avant : allumé puis éteint, il revient à « oui »")
+        // la vignette coupée par Lucarne, l'option des captures éteinte : la vignette de macOS revient aussi
+        clic(interrupteurVignette, 0.6)
+        verifier(EssaiEtagere.vignette == false && EssaiEtagere.vignetteAvant == "vrai", "rallumé : coupée, « vrai » retenu")
+        verifier((CFPreferencesCopyAppValue(VignetteCaptures.cle as CFString, ReglageVignette.domaine) as? Bool) == vraiAvant
+                 && UserDefaults.standard.string(forKey: "ilotVignetteAvant") == vraiRetenu, "le VRAI réglage de Capture d'écran n'a pas bougé (lu seulement)")
         m.fermer(); pause(0.8)
         verifier(m.etagere.allSatisfy { !$0.nouveau }, "la carte vue puis fermée : plus « Nouveau »")
         m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
         clic(interrupteur, 0.6)
         verifier(!m.capturesActives && !EssaiEtagere.captures && !c.capturesSource.actif && !c.capturesGlisseesSource.actif,
                  "second clic : éteint, ni le dossier des captures ni le dossier temporaire ne sont plus surveillés")
+        verifier(EssaiEtagere.vignette == true && EssaiEtagere.vignetteAvant == nil && !m.vignetteEnHaut,
+                 "… et la vignette de macOS, coupée par Lucarne, revient à sa valeur d'avant (« oui »)")
         // refus de macOS (joué par un dossier fermé) : l'interrupteur revient sur éteint, la ligne dit où rendre l'accès
         let ferme = dossier.appendingPathComponent("Captures fermées", isDirectory: true)
         try? FileManager.default.createDirectory(at: ferme, withIntermediateDirectories: true)

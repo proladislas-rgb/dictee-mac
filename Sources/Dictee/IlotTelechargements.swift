@@ -28,10 +28,13 @@ final class SourceTelechargements {
     /// Les noms à suivre dans le dossier (ses noms, par défaut ; pour les captures glissées, aussi le contenu de certains
     /// sous-dossiers, en « sous-dossier/fichier »). Appelé sur la file de la surveillance.
     let lister: @Sendable (URL) throws -> [String]
+    /// Combien de temps un nouveau fichier doit rester tel quel avant d'être annoncé.
+    let stabilite: TimeInterval
     private var travail: SurveillanceDossier?
 
-    init(etiquette: String = "téléchargements", lister: @escaping @Sendable (URL) throws -> [String] = SourceTelechargements.listerDossier) {
-        self.etiquette = etiquette; self.lister = lister
+    init(etiquette: String = "téléchargements", lister: @escaping @Sendable (URL) throws -> [String] = SourceTelechargements.listerDossier,
+         stabilite: TimeInterval = VeilleTelechargements.stabilite) {
+        self.etiquette = etiquette; self.lister = lister; self.stabilite = stabilite
     }
 
     /// Les noms du dossier.
@@ -53,7 +56,7 @@ final class SourceTelechargements {
 
     func demarrer() {
         guard travail == nil else { return }
-        let t = SurveillanceDossier(dossier: dossier, etiquette: etiquette, lister: lister)
+        let t = SurveillanceDossier(dossier: dossier, etiquette: etiquette, lister: lister, stabilite: stabilite)
         travail = t
         // ce qui arrive après un arrêt (ou d'une ancienne surveillance) est ignoré
         t.surArrivee = { [weak self, weak t] l in
@@ -79,6 +82,7 @@ private final class SurveillanceDossier: @unchecked Sendable {
     let dossier: URL
     let etiquette: String
     let lister: @Sendable (URL) throws -> [String]
+    let stabilite: TimeInterval
     private let file = DispatchQueue(label: "verbe.ilot.dossier", qos: .utility)
     var surArrivee: ([FichierTelecharge]) -> Void = { _ in }
     /// L'ouverture a échoué ; vrai : c'est un refus d'accès.
@@ -89,8 +93,8 @@ private final class SurveillanceDossier: @unchecked Sendable {
     private var relecture: DispatchWorkItem?
     private var arrete = false
 
-    init(dossier: URL, etiquette: String, lister: @escaping @Sendable (URL) throws -> [String]) {
-        self.dossier = dossier; self.etiquette = etiquette; self.lister = lister
+    init(dossier: URL, etiquette: String, lister: @escaping @Sendable (URL) throws -> [String], stabilite: TimeInterval) {
+        self.dossier = dossier; self.etiquette = etiquette; self.lister = lister; self.stabilite = stabilite
     }
 
     func demarrer() { file.async { self.ouvrir() } }
@@ -120,7 +124,7 @@ private final class SurveillanceDossier: @unchecked Sendable {
             surEchec(e.map(Self.estUnRefus) ?? false); return
         }
         // ce qui est déjà là au lancement n'est jamais annoncé
-        veille = VeilleTelechargements(existants: noms.compactMap(mesurer))
+        veille = VeilleTelechargements(existants: noms.compactMap(mesurer), stabilite: stabilite)
         let s = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename, .delete], queue: file)
         s.setEventHandler { [weak self] in self?.relire() }
         s.setCancelHandler { close(fd) }

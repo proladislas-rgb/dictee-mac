@@ -81,6 +81,8 @@ public enum GeoIlot {
     public static let rangeeEtagere: Double = 80
     /// La ligne « Captures d'écran ici » au bas de la carte Étagère (interrupteur).
     public static let ligneCaptures: Double = 40
+    /// Sous elle, quand l'option est allumée : « Vignette des captures en haut » (6 pt d'écart + une ligne).
+    public static let ligneVignette: Double = 6 + 40
     /// Les écrans dont le cou droit n'est pas celui de gauche : la pile de l'étagère n'a qu'une aile, à gauche ; à droite, la caméra seule
     /// (les icônes de la barre des menus à droite de l'encoche restent dégagées). Valeur au-delà de la demi-caméra.
     public static let couDroit: [VueIlot: Double] = [.etagerePile: 0]

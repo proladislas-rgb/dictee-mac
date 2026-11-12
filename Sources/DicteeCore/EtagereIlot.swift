@@ -326,3 +326,19 @@ public struct RafaleCaptures: Equatable, Sendable {
     /// « Capture d’écran » ; « 3 captures ».
     public var titre: String { noms.count > 1 ? "\(noms.count) captures" : "Capture d\u{2019}écran" }
 }
+
+/// « Vignette des captures en haut » (carte Étagère) : la vignette flottante de macOS (en bas à droite) retarde la capture de ~5 s,
+/// le temps qu'elle reste à l'écran (constaté le 12/11 : capture à 02:18:20, fichier rangé à 02:18:27). Allumé, Lucarne la coupe
+/// (réglage « show-thumbnail » de com.apple.screencapture, le même que l'option « Afficher la vignette flottante » de Capture
+/// d'écran) : macOS enregistre la capture aussitôt et l'îlot la montre en haut. Éteint, la valeur d'avant revient, exactement.
+public enum VignetteCaptures {
+    public static let cle = "show-thumbnail"
+    /// La miniature est en haut (dans Lucarne) quand macOS n'affiche plus la sienne. `valeur` : le réglage lu (nil : jamais réglé,
+    /// la vignette de macOS est affichée).
+    public static func enHaut(_ valeur: Bool?) -> Bool { valeur == false }
+    /// Ce qu'on retient avant d'allumer : « absente », « vrai », « faux ».
+    public static func memoire(_ valeur: Bool?) -> String { valeur.map { $0 ? "vrai" : "faux" } ?? "absente" }
+    /// Ce qu'on remet en éteignant (nil : on retire la clé). Retenu « faux » (la vignette était déjà coupée avant Lucarne) ou rien de
+    /// retenu : on la rend à macOS (la clé retirée, sa vignette revient) plutôt que de laisser l'interrupteur sans effet.
+    public static func restauration(_ memoire: String?) -> Bool? { memoire == "vrai" ? true : nil }
+}

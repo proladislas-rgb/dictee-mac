@@ -66,6 +66,8 @@ enum IlotEssai {
             c.estUneCapture = { IlotControleur.estUneCapture($0, prefixe: nil) }
             c.reglagesCentre.captures = { EssaiEtagere.captures }
             c.reglagesCentre.reglerCaptures = { EssaiEtagere.captures = $0 }
+            c.vignetteSysteme = ReglageVignette(lire: { EssaiEtagere.vignette }, ecrire: { EssaiEtagere.vignette = $0 },
+                                                memoire: { EssaiEtagere.vignetteAvant }, retenir: { EssaiEtagere.vignetteAvant = $0 })
             return c
         }
         // un glisser qui PART de l'îlot n'est jamais remis au système (il prendrait la vraie souris) : l'essai le reçoit

@@ -155,11 +155,19 @@ final class IlotControleur {
     /// L'app sous un point de l'écran (où des fichiers ont été lâchés) : son nom, lu sans autorisation (injectable).
     var appSous: (NSPoint) -> String? = { IlotControleur.appSous($0) }
     /// « Captures d'écran ici » : le dossier des captures, surveillé comme Téléchargements (un dossier temporaire dans l'essai).
-    let capturesSource = SourceTelechargements(etiquette: "captures")
+    /// macOS écrit une capture d'un coup : 0,3 s de taille stable suffit (l'annonce suit la capture de près).
+    let capturesSource = SourceTelechargements(etiquette: "captures", stabilite: 0.3)
     var dossierCaptures: () -> URL = { IlotControleur.dossierCapturesParDefaut() }
     /// … et les captures GLISSÉES depuis la vignette flottante, que macOS n'écrit que dans son dossier temporaire (« TemporaryItems ») :
     /// surveillé en même temps, sans autorisation à demander (un dossier temporaire dans l'essai).
     let capturesGlisseesSource = SourceTelechargements(etiquette: "captures glissées", lister: SourceTelechargements.listerCapturesGlissees)
+    /// (1 s de stabilité : le dossier de Capture d'écran apparaît vide, la capture y est écrite ensuite ; tant qu'il bouge, on relit.)
+    /// Lucarne signée ad hoc : macOS lui refuse ce dossier (« System Policy … deny file-read-data …/TemporaryItems », sans demande,
+    /// 12/11). Refusé une fois : plus d'essai jusqu'au prochain lancement.
+    var capturesGlisseesBloquees = false
+    /// « Vignette des captures en haut » : le réglage « show-thumbnail » de com.apple.screencapture et la valeur retenue avant
+    /// d'allumer (dans les réglages de Lucarne). Injectables : l'essai n'y touche jamais.
+    var vignetteSysteme = ReglageVignette.systeme
     var dossierCapturesGlissees: () -> URL = { IlotControleur.dossierCapturesGlisseesParDefaut() }
     /// Une capture se reconnaît à la marque de macOS (attribut kMDItemIsScreenCapture) ou à son nom (injectable).
     var estUneCapture: (URL) -> Bool = { IlotControleur.estUneCapture($0) }
@@ -213,6 +221,7 @@ final class IlotControleur {
         capturesSource.surArret = { [weak self] in self?.capturesIntrouvables() }
         // le dossier temporaire de macOS : une erreur n'y est jamais un refus à montrer (le journal la dit), l'interrupteur ne bouge pas
         capturesGlisseesSource.surArrivee = { [weak self] l in self?.capturesArrivees(l) }
+        capturesGlisseesSource.surRefus = { [weak self] in self?.capturesGlisseesBloquees = true }
         claudeSource.surLignes = { [weak self] l, relecture in self?.lignesClaude(l, relecture: relecture) }
         micro.surChangement = { [weak self] in self?.microChange() }
         moteur.surBulleVue = { [weak self] in self?.reglagesCentre.marquerBulleVue() }
@@ -581,7 +590,7 @@ final class IlotControleur {
             if let id = session?.id { moteur.retirerEnAttente { $0.claude?.id == id } }
             if moteur.bandeau?.vue == .claudeAttend || moteur.bandeau?.vue == .claudeTermine { moteur.quitterBandeau() } else { moteur.fermer() }
             ramenerSession(session)
-        case .etagereOuvrir, .etagereRetirer, .etagereVider, .etagereSortis, .etagereRemettre, .etagereCaptures, .etagereCapturesReglages:
+        case .etagereOuvrir, .etagereRetirer, .etagereVider, .etagereSortis, .etagereRemettre, .etagereCaptures, .etagereCapturesReglages, .etagereVignette:
             agirEtagere(action)
         case .microChoisir(let airpods):
             let bt = lireMicros().first { $0.transport == .bluetooth }

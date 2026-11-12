@@ -166,7 +166,7 @@ extension IlotMoteur {
         case .etagereCapture:
             guard let b else { return nil }
             return ContenuAnnonce(glyphe: GlypheIlot(nom: "camera.viewfinder", couleur: .white, taille: 21), l1: b.ligne1, l2: b.ligne2,
-                                  icones: b.vignette.map { [$0] } ?? [], coteSymbole: ContenuAnnonce.coteIcone)
+                                  icones: b.vignette.map { [$0] } ?? [], coteSymbole: ContenuAnnonce.coteIcone, glisser: b.capture)
         case .claudeAttend:
             // « second-cerveau attend ta réponse », et les premiers mots de sa question (le message de la notification de Claude Code)
             let s = b?.claude

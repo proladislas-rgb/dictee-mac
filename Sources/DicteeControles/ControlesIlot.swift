@@ -1173,6 +1173,18 @@ func controlesEtagereRapide(_ t0: Date) {
              "l'annonce est un bandeau qui épouse son contenu (et non une alerte : aucun son, aucun geste attendu)")
     verifier(ArbitrageIlot.etage(dictee: true, reunion: false, ecran: .etagereCapture) == 1 && ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .etagereCapture) == 5,
              "arbitrage : la dictée passe avant, l'annonce est au dernier étage")
+    // « Vignette des captures en haut » : la valeur d'avant retenue puis rendue telle quelle
+    typealias V = VignetteCaptures
+    verifier(V.cle == "show-thumbnail" && !V.enHaut(nil) && !V.enHaut(true) && V.enHaut(false), "la vignette est « en haut » seulement quand celle de macOS est coupée (show-thumbnail = non)")
+    verifier(V.memoire(nil) == "absente" && V.memoire(true) == "vrai" && V.restauration("absente") == nil && V.restauration("vrai") == true,
+             "jamais réglée : la clé est retirée en éteignant ; réglée à « oui » : remise à « oui »")
+    verifier(V.restauration(nil) == nil && V.restauration("faux") == nil, "rien de retenu : la vignette est rendue à macOS (l'interrupteur s'éteint vraiment)")
+    // sans vignette, macOS écrit la capture d'un coup : la veille des captures n'attend que 0,3 s de taille stable
+    var v3 = VeilleTelechargements(existants: [], stabilite: 0.3)
+    let cap = EntreeDossier(nom: nfd, taille: 812_000, modification: tc)
+    verifier(v3.lire(noms: [nfd], a: tc) { _ in cap }.isEmpty && v3.prochaineRelecture == tc.addingTimeInterval(0.3), "nouvelle capture : relue 0,3 s plus tard")
+    verifier(v3.lire(noms: [nfd], a: tc.addingTimeInterval(0.3)) { _ in cap }.map(\.nom) == [nfd], "0,3 s stable : annoncée (au lieu de 1 s)")
+    verifier(VeilleTelechargements(existants: []).delai == 1, "Téléchargements garde 1 s (un téléchargement écrit par morceaux)")
     verifier(pv.map(\.nom).contains(png.nom),"2 s : la capture glissée est annoncée (\(pv.map(\.nom))) ; ce qui était là au lancement, jamais")
 
     groupe("Îlot : l'étagère plus rapide, le Centre avec les fichiers en haut")
