@@ -21,7 +21,9 @@ import DicteeCore
 @MainActor
 final class DicteesIlot: ObservableObject {
     /// D'où vient l'historique (injectable : les essais et les rendus donnent un historique en mémoire, jamais le vrai fichier).
-    var source: () -> HistoriqueStore = { HistoriqueStore.shared } { didSet { store_ = nil; abonnement = nil; cache = nil } }
+    /// Changer de source redessine la carte (sinon elle garde les lignes de l'ancienne jusqu'au prochain changement publié, et un survol
+    /// y pointe une dictée que la nouvelle source ne connaît pas).
+    var source: () -> HistoriqueStore = { HistoriqueStore.shared } { didSet { store_ = nil; abonnement = nil; cache = nil; survol = nil; objectWillChange.send() } }
     private var store_: HistoriqueStore?
     private var abonnement: AnyCancellable?
     var store: HistoriqueStore {

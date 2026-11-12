@@ -55,6 +55,13 @@ final class PanneauIlot: NSPanel {
     override func resignKey() { super.resignKey(); surPerteDuClavier() }
     // Échap est traité par le champ (il efface la recherche, puis rend le clavier)
     override func cancelOperation(_ sender: Any?) {}
+    /// Essais seulement : où est la souris fabriquée (coordonnées de la fenêtre). SwiftUI relit la position du pointeur
+    /// (`mouseLocationOutsideOfEventStream`, la VRAIE souris) quand le contenu bouge sous lui : la liste des Dictées qui défile rallume
+    /// la ligne sous le pointeur. En essai, la vraie souris est ailleurs (là où Hugues l'a laissée) : sans ceci, chaque défilement
+    /// remettait le survol sous la vraie souris et l'essai dépendait d'elle (12/11 : 229 mouvements justes sur 355 avec la vraie souris
+    /// posée sous l'encoche, 355 sur 355 avec une souris lue loin de la fenêtre ou qui suit les mouvements fabriqués). Dans l'app : nil.
+    var pointeurEssai: NSPoint?
+    override var mouseLocationOutsideOfEventStream: NSPoint { pointeurEssai ?? super.mouseLocationOutsideOfEventStream }
 }
 
 /// La fenêtre de l'îlot : un panneau sans bord, transparent, au-dessus de la barre des menus, qui ne prend pas le focus (l'app au premier
@@ -333,6 +340,7 @@ final class IlotPanneau {
         // position globale (origine en haut à gauche de l'écran principal) du point de l'îlot
         let principal = NSScreen.screens.first?.frame.maxY ?? ecran.frame.maxY
         ev.location = CGPoint(x: centre + p.x, y: principal - (ecran.frame.maxY - p.y))
+        f.pointeurEssai = NSPoint(x: centre + p.x - f.frame.minX, y: ecran.frame.maxY - p.y - f.frame.minY)
         ev.setIntegerValueField(.scrollWheelEventIsContinuous, value: trackpad ? 1 : 0)
         ev.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase)
         ev.setIntegerValueField(.scrollWheelEventMomentumPhase, value: inertie)
@@ -380,6 +388,7 @@ final class IlotPanneau {
         let local = NSPoint(x: centre + p.x - f.frame.minX, y: ecran.frame.maxY - p.y - f.frame.minY)
         let t = ProcessInfo.processInfo.systemUptime
         let dedans = f.frame.contains(NSPoint(x: centre + p.x, y: ecran.frame.maxY - p.y))
+        f.pointeurEssai = local
         func bord(_ type: NSEvent.EventType) {
             for a in v.trackingAreas where a.options.contains(.mouseEnteredAndExited) {
                 guard let e = NSEvent.enterExitEvent(with: type, location: local, modifierFlags: [], timestamp: t, windowNumber: f.windowNumber, context: nil,
@@ -401,6 +410,7 @@ final class IlotPanneau {
     func envoyerSouris(_ type: NSEvent.EventType, en p: CGPoint) {
         guard let f = fenetre, let ecran else { return }
         let local = NSPoint(x: centre + p.x - f.frame.minX, y: ecran.frame.maxY - p.y - f.frame.minY)
+        f.pointeurEssai = local
         guard let e = NSEvent.mouseEvent(with: type, location: local, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
                                          windowNumber: f.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1) else { return }
         f.sendEvent(e)
@@ -413,6 +423,7 @@ final class IlotPanneau {
     func survolerSourceFichiers(en p: CGPoint) -> Bool {
         guard let f = fenetre, let ecran, let v = sourceFichiers(en: p) else { return false }
         let local = NSPoint(x: centre + p.x - f.frame.minX, y: ecran.frame.maxY - p.y - f.frame.minY)
+        f.pointeurEssai = local
         guard let e = NSEvent.mouseEvent(with: .mouseMoved, location: local, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
                                          windowNumber: f.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0) else { return false }
         v.mouseEntered(with: e)
