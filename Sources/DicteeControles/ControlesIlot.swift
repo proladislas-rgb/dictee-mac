@@ -255,56 +255,66 @@ func controlesIlot() {
         var a = VeilleMicro()
         _ = a.systeme(defaut: mac, coupe: false); _ = a.basculer()
         verifier(a.systeme(defaut: air, coupe: false) == .rien && !a.coupe && a.defaut == air, "AirPods connectés (ouverts) pendant que le Mac est coupé : l'îlot montre les AirPods, sans « Micro ouvert »")
-        verifier(a.dictee(enCours: true, micro: mac, coupe: true) == R(commande: .rouvrir(mac)) && a.rouvertPourDictee == mac,
-                 "dictée sur le micro du Mac (imposé), resté coupé : c'est LUI qui est rouvert, pas le micro par défaut")
-        verifier(a.dictee(enCours: false) == R(commande: .couper(mac)) && a.rouvertPourDictee == nil && !a.coupe, "fin : le micro du Mac est recoupé ; les AirPods, jamais touchés")
-        verifier(a.systeme(defaut: mac, coupe: true) == .rien && a.coupe, "AirPods rangés : le micro du Mac, toujours coupé, est montré, sans bandeau")
-        // le défaut change PENDANT une dictée qui avait rouvert le micro du Mac
-        var b = VeilleMicro()
-        _ = b.systeme(defaut: mac, coupe: false); _ = b.basculer()
-        verifier(b.dictee(enCours: true, micro: mac, coupe: true) == R(commande: .rouvrir(mac)), "dictée : le micro du Mac est rouvert")
-        verifier(b.systeme(defaut: air, coupe: false) == .rien && !b.coupe, "les AirPods deviennent le micro par défaut pendant la dictée : rien d'annoncé")
-        verifier(b.dictee(enCours: false) == R(commande: .couper(mac)), "fin : on recoupe le micro du Mac (celui qu'on avait rouvert), jamais les AirPods")
-        var b2 = VeilleMicro()
-        _ = b2.systeme(defaut: air, coupe: false)
-        _ = b2.dictee(enCours: true, micro: mac, coupe: true)
-        verifier(b2.systeme(defaut: mac, coupe: false) == .rien && b2.coupe, "le micro rouvert pour la dictée devient le défaut : l'îlot le montre coupé (il le sera à la fin)")
-        verifier(b2.dictee(enCours: false) == R(commande: .couper(mac)) && b2.coupe, "fin : recoupé")
+        verifier(a.avantDictee(micro: mac, coupe: true) == .bloquer(mac) && a.coupe == false,
+                 "fn, la dictée écouterait le micro du Mac (imposé), resté coupé : elle ne part PAS (c'est lui qui est coupé, pas le micro par défaut)")
+        verifier(a.rouvrirPourDicter(mac) == R(commande: .rouvrir(mac), annonce: .ouvert) && !a.coupe,
+                 "« Rouvrir et dicter » : c'est le micro du Mac qui est rouvert (son UID), les AirPods ne sont pas touchés")
+        verifier(a.systeme(defaut: mac, coupe: false) == .rien && !a.coupe, "AirPods rangés : le micro du Mac, rouvert, est montré ouvert")
 
+        // fn sur un micro coupé : rien ne s'ouvre en douce (Hugues, 11/11 : « micro coupé : rouvert (dictée) » à chaque fn)
         var x = VeilleMicro()
         _ = x.systeme(defaut: mac, coupe: false); _ = x.basculer()
-        verifier(x.dictee(enCours: true, micro: mac, coupe: true) == R(commande: .rouvrir(mac)) && x.coupe && x.rouvertPourDictee == mac, "fn pendant que c'est coupé : la dictée rouvre le micro (l'îlot garde « coupé »)")
-        verifier(x.systeme(defaut: mac, coupe: false) == .rien && x.coupe, "l'écho de cette réouverture : rien, pas de « Micro ouvert »")
-        verifier(x.dictee(enCours: true, micro: mac, coupe: false) == .rien, "la dictée déjà en cours : pas deux fois")
-        verifier(x.dictee(enCours: false) == R(commande: .couper(mac)) && x.coupe && x.rouvertPourDictee == nil, "fin de la dictée : recoupé")
-        verifier(x.systeme(defaut: mac, coupe: true) == .rien, "l'écho du recoupage : rien")
-        verifier(x.systeme(defaut: mac, coupe: true) == .rien && x.coupe, "une notification en retard relue telle qu'est le micro maintenant : rien ne bouge")
-        verifier(x.dictee(enCours: true, micro: air, coupe: false) == .rien && x.dictee(enCours: false) == .rien,
-                 "la dictée écoute un autre micro, ouvert : on ne touche pas à celui-ci (l'appel l'entendrait)")
-        _ = x.dictee(enCours: true, micro: mac, coupe: true)
-        verifier(x.basculer() == R(annonce: .ouvert) && !x.coupe && x.rouvertPourDictee == nil, "raccourci pendant une dictée qui l'a rouvert : il reste ouvert (pas de commande), « Micro ouvert »")
-        verifier(x.dictee(enCours: false) == .rien && !x.coupe, "fin de cette dictée : on ne recoupe pas")
-        _ = x.dictee(enCours: true, micro: mac, coupe: false)
-        verifier(x.basculer() == .rien && x.coupe && x.rouvertPourDictee == mac, "raccourci pendant une dictée : couper attend la fin (sinon la dictée n'entend plus rien)")
-        verifier(x.dictee(enCours: false) == R(commande: .couper(mac)), "fin de la dictée : coupé")
-        _ = x.basculer()
-        _ = x.dictee(enCours: true, micro: air, coupe: false)
-        verifier(x.basculer() == R(commande: .couper(mac)), "pendant une dictée sur un autre micro : couper tout de suite")
-        _ = x.dictee(enCours: false)
-        _ = x.dictee(enCours: true, micro: mac, coupe: true)
-        verifier(x.systeme(defaut: mac, coupe: true) == .rien && x.rouvertPourDictee == nil && x.dictee(enCours: false) == .rien, "recoupé ailleurs pendant la dictée : rien à recouper à la fin")
+        verifier(x.avantDictee(micro: mac, coupe: true) == .bloquer(mac) && x.coupe && x.aCouperApres == nil, "fn pendant que c'est coupé : la dictée ne part pas, rien n'est rouvert")
+        verifier(x.avantDictee(micro: mac, coupe: true) == .bloquer(mac), "un deuxième appui : toujours bloqué (le micro reste coupé tant que Hugues ne le rouvre pas)")
+        verifier(x.dictee(enCours: true, micro: mac) == .rien && x.dictee(enCours: false) == .rien && x.coupe,
+                 "même si une dictée démarrait quand même : aucune commande (ni réouverture, ni recoupage)")
+        verifier(x.rouvrirPourDicter(mac) == R(commande: .rouvrir(mac), annonce: .ouvert) && !x.coupe, "« Rouvrir et dicter » : rouvert, « Micro ouvert »")
+        verifier(x.systeme(defaut: mac, coupe: false) == .rien, "l'écho de la réouverture : rien")
+        verifier(x.avantDictee(micro: mac, coupe: false) == .dicter, "puis fn : la dictée part")
+        verifier(x.avantDictee(micro: nil, coupe: false) == .dicter, "aucun micro connu : on laisse la dictée décider (elle dira « micro impossible »)")
+
+        // le micro par défaut (AirPods) est coupé, la dictée écoute le micro du Mac, ouvert : elle part, et l'îlot le dit une fois
+        var o = VeilleMicro()
+        _ = o.systeme(defaut: air, coupe: false); _ = o.basculer()
+        verifier(o.coupe && o.avantDictee(micro: mac, coupe: false) == .dicterAvecUnAutre(coupe: air), "AirPods coupés, dictée sur le Mac : elle part, « le micro des AirPods est coupé »")
+        verifier(o.avantDictee(micro: mac, coupe: false) == .dicter, "le deuxième appui : on ne le redit pas")
+        _ = o.basculer(); _ = o.basculer()
+        verifier(o.avantDictee(micro: mac, coupe: false) == .dicterAvecUnAutre(coupe: air), "rouvert puis recoupé : on le redit (une nouvelle coupure)")
+        verifier(o.dictee(enCours: true, micro: mac) == .rien && o.dictee(enCours: false) == .rien && o.coupe, "cette dictée ne touche à aucun micro (les AirPods restent coupés)")
+
+        // couper pendant une dictée sur ce micro : il reste ouvert jusqu'à la fin (sinon la dictée n'entend plus rien), puis il est coupé
+        var k = VeilleMicro()
+        _ = k.systeme(defaut: mac, coupe: false)
+        _ = k.dictee(enCours: true, micro: mac)
+        verifier(k.basculer() == .rien && k.coupe && k.aCouperApres == mac, "bouton Micro pendant une dictée : couper attend la fin")
+        verifier(k.systeme(defaut: mac, coupe: false) == .rien && k.coupe, "le micro, encore ouvert pour la dictée : l'îlot garde « Coupé », pas de « Micro ouvert »")
+        verifier(k.dictee(enCours: false) == R(commande: .couper(mac)) && k.coupe && k.aCouperApres == nil, "fin de la dictée : coupé")
+        _ = k.basculer()
+        _ = k.dictee(enCours: true, micro: mac); _ = k.basculer()
+        verifier(k.basculer() == R(annonce: .ouvert) && !k.coupe && k.aCouperApres == nil, "rouvert avant la fin de la dictée : il reste ouvert (pas de commande), « Micro ouvert »")
+        verifier(k.dictee(enCours: false) == .rien && !k.coupe, "fin de cette dictée : on ne coupe pas")
+        _ = k.dictee(enCours: true, micro: air)
+        verifier(k.basculer() == R(commande: .couper(mac)), "pendant une dictée sur un autre micro : couper tout de suite")
+        _ = k.dictee(enCours: false); _ = k.basculer()
+        _ = k.dictee(enCours: true, micro: mac); _ = k.basculer()
+        verifier(k.systeme(defaut: mac, coupe: true) == .rien && k.aCouperApres == nil && k.dictee(enCours: false) == .rien, "coupé ailleurs pendant la dictée : rien à couper à la fin")
+        var b = VeilleMicro()
+        _ = b.systeme(defaut: mac, coupe: false)
+        _ = b.dictee(enCours: true, micro: mac); _ = b.basculer()
+        verifier(b.systeme(defaut: air, coupe: false) == .rien && !b.coupe, "les AirPods deviennent le micro par défaut pendant la dictée : rien d'annoncé")
+        verifier(b.dictee(enCours: false) == R(commande: .couper(mac)), "fin : on coupe le micro du Mac (celui que la dictée gardait ouvert), jamais les AirPods")
 
         var y = VeilleMicro()
         _ = y.systeme(defaut: mac, coupe: false)
         _ = y.basculer(); y.commandeEchouee(.couper(mac))
         verifier(!y.coupe, "un micro qui ne se coupe pas : l'îlot reste sur « ouvert »")
-        _ = y.systeme(defaut: mac, coupe: true); _ = y.dictee(enCours: true, micro: mac, coupe: true); y.commandeEchouee(.rouvrir(mac))
-        verifier(y.coupe && y.rouvertPourDictee == nil && y.dictee(enCours: false) == .rien, "réouverture refusée pour la dictée : il reste coupé, rien à recouper")
-        _ = y.dictee(enCours: true, micro: air, coupe: true); y.commandeEchouee(.rouvrir(air))
-        verifier(y.coupe && y.rouvertPourDictee == nil, "réouverture refusée pour un autre micro : le micro par défaut garde son état")
-        _ = y.dictee(enCours: false)
-        _ = y.dictee(enCours: true, micro: mac, coupe: true)
-        verifier(y.oublier() == R(commande: .couper(mac)) && !y.coupe && !y.dicteeEnCours, "réglage éteint pendant une dictée qui l'a rouvert : recoupé, puis tout est oublié")
+        _ = y.systeme(defaut: mac, coupe: true); _ = y.rouvrirPourDicter(mac); y.commandeEchouee(.rouvrir(mac))
+        verifier(y.coupe && y.avantDictee(micro: mac, coupe: true) == .bloquer(mac), "réouverture refusée par CoreAudio : il reste coupé, fn le dit encore")
+        _ = y.rouvrirPourDicter(air); y.commandeEchouee(.rouvrir(air))
+        verifier(y.coupe, "réouverture refusée pour un autre micro : le micro par défaut garde son état")
+        _ = y.systeme(defaut: mac, coupe: false)
+        _ = y.dictee(enCours: true, micro: mac); _ = y.basculer()
+        verifier(y.oublier() == R(commande: .couper(mac)) && !y.coupe && !y.dicteeEnCours, "réglage éteint pendant une dictée qui gardait le micro ouvert : coupé, puis tout est oublié")
         verifier(y.oublier() == .rien, "réglage éteint, micro simplement coupé : on le laisse comme il est (c'est l'état du Mac)")
 
         verifier(MicroIlot.volumeARendre(garde: 0.62) == 0.62 && MicroIlot.volumeARendre(garde: nil) == 0.75 && MicroIlot.volumeARendre(garde: 0) == 0.75 && MicroIlot.volumeARendre(garde: 3) == 1,
@@ -1066,6 +1076,49 @@ func controlesEtagereRapide(_ t0: Date) {
     verifier(VueIlot.etagereEnvoi.estBandeau && VueIlot.etagerePartis.estBandeau && GeoIlot.ajusteAuContenu(.etagerePartis) && GeoIlot.ajusteAuContenu(.etagereEnvoi),
              "envoi AirDrop et fichiers partis : des bandeaux qui épousent leur contenu")
     verifier(!VueIlot.etagerePile.estBandeau && GeoIlot.profondeur(.etagerePile) == 0 && !VueIlot.etagereAppel.estBandeau, "la pile et l'appel ne sont pas des bandeaux")
+
+    groupe("Îlot : AirDrop honnête (11/11 au soir : annulé, l'îlot disait « Envoyé »)")
+    do {
+        typealias E = EnvoiAirDropEtat
+        verifier(E.depuisLeService(partage: true) == .lance, "didShareItems (appareil choisi) : « lancé », pas « envoyé »")
+        verifier(E.depuisLeService(partage: false, domaine: NSCocoaErrorDomain, code: NSUserCancelledError) == .annule, "didFailToShareItems, NSUserCancelledError : « Annulé »")
+        verifier(E.depuisLeService(partage: false, domaine: NSCocoaErrorDomain, code: 4) == .indisponible && E.depuisLeService(partage: false, domaine: "autre", code: NSUserCancelledError) == .indisponible,
+                 "une autre erreur (ou un autre domaine) : « AirDrop indisponible », jamais « Annulé » par erreur")
+        let tous: [E] = [.enCours, .lance, .annule, .indisponible]
+        verifier(tous.allSatisfy { !$0.titre.lowercased().contains("envoyé") && !$0.sousTitre(quoi: "Plan.jpg", surEtagere: true).lowercased().hasPrefix("envoyé") },
+                 "aucun texte ne dit « Envoyé » (aucune interface ne confirme la fin d'un transfert AirDrop)")
+        verifier(E.lance.titre == "Envoi lancé vers AirDrop" && E.lance.sousTitre(quoi: "Plan.jpg", surEtagere: false) == "Plan.jpg"
+                 && E.lance.sousTitre(quoi: "Plan.jpg", surEtagere: true) == "Plan.jpg \u{00B7} reste sur l\u{2019}étagère", "« Envoi lancé vers AirDrop » ; « reste sur l'étagère » quand il y est")
+        verifier(E.annule.titre == "Annulé" && E.annule.sousTitre(quoi: "x", surEtagere: true) == "Rien n\u{2019}a été envoyé", "« Annulé · Rien n'a été envoyé »")
+        verifier(E.enCours.peutDevenir(.lance) && E.enCours.peutDevenir(.annule) && E.lance.peutDevenir(.annule), "« Envoi… » devient la réponse ; « lancé » peut encore être annulé (dans le panneau)")
+        verifier(!E.lance.peutDevenir(.lance) && !E.annule.peutDevenir(.lance) && !E.annule.peutDevenir(.annule) && !E.indisponible.peutDevenir(.lance),
+                 "après « Annulé » ou un échec, plus rien ne change ; « lancé » ne se répète pas")
+        verifier(E.lance.duree >= 2.5 && E.enCours.duree >= 120, "« lancé » reste le temps de le lire ; « Envoi… », le temps de choisir l'appareil")
+        verifier(EtagereIlot.appDuLacher(bundle: E.extensionAirDrop, nom: "AirDrop") == E.nom && EtagereIlot.appDuLacher(bundle: E.extensionAirDrop, nom: nil) == E.nom,
+                 "lâché sur le panneau AirDrop (extension com.apple.share.AirDrop.send) : reconnu, même sans nom")
+        verifier(EtagereIlot.appDuLacher(bundle: "com.apple.mail", nom: "Mail") == "Mail", "lâché dans Mail : Mail")
+        verifier(ZoneDepotEtagere.auLacher(.airdrop, airDropDepuis: nil) == .etagere && ZoneDepotEtagere.auLacher(.airdrop, airDropDepuis: 0.2) == .etagere,
+                 "lâché sur AirDrop en passant (jamais éclairée, ou 0,2 s) : sur l'étagère, rien n'est envoyé")
+        verifier(ZoneDepotEtagere.auLacher(.airdrop, airDropDepuis: 0.5) == .airdrop && ZoneDepotEtagere.auLacher(.etagere, airDropDepuis: 3) == .etagere,
+                 "visée un instant (0,5 s) : AirDrop ; l'étagère reste l'étagère")
+    }
+
+    groupe("Îlot : l'aide au survol du Centre et des Outils")
+    verifier(ElementCentre.allCases.allSatisfy { !$0.aide.isEmpty && $0.aide.count <= ElementCentre.aideMax && !$0.aide.hasSuffix(".") && !$0.aide.contains("\n") },
+             "chaque bouton et chaque case a sa phrase : courte (≤ \(ElementCentre.aideMax) caractères), une ligne, sans point final")
+    verifier(Set(ElementCentre.allCases.map(\.aide)).count == ElementCentre.allCases.count, "deux boutons n'ont jamais la même phrase")
+    verifier(ElementCentre.telechargements.aide == "Te prévient quand un fichier arrive" && ElementCentre.pressePapiers.aide == "Les 5 dernières choses copiées"
+             && ElementCentre.eveil.aide == "Le Mac ne se met pas en veille", "les exemples de la demande : Téléchargements, Presse-papiers, Garder éveillé")
+
+    groupe("Îlot : micro coupé, fn et l'autre micro (textes)")
+    verifier(MicroIlot.designation(nom: "AirPods Pro de Hugues") == "le micro des AirPods" && MicroIlot.designation(nom: "Micro MacBook Air") == "le micro du Mac"
+             && MicroIlot.designation(nom: "MacBook Pro Microphone") == "le micro du Mac", "AirPods, MacBook : désignés simplement")
+    verifier(MicroIlot.designation(nom: "Yeti") == "le micro \u{00AB}\u{00A0}Yeti\u{00A0}\u{00BB}" && MicroIlot.designation(nom: nil) == "un autre micro" && MicroIlot.designation(nom: "  ") == "un autre micro",
+             "un autre micro : son nom ; inconnu : « un autre micro »")
+    let am = MicroIlot.autreMicro(coupe: "AirPods Pro de Hugues", dictee: "Micro MacBook Air")
+    verifier(am.titre == "Le micro des AirPods est coupé" && am.sousTitre == "Verbe dicte avec le micro du Mac", "« Le micro des AirPods est coupé · Verbe dicte avec le micro du Mac »")
+    verifier(VueIlot.microFn.estBandeau && GeoIlot.ajusteAuContenu(.microFn) && ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .microFn) == 3,
+             "le bandeau de fn : un bandeau qui épouse son contenu, au rang du micro coupé")
 
     groupe("Îlot : l'étagère plus rapide, les zones et « Remettre »")
     verifier(ZoneDepotEtagere.sous(x: -40, y: 80, barre: 32) == .etagere && ZoneDepotEtagere.sous(x: 40, y: 80, barre: 32) == .airdrop, "à gauche « Étagère », à droite « AirDrop »")

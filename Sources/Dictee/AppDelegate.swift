@@ -353,6 +353,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         lecture.reserveRuban = { [weak self] r in self?.dictee.panneau.modele.reserveRuban = r }
         dictee.panneau.modele.$ruban.dropFirst().sink { [weak self] _ in self?.ilot.occupationChangee() }.store(in: &abonnements)
         dictee.surChangementEtat = { [weak self] enCours in self?.ilot.dicteeChange(enCours: enCours) }
+        dictee.peutCommencer = { [weak self] in self?.ilot.autoriserDictee() ?? true }
         dictee.panneau.modele.$ouverte.dropFirst().sink { [weak self] _ in self?.ilot.occupationChangee() }.store(in: &abonnements)
         reunionControleur.$phase.dropFirst().sink { [weak self] _ in self?.ilot.occupationChangee() }.store(in: &abonnements)
         MiseAJourControleur.partage.bande.etat.$ouverte.dropFirst().sink { [weak self] _ in self?.ilot.occupationChangee() }.store(in: &abonnements)

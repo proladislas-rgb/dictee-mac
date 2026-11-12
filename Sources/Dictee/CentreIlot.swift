@@ -91,6 +91,44 @@ enum PlanCentre {
         let p = DispositionCentre.largeursPermises(l, colonne: Double(colonne), ecart: Double(ecartNoms))
         return zip(textes, p).map { (CGFloat($1), police($0, place: CGFloat($1), poids: poids, interlettre: interlettre)) }
     }
+    /// Le cadre d'un élément montré sur sa page (nil : il n'y est pas) : la colonne de son rond, sa case, sa bande, ou la rangée des
+    /// fichiers de l'étagère en haut du Centre.
+    static func cadreElement(_ m: IlotMoteur, _ e: ElementCentre, _ g: GrilleIlot? = nil, page: PageCentre) -> CGRect? {
+        let g = g ?? m.grille
+        guard e.page == page else { return nil }
+        let rs = m.rondsDe(page)
+        if let i = rs.firstIndex(of: e) {
+            let r = cadreRonds(m, g, page: page), l = colonne(m, g, page: page)
+            return CGRect(x: r.minX + l * CGFloat(i), y: r.minY, width: l, height: r.height)
+        }
+        if page == .centre {
+            let mp = m.miseEnPageCentre
+            if mp.cases.contains(e) { return cadreCase(m, e, g) }
+            if e == .etagere, mp.etagereEnHaut { return cadre(.etagere, m, g) }
+            if e == .reunion, mp.bande { return cadreBande(m, g) }
+        } else if e == .noteRapide, m.dispositionOutils.bande {
+            return cadreBande(m, g, page: .outils)
+        }
+        return nil
+    }
+    /// La bulle d'aide (« Te prévient quand un fichier arrive ») : 11,5 pt, une ligne de 21 pt, 9 pt de marge de chaque côté.
+    static let policeAide: CGFloat = 11.5, hauteurAide: CGFloat = 21, margeAide: CGFloat = 9
+    /// Où se pose la bulle d'aide d'un élément de cadre `r`, centrée sur lui, jamais hors de la zone du contenu (la forme ne la rogne
+    /// pas) : un rond, juste sous son nom et son état (elle effleure le haut de la rangée suivante, son vide) ; une case ou une bande,
+    /// juste au-dessus d'elle, dans l'écart qui la sépare des noms des ronds (elle mord de 4 pt sur son propre bord, jamais sur un nom).
+    /// Sinon (rien au-dessus, ou rien dessous), de l'autre côté. Elle ne prend aucun clic.
+    static func cadreAide(_ texte: String, sur r: CGRect, rond estRond: Bool, _ g: GrilleIlot, page: PageCentre) -> CGRect {
+        let z = zone(g, page), f = fond(g, page)
+        let w = min(z.width, MesureIlot.texte(texte, policeAide, .medium) + 2 * margeAide)
+        let x = min(max(r.midX - w / 2, z.minX), z.maxX - w)
+        // le bas du libellé d'un rond : le rond, 7 pt, le nom, l'état (la rangée a 96 pt, le libellé finit vers 88)
+        let dessous = (estRond ? r.minY + rond + 37 : r.maxY) + 3
+        let dessus = r.minY + 4 - hauteurAide
+        let tientDessous = dessous + hauteurAide <= f.maxY - 4, tientDessus = dessus >= f.minY + 4
+        let y = estRond ? (tientDessous || !tientDessus ? dessous : dessus) : (tientDessus || !tientDessous ? dessus : dessous)
+        return CGRect(x: x, y: y, width: w, height: hauteurAide)
+    }
+
     /// La taille d'un texte sous un rond, mesurée pour tenir dans `place` pt.
     static func police(_ texte: String, place: CGFloat, poids: NSFont.Weight, interlettre: CGFloat = 0) -> CGFloat {
         let l = MesureIlot.texte(texte, policeNom, poids, interlettre: interlettre)
@@ -216,7 +254,7 @@ struct CentreVue: View {
                 .posee(PlanCentre.fond(g, page))
             EnteteCentre(m: m, largeur: PlanCentre.cadreEntete(g, page).width, page: page).posee(PlanCentre.cadreEntete(g, page), m.aspect(v, rang: 0), ancre: .topLeading)
             if page == .centre, let r = PlanCentre.cadre(.etagere, m, g) {
-                RangeeEtagere(m: m, largeur: r.width).posee(r, m.aspect(v, rang: 1), ancre: .top)
+                RangeeEtagere(m: m, largeur: r.width).onHover { m.survolAide(.etagere, $0) }.posee(r, m.aspect(v, rang: 1), ancre: .top)
             }
             if !m.rondsDe(page).isEmpty { rondsVivants.posee(PlanCentre.cadreRonds(m, g, page: page), m.aspect(v, rang: 1), ancre: .top) }
             if page == .centre {
@@ -232,10 +270,19 @@ struct CentreVue: View {
                     PanneauEveil(m: m).posee(c, m.aspect(v, rang: 2), ancre: .top)
                 }
                 if m.dispositionOutils.bande {
-                    BandeNoteRapide(m: m).posee(PlanCentre.cadreBande(m, g, page: .outils), m.aspect(v, rang: 4), ancre: .top)
+                    BandeNoteRapide(m: m).onHover { m.survolAide(.noteRapide, $0) }
+                        .posee(PlanCentre.cadreBande(m, g, page: .outils), m.aspect(v, rang: 4), ancre: .top)
                 }
             }
+            // la bulle d'aide du bouton ou de la case survolés, par-dessus tout, sans prendre aucun clic
+            if let e = m.bulleAide, m.courante == v, !m.editionCentre, let r = PlanCentre.cadreElement(m, e, g, page: page) {
+                BulleAide(texte: e.aide)
+                    .posee(PlanCentre.cadreAide(e.aide, sur: r, rond: e.genre == .rond, g, page: page), ancre: .top, .center)
+                    .transition(.opacity)
+                    .zIndex(5)
+            }
         }
+        .animation(m.reduire || m.statique ? nil : .easeOut(duration: 0.12), value: m.bulleAide)
         .frame(width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax, alignment: .topLeading)
         .coordinateSpace(name: Self.espace)
         .animation(m.reduire || m.statique ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: m.dispositionDe(page))
@@ -264,6 +311,8 @@ struct CentreVue: View {
                 bouton(e, colonne: l, rang: i, tailles: (noms[i].taille, etats[i].taille))
                     .frame(width: l, height: CGFloat(DispositionCentre.ronds), alignment: .top)
                     .contentShape(Rectangle())
+                    .onHover { m.survolAide(e, $0) }
+                    .accessibilityHint(e.aide)
                     .offset(x: glisse.flatMap { $0.element == e ? $0.x - $0.prise - milieu : nil } ?? 0)
                     .zIndex(glisse?.element == e ? 1 : 0)
                     .gesture(ranger(e, milieu: milieu) { centre in
@@ -303,6 +352,8 @@ struct CentreVue: View {
             }
         }
         .allowsHitTesting(!ed)
+        .onHover { m.survolAide(e, $0) }
+        .accessibilityHint(e.aide)
         .overlay { if ed { Color.clear.contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous)).onTapGesture {} } }
         .tremblement(ed && (m.statique || !m.reduire), amplitude: 1.4, decale: rang % 2 == 1, fige: m.statique)
         .overlay(alignment: .topLeading) {
@@ -406,6 +457,21 @@ struct CentreVue: View {
         case .reunion, .minuteur, .etagere, .noteRapide:
             EmptyView()
         }
+    }
+}
+
+/// La bulle d'aide d'un bouton ou d'une case du Centre : une ligne sobre, gris foncé sur le noir de l'îlot, qui ne prend aucun clic.
+struct BulleAide: View {
+    var texte: String
+    var body: some View {
+        Text(texte).font(.system(size: PlanCentre.policeAide, weight: .medium)).foregroundStyle(Color.white.opacity(0.92))
+            .lineLimit(1).fixedSize()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color(hex: 0x3A3A3C)))
+            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.55), radius: 6, y: 2)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 

@@ -45,6 +45,12 @@ final class IlotControleur {
     /// Le micro du Mac (CoreAudio ; un micro factice dans les essais, jamais le vrai).
     var micro: PiloteMicro = MicroSysteme() { didSet { micro.surChangement = { [weak self] in self?.microChange() } } }
     private(set) var veilleMicro = VeilleMicro()
+    /// Le micro de la dictée qu'un appui sur fn a trouvé coupé : « Rouvrir et dicter » rouvre celui-là (son UID).
+    private(set) var microBloque: String?
+    /// Le micro de la dictée lu par `autoriserDictee` à l'appui sur fn : la dictée qui démarre aussitôt ne le relit pas.
+    private var microDeLaDicteeLu: String?
+    /// « Le micro des AirPods est coupé · Verbe dicte avec le micro du Mac » : dit à la fin de la dictée (pendant, l'îlot est effacé).
+    private var annonceFinDictee: BandeauIlot?
     /// Volume et luminosité (IlotNiveaux.swift) : le vrai son et le vrai écran (des faux dans les essais), le réglage, et la mémoire des
     /// touches avalées (appui, répétitions, relâchement).
     var niveaux: PiloteNiveaux = NiveauxSysteme()
@@ -371,6 +377,41 @@ final class IlotControleur {
         executer(veilleMicro.systeme(defaut: d, coupe: d.flatMap { micro.estCoupe($0) } ?? false))
     }
 
+    /// fn vient d'être appuyée, la dictée n'a pas encore démarré (aucun son capté) : peut-elle partir ? Coupé veut dire coupé (Hugues,
+    /// 11/11 au soir : fn rouvrait le micro en douce). Le micro qu'écouterait la dictée est coupé : non, l'îlot dit « Micro coupé » et
+    /// propose « Rouvrir et dicter » ; le micro par défaut est coupé mais la dictée en écoute un autre, ouvert : oui, et l'îlot le dit
+    /// (une fois par coupure). Réglage « Micro coupé » éteint : Verbe ne suit pas les micros, la dictée part.
+    func autoriserDictee() -> Bool {
+        guard micro.actif else { return true }
+        let u = micro.microDeLaDictee()
+        microDeLaDicteeLu = u
+        switch veilleMicro.avantDictee(micro: u, coupe: u.flatMap { micro.estCoupe($0) } ?? false) {
+        case .dicter:
+            return true
+        case .bloquer(let m):
+            microBloque = m
+            microDeLaDicteeLu = nil
+            Log.ecrire("dictée refusée : le micro de la dictée est coupé (rien n'est rouvert ni enregistré)\(m != veilleMicro.defaut ? " (pas le micro par défaut)" : "")")
+            annoncerTout(BandeauIlot(vue: .microFn, jusqua: maintenant().addingTimeInterval(Self.dureeMicroFn), ligne1: "Micro coupé",
+                                     ligne2: "Rien n\u{2019}a été enregistré"))
+            return false
+        case .dicterAvecUnAutre(let c):
+            let t = MicroIlot.autreMicro(coupe: micro.nom(de: c), dictee: u.flatMap { micro.nom(de: $0) })
+            Log.ecrire("micro coupé : la dictée passe par un autre micro, ouvert (le micro coupé n'est pas touché)")
+            // la dictée démarre tout de suite (l'îlot est effacé pendant qu'elle parle) : le bandeau se dit à sa fin
+            annonceFinDictee = BandeauIlot(vue: .microFn, jusqua: maintenant().addingTimeInterval(4), ligne1: t.titre, ligne2: t.sousTitre)
+            return true
+        }
+    }
+    /// Combien de temps « Micro coupé · Rouvrir et dicter » reste (le temps d'aller cliquer).
+    static let dureeMicroFn: TimeInterval = 6
+    /// Un bandeau qui répond à un geste (fn) : il s'affiche même sur le Centre épinglé (qui retiendrait sinon les bandeaux) ; seule une
+    /// dictée ou une réunion en cours le fait attendre.
+    private func annoncerTout(_ b: BandeauIlot) {
+        if moteur.centreRetientLesBandeaux { moteur.epingle = false }
+        moteur.annoncer(bandeau: b)
+    }
+
     /// Envoie la commande à CoreAudio (au micro qu'elle vise), puis montre ce qui est vrai (l'activité, et le bandeau vert « Micro
     /// ouvert », 1,5 s). Faux si CoreAudio a refusé la commande.
     @discardableResult
@@ -470,14 +511,14 @@ final class IlotControleur {
             if armeJusqua > maintenant() { armeJusqua = maintenant().addingTimeInterval(12) }
             if noteArmeeJusqua > maintenant() { noteArmeeJusqua = maintenant().addingTimeInterval(12) }
         }
-        // le micro qu'écoutera la dictée, s'il est coupé, est rouvert AVANT qu'elle ne l'ouvre (cet appel précède le démarrage de la
-        // capture), puis recoupé à la fin ; c'est bien CE micro-là (son UID), même si ce n'est pas celui par défaut
+        // la dictée ne rouvre jamais rien (fn sur un micro coupé est arrêtée avant : `autoriserDictee`) ; on retient seulement le micro
+        // qu'elle écoute : le couper pendant qu'elle parle attend sa fin
         if micro.actif {
-            if enCours {
-                let u = micro.microDeLaDictee()
-                executer(veilleMicro.dictee(enCours: true, micro: u, coupe: u.flatMap { micro.estCoupe($0) } ?? false))
-            } else { executer(veilleMicro.dictee(enCours: false)) }
+            executer(veilleMicro.dictee(enCours: enCours, micro: enCours ? (microDeLaDicteeLu ?? micro.microDeLaDictee()) : nil))
+            microDeLaDicteeLu = nil
         }
+        // la dictée finit : ce qu'il fallait dire sur le micro (il attend que l'encoche de la dictée se range, puis reste au moins 3 s)
+        if !enCours, let b = annonceFinDictee { annonceFinDictee = nil; moteur.annoncer(bandeau: b) }
         lecture.dicteeChange(enCours: enCours)
         appliquerLesMasques()
     }
@@ -602,6 +643,13 @@ final class IlotControleur {
         case .microRouvrir:
             moteur.fermer()
             executer(veilleMicro.rouvrir())
+        case .microRouvrirEtDicter:
+            moteur.quitterBandeau()
+            guard micro.actif, let u = microBloque else { return }
+            microBloque = nil
+            // l'état réel d'abord (une notification de CoreAudio peut être encore en route)
+            if let d = micro.defaut { _ = veilleMicro.systeme(defaut: d, coupe: micro.estCoupe(d) ?? false) }
+            executer(veilleMicro.rouvrirPourDicter(u))
         case .claudeOuvrir(let session):
             if let id = session?.id { moteur.retirerEnAttente { $0.claude?.id == id } }
             if moteur.bandeau?.vue == .claudeAttend || moteur.bandeau?.vue == .claudeTermine { moteur.quitterBandeau() } else { moteur.fermer() }

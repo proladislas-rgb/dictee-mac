@@ -55,12 +55,15 @@ struct PartisEtagere {
     var duree: TimeInterval
 }
 
-/// Un envoi AirDrop : le panneau de macOS choisit l'appareil ; l'îlot dit où on en est d'après ce que le service répond.
+/// Un envoi AirDrop : le panneau de macOS choisit l'appareil ; l'îlot dit où on en est d'après ce que le service répond (jamais
+/// « Envoyé » : aucune interface ne confirme la fin du transfert, voir `EnvoiAirDropEtat`).
 struct EnvoiEtagere {
-    enum Etat: Equatable { case enCours, envoye, annule, indisponible }
+    typealias Etat = EnvoiAirDropEtat
     var etat: Etat
     var noms: [String]
     var icone: NSImage?
+    /// Ces fichiers sont sur l'étagère, et y restent.
+    var surEtagere = false
 }
 
 /// Ce que montre le bandeau « Téléchargé » : la rafale (noms, tailles, AirDrop) et les icônes du Finder, lues une fois à l'annonce.
@@ -98,6 +101,9 @@ enum ActionIlot {
     case fichiersOuvrir([URL])
     /// « Rouvrir » sur le micro coupé déplié.
     case microRouvrir
+    /// « Rouvrir et dicter » sur le bandeau de fn (le micro de la dictée était coupé, rien n'a été enregistré) : il est rouvert, le
+    /// prochain appui sur fn dicte.
+    case microRouvrirEtDicter
     /// « Ouvrir » (ou « Voir ») sur une session de Claude Code : ramène la fenêtre du Terminal où elle tourne (sinon l'app).
     case claudeOuvrir(SessionClaude?)
     /// L'étagère : ouvrir un fichier (clic sur sa tuile), le retirer (« × »), tout vider.
@@ -319,7 +325,7 @@ final class IlotMoteur: ObservableObject {
     var disposition = DispositionCentre() { didSet { if disposition != oldValue { rev += 1 } } }
     /// « Modifier » : les boutons tremblent, « – » retire, « Ajouter : » ajoute, on les range en les glissant ; « OK » enregistre
     /// (`surDispositionCentre`). Un Centre qui se range (clic ailleurs, alerte) enregistre aussi.
-    var editionCentre = false { didSet { if editionCentre != oldValue { rev += 1 } } }
+    var editionCentre = false { didSet { if editionCentre != oldValue { rev += 1; if editionCentre { oublierAide() } } } }
     var surDispositionCentre: (DispositionCentre) -> Void = { _ in }
     /// La ligne « Ajouter : » montre les pastilles qui tiennent, puis « +2 › » : un clic montre les suivantes (à partir de celle-ci).
     var debutAjouts = 0 { didSet { if debutAjouts != oldValue { rev += 1 } } }
@@ -354,6 +360,30 @@ final class IlotMoteur: ObservableObject {
     var noteNeuve: UUID? { didSet { if noteNeuve != oldValue { rev += 1 } } }
     var envoisNotes: [UUID: EnvoiNote] = [:] { didSet { rev += 1 } }
     var survolNote: UUID? { didSet { if survolNote != oldValue { rev += 1 } } }
+    /// Le bouton ou la case du Centre (ou des Outils) dont la phrase d'aide est montrée (au survol, après un court instant).
+    var bulleAide: ElementCentre? { didSet { if bulleAide != oldValue { rev += 1 } } }
+    private var attenteAide: DispatchWorkItem?
+    /// Quand une bulle d'aide est partie : passer aussitôt à la voisine montre la sienne tout de suite (comme les bulles du Mac).
+    private var aideQuittee = Date.distantPast
+    /// Le temps de survol avant la bulle d'aide (un pointeur qui ne fait que passer ne la fait pas paraître).
+    static let delaiAide: TimeInterval = 0.5
+
+    /// Le pointeur entre sur un bouton ou une case du Centre (ou en sort) : sa phrase d'aide paraît après `delaiAide`, part dès qu'il
+    /// s'en va. Rien pendant « Modifier ». Le clic n'est jamais gêné : la bulle ne prend aucun clic.
+    func survolAide(_ e: ElementCentre, _ dessus: Bool) {
+        attenteAide?.cancel(); attenteAide = nil
+        guard dessus else {
+            if bulleAide == e { bulleAide = nil; aideQuittee = maintenant() }
+            return
+        }
+        guard !editionCentre, e.aideEnBulle else { return }
+        if bulleAide != nil || maintenant().timeIntervalSince(aideQuittee) < 0.4 { bulleAide = e; return }
+        let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.bulleAide = e } }
+        attenteAide = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.delaiAide, execute: item)
+    }
+    /// Un clic, l'îlot qui se range, « Modifier » : la bulle d'aide part.
+    func oublierAide() { attenteAide?.cancel(); attenteAide = nil; if bulleAide != nil { bulleAide = nil; aideQuittee = maintenant() } }
     /// Le défilement de la liste des notes (0 = en haut), quand elle dépasse.
     private(set) var defilementNotes: CGFloat = 0
 
@@ -450,6 +480,7 @@ final class IlotMoteur: ObservableObject {
             if resolution.principal != .repos || courante != .repos || pastille != nil {
                 resolution = ResolutionIlot(principal: .repos, survol: nil, verrou: true, pastille: nil)
                 epingle = false; survole = false; sousVue = nil
+                oublierAide()
                 afficher(.repos)
                 majPastille()
             }
@@ -476,6 +507,7 @@ final class IlotMoteur: ObservableObject {
         if !fenetreOuverte {
             if eveil == nil, panneauEveil { panneauEveil = false }
             survolCopie = nil; survolNote = nil
+            oublierAide()
         }
         // le Centre ouvert le reste quand une activité commence (un minuteur lancé, le micro coupé, une vidéo) : on ne saute pas ailleurs
         if courante == .centre, survole || epingle, sousVue == nil, !resolution.verrou, resolution.survol != .centre, ancien.survol != resolution.survol { sousVue = .centre }
@@ -1170,6 +1202,8 @@ final class IlotMoteur: ObservableObject {
     /// Un clic sur un bouton du Centre : l'îlot reste ouvert (« Reste ouvert ») pour enchaîner d'autres réglages ; il se range au clic
     /// ailleurs ou d'un clic sur l'îlot dans la barre des menus (un clic dans le vide du Centre ne compte pas, `PlanCentre.fond`).
     func epinglerLeCentre() {
+        // un clic sur un bouton : sa bulle d'aide part (comme celles du Mac)
+        oublierAide()
         guard !cache, !resolution.verrou else { return }
         intention?.cancel(); fermeture?.cancel()
         if courante == .centre, sousVue == nil { sousVue = .centre }

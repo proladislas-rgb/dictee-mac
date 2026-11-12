@@ -111,6 +111,7 @@ public struct EtagereIlot: Codable, Equatable, Sendable {
     /// Le nom de l'app où des fichiers ont été lâchés, d'après le propriétaire de la fenêtre sous le point. Le Dock possède les fenêtres
     /// de ses icônes : lâché sur l'icône de Mail, ce n'est pas « Dock » ; on ne dit alors aucun nom (« 1 fichier parti »).
     public static func appDuLacher(bundle: String?, nom: String?) -> String? {
+        if bundle == EnvoiAirDropEtat.extensionAirDrop { return EnvoiAirDropEtat.nom }
         guard bundle != "com.apple.dock", let nom, !nom.isEmpty else { return nil }
         return nom
     }
@@ -196,6 +197,67 @@ public enum ApprocheEtagere {
     }
 }
 
+/// Un envoi AirDrop, tel que l'îlot le dit (Hugues, 11/11 au soir : il avait ANNULÉ, l'îlot a dit « Envoyé »). Le service de partage de
+/// macOS (NSSharingService « sendViaAirDrop ») répond par son délégué : `didShareItems` arrive quand l'appareil est choisi (le transfert
+/// commence, l'appareil peut encore refuser ou l'envoi être annulé dans le panneau), `didFailToShareItems` avec NSUserCancelledError
+/// quand le panneau est annulé. AUCUNE interface ne dit que le transfert est fini : l'îlot ne dit donc jamais « Envoyé », mais « Envoi
+/// lancé vers AirDrop » ; et un fichier envoyé par AirDrop ne quitte jamais l'étagère (s'il n'est pas arrivé, on le renvoie de là).
+public enum EnvoiAirDropEtat: Equatable, Sendable {
+    /// Le panneau AirDrop est ouvert : on attend le choix de l'appareil.
+    case enCours
+    /// Un appareil a été choisi, le transfert est lancé (pas forcément fini).
+    case lance
+    /// Le panneau (ou l'envoi) a été annulé.
+    case annule
+    /// AirDrop ne peut pas envoyer (Wi-Fi ou Bluetooth éteint), ou le service a échoué.
+    case indisponible
+
+    public static let nom = "AirDrop"
+    /// L'extension de partage AirDrop de macOS (FinderKit, AirDrop.appex) : des fichiers lâchés sur son panneau partent par AirDrop.
+    public static let extensionAirDrop = "com.apple.share.AirDrop.send"
+
+    /// La réponse du délégué : `partage` (didShareItems), sinon l'erreur de didFailToShareItems.
+    public static func depuisLeService(partage: Bool, domaine: String? = nil, code: Int? = nil) -> EnvoiAirDropEtat {
+        if partage { return .lance }
+        return domaine == NSCocoaErrorDomain && code == NSUserCancelledError ? .annule : .indisponible
+    }
+    /// Une réponse peut-elle en remplacer une autre ? Après « lancé », seule l'annulation dans le panneau compte (l'envoi a été coupé) ;
+    /// une fois annulé ou en échec, plus rien.
+    public func peutDevenir(_ e: EnvoiAirDropEtat) -> Bool {
+        switch self {
+        case .enCours: return e != .enCours
+        case .lance: return e == .annule
+        case .annule, .indisponible: return false
+        }
+    }
+    public var titre: String {
+        switch self {
+        case .enCours: return "Envoi AirDrop\u{2026}"
+        case .lance: return "Envoi lancé vers AirDrop"
+        case .annule: return "Annulé"
+        case .indisponible: return "AirDrop indisponible"
+        }
+    }
+    /// `quoi` : le nom du fichier, ou « 3 fichiers » ; `surEtagere` : ces fichiers sont (et restent) sur l'étagère.
+    public func sousTitre(quoi: String, surEtagere: Bool) -> String {
+        switch self {
+        case .enCours: return quoi + " \u{00B7} choisis l\u{2019}appareil"
+        case .lance: return surEtagere ? quoi + " \u{00B7} reste sur l\u{2019}étagère" : quoi
+        case .annule: return "Rien n\u{2019}a été envoyé"
+        case .indisponible: return "Allume le Wi-Fi et le Bluetooth"
+        }
+    }
+    /// Combien de temps le bandeau reste (« Envoi… » : le temps de choisir l'appareil ; la réponse le remplace).
+    public var duree: Double {
+        switch self {
+        case .enCours: return 300
+        case .lance: return 3
+        case .annule: return 2.2
+        case .indisponible: return 3
+        }
+    }
+}
+
 /// Les deux zones de dépôt, côte à côte sous l'encoche : « Étagère » (à gauche : la garder pour plus tard) et « AirDrop » (à droite :
 /// l'envoyer). Celle sous le pointeur s'éclaire ; le lâcher va à celle-là.
 public enum ZoneDepotEtagere: String, Equatable, Sendable {
@@ -203,6 +265,14 @@ public enum ZoneDepotEtagere: String, Equatable, Sendable {
     /// La zone sous le pointeur (x depuis le centre de l'encoche, y depuis le haut de l'écran) : la gauche est l'étagère, la droite
     /// AirDrop. Encore dans la barre des menus (sur le cou, au-dessus des zones) : l'étagère, qu'on peut toujours défaire.
     public static func sous(x: Double, y: Double, barre: Double) -> ZoneDepotEtagere { y < barre || x < 0 ? .etagere : .airdrop }
+
+    /// Combien de temps « AirDrop » doit rester éclairée sous le pointeur avant qu'un lâcher y parte (12/11 : une capture d'écran glissée
+    /// vers le haut est partie vers AirDrop sans le vouloir). Un lâcher plus rapide va sur l'étagère, qu'on peut toujours défaire.
+    public static let attenteAirDrop: Double = 0.4
+    /// La zone où va vraiment un lâcher : AirDrop seulement si elle a été visée (éclairée depuis `airDropDepuis` secondes, nil : jamais).
+    public static func auLacher(_ z: ZoneDepotEtagere, airDropDepuis: Double?) -> ZoneDepotEtagere {
+        z == .airdrop && (airDropDepuis ?? 0) < attenteAirDrop ? .etagere : z
+    }
 }
 
 /// En option (« Captures d'écran ici », éteint par défaut) : les nouvelles captures d'écran arrivent sur l'étagère. Où macOS les range,

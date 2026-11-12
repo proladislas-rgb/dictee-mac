@@ -500,6 +500,7 @@ final class IlotPanneau {
             if moteur.depot { accepterLeDepot(true) }
         } else if !proche, moteur.depot, !depotLache {
             zonesQuittees = true
+            airDropEclaire = nil
             moteur.montrerDepot(false)
             accepterLeDepot(false)
             // la fenêtre, encore grande le temps que la forme se referme, laisse passer le glisser vers ce qui est dessous
@@ -510,8 +511,12 @@ final class IlotPanneau {
             moteur.depotSurvole = sur
             // sur le Centre ouvert, une seule zone : son étagère
             moteur.depotZone = sur ? (moteur.centreOuvert ? .etagere : zone(p)) : nil
+            // depuis quand « AirDrop » est éclairée (un lâcher n'y part qu'après `ZoneDepotEtagere.attenteAirDrop`)
+            if moteur.depotZone == .airdrop { if airDropEclaire == nil { airDropEclaire = ProcessInfo.processInfo.systemUptime } } else { airDropEclaire = nil }
         }
     }
+    /// L'instant où la zone « AirDrop » s'est éclairée sous le pointeur (nil : elle ne l'est pas).
+    private var airDropEclaire: TimeInterval?
     private func zone(_ p: CGPoint) -> ZoneDepotEtagere {
         ZoneDepotEtagere.sous(x: Double(p.x), y: Double(p.y), barre: Double(moteur.geometrie.hauteur))
     }
@@ -544,6 +549,7 @@ final class IlotPanneau {
     func finDuGlisser() {
         glisserDeFichiers = nil
         zonesQuittees = false
+        airDropEclaire = nil
         // l'appel se range tout de suite (le glisser s'est fini ailleurs) ; les zones, elles, attendent un éventuel dépôt
         if !moteur.depot || depotLache { guetterLaFin(false); moteur.montrerAppel(false); return }
         // déjà en attente : chaque mouvement de la souris après le glisser ne repousse pas la fermeture
@@ -580,7 +586,11 @@ final class IlotPanneau {
         let fichiers = urls.filter(\.isFileURL)
         guard etagereActive, moteur.depot, !fichiers.isEmpty else { finDuGlisser(); return false }
         fermetureGlisser?.cancel(); fermetureGlisser = nil
-        let zone = moteur.centreOuvert ? .etagere : (p.map(zone) ?? moteur.depotZone ?? .etagere)
+        let visee = moteur.centreOuvert ? .etagere : (p.map(zone) ?? moteur.depotZone ?? .etagere)
+        // AirDrop seulement si elle a été visée un instant ; un lâcher en passant va sur l'étagère (on peut le défaire)
+        let zone = ZoneDepotEtagere.auLacher(visee, airDropDepuis: airDropEclaire.map { ProcessInfo.processInfo.systemUptime - $0 })
+        if visee == .airdrop, zone != .airdrop { Log.ecrire("étagère : lâché sur AirDrop en passant (moins de \(ZoneDepotEtagere.attenteAirDrop) s), rangé sur l'étagère") }
+        airDropEclaire = nil
         depotLache = true
         guetterLaFin(false)
         if zone == .airdrop {

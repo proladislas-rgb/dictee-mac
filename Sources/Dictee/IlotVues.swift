@@ -134,7 +134,7 @@ struct IlotCalques: View {
         case .appareil, .telecharge, .etagereCapture: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .batterieCharge, .batterieFaible: energieAiles(v)
         case .microCompact: heureAile(v, "Coupé", CouleursIlot.rouge).accessibilityLabel("Micro coupé")
-        case .microEtendu: if let c = m.contenuAnnonce(v) { annonce(v, c) }
+        case .microEtendu, .microFn: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .microOuvert: microOuvert(v)
         case .volume, .luminosite: niveauAiles(v)
         case .claudeMinimal: EmptyView()

@@ -17,7 +17,9 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// Un fichier (ou plusieurs, en rafale) vient d'arriver dans Téléchargements, AirDrop compris.
     case telecharge
     /// Le micro est coupé (micro barré rouge, « Coupé ») ; au survol, son nom et « Rouvrir » ; rouvert : un bandeau vert court.
-    case microCompact, microEtendu, microOuvert
+    /// `microFn` : fn appuyée pendant que le micro est coupé : « Micro coupé · Rouvrir et dicter » (la dictée n'est pas partie), ou
+    /// « Le micro des AirPods est coupé · Verbe dicte avec le micro du Mac » (elle est partie, sur un autre micro).
+    case microCompact, microEtendu, microOuvert, microFn
     /// Une touche de volume ou de luminosité : le haut-parleur (ou le soleil) dans l'aile gauche, une barre fine dans l'aile droite.
     case volume, luminosite
     /// Claude Code au travail (maquette design/maquettes/ilot-claude-plus.html) : l'étoile seule (rien à dire), ou l'étoile dans son
@@ -30,7 +32,7 @@ public enum VueIlot: String, CaseIterable, Sendable {
     case etagereDepot, etagere
     /// L'étagère plus rapide (maquette design/maquettes/ilot-etagere-rapide.html) : replié, la pile et le nombre de fichiers dans l'aile
     /// gauche (`etagerePile`) ; un glisser de fichiers commence n'importe où, l'îlot appelle « Glisse ici » (`etagereAppel`) ; l'envoi
-    /// AirDrop (« Envoi… », « Envoyé », « Annulé ») ; des fichiers partis dans une app, avec « Remettre » quelques secondes.
+    /// AirDrop (« Envoi… », « Envoi lancé vers AirDrop », « Annulé ») ; des fichiers partis dans une app, avec « Remettre » quelques secondes.
     case etagerePile, etagereAppel, etagereEnvoi, etagerePartis
     /// Une capture d'écran vient d'arriver sur l'étagère (option « Captures d'écran ici ») : sa miniature, « Capture d’écran »,
     /// « Sur l’étagère » ; un clic ouvre l'étagère.
@@ -56,8 +58,8 @@ public enum VueIlot: String, CaseIterable, Sendable {
     public var estBandeau: Bool {
         switch self {
         case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
-             .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .volume, .luminosite, .claudeAttend, .claudeTermine,
-             .etagereEnvoi, .etagerePartis, .etagereCapture: return true
+            .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .microFn, .volume, .luminosite, .claudeAttend, .claudeTermine,
+            .etagereEnvoi, .etagerePartis, .etagereCapture: return true
         default: return false
         }
     }
@@ -132,7 +134,7 @@ public enum GeoIlot {
         .telecharge: bandeau,
         // micro coupé : le micro barré (aile gauche) et « Coupé » (41 pt mesurés, aile droite : 60 − 8 − 4 = 48 pt) ; 60 + 6 = 66 ;
         // au survol, un petit déplié qui épouse « Micro coupé », le nom du micro et « Rouvrir » ; rouvert, « Ouvert » (44 pt) en vert
-        .microCompact: compact(60), .microEtendu: bandeau, .microOuvert: compact(60),
+        .microCompact: compact(60), .microEtendu: bandeau, .microOuvert: compact(60), .microFn: bandeau,
         // volume et luminosité : le haut-parleur (aile gauche) et une barre fine de 44 pt (aile droite : 8 pt de la caméra, 8 pt du
         // cou) ; 60 + 6 = 66. La maquette dessinait 96 pt : ça déborderait sur les icônes de la barre des menus
         .volume: compact(60), .luminosite: compact(60),
@@ -344,7 +346,7 @@ public enum ArbitrageIlot {
         if reunion { return 2 }
         switch ecran {
         case .minuteurFini, .rappelEtendu, .agendaDebut, .agendaAvant, .agendaCompact, .rappelCompact, .rappelAjoute,
-             .microCompact, .microEtendu, .microOuvert: return 3
+             .microCompact, .microEtendu, .microOuvert, .microFn: return 3
         case .lectureCompact, .lectureEtendu, .lectureMinuteur: return 4
         default: return 5
         }
