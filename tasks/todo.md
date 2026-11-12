@@ -455,3 +455,32 @@ télécharger directement les bouts où les gens parlent, comme WhatsApp, à cô
   1. « îlot déplié et posé : plus de boucle » : geo[2] encore à 247,0016 → 247 au bout de 0,8 s (dt plafonné à 50 ms ⇒ la charge ralentit le ressort ?) ;
   2. « le survol suit la souris » : 225/355 (09:19, sous charge), alors que l'intégrateur l'avait vert. Écarts « attendu rien allumé rien » ⇒ `d.survol` pointe une entrée que `d.entree` ne trouve pas (id périmé ?) à creuser si ça se reproduit.
 - [ ] Vidéo : 3 défauts envoyés au correcteur (fondu superposé Centre → Concentration, légendes qui se chevauchent vers 41 s, rectangle blanc bas-gauche) ; prochain rendu complet = avec l'icône choisie par Hugues.
+
+## 12/11 fin de matinée — les deux échecs de `--ilot-essai` (97374b3, be6ea24 ; PAS poussé : essai pas vert)
+- [x] « le survol suit la souris » (229/355) : CAUSE PROUVÉE. Quand la liste défile sous le pointeur, SwiftUI relit la VRAIE souris
+      (`mouseLocationOutsideOfEventStream`). Celle de Hugues était posée sous l'encoche (957, 803 : dans la vue de 800 × 380 de l'îlot) ;
+      à 8 h elle était loin. Preuve (même binaire, méthode permutée le temps du diagnostic) : vraie souris 229/355, lue loin 355/355,
+      qui suit 355/355 ; fil principal 21-28 % → 11 %. Correctif : `PanneauIlot.pointeurEssai` (essais seulement). Les « attendu rien
+      allumé rien » des essais complets : une ligne de l'ancienne source restait survolée (changer `DicteesIlot.source` ne redessinait
+      pas) → corrigé. Hugues ne le vit pas dans l'app : la vraie souris y est celle des événements.
+- [x] « îlot déplié et posé : plus de boucle » : le ressort ne met PAS plus longtemps (même trajet 32 → 247 pt, 62-63 pas, 1,05 s
+      d'animation, aucune image perdue). La boucle démarre après que SwiftUI a construit la carte (dans le setFrame : 19 ms au calme,
+      34-44 ms Mac occupé) ; le contrôle tombait à ≈ 1,08 s : 10 ms de marge (déjà raté à 3 h 34, avant les fusions). L'essai attend la
+      fin de la boucle, 0,25 s au plus (posé 9 et 14 ms plus tard). Écarté par mesure : `sizingOptions` de NSHostingView (19 ms aussi
+      par défaut une fois le Mac calme), le setFrame lui-même (0,3 ms seul).
+- [ ] RESTE (bloque le push) : « aucun à-coup » (pire mouvement < 25 ms) échoue de jour : 20-28 ms sur les mouvements avec molette,
+      Mac au calme, souris lue loin OU qui suit (24,1 / 26,8 ms), contre 13 ms à 8 h 24 avec le même code. Hypothèse non testée :
+      écran éteint à 8 h (Hugues dormait) → le serveur d'affichage ne compose pas, chaque `displayIfNeeded` + `CATransaction.flush`
+      coûte moins. À vérifier sans toucher l'écran de Hugues (ex. mesurer la part du flush seul), puis décider : seuil mesuré sur
+      écran allumé, ou alléger le rendu d'un défilement (toutes les lignes observent `d` : un changement de survol les redessine).
+- Contrôles 3561/3561. Essai complet (avec le correctif du survol, avant celui du ressort) : 1 échec (le ressort), survol 355/355,
+  pire 24,67 ms. Les deux essais complets verts restent à faire avant `git push origin main`.
+
+## 12/11 vers 11 h 30 — Lucarne déplaçable, mission 2
+- [x] Geste et fenêtre, capsule noire : branche `lucarne-geste` (b42434f, a7cfa5f), poussée, NON fusionnée, worktree ~/dictee-mac-lucarne2. 3564/3564 ; section places de l'essai verte 3 fois ; essai complet = seulement les 2 échecs connus de main (avant les correctifs 97374b3 / be6ea24).
+- [ ] Relecture indépendante (opus) sur `git diff main...lucarne-geste` : pas terminée, à relancer AVANT la fusion.
+- [ ] Ne PAS livrer la branche seule : hors de l'encoche, la capsule est noire et muette (pas d'alerte visible) jusqu'à la mission 3 (verre, contenu, bannières depuis la place).
+- [ ] Fusion : conflits attendus dans IlotMoteur (tousLesRessorts → ilotPose + lucarnePosee, appuiSurForme) avec les correctifs de l'essai.
+- [ ] À montrer à Hugues : lâchée au milieu de l'écran (jusqu'à ~450 pt sous l'encoche), la Lucarne retourne dans l'encoche (place la plus proche).
+
+- [x] (12/11 11 h 45) Nom VOXILE confirmé par Hugues. À faire : renommage (app, textes, manuel, README, dépôt) en gardant l identifiant com.hugues.dictee (autorisations macOS).

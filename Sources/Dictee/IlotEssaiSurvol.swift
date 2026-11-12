@@ -73,6 +73,8 @@ extension IlotEssai {
             }
             return (nil, true)
         }
+        /// Le début du texte d'une dictée (« 12 · »), « rien », ou « inconnue » (un id que l'historique de l'essai ne connaît pas).
+        func nom(_ id: UUID?) -> String { id.map { d.entree($0).map { String($0.texte.prefix(4)) } ?? "inconnue" } ?? "rien" }
         var juges = 0, justes = 0, ecarts: [String] = []
         var temps: [Double] = []
         var cartes = Set<String>(), cadres = Set<String>(), fermetures = 0
@@ -99,7 +101,7 @@ extension IlotEssai {
             let attendu = ligneSous(p)
             if attendu.net, i % 40 != 20 {
                 juges += 1
-                if d.survol == attendu.id { justes += 1 } else if ecarts.count < 4 { ecarts.append("(\(Int(p.x)), \(Int(p.y))) attendu \(attendu.id.flatMap { d.entree($0)?.texte.prefix(4) } ?? "rien") allumé \(d.survol.flatMap { d.entree($0)?.texte.prefix(4) } ?? "rien") déc. \(Int(d.decalage))") }
+                if d.survol == attendu.id { justes += 1 } else if ecarts.count < 4 { ecarts.append("(\(Int(p.x)), \(Int(p.y))) attendu \(nom(attendu.id)) allumé \(nom(d.survol)) déc. \(Int(d.decalage))") }
             }
         }
         // l'occupation du fil principal pendant toute la promenade (fondus, dessins, événements), pas seulement à chaque mouvement
