@@ -108,7 +108,7 @@ struct SourcesAujourdhui {
 @MainActor
 final class FenetrePrincipale: NSObject, NSWindowDelegate {
     static let tailleParDefaut = CGSize(width: 900, height: 560)
-    static let tailleMinimale = CGSize(width: 820, height: 520)
+    static let tailleMinimale = CGSize(width: 760, height: 520)
 
     let nav = NavigationBureau()
     let dictees: ModeleDictees

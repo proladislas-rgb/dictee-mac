@@ -152,6 +152,9 @@ enum RenduBureau {
         RenduVues.png(vue, taille: taille, echelle: echelle, apparence: sombre ? .darkAqua : .aqua)
     }
 
+    /// Les tailles de fenêtre où Hugues lit l'app (12/11) : chaque onglet doit tenir et se lire à chacune.
+    static let taillesHugues: [(CGFloat, CGFloat)] = [(760, 600), (900, 920), (1200, 900)]
+
     static func executer(dossier: String) -> Int32 {
         _ = NSApplication.shared
         Polices.enregistrer()
@@ -195,6 +198,14 @@ enum RenduBureau {
             }
             ecran("bureau-18-mot-deja-enregistre", sombre: sombre) { e in e.nav.ouvrir(.mots); e.mots.ajouterMot("villeurbanne") }
             ecran("bureau-19-reglages-mises-a-jour", sombre: sombre, taille: CGSize(width: taille.width, height: 1100)) { $0.nav.aller(.reglages) }
+            // les tailles de Hugues (12/11 : « l'app est inutilisable » à 900 × 920) : les quatre onglets à 760 × 600, 900 × 920, 1200 × 900
+            for (l, h) in RenduBureau.taillesHugues {
+                let t = CGSize(width: l + 80, height: h + 80), suffixe = "\(Int(l))x\(Int(h))"
+                ecran("bureau-20-aujourdhui-\(suffixe)", sombre: sombre, taille: t)
+                ecran("bureau-21-decouvrir-\(suffixe)", sombre: sombre, taille: t) { $0.nav.aller(.decouvrir) }
+                ecran("bureau-22-reunions-\(suffixe)", sombre: sombre, taille: t) { e in e.nav.aller(.reunions); e.reunions.ouverte = e.reunionsStore.reunions.first?.id }
+                ecran("bureau-23-reglages-\(suffixe)", sombre: sombre, taille: t) { $0.nav.aller(.reglages) }
+            }
         }
         ok = verifierLesClics() && ok
         return ok ? 0 : 1

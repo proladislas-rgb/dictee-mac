@@ -55,10 +55,14 @@ struct AujourdhuiVue: View {
                     }
                 }
             }
+            // Les tuiles gardent une hauteur de lecture (Hugues 12/11, à 900 × 920 : « l'app est inutilisable », des cartes étirées sur toute
+            // la hauteur, le contenu collé en bas) : deux rangées entre `GrilleBureau.rangMin` et `rangMax`, posées en haut ; une fenêtre
+            // trop basse fait défiler la page au lieu d'écraser les tuiles.
             GeometryReader { g in
                 let e = TonsBureau.ecart
                 let colonne = (g.size.width - 3 * e) / 4
-                let rang = max(128, (g.size.height - e) / 2)
+                let rang = GrilleBureau.rang(hauteur: g.size.height, rangees: 2, min: GrilleBureau.rangMin, max: GrilleBureau.rangMax)
+                ScrollView(.vertical) {
                 HStack(alignment: .top, spacing: e) {
                     TuileMotsVue(t: t.mots, maintenant: m.horloge()) { ouvrir(.dictees) }
                         .frame(width: 2 * colonne + e, height: 2 * rang + e)
@@ -73,6 +77,10 @@ struct AujourdhuiVue: View {
                     }
                     .frame(width: colonne)
                 }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .scrollDisabled(2 * rang + e <= g.size.height + 0.5)
+                .scrollIndicators(.automatic)
             }
         }
         .padding(.horizontal, TonsBureau.margeH)
@@ -98,6 +106,8 @@ struct TuileMotsVue: View {
                 ViewThatFits(in: .horizontal) {
                     corps(anneau: 160)
                     corps(anneau: 120)
+                    // la fenêtre de 760 pt : l'anneau plus petit, plus serré (sinon la tuile débordait et son bord gauche était rogné)
+                    corps(anneau: 92, ecart: 16)
                 }
                 .frame(maxHeight: .infinity)
             }
@@ -105,8 +115,8 @@ struct TuileMotsVue: View {
         }
     }
 
-    private func corps(anneau: CGFloat) -> some View {
-        HStack(spacing: 30) {
+    private func corps(anneau: CGFloat, ecart: CGFloat = 30) -> some View {
+        HStack(spacing: ecart) {
             AnneauMots(remplissage: t.remplissage, pourcent: t.pourcent, sous: t.sousAnneau).frame(width: anneau, height: anneau)
             VStack(alignment: .leading, spacing: 0) {
                 Text(FormatJournee.nombre(t.mots)).font(.system(size: 46, weight: .bold)).tracking(-1.6).monospacedDigit()
@@ -175,13 +185,14 @@ struct TuileTempsVue: View {
         let c = t.chiffre
         TuileBouton(etiquette: "Temps gagné : \(c.nombre) \(c.unite). Voir la journée", action: action) {
             VStack(alignment: .leading, spacing: 0) {
-                EnteteTuile(symbole: "timer", titre: "Temps gagné", teinte: TonsBureau.vertTexte, lien: nil, chevron: true)
+                EnteteTuile(symbole: "timer", titre: "Temps gagné", titreCourt: "Gagné", teinte: TonsBureau.vertTexte, lien: nil, chevron: true)
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text(c.nombre).font(.system(size: 30, weight: .bold)).tracking(-1).monospacedDigit()
                     if !c.unite.isEmpty { Text(c.unite).font(.system(size: 15, weight: .semibold)).foregroundStyle(TonsBureau.encre2) }
                 }
                 .foregroundStyle(TonsBureau.encre).padding(.top, 8)
-                Text("sur le clavier, aujourd\u{2019}hui").font(.system(size: 12.5)).foregroundStyle(TonsBureau.encre2).lineLimit(1)
+                Text("sur le clavier, aujourd\u{2019}hui").font(.system(size: 12.5)).foregroundStyle(TonsBureau.encre2).lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 6)
                 HStack(alignment: .bottom, spacing: 6) {
                     ForEach(Array(t.barres.enumerated()), id: \.offset) { i, h in
@@ -235,7 +246,7 @@ struct TuileNoteVue: View {
     var body: some View {
         TuileBouton(etiquette: note.map { "Dernière note : \($0.extrait). Ouvrir" } ?? "Réunions", action: action) {
             VStack(alignment: .leading, spacing: 0) {
-                EnteteTuile(symbole: "doc.text", titre: "Dernière note", teinte: TonsBureau.jauneTexte, lien: nil, chevron: true)
+                EnteteTuile(symbole: "doc.text", titre: "Dernière note", titreCourt: "Note", teinte: TonsBureau.jauneTexte, lien: nil, chevron: true)
                 if let note {
                     Text(note.extrait).font(.system(size: 15.5, design: .serif)).lineSpacing(3).foregroundStyle(TonsBureau.encre)
                         .lineLimit(3).padding(.top, 8)
@@ -259,7 +270,7 @@ struct TuileEtagereVue: View {
     var body: some View {
         TuileBouton(etiquette: noms.isEmpty ? "Étagère vide. Ouvrir la bibliothèque" : "Sur l\u{2019}étagère : \(noms.joined(separator: ", ")). Ouvrir la bibliothèque", action: action) {
             VStack(alignment: .leading, spacing: 0) {
-                EnteteTuile(symbole: "tray", titre: "Sur l\u{2019}étagère", teinte: TonsBureau.sarcelleTexte, lien: nil, chevron: true)
+                EnteteTuile(symbole: "tray", titre: "Sur l\u{2019}étagère", titreCourt: "Étagère", teinte: TonsBureau.sarcelleTexte, lien: nil, chevron: true)
                 if noms.isEmpty {
                     Text("Glisse un fichier sur l\u{2019}encoche\u{202F}: il t\u{2019}attend ici.").font(.system(size: 12.5)).foregroundStyle(TonsBureau.encre2)
                         .fixedSize(horizontal: false, vertical: true).padding(.top, 10)
