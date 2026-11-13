@@ -811,9 +811,12 @@ extension IlotEssai {
     /// construit son arbre d'accessibilité que pour un client d'accessibilité : l'essai se déclare comme VoiceOver le fait (l'attribut
     /// « AXEnhancedUserInterface » de l'app, dans ce processus seulement, rendu tout de suite après) ; les nœuds de SwiftUI
     /// (`AccessibilityNode`) ne se lisent que par leurs sélecteurs (sondé le 12/11 : ils ne se déclarent pas `NSAccessibilityProtocol`).
+    /// Un client d'accessibilité a-t-il été servi dans ce processus (SwiftUI tient alors son arbre à jour jusqu'à la fin) ?
+    @MainActor static var arbreAccessibiliteServi = false
     @MainActor
     static func actionsAccessibles(_ vue: NSView?) -> [String: () -> Bool] {
         let regler = NSSelectorFromString("accessibilitySetValue:forAttribute:"), attribut = "AXEnhancedUserInterface" as NSString
+        arbreAccessibiliteServi = true
         _ = NSApp.perform(regler, with: NSNumber(value: true), with: attribut)
         defer { _ = NSApp.perform(regler, with: NSNumber(value: false), with: attribut) }
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))

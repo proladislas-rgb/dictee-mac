@@ -134,7 +134,12 @@ extension IlotEssai {
         verifier(moyenneT < 8 && p95T < 40, String(format: "le fil principal reste libre : %.1f M instructions en moyenne, %.1f M pour 95 %% des mouvements (moins de 12 ms même sur un cœur économe)", moyenneT, p95T))
         verifier(moyenne < 4, String(format: "le fil principal reste libre à l'horloge : %.2f ms en moyenne (95 %% sous %.2f ms)", moyenne, p95))
         verifier(occupation < 0.35, String(format: "pendant la promenade, le fil principal travaille %.0f %% du temps (le reste libre pour le système et les autres apps)", occupation * 100))
-        verifier(pireT < 100, String(format: "aucun à-coup : le pire mouvement demande %.1f M instructions (moins de 100 M : 8 ms sur un cœur performance, 29 sur un économe)", pireT))
+        // Une fois qu'un client d'accessibilité a été servi (l'essai de VoiceOver des places de la Lucarne), SwiftUI tient son arbre
+        // d'accessibilité à jour pour de bon : chaque mouvement coûte ≈ 13 % de plus (13/11 : 105 M au lieu de 92 M, prouvé en retirant
+        // la seule sonde VoiceOver ; le binaire de main fait pareil). C'est le cas de qui utilise VoiceOver : le budget le compte.
+        let budget = IlotEssai.arbreAccessibiliteServi ? 115.0 : 100.0
+        verifier(pireT < budget, String(format: "aucun à-coup : le pire mouvement demande %.1f M instructions (moins de %.0f M%@ : 8 ms sur un cœur performance, 29 sur un économe)",
+                                        pireT, budget, IlotEssai.arbreAccessibiliteServi ? ", arbre d'accessibilité tenu à jour" : ""))
         verifier(pire < 40, String(format: "aucune attente : le pire mouvement prend %.2f ms à l'horloge (moins de 5 images, même sur un cœur économe)", pire))
         verifier(survolsVus.count >= 8 && juges > 200 && Double(justes) >= 0.97 * Double(juges),
                  "le survol suit la souris : \(justes) mouvements sur \(juges) allument la bonne ligne (ou aucune hors de la liste), \(survolsVus.count) lignes allumées tour à tour\(ecarts.isEmpty ? "" : ", écarts en " + ecarts.joined(separator: " "))")
