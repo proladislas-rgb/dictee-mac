@@ -43,7 +43,8 @@ extension IlotEssai {
         func fichier(_ d: URL, _ nom: String, _ octets: Int, il heures: Double = 0, airdrop: Bool = false) -> URL {
             let u = d.appendingPathComponent(nom)
             fm.createFile(atPath: u.path, contents: Data(repeating: 0x7A, count: octets))
-            if heures > 0 { try? fm.setAttributes([.creationDate: Date().addingTimeInterval(-heures * 3600)], ofItemAtPath: u.path) }
+            // daté à l'heure de l'essai (pas l'heure réelle : un fichier « tout neuf » ne doit être ni ancien ni à venir)
+            try? fm.setAttributes([.creationDate: c.maintenant().addingTimeInterval(-heures * 3600)], ofItemAtPath: u.path)
             if airdrop { let q = "0081;6731f2a0;sharingd;"; _ = setxattr(u.path, "com.apple.quarantine", q, q.utf8.count, 0, 0) }
             return u
         }

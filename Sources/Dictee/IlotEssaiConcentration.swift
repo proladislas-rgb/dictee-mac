@@ -68,7 +68,7 @@ extension IlotEssai {
         c.lireMicros = { [] }; c.relireChoixMicro()
         m.disposition = DispositionCentre()
         refermer()
-        attendre(4) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(4)) { m.bandeau != nil }
         p.demarrer()
         pause(0.3)
         verifier(fx.lances.isEmpty && fx.prepares.isEmpty && p.echeance == nil, "au lancement, rien d'allumé : aucune commande vers Raccourcis, aucune échéance")
@@ -138,7 +138,7 @@ extension IlotEssai {
         verifier(!FileManager.default.fileExists(atPath: fx.prepares.first?.1.deletingLastPathComponent().path ?? "/"), "le fichier signé temporaire est effacé une fois le raccourci ajouté")
 
         // --- étape 4 : replié, l'icône du mode dans l'aile gauche ; à droite, la caméra seule ; aucune minuterie
-        attendre(4) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(4)) { m.bandeau != nil }
         posee()
         verifier(m.courante == .concentrationCompact, "la bannière partie : l'icône du mode dans l'aile (\(m.courante))")
         verifier(abs(m.trace.couGauche - (hc + MesuresConcentration.cou)) < 0.5 && m.trace.cou <= hc + 0.5 && m.trace.bande <= hc + GeoIlot.aileMax + 0.01,
@@ -180,7 +180,7 @@ extension IlotEssai {
 
         // --- étape 6 : la fin à l'heure (l'échéance, ou le réveil du Mac après une veille)
         refermer()
-        attendre(4) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(4)) { m.bandeau != nil }
         decaler(2 * 3600)
         let offAvant = fx.lances.filter { $0.entree.hasPrefix("off:") }.count
         // le réveil du Mac et l'échéance tombent ensemble : une seule extinction
@@ -194,7 +194,7 @@ extension IlotEssai {
         verifier(m.bandeau?.vue == .concentrationFin && m.bandeau?.ligne1 == "Fin de Travail" && m.bandeau?.ligne2 == BanniereConcentration.finSous,
                  "« Fin de Travail » (étape 6), sans nombre de notifications inventé")
         // la bannière part à SON heure (décalée) : on l'attend avant de remettre l'horloge
-        attendre(6) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(6)) { m.bandeau != nil }
         decaler(-2 * 3600)
 
         // --- un échec : Raccourcis ne répond pas
@@ -205,7 +205,7 @@ extension IlotEssai {
         verifier(m.concentration.actif == nil && m.concentration.message != nil && m.concentration.raccourciManquant == false,
                  "Raccourcis ne répond pas : rien d'allumé, l'échec est dit (\(m.concentration.message ?? "rien"), \(m.courante), \(fx.lances.last?.entree ?? ""))")
         fx.repond = true
-        refermer(); attendre(5) { m.bandeau != nil }
+        refermer(); attendre(IlotEssai.sousCharge(5)) { m.bandeau != nil }
 
         // --- le raccourci supprimé par Hugues : proposé de nouveau ; le nouveau est reconnu
         fx.supprimer(idVerbe)
@@ -253,7 +253,7 @@ extension IlotEssai {
         clic(centre(PlanConcentration.cadre(.uneHeure, m.grille)), 0.8)
         attendre(2) { m.concentration.actif == nil }
         verifier(m.concentration.actif?.mode == .travail && fx.lances.last?.entree == "on:com.apple.focus.work", "depuis la carte : Travail, 1 h")
-        refermer(); attendre(5) { m.bandeau != nil }
+        refermer(); attendre(IlotEssai.sousCharge(5)) { m.bandeau != nil }
         fx.supprimer(idNeuf)
         let (prepares0, ouverts0) = (fx.prepares.count, fx.ouverts.count)
         decaler(2 * 3600)
@@ -263,7 +263,7 @@ extension IlotEssai {
                  && (m.bandeau?.ligne2 ?? "").contains("manque") && p.memoire.raccourci == nil,
                  "l'heure venue sans raccourci : Raccourcis ne s'ouvre pas tout seul, « Travail est resté allumé » (\(m.bandeau?.ligne1 ?? "rien"))")
         // la bannière part à SON heure (décalée) : on l'attend avant de remettre l'horloge
-        attendre(6) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(6)) { m.bandeau != nil }
         decaler(-2 * 3600)
 
         refermer()

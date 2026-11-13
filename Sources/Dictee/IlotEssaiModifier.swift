@@ -188,7 +188,7 @@ extension IlotEssai {
         ouvrirLeCentre()
         clic(PlanCentre.centreRond(m, .derniereDictee), 0.5)
         verifier(colles.isEmpty && m.courante == .centre, "aucune dictée : « Aucune », un clic ne colle rien")
-        c.lireDerniereDictee = { ("Je te rappelle demain pour confirmer.", Date().addingTimeInterval(-120)) }
+        c.lireDerniereDictee = { [unowned c] in ("Je te rappelle demain pour confirmer.", c.maintenant().addingTimeInterval(-120)) }
         m.fermer(); pause(0.5); ouvrirLeCentre()
         verifier(m.derniereDictee?.texte == "Je te rappelle demain pour confirmer.", "une dictée : le rond dit « Coller »")
         clic(PlanCentre.centreRond(m, .derniereDictee), 0.8)

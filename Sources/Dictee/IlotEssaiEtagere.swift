@@ -86,8 +86,11 @@ extension IlotEssai {
         // --- 6 · survol de l'îlot : le Centre avec les fichiers en haut ; un vrai clic sur un fichier l'ouvre
         c.ranger([photo, devis]); pause(0.4)
         c.panneau.simulerPointeur(forme: true); pause(0.9)
+        // la forme POSÉE (13/11 : seule, la section mesurait le ressort encore en train de dépasser, 369 pt pour 368 : le Centre y a ses
+        // 5 ronds sur deux lignes, plus haut que dans l'essai complet où « Modifier » l'a allégé)
+        attendre(IlotEssai.sousCharge(1.0)) { !m.geo.allSatisfy(\.fini) }
         let hFichiers = barre + DispositionCentre.plan(etagere: true, ronds: !m.rondsCentre.isEmpty, cases: true, bande: false, nomsSurDeuxLignes: m.nomsSurDeuxLignes).profondeur
-        verifier(m.courante == .centre && abs(m.geo[2].x - hFichiers) < 0.5, "survol : le Centre, les 3 fichiers en haut (\(Int(m.geo[2].x)) pt de haut)")
+        verifier(m.courante == .centre && abs(m.geo[2].x - hFichiers) < 0.5, "survol : le Centre, les 3 fichiers en haut (\(Int(m.geo[2].x)) pt de haut, \(Int(hFichiers)) attendus)")
         verifier(m.geo[2].x + 15 <= Double(IlotMoteur.hauteurMax) && m.trace.bande <= hc + GeoIlot.aileMax + 0.01, "… dans la zone de dessin (ombre comprise) et ≤ 66 pt dans la barre")
         guard let r = PlanCentre.cadre(.etagere, m) else { verifier(false, "la rangée de l'étagère existe"); return }
         EssaiEtagere.glisses = []
@@ -395,7 +398,7 @@ extension IlotEssai {
         attendre(4) { m.bandeau?.ligne1 != "3 captures" }
         verifier(m.courante == .etagereCapture && m.bandeau?.ligne1 == "3 captures" && m.bandeau?.ligne2 == "Sur l\u{2019}étagère",
                  "une rafale de trois : une seule annonce, « 3 captures · Sur l’étagère » (\(m.bandeau?.ligne1 ?? "rien"))")
-        attendre(5) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(5)) { m.bandeau != nil }
         verifier(m.bandeau == nil, "puis elle se retire d'elle-même")
         m.clicForme(); pause(0.6); m.ouvrirEtagere(); pause(0.9)
 
@@ -446,7 +449,7 @@ extension IlotEssai {
         EssaiEtagere.finGlisser?(.link, NSPoint(x: 600, y: 300)); pause(0.5)
         m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 }
         verifier(!m.glisserSortant && c.etagere.elements.contains { $0.nom == nomB }, "lâchée dans le Terminal (un lien, le chemin collé) : la capture reste sur l'étagère")
-        attendre(5) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(5)) { m.bandeau != nil }
         verifier(m.bandeau == nil, "puis l'annonce se retire")
         // une autre capture : un simple clic sur sa miniature ouvre l'étagère (le clic passe par la vue AppKit, pas par le geste)
         let cacheC = captures.appendingPathComponent(".capture-en-cours")

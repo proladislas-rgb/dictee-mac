@@ -28,7 +28,10 @@ enum IlotEssai {
                  "le journal de l'essai va dans un fichier temporaire, jamais dans le vrai journal")
         let fichier = dossier.appendingPathComponent("rappels.json")
 
-        var decalage = 0.0
+        // L'heure de l'essai : 10 h ce jour-là, quelle que soit l'heure réelle (13/11 : lancé à 2 h du matin, « demain » y est le jour même et
+        // tout ce qui dépend de l'heure se jouait autrement). Elle avance avec le temps réel ; les sections la décalent (`decaler`).
+        // `DICTEE_ESSAI_HEURE=02:00` la pose ailleurs : pour vérifier que l'essai n'en dépend pas.
+        var decalage = IlotEssai.decalageHoraire(Date(), heure: ProcessInfo.processInfo.environment["DICTEE_ESSAI_HEURE"])
         var compteurs = (minuteur: 0, rappel: 0, doux: 0, silence: 0)
         var liensOuverts: [URL] = []
         var finder: [[URL]] = []
@@ -116,13 +119,16 @@ enum IlotEssai {
         c.panneau.demarrer()
         let m = c.moteur
         let g = m.geometrie
-        print("caméra : \(Int(g.largeur)) × \(Int(g.hauteur)) pt")
+        print("caméra : \(Int(g.largeur)) × \(Int(g.hauteur)) pt ; heure de l'essai : \(FormatIlot.heure(c.maintenant()))")
+        /// Avant chaque section : rien de laissé par la précédente qui sonnerait pendant celle-ci (rappels, alerte).
+        func entreDeuxSections() { IlotEssai.entreDeuxSections(c, attendre: { attendre($0, tant: $1) }) }
 
         // une section seule (pour la mettre au point sans attendre tout l'essai) : `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`, `places`, `places-survol`, `concentration`, `voix`, `outils`, `etagere`, `retour`), ou
         // `--ilot-essai --seulement=survol` (le survol des Dictées, pour mesurer vite ; l'essai complet la joue aussi)
         let seul = CommandLine.arguments.contains("--seulement=survol") ? "survol" : ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"]
         if let seul, ["bibliotheque", "reveil", "survol", "places", "places-survol", "concentration", "voix", "dictee", "verre", "outils", "etagere", "retour"].contains(seul) {
             attendre(0.4)
+            entreDeuxSections()
             if seul == "bibliotheque" {
                 IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
                                        fenetres: { fenetres }, relancer: { fabriquer() })
@@ -253,7 +259,7 @@ enum IlotEssai {
         verifier(c.intercepter("Minuteur 3 minutes.") == true && abs((c.minuteur?.restant(a: c.maintenant()) ?? 0) - 180) < 2,
                  "lecture dépliée + « minuteur 3 minutes » dicté : minuteur lancé, rien n'est collé")
         verifier(m.bandeau?.vue == .minuteurLance, "dicté : le bandeau « Minuteur lancé » confirme (rien n'a été cliqué)")
-        c.agir(.minuteurArreter); attendre(3.0) { m.bandeau != nil }; attendre(0.6)
+        c.agir(.minuteurArreter); attendre(IlotEssai.sousCharge(3.0)) { m.bandeau != nil }; attendre(0.6)
         c.occupation = { OccupationEncoche() }
         verifier(m.courante == .lectureCompact && c.minuteur == nil, "retour à la lecture seule")
 
@@ -261,7 +267,7 @@ enum IlotEssai {
         c.lancerLeMinuteur(secondes: 30, bandeau: true)
         attendre(0.15)
         verifier(m.courante == .minuteurLance && m.bandeau != nil, "minuteur lancé : bandeau « Minuteur lancé »")
-        attendre(2.4) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(2.4)) { m.bandeau != nil }
         attendre(0.3)
         verifier(m.bandeau == nil && m.courante == .lectureCompact && m.pastille == .minuteur, "le bandeau se retire : la lecture garde l'îlot, le minuteur est en pastille")
         verifier(m.resolution.pastille == .minuteur && c.minuteur != nil, "pastille = minuteur")
@@ -316,18 +322,18 @@ enum IlotEssai {
         c.energieChangee(EnergieIlot(pourcent: 55, secteur: true, enCharge: true)); attendre(0.3)
         verifier(m.courante == .batterieCharge && m.pastille == .lecture, "on branche : « En charge » dans les ailes, la vidéo passe en bulle")
         verifier(m.trace.hauteur <= Double(g.hauteur) + 0.01, "« En charge » : rien ne descend sous la barre")
-        attendre(3.6) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(3.6)) { m.bandeau != nil }
         verifier(m.bandeau == nil && m.courante == .lectureCompact, "3 s plus tard : la vidéo reprend l'îlot")
         c.energieChangee(EnergieIlot(pourcent: 21, secteur: false, enCharge: false)); attendre(0.2)
         verifier(m.bandeau == nil, "débranché à 21 % : rien")
         c.energieChangee(EnergieIlot(pourcent: 20, secteur: false, enCharge: false)); attendre(0.3)
         verifier(m.courante == .batterieFaible, "20 % : « Faible » en rouge")
-        attendre(5.0) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(5.0)) { m.bandeau != nil }
         c.energieChangee(EnergieIlot(pourcent: 19, secteur: false, enCharge: false)); attendre(0.3)
         verifier(m.bandeau == nil, "19 % : pas une deuxième fois")
         c.appareilConnecte(airpods); attendre(0.9)
         verifier(m.courante == .appareil && (m.contenus[.appareil] ?? 0) > 200, "AirPods connectés : le bandeau avec le nom et les trois jauges (\(Int(m.contenus[.appareil] ?? 0)) pt de contenu)")
-        attendre(4.0) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(4.0)) { m.bandeau != nil }
         verifier(m.bandeau == nil && m.courante == .lectureCompact, "3,5 s plus tard : il se retire")
         m.energie = nil; m.ecouteurs = nil; m.donneesChangees(); attendre(0.4)
 
@@ -383,7 +389,7 @@ enum IlotEssai {
         boutonTenu = false
         attendre(0.5)
         verifier(!m.glisserSortant && m.bandeau?.vue == .telecharge, "bouton relâché : le glisser est fini, le bandeau reste encore un instant")
-        attendre(1.5) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(1.5)) { m.bandeau != nil }
         verifier(m.bandeau == nil, "puis il se retire")
         m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 }
         c.telechargementsSource.arreter(); attendre(0.2)
@@ -534,7 +540,7 @@ enum IlotEssai {
             c.basculerLeMicro(); attendre(0.6)
             verifier(m.microCoupe, "AirPods rangés, le micro du Mac coupé : l'îlot le montre")
             // réglage éteint : plus d'écoute ; le micro reste comme il est (le micro rouvert d'abord, le bandeau « Micro ouvert » parti)
-            c.basculerLeMicro(); attendre(2.2) { m.bandeau != nil }
+            c.basculerLeMicro(); attendre(IlotEssai.sousCharge(2.2)) { m.bandeau != nil }
             c.activerLeMicro(false); attendre(0.6)
             verifier(!faux.actif && !m.microCoupe && m.resolution.principal == .lectureCompact, "réglage éteint : l'îlot ne montre plus le micro")
             let n3 = faux.commandes.count
@@ -550,7 +556,7 @@ enum IlotEssai {
             let faux = NiveauxFactices()
             c.niveaux = faux
             c.niveauxActifs = true
-            attendre(1.8) { m.bandeau != nil }
+            attendre(IlotEssai.sousCharge(1.8)) { m.bandeau != nil }
             verifier(m.resolution.principal == .lectureCompact && m.bandeau == nil, "au départ : la vidéo a l'îlot")
             /// Une touche passée par le même chemin que l'écoute du clavier ; vrai = avalée.
             func touche(_ t: ToucheNiveau, enfoncee: Bool = true, repetition: Bool = false, _ f: CGEventFlags = []) -> Bool {
@@ -620,7 +626,7 @@ enum IlotEssai {
             verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01, "luminosité, posée : \(String(format: "%.1f", m.trace.bande - Double(m.demiCamera))) pt de chaque côté de la caméra (≤ 66)")
             _ = appuyer(.volumeMoins); attendre(0.5)
             verifier(m.courante == .volume && m.jaugeLuminosite.x == 0.3125, "volume juste après : le volume remplace la luminosité, chaque barre garde sa valeur")
-            attendre(1.7) { m.bandeau != nil }
+            attendre(IlotEssai.sousCharge(1.7)) { m.bandeau != nil }
             attendre(1.2) { m.boucleActive }
             verifier(!m.boucleActive && m.resolution.principal == .lectureCompact, "tout est posé : aucune boucle d'animation (bouge encore : \(m.ceQuiBouge))")
             // ce qui reste à macOS : sortie HDMI, DisplayServices absent, réglage éteint, dictée en cours
@@ -650,7 +656,7 @@ enum IlotEssai {
             verifier(rep && haut && faux.ecritures.count == n3, "touche tenue quand la dictée commence : répétitions et relâchement avalés, rien de réglé")
             occ.dictee = false; c.occupationChangee(); attendre(0.3)
             // le réglage se fait hors du rappel du clavier (comme la vraie file) : la touche est avalée tout de suite, l'îlot suit
-            attendre(1.8) { m.bandeau != nil }
+            attendre(IlotEssai.sousCharge(1.8)) { m.bandeau != nil }
             faux.differe = true
             let v0 = faux.son.valeur
             let d1 = touche(.volumePlus)
@@ -660,7 +666,7 @@ enum IlotEssai {
             _ = touche(.volumePlus, enfoncee: false)
             faux.differe = false
             // une écriture refusée (sortie qui change pendant l'écriture) : la touche suivante va à macOS, plus rien n'est avalé pour rien
-            attendre(1.8) { m.bandeau != nil }
+            attendre(IlotEssai.sousCharge(1.8)) { m.bandeau != nil }
             faux.refuser = true
             let n4 = faux.ecritures.count
             let r1 = appuyer(.volumePlus)
@@ -670,7 +676,7 @@ enum IlotEssai {
             faux.refuser = false; faux.changement()
             verifier(appuyer(.volumePlus).bas, "le système signale un changement (nouvelle sortie) : Voxile reprend la main")
             // le lecteur épinglé ouvert : la touche reste à macOS, l'îlot ne se referme pas sous les doigts
-            attendre(1.8) { m.bandeau != nil }
+            attendre(IlotEssai.sousCharge(1.8)) { m.bandeau != nil }
             m.clicForme(); attendre(0.6)
             let n5 = faux.ecritures.count
             let ep = appuyer(.volumeMoins)
@@ -691,13 +697,13 @@ enum IlotEssai {
                 _ = clavierN.recevoir(type: .tapDisabledByTimeout, event: ev)
                 verifier(!c.aiguillageNiveau.avalee(.volumePlus) && !touche(.volumePlus, enfoncee: false), "écoute coupée par macOS : la touche tenue est oubliée, son relâchement va à macOS")
             }
-            attendre(1.8) { m.bandeau != nil }
+            attendre(IlotEssai.sousCharge(1.8)) { m.bandeau != nil }
             // « Réduire les animations » : la barre saute à sa place
             m.reduire = true
             _ = appuyer(.volumeMoins)
             verifier(m.jaugeVolume.fini && m.jaugeVolume.x == faux.son.valeur, "« Réduire les animations » : la barre est posée tout de suite")
             m.reduire = false
-            attendre(1.8) { m.bandeau != nil }
+            attendre(IlotEssai.sousCharge(1.8)) { m.bandeau != nil }
             attendre(1.2) { m.boucleActive }
             verifier(!m.boucleActive && m.bandeau == nil, "volume et luminosité : fini, aucune boucle d'animation")
         }
@@ -843,7 +849,7 @@ enum IlotEssai {
             let lf = (try? String(contentsOf: fichier("s1"), encoding: .utf8)) ?? ""
             verifier(lf.contains("\"message\":\"Claude needs your permission to use Bash\""), "le script a transmis le message de la notification")
             verifier(m.trace.bande <= Double(m.demiCamera) + GeoIlot.aileMax + 0.01 && m.trace.hauteur > Double(g.hauteur) + 60, "bandeau : sous la barre, cou étroit")
-            attendre(5.0) { m.bandeau != nil }; attendre(0.9)
+            attendre(IlotEssai.sousCharge(5.0)) { m.bandeau != nil }; attendre(0.9)
             verifier(m.bandeau == nil && m.courante == .claudeCompact && m.nomClaude(m.claude) == "dictee-mac attend ta réponse" && m.etatCentre(.claude) == "Attend",
                      "4,5 s plus tard : « dictee-mac attend ta réponse » dans l'aile (en ambre), « Attend » sous le bouton du Centre")
             c.panneau.simulerPointeur(forme: true); attendre(0.9)
@@ -872,7 +878,7 @@ enum IlotEssai {
             verifier(ramenes.last == "com.apple.Terminal" && m.bandeau == nil, "« Voir » sur la fin : la fenêtre du Terminal est ramenée, le bandeau se retire")
             _ = crochet(ev("s1", "UserPromptSubmit")); attendre(2.0) { m.claude == nil }
             _ = crochet(ev("s1", "Stop")); attendre(2.0) { m.bandeau == nil }
-            attendre(4.2) { m.bandeau != nil }; attendre(0.5)
+            attendre(IlotEssai.sousCharge(4.2)) { m.bandeau != nil }; attendre(0.5)
             verifier(m.bandeau == nil && m.courante == .repos, "sans geste : la fin se retire après 3,5 s")
             _ = crochet(ev("s1", "Notification", ",\"message\":\"Claude is waiting for your input\",\"notification_type\":\"idle_prompt\""))
             attendre(1.2)
@@ -883,7 +889,7 @@ enum IlotEssai {
             _ = crochet(ev("s1", "UserPromptSubmit")); attendre(2.0) { m.claude == nil }; attendre(0.9)
             verifier(m.resolution.principal == .lectureCompact && m.pastille == .claude && m.rectPastille() != nil, "pendant une vidéo : la vidéo garde l'îlot, Claude dans la bulle à côté")
             _ = crochet(ev("s1", "Notification", ",\"notification_type\":\"permission_prompt\""))
-            attendre(2.0) { m.bandeau == nil }; attendre(5.0) { m.bandeau != nil }; attendre(0.9)
+            attendre(2.0) { m.bandeau == nil }; attendre(IlotEssai.sousCharge(5.0)) { m.bandeau != nil }; attendre(0.9)
             verifier(m.resolution.principal == .claudeCompact && m.pastille == .lecture, "Claude attend une réponse : il prend l'îlot, la vidéo passe en bulle")
             _ = crochet(ev("s1", "PostToolUse", ",\"tool_name\":\"Read\""))
             attendre(2.0) { m.claude?.etat == .attend }; attendre(0.9)
@@ -982,12 +988,16 @@ enum IlotEssai {
         let rappelId = c.rappels.enAttente[0].id
         c.agir(.rappelPlusTard(rappelId)); attendre(0.4)
         verifier(c.moteur.bandeau?.vue == .rappelReporte && c.rappels.enAttente.isEmpty && c.rappels.aVenir(a: c.maintenant()).count == 1, "Plus tard : bandeau, plus de cloche, il reviendra dans 10 min")
-        attendre(3.0) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(3.0)) { m.bandeau != nil }
         // rappel arrivé à échéance pendant que Verbe était fermé
         let c3 = fabriquer()
         c3.agir(.rappelFait(rappelId))
         verifier(c3.rappels.rappels.isEmpty, "Fait : le rappel disparaît du fichier")
-        var plusTard = ListeRappels(); plusTard.ajouter(texte: "Pendant que Voxile dormait", echeance: Date().addingTimeInterval(-600), maintenant: Date().addingTimeInterval(-3600))
+        // `c` garde encore « Appeler Paul » reporté de 10 min (c3 l'a fait, pas lui) : retiré ici, sinon il sonnait 10 min plus tard au milieu
+        // d'une autre section (« En faire un rappel » des Outils, selon la vitesse de l'essai : 55 échecs en cascade le 13/11)
+        c.rappels = ListeRappels(); c.sauver()
+        verifier(c.rappels.prochaineEcheance() == nil, "plus aucun rappel programmé dans le contrôleur de l'essai")
+        var plusTard = ListeRappels(); plusTard.ajouter(texte: "Pendant que Voxile dormait", echeance: c.maintenant().addingTimeInterval(-600), maintenant: c.maintenant().addingTimeInterval(-3600))
         RappelsStore(url: fichier).ecrire(plusTard)
         let c4 = fabriquer(); c4.panneau.demarrer(); c4.verifierLesRappels(); attendre(0.5)
         verifier(c4.moteur.alerte?.vue == .rappelEtendu && c4.moteur.alerte?.rappel?.texte == "Pendant que Voxile dormait", "un rappel arrivé à échéance fermé sonne à la relance")
@@ -1000,18 +1010,18 @@ enum IlotEssai {
         let ev = EvenementAgenda(id: "essai", titre: "Point équipe", debut: t.addingTimeInterval(600), fin: t.addingTimeInterval(2600), lien: lien)
         c.injecterEvenements([ev]); attendre(0.5)
         verifier(m.bandeau?.vue == .agendaAvant && m.rendezVousProche, "10 min avant : le rendez-vous s'annonce (bandeau « Dans 10 min »)")
-        attendre(5.0) { m.bandeau != nil }; attendre(0.3)
+        attendre(IlotEssai.sousCharge(5.0)) { m.bandeau != nil }; attendre(0.3)
         verifier(m.resolution.principal == .agendaCompact, "puis il se replie : compact « 10 min » dans l'aile")
         verifier(compteurs.doux >= 1, "10 min avant : un son très doux")
         attendre(0.2)
-        decalage = 601; c.planifierAgenda(); attendre(0.5)
+        decalage += 601; c.planifierAgenda(); attendre(0.5)
         verifier(m.alerte?.vue == .agendaDebut && m.courante == .agendaDebut, "au début : petite alerte")
         c.agir(.rendezVousRejoindre(ev)); attendre(0.3)
         verifier(liensOuverts == [lien] && m.alerte == nil, "« Rejoindre » ouvre le lien visio (capturé) et ferme l'alerte")
         c.injecterEvenements([EvenementAgenda(id: "essai2", titre: "Autre", debut: c.maintenant().addingTimeInterval(-60), fin: c.maintenant().addingTimeInterval(1800))]); attendre(0.4)
         c.agir(.rendezVousNoter(ev)); attendre(0.2)
         verifier(notes == 1, "« Noter la réunion » lance la prise de notes existante")
-        decalage = 0
+        decalage -= 601
 
         // --- le Centre sur l'îlot vide, et commandes dictées
         c.injecterEvenements([]); c.moteur.quitterAlerte(); attendre(0.5)
@@ -1043,7 +1053,7 @@ enum IlotEssai {
         // appelant directement les méthodes du panneau (en essai, aucun moniteur global : les vrais glissers de l'utilisateur n'ouvrent rien)
         do {
             // le bandeau « Minuteur lancé » de la commande dictée se retire d'abord
-            attendre(3.0) { m.bandeau != nil }
+            attendre(IlotEssai.sousCharge(3.0)) { m.bandeau != nil }
             c.moteur.fermer(); attendre(0.8)
             let rayon = dossier.appendingPathComponent("Étagère", isDirectory: true)
             try? FileManager.default.createDirectory(at: rayon, withIntermediateDirectories: true)
@@ -1189,33 +1199,36 @@ enum IlotEssai {
             m.fermer(); attendre(0.8)
         }
 
-        IlotEssai.etagereRapide(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.centre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.modifierCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.cheminsDuCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.outils(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.retour(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
-        IlotEssai.lucarne(c, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers })
-        IlotEssai.voix(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers })
-        IlotEssai.placesLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.verreLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.bordsLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.dicteeLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.dicteeLucarneCablee(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.lectureEnPauseLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.verreCentre(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.secondBrain(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
-                               fenetres: { fenetres }, relancer: { fabriquer() })
-        IlotEssai.reveilEtCalendrier(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
-        IlotEssai.reunion(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.concentration(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
-        IlotEssai.noteApresAppel(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.sonDeReunionGarde(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.voixSeparees(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
-        IlotEssai.bullesAudio(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        // les sections, l'une après l'autre ; chacune pose l'état dont elle dépend
+        let sections: [() -> Void] = [
+            { IlotEssai.etagereRapide(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.centre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.modifierCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.cheminsDuCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.outils(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.retour(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres }) },
+            { IlotEssai.lucarne(c, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }) },
+            { IlotEssai.voix(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }) },
+            { IlotEssai.placesLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.verreLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.bordsLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.dicteeLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.dicteeLucarneCablee(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.lectureEnPauseLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.verreCentre(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.secondBrain(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, fenetres: { fenetres }, relancer: { fabriquer() }) },
+            { IlotEssai.reveilEtCalendrier(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() }) },
+            { IlotEssai.reunion(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.concentration(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() }) },
+            { IlotEssai.noteApresAppel(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.sonDeReunionGarde(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.voixSeparees(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+            { IlotEssai.bullesAudio(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
+        ]
+        for section in sections { entreDeuxSections(); section() }
 
         // --- fin : plus rien ne tourne
         c.moteur.fermer(); attendre(1.3)
@@ -1223,5 +1236,25 @@ enum IlotEssai {
         c.arreter()
         print(echecs == 0 ? "essai terminé : tout est vert" : "essai terminé : \(echecs) échec(s)")
         return echecs == 0 ? 0 : 1
+    }
+
+    /// Le décalage qui pose l'horloge de l'essai à `heure` (« HH:MM » ; 10:00 sans rien) le jour même ; le temps continue de passer.
+    static func decalageHoraire(_ t: Date, heure: String?) -> TimeInterval {
+        let morceaux = (heure ?? "10:00").split(separator: ":").compactMap { Int($0) }
+        let (h, mn) = morceaux.count == 2 && (0..<24).contains(morceaux[0]) && (0..<60).contains(morceaux[1]) ? (morceaux[0], morceaux[1]) : (10, 0)
+        let cible = Calendar.current.date(bySettingHour: h, minute: mn, second: 0, of: t) ?? t
+        return cible.timeIntervalSince(t)
+    }
+
+    /// La marge d'une attente qui dépend de la charge du Mac (un bandeau qui se retire, un ressort qui se pose) : le délai voulu, plus
+    /// 3 s. L'attente s'arrête dès que la condition est remplie : quand tout va bien, l'essai n'en dure pas plus (13/11 : « se retire
+    /// 3,5 s plus tard » échouait pendant une compilation).
+    static func sousCharge(_ s: Double) -> Double { s + 3 }
+
+    /// Entre deux sections : aucun rappel programmé par la précédente (il sonnerait au milieu de la suivante), aucune alerte restée ouverte.
+    @MainActor
+    static func entreDeuxSections(_ c: IlotControleur, attendre: (Double, () -> Bool) -> Void) {
+        if !c.rappels.rappels.isEmpty { c.rappels = ListeRappels(); c.sauver() }
+        if c.moteur.alerte != nil { c.moteur.quitterAlerte(); attendre(0.6) { true } }
     }
 }

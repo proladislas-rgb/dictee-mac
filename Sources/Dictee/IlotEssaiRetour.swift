@@ -37,7 +37,7 @@ extension IlotEssai {
         print("Revenir en arrière : « ‹ », deux doigts vers la droite, jamais bloqué")
         c.lecture.modele.morceau = nil; c.lecture.surIlot(false)
         m.fermer(); c.panneau.simulerPointeur(forme: false); pause(0.8)
-        attendre(6) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(6)) { m.bandeau != nil }
         print("  deux doigts vers la droite : dx \(droite > 0 ? "positif" : "négatif") (sens naturel de l'essai)")
 
         // --- Centre › Outils (vrais clics) › détail de Groq
@@ -113,9 +113,9 @@ extension IlotEssai {
         ouvrirLeDetail("pointeur immobile")
         c.panneau.simulerPointeur(forme: true)   // posé sur le détail, sans un mouvement de plus
         let t0 = Date()
-        attendre(5 + FermetureBandeau.calme + 1.5) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(5 + FermetureBandeau.calme + 1.5)) { m.bandeau != nil }
         let duree = Date().timeIntervalSince(t0)
-        verifier(m.bandeau == nil && duree < IlotControleur.dureeBandeauGroq + 1 + 1.0,
+        verifier(m.bandeau == nil && duree < IlotEssai.sousCharge(IlotControleur.dureeBandeauGroq + 1 + 1.0),
                  "pointeur posé sur le détail sans bouger : il part seul après \(String(format: "%.1f", duree)) s (avant : il restait tant que le pointeur était là)")
         pause(0.5)
         verifier(m.courante == .outils && m.epingle, "… et l'îlot revient aux Outils, épinglés comme avant (\(m.courante))")
@@ -128,9 +128,9 @@ extension IlotEssai {
         while Date().timeIntervalSince(t1) < 7 { c.panneau.envoyerMouvement(en: CGPoint(x: z.midX + CGFloat(k % 2) * 6, y: z.midY)); k += 1; pause(0.4) }
         verifier(m.courante == .groq && m.bandeau != nil, "la souris bouge sur le détail depuis 7 s : il reste (\(m.courante))")
         let t2 = Date()
-        attendre(FermetureBandeau.calme + 2) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(FermetureBandeau.calme + 2)) { m.bandeau != nil }
         let apres = Date().timeIntervalSince(t2)
-        verifier(m.bandeau == nil && apres <= FermetureBandeau.calme + 1.6, "la souris s'arrête : parti \(String(format: "%.1f", apres)) s plus tard (≤ \(Int(FermetureBandeau.calme)) s + un réveil)")
+        verifier(m.bandeau == nil && apres <= IlotEssai.sousCharge(FermetureBandeau.calme + 1.6), "la souris s'arrête : parti \(String(format: "%.1f", apres)) s plus tard (≤ \(Int(FermetureBandeau.calme)) s + un réveil)")
         pause(0.5)
         verifier(m.courante == .outils, "… retour aux Outils (\(m.courante))")
 

@@ -92,7 +92,7 @@ extension IlotEssai {
         c.couperOuRouvrirLeMicro(depuis: "l'essai"); pause(0.5)
         c.activerLeMicro(false)
         // le micro rouvert hors du Centre s'annonce (« Micro ouvert », 1,5 s) : on attend qu'il parte
-        attendre(3.0) { m.bandeau != nil }; pause(0.8)
+        attendre(IlotEssai.sousCharge(3.0)) { m.bandeau != nil }; pause(0.8)
 
         // --- l'îlot vide s'ouvre au survol sur le Centre (non épinglé) ; un clic sur le dernier point (les Dictées, plus courtes) l'épingle,
         // puis un clic sur l'avant-dernier (l'accueil, plus court encore) : la forme rétrécit sous le pointeur, qui en sort, et l'îlot reste là
@@ -150,7 +150,7 @@ extension IlotEssai {
         clic(CGPoint(x: 0, y: g.hauteur / 2), 0.6)
         verifier(m.courante == .appareil && m.bandeau?.ligne1 == "AirPods Pro", "vrai clic sur l'îlot dans la barre : le Centre se range, le bandeau paraît (\(m.courante))")
         c.panneau.simulerPointeur(forme: false)
-        attendre(5.0) { m.bandeau != nil }; pause(0.8)
+        attendre(IlotEssai.sousCharge(5.0)) { m.bandeau != nil }; pause(0.8)
         verifier(m.bandeau == nil && m.courante == .repos, "le pointeur parti, le bandeau aussi : l'îlot vide (\(m.courante))")
 
         // --- le minuteur éteint dans les réglages : « 10 » l'allume, puis le lance (avant : le bouton ne faisait rien)
