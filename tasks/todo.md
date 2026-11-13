@@ -706,3 +706,6 @@ Demande de Hugues (« c'est bien, oui, c'est concrètement ça ») : Centre › 
       coupé ?), le dire.
 - Non fait (choisi) : l'accueil n'a pas de « ‹ » (carte de la pile, on en sort par défilement ou points de page ; le geste y revient à
       la carte d'avant) ; vers la gauche, rien.
+- Vérifications (13/11, 13 h 40) : build release sans avertissement ; 4 065/4 065 contrôles (47 nouveaux) ; section `retour` verte
+  (25 contrôles) ; essai complet 13 h 22-13 h 40, écran allumé, charge ~2,5 : 1 424 ok, tout vert (section Groq des Outils
+  ajustée : le détail revient aux Outils épinglés).
