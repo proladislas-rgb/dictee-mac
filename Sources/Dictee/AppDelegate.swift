@@ -36,9 +36,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var derniereAppExterne: NSRunningApplication?
     private var abonnements = Set<AnyCancellable>()
 
+    /// Lancée par l'ouverture de session (« Ouvrir au démarrage ») : lu dans l'événement d'ouverture, avant la fin du lancement.
+    private var ouvertureDeSession = false
+
     init(options: Options) {
         self.options = options
         super.init()
+    }
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        let ev = NSAppleEventManager.shared().currentAppleEvent
+        ouvertureDeSession = ev?.eventID == kAEOpenApplication
+            && ev?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -140,6 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dictee.surGroqReussi = { [weak self] in self?.ilot.groqReussi() }
         dictee.surRelaisIndisponible = { [weak self] texte in self?.ilot.relaisIndisponible(texte) }
         demarrerPriseEnMainSiBesoin()
+        ouvrirLaFenetreAuLancementSiBesoin()
         Task { await verifierAutorisations() }
         // Tant qu'il manque quelque chose, on surveille (l'accord se donne dans les Réglages, app ouverte) ; tout accordé, on arrête :
         // plus rien ne tourne au repos. Verbe qui revient au premier plan relance une vérification (et la surveillance si besoin).
@@ -297,6 +307,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ouvrirFilet(derniere.texte, cible: cible)
     }
 
+    /// Lancée d'un clic (icône du Dock, Finder, Spotlight, Launchpad) : la fenêtre s'ouvre, comme quand Voxile tourne déjà ; pas à
+    /// l'ouverture de session, ni au premier lancement (la prise en main), ni quand Voxile se relance elle-même (mise à jour).
+    private func ouvrirLaFenetreAuLancementSiBesoin() {
+        let relance = ProcessInfo.processInfo.environment[PresenceDock.variableRelance] != nil
+        let oui = PresenceDock.fenetreAuLancement(premierLancementFait: Settings.premierLancementFait, ouvertureDeSession: ouvertureDeSession,
+                                                  relanceParVoxile: relance)
+        Log.ecrire("lancement : fenêtre \(oui ? "ouverte" : "non ouverte") (session \(ouvertureDeSession ? "oui" : "non"), relance \(relance ? "oui" : "non"))")
+        if oui { fenetrePrincipale.afficherAccueil() }
+    }
+
     /// Verbe relancé alors qu'il tourne déjà (clic sur son icône dans le Dock, Applications, Launchpad ou Spotlight) :
     /// on ouvre la fenêtre principale au lieu de ne rien faire.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -309,6 +329,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func configurerFenetre() {
+        // la fenêtre fermée, la barre des menus et le clavier reviennent à l'app d'avant (Voxile n'a plus de menu en arrière-plan)
+        fenetrePrincipale.surFermee = { [weak self] in
+            guard let app = self?.derniereAppExterne, !app.isTerminated else { return }
+            app.activate()
+        }
         let m = fenetrePrincipale.dictees
         // Dans la fenêtre, « recoller » écrit dans la dernière app utilisée avant d'ouvrir Verbe.
         m.surRecoller = { [weak self] entree in
@@ -469,7 +494,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func couperOuRouvrirLeMicro() { ilot.couperOuRouvrirLeMicro(depuis: "le menu") }
     @objc private func rendreLaVeille() { ilot.arreterEveil(journal: "éteint depuis le menu") }
 
-    /// Menu de l'app (invisible tant qu'elle n'a pas de Dock, mais ses raccourcis servent la fenêtre) :
+    /// Menu de l'app (dans la barre des menus quand la fenêtre est ouverte, Voxile étant alors une app normale) :
     /// ⌘, ouvre la fenêtre, ⌘1-4 changent de page, ⌘W ferme, Édition rend ⌘C ⌘V aux champs de texte.
     private func installerMenuPrincipal() {
         let principal = NSMenu()

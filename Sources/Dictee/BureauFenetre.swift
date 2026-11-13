@@ -130,6 +130,8 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
     var surEssayer: (Decouverte) -> Void = { _ in }
     /// Celles qu'elle sait montrer en ce moment (une fonction éteinte n'a pas de bouton « Essayer »).
     var essais: () -> Set<Decouverte> = { [] }
+    /// La fenêtre fermée, Voxile repasse en arrière-plan : le clavier et la barre des menus reviennent à l'app d'avant (AppDelegate).
+    var surFermee: () -> Void = {}
 
     init(dictees: ModeleDictees, controleurReunions: ReunionController, bibliotheque: BibliothequeModele, sources: SourcesAujourdhui) {
         self.dictees = dictees; self.controleurReunions = controleurReunions; self.bibliotheque = bibliotheque
@@ -139,6 +141,11 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         journee.surOuvrirNote = { [weak self] id in self?.ouvrirNote(id) }
         journee.surOuvrirDictees = { [weak self] in self?.afficher(.dictees) }
         apparence.suivreLeMac()
+        // Un autre bureau, une app en plein écran : Voxile repasse en arrière-plan le temps d'y être (l'îlot reste par-dessus) ;
+        // de retour sur le bureau de la fenêtre, l'icône revient dans le Dock.
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.suivreLeDock(cause: "bureau changé") }
+        }
     }
 
     var estOuverte: Bool { fenetre?.isVisible == true }
@@ -162,8 +169,9 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         guard let f = fenetre else { return }
         preparer(nav.sousPage, nav.page)
         borner(f, cause: "ouverture")
-        // Verbe reste une app d'arrière-plan (pas d'icône « active » dans le Dock) même fenêtre ouverte : une app « normale »
-        // ne peut plus afficher l'encoche par-dessus une app en plein écran (constaté dans le Terminal en plein écran).
+        // Fenêtre ouverte : une vraie app (icône et point dans le Dock, menu de l'app, ⌘Q, « Quitter » au clic droit du Dock), avant
+        // de l'activer pour que la barre des menus soit la sienne. Elle s'ouvre sur le bureau actif (`.moveToActiveSpace`).
+        mettreDansLeDock(true, cause: "fenêtre ouverte")
         NSApp.activate(ignoringOtherApps: true)
         f.makeKeyAndOrderFront(nil)
         changerVisibilite(true)
@@ -180,10 +188,36 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         if page == .reunions, sous == nil, reunions.ouverte == nil { reunions.reinitialiser() }
     }
 
-    /// Fenêtre fermée : Verbe reste discret dans l'encoche et la barre des menus (par sécurité, on garde la politique d'arrière-plan).
+    /// Fenêtre fermée : Voxile repasse en arrière-plan (l'icône quitte le Dock), l'encoche reste.
     func windowWillClose(_ notification: Notification) {
         changerVisibilite(false)
-        NSApp.setActivationPolicy(.accessory)
+        let active = NSApp.isActive
+        mettreDansLeDock(false, cause: "fenêtre fermée")
+        if active { surFermee() }
+    }
+
+    /// Réduite dans le Dock, elle y garde l'icône ; rouverte, pareil.
+    func windowDidMiniaturize(_ notification: Notification) { suivreLeDock(cause: "fenêtre réduite") }
+    func windowDidDeminiaturize(_ notification: Notification) { suivreLeDock(cause: "fenêtre rouverte du Dock") }
+
+    /// La place de Voxile dans le Dock selon l'état de la fenêtre (`PresenceDock`) : ouverte sur le bureau actif ou réduite, une
+    /// vraie app ; fermée, ou ouverte sur un autre bureau / derrière une app en plein écran, l'arrière-plan.
+    private func suivreLeDock(cause: String) {
+        guard let f = fenetre else { return }
+        let ouverte = f.isVisible || f.isMiniaturized
+        mettreDansLeDock(PresenceDock.dansLeDock(fenetreOuverte: ouverte, reduite: f.isMiniaturized, surLeBureauActif: f.isOnActiveSpace), cause: cause)
+    }
+
+    private func mettreDansLeDock(_ oui: Bool, cause: String) {
+        let voulue: NSApplication.ActivationPolicy = oui ? .regular : .accessory
+        guard NSApp.activationPolicy() != voulue else { return }
+        NSApp.setActivationPolicy(voulue)
+        Log.ecrire("Dock : \(oui ? "icône montrée (app normale)" : "icône retirée (arrière-plan)") — \(cause)")
+        // De retour en arrière-plan alors que l'îlot est à l'écran (un autre bureau, une app en plein écran) : ses panneaux sont remis
+        // devant, du plus lointain au plus proche (leur ordre ne change pas), pour qu'ils rejoignent l'espace où l'on est.
+        if !oui {
+            for w in NSApp.orderedWindows.reversed() where w is NSPanel && w.isVisible { w.orderFrontRegardless() }
+        }
     }
 
     /// La fenêtre paraît ou disparaît : ses pages ne recalculent (nouvelle dictée, note qui change) et ne s'animent que visibles.

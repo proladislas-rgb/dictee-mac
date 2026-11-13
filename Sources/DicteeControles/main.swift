@@ -1949,6 +1949,7 @@ controlesReunionNote()
 controlesVoixReunion()
 controlesExtraitsReunion()
 controlesBureau()
+controlesPresenceDock()
 controlesVoix()
 controlesMagasins()
 

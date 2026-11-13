@@ -324,8 +324,8 @@ final class MiseAJourControleur {
         Log.ecrire("mise à jour : relance de \(app.lastPathComponent)")
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        p.arguments = ["-c", "i=0; while kill -0 \"$1\" 2>/dev/null && [ $i -lt 50 ]; do sleep 0.2; i=$((i+1)); done; /usr/bin/open \"$2\"",
-                       "sh", String(ProcessInfo.processInfo.processIdentifier), app.path]
+        p.arguments = ["-c", "i=0; while kill -0 \"$1\" 2>/dev/null && [ $i -lt 50 ]; do sleep 0.2; i=$((i+1)); done; /usr/bin/open --env \"$3\" \"$2\"",
+                       "sh", String(ProcessInfo.processInfo.processIdentifier), app.path, PresenceDock.variableRelance + "=1"]
         p.standardInput = FileHandle.nullDevice
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice

@@ -47,7 +47,8 @@ enum InstallationApp {
     private static func relancer(_ app: URL) {
         let processus = Process()
         processus.executableURL = URL(fileURLWithPath: "/bin/sh")
-        processus.arguments = ["-c", "sleep 1; /usr/bin/open \"$1\"", "sh", app.path]
+        // `--env` : la copie relancée sait que c'est Voxile qui la relance (pas d'ouverture de la fenêtre au lancement)
+        processus.arguments = ["-c", "sleep 1; /usr/bin/open --env \"$2\" \"$1\"", "sh", app.path, PresenceDock.variableRelance + "=1"]
         try? processus.run()
         NSApp.terminate(nil)
     }
