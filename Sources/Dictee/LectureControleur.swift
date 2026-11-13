@@ -249,22 +249,24 @@ final class LectureControleur {
     /// qui bougent sur une vidéo en pause (Hugues 12/11, 23 h 47).
     private func appliquerLocalement(joue: Bool? = nil, position: Double? = nil) {
         guard var m = modele.morceau else { return }
-        if let joue, joue != m.joue { attendreConfirmation(avant: m.joue, cle: m.cle) }
+        let avant = m.joue
         let maintenant = Date()
         if let p = m.positionA(maintenant) { m.position = p; m.depuis = maintenant }
         if let joue { m.joue = joue; if joue, m.vitesse <= 0 { m.vitesse = 1 } }
         if let position { m.position = position; m.depuis = maintenant }
         modele.morceau = m
+        if let joue, joue != avant { attendreConfirmation(avant: avant, attendu: m) }
     }
 
     /// Combien de temps on attend que le système confirme un changement de lecture (pause, reprise) avant de revenir à son dernier état.
     static let delaiConfirmationCommande: TimeInterval = 2
     private var confirmationCommande: DispatchWorkItem?
-    private func attendreConfirmation(avant: Bool, cle: String) {
+    /// `attendu` : le morceau tel qu'on vient de le deviner ; s'il a changé depuis (un événement, un autre geste), on ne touche à rien.
+    private func attendreConfirmation(avant: Bool, attendu: MorceauEnCours) {
         confirmationCommande?.cancel()
         let item = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
-                guard let self, var m = self.modele.morceau, m.cle == cle, m.joue != avant else { return }
+                guard let self, var m = self.modele.morceau, m == attendu else { return }
                 Log.ecrire("lecture : le système n'a rien confirmé en \(Int(Self.delaiConfirmationCommande)) s, l'état revient à « \(avant ? "joue" : "en pause") »")
                 m.joue = avant
                 self.modele.morceau = m
