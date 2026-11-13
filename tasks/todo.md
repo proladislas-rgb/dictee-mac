@@ -709,3 +709,18 @@ Demande de Hugues (« c'est bien, oui, c'est concrètement ça ») : Centre › 
 - Vérifications (13/11, 13 h 40) : build release sans avertissement ; 4 065/4 065 contrôles (47 nouveaux) ; section `retour` verte
   (25 contrôles) ; essai complet 13 h 22-13 h 40, écran allumé, charge ~2,5 : 1 424 ok, tout vert (section Groq des Outils
   ajustée : le détail revient aux Outils épinglés).
+
+## 13/11, fin d'après-midi : GRAND AUDIT FINAL (branche `audit-final`, worktree ~/dictee-mac-audit, depuis main b3dc203)
+But : zéro dette technique et zéro bug d'usage réel avant la vidéo finale. Rien fusionné ni installé.
+- [x] 0. Vieux worktrees : les 21 (scratchpad/wt-*, correctif2, ~/dictee-mac-*) avaient leur branche fusionnée dans main et rien de
+      non commité : tous retirés (`git worktree remove`, sans --force) ; branches gardées (locales et distantes).
+- [ ] 1. Journal réel (lecture seule, 12/11 → 13/11 14 h 30) : chercher erreurs, états incohérents, relances ; cause, correction, contrôle.
+- [ ] 2. Essai complet indépendant de l'heure : le rappel « Plus tard » de la section réunion restait programmé dans le contrôleur
+      (seul le fichier était vidé) et sonnait ~10 min plus tard, au milieu d'une autre section (selon la vitesse de l'essai) ;
+      rappels purgés entre les sections ; horloge de l'essai posée à 10 h (`DICTEE_ESSAI_HEURE` pour l'essayer à 2 h).
+- [ ] 3. Délais sous charge : les attentes « le bandeau se retire » ont une marge de charge (attente sur condition, rien de plus long au vert).
+- [ ] 4. `.abime` : l'historique (et les raccourcis/propositions) passent par la même mise de côté que MagasinJSON ; écritures en 0600 d'emblée.
+- [ ] 5. `--rendu-fenetre` : Réglages avec une heure de vérification et un usage Groq fictifs et fixes ; le verre des rendus à sa valeur par défaut.
+- [ ] 6. `DICTEE_ESSAI_SEUL=etagere` autonome.
+- [ ] 7. Revue : une seule mesure des pilules (`largeurRetour` ×5…), octet NUL dans lessons.md, avertissements, observateurs.
+- [ ] 8. Vérifications : build release 0 avertissement, DicteeControles, essai complet, chaque section seule, `--rendu-fenetre`.
