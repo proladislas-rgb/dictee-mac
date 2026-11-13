@@ -663,3 +663,25 @@ Un commit par point, poussé, NON fusionné, NON installé.
   minuteur en haut à droite… boucle secousse », ressort du bourdonnement ; la section seule est verte). Essai complet n° 2 (vers 2 h) :
   écran éteint/rallumé (pmset) puis « En faire un rappel » à 2 h du matin (« demain » = aujourd'hui avant l'aube) : l'alerte du rappel
   reste et 58 échecs en cascade dans des sections non touchées. À relancer de jour avant la fusion.
+
+## 13/11, 11 h : fenêtre qui déborde, vraie app dans le Dock, Quitter depuis l'îlot (branche `bureau-dock`, poussée, non fusionnée)
+- [x] 1. Fenêtre de bureau : cause = NSHostingView (sizingOptions par défaut, `.intrinsicContentSize`) qui faisait grandir la
+      fenêtre jusqu'à la taille idéale de la page (réunion longue ~1 480 pt, Découvrir ~1 580 pt), sous le bas de l'écran.
+      `sizingOptions = []` + fenêtre bornée à l'écran visible à l'ouverture et quand les écrans changent (`CadreFenetre`).
+      Contrôle dans `--rendu-fenetre` sur la VRAIE fenêtre (900×847, 760×600, 1200×900, 4 onglets, réunion de 48 passages) :
+      6 échecs avant, 0 après ; images `design/rendus-bureau/taille-*.png` (hors git). `DICTEE_RENDU_SEUL=taille` pour lui seul.
+- [x] 2. App normale fenêtre ouverte (Dock, menu, ⌘Q), arrière-plan fermée ; arrière-plan aussi quand la fenêtre est sur un autre
+      bureau / derrière une app plein écran (pour l'îlot) ; fenêtre ouverte au lancement d'un clic (pas à l'ouverture de session, ni
+      au premier lancement, ni à une relance par Voxile : `open --env VOXILE_RELANCE=1`). Règle `PresenceDock` (DicteeCore).
+- [x] 3. « Quitter Voxile » (discret, symbole marche/arrêt) dans l'en-tête de la page Outils, à côté de « ‹ Centre » ; même sortie
+      que ⌘Q. Essai : vrai clic → sortie demandée (capturée), clic à côté → rien. `DICTEE_ESSAI_SEUL=outils` ajouté.
+- [ ] Hugues, une fois installée : (a) Réunions, une longue réunion : défiler jusqu'au dernier passage, champ « Demander » visible ;
+      (b) fenêtre ouverte : icône + point dans le Dock, ⌘Q, clic droit › Quitter ; fermée : l'icône part ; épingler l'icône, Voxile
+      quittée, un clic dessus : la fenêtre s'ouvre ; (c) PLEIN ÉCRAN : fenêtre FERMÉE puis Terminal en plein écran, dicter (fn) :
+      l'îlot doit être là ; puis fenêtre OUVERTE, aller sur le Terminal en plein écran, dicter : l'îlot doit être là aussi (sinon
+      envoyer les lignes « Dock : … » du journal) ; (d) Centre › Outils › « Quitter Voxile ».
+- Vérifications (13/11, midi) : build release sans avertissement ; 4 018/4 018 contrôles ; `--rendu-fenetre` vert (clics + taille) ;
+  section `outils` verte ; essai complet n° 1 (11 h 44, écran éteint 11 h 44-11 h 57) : 55 échecs EN CASCADE dès « En faire un
+  rappel » (une alerte de rappel d'une section d'avant sonne : « rappelEtendu »), déjà vu la nuit ; le binaire de main, juste après,
+  vert ; essai complet n° 2 de la branche (12 h 28-12 h 46, écran allumé) : 1 397 ok, tout vert. Dette : ce rappel qui sonne selon
+  l'heure dans l'essai complet (à chercher dans le grand audit) ; `defaults read Dictee` vide.
