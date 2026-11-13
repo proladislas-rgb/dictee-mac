@@ -47,9 +47,6 @@ final class LectureModele: ObservableObject {
     var genre: GenreLecture {
         SourceLecture.genre(bundle: morceau?.app, album: morceau?.album, duree: morceau?.duree, site: site)
     }
-    var libelleSource: String {
-        SourceLecture.libelle(bundle: morceau?.app, nomApp: nomApp, artiste: morceau?.artiste, album: morceau?.album, site: site)
-    }
     var joue: Bool { morceau?.joue ?? false }
     /// La deuxième ligne de l'îlot déplié : l'artiste ou la chaîne d'abord, puis le site ou l'app (« Le Coin Tech · YouTube »).
     var sousTitre: String {

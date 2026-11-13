@@ -1581,10 +1581,6 @@ final class IlotMoteur: ObservableObject {
         let p = traceCible
         return CGRect(x: -p.gauche, y: 0, width: p.gauche + p.droite, height: p.hauteur)
     }
-    func rectActuel() -> CGRect {
-        let p = trace
-        return CGRect(x: -p.gauche, y: 0, width: p.gauche + p.droite, height: p.hauteur)
-    }
     /// La souris est-elle sur la forme elle-même (pas sur le vide à côté du cou, où sont les menus) ?
     func contient(_ point: CGPoint) -> Bool {
         if lucarne.libre { return contientLibre(point) }

@@ -8,8 +8,6 @@ import DicteeCore
 struct RelectureAudio: Sendable {
     /// Un lot : son 16 kHz mono → phrases horodatées dans ce son. Par défaut : Groq, avec les budgets partagés.
     var transcrire: @Sendable (LotRelecture, [Int16], Int) async throws -> [PhraseWhisper] = RelectureAudio.parGroq
-    /// Attente de budget au-delà de laquelle un lot est abandonné (le direct le remplace).
-    var attenteMax: Double = 300
     /// Lots envoyés en même temps : chaque requête attend surtout Groq (2 s pour 2 minutes de son), trois à la fois divisent
     /// l'attente par trois sans dépasser le budget (chaque lot réserve sa part d'audio avant de partir).
     var enParallele = 3

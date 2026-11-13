@@ -4,8 +4,6 @@ import DicteeCore
 
 // Les pièces de la lecture en cours qui servent à l'îlot (IlotVues.swift) et à la mini-miniature de la dictée.
 
-private func teinteSwiftUI(_ c: CouleurRVB) -> Color { Color(.sRGB, red: c.r, green: c.g, blue: c.b, opacity: 1) }
-
 /// Un bouton rond de l'îlot : fond blanc 9 %, 18 % au survol, réduit à 90 % pendant l'appui ; le bouton lecture/pause est plein.
 struct BoutonLecture: View {
     var symbole: String

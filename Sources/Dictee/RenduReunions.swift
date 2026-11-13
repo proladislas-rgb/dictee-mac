@@ -4,61 +4,6 @@ import DicteeCore
 
 /// `Dictee --rendu-reunion dossier` : la liste et la note en PNG (la réunion dans l'îlot : `--rendu-ilot`, ilot-27*), sans fenêtre. Réunions d'exemple, jamais celles de l'utilisateur ; ni micro ni son du Mac.
 enum RenduReunions {
-    /// Les réunions d'exemple de la maquette `reunions-v2.html` (jour de référence : lundi 9 novembre 2026, comme la maquette).
-    static func reunionsExemple() -> [Reunion] {
-        let cal = Calendar.current
-        let reference = cal.date(from: DateComponents(year: 2026, month: 11, day: 9))!
-        func a(_ jours: Int, _ h: Int, _ m: Int) -> Date { cal.date(bySettingHour: h, minute: m, second: 0, of: cal.date(byAdding: .day, value: -jours, to: reference)!)! }
-        func seg(_ d: Double, _ l: Locuteur, _ t: String) -> SegmentReunion { SegmentReunion(debut: d, fin: d + 8, locuteur: l, texte: t) }
-        /// Une action dont l'échéance est calculée comme dans l'app (depuis le jour de la réunion).
-        func act(_ debut: Date, _ qui: String?, _ quoi: String, _ quand: String? = nil, fait: Bool = false) -> ActionReunion {
-            ActionReunion(qui: qui, quoi: quoi, quand: quand, fait: fait, echeance: quand.flatMap { Echeance.analyser($0, depuis: debut).date })
-        }
-        let jGarnier = a(0, 14, 2)
-        let segments = [seg(2, .eux, "Bonjour Camille, merci de prendre cet appel. Paul est avec moi, il s\u{2019}occupe de la logistique chez Garnier et Fils."),
-                        seg(14, .moi, "Bonjour Nathalie, bonjour Paul. Je propose qu\u{2019}on reprenne l\u{2019}offre point par point."),
-                        seg(120, .eux, "Nous avons deux ateliers à équiper, un à Lyon et un à Annecy, et on voudrait que tout soit en place avant janvier."),
-                        seg(495, .moi, "L\u{2019}offre complète comprend les machines, l\u{2019}installation et la maintenance pendant deux ans."),
-                        seg(560, .eux, "La formation, on la fera nous-mêmes. Prenons l\u{2019}offre complète sans l\u{2019}option."),
-                        seg(1300, .eux, "Le prix, c\u{2019}est ce qui m\u{2019}inquiète. J\u{2019}en parle à mon associé jeudi."),
-                        seg(1770, .eux, "Peut-être qu\u{2019}on pourra parler d\u{2019}un troisième atelier l\u{2019}an prochain, mais rien n\u{2019}est décidé."),
-                        seg(2110, .moi, "Très bien, je note : offre complète, sans la formation.")]
-        var garnier = Reunion(
-            debut: jGarnier, duree: 2280, titre: "Appel Garnier & Fils, offre et calendrier", participants: ["Moi", "Nathalie", "Paul"],
-            dit: ["Deux ateliers, Lyon et Annecy, avant janvier", "Machines, installation, maintenance 2 ans",
-                  "Prix sensible, Nathalie en parle à son associé jeudi", "Troisième atelier l\u{2019}an prochain, pas décidé"],
-            decisions: ["Offre complète, sans l\u{2019}option formation", "Paiement en deux fois", "Signature visée"],
-            actions: [act(jGarnier, "Moi", "Envoyer la proposition chiffrée, deux options", "mercredi soir"),
-                      act(jGarnier, "Nathalie", "Valider le budget avec son associé", "jeudi"),
-                      act(jGarnier, "Paul", "Donner les volumes de commande", "vendredi"),
-                      act(jGarnier, "Moi", "Vérifier la date de livraison avec l\u{2019}usine"),
-                      act(jGarnier, "Moi", "Envoyer la fiche technique", fait: true)],
-            segments: segments, etat: .prete, sonGarde: true,
-            enBref: "Offre complète retenue, budget à valider jeudi, signature visée avant le 20 novembre.")
-        func cite(_ point: Int, _ i: Int, _ t: String) -> CitationReunion { CitationReunion(point: point, texte: t, locuteur: segments[i].locuteur, debut: segments[i].debut, fin: segments[i].fin) }
-        garnier.citations = [cite(0, 2, "Nous avons deux ateliers à équiper, un à Lyon et un à Annecy"), cite(1, 3, "L\u{2019}offre complète comprend les machines, l\u{2019}installation et la maintenance pendant deux ans."),
-                             cite(2, 5, "Le prix, c\u{2019}est ce qui m\u{2019}inquiète. J\u{2019}en parle à mon associé jeudi."), cite(3, 6, "rien n\u{2019}est décidé")]
-        garnier.decisionsEcheances = [nil, nil, EcheanceReunion(quand: "avant le vingt novembre", date: "2026-11-20")]
-
-        func note(_ j: Int, _ h: Int, _ m: Int, _ titre: String, _ duree: Double, _ bref: String, _ actions: [(String?, String, String?, Bool)]) -> Reunion {
-            let d = a(j, h, m)
-            return Reunion(debut: d, duree: duree, titre: titre, actions: actions.map { act(d, $0.0, $0.1, $0.2, fait: $0.3) }, etat: .prete, enBref: bref)
-        }
-        var sansNote = Reunion(debut: a(1, 17, 40), duree: 1020, etat: .sansNote)
-        sansNote.segments = [seg(3, .eux, "On se rappelle demain pour la suite."), seg(9, .moi, "D\u{2019}accord, à demain.")]
-        sansNote.avertissements = ["La note n\u{2019}a pas pu être écrite (réseau : code -1009). La transcription est gardée : « Refaire la note » réessaie."]
-        return [garnier,
-                note(0, 9, 30, "Point de la semaine avec l\u{2019}équipe", 1440, "Trois priorités pour la semaine, le planning des congés de décembre reste à boucler.",
-                     [("Moi", "Boucler le planning des congés", "demain", false), ("Paul", "Préparer le point client", "jeudi", false)]),
-                sansNote,
-                note(3, 11, 0, "Visio Atelier Roche, premier cadrage", 3120, "Périmètre limité à une ligne de production, visite sur site à caler semaine du 16.",
-                     [("Moi", "Envoyer le cadrage écrit", "jeudi", false), ("Moi", "Caler la visite sur site", "vendredi", false), ("Moi", "Demander le plan de l\u{2019}atelier", "le dix-huit novembre", false)]),
-                note(4, 15, 15, "Rendez-vous banque, prêt pour le matériel", 1860, "Accord de principe sur 40 000 €, dossier complet à rendre avant le 18 novembre.",
-                     [("Moi", "Rendre le dossier complet", "avant le dix-huit novembre", false)]),
-                note(5, 10, 5, "Appel fournisseur, délais de livraison", 1020, "Livraison confirmée sous six semaines, rien en attente.",
-                     [("Moi", "Confirmer la commande", nil, true)])]
-    }
-
     /// La réunion de la maquette ilot-reunion.html (étapes 11 et 12) : « Lancement de la boutique en ligne », mercredi 11 novembre
     /// 2026, 14:02, 29 min. Les voix restent « Moi » et « Eux » (pas encore de séparation des voix).
     static func boutique() -> Reunion {

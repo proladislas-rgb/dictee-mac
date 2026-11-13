@@ -27,11 +27,6 @@ func teinteIlot(_ c: CouleurRVB) -> Color {
 }
 
 extension View {
-    /// Pose la vue dans la zone de dessin de l'îlot : `r` en points depuis le centre de l'encoche (x) et le haut de l'écran (y).
-    func cadreIlot(_ r: CGRect, _ al: Alignment = .topLeading) -> some View {
-        frame(width: max(0, r.width), height: max(0, r.height), alignment: al)
-            .offset(x: IlotMoteur.largeur / 2 + r.minX, y: r.minY)
-    }
     /// L'aspect d'un élément pendant son arrivée ou son départ (fondu, flou, zoom ancré en haut).
     func aspectIlot(_ a: AspectIlot, ancre: UnitPoint = .top) -> some View {
         scaleEffect(a.echelle, anchor: ancre)

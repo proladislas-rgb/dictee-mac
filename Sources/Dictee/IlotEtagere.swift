@@ -1000,7 +1000,6 @@ struct RangeeEtagere: View {
     static func xFichier(_ i: Int, largeur: CGFloat, reste: Bool) -> CGFloat {
         marge + tout + separateur + largeurFichier(largeur, reste: reste) * (CGFloat(i) + 0.5)
     }
-    static func xChevron(_ largeur: CGFloat) -> CGFloat { largeur - marge - chevron / 2 }
 
     @State private var survolTout = false
 
