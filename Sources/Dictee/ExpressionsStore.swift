@@ -26,8 +26,7 @@ final class ExpressionsStore: @unchecked Sendable {
         cache = l
         if let d = l.donnees() {
             do {
-                try d.write(to: Self.url, options: .atomic)
-                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: Self.url.path)
+                try FichierPrive.ecrire(d, vers: Self.url)
                 modifieLe = (try? FileManager.default.attributesOfItem(atPath: Self.url.path))?[.modificationDate] as? Date
             } catch { Log.ecrire("expressions : enregistrement impossible (\(error.localizedDescription))") }
         }

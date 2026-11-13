@@ -33,6 +33,7 @@ extension ListeNotes: FichierJSON {}
 extension BibliothequeIlot: FichierJSON {}
 extension ReveilIlot: FichierJSON {}
 extension MemoireConcentration: FichierJSON {}
+extension Historique: FichierJSON {}
 
 /// Un fichier JSON de l'utilisateur (rappels, étagère, notes…) : relu tel quel, écrit d'un coup en 0600 (`FichierPrive`), échec tracé
 /// au journal (jamais le contenu). Le magasin ne touche pas au format : c'est celui du type (`depuis` / `donnees`).
@@ -61,10 +62,7 @@ public struct MagasinJSON<Valeur: FichierJSON>: Sendable {
         let fm = FileManager.default
         switch siIllisible {
         case .garderEnAbime:
-            journal("\(nom) : fichier illisible, l'ancien est gardé en .abime")
-            let abime = url.appendingPathExtension("abime")
-            try? fm.removeItem(at: abime)
-            try? fm.moveItem(at: url, to: abime)
+            FichierIllisible.mettreDeCote(url, nom: nom, journal: journal)
         case .oublier:
             journal("\(nom) : fichier illisible, oublié")
             try? fm.removeItem(at: url)
@@ -88,6 +86,26 @@ public struct MagasinJSON<Valeur: FichierJSON>: Sendable {
 
     public func effacer() {
         if let url { try? FileManager.default.removeItem(at: url) }
+    }
+}
+
+/// Un fichier de l'utilisateur qu'on ne sait plus lire : mis de côté à côté de lui, en `.abime` (un `.abime` plus ancien est remplacé :
+/// sinon le déplacement échoue et la prochaine écriture écrase le fichier abîmé, 12/11), et la ligne du journal dit ce qui s'est vraiment
+/// passé. Pour les magasins JSON comme pour les fichiers lus à part (raccourcis, propositions de mots).
+public enum FichierIllisible {
+    @discardableResult
+    public static func mettreDeCote(_ url: URL, nom: String, journal: (String) -> Void) -> Bool {
+        let fm = FileManager.default
+        let abime = url.appendingPathExtension("abime")
+        try? fm.removeItem(at: abime)
+        do {
+            try fm.moveItem(at: url, to: abime)
+            journal("\(nom) : fichier illisible, l'ancien est gardé en .abime")
+            return true
+        } catch {
+            journal("\(nom) : fichier illisible, impossible de le mettre de côté (\((error as NSError).domain) \((error as NSError).code))")
+            return false
+        }
     }
 }
 

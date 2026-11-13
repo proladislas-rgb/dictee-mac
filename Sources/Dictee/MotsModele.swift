@@ -152,18 +152,20 @@ final class MotsModele: ObservableObject {
         return d
     }
     private static func lire<T: Decodable>(_ type: T.Type, _ nom: String) -> T? {
-        guard let d = try? Data(contentsOf: dossier.appendingPathComponent(nom)) else { return nil }
-        return try? JSONDecoder().decode(type, from: d)
+        let url = dossier.appendingPathComponent(nom)
+        guard let d = try? Data(contentsOf: url) else { return nil }
+        if let v = try? JSONDecoder().decode(type, from: d) { return v }
+        // illisible : mis de côté (avant : la liste repartait vide et la prochaine écriture effaçait les raccourcis, sans un mot au journal)
+        FichierIllisible.mettreDeCote(url, nom: nom, journal: { Log.ecrire($0) })
+        return nil
     }
     private func ecrire<T: Encodable>(_ valeur: T, _ nom: String) {
         guard persistant else { return }
         let e = JSONEncoder(); e.outputFormatting = [.prettyPrinted, .sortedKeys]
         guard let d = try? e.encode(valeur) else { return }
         let url = Self.dossier.appendingPathComponent(nom)
-        do {
-            try d.write(to: url, options: .atomic)
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-        } catch { Log.ecrire("\(nom) : enregistrement impossible (\(error.localizedDescription))") }
+        do { try FichierPrive.ecrire(d, vers: url) }
+        catch { Log.ecrire("\(nom) : enregistrement impossible (\(error.localizedDescription))") }
     }
     private func sauverMots() { if persistant { Dictionnaire.enregistrer(mots) } }
     private func sauverRaccourcis() { ecrire(raccourcis, "raccourcis.json") }

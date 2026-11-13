@@ -21,10 +21,8 @@ final class HistoriqueStore: ObservableObject {
     init(url: URL? = nil) {
         let u = url ?? Self.urlParDefaut
         self.url = u
-        if let donnees = try? Data(contentsOf: u) {
-            if let lu = Historique.depuis(donnees) { historique = lu }
-            else { Log.ecrire("historique : fichier illisible, on repart d'un historique vide (l'ancien est gardé en .abime)"); try? FileManager.default.moveItem(at: u, to: u.appendingPathExtension("abime")) }
-        }
+        // illisible : mis de côté en .abime (jamais écrasé par la prochaine écriture), on repart d'un historique vide
+        if let lu = Self.magasin(u).lire() { historique = lu }
     }
 
     static var urlParDefaut: URL { DossierVerbe.preparer("historique.json") }
@@ -38,13 +36,12 @@ final class HistoriqueStore: ObservableObject {
 
     func effacer() { historique.effacer(); enregistrer(); Log.ecrire("historique effacé") }
 
+    /// Le fichier de l'historique : lu tel quel, écrit d'un coup en 0600 (`FichierPrive`), échec tracé sans le contenu.
+    nonisolated static func magasin(_ url: URL) -> MagasinJSON<Historique> { MagasinJSON(url: url, nom: "historique", journal: { Log.ecrire($0) }) }
+
     private func enregistrer() {
-        guard let url, let donnees = historique.donnees() else { return }
-        file.async {
-            do {
-                try donnees.write(to: url, options: .atomic)
-                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-            } catch { Log.ecrire("historique : enregistrement impossible (\(error.localizedDescription))") }
-        }
+        guard let url else { return }
+        let h = historique
+        file.async { Self.magasin(url).ecrire(h) }
     }
 }

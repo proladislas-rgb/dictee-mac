@@ -82,6 +82,26 @@ func controlesMagasins() {
     verifier(journal.count == 3 && journal[0] == "rappels : fichier illisible, l'ancien est gardé en .abime" && journal[1] == "réveil : fichier illisible, oublié"
              && journal[2].hasPrefix("notes : écriture impossible (") && !journal.joined().contains("secret"),
              "journal : les mêmes lignes qu'avant, l'échec d'écriture tracé, jamais le contenu (\(journal.last ?? "rien"))")
+    // l'historique des dictées (13/11 : il gardait sa propre lecture, `try? moveItem` vers un .abime DÉJÀ là échouait en silence : le
+    // fichier abîmé restait en place, écrasé par la dictée suivante, alors que le journal annonçait une copie de côté)
+    let hist = ecrireBrut("historique.json", "{ pas fini")
+    _ = ecrireBrut("historique.json.abime", "une panne d'avant")
+    let mH = MagasinJSON<Historique>(url: hist, nom: "historique", journal: tracer)
+    verifier(mH.lire() == nil && !mH.existe && (try? String(contentsOf: hist.appendingPathExtension("abime"), encoding: .utf8)) == "{ pas fini",
+             "historique illisible, un .abime déjà là : le fichier abîmé est mis de côté (jamais écrasé par la dictée suivante)")
+    let entree = EntreeHistorique(date: date("2026-11-13T09:00:00Z"), appNom: "Mail", texte: "Bonjour")
+    verifier(mH.ecrire(Historique(entrees: [entree])) && droits(hist) == 0o600 && mH.lire()?.entrees.map(\.texte) == ["Bonjour"], "historique réécrit : 0600 d'emblée, relu")
+    // un fichier qu'on ne peut pas déplacer (son dossier en lecture seule) : le journal le dit, il ne prétend pas l'avoir gardé
+    let fige = dossier.appendingPathComponent("fige", isDirectory: true)
+    try? FileManager.default.createDirectory(at: fige, withIntermediateDirectories: true)
+    let raccourcis = fige.appendingPathComponent("raccourcis.json")
+    try? Data("[{".utf8).write(to: raccourcis)
+    try? FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: fige.path)
+    var dit: [String] = []
+    let garde = FichierIllisible.mettreDeCote(raccourcis, nom: "raccourcis.json", journal: { dit.append($0) })
+    try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fige.path)
+    verifier(!garde && dit.count == 1 && dit[0].hasPrefix("raccourcis.json : fichier illisible, impossible de le mettre de côté")
+             && FileManager.default.fileExists(atPath: raccourcis.path), "déplacement impossible : le journal le dit (\(dit.first ?? "rien")), le fichier reste")
     // en mémoire (essais, rendus) : rien n'est lu ni écrit
     let mM = MagasinJSON<BibliothequeIlot>(url: nil, nom: "bibliothèque")
     verifier(mM.lire() == nil && !mM.ecrire(BibliothequeIlot()) && !mM.existe, "en mémoire : rien sur le disque")

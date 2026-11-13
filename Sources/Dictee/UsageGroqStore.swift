@@ -75,7 +75,6 @@ final class UsageGroqStore: @unchecked Sendable {
         let d = compteur.donnees()
         verrou.unlock()
         guard let url, let d else { return }
-        try? d.write(to: url, options: .atomic)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        try? FichierPrive.ecrire(d, vers: url)
     }
 }

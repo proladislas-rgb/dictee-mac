@@ -91,10 +91,8 @@ final class ReunionStore: ObservableObject {
             try? fm.createDirectory(at: dossier, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             for (nom, donnees) in [("\(base).json", json), ("\(base).md", md)] {
                 let url = dossier.appendingPathComponent(nom)
-                do {
-                    try donnees.write(to: url, options: .atomic)
-                    try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-                } catch { Log.ecrire("réunions : enregistrement impossible (\(error.localizedDescription))") }
+                do { try FichierPrive.ecrire(donnees, vers: url) }
+                catch { Log.ecrire("réunions : enregistrement impossible (\(error.localizedDescription))") }
             }
         }
     }
