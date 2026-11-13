@@ -159,7 +159,9 @@ final class DictationController {
         // coupé veut dire coupé : rien ne rouvre le micro en douce ; la touche fn repart de zéro (mains libres compris)
         guard peutCommencer() else { surFinIndependante?(); return }
         compteur += 1
-        let appCible = NSWorkspace.shared.frontmostApplication
+        // macOS ne dit pas toujours quelle app est devant (13/11, 4 h 46 : trois dictées « app cible = inconnue », collées dans le vide) :
+        // on demande alors à l'Accessibilité quelle app a le clavier
+        let appCible = NSWorkspace.shared.frontmostApplication ?? Self.appAuClavier()
         let champ = LectureChamp()
         let recents = HistoriqueStore.shared.historique.entrees.prefix(20).map(\.texte)
         let transcripteur = ChunkTranscriber(mots: Dictionnaire.mots(), langue: Settings.langue,
@@ -424,7 +426,8 @@ final class DictationController {
         fermerSiLibre()
         let creation = Date()
         let t = ProcessInfo.processInfo.systemUptime
-        let issue = await collage.ecrire(texte, dans: s.appCible)
+        // sans app connue, jamais de collage à l'aveugle : le texte reste dans l'îlot (filet de sécurité) et dans l'historique
+        let issue: Collage.Issue = s.appCible == nil ? .cibleIndisponible("app au premier plan inconnue") : await collage.ecrire(texte, dans: s.appCible)
         let collageMs = ms(ProcessInfo.processInfo.systemUptime - t)
         let total = ms(ProcessInfo.processInfo.systemUptime - relache)
         let parole = s.pipeline.dureeParole
@@ -487,6 +490,18 @@ final class DictationController {
     }
 
     /// Le texte n'est pas arrivé : le filet de sécurité (encoche ouverte avec le texte) ; sans lui, l'ancien message bref.
+    /// L'app qui a le clavier selon l'Accessibilité, quand macOS ne dit pas laquelle est au premier plan.
+    private static func appAuClavier() -> NSRunningApplication? {
+        guard Permissions.accessibiliteOK else { return nil }
+        var valeur: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(AXUIElementCreateSystemWide(), kAXFocusedApplicationAttribute as CFString, &valeur) == .success,
+              let v = valeur, CFGetTypeID(v) == AXUIElementGetTypeID() else { return nil }
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(v as! AXUIElement, &pid) == .success, let app = NSRunningApplication(processIdentifier: pid) else { return nil }
+        Log.ecrire("dictée : app au premier plan inconnue de macOS, l'Accessibilité donne \(app.bundleIdentifier ?? "?")")
+        return app
+    }
+
     private func signalerEchec(_ texte: String, cible: NSRunningApplication?, raison: String, ancienMessage: String, idDictee: Int) {
         if Settings.filetDeSecurite {
             guard courante == nil else {
