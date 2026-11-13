@@ -251,7 +251,7 @@ struct EnteteBibliotheque: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            PiluleCentre(titre: PlanBibliotheque.titreRetour, retour: true, etiquette: "Revenir à l\u{2019}étagère") { m.ouvrirEtagere() }
+            PiluleCentre(titre: PlanBibliotheque.titreRetour, retour: true, etiquette: "Revenir à l\u{2019}étagère") { m.revenir() }
             ChampBibliothequeIlot(m: m, b: b)
             Button { b.recents.toggle() } label: {
                 HStack(spacing: 4) {

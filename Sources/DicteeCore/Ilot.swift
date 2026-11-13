@@ -153,7 +153,7 @@ public enum GeoIlot {
         // la lecture dépliée : ses commandes, puis le pied (bouton « Centre ») ; le Centre a la même largeur (on passe de l'un à l'autre)
         .lectureCompact: compact(44), .lectureEtendu: [44, 144, profondeurLecture + piedLecture, 6, 34, 18, 10],
         .rappelEtendu: alerte, .rappelCompact: compact(48), .rappelAjoute: bandeau,
-        .rappelFait: bandeau, .rappelReporte: bandeau, .rappelListe: [14, 144, 136, 6, 34, 18, 10], .lucarne: bandeau,
+        .rappelFait: bandeau, .rappelReporte: bandeau, .rappelListe: [14, 144, 136 + 34, 6, 34, 18, 10], .lucarne: bandeau,
         // le rendez-vous qui commence : la ligne de l'annonce, puis « Rejoindre » et « Noter la réunion » côte à côte (maquette
         // ilot-bibliotheque.html, étape 12) : 16 + 40 + 10 + 32 + 16
         .agendaAvant: bandeau, .agendaCompact: compact(50), .agendaEtendu: [50, 150, 130, 6, 34, 18, 10], .agendaDebut: [14, 150, profondeurDebutRendezVous, 6, 30, 16, 10],

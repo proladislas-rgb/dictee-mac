@@ -50,6 +50,10 @@ struct BandeauIlot {
     var capture: URL?
     /// Ce que dit un bandeau de Groq (`.groq`) : limite proche, atteinte, dictée passée par le Mac, détail de la jauge.
     var groq: GenreBandeauGroq?
+    /// Un détail ouvert depuis une carte (le détail de Groq, depuis sa jauge) : le mot de son « ‹ » (« Outils »), retenu à l'ouverture
+    /// pour ne pas changer pendant qu'il s'efface. nil : une annonce ordinaire, sans « ‹ ».
+    var retour: String?
+    var detail: Bool { retour != nil }
 }
 
 /// Le bandeau `.lucarne` : une commande dite qui n'a pas abouti (rien n'est collé : la phrase est là, avec « Copier »), ou l'app Rappels.
@@ -602,6 +606,7 @@ final class IlotMoteur: ObservableObject {
         if cache {
             interrompreLucarne()
             if depot || appel { depot = false; appel = false; depotSurvole = false; depotZone = nil; depotRange = false; finDepot?.cancel() }
+            pileRetour.vider()
             if resolution.principal != .repos || courante != .repos || pastille != nil {
                 resolution = ResolutionIlot(principal: .repos, survol: nil, verrou: true, pastille: nil)
                 epingle = false; survole = false; sousVue = nil
@@ -628,6 +633,8 @@ final class IlotMoteur: ObservableObject {
         if ancien.principal != resolution.principal, !(survole || epingle) { sousVue = nil }
         if sousVue == .etagere || sousVue == .bibliotheque, !etagereActive { sousVue = nil }
         if depot || appel, !etagereActive { depot = false; appel = false; depotSurvole = false; depotZone = nil }
+        // l'îlot se range (pas pendant un détail, ni au milieu d'un retour) : la pile de retour repart de zéro
+        if !fenetreOuverte, !detailOuvert, !enRetour, !pileRetour.estVide { pileRetour.vider() }
         // l'îlot se range : le panneau « Garder éveillé » se replie s'il n'y a rien à montrer, les survols s'oublient
         if !fenetreOuverte {
             if eveil == nil, panneauEveil { panneauEveil = false }
@@ -973,16 +980,24 @@ final class IlotMoteur: ObservableObject {
             bandeau?.jusqua = t.addingTimeInterval(0.5)
             programmerReveil(); return
         }
-        // la souris est dessus : on ne retire rien (même règle que la maquette), sauf le volume et la luminosité (la souris immobile
-        // sur l'encoche n'a rien à voir avec les touches du clavier)
-        let niveau = bandeau?.vue.estNiveau ?? false
-        if pointeurSurForme, (alerte?.jusqua ?? .distantFuture) <= t || (!niveau && (bandeau?.jusqua ?? .distantFuture) <= t) {
-            if alerte?.jusqua.map({ $0 <= t }) == true { alerte?.jusqua = t.addingTimeInterval(1.5) }
-            if bandeau.map({ $0.jusqua <= t }) == true { bandeau?.jusqua = t.addingTimeInterval(1.5) }
+        // la souris est sur une alerte échue : elle reste (elle attend un geste)
+        if pointeurSurForme, let j = alerte?.jusqua, j <= t {
+            alerte?.jusqua = t.addingTimeInterval(1.5)
+            programmerReveil(); return
+        }
+        // un bandeau échu sous la souris reste tant qu'elle bouge, puis part après quelques secondes sans geste, même sous elle (13/11 :
+        // le détail de Groq restait tant que le pointeur était posé dessus). Le volume et la luminosité partent toujours (la souris
+        // immobile sur l'encoche n'a rien à voir avec les touches du clavier)
+        if let b = bandeau, b.jusqua <= t, !b.vue.estNiveau,
+           let n = FermetureBandeau.prochainExamen(echeance: b.jusqua, maintenant: t, pointeurDessus: pointeurSurForme, dernierGeste: dernierGeste), n > t {
+            bandeau?.jusqua = n
             programmerReveil(); return
         }
         if let j = alerte?.jusqua, j <= t { alerte = nil; surAlerteExpiree() }
-        if let j = bandeau?.jusqua, j <= t { bandeau = nil }
+        if let b = bandeau, b.jusqua <= t {
+            if b.detail { finirDetail(); return }
+            bandeau = nil
+        }
         donneesChangees()
     }
     var surAlerteExpiree: () -> Void = {}
@@ -1052,6 +1067,8 @@ final class IlotMoteur: ObservableObject {
 
     /// Clic sur la forme (hors boutons) : épingle ou relâche l'état déplié. L'îlot vide s'ouvre sur le Centre.
     func clicForme() {
+        // un détail (celui de Groq) : un clic dessus ramène là d'où il a été ouvert, comme son « ‹ »
+        if detailOuvert { revenir(); return }
         // « Capture d’écran · Sur l’étagère » : un clic ouvre l'étagère
         if bandeau?.vue == .etagereCapture, alerte == nil, !cache { bandeau = nil; ouvrirEtagere(); return }
         guard !cache, !resolution.verrou, resolution.survol != nil else { return }
@@ -1150,6 +1167,7 @@ final class IlotMoteur: ObservableObject {
     /// La ligne « Étagère » de l'accueil : la carte des fichiers gardés.
     func ouvrirEtagere() {
         guard etagereActive, !cache else { return }
+        noterOrigine(vers: .etagere)
         sousVue = .etagere; epingle = true; survole = true
         donneesChangees(); surDepliageMoniteur()
     }
@@ -1159,6 +1177,7 @@ final class IlotMoteur: ObservableObject {
     /// choisit) ; « ‹ Étagère » ramène à l'étagère.
     func ouvrirBibliotheque() {
         guard etagereActive, !cache else { return }
+        noterOrigine(vers: .bibliotheque)
         intention?.cancel(); fermeture?.cancel()
         sousVue = .bibliotheque; epingle = true; survole = true
         donneesChangees(); surDepliageMoniteur()
@@ -1168,6 +1187,7 @@ final class IlotMoteur: ObservableObject {
     /// y ramène.
     func ouvrirCarteClaude() {
         guard !cache, !resolution.verrou else { return }
+        noterOrigine(vers: .claudeCarte)
         intention?.cancel(); fermeture?.cancel()
         defilementClaude = 0
         sousVue = .claudeCarte; epingle = true; survole = true
@@ -1188,6 +1208,7 @@ final class IlotMoteur: ObservableObject {
     func ouvrirSecondBrain() { ouvrirOutil(.secondBrain) }
     func ouvrirOutil(_ v: VueIlot) {
         guard !cache, !resolution.verrou, CartesIlot.parent(v) != nil else { return }
+        noterOrigine(vers: v)
         intention?.cancel(); fermeture?.cancel()
         if v == .outilNote { defilementNotes = 0; if ecouteNote.phase == .repos { suggestionRappel = nil } }
         sousVue = v; epingle = true; survole = true
@@ -1231,6 +1252,7 @@ final class IlotMoteur: ObservableObject {
     }
 
     func ouvrirFormulaireRappel() {
+        noterOrigine(vers: .rappelListe)
         sousVue = .rappelListe; epingle = true; survole = true
         donneesChangees(); surDepliageMoniteur()
     }
@@ -1254,6 +1276,7 @@ final class IlotMoteur: ObservableObject {
     func allerA(_ carte: VueIlot) {
         guard !cache, !resolution.verrou, cartes.contains(carte) else { return }
         intention?.cancel(); fermeture?.cancel()
+        noterOrigine(vers: carte)
         // depuis le déplié d'une activité vers le Centre : l'aide « Fais défiler ou clique ici » a servi
         if carte == .centre || carte == .dictees, let c = carteCourante, c == cartes.first, aideCentre { aideCentre = false; surCentreUtilise() }
         // la première carte d'une activité est son déplié (pas de sous-vue) ; le Centre et l'accueil sont gardés tels quels, même si une
@@ -1282,8 +1305,14 @@ final class IlotMoteur: ObservableObject {
     /// Un événement de défilement (molette, deux doigts) sur l'îlot ouvert : un geste = une carte, l'inertie ignorée. Un geste qui
     /// COMMENCE sur la liste des Dictées qui dépasse sa place (`en` : le pointeur) la fait défiler, inertie comprise ; un geste parti
     /// d'une autre carte (l'accueil, qui passe aux Dictées en chemin) reste un changement de carte jusqu'au bout (`pourLaListe`).
-    func recevoirDefilement(dy: Double, dx: Double, phase: DefilementIlot.Phase, inertie: Bool, en p: CGPoint? = nil, t: Double = ProcessInfo.processInfo.systemUptime) {
-        guard fenetreOuverte, !cache else { return }
+    /// Deux doigts vers la droite (`naturel` : le sens du défilement naturel de macOS, où les valeurs suivent les doigts) : « ‹ » ; le
+    /// reste de ce geste, inertie comprise, ne fait plus rien. Sur un détail (l'îlot verrouillé par son bandeau), seul ce geste compte.
+    func recevoirDefilement(dy: Double, dx: Double, phase: DefilementIlot.Phase, inertie: Bool, naturel: Bool = true, en p: CGPoint? = nil, t: Double = ProcessInfo.processInfo.systemUptime) {
+        guard fenetreOuverte || detailOuvert, !cache else { return }
+        if !inertie { interagir() }
+        if !editionCentre, balayage.recevoir(doigtsX: naturel ? dx : -dx, dy: dy, phase: phase, inertie: inertie) { revenir(); return }
+        if balayage.avale, phase != .aucune || inertie { return }
+        guard fenetreOuverte else { return }
         let p = p.map(versContenu)   // hors de l'encoche, le contenu n'est pas sous l'encoche
         // la carte « Claude Code » défile elle-même (sa liste peut dépasser) : la molette ne change pas de carte
         if courante == .claudeCarte {
@@ -1308,6 +1337,105 @@ final class IlotMoteur: ObservableObject {
         }
         if let pas = defilement.recevoir(dy: dy, dx: dx, phase: phase, inertie: inertie, t: t) { defiler(pas) }
     }
+    // MARK: revenir en arrière (RetourIlot.swift)
+
+    /// D'où l'on vient (et si l'îlot y était épinglé) ; vidée quand l'îlot se range.
+    private(set) var pileRetour = PileRetour()
+    private var balayage = BalayageRetour()
+    /// Un retour est en cours : ce qu'il ouvre ne s'empile pas, et l'îlot un instant replié (le bandeau du détail parti) ne vide pas la pile.
+    private var enRetour = false
+    /// Le dernier geste de la souris sur l'îlot (mouvement, clic, défilement) : un bandeau échu reste sous un pointeur qui bouge, pas
+    /// sous un pointeur immobile (`FermetureBandeau`).
+    private(set) var dernierGeste = Date.distantPast
+    func interagir() { dernierGeste = maintenant() }
+
+    /// Un détail ouvert depuis une carte est à l'écran (le détail de Groq).
+    var detailOuvert: Bool { !cache && alerte == nil && bandeau?.detail == true }
+    /// L'écran d'où « ‹ » repart : le détail, ou la carte ouverte ; nil, l'îlot rangé.
+    private var ecranDuRetour: VueIlot? {
+        if detailOuvert { return bandeau?.vue }
+        return fenetreOuverte && !resolution.verrou ? courante : nil
+    }
+    /// Où mène « ‹ » (et deux doigts vers la droite) ; nil : rien avant.
+    var cibleRetour: VueIlot? {
+        guard let ici = ecranDuRetour else { return nil }
+        return NavigationIlot.retour(de: ici, pile: pileRetour.vues, premiere: cartes.first)
+    }
+    /// Le mot du « ‹ » (« Outils », « Centre », « Vidéo »).
+    var nomRetour: String? {
+        guard let c = cibleRetour else { return nil }
+        if c == cartes.first, c != .centre, let n = nomPremiereCarte { return n }
+        return NavigationIlot.nom(c)
+    }
+
+    /// On ouvre `v` depuis l'écran montré : il s'empile (sauf pendant un retour).
+    private func noterOrigine(vers v: VueIlot) {
+        guard !enRetour else { return }
+        pileRetour.aller(depuis: ecranDuRetour, vers: v, epingle: epingle)
+    }
+
+    /// Un détail ouvert d'un clic sur une carte (la jauge de Groq) : il passe le Centre épinglé (un geste : il ne doit pas attendre que
+    /// le Centre se range), retient d'où il vient et porte un « ‹ » qui y ramène.
+    func annoncerDetail(_ b: BandeauIlot) {
+        noterOrigine(vers: b.vue)
+        var b = b
+        b.retour = nomRetour(pour: b.vue) ?? "Outils"
+        if centreRetientLesBandeaux { epingle = false }
+        annoncer(bandeau: b)
+    }
+    private func nomRetour(pour v: VueIlot) -> String? {
+        guard let c = NavigationIlot.retour(de: v, pile: pileRetour.vues, premiere: cartes.first) else { return nil }
+        if c == cartes.first, c != .centre, let n = nomPremiereCarte { return n }
+        return NavigationIlot.nom(c)
+    }
+
+    /// « ‹ » (un clic, deux doigts vers la droite, un clic sur un détail) : là d'où l'on vient, épinglé si l'îlot l'était. Dans la carte
+    /// de la réunion, « Ce que j'ai raté » ouvert : retour au direct.
+    func revenir() {
+        guard !cache, !editionCentre else { return }
+        if !detailOuvert, fenetreOuverte, courante == .reunionEtendu, reunion?.rattrapage.ouvert == true { surAction(.reunionDirect); return }
+        guard let ici = ecranDuRetour, let cible = cibleRetour else { return }
+        let detail = detailOuvert
+        let pas = pileRetour.revenir(a: cible)
+        enRetour = true
+        defer { enRetour = false }
+        let garde = epingle || (pas?.epingle ?? false)
+        // le détail s'en va : l'îlot se déverrouille, puis la carte d'où il venait s'ouvre
+        if detail { bandeau = nil; donneesChangees() }
+        ouvrirPourRetour(cible, epingle: garde)
+        Log.ecrire("îlot : retour \(ici.rawValue) → \(cible.rawValue)")
+    }
+
+    /// Le détail arrive au bout de son temps (ou de la patience du pointeur immobile) : il revient là d'où il a été ouvert si l'îlot y
+    /// était épinglé (« Reste ouvert ») ou si le pointeur est encore sur l'îlot ; sinon l'îlot se range.
+    private func finirDetail() {
+        let ici = bandeau?.vue
+        let cible = cibleRetour
+        let pas = cible.flatMap { c in pileRetour.dernier?.vue == c ? pileRetour.dernier : nil }
+        let revenirLa = cible != nil && (pointeurSurForme || pas?.epingle == true)
+        enRetour = revenirLa
+        defer { enRetour = false }
+        bandeau = nil
+        donneesChangees()
+        guard revenirLa, let cible else { return }
+        pileRetour.revenir(a: cible)
+        ouvrirPourRetour(cible, epingle: pas?.epingle ?? false)
+        Log.ecrire("îlot : détail \(ici?.rawValue ?? "?") fini → \(cible.rawValue)")
+    }
+
+    /// Ouvre `v` comme son bouton l'ouvre (sans l'empiler : `enRetour`), puis épingle si l'écran quitté ou celui-ci l'était.
+    private func ouvrirPourRetour(_ v: VueIlot, epingle e: Bool) {
+        switch v {
+        case .etagere: ouvrirEtagere()
+        case .bibliotheque: ouvrirBibliotheque()
+        case .claudeCarte: ouvrirCarteClaude()
+        case .rappelListe: ouvrirFormulaireRappel()
+        default:
+            if CartesIlot.parent(v) != nil { ouvrirOutil(v) } else { allerA(v) }
+        }
+        if e, !epingle, fenetreOuverte { epingle = true; survole = true; rev += 1; surDepliageMoniteur() }
+    }
+
     /// Un clic sur un bouton du Centre : l'îlot reste ouvert (« Reste ouvert ») pour enchaîner d'autres réglages ; il se range au clic
     /// ailleurs ou d'un clic sur l'îlot dans la barre des menus (un clic dans le vide du Centre ne compte pas, `PlanCentre.fond`).
     func epinglerLeCentre() {

@@ -258,7 +258,7 @@ struct EnteteDictees: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.allerA(.centre) }
+            PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.revenir() }
             ChampDicteesIlot(m: m, d: d)
         }
         .frame(height: CGFloat(CarteDictees.entete))

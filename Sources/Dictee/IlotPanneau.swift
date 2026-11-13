@@ -184,8 +184,9 @@ final class IlotPanneau {
         let v = VueHebergeeIlot(rootView: IlotVue(m: moteur))
         v.frame = NSRect(x: 0, y: 0, width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax)
         v.autoresizingMask = []
-        v.surPointeur = { [weak self] p in guard let self else { return }; self.pointeur(p.map(self.moteur.depuisVue)) }
-        v.surBouton = { [weak self] e in self?.bouton(e) }
+        // un mouvement ou un appui sur l'îlot est un geste : un bandeau échu reste sous une souris qui bouge (FermetureBandeau)
+        v.surPointeur = { [weak self] p in guard let self else { return }; if p != nil { self.moteur.interagir() }; self.pointeur(p.map(self.moteur.depuisVue)) }
+        v.surBouton = { [weak self] e in if e.type == .leftMouseDown { self?.moteur.interagir() }; self?.bouton(e) }
         v.surDefilement = { [weak self] e in self?.defilement(e) }
         // le fond de la fenêtre reçoit les fichiers lâchés (l'étagère) ; la vue SwiftUI au-dessus n'en veut pas, ils lui passent dessous
         let c = ConteneurIlot(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
@@ -313,7 +314,8 @@ final class IlotPanneau {
         let dx = Double(e.hasPreciseScrollingDeltas ? e.scrollingDeltaX : e.scrollingDeltaX * 10)
         // où est le pointeur (la liste des Dictées défile sous lui) ; un événement sans fenêtre (essais) est placé depuis l'écran
         let p = vue?.point(e).map(moteur.depuisVue) ?? pointEcran(e.locationInWindow)
-        moteur.recevoirDefilement(dy: dy, dx: dx, phase: phase, inertie: e.momentumPhase != [], en: p)
+        // le sens des doigts : avec le défilement naturel (réglage par défaut de macOS), les valeurs suivent les doigts
+        moteur.recevoirDefilement(dy: dy, dx: dx, phase: phase, inertie: e.momentumPhase != [], naturel: e.isDirectionInvertedFromDevice, en: p)
     }
 
     // MARK: clavier (le champ « Rechercher » des Dictées)
@@ -385,8 +387,8 @@ final class IlotPanneau {
 
     /// Pour les essais : un VRAI événement de défilement (CGEvent → NSEvent) remis à la fenêtre, au point `p`. `phase` : 1 début,
     /// 2 suite, 4 fin, 0 molette ; `inertie` : 1 début, 2 suite, 3 fin (0 : aucune). Rien n'est envoyé au système.
-    func envoyerDefilement(dy: Int32, en p: CGPoint, phase: Int64, inertie: Int64 = 0, trackpad: Bool = true) {
-        guard let f = fenetre, let ecran, let ev = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: dy, wheel2: 0, wheel3: 0) else { return }
+    func envoyerDefilement(dy: Int32, dx: Int32 = 0, en p: CGPoint, phase: Int64, inertie: Int64 = 0, trackpad: Bool = true) {
+        guard let f = fenetre, let ecran, let ev = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: dy, wheel2: dx, wheel3: 0) else { return }
         // position globale (origine en haut à gauche de l'écran principal) du point de l'îlot
         let principal = NSScreen.screens.first?.frame.maxY ?? ecran.frame.maxY
         ev.location = CGPoint(x: centre + p.x, y: principal - (ecran.frame.maxY - p.y))
@@ -399,6 +401,17 @@ final class IlotPanneau {
         guard let e = NSEvent(cgEvent: ev) else { return }
         if e.window === f { f.sendEvent(e) }
         else { vue?.scrollWheel(with: e) }   // sans fenêtre associée, l'événement va droit à la vue de l'îlot (même chemin ensuite)
+    }
+
+    /// Pour les essais : le signe de `dx` (`envoyerDefilement`) qui fait un geste « doigts vers la droite » une fois l'événement relu par
+    /// AppKit (son `scrollingDeltaX` et son sens naturel ou non), comme le lit `defilement`.
+    func signeDoigtsVersLaDroite() -> Int32 {
+        guard let ev = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: 0, wheel2: 10, wheel3: 0) else { return 1 }
+        ev.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+        ev.setIntegerValueField(.scrollWheelEventScrollPhase, value: 2)
+        guard let e = NSEvent(cgEvent: ev) else { return 1 }
+        let doigts = e.isDirectionInvertedFromDevice ? e.scrollingDeltaX : -e.scrollingDeltaX
+        return doigts >= 0 ? 1 : -1
     }
 
     // MARK: clics qui traversent

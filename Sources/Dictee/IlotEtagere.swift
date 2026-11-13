@@ -843,7 +843,7 @@ struct CarteEtagere: View {
         let rangees = stride(from: 0, to: n, by: EtagereIlot.parRangee).map { Array(m.etagere[$0..<min(n, $0 + EtagereIlot.parRangee)]) }
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                if m.cartes.contains(.centre) { PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.allerA(.centre) } }
+                if m.cartes.contains(.centre) { PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.revenir() } }
                 GlypheIlot(nom: "tray.full.fill", couleur: CouleursIlot.bleu, taille: 16).frame(width: 22, height: 22)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Étagère").font(TexteIlot.ligne).tracking(-0.1).foregroundStyle(.white).lineLimit(1)
