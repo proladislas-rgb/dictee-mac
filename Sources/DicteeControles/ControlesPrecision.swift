@@ -11,9 +11,6 @@ func controlesPrecision() {
     verifier(ModeleWhisper.depuis(reglage: "precis") == .precis && ModeleWhisper.depuis(reglage: "Large-V3") == .precis && ModeleWhisper.depuis(reglage: "whisper-large-v3-turbo") == .rapide, "réglage lu : precis, large-v3, identifiant Groq")
     verifier(ModeleWhisper.depuis(reglage: nil) == nil && ModeleWhisper.depuis(reglage: "n'importe quoi") == nil, "réglage inconnu : nil (le défaut s'applique)")
     verifier(ModeleWhisper.rapide.secours == .precis && ModeleWhisper.precis.secours == .rapide, "le secours est l'autre modèle")
-    verifier(ModeleWhisper.defautSelonMesures(medianeRapide: 290, medianePrecis: 400) == .precis, "+110 ms : le précis devient le défaut")
-    verifier(ModeleWhisper.defautSelonMesures(medianeRapide: 290, medianePrecis: 440) == .precis, "+150 ms pile : le précis reste admis")
-    verifier(ModeleWhisper.defautSelonMesures(medianeRapide: 290, medianePrecis: 441) == .rapide, "+151 ms : le turbo reste le défaut")
 
     groupe("Précision : un budget de requêtes par modèle")
     verifier(BudgetRequetes.whisper(.rapide) === BudgetRequetes.partage && BudgetRequetes.whisper(.precis) === BudgetRequetes.precis, "chaque modèle a son compteur")

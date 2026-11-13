@@ -30,12 +30,4 @@ public enum ModeleWhisper: String, CaseIterable, Sendable {
 
     /// Le modèle de la requête de secours (celle qui court en parallèle quand la réponse tarde) : toujours le turbo, le plus rapide.
     public var secoursRapide: ModeleWhisper { .rapide }
-
-    /// Le modèle précis ne devient le défaut que si sa latence médiane ajoute au plus `seuilMs` à celle du modèle rapide sur des dictées courtes.
-    public static let seuilLatenceMs = 150.0
-
-    /// Choix du défaut d'après les médianes mesurées (ms, relâchement → texte, dictées courtes).
-    public static func defautSelonMesures(medianeRapide: Double, medianePrecis: Double, seuilMs: Double = seuilLatenceMs) -> ModeleWhisper {
-        medianePrecis - medianeRapide <= seuilMs ? .precis : .rapide
-    }
 }

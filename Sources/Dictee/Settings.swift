@@ -144,7 +144,6 @@ enum Settings {
         set { defaults.set(newValue, forKey: "filetDeSecurite") }
     }
 
-    /// Secours : le texte de la dictée d'Apple quand Groq ne répond pas. Activé par défaut.
     /// Petits sons au début de la dictée, au texte collé et à l'annulation. Activé par défaut (Hugues : un son grave et chaud en plus des vibrations).
     /// Exemple : defaults write com.hugues.dictee sons -bool false
     static var sons: Bool {
@@ -159,6 +158,8 @@ enum Settings {
         set { defaults.set(newValue, forKey: "vibration") }
     }
 
+    /// Secours : le texte de la dictée d'Apple quand Groq ne répond pas. Activé par défaut.
+    /// Exemple : defaults write com.hugues.dictee secoursApple -bool false
     static var secoursApple: Bool {
         get { defaults.object(forKey: "secoursApple") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "secoursApple") }

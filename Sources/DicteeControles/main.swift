@@ -1780,9 +1780,6 @@ do {
     let aller = TempsLecture.position(fraction: TempsLecture.fraction(position: 123, duree: 456), duree: 456)
     verifier(abs(aller - 123) < 1e-9, "position -> barre -> position : aller-retour")
     verifier(TempsLecture.saut(position: 100, delta: -10, duree: 214) == 90 && TempsLecture.saut(position: 4, delta: -10, duree: 214) == 0 && TempsLecture.saut(position: 210, delta: 10, duree: 214) == 214 && TempsLecture.saut(position: 10, delta: 10, duree: nil) == 20, "reculer / avancer de 10 s sans sortir de la piste")
-    let h = TraceSonore.hauteurs()
-    verifier(h.count == 54 && h.allSatisfy { $0 >= 0.22 && $0 <= 1 } && h == TraceSonore.hauteurs(), "trace sonore : 54 barres entre 0,22 et 1, toujours les mêmes")
-    verifier(TraceSonore.barresTeintees(fraction: 0.5) == 27 && TraceSonore.barresTeintees(fraction: 2) == 54 && TraceSonore.barresTeintees(fraction: -1) == 0, "barres teintées selon la progression")
 }
 
 groupe("Lecture en cours : source")

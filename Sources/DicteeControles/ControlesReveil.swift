@@ -81,8 +81,7 @@ func controlesReveil() {
     let avecVideo = etat { $0.reveil = true; $0.lecture = true }
     verifier(avecVideo.principal == .lectureCompact && avecVideo.pastille == .reveil, "une vidéo : elle prend l'îlot, le réveil passe dans la bulle")
     verifier(etat { $0.reveil = true; $0.minuteur = true }.principal == .minuteurCompact, "un minuteur : il passe avant le réveil")
-    verifier(etat { $0.reveil = true; $0.alerte = .reveilFini }.principal == .reveilFini && ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .reveilFini) == 3,
-             "il sonne : l'alerte (étage des alertes, sous la dictée et la réunion)")
+    verifier(etat { $0.reveil = true; $0.alerte = .reveilFini }.principal == .reveilFini, "il sonne : l'alerte")
     verifier(CartesIlot.pile(survol: .centre) == [.centre, .outils, .accueil, .dictees], "les cartes au survol du réveil : Centre, Outils, accueil, Dictées")
 
     groupe("Calendrier : le 6e rond, la visio")

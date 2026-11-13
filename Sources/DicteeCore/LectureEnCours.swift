@@ -138,20 +138,6 @@ public enum TempsLecture {
     }
 }
 
-/// La trace sonore qui sert de barre de progression : 54 barres de hauteurs fixes (0,22…1), les mêmes à chaque fois.
-public enum TraceSonore {
-    public static let nombreDeBarres = 54
-    public static func hauteurs(_ n: Int = nombreDeBarres) -> [Double] {
-        (0..<n).map { i in
-            let x = Double(i)
-            let h = 0.22 + 0.78 * abs(sin(x * 1.7) * cos(x * 0.43) + 0.15 * sin(x * 5.1))
-            return min(1, h)
-        }
-    }
-    /// Nombre de barres teintées pour une fraction de progression (la dernière peut être entamée : on renvoie un réel).
-    public static func barresTeintees(fraction: Double, n: Int = nombreDeBarres) -> Double { min(1, max(0, fraction)) * Double(n) }
-}
-
 // MARK: la source (« Chrome · YouTube »)
 
 public enum GenreLecture: Equatable, Sendable {

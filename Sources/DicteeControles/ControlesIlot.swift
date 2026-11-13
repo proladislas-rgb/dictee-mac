@@ -337,8 +337,6 @@ func controlesIlot() {
         verifier(ArbitrageIlot.resoudre(em).principal == .microCompact && ArbitrageIlot.resoudre(em).pastille == .rendezVous, "micro coupé > rendez-vous > rappel > lecture")
         em.bandeau = .microOuvert
         verifier(ArbitrageIlot.resoudre(em).principal == .microOuvert && ArbitrageIlot.resoudre(em).verrou, "« Micro ouvert » prend l'îlot un instant")
-        verifier(ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .microCompact) == 3 && ArbitrageIlot.etage(dictee: true, reunion: false, ecran: .microCompact) == 1,
-                 "étage : le micro coupé avant la lecture, la dictée avant tout")
     }
 
     groupe("Îlot : épaules (batterie, écouteurs) et énergie")
@@ -489,9 +487,6 @@ func controlesIlot() {
     r = ArbitrageIlot.resoudre(e)
     verifier(r.principal == .notification && r.verrou && r.pastille == .rendezVous, "bandeau : prend l'îlot un instant")
     verifier(ArbitrageIlot.resoudre(EtatIlot(), echange: .lecture).principal == .repos, "échange avec une activité absente : sans effet")
-    verifier(ArbitrageIlot.etage(dictee: true, reunion: true, ecran: .minuteurFini) == 1 && ArbitrageIlot.etage(dictee: false, reunion: true, ecran: .minuteurFini) == 2
-             && ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .minuteurFini) == 3 && ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .lectureCompact) == 4
-             && ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .minuteurCompact) == 5, "échelle : dictée > réunion > alerte > lecture > le reste")
     verifier(VueIlot.minuteurFini.estAlerte && VueIlot.rappelEtendu.estAlerte && VueIlot.agendaDebut.estAlerte && !VueIlot.minuteurLance.estAlerte && VueIlot.notification.estBandeau, "alertes et bandeaux distingués")
 
     groupe("Îlot : ressort")
@@ -1117,8 +1112,7 @@ func controlesEtagereRapide(_ t0: Date) {
              "un autre micro : son nom ; inconnu : « un autre micro »")
     let am = MicroIlot.autreMicro(coupe: "AirPods Pro de Hugues", dictee: "Micro MacBook Air")
     verifier(am.titre == "Le micro des AirPods est coupé" && am.sousTitre == "Voxile dicte avec le micro du Mac", "« Le micro des AirPods est coupé · Voxile dicte avec le micro du Mac »")
-    verifier(VueIlot.microFn.estBandeau && GeoIlot.ajusteAuContenu(.microFn) && ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .microFn) == 3,
-             "le bandeau de fn : un bandeau qui épouse son contenu, au rang du micro coupé")
+    verifier(VueIlot.microFn.estBandeau && GeoIlot.ajusteAuContenu(.microFn), "le bandeau de fn : un bandeau qui épouse son contenu")
 
     groupe("Îlot : l'étagère plus rapide, les zones et « Remettre »")
     verifier(ZoneDepotEtagere.sous(x: -40, y: 80, barre: 32) == .etagere && ZoneDepotEtagere.sous(x: 40, y: 80, barre: 32) == .airdrop, "à gauche « Étagère », à droite « AirDrop »")
@@ -1224,8 +1218,6 @@ func controlesEtagereRapide(_ t0: Date) {
     verifier(ra.ajouter(["D.png", "E.png", "E.png"], a: tc.addingTimeInterval(8.5)) && ra.noms == ["D.png", "E.png"], "un double dans la même arrivée : compté une fois")
     verifier(VueIlot.etagereCapture.estBandeau && GeoIlot.ajusteAuContenu(.etagereCapture) && !VueIlot.etagereCapture.estAlerte,
              "l'annonce est un bandeau qui épouse son contenu (et non une alerte : aucun son, aucun geste attendu)")
-    verifier(ArbitrageIlot.etage(dictee: true, reunion: false, ecran: .etagereCapture) == 1 && ArbitrageIlot.etage(dictee: false, reunion: false, ecran: .etagereCapture) == 5,
-             "arbitrage : la dictée passe avant, l'annonce est au dernier étage")
     // « Vignette des captures en haut » : la valeur d'avant retenue puis rendue telle quelle
     typealias V = VignetteCaptures
     verifier(V.cle == "show-thumbnail" && !V.enHaut(nil) && !V.enHaut(true) && V.enHaut(false), "la vignette est « en haut » seulement quand celle de macOS est coupée (show-thumbnail = non)")

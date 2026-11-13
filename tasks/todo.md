@@ -97,7 +97,7 @@ Maquette validée par Hugues (« c'est très bien, moi j'adore ») : `design/maq
 - [x] Logique pure `DicteeCore/LectureEnCours.swift` (lignes JSON, position, temps, trace sonore, libellé de source, site lu dans les titres de fenêtres, couleur dominante, priorités, pause / reprise, relance) : contrôles dans DicteeControles (977 verts au total).
 - [x] Îlot (repos : pochette ronde qui tourne ou carrée + onde teintée ; déplié 600 × 228 : trace sonore glissable, ±10 s, lecture-pause, suivant, lueur), bulle pendant la dictée, ressort interruptible, « Réduire les animations », jamais le focus, visible en plein écran ; priorités dictée > réunion > filet > mise à jour > lecture ; pause pendant la dictée et reprise seulement si c'est Verbe qui a mis en pause.
 - [x] Réglages › « Lecture en cours » : « Afficher la lecture en cours » + « Mettre en pause pendant la dictée » (activés par défaut).
-- [x] Vérifié sans rien montrer à l'écran : `Verbe --lecture-essai` (18 contrôles verts avec une source de test à volume 0), `Verbe --lecture-test`, rendus `Verbe --rendu-lecture` → `design/rendus-lecture/`.
+- [x] Vérifié sans rien montrer à l'écran : `Verbe --lecture-essai` (depuis fondu dans `--ilot-essai` ; 18 contrôles verts avec une source de test à volume 0), `Verbe --lecture-test`, rendus `Verbe --rendu-lecture` → `design/rendus-lecture/`.
 - [ ] Hugues : essayer en vrai (YouTube et Netflix dans Chrome, Spotify, pause pendant la dictée, plein écran) — 6 points dans la spec. Le site « YouTube » vient de l'Accessibilité (titre des fenêtres) : non testable depuis le shell.
 - [ ] Publication : à décider avec Hugues (README à compléter : la lecture passe par un module chargé par perl, MediaRemote étant fermé aux apps tierces depuis macOS 15.4 ; une future version de macOS peut le couper, la fonction se désactive alors toute seule).
 
@@ -593,8 +593,15 @@ Arrêté après l'étape 1 sur demande (nouvelles demandes de Hugues, dont le re
       distincts (les mêmes), après = **0** ; 3993/3993 contrôles. `Text + Text` → `Text("\(Text(…))…")` (13), `keyframeAnimator` lit
       des valeurs prises dans `body` (2), `fondu` `nonisolated`, `[weak self]` sur les `MainActor.run` (2), `let ok`, `@Sendable func
       valeur`, `.echec(let message, let detail)` (même sortie), `currentEditor()` sans transtypage, `hacheur.finalize()`.
-- [ ] 3. Vrai code mort (§ 3 de l'audit), vérifié par grep dans tout le dépôt avant chaque suppression ; corriger la doc de
-      `Settings` (secours) et `--lecture-essai` → `--lecture-test` dans ce fichier.
+- [x] 3. Vrai code mort (§ 3 de l'audit), vérifié par grep dans tout le dépôt avant chaque suppression ; corriger la doc de
+      `Settings` (secours) et `--lecture-essai` → `--lecture-test` dans ce fichier. Fait (grep sur tout le dépôt et sur toutes les
+      branches non fusionnées : aucune n'ajoute d'appel) : retirés `GeoIlot.demiLargeur`, `AideTouches` (0 appel, même dans son fichier),
+      `TraceSonore`, `ArbitrageIlot.etage`, `ModeleWhisper.defautSelonMesures` + `seuilLatenceMs` (appelés seulement par les contrôles :
+      8 contrôles retirés, 2 messages raccourcis, 3993 → 3985, rien d'autre ne change). `TracesDeSon` n'existait déjà plus.
+      Gardés : `NavigationBasse`, `LienNavigation`, `BarresDeSon`, `TexteEnDirect`, `BoutonFilet` (appelés) ; `ChoixMotsPrompt.classer`
+      et `BudgetReunion.restantPourReunion` (une ligne chacun, porte d'entrée des contrôles vers une logique vivante : `notes`, le
+      budget) ; « goutte » (commentaires). Doc du secours posée sur `secoursApple` ; `--lecture-essai` (ligne 100) : fondu dans
+      `--ilot-essai` (7c2a74e), pas renommé `--lecture-test` (qui existe déjà à côté) ; spec-v1 ne cite plus la fonction retirée.
 - [ ] 4. Durées de vie : FSEvents de `SurveillanceClaude` (IlotClaude.swift, `retain: nil` aujourd'hui), `KeyMonitor`
       (`CFMachPortInvalidate` + `isolated deinit`, `Log.ecrire` hors du rappel du tap), `tolerance` sur les `Timer` de l'app
       (AppDelegate, MiseAJourControleur ×2, PriseEnMain, IlotLucarne, ReunionController ; pas la minuterie d'animation de l'essai).

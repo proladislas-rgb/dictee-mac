@@ -423,19 +423,6 @@ public enum ArbitrageIlot {
         if e.etagere { return ResolutionIlot(principal: .etagerePile, survol: .centre, verrou: false, pastille: nil) }
         return ResolutionIlot(principal: .repos, survol: .centre, verrou: false, pastille: nil)
     }
-
-    /// L'étage de la priorité (1 = le plus haut) : 1 dictée, 2 réunion, 3 alerte (minuteur fini, rappel, rendez-vous) et micro coupé,
-    /// 4 lecture, 5 le reste.
-    public static func etage(dictee: Bool, reunion: Bool, ecran: VueIlot) -> Int {
-        if dictee { return 1 }
-        if reunion { return 2 }
-        switch ecran {
-        case .minuteurFini, .rappelEtendu, .agendaDebut, .agendaAvant, .agendaCompact, .rappelCompact, .rappelAjoute, .lucarne, .reveilFini,
-             .microCompact, .microEtendu, .microOuvert, .microFn: return 3
-        case .lectureCompact, .lectureEtendu: return 4
-        default: return 5
-        }
-    }
 }
 
 /// Un ressort amorti (comme celui de la maquette) : part toujours de la valeur affichée et garde sa vitesse, donc interruptible.
@@ -570,11 +557,6 @@ public enum TraceIlot {
         c.append(.ligne(D.n, rs)); c.append(.quad(D.n, 0, D.n + rs, 0)); c.append(.ligne(D.n + rs, -1))
         return Points(commandes: c, bande: max(L.n + rs, L.n + L.fe, D.n + rs, D.n + D.fe), cou: D.n, corps: max(L.W, D.W), hauteur: h,
                       couGauche: L.n, bandeGauche: max(L.n + rs, L.n + L.fe), bandeDroite: max(D.n + rs, D.n + D.fe), corpsGauche: L.W, corpsDroit: D.W)
-    }
-
-    /// Plus grande demi-largeur de la forme à la hauteur `y` (pour vérifier que rien ne dépasse dans la barre des menus).
-    public static func demiLargeur(_ p: Points, y: Double, barre: Double) -> (gauche: Double, droite: Double) {
-        y < barre - 0.01 ? (p.xGauche, p.xDroite) : (p.basGauche, p.basDroite)
     }
 }
 
