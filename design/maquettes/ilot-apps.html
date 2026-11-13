@@ -1,0 +1,1217 @@
+<!doctype html>
+<!--
+Voxile — « Tes apps » : brancher Mail, Agenda, Notion et Airtable dans l'îlot, et voir leurs nouveautés arriver en direct.
+Pourquoi : aujourd'hui l'îlot ne sait pas ce qui se passe dans les apps de Hugues (mail, rendez-vous, tâches, fiches). Ici, quatre apps se
+branchent depuis l'îlot, à la souris, et leurs nouveautés arrivent toutes seules (une aile, puis un bandeau), ou se lisent d'un coup d'œil
+dans une liste « Nouveautés » rangée par app.
+Règle de Hugues : tout se fait depuis l'îlot, avec un bouton visible pour chaque action, aucun raccourci clavier (la clé se colle avec un
+bouton « Coller », pas avec ⌘V). La seule touche gardée est fn (la dictée).
+- Mail : via l'app Mail du Mac (compte Gmail inclus), une seule question de macOS.   - Agenda : via le Calendrier du Mac (Google Agenda inclus).
+- Notion et Airtable : une clé collée une fois, vérifiée, rangée dans le Trousseau ; Airtable demande en plus la base à suivre.
+Format repris de ilot-bibliotheque.html et ilot-centre.html (forme de l'îlot `chemin`/`cote`, ressorts, faux écran, régie, pastilles).
+Aucun vrai logo : des pastilles neutres avec un symbole ou une initiale. Tous les noms et contenus sont inventés.
+Fichier autonome : aucune ressource externe, polices système. 1 px CSS = 1 pt.
+Paramètres d'URL : ?etape=N&fige=1 (pose la fin de l'étape N, tout figé ; 0 = avant la première)
+                   ?etape=N&joue=1 (pose l'étape N-1 puis joue l'étape N)   ·   ?lent=1 (ralenti ×4)   ·   ?manuel=1 (pas de lecture auto)
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voxile · Tes apps</title>
+<style>
+:root{
+  --k:1;
+  --ressort:cubic-bezier(.2,.9,.25,1);
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --serif:"Newsreader","New York",ui-serif,Charter,Georgia,serif;
+  --mono:"SF Mono",ui-monospace,Menlo,Monaco,monospace;
+  --ambre:#ff9f0a; --vert:#30d158; --rouge:#ff453a; --corail:#e8835c; --bleu:#0a84ff; --jaune:#ffd60a; --ciel:#5eb0ff;
+  --regie:#0f0f11;
+  --clair:#f5f5f7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--regie)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--clair);min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:default}
+svg{display:block;overflow:visible}
+html.fige *,html.fige *::before,html.fige *::after{animation-play-state:paused!important}
+
+/* =====================================================================
+   Le faux écran : haut d'un MacBook, macOS 26, apparence claire (repris de ilot-centre.html)
+   ===================================================================== */
+#ecran{position:relative;height:clamp(500px,calc(100vh - 294px),740px);overflow:hidden;isolation:isolate;
+  user-select:none;-webkit-user-select:none;background:#dbe4ee;transition:opacity calc(.26s*var(--k)) ease}
+.papier{position:absolute;inset:0;background:
+  radial-gradient(70% 90% at 90% 4%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 60%),
+  radial-gradient(60% 80% at 4% 100%,rgba(248,228,210,.95) 0,rgba(248,228,210,0) 62%),
+  linear-gradient(168deg,#c6d6ea 0%,#d9e4f0 40%,#ebe8e6 74%,#f0e2d6 100%)}
+.papier svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ---- barre des menus ---- */
+.mb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;justify-content:space-between;z-index:4;
+  font-size:13.5px;color:#1d1d1f;white-space:nowrap;pointer-events:none}
+.menus,.etats{display:flex;flex-wrap:wrap;align-content:flex-start;height:33px;overflow:hidden;max-width:calc(50% - 172px)}
+.menus{column-gap:19px;padding-left:18px}
+.menus>*{height:33px;line-height:33px;font-weight:500}
+.menus>svg{height:17px;margin-top:7px;flex:none}
+.menus>b{font-weight:700}
+.etats{flex-direction:row-reverse;column-gap:15px;padding-right:15px}
+.etats>*{height:33px;display:flex;align-items:center;flex:none}
+.etats svg{width:17px;height:17px;color:#1d1d1f}
+.etats .heure{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* ---- fenêtres ---- */
+.fen{position:absolute;color:#1d1d1f;border-radius:13px;overflow:hidden;z-index:1;background:#fff;display:flex;flex-direction:column;pointer-events:none;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.26),0 36px 80px -20px rgba(24,36,60,.42),0 12px 26px -10px rgba(24,36,60,.22);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.fen.chrome{left:max(18px,5.2%);right:max(18px,5.2%);top:41px;bottom:20px}
+.fen.cache{opacity:0;transform:scale(.965)}
+.fen.arriere{box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 18px 40px -16px rgba(24,36,60,.3)}
+.feux{position:absolute;left:15px;top:15px;display:flex;gap:8px;z-index:1}
+.feux i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.16)}
+.feux i:nth-child(1){background:#ff5f57}.feux i:nth-child(2){background:#febc2e}.feux i:nth-child(3){background:#28c840}
+.fen.arriere .feux i{background:#d3d3d7}
+.alerte{position:absolute;left:50%;top:352px;width:300px;margin-left:-150px;z-index:3;border-radius:22px;padding:18px 18px 16px;text-align:center;color:#1d1d1f;
+  background:rgba(246,246,248,.97);box-shadow:0 0 0 .5px rgba(0,0,0,.22),0 28px 64px -12px rgba(20,30,50,.48),0 8px 20px -8px rgba(20,30,50,.25);
+  transition:opacity calc(.2s*var(--k)) ease,transform calc(.36s*var(--k)) var(--ressort)}
+.alerte.cache{opacity:0;transform:scale(.92);pointer-events:none}
+.alerte .al-ic{width:44px;height:44px;margin:0 auto;border-radius:12px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(160deg,#3a3a3e,#111114);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18),0 2px 6px rgba(0,0,0,.2)}
+.alerte b{display:block;font-size:13px;line-height:17px;font-weight:700;margin-top:11px;letter-spacing:-.1px}
+.alerte p{font-size:11.5px;line-height:15px;color:#6e6e73;margin-top:6px}
+.alerte .al-bt{display:flex;gap:8px;margin-top:14px}
+.alerte .al-bt button{flex:1;height:28px;border-radius:14px;font-size:13px;font-weight:500;background:rgba(0,0,0,.07);color:#1d1d1f;cursor:pointer}
+.alerte .al-bt button.bleu{background:#0a84ff;color:#fff}
+/* =====================================================================
+   L'îlot (noir, opaque) et ce qu'il affiche
+   ===================================================================== */
+.calque{position:absolute;left:calc(50% - 500px);top:0;width:1000px;height:360px;pointer-events:none}
+#forme-svg{z-index:5}
+#contenu{z-index:6}
+#encoche-svg{z-index:7}
+.c{position:absolute;color:#fff;white-space:nowrap;text-align:left;font-family:var(--sans)}
+.e{opacity:0;filter:blur(7px);transform:translate(var(--sx,0px),var(--sy,0px)) scale(.965);
+  transition:opacity calc(.11s*var(--k)) ease,filter calc(.11s*var(--k)) ease,transform calc(.11s*var(--k)) ease}
+.e.on{opacity:1;filter:blur(0);transform:none;pointer-events:auto;
+  transition:opacity calc(.24s*var(--k)) ease calc(var(--d,0s)*var(--k)),filter calc(.28s*var(--k)) ease calc(var(--d,0s)*var(--k)),transform calc(.44s*var(--k)) var(--ressort) calc(var(--d,0s)*var(--k))}
+html.snap *,html.snap *::before,html.snap *::after{transition:none!important}
+.t15{font-size:15px;line-height:19px;font-weight:600;letter-spacing:-.2px}
+.t125{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(255,255,255,.55);margin-top:3px}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.epaule{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;height:17px}
+.aile{display:flex;align-items:center;gap:4px;height:17px;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;color:#fff}
+.aile.ambre{color:#ffb340}
+
+.pil{height:26px;border-radius:13px;padding:0 11px;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.12);font-size:12.5px;font-weight:600;cursor:pointer;flex:none;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.pil:hover{background:rgba(255,255,255,.2)}
+.pil.retour{padding-left:7px}
+.pil.droite{margin-left:auto}
+.pointeur{position:absolute;left:0;top:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .22s}
+.pointeur.vu{opacity:1}
+.pointeur .fleche{position:relative;width:18px;height:26px;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));transform-origin:2px 2px;transition:transform .12s ease}
+.pointeur.appui .fleche{transform:scale(.86)}
+/* =====================================================================
+   La régie, sous la scène (reprise de ilot-centre.html, plus la touche fn)
+   ===================================================================== */
+.regie{max-width:1340px;margin:0 auto;padding:14px 28px 18px}
+.r-haut{display:grid;grid-template-columns:minmax(0,1fr) 300px auto;gap:30px;align-items:center;min-height:96px}
+.r-num{font-size:12.5px;line-height:16px;font-weight:500;color:rgba(245,245,247,.46);font-variant-numeric:tabular-nums}
+.r-titre{font-size:21px;line-height:27px;font-weight:600;letter-spacing:-.3px;margin-top:2px}
+.r-phrase{font-size:14px;line-height:20px;color:rgba(245,245,247,.64);margin-top:4px;max-width:680px;min-height:40px}
+.r-mains{display:flex;align-items:center;gap:12px}
+.r-geste{font-size:12.5px;line-height:16px;color:rgba(245,245,247,.55);min-height:32px;max-width:130px}
+.r-cmd{display:grid;grid-template-columns:auto auto;gap:10px 8px;align-items:center}
+.bouton{height:34px;padding:0 17px;border-radius:17px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:transform calc(.3s*var(--k)) var(--ressort),background-color .15s ease}
+.bouton:active{transform:scale(.95)}
+.bouton.creux{background:rgba(255,255,255,.1)}
+.bouton.creux:hover{background:rgba(255,255,255,.16)}
+.bouton.plein{background:var(--clair);color:var(--regie)}
+.bouton.plein:hover{background:#fff}
+.r-opts{grid-column:1 / -1;display:flex;gap:16px;font-size:12.5px;color:rgba(245,245,247,.6)}
+.r-opts label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.r-opts input{accent-color:var(--clair)}
+.r-pas{display:flex;flex-wrap:wrap;gap:2px 4px;list-style:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.r-pas li.sep{width:100%;height:0}
+.r-pas button{height:30px;padding:0 11px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(245,245,247,.46);cursor:pointer;display:flex;gap:8px;align-items:center;white-space:nowrap;transition:background-color .15s ease,color .15s ease}
+.r-pas button span{font-variant-numeric:tabular-nums;opacity:.7}
+.r-pas button:hover{color:rgba(245,245,247,.8)}
+.r-pas button.ici{color:var(--clair);background:rgba(255,255,255,.09)}
+.notes{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 32px;font-size:12.5px;line-height:18px;color:rgba(245,245,247,.42)}
+.notes b{color:rgba(245,245,247,.7);font-weight:600}
+@media (max-width:900px){.r-haut{grid-template-columns:1fr;gap:16px}.hero{flex-wrap:wrap}}
+/* =====================================================================
+   Propre à cette maquette : pastilles d'apps, Tes apps, branchement, détail, Nouveautés, bandeaux, fenêtres
+   ===================================================================== */
+#ecran{height:clamp(500px,calc(100vh - 236px),740px)}
+.past{display:grid;place-items:center;flex:none;background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.12)}
+.past .ini{font-weight:700;line-height:1;letter-spacing:-.3px}
+.btn-blanc{height:28px;border-radius:14px;padding:0 14px;background:#fff;color:#000;font-size:13px;font-weight:600;cursor:pointer;flex:none;
+  transition:background-color .15s ease,transform calc(.3s*var(--k)) var(--ressort)}
+.btn-blanc:hover{background:#e8e8ea}
+.rouet{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.22);border-top-color:#fff;flex:none;animation:tourne .8s linear infinite}
+@keyframes tourne{to{transform:rotate(360deg)}}
+.punaise{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.5);opacity:0;transition:opacity .25s ease}
+.punaise.vu{opacity:1}
+
+/* le Centre (six ronds, repris de ilot-bibliotheque.html) + le bouton « Tes apps » */
+.cc{width:432px}
+.cc-tete{display:flex;align-items:center;gap:8px;height:26px}
+.cc-tete .pil.droite{margin-left:0}
+.cc-ronds{display:flex;justify-content:space-around;margin-top:12px;height:96px}
+.tg{width:70px;display:flex;flex-direction:column;align-items:center;cursor:pointer;color:#fff;flex:none}
+.tg .rd{position:relative;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center}
+.tg b{font-size:11.5px;line-height:15px;font-weight:600;margin-top:7px;letter-spacing:-.25px}
+.tg i{font-style:normal;font-size:11.5px;line-height:14px;color:rgba(255,255,255,.55);font-weight:500;margin-top:1px}
+.tg.bleu .rd{background:var(--bleu)} .tg.bleu i{color:#5eb0ff}
+.tg.corail .rd{background:var(--corail)}
+.tg.rouge .rd{background:var(--rouge)} .tg.rouge i{color:#ff6961}
+.cc-larges{display:grid;grid-template-columns:1.16fr .84fr;gap:10px;margin-top:10px;height:76px}
+.tl{position:relative;border-radius:20px;background:rgba(255,255,255,.1);padding:11px 12px;text-align:left;min-width:0}
+.tl-t{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;height:20px}
+.tl-caps{display:flex;gap:5px;margin-top:8px;align-items:center}
+.cap{height:28px;min-width:44px;padding:0 9px;border-radius:14px;background:rgba(255,255,255,.14);font-size:13px;font-weight:600;display:grid;place-items:center;font-variant-numeric:tabular-nums}
+.tl-u{font-size:12px;font-weight:500;color:rgba(255,255,255,.5);margin-left:3px}
+.eta-vide{font-size:12.5px;line-height:16px;color:rgba(255,255,255,.55);margin-top:12px;font-weight:500}
+.tr{position:relative;display:flex;align-items:center;gap:10px;width:100%;height:40px;margin-top:10px;border-radius:20px;padding:0 16px 0 14px;
+  background:rgba(255,255,255,.1);font-size:13.5px;font-weight:600;text-align:left}
+.tr-pt{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1.8px var(--rouge);background:radial-gradient(circle,var(--rouge) 0 3.6px,transparent 4.2px)}
+.tr-s{margin-left:auto;font-size:12px;font-weight:500;color:rgba(255,255,255,.5)}
+.pil.apps{padding-left:8px}
+
+.pil.apps .nb{min-width:16px;height:16px;border-radius:8px;background:var(--bleu);color:#fff;font-size:11px;font-weight:700;display:none;place-items:center;padding:0 4px;font-style:normal}
+.pil.apps .nb.vu{display:grid}
+
+/* carte : Tes apps */
+.ap{width:432px}
+.ap-tete{display:flex;align-items:center;gap:10px;height:26px}
+.ap-tete .t15{flex:1;min-width:0}
+.pil.nouv{padding-right:8px}
+.pil.nouv .nb{min-width:17px;height:17px;border-radius:9px;background:var(--bleu);color:#fff;font-size:11px;font-weight:700;display:none;place-items:center;padding:0 4px;font-style:normal}
+.pil.nouv .nb.vu{display:grid}
+.pil.nouv:not(.plein){padding-right:11px}
+.ap-sub{font-size:12.5px;line-height:16px;color:rgba(255,255,255,.55);font-weight:500;margin-top:10px}
+.ap-liste{margin-top:8px;border-radius:18px;background:rgba(255,255,255,.08);padding:2px 4px}
+.ap-l{position:relative;display:flex;align-items:center;gap:12px;height:48px;padding:0 6px}
+.ap-l+.ap-l::before{content:"";position:absolute;left:50px;right:6px;top:0;height:1px;background:rgba(255,255,255,.09)}
+.ap-tx{flex:1;min-width:0}
+.ap-tx b{display:block;font-size:14.5px;line-height:18px;font-weight:600;letter-spacing:-.15px}
+.ap-tx span{display:block;font-size:12px;line-height:15px;color:rgba(255,255,255,.5);font-weight:500;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ap-tx span.ok{color:rgba(255,255,255,.5)}
+.ap-tx span.info{color:#9aa0ab}
+.ap-ok{height:28px;border-radius:14px;padding:0 6px 0 11px;display:flex;align-items:center;gap:2px;background:rgba(255,255,255,.1);font-size:12.5px;font-weight:600;color:#5fe08a;flex:none;transition:background-color .15s ease}
+.ap-ok:hover{background:rgba(255,255,255,.18)}
+.ap-ok i{width:6px;height:6px;border-radius:50%;background:var(--vert);margin-right:6px}
+
+/* carte : brancher une app avec une clé */
+.cn{width:432px}
+.cn-tete{display:flex;align-items:center;gap:10px;height:26px}
+.cn-lbl{display:flex;align-items:center;margin-top:14px;height:24px;font-size:12.5px;font-weight:600;color:rgba(255,255,255,.75)}
+.cn-lbl .pil{height:24px;margin-left:auto;font-size:12px;padding:0 10px 0 11px;gap:6px}
+.cn-champ{display:flex;gap:8px;margin-top:8px}
+.cn-in{flex:1;min-width:0;height:36px;border-radius:18px;background:rgba(255,255,255,.1);display:flex;align-items:center;padding:0 14px;font:500 13.5px/1 var(--mono);color:rgba(255,255,255,.38);overflow:hidden;white-space:nowrap}
+.cn-in.plein{color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.28)}
+.cn-champ .pil{height:36px;border-radius:18px;padding:0 15px 0 12px;font-size:13px;gap:6px}
+.cn-aide{margin-top:10px;font-size:11.5px;line-height:15px;color:rgba(255,255,255,.55);font-weight:500;white-space:nowrap}
+.cn-aide b{color:#fff;font-weight:600}
+.cn-go{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:36px;border-radius:18px;margin-top:14px;background:#fff;color:#000;font-size:13.5px;font-weight:600;
+  transition:background-color .2s ease,color .2s ease}
+.cn-go:hover{background:#e8e8ea}
+.cn-go.off{background:rgba(255,255,255,.12);color:rgba(255,255,255,.4)}
+.cn-go.verif{background:rgba(255,255,255,.14);color:#fff}
+.cn-go.ok{background:rgba(48,209,88,.2);color:#5fe08a}
+.cn-valide{display:flex;align-items:center;gap:8px;height:32px;margin-top:10px;border-radius:17px;padding:0 14px;background:rgba(48,209,88,.16);color:#5fe08a;font-size:13px;font-weight:600}
+.cn-bt{margin-top:10px;font-size:12.5px;font-weight:600;color:rgba(255,255,255,.75)}
+.bs{margin-top:7px;display:flex;flex-direction:column;gap:5px}
+.bs-l{display:flex;align-items:center;gap:11px;height:36px;border-radius:14px;padding:0 13px;background:rgba(255,255,255,.08);text-align:left;width:100%;transition:background-color .15s ease,box-shadow .15s ease}
+.bs-l:hover{background:rgba(255,255,255,.13)}
+.bs-l.choisi{background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.85)}
+.bs-r{width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 1.6px rgba(255,255,255,.4);flex:none;display:grid;place-items:center}
+.bs-l.choisi .bs-r{background:#fff;box-shadow:none}
+.bs-l b{font-size:13.5px;font-weight:600;letter-spacing:-.1px}
+.bs-l .sz{margin-left:auto;font-size:12px;color:rgba(255,255,255,.5);font-weight:500}
+
+/* carte : détail d'une app branchée */
+.dt{width:432px}
+.dt-tete{display:flex;align-items:center;gap:10px;height:26px}
+.dt-tete .t15{flex:1;min-width:0}
+.dt-etat{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#5fe08a}
+.dt-etat i{width:6px;height:6px;border-radius:50%;background:var(--vert)}
+.dt-liste{margin-top:12px;border-radius:16px;background:rgba(255,255,255,.08);padding:3px 4px}
+.dt-l{position:relative;display:flex;align-items:center;gap:11px;min-height:34px;padding:0 8px;font-size:13px;font-weight:500;color:rgba(255,255,255,.85)}
+.dt-l+.dt-l::before{content:"";position:absolute;left:36px;right:8px;top:0;height:1px;background:rgba(255,255,255,.08)}
+.dt-l svg{flex:none}
+.dt-l span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dt-l em{font-style:normal;font-size:12px;color:rgba(255,255,255,.5)}
+.dt-l .pil{height:24px;font-size:12px}
+.dt-pied{display:flex;align-items:center;gap:12px;margin-top:14px;min-height:30px}
+.dt-pied p{flex:1;min-width:0;font-size:11.5px;line-height:15px;color:rgba(255,255,255,.45);font-weight:500;white-space:normal}
+.dt-pied .pil{white-space:nowrap}
+.pil.danger{background:rgba(255,69,58,.18);color:#ff7a72;height:28px;padding:0 13px;font-size:13px}
+.pil.danger:hover{background:rgba(255,69,58,.28)}
+.pil.rouge{background:var(--rouge);color:#fff;height:28px;padding:0 14px;font-size:13px}
+.pil.rouge:hover{background:#ff6259}
+.pil.gris{height:28px;padding:0 14px;font-size:13px}
+.dt-conf{margin-top:14px;border-radius:16px;background:rgba(255,69,58,.12);padding:11px 12px 12px}
+.dt-conf b{display:block;font-size:13.5px;line-height:17px;font-weight:700}
+.dt-conf p{font-size:12px;line-height:15px;color:rgba(255,255,255,.6);margin-top:3px;font-weight:500;white-space:normal;width:380px}
+.dt-conf .bt{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+.rdv{display:flex;align-items:center;gap:12px;margin-top:12px}
+.rdv .t125{margin-top:2px}
+.rdv-bt{display:flex;gap:8px;margin-top:11px}
+.rdv-bt button{flex:1;height:34px;border-radius:17px;font-size:13.5px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px;transition:filter .15s ease,background-color .15s ease}
+.rdv-bt .vert{background:var(--vert);color:#000}
+.rdv-bt .vert:hover{filter:brightness(1.08)}
+.rdv-bt .gris{background:rgba(255,255,255,.14)}
+.rdv-bt .gris:hover{background:rgba(255,255,255,.22)}
+
+/* carte : Nouveautés */
+.nv{width:432px}
+.nv-tete{display:flex;align-items:center;gap:10px;height:26px}
+.nv-tete .t15{flex:1;min-width:0}
+.nv-liste{margin-top:8px}
+.nv-g+.nv-l+.nv-g,.nv-l+.nv-g{margin-top:4px}
+.nv-g{height:18px;display:flex;align-items:center;gap:6px;padding:0 4px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.45)}
+.nv-l{position:relative;display:flex;align-items:center;gap:8px;height:30px;padding:0 4px 0 14px;border-radius:10px;transition:background-color .12s ease}
+.nv-l:hover,.nv-l.survol{background:rgba(255,255,255,.1)}
+.nv-l .pt{position:absolute;left:3px;top:12px;width:6px;height:6px;border-radius:50%;background:var(--bleu)}
+.nv-l .tt{flex:1;min-width:0;font-size:13px;line-height:17px;font-weight:500;color:rgba(255,255,255,.65);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nv-l .tt b{font-weight:600;color:#fff}
+.nv-l.lu .tt b{color:rgba(255,255,255,.7);font-weight:500}
+.nv-l .hr{font-size:12px;color:rgba(255,255,255,.42);font-variant-numeric:tabular-nums;flex:none}
+.nv-l .ouvrir{height:22px;border-radius:11px;padding:0 9px;background:rgba(255,255,255,.12);font-size:12px;font-weight:600;flex:none;display:flex;align-items:center;gap:4px}
+.nv-l:hover .ouvrir,.nv-l.survol .ouvrir{background:#fff;color:#000}
+.nv-vide{padding:26px 0 18px;text-align:center;font-size:13px;line-height:18px;color:rgba(255,255,255,.5);font-weight:500;white-space:normal;width:432px}
+
+/* bandeaux et ailes */
+.ban{display:flex;align-items:center;gap:13px;padding:0 2px}
+.ban .tx b{display:block;font-size:15px;line-height:19px;font-weight:700;letter-spacing:-.2px;max-width:290px;overflow:hidden;text-overflow:ellipsis}
+.ban .tx span{display:block;font-size:12.5px;line-height:16px;color:rgba(255,255,255,.55);font-weight:600;max-width:290px;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.ban .act{height:30px;border-radius:15px;padding:0 14px;background:#fff;color:#000;font-size:13.5px;font-weight:700;margin-left:10px;display:flex;align-items:center;gap:6px;transition:background-color .15s ease}
+.ban .act:hover{background:#e8e8ea}
+@keyframes pop{0%{transform:scale(.5)}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+.aile.pop svg,.aile.pop .ini{animation:pop calc(.5s*var(--k)) var(--ressort) both}
+
+/* fenêtres des apps (neutres, dessinées) */
+.fen.fond{left:max(18px,6%);right:max(18px,6%);top:41px;bottom:20px;box-shadow:0 0 0 .5px rgba(0,0,0,.2),0 24px 60px -24px rgba(24,36,60,.3)}
+.fen.fond.arriere{opacity:.98}
+.fen.app{left:calc(50% - 330px);top:112px;width:660px;height:min(340px,calc(100% - 132px))}
+.fen .tb{height:44px;flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#3a3a3f;border-bottom:1px solid #e7e7ea;background:#f6f6f8;position:relative}
+.fen .tb em{font-style:normal;font-weight:500;color:#8a8a90;margin-left:8px}
+.fen .cp{flex:1;min-height:0;display:flex}
+.doc-l{height:7px;border-radius:4px;background:#ececef;margin-bottom:12px}
+.doc-corps{flex:1;padding:30px 54px;overflow:hidden}
+.doc-corps h3{font:400 24px/30px var(--serif);color:#1d1d1f;margin-bottom:18px}
+.doc-corps p{font:400 15.5px/24px var(--serif);color:#4a4a50;margin-bottom:10px}
+.doc-corps .curs{display:inline-block;width:1.5px;height:17px;background:#1d1d1f;vertical-align:-3px;margin-left:1px;animation:clign 1.05s steps(1) infinite}
+@keyframes clign{50%{opacity:0}}
+.ml-l{width:210px;flex:none;border-right:1px solid #e7e7ea;background:#fafafb;padding:8px 6px;overflow:hidden}
+.ml-m{padding:8px 10px;border-radius:9px;margin-bottom:2px}
+.ml-m.sel{background:#2e7cf6;color:#fff}
+.ml-m b{display:block;font-size:12.5px;line-height:16px;font-weight:600}
+.ml-m span{display:block;font-size:12px;line-height:15px;color:#6e6e73;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ml-m.sel span{color:rgba(255,255,255,.85)}
+.ml-v{flex:1;min-width:0;padding:18px 24px;overflow:hidden}
+.ml-v .de{display:flex;align-items:center;gap:10px}
+.ml-v .av{width:34px;height:34px;border-radius:50%;background:#d5dae3;color:#4a5160;display:grid;place-items:center;font-weight:700;font-size:14px;flex:none}
+.ml-v .de b{display:block;font-size:13.5px;line-height:17px}
+.ml-v .de div span{display:block;font-size:12px;color:#6e6e73;line-height:15px}
+.ml-v h4{font-size:17px;line-height:22px;font-weight:700;margin:14px 0 8px;letter-spacing:-.2px}
+.ml-v p{font-size:13.5px;line-height:20px;color:#3a3a3f;margin-bottom:8px}
+.nt-s{width:170px;flex:none;background:#f7f7f5;border-right:1px solid #ececea;padding:14px 12px}
+.nt-s i{display:block;height:8px;border-radius:4px;background:#e4e4e1;margin-bottom:11px}
+.nt-p{flex:1;min-width:0;padding:26px 36px;overflow:hidden}
+.nt-p h3{font-size:25px;line-height:31px;font-weight:700;letter-spacing:-.4px;color:#1d1d1f}
+.nt-pr{margin-top:14px;font-size:13px;color:#37373b}
+.nt-pr div{display:flex;align-items:center;height:30px}
+.nt-pr em{font-style:normal;width:110px;color:#8a8a90}
+.nt-tag{height:21px;border-radius:5px;padding:0 8px;background:#fde2c3;color:#8a4b0a;font-size:12px;font-weight:600;display:inline-flex;align-items:center}
+.nt-l{height:8px;border-radius:4px;background:#ececea;margin-top:12px}
+.at-t{flex:1;min-width:0;overflow:hidden;font-size:12.5px;color:#2a2a2e}
+.at-t .th,.at-t .tr2{display:grid;grid-template-columns:44px 1.5fr 1.2fr 1fr 1fr;height:34px;align-items:center;border-bottom:1px solid #e9e9ec;padding:0 14px 0 0}
+.at-t .th{background:#f6f6f8;font-weight:600;color:#6a6a70;font-size:12px;height:32px}
+.at-t .th span:first-child,.at-t .tr2 span:first-child{justify-content:center;color:#a1a1a6;padding-right:0}
+.at-t .tr2 span{display:flex;align-items:center;white-space:nowrap;overflow:hidden;padding-right:10px;height:100%}
+.at-t .th span{display:flex;align-items:center}
+.at-t .tr2 span.chg{background:#fff4c9;box-shadow:inset 0 0 0 1.5px #f1c232;border-radius:6px;margin:3px 8px 3px -6px;padding-left:6px;height:28px}
+.at-t .tr2.sel{background:#eef5ff;box-shadow:inset 3px 0 0 #2e7cf6}
+.at-st{display:inline-flex;align-items:center;height:21px;border-radius:11px;padding:0 9px;font-size:12px;font-weight:600}
+.at-st.a{background:#d6ecff;color:#0a4f99}.at-st.b{background:#dff3e3;color:#17652d}.at-st.c{background:#ececee;color:#55555a}
+.cl-v{flex:1;padding:22px 28px;overflow:hidden}
+.cl-ev{display:flex;gap:12px;border-radius:9px;background:#fde8e6;padding:12px 14px;box-shadow:inset 3px 0 0 #ff453a;margin-top:12px;width:420px}
+.cl-ev b{display:block;font-size:14px}
+.cl-ev span{display:block;font-size:12.5px;color:#6e6e73;margin-top:2px}
+.cl-h{font-size:12.5px;font-weight:600;color:#8a8a90;margin-top:6px}
+.alerte{top:min(376px,calc(100% - 192px));z-index:9;width:340px;margin-left:-170px}
+.alerte b{white-space:normal}
+.alerte button{cursor:default}
+.pointeur{z-index:12}
+.r-cmd .bouton svg{display:inline-block;vertical-align:-2px;margin-right:6px}
+.r-cmd .bouton{display:inline-flex;align-items:center}
+.r-cmd .bouton.auto.on{background:rgba(255,255,255,.18)}
+.r-haut{grid-template-columns:minmax(0,1fr) auto}
+</style>
+</head>
+<body>
+<section id="ecran" aria-label="Faux écran de MacBook, taille réelle">
+  <div class="papier" aria-hidden="true">
+    <svg viewBox="0 0 1440 760" preserveAspectRatio="xMidYMid slice">
+      <path d="M0 0H1440V190C1190 290 930 180 660 240S210 350 0 280Z" fill="#b7cbe4" opacity=".28"/>
+      <path d="M0 560C260 470 540 520 780 600S1250 720 1440 620V760H0Z" fill="#fff" opacity=".2"/>
+    </svg>
+  </div>
+
+  <!-- ===== le texte sur lequel Hugues travaille ===== -->
+  <div class="fen fond" data-f="texte" aria-hidden="true">
+    <div class="feux"><i></i><i></i><i></i></div>
+    <div class="tb">Note de chantier<em>· modifié</em></div>
+    <div class="cp"><div class="doc-corps">
+      <h3>Chantier de la cuisine : point de la semaine</h3>
+      <p>Le plan de travail en chêne arrive mardi. Le menuisier passe jeudi matin pour les mesures finales, et la hotte est commandée.</p>
+      <p>Reste à confirmer avec le client la couleur des façades avant la fin de la semaine<span class="curs"></span></p>
+      <div class="doc-l" style="width:64%;margin-top:20px"></div><div class="doc-l" style="width:78%"></div><div class="doc-l" style="width:52%"></div>
+    </div></div>
+  </div>
+
+  <!-- ===== les fenêtres des apps (s'ouvrent quand on clique sur « Ouvrir ») ===== -->
+  <div class="fen app cache" data-f="mail" aria-hidden="true"></div>
+  <div class="fen app cache" data-f="notion" aria-hidden="true"></div>
+  <div class="fen app cache" data-f="airtable" aria-hidden="true"></div>
+  <div class="fen app cache" data-f="agenda" aria-hidden="true"></div>
+
+  <!-- ===== barre des menus ===== -->
+  <div class="mb" aria-hidden="true"><div class="menus" id="menus"></div><div class="etats" id="etats"></div></div>
+
+  <!-- ===== la question de macOS, une seule fois ===== -->
+  <div class="alerte cache" id="alerte" role="dialog" aria-label="Autorisation macOS">
+    <div class="al-ic" id="alIc"></div>
+    <b>« Voxile » souhaite contrôler « Mail ».</b>
+    <p>Autoriser cela permet à « Voxile » de lire tes nouveaux mails. Rien n'est envoyé, rien n'est supprimé.</p>
+    <div class="al-bt"><button id="refuser" data-act="refuser">Ne pas autoriser</button><button class="bleu" id="autoriser" data-act="autoriser">OK</button></div>
+  </div>
+
+  <!-- ===== l'îlot ===== -->
+  <svg id="forme-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true"><g id="ombre"><path id="forme" fill="#000" d=""/></g></svg>
+  <div id="contenu" class="calque"></div>
+  <svg id="encoche-svg" class="calque" viewBox="-500 0 1000 360" aria-hidden="true">
+    <path id="encoche" fill="#000" d=""/>
+    <circle cx="0" cy="15.5" r="3.4" fill="#0d0f16"/>
+    <circle cx="0" cy="15.5" r="1.5" fill="#1b2233"/>
+  </svg>
+
+  <div class="pointeur" id="pointeur" aria-hidden="true"><svg class="fleche" viewBox="0 0 18 26"><path d="M1.5 1.5v19.2l4.6-4.4 3 7.1 3.1-1.3-3-7h6.3z" fill="#000" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+</section>
+
+<!-- ===== régie ===== -->
+<section class="regie">
+  <div class="r-haut">
+    <div aria-live="polite">
+      <div class="r-num" id="num"></div>
+      <h1 class="r-titre" id="titre"></h1>
+      <p class="r-phrase" id="phrase"></p>
+    </div>
+    <div class="r-cmd">
+      <button class="bouton creux" id="prec">‹ Étape précédente</button>
+      <button class="bouton plein" id="suivant">Étape suivante ›</button>
+      <button class="bouton creux auto" id="auto"></button>
+      <div class="r-opts"><label><input type="checkbox" id="lentCase"> Ralenti ×4</label></div>
+    </div>
+  </div>
+  <ol class="r-pas" id="pas"></ol>
+  <div class="notes">
+    <div><b>À essayer ici.</b> Arrêtez la lecture auto, puis cliquez dans l'îlot : « Brancher », « Coller », « Vérifier », les lignes des Nouveautés, « Débrancher ». Tout marche à la souris, comme dans l'étape jouée.</div>
+    <div><b>Sans clavier.</b> La clé se colle avec un bouton « Coller », jamais avec ⌘V. Chaque action a son bouton visible. La seule touche gardée reste fn, pour dicter.</div>
+    <div><b>Inventé.</b> Noms, mails, tâches et fiches sont inventés. Pas de vrais logos : des pastilles avec un symbole ou une initiale.</div>
+  </div>
+</section>
+
+<script>
+'use strict';
+/* =========================================================
+   Constantes — 1 px CSS = 1 pt
+   ========================================================= */
+const B = 33;                 // hauteur de la barre des menus
+const HC = 90;                // demi-caméra (encoche de 180 pt)
+const AILE = 58;              // îlot replié : aile de 58 pt + épaule de 6 = 64 pt dans la barre (limite 66)
+const NO = 154;               // îlot ouvert : épaules de 64 pt dans la barre (limite 66)
+const BW = 232;               // îlot ouvert : demi-largeur du corps (464 pt, limite 470)
+const GX = -BW + 16;          // bord gauche des cartes (432 pt de large)
+const HMAX = 331;             // hauteur maximale de l'îlot ouvert (limite 330 + 1 de ressort)
+const Q = new URLSearchParams(location.search);
+const $$ = s => document.querySelectorAll(s);
+const racine = document.documentElement;
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const f2 = v => Math.round(v * 100) / 100;
+const mid = t => (B - t) / 2;
+let K = 1;
+const FIGE = Q.has('fige');
+const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+let REDUIT = mq.matches;
+mq.addEventListener && mq.addEventListener('change', e => { REDUIT = e.matches; });
+if (FIGE) racine.classList.add('fige');
+
+/* =========================================================
+   Forme de l'îlot (reprise de ilot-centre.html)
+   ========================================================= */
+const PORTEE = 1.6, POIGNEE = 0.18;
+function cote(g, n, bw){
+  const corps = Math.max(0, g.h - B), u = Math.min(corps, 40) / 40, e = 1 - Math.pow(1 - u, 2.5);
+  const d = Math.max(0, bw - n) * e, W = n + d, serre = 1 - clamp((n - HC) / 24, 0, 1);
+  const rs = g.rs + (4 - g.rs) * serre, rbv = lerp(g.rb + (8 - g.rb) * serre, g.rb, clamp(corps / 12, 0, 1));
+  const fe = Math.max(0, Math.min(g.f, d * 0.45, B - rs - 2, corps * 0.6));
+  const rte = Math.max(0, Math.min(g.rt, (d - fe) / PORTEE, corps / 3.2));
+  const lam = Math.min(1, d / 6), dispo = (1 - lam) * (g.h - rs) + lam * (g.h - B - PORTEE * rte);
+  const rbe = Math.max(0, Math.min(rbv, dispo / PORTEE, W / PORTEE));
+  return {n, W, d, fe, rte, rbe, rs};
+}
+function chemin(g){
+  const h = g.h, L = cote(g, g.ng, g.bw), D = cote(g, g.nd, g.bd), X = f2, Y = f2;
+  const a1 = PORTEE * L.rte, c1 = POIGNEE * a1, a2 = PORTEE * L.rbe, c2 = POIGNEE * a2;
+  const b1 = PORTEE * D.rte, d1 = POIGNEE * b1, b2 = PORTEE * D.rbe, d2 = POIGNEE * b2;
+  let p = `M${X(-L.n - L.rs)} ${Y(-1)}L${X(-L.n - L.rs)} 0Q${X(-L.n)} 0 ${X(-L.n)} ${Y(L.rs)}`;
+  if (L.d > 0.5) p += `L${X(-L.n)} ${Y(B - L.fe)}Q${X(-L.n)} ${B} ${X(-L.n - L.fe)} ${B}L${X(-L.W + a1)} ${B}C${X(-L.W + c1)} ${B} ${X(-L.W)} ${Y(B + c1)} ${X(-L.W)} ${Y(B + a1)}`;
+  p += `L${X(-L.W)} ${Y(h - a2)}C${X(-L.W)} ${Y(h - c2)} ${X(-L.W + c2)} ${Y(h)} ${X(-L.W + a2)} ${Y(h)}`;
+  p += `L${X(D.W - b2)} ${Y(h)}C${X(D.W - d2)} ${Y(h)} ${X(D.W)} ${Y(h - d2)} ${X(D.W)} ${Y(h - b2)}`;
+  if (D.d > 0.5) p += `L${X(D.W)} ${Y(B + b1)}C${X(D.W)} ${Y(B + d1)} ${X(D.W - d1)} ${B} ${X(D.W - b1)} ${B}L${X(D.n + D.fe)} ${B}Q${X(D.n)} ${B} ${X(D.n)} ${Y(B - D.fe)}`;
+  p += `L${X(D.n)} ${Y(D.rs)}Q${X(D.n)} 0 ${X(D.n + D.rs)} 0L${X(D.n + D.rs)} ${Y(-1)}Z`;
+  return p;
+}
+const CLES = ['ng', 'nd', 'bw', 'bd', 'h', 'rs', 'rb', 'rt', 'f'];
+const REPOS = {ng:HC, nd:HC, bw:HC, bd:HC, h:B, rs:4, rb:8, rt:0, f:0};                  // l'encoche seule
+const compact = (g, d) => ({ng:g, nd:d, bw:g, bd:d, h:B, rs:6, rb:10, rt:0, f:0});       // des ailes dans la barre
+const bandeau = (w, h, n) => ({ng:n, nd:n, bw:w, bd:w, h, rs:6, rb:30, rt:16, f:10});    // il descend sous la barre
+$('#encoche').setAttribute('d', chemin(REPOS));
+
+/* =========================================================
+   Ressorts (réponse en s, amortissement) — interruptibles
+   ========================================================= */
+class Ressort{
+  constructor(x){ this.x = x; this.v = 0; this.cible = x; this.futur = null; this.attente = 0; this.rep = .45; this.z = .8; }
+  viser(c, rep, z, attente){
+    if (attente > 0){ this.futur = {c, rep, z}; this.attente = attente; return; }
+    this.futur = null; this.attente = 0; this.cible = c; this.rep = rep; this.z = z;
+  }
+  poser(c){ this.x = c; this.v = 0; this.cible = c; this.futur = null; this.attente = 0; }
+  pas(dt){
+    if (this.attente > 0){
+      this.attente -= dt;
+      if (this.attente <= 0 && this.futur){ const f = this.futur; this.futur = null; this.cible = f.c; this.rep = f.rep; this.z = f.z; }
+    }
+    const w = 2 * Math.PI / this.rep, a = w * w * (this.cible - this.x) - 2 * this.z * w * this.v;
+    this.v += a * dt; this.x += this.v * dt;
+  }
+  pose(){
+    if (this.attente > 0) return false;
+    if (Math.abs(this.x - this.cible) < 0.01 && Math.abs(this.v) < 0.05){ this.x = this.cible; this.v = 0; return true; }
+    return false;
+  }
+}
+(function(){   // courbe CSS « ressort » (même formule), pour les zooms d'entrée
+  const rep = .42, z = .78, T = .46, N = 36, pts = [];
+  let x = 0, v = 0; const w = 2 * Math.PI / rep, k = w * w, c = 2 * z * w, dt = 1 / 600;
+  for (let i = 0; i <= N; i++){
+    pts.push(x);
+    for (let s = 0, n = Math.round((T / N) / dt); s < n; s++){ const a = k * (1 - x) - c * v; v += a * dt; x += v * dt; }
+  }
+  pts[pts.length - 1] = 1;
+  racine.style.setProperty('--ressort', `linear(${pts.map(p => p.toFixed(4)).join(',')})`);
+})();
+
+const micro = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="7" y="1.5" width="6" height="11" rx="3" fill="${c}"/><path d="M4.2 9.5a5.8 5.8 0 0 0 11.6 0M10 15.3v3" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const airpods = (t, c = '#fff') => { const b = 'M5.6 3a3.1 3.1 0 0 0-3.1 3.1v.9a3.1 3.1 0 0 0 3.1 3.1h.3v6.4a1.2 1.2 0 0 0 2.4 0V5.9A3 3 0 0 0 5.6 3z';
+  return `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="${c}"><path d="${b}"/><path d="${b}" transform="matrix(-1 0 0 1 20 0)"/></svg>`; };
+const flecheBas = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.4" fill="none" stroke="${c}" stroke-width="1.7"/><path d="M10 5.4v8.2M6.6 10.4 10 13.8l3.4-3.4" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const rayons = c => [0, 30, 60, 90, 120, 150].map(a => `<rect x="9" y="1.5" width="2" height="17" rx="1" fill="${c}" transform="rotate(${a} 10 10)"/>`).join('');
+const etoile = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20">${rayons(c)}</svg>`;
+const minuteurG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><circle cx="12" cy="13.4" r="7.6" fill="none" stroke="${c}" stroke-width="2.1"/><path d="M12 13.4V9.2M9.5 2.8h5" stroke="${c}" stroke-width="2.1" stroke-linecap="round"/></svg>`;
+/* nouveau : le réveil (cadran, deux cloches, deux pieds) */
+const reveilG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13.2" r="7.3"/><path d="M12 9.4v4l2.6 1.6"/><path d="M3.6 6.6a3.4 3.4 0 0 1 4.6-3.9M20.4 6.6a3.4 3.4 0 0 0-4.6-3.9"/><path d="M7.2 19.4 5.6 21.2M16.8 19.4l1.6 1.8"/></svg>`;
+/* nouveau : le calendrier (comme le bandeau de rendez-vous) */
+const calG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="4.8" width="17.2" height="15.6" rx="3.4"/><path d="M3.6 9.6h16.8M8 2.8v3.6M16 2.8v3.6"/></svg>`;
+const cameraG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="${c}"><rect x="2.4" y="6.2" width="13.6" height="11.6" rx="2.6"/><path d="M17.4 10.4 21.6 7.6v8.8l-4.2-2.8z"/></svg>`;
+const plateauG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M2.6 11.2 4.9 4.6A2 2 0 0 1 6.8 3.3h6.4a2 2 0 0 1 1.9 1.3l2.3 6.6v4a2 2 0 0 1-2 2H4.6a2 2 0 0 1-2-2z"/><path d="M2.8 11.2h4.1l1 2.2h4.2l1-2.2h4.1"/></svg>`;
+/* nouveau : la bibliothèque (des livres debout, un penché) */
+const livresG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.6" stroke-linejoin="round"><rect x="2.4" y="3" width="3.6" height="14" rx="1"/><rect x="7.2" y="4.6" width="3.6" height="12.4" rx="1"/><rect x="12.6" y="3.6" width="3.6" height="13.4" rx="1" transform="rotate(-14 14.4 17)"/><path d="M2.4 6.2h3.6M7.2 7.6h3.6" stroke-linecap="round"/></svg>`;
+const pileG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><rect x="2.8" y="7.6" width="14.4" height="10.2" rx="2.6" fill="${c}"/><path d="M4.9 5.1h10.2M7.1 2.6h5.8" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const airdropG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round"><path d="M9.74 14.26a3.2 3.2 0 1 1 4.52 0"/><path d="M7.47 16.53a6.4 6.4 0 1 1 9.06 0"/><path d="M5.21 18.79a9.6 9.6 0 1 1 13.58 0"/><circle cx="12" cy="12" r="1.5" fill="${c}" stroke="none"/></svg>`;
+const viseurG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><path d="M2.5 6.4V4.6a2.1 2.1 0 0 1 2.1-2.1h1.8M13.6 2.5h1.8a2.1 2.1 0 0 1 2.1 2.1v1.8M17.5 13.6v1.8a2.1 2.1 0 0 1-2.1 2.1h-1.8M6.4 17.5H4.6a2.1 2.1 0 0 1-2.1-2.1v-1.8"/><circle cx="10" cy="10" r="2.7"/></svg>`;
+const cloche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24"><path fill="${c}" d="M12 2.6c-3.3 0-5.8 2.6-5.8 5.9v3.6l-1.6 2.9c-.5.9.1 1.9 1.1 1.9h12.6c1 0 1.6-1 1.1-1.9l-1.6-2.9V8.5c0-3.3-2.5-5.9-5.8-5.9zM9.4 18.7a2.7 2.7 0 0 0 5.2 0z"/></svg>`;
+const guillemets = (t, c = '#fff') => `<svg width="${t}" height="${f2(t * .7)}" viewBox="-.45 -.3 3 2.1"><g fill="${c}"><path d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/><path transform="translate(1.1 0)" d="M.21 0H.79Q1 0 1 .21V.5C1 .98.64 1.38.28 1.5.36 1.4.43 1.2.41 1.04Q.4 1 .33 1H.1Q0 1 0 .9V.21Q0 0 .21 0Z"/></g></svg>`;
+const punaiseG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20"><path d="M6.6 2.4h6.8l-1.2 5.2 3 3.2H4.8l3-3.2z" fill="${c}"/><path d="M10 10.6v7" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+const chevG = (t, c, d = 'g') => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d === 'g' ? 'M12.5 4.5 7 10l5.5 5.5' : d === 'd' ? 'M7.5 4.5 13 10l-5.5 5.5' : d === 'h' ? 'M4.5 12.5 10 7l5.5 5.5' : 'M4.5 7.5 10 13l5.5-5.5'}"/></svg>`;
+const croixG = (t, c = '#fff') => `<svg width="${t}" height="${t}" viewBox="0 0 10 10" stroke="${c}" stroke-width="1.6" stroke-linecap="round"><path d="M2.6 2.6l4.8 4.8M7.4 2.6 2.6 7.4"/></svg>`;
+const coche = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.6 12.8 4.6"/></svg>`;
+const loupe = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><circle cx="6.9" cy="6.9" r="4.9"/><path d="M10.6 10.6 14.2 14.2"/></svg>`;
+const lienG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><path d="M8.6 11.4a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-1 1"/><path d="M11.4 8.6a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l1-1"/></svg>`;
+const sortieG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3.6h5.4V9M16.2 3.8 9.4 10.6"/><path d="M14.4 12.4v2.4a1.8 1.8 0 0 1-1.8 1.8H5.2a1.8 1.8 0 0 1-1.8-1.8V7.4a1.8 1.8 0 0 1 1.8-1.8h2.4"/></svg>`;
+const triG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.4 3.6v12.8M3.4 13.4l3 3 3-3M13.6 16.4V3.6M10.6 6.6l3-3 3 3"/></svg>`;
+const batterie = n => `<svg width="28" height="13" viewBox="0 0 28 13"><rect width="24" height="13" rx="4" fill="#fff"/><text x="12" y="10" font-size="9.6" font-weight="700" text-anchor="middle" fill="#000" font-family="-apple-system,Helvetica,sans-serif">${n}</text><path d="M26 4.6v3.8" stroke="rgba(255,255,255,.5)" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+
+/* =========================================================
+   Glyphes propres à cette maquette
+   ========================================================= */
+const enveloppeG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.4" width="18" height="13.2" rx="3.2"/><path d="M4.2 8.2 12 13.4l7.8-5.2"/></svg>`;
+const tableG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="4.4" width="17.2" height="15.2" rx="3"/><path d="M3.6 9.8h16.8M3.6 14.8h16.8M9.4 9.8v9.6"/></svg>`;
+const appsG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round"><rect x="2.8" y="2.8" width="5.8" height="5.8" rx="1.8"/><rect x="11.4" y="2.8" width="5.8" height="5.8" rx="1.8"/><rect x="2.8" y="11.4" width="5.8" height="5.8" rx="1.8"/><rect x="11.4" y="11.4" width="5.8" height="5.8" rx="1.8"/></svg>`;
+const pressG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="12" height="13.4" rx="2.6"/><rect x="7.2" y="2.2" width="5.6" height="3.6" rx="1.4" fill="${c}" stroke="none"/></svg>`;
+const noteG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.4"/><path d="m6.8 10.2 2.2 2.3 4.3-4.6"/></svg>`;
+const clePG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.8" cy="12.6" r="3.6"/><path d="M9.4 10 16 3.4M13.4 6l2.2 2.2"/></svg>`;
+const persG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="6.6" r="3.2"/><path d="M3.6 16.6c.6-3.2 3.2-5 6.4-5s5.8 1.8 6.4 5"/></svg>`;
+const infoG = (t, c) => `<svg width="${t}" height="${t}" viewBox="0 0 20 20" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><circle cx="10" cy="10" r="7.4"/><path d="M10 9.2v4.4"/><circle cx="10" cy="6.4" r=".5" fill="${c}"/></svg>`;
+
+/* =========================================================
+   Les apps, leurs nouveautés (inventées)
+   ========================================================= */
+const NOM = {mail:'Mail', agenda:'Agenda', notion:'Notion', airtable:'Airtable'};
+const TEINTE = {mail:'#5eb0ff', agenda:'#ff453a', notion:'#f5f5f7', airtable:'#ffb340'};
+const ORDRE_APPS = ['mail', 'agenda', 'notion', 'airtable'];
+function glyphe(app, t, c){
+  if (app === 'mail') return enveloppeG(t, c);
+  if (app === 'agenda') return calG(t, c);
+  if (app === 'airtable') return tableG(t, c);
+  return `<span class="ini" style="font-size:${f2(t * 1.08)}px;color:${c}">N</span>`;
+}
+const past = (app, t = 32) => `<span class="past" style="width:${t}px;height:${t}px;border-radius:${f2(t * .29)}px">${glyphe(app, f2(t * .56), TEINTE[app])}</span>`;
+const ITEMS = {
+  m1:{id:'m1', app:'mail',     titre:'Camille Roche',         sous:'Devis cuisine, version 2', t:'14:41'},
+  m0:{id:'m0', app:'mail',     titre:'Atelier Nord',          sous:'Facture de novembre',      t:'14:12'},
+  a1:{id:'a1', app:'agenda',   titre:'Point client',          sous:'dans 25 min · Meet',       t:'15:10'},
+  n1:{id:'n1', app:'notion',   titre:'Rappeler le menuisier', sous:'tâche du jour',            t:'14:43'},
+  r1:{id:'r1', app:'airtable', titre:'Chantier Les Tilleuls', sous:'Statut : En cours',        t:'14:20'}
+};
+const CLE_MASQUEE = {notion:'ntn_••••••••••••k7Rm', airtable:'pat••••••••••••••9fQz'};
+const BASES = [['chantiers', 'Chantiers', '6 tables'], ['clients', 'Clients', '4 tables'], ['stock', 'Stock atelier', '2 tables']];
+
+/* =========================================================
+   L'état de Voxile
+   ========================================================= */
+const st = {};
+function remettre(){
+  Object.assign(st, {
+    carte:null, ban:null, plie:null, punaise:false,
+    apps:{mail:false, agenda:true, notion:false, airtable:false},
+    attente:null, notes:{},
+    conn:{app:null, etat:'saisie', cle:false, base:null},
+    detail:'agenda', confirme:false, base:null,
+    items:[], question:false, ouvertes:[]
+  });
+}
+remettre();
+const nonLus = () => st.items.filter(i => !i.lu).length;
+function ajoute(...ids){ ids.forEach(id => { if (!st.items.some(i => i.id === id)) st.items.push({...ITEMS[id], lu:false}); }); }
+
+/* =========================================================
+   Les cartes de l'îlot (chacune est redessinée depuis l'état)
+   ========================================================= */
+const retour = (vers, txt) => `<button class="pil retour" data-act="${vers}">${chevG(13, '#fff', 'g')}${txt}</button>`;
+const badge = n => `<em class="nb${n ? ' vu' : ''}">${n || ''}</em>`;
+const tuile = (cl, gl, b, sous) => `<button class="tg ${cl}" data-act="rien"><span class="rd">${gl}</span><b>${b}</b><i>${sous}</i></button>`;
+
+function rendCentre(){
+  return `<div class="cc" id="cc">
+  <div class="cc-tete"><span class="punaise${st.punaise ? ' vu' : ''}">${punaiseG(12, 'rgba(255,255,255,.5)')}Reste ouvert</span>
+    <button class="pil" data-act="rien">${guillemets(12)}Dictées</button>
+    <button class="pil apps" data-act="apps">${appsG(14, '#fff')}Tes apps${badge(nonLus())}</button>
+    <button class="pil" data-act="rien">Modifier</button></div>
+  <div class="cc-ronds">${tuile('', micro(24, '#fff'), 'Micro', 'Ouvert')}${tuile('bleu', flecheBas(24), 'Téléchargements', 'Allumé')}${tuile('', airpods(24), 'Dictée', 'AirPods')}${tuile(st.apps.agenda ? 'rouge' : '', calG(24, '#fff'), 'Calendrier', st.apps.agenda ? 'Allumé' : 'Éteint')}${tuile('corail', etoile(22, '#fff'), 'Claude Code', 'Prêt')}${tuile('', cloche(23, 'var(--jaune)'), 'Rappel', 'Dire un rappel')}</div>
+  <div class="cc-larges">
+    <div class="tl"><div class="tl-t">${minuteurG(17, 'var(--ambre)')}Minuteur</div><div class="tl-caps"><span class="cap">5</span><span class="cap">10</span><span class="cap">25</span><span class="tl-u">min</span></div></div>
+    <div class="tl"><div class="tl-t">${plateauG(17, '#5eb0ff')}Étagère</div><div class="eta-vide">Glisse un fichier ici</div></div>
+  </div>
+  <button class="tr" data-act="rien"><span class="tr-pt"></span><span>Noter la réunion</span><span class="tr-s">Voxile écrit tout ce qui se dit</span></button>
+</div>`;
+}
+
+function ligneApp(app){
+  const on = st.apps[app], att = st.attente === app;
+  const sub = {
+    mail: on ? 'Nouveaux mails · Gmail compris' : 'Via l’app Mail du Mac, Gmail compris',
+    agenda: 'Calendrier du Mac · Google Agenda compris',
+    notion: on ? 'Tâches du jour et tâches qu’on t’assigne' : 'Tes tâches du jour · une clé à coller',
+    airtable: on ? `Base « ${st.base || 'Chantiers'} » · fiches qui changent` : 'Les fiches qui changent · une clé à coller'
+  }[app];
+  const note = st.notes[app];
+  const droite = att ? '<span class="rouet"></span>'
+    : on ? `<button class="ap-ok" data-act="detail" data-p="${app}"><i></i>Branché${chevG(12, 'currentColor', 'd')}</button>`
+    : `<button class="btn-blanc" data-act="brancher" data-p="${app}">Brancher</button>`;
+  return `<div class="ap-l">${past(app)}<div class="ap-tx"><b>${NOM[app]}</b><span class="${note ? 'info' : ''}">${note || sub}</span></div>${droite}</div>`;
+}
+function rendApps(){
+  return `<div class="ap">
+  <div class="ap-tete">${retour('centre', 'Centre')}<div class="t15">Tes apps</div>
+    <button class="pil nouv" data-act="nouv">Nouveautés${badge(nonLus())}</button></div>
+  <div class="ap-sub">Branche une app : ses nouveautés arrivent dans l’îlot, en direct.</div>
+  <div class="ap-liste">${ORDRE_APPS.map(ligneApp).join('')}</div>
+</div>`;
+}
+
+function rendConn(){
+  const {app, etat, cle, base} = st.conn;
+  if (!app) return '<div class="cn"></div>';
+  const notion = app === 'notion';
+  const tete = `<div class="cn-tete">${retour('apps', 'Tes apps')}${past(app, 24)}<div class="t15">Brancher ${NOM[app]}</div></div>`;
+  if (etat === 'bases'){
+    return `<div class="cn">${tete}
+    <div class="cn-valide">${coche(15, '#5fe08a')}Jeton valide · 3 bases trouvées</div>
+    <div class="cn-bt">Quelle base suivre ?</div>
+    <div class="bs">${BASES.map(([id, nom, sous]) => `<button class="bs-l${base === id ? ' choisi' : ''}" data-act="base" data-p="${id}"><span class="bs-r">${base === id ? coche(11, '#000') : ''}</span><b>${nom}</b><span class="sz">${sous}</span></button>`).join('')}</div>
+    <button class="cn-go${base ? '' : ' off'}" data-act="suivre">Suivre cette base</button></div>`;
+  }
+  const aide = notion ? 'Où la trouver : <b>notion.so/profile/integrations</b> › ta connexion › Secret'
+                      : 'Où la trouver : <b>airtable.com/create/tokens</b> › Créer un jeton (en lecture)';
+  const go = etat === 'verif' ? `<button class="cn-go verif" data-act="rien"><span class="rouet" style="width:15px;height:15px"></span>Vérification…</button>`
+    : etat === 'ok' ? `<button class="cn-go ok" data-act="rien">${coche(15, '#5fe08a')}${notion ? 'Clé valide · 14 pages accessibles' : 'Jeton valide · 3 bases trouvées'}</button>`
+    : `<button class="cn-go${cle ? '' : ' off'}" data-act="verifier">${notion ? 'Vérifier la clé' : 'Vérifier le jeton'}</button>`;
+  return `<div class="cn">${tete}
+    <div class="cn-lbl">${notion ? 'Clé de ta connexion Notion' : 'Jeton d’accès Airtable'}<button class="pil" data-act="rien">Ouvrir la page${sortieG(12, 'currentColor')}</button></div>
+    <div class="cn-champ"><div class="cn-in${cle ? ' plein' : ''}">${cle ? CLE_MASQUEE[app] : (notion ? 'ntn_…' : 'pat…')}</div>
+      <button class="pil" data-act="coller">${cle ? coche(14, '#5fe08a') + 'Collée' : pressG(14, '#fff') + 'Coller'}</button></div>
+    <div class="cn-aide">${aide}</div>
+    ${go}</div>`;
+}
+
+function rendDetail(){
+  const app = st.detail, nom = NOM[app];
+  const tete = `<div class="dt-tete">${retour('apps', 'Tes apps')}${past(app, 24)}<div class="t15">${nom}</div><span class="dt-etat"><i></i>Branché</span></div>`;
+  const ln = (g, txt, plus = '') => `<div class="dt-l">${g}<span>${txt}</span>${plus}</div>`;
+  const pied = st.confirme
+    ? `<div class="dt-conf"><b>Débrancher ${nom} ?</b><p>${app === 'mail' || app === 'agenda' ? `Voxile arrête de lire ${nom}. Tu peux rebrancher quand tu veux.` : 'Les nouveautés s’arrêtent et la clé est effacée de ce Mac. Tu peux rebrancher quand tu veux.'}</p>
+        <div class="bt"><button class="pil gris" data-act="annuler">Annuler</button><button class="pil rouge" data-act="confirmer">Débrancher</button></div></div>`
+    : `<div class="dt-pied"><p>${{mail:'Voxile ne lit que l’arrivée des mails. Rien n’est envoyé ni supprimé.', agenda:'Voxile lit le Calendrier du Mac, Google Agenda compris. Pas de clé.', notion:'La clé reste dans le Trousseau de ton Mac.', airtable:'La clé reste dans le Trousseau de ton Mac.'}[app]}</p><button class="pil danger" data-act="debrancher">Débrancher</button></div>`;
+  let corps;
+  if (app === 'agenda'){
+    corps = `<div class="rdv">${calG(30, 'var(--rouge)')}<div><div class="t15">Point client</div><div class="t125">15:10 – 15:40 · Google Meet</div></div></div>
+      <div class="rdv-bt"><button class="vert" data-act="rejoindre">${cameraG(17, '#000')}Rejoindre</button><button class="gris" data-act="noter"><span class="tr-pt"></span>Noter la réunion</button></div>`;
+  } else if (app === 'mail'){
+    corps = `<div class="dt-liste">${ln(enveloppeG(18, '#5eb0ff'), 'Les nouveaux mails arrivent dans l’îlot')}${ln(sortieG(17, 'rgba(255,255,255,.7)'), 'Un clic ouvre le mail dans Mail')}${ln(persG(17, 'rgba(255,255,255,.7)'), 'Compte lu : Gmail, via l’app Mail du Mac')}</div>`;
+  } else if (app === 'notion'){
+    corps = `<div class="dt-liste">${ln(noteG(18, '#f5f5f7'), 'Tes tâches du jour')}${ln(persG(17, 'rgba(255,255,255,.7)'), 'Les tâches qu’on t’assigne')}${ln(clePG(17, 'rgba(255,255,255,.7)'), 'Clé', `<em>${CLE_MASQUEE.notion}</em>`)}</div>`;
+  } else {
+    corps = `<div class="dt-liste">${ln(tableG(18, '#ffb340'), 'Les fiches qui changent dans la base')}${ln(plateauG(17, 'rgba(255,255,255,.7)'), `Base suivie : <b style="color:#fff">${st.base || 'Chantiers'}</b>`, '<button class="pil" data-act="rien">Changer</button>')}${ln(clePG(17, 'rgba(255,255,255,.7)'), 'Jeton', `<em>${CLE_MASQUEE.airtable}</em>`)}</div>`;
+  }
+  return `<div class="dt">${tete}${corps}${pied}</div>`;
+}
+
+function rendNouv(){
+  const nb = nonLus();
+  let h = `<div class="nv"><div class="nv-tete">${retour('apps', 'Tes apps')}<div class="t15">Nouveautés</div>${nb ? '<button class="pil" data-act="toutlu">Tout marquer lu</button>' : ''}</div>`;
+  if (!st.items.length){
+    h += '<div class="nv-vide">Rien de nouveau pour l’instant.<br>Les nouveautés de tes apps arrivent ici.</div>';
+  } else {
+    h += '<div class="nv-liste">';
+    for (const app of ORDRE_APPS){
+      const l = st.items.filter(i => i.app === app).sort((a, b) => b.t.localeCompare(a.t));
+      if (!l.length) continue;
+      h += `<div class="nv-g">${glyphe(app, 13, TEINTE[app])}${NOM[app]}</div>`;
+      h += l.map(i => `<div class="nv-l${i.lu ? ' lu' : ''}" data-act="ouvrir" data-p="${i.id}" data-i="${i.id}" role="button">${i.lu ? '' : '<i class="pt"></i>'}<div class="tt"><b>${i.titre}</b><span style="margin-left:8px">${i.sous}</span></div><span class="hr">${i.t}</span><span class="ouvrir">Ouvrir${sortieG(11, 'currentColor')}</span></div>`).join('');
+    }
+    h += '</div>';
+  }
+  return h + '</div>';
+}
+
+const banMail = () => `<div class="ban">${past('mail', 34)}<div class="tx"><b>${ITEMS.m1.titre}</b><span>${ITEMS.m1.sous} · Mail</span></div><button class="act" data-act="ouvrir" data-p="m1">Ouvrir</button></div>`;
+const banNotion = () => `<div class="ban">${past('notion', 34)}<div class="tx"><b>${ITEMS.n1.titre}</b><span>Tâche du jour · avant 16:00 · Notion</span></div><button class="act" data-act="ouvrir" data-p="n1">Ouvrir</button></div>`;
+
+const AILE_X = -(HC + AILE - 10);
+const CONTENUS = [
+  ['mailG', AILE_X, mid(17), `<span class="aile">${enveloppeG(16, 'var(--ciel)')}</span>`],
+  ['mailD', HC + 8, mid(17), '<span class="aile">1 mail</span>'],
+  ['notG', AILE_X, mid(17), `<span class="aile">${glyphe('notion', 15, '#fff')}</span>`],
+  ['notD', HC + 8, mid(17), '<span class="aile">1 tâche</span>'],
+  ['batt', -NO + 13, mid(13), `<span class="epaule">${batterie(64)}</span>`],
+  ['airp', HC + 8, mid(17), `<span class="epaule">${airpods(15)}78 %</span>`],
+  ['banMail', 0, B + 12, banMail()],
+  ['banNotion', 0, B + 12, banNotion()],
+  ['centre', GX, B + 14, rendCentre()],
+  ['apps', GX, B + 14, rendApps()],
+  ['conn', GX, B + 14, rendConn()],
+  ['detail', GX, B + 14, rendDetail()],
+  ['nouv', GX, B + 14, rendNouv()]
+];
+const contenu = $('#contenu');
+contenu.innerHTML = CONTENUS.map(([nom, x, y, html]) => `<div class="c e" data-c="${nom}" style="left:${f2(500 + x)}px;top:${f2(y)}px">${html}</div>`).join('');
+const c = {}; contenu.querySelectorAll('[data-c]').forEach(n => c[n.dataset.c] = n);
+$('#alIc').innerHTML = guillemets(25);
+
+const RENDUS = {centre:rendCentre, apps:rendApps, conn:rendConn, detail:rendDetail, nouv:rendNouv};
+function majTout(){ for (const k in RENDUS) c[k].innerHTML = RENDUS[k](); }
+const RANG = {centre:0, apps:1, conn:2, detail:2, nouv:2};
+
+/* =========================================================
+   Minuteries et attentes annulables (reprises de ilot-bibliotheque.html)
+   ========================================================= */
+let jeton = 0, instant = false, enCoursN = 0, cibleN = 0, auto = false;
+const minuteries = new Set();
+function apres(t, fn){ const id = setTimeout(() => { minuteries.delete(id); fn(); }, t * 1000 * K); minuteries.add(id); return id; }
+function annuler(){ minuteries.forEach(clearTimeout); minuteries.clear(); }
+function suite(){ const j = jeton; return Promise.resolve().then(() => { if (j !== jeton) throw 'stop'; }); }
+function attendre(t){
+  if (instant) return suite();
+  const j = jeton;
+  return new Promise((ok, ko) => apres(t, () => (j === jeton ? ok() : ko('stop'))));
+}
+/* une suite d'effets de l'app (vérification de la clé, rouet…) : immédiate quand on pose une étape d'un coup */
+const J = Q.get('jalon');   // ?jalon=nom : pose l'étape jusqu'à un moment précis (pour les captures)
+const final = () => instant && cibleN > 0 && enCoursN === cibleN;
+function jalon(nom){ if (J === nom && final()) throw 'jalon'; }
+const delai = (t, fn, nom) => { if (instant){ if (nom && J === nom && final()) return; fn(); } else apres(t, fn); };
+
+/* =========================================================
+   L'îlot : ressorts, forme, contenu (repris de ilot-bibliotheque.html)
+   ========================================================= */
+const forme = $('#forme'), ombre = $('#ombre');
+const R = {}; CLES.forEach(k => R[k] = new Ressort(REPOS[k]));
+const TOUS = CLES.map(k => R[k]);
+let cible = {...REPOS}, anime = false, tPrec = 0;
+function ilot(g, o = {}){
+  const grand = (g.bw + g.bd) * g.h >= (cible.bw + cible.bd) * cible.h - .5;
+  const rep = o.rep ?? (grand ? .46 : .38), z = o.z ?? (grand ? .78 : 1), att = o.attente ?? (grand ? 0 : .06);
+  cible = {...g};
+  for (const k of CLES){
+    if (instant) R[k].poser(g[k]);
+    else { const haut = k === 'h' && grand; R[k].viser(g[k], haut ? rep * 1.06 : rep, z, att + (haut ? .02 : 0)); }
+  }
+  demarrer();
+}
+function montre(noms, d = .14){
+  const vus = new Set(noms);
+  for (const nom in c){
+    const n = c[nom], on = vus.has(nom);
+    if (on && !n.classList.contains('on')) n.style.setProperty('--d', d + 's');
+    n.classList.toggle('on', on);
+  }
+}
+function demarrer(){
+  if (FIGE || instant){ rendu(); return; }
+  if (!anime){ anime = true; tPrec = performance.now(); requestAnimationFrame(boucle); }
+}
+function boucle(){
+  const t = performance.now(), dt = clamp((t - tPrec) / 1000, 0, .05) / K; tPrec = t;
+  const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+  for (let i = 0; i < n; i++) for (const r of TOUS) r.pas(h);
+  let bouge = false;
+  for (const r of TOUS) if (!r.pose()) bouge = true;
+  rendu();
+  if (bouge) requestAnimationFrame(boucle); else anime = false;
+}
+function rendu(){
+  const g = {}; for (const k of CLES) g[k] = R[k].x;
+  forme.setAttribute('d', chemin(g));
+  const a = clamp((g.h - B - 6) / 40, 0, 1);
+  ombre.style.filter = a > .01 ? `drop-shadow(0 ${(9 * a).toFixed(1)}px ${(18 * a).toFixed(1)}px rgba(10,20,40,${(.32 * a).toFixed(3)}))` : 'none';
+}
+/* l'îlot épouse sa carte, jusqu'à 330 pt */
+const HAUTEUR = carte => Math.min(HMAX, B + 14 + c[carte].firstElementChild.offsetHeight + 14);
+const FORME = carte => bandeau(BW, HAUTEUR(carte), NO);
+const PLIE = () => st.plie ? compact(HC + AILE, HC + AILE) : REPOS;
+const PLIE_NOMS = () => st.plie === 'mail' ? ['mailG', 'mailD'] : st.plie === 'notion' ? ['notG', 'notD'] : [];
+const OUVERT = carte => ['batt', 'airp', carte];
+function pouf(nom){
+  if (instant || REDUIT) return;
+  const g = c[nom].querySelector('svg,.ini');
+  if (g) g.animate([{transform:'scale(.5)'}, {transform:'scale(1.2)', offset:.6}, {transform:'scale(1)'}], {duration:520 * K, easing:'ease-out'});
+}
+function ouvrir(carte){
+  majTout();
+  st.carte = carte; st.ban = null; st.plie = null;
+  c[carte].style.setProperty('--sx', '0px');
+  montre([], 0);
+  ilot(FORME(carte));
+  montre(OUVERT(carte), .14);
+}
+function changer(carte){
+  majTout();
+  if (!st.carte){ ouvrir(carte); return; }
+  if (st.carte === carte){ reformer(); return; }
+  const profond = RANG[carte] > RANG[st.carte], vient = c[carte], part = c[st.carte];
+  vient.style.transition = 'none'; vient.style.setProperty('--sx', (profond ? 30 : -30) + 'px'); void vient.offsetWidth; vient.style.transition = '';
+  part.style.setProperty('--sx', (profond ? -30 : 30) + 'px');
+  st.carte = carte;
+  ilot(FORME(carte));
+  montre(OUVERT(carte), .1);
+}
+function replier(){
+  st.carte = null; st.ban = null; st.punaise = false;
+  montre([], 0);
+  ilot(PLIE()); montre(PLIE_NOMS(), .16);
+}
+function reformer(){ if (st.carte) ilot(FORME(st.carte)); }
+function aile(app){
+  st.carte = null; st.ban = null; st.plie = app;
+  montre([], 0);
+  ilot(PLIE());
+  const noms = PLIE_NOMS();
+  montre(noms, .16);
+  delai(.2, () => pouf(noms[0]));
+}
+function banniere(nom){
+  st.carte = null; st.ban = nom; st.plie = null;
+  const n = c[nom], w = n.offsetWidth, h = n.offsetHeight;
+  n.style.left = f2(500 - w / 2) + 'px';
+  montre([], 0);
+  ilot(bandeau(w / 2 + 20, B + 12 + h + 14, HC + 6));
+  montre([nom], .14);
+}
+
+/* =========================================================
+   L'écran : barre des menus, fenêtres, question de macOS, pointeur
+   ========================================================= */
+const ecran = $('#ecran'), pointeur = $('#pointeur');
+const POMME = '<svg width="14" height="17" viewBox="0 0 14 17"><path fill="#1d1d1f" d="M11.6 9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.2.8-.7 0-1.7-.8-2.8-.7C3 4.3 1.7 5.1 1 6.4c-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.1 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.7 1.1 0 1.8-1 2.5-2.1.8-1.2 1.1-2.3 1.1-2.4 0 0-2.1-.8-2.1-3.5zM9.6 2.9c.6-.7 1-1.7.9-2.7-.8 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6.9.1 1.9-.5 2.5-1.2z"/></svg>';
+const MENUS = {Texte:['Fichier', 'Édition', 'Format', 'Présentation', 'Fenêtre', 'Aide'],
+  Mail:['Fichier', 'Édition', 'Présentation', 'Boîte aux lettres', 'Message', 'Format', 'Fenêtre', 'Aide'],
+  Notion:['Fichier', 'Édition', 'Présentation', 'Fenêtre', 'Aide'], Airtable:['Fichier', 'Édition', 'Présentation', 'Fenêtre', 'Aide'],
+  Calendrier:['Fichier', 'Édition', 'Présentation', 'Fenêtre', 'Aide']};
+(function(){
+  const s = d => `<span><svg viewBox="0 0 18 18"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</g></svg></span>`;
+  $('#etats').innerHTML = '<span class="heure">Ven. 13 nov.&nbsp; 14:44</span>' +
+    s('<rect x="2.2" y="3.4" width="13.6" height="4.6" rx="2.3"/><rect x="2.2" y="10" width="13.6" height="4.6" rx="2.3"/><circle cx="5.6" cy="5.7" r="1" fill="currentColor"/><circle cx="12.4" cy="12.3" r="1" fill="currentColor"/>') +
+    s('<circle cx="7.9" cy="7.9" r="4.9"/><path d="M11.6 11.6l3.8 3.8"/>') +
+    s('<path d="M2 7.2a10 10 0 0 1 14 0M4.4 9.8a6.6 6.6 0 0 1 9.2 0M6.8 12.3a3.2 3.2 0 0 1 4.4 0"/><circle cx="9" cy="14.5" r=".7" fill="currentColor"/>') +
+    '<span><svg viewBox="0 0 28 18" style="width:27px"><rect x="1" y="4.6" width="21.6" height="9.8" rx="3" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".5"/><rect x="2.6" y="6.2" width="14.6" height="6.6" rx="1.6" fill="currentColor"/><path d="M24.4 7.8v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg></span>';
+})();
+
+/* les fenêtres des apps : dessinées, neutres (pas de vraie interface de marque) */
+const F = {texte:$('[data-f="texte"]'), mail:$('[data-f="mail"]'), notion:$('[data-f="notion"]'), airtable:$('[data-f="airtable"]'), agenda:$('[data-f="agenda"]')};
+const APP_FEN = {texte:'Texte', mail:'Mail', notion:'Notion', airtable:'Airtable', agenda:'Calendrier'};
+const feux = '<div class="feux"><i></i><i></i><i></i></div>';
+function contenuFen(app, id){
+  if (app === 'mail'){
+    const m = id === 'm0' ? 'm0' : 'm1';
+    const liste = [['m1', 'Camille Roche', 'Devis cuisine, version 2'], ['m0', 'Atelier Nord', 'Facture de novembre'], ['x', 'Mairie du quartier', 'Réunion de copropriété']];
+    const corps = m === 'm1'
+      ? ['Bonjour, voici la version 2 du devis pour la cuisine, avec le plan de travail en chêne.', 'Dites-moi si cela vous convient avant vendredi, et je lance la commande.', 'Camille']
+      : ['Bonjour, ci-joint la facture du mois de novembre pour les fournitures de l’atelier.', 'Le règlement est attendu sous trente jours.', 'Atelier Nord'];
+    const it = ITEMS[m];
+    return `${feux}<div class="tb">Boîte de réception<em>· 3 messages</em></div><div class="cp"><div class="ml-l">${liste.map(([i, n, s]) => `<div class="ml-m${i === m ? ' sel' : ''}"><b>${n}</b><span>${s}</span></div>`).join('')}</div>
+      <div class="ml-v"><div class="de"><span class="av">${it.titre[0]}</span><div><b>${it.titre}</b><span>À : moi · ${it.t}</span></div></div><h4>${it.sous}</h4>${corps.map(p => `<p>${p}</p>`).join('')}</div></div>`;
+  }
+  if (app === 'notion'){
+    return `${feux}<div class="tb">Notion<em>· Mon espace</em></div><div class="cp"><div class="nt-s"><i style="width:70%"></i><i style="width:54%"></i><i style="width:82%"></i><i style="width:46%"></i><i style="width:64%"></i></div>
+      <div class="nt-p"><h3>Rappeler le menuisier</h3><div class="nt-pr"><div><em>Statut</em><span class="nt-tag">À faire</span></div><div><em>Échéance</em>Aujourd’hui, 16:00</div><div><em>Assignée à</em>Moi</div></div>
+      <div class="nt-l" style="width:80%;margin-top:20px"></div><div class="nt-l" style="width:62%"></div><div class="nt-l" style="width:70%"></div></div></div>`;
+  }
+  if (app === 'airtable'){
+    return `${feux}<div class="tb">Chantiers<em>· Airtable</em></div><div class="cp"><div class="at-t">
+      <div class="th"><span>#</span><span>Nom</span><span>Statut</span><span>Responsable</span><span>Début</span></div>
+      <div class="tr2 sel"><span>1</span><span>Chantier Les Tilleuls</span><span class="chg"><i class="at-st a" style="font-style:normal">En cours</i></span><span>Inès</span><span>4 nov.</span></div>
+      <div class="tr2"><span>2</span><span>Résidence Jasmin</span><span><i class="at-st b" style="font-style:normal">Terminé</i></span><span>Marc</span><span>12 oct.</span></div>
+      <div class="tr2"><span>3</span><span>Atelier Marin</span><span><i class="at-st c" style="font-style:normal">À planifier</i></span><span>Inès</span><span>—</span></div>
+      <div class="tr2"><span>4</span><span>Maison du Verger</span><span><i class="at-st a" style="font-style:normal">En cours</i></span><span>Marc</span><span>29 oct.</span></div>
+    </div></div>`;
+  }
+  return `${feux}<div class="tb">Calendrier<em>· Vendredi 13 novembre</em></div><div class="cp"><div class="cl-v"><div class="cl-h">14:00</div>
+    <div class="cl-ev" style="background:#eef1f6;box-shadow:inset 3px 0 0 #8e99ad"><div><b>Déjeuner d’équipe</b><span>12:30 – 14:00 · Atelier</span></div></div><div class="cl-h" style="margin-top:14px">15:00</div>
+    <div class="cl-ev"><div><b>Point client</b><span>15:10 – 15:40 · Google Meet</span></div></div></div></div>`;
+}
+function fenetre(nom, vu, id){
+  if (vu && nom !== 'texte') F[nom].innerHTML = contenuFen(nom, id);
+  F[nom].classList.toggle('cache', !vu);
+  st.ouvertes = st.ouvertes.filter(n => n !== nom); if (vu) st.ouvertes.push(nom);
+  const devant = st.ouvertes.length ? st.ouvertes[st.ouvertes.length - 1] : 'texte';
+  Object.keys(F).forEach((n, i) => { F[n].style.zIndex = n === devant ? 3 : 1; F[n].classList.toggle('arriere', n !== devant); });
+  $('#menus').innerHTML = POMME + `<b>${APP_FEN[devant]}</b>` + MENUS[APP_FEN[devant]].map(m => `<span>${m}</span>`).join('');
+}
+function question(vu){ st.question = vu; $('#alerte').classList.toggle('cache', !vu); }
+
+const XR = dx => ecran.clientWidth / 2 + dx;
+function ou(el){ const r = el.getBoundingClientRect(), e = ecran.getBoundingClientRect(); return [r.left + r.width / 2 - e.left, r.top + r.height / 2 - e.top]; }
+function cur(x, y, o = {}){
+  const saute = instant || o.saute;
+  pointeur.style.transition = saute ? 'none' : `transform ${(o.duree ?? .8) * K}s cubic-bezier(.3,.7,.2,1),opacity .22s`;
+  pointeur.style.transform = `translate(${f2(x)}px,${f2(y)}px)`;
+  if (saute){ void pointeur.offsetWidth; pointeur.style.transition = ''; }
+  pointeur.classList.toggle('vu', o.vu !== false);
+}
+async function va(x, y, d = .75){ cur(x, y, {duree:d}); await attendre(d); }
+async function vers(el, d = .75, dx = 0, dy = 0){ const [x, y] = ou(el); await va(x + dx, y + dy, d); }
+async function presse(){
+  if (instant) return suite();
+  pointeur.classList.add('appui'); await attendre(.13); pointeur.classList.remove('appui'); await attendre(.08);
+}
+async function clique(el, d = .8){
+  if (!el) throw new Error('élément introuvable');
+  await vers(el, d); await presse(); el.click();
+}
+/* un bouton visible de la carte qui est à l'écran (jamais un bouton caché d'une autre carte) */
+function bt(act, p){
+  const s = `[data-act="${act}"]${p ? `[data-p="${p}"]` : ''}`;
+  return contenu.querySelector(`.e.on ${s}`) || (act === 'autoriser' ? $('#autoriser') : null);
+}
+
+/* =========================================================
+   Ce que font les boutons (les mêmes pour l'étape jouée et pour la souris)
+   ========================================================= */
+function brancher(app){
+  st.notes[app] = null;
+  if (app === 'mail'){ question(true); return; }
+  st.conn = {app, etat:'saisie', cle:false, base:null};
+  changer('conn');
+}
+function autoriserMail(){
+  question(false);
+  st.attente = 'mail'; majTout();
+  delai(.9, () => { st.attente = null; st.apps.mail = true; majTout(); reformer(); }, 'rouet');
+}
+function verifier(){
+  if (!st.conn.cle || st.conn.etat !== 'saisie') return;
+  st.conn.etat = 'verif'; majTout();
+  delai(1.1, () => {
+    st.conn.etat = 'ok'; majTout();
+    delai(.9, () => {
+      if (st.conn.app === 'notion'){ st.apps.notion = true; changer('apps'); }
+      else { st.conn.etat = 'bases'; majTout(); reformer(); }
+    }, 'valide');
+  }, 'verif');
+}
+function suivre(){
+  if (!st.conn.base) return;
+  st.apps.airtable = true; st.base = BASES.find(b => b[0] === st.conn.base)[1];
+  changer('apps');
+}
+function debrancher(app){
+  st.apps[app] = false; st.confirme = false;
+  st.notes[app] = app === 'mail' || app === 'agenda' ? 'Débranché' : 'Débranché · la clé est effacée';
+  st.items = st.items.filter(i => i.app !== app);
+  changer('apps');
+}
+function ouvrirItem(id){
+  const it = st.items.find(i => i.id === id); if (!it) return;
+  it.lu = true;
+  replier(); majTout();
+  fenetre(it.app, true, id);
+}
+function agir(act, p){
+  if (st.carte && act !== 'rien') st.punaise = true;
+  switch (act){
+    case 'centre': case 'apps': case 'nouv': changer(act); break;
+    case 'brancher': brancher(p); break;
+    case 'autoriser': autoriserMail(); break;
+    case 'refuser': question(false); break;
+    case 'detail': st.detail = p; st.confirme = false; changer('detail'); break;
+    case 'coller': st.conn.cle = true; majTout(); break;
+    case 'verifier': verifier(); break;
+    case 'base': st.conn.base = p; majTout(); break;
+    case 'suivre': suivre(); break;
+    case 'debrancher': st.confirme = true; majTout(); reformer(); break;
+    case 'annuler': st.confirme = false; majTout(); reformer(); break;
+    case 'confirmer': debrancher(st.detail); break;
+    case 'ouvrir': ouvrirItem(p); break;
+    case 'toutlu': st.items.forEach(i => i.lu = true); majTout(); reformer(); break;
+  }
+  if (st.carte && c.centre) c.centre.querySelector('.punaise')?.classList.toggle('vu', st.punaise);
+}
+ecran.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (b && (contenu.contains(b) || $('#alerte').contains(b))) agir(b.dataset.act, b.dataset.p);
+});
+
+/* =========================================================
+   Les étapes
+   ========================================================= */
+function init(){
+  remettre();
+  st.ouvertes = []; Object.keys(F).forEach(n => { if (n !== 'texte') F[n].classList.add('cache'); });
+  fenetre('texte', true);
+  majTout();
+  ilot(REPOS); montre([]);
+  cur(XR(300), 330, {vu:false, saute:true});
+  pointeur.classList.remove('appui');
+  question(false);
+}
+const entree = async () => { cur(XR(300), 330, {saute:true}); await attendre(.05); await va(XR(40), 22, .75); await attendre(.1); };
+const ligne = id => contenu.querySelector(`.e.on [data-i="${id}"]`);
+const survol = id => { contenu.querySelectorAll('.nv-l.survol').forEach(n => n.classList.remove('survol')); if (id) ligne(id)?.classList.add('survol'); };
+
+const ETAPES = [
+  {c:'Ouvrir Tes apps', pause:1.4, t:'Ouvrir « Tes apps » depuis le Centre',
+   p:'On passe la souris sur l’îlot : le Centre s’ouvre. Un bouton « Tes apps » mène à la liste des apps qu’on peut brancher. Mail et Notion sont à brancher ; l’Agenda est déjà là.',
+   async jeu(){
+     await entree();
+     ouvrir('centre'); await attendre(.8); jalon('centre');
+     await clique(bt('apps')); await attendre(1.0);
+   }},
+  {c:'Brancher Mail', pause:1.4, t:'Brancher Mail en un clic',
+   p:'Mail passe par l’app Mail du Mac, qui contient déjà le compte Gmail : aucune clé à chercher. macOS pose une seule question, on répond OK, et Mail est branché.',
+   async jeu(){
+     await clique(bt('brancher', 'mail')); await attendre(1.0); jalon('dialogue');
+     await clique(bt('autoriser'), .9); await attendre(2.0);
+   }},
+  {c:'Brancher Notion', pause:1.4, t:'Brancher Notion : coller la clé',
+   p:'Notion demande une clé, une seule fois. Une ligne d’aide dit où la trouver, un bouton « Coller » remplace le raccourci clavier, puis Voxile vérifie la clé avant de brancher.',
+   async jeu(){
+     await clique(bt('brancher', 'notion')); await attendre(1.0); jalon('cle-vide');
+     await clique(bt('coller')); await attendre(.9); jalon('cle-collee');
+     await clique(bt('verifier')); await attendre(3.4);
+   }},
+  {c:'Airtable et sa base', pause:1.4, t:'Brancher Airtable, puis choisir la base',
+   p:'Même principe que Notion. Une fois le jeton vérifié, Voxile liste les bases et on choisit celle à suivre. Seules les fiches de cette base arriveront dans l’îlot.',
+   async jeu(){
+     await clique(bt('brancher', 'airtable')); await attendre(1.0);
+     await clique(bt('coller')); await attendre(.8); jalon('at-cle');
+     await clique(bt('verifier')); await attendre(2.7); jalon('bases');
+     await clique(bt('base', 'chantiers')); await attendre(.8); jalon('base-choisie');
+     await clique(bt('suivre')); await attendre(1.5);
+   }},
+  {c:'Agenda', pause:1.4, t:'Agenda : déjà là',
+   p:'Voxile lit le Calendrier du Mac, Google Agenda compris : il n’y a rien à brancher. Le détail montre le prochain rendez-vous, avec « Rejoindre » et « Noter la réunion ».',
+   async jeu(){
+     await clique(bt('detail', 'agenda')); await attendre(1.1);
+     await vers(bt('rejoindre'), .8); await attendre(1.6);
+   }},
+  {c:'Un mail arrive', pause:1.6, t:'En direct, îlot fermé : un nouveau mail',
+   p:'Pas besoin d’ouvrir l’îlot. Une petite aile annonce le mail, puis un bandeau montre qui écrit et de quoi. Un clic sur « Ouvrir » affiche le mail dans Mail.',
+   async jeu(){
+     await va(XR(330), 380, .8);
+     replier(); await attendre(1.0);
+     ajoute('m0', 'a1', 'r1'); ajoute('m1');
+     aile('mail'); await attendre(1.6); jalon('aile-mail');
+     banniere('banMail'); await attendre(2.2); jalon('bandeau-mail');
+     await clique(bt('ouvrir', 'm1')); await attendre(2.0);
+   }},
+  {c:'Une tâche arrive', pause:1.6, t:'Une tâche Notion du jour arrive pareil',
+   p:'Même chemin pour Notion : l’aile, puis le bandeau. Si on n’y touche pas, il se range tout seul, et la tâche reste dans la liste des nouveautés.',
+   async jeu(){
+     fenetre('mail', false); cur(XR(330), 380, {saute:true});
+     await attendre(.9);
+     ajoute('n1');
+     aile('notion'); await attendre(1.6); jalon('aile-notion');
+     banniere('banNotion'); await attendre(3.0); jalon('bandeau-notion');
+     replier(); await attendre(1.2);
+   }},
+  {c:'Nouveautés', pause:1.6, t:'Une liste « Nouveautés », rangée par app',
+   p:'Quand il y a du neuf, l’îlot s’ouvre directement sur la liste : Mail, Agenda, Notion, Airtable. Chaque ligne a son bouton « Ouvrir » et ouvre l’élément dans son app.',
+   async jeu(){
+     await va(XR(40), 22, .8); await attendre(.1);
+     ouvrir('nouv'); await attendre(1.0);
+     await vers(ligne('m0'), .7); survol('m0'); await attendre(.5);
+     await vers(ligne('n1'), .6); survol('n1'); await attendre(.5);
+     await vers(ligne('r1'), .6); survol('r1'); await attendre(.5); jalon('nouveautes');
+     await clique(ligne('r1'), .3); await attendre(2.0);
+   }},
+  {c:'Débrancher', pause:2.0, t:'Débrancher une app',
+   p:'Dans le détail d’une app, « Débrancher » demande une confirmation, puis arrête ses nouveautés et efface sa clé. On peut rebrancher quand on veut.',
+   async jeu(){
+     fenetre('airtable', false);
+     await va(XR(40), 22, .8); await attendre(.1);
+     ouvrir('centre'); await attendre(.8);
+     await clique(bt('apps')); await attendre(1.0);
+     await clique(bt('detail', 'airtable')); await attendre(1.0); jalon('detail-at');
+     await clique(bt('debrancher')); await attendre(1.0); jalon('confirmation');
+     await clique(bt('confirmer')); await attendre(2.2);
+   }}
+];
+const N = ETAPES.length;
+
+/* =========================================================
+   Régie
+   ========================================================= */
+let etape = 0;
+$('#pas').innerHTML = ETAPES.map((e, i) => `<li><button data-e="${i + 1}"><span>${i + 1}</span>${e.c}</button></li>`).join('');
+const autoBtn = $('#auto');
+const ICO_LIRE = '<svg width="11" height="12" viewBox="0 0 11 12"><path d="M1.5 1.2v9.6c0 .5.5.8 1 .5l7.4-4.8c.4-.3.4-.8 0-1L2.5.7c-.5-.3-1 0-1 .5z" fill="currentColor"/></svg>';
+const ICO_PAUSE = '<svg width="11" height="12" viewBox="0 0 11 12"><rect x="1.5" y="1" width="3" height="10" rx="1" fill="currentColor"/><rect x="6.5" y="1" width="3" height="10" rx="1" fill="currentColor"/></svg>';
+function majAuto(){ autoBtn.innerHTML = auto ? ICO_PAUSE + 'Pause' : ICO_LIRE + 'Lecture auto'; autoBtn.classList.toggle('on', auto); }
+function majRegie(n){
+  etape = n;
+  const m = Math.max(1, n), e = ETAPES[m - 1];
+  $('#num').textContent = `Étape ${m} sur ${N}`;
+  $('#titre').textContent = e.t; $('#phrase').textContent = e.p;
+  document.querySelectorAll('#pas button').forEach(b => b.classList.toggle('ici', +b.dataset.e === m));
+}
+async function poser(n){
+  annuler();
+  instant = true; racine.classList.add('snap');
+  try {
+    cibleN = n; enCoursN = 0;
+    init();
+    for (let i = 1; i <= n; i++){ enCoursN = i; await ETAPES[i - 1].jeu(); }
+  } catch (e){ if (e !== 'jalon') throw e; }
+  finally { instant = false; }
+  majRegie(n); rendu();
+  void ecran.offsetWidth;
+  requestAnimationFrame(() => requestAnimationFrame(() => racine.classList.remove('snap')));
+}
+async function jouer(n){
+  majRegie(n);
+  if (REDUIT) return poser(n);
+  racine.classList.remove('snap'); void ecran.offsetWidth;
+  cibleN = 0; enCoursN = n;
+  await ETAPES[n - 1].jeu();
+}
+function arreter(){ jeton++; auto = false; annuler(); pointeur.classList.remove('appui'); majAuto(); }
+async function tourner(depuis = 0){
+  arreter(); const j = jeton; auto = true; majAuto();
+  try {
+    await poser(depuis); await attendre(.9);
+    for (;;){
+      for (let n = depuis + 1; n <= N; n++){ await jouer(n); await attendre(ETAPES[n - 1].pause); }
+      ecran.style.opacity = 0; await attendre(.3);
+      await poser(0); ecran.style.opacity = 1; await attendre(1.0);
+      depuis = 0;
+    }
+  } catch (e){ if (e !== 'stop') console.error(e); }
+  ecran.style.opacity = 1;
+  if (j === jeton){ auto = false; majAuto(); }
+}
+function lance(n){
+  arreter(); ecran.style.opacity = 1;
+  poser(n - 1).then(() => jouer(n)).catch(e => { if (e !== 'stop') console.error(e); });
+}
+$('#suivant').addEventListener('click', () => lance(etape >= N ? 1 : etape + 1));
+$('#prec').addEventListener('click', () => lance(Math.max(1, etape - 1)));
+$('#pas').addEventListener('click', e => { const b = e.target.closest('button'); if (b) lance(+b.dataset.e); });
+autoBtn.addEventListener('click', () => { if (auto) arreter(); else tourner(Math.min(etape, N - 1)); });
+function ralenti(oui){ K = oui ? 4 : 1; racine.style.setProperty('--k', K); $('#lentCase').checked = oui; }
+$('#lentCase').addEventListener('change', e => ralenti(e.target.checked));
+
+/* =========================================================
+   À la main : la vraie souris marche aussi (survol, clics, « Coller », « Débrancher »…)
+   ========================================================= */
+function local(e){ const r = ecran.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top]; }
+function dansIlot(x, y){
+  if (st.carte || st.ban) return Math.abs(x) <= Math.max(cible.bw, cible.ng) + 4 && y <= cible.h + 4;
+  return y <= cible.h + 4 && Math.abs(x) <= Math.max(cible.ng, cible.nd, cible.bw) + 4;
+}
+let tFerme = 0;
+function aLaMain(){ if (auto){ arreter(); } pointeur.classList.remove('vu'); }
+ecran.addEventListener('pointerdown', () => { if (auto) aLaMain(); });
+ecran.addEventListener('mousemove', e => {
+  if (auto || instant || st.question) return;
+  const [x, y] = local(e);
+  if (dansIlot(x, y)){
+    clearTimeout(tFerme);
+    if (!st.carte && !st.ban) { pointeur.classList.remove('vu'); ouvrir(nonLus() ? 'nouv' : 'centre'); }
+  } else if (st.carte && !st.punaise){
+    clearTimeout(tFerme); tFerme = setTimeout(() => { if (st.carte && !st.punaise) replier(); }, 600);
+  }
+});
+/* « dedans » se juge à l'appui, avant que le bouton n'ait changé la taille de l'îlot */
+let appuiDedans = false;
+ecran.addEventListener('mousedown', e => { const [x, y] = local(e); appuiDedans = dansIlot(x, y); }, true);
+ecran.addEventListener('click', e => {
+  if (auto || instant || st.question || e.target.closest('#alerte')) return;
+  if ((st.carte || st.ban) && !appuiDedans) replier();
+});
+
+/* =========================================================
+   Départ
+   ========================================================= */
+if (Q.has('lent')) ralenti(true);
+majAuto();
+const E0 = Q.has('etape') ? clamp(+Q.get('etape') || 0, 0, N) : null;
+if (E0 !== null){
+  if (Q.has('joue')) lance(Math.max(1, E0)); else poser(E0);
+} else if (Q.has('manuel') || FIGE){
+  poser(0);
+} else {
+  tourner(0);
+}
+</script>
+</body>
+</html>
