@@ -385,10 +385,13 @@ public enum VerreLucarne {
     public static func nomIntensite(_ i: Double) -> String {
         switch min(1, max(0, i)) { case ..<0.15: return "Discret"; case ..<0.4: return "Léger"; case ..<0.6: return "Moyen"; case ..<0.85: return "Appuyé"; default: return "Très appuyé" }
     }
-    /// La teinte sombre posée sur le flou : le flou plein efface les lettres de derrière, la teinte rend le blanc lisible sur une page
-    /// blanche. 0,04 à 0,40 dépliée ; la pilule (quelques mots en gras) à 70 % de la teinte dépliée. Par défaut : 0,22 et 0,154 (le
-    /// réglage E de la comparaison du vrai verre, scratchpad sonde-verre2).
-    public static func voileDeplie(intensite i: Double) -> Double { 0.04 + 0.36 * min(1, max(0, i)) }
+    /// La teinte sombre posée sur le flou, qui rend le blanc lisible sur une page blanche. Rien jusqu'à 0,2 (le verre d'avant le curseur,
+    /// que Hugues trouvait « vraiment bien » : 13/11, 4 h 45, « l'opacité minimum est beaucoup plus élevée que tout à l'heure »), 0,22 au
+    /// milieu (le réglage E de la comparaison du vrai verre, scratchpad sonde-verre2), 0,40 tout en haut ; la pilule à 70 %.
+    public static func voileDeplie(intensite i: Double) -> Double {
+        let x = min(1, max(0, i))
+        return x <= 0.5 ? 0.22 * max(0, x - 0.2) / 0.3 : 0.22 + 0.18 * (x - 0.5) / 0.5
+    }
     public static func voilePilule(intensite i: Double) -> Double { 0.7 * voileDeplie(intensite: i) }
     public static let voilePilule = voilePilule(intensite: intensiteParDefaut)
     public static let voileDeplie = voileDeplie(intensite: intensiteParDefaut)
@@ -397,12 +400,17 @@ public enum VerreLucarne {
     /// d'une page derrière ; à 0,35, le fond passe presque net (un léger voile flou), le bord reste dessiné par le liseré. La pilule (quelques
     /// mots en gras) reste à 0,35 ; le Centre et les cartes (du texte courant, des libellés gris) montent à 0,6 : à 0,35 sur une page blanche
     /// pleine de texte, les lignes de la page se lisaient au travers des libellés (rendu `lucarne-*-centre-clair`), le juste milieu.
-    /// 12/11, 23 h : le flou plein partout (à 0,35 et 0,6, le fond passait NET au travers : les lettres d'un Terminal se mêlaient à celles
-    /// du Centre, capture de Hugues) ; la transparence vient de la teinte réglable, plus d'un verre atténué.
-    public static let intensitePilule = 1.0
-    public static let intensiteDeplie = 1.0
+    /// 12/11, 23 h : le flou plein (à 0,35 et 0,6, le fond passait NET au travers : les lettres d'un Terminal se mêlaient à celles du
+    /// Centre, capture de Hugues). 13/11 : c'est le curseur qui choisit. Tout en bas, le verre atténué d'avant (0,35 et 0,6) ; à partir du
+    /// milieu, le flou plein.
+    public static func intensitePilule(intensite i: Double) -> Double { 0.35 + 0.65 * min(1, max(0, i) / 0.5) }
+    public static func intensiteDeplie(intensite i: Double) -> Double { 0.6 + 0.4 * min(1, max(0, i) / 0.5) }
+    public static let intensitePilule = intensitePilule(intensite: intensiteParDefaut)
+    public static let intensiteDeplie = intensiteDeplie(intensite: intensiteParDefaut)
     /// L'intensité d'une forme entre repliée (0) et dépliée (1).
-    public static func intensite(deplie d: Double) -> Double { intensitePilule + (intensiteDeplie - intensitePilule) * min(1, max(0, d)) }
+    public static func intensite(deplie d: Double, intensite i: Double = intensiteParDefaut) -> Double {
+        let p = intensitePilule(intensite: i); return p + (intensiteDeplie(intensite: i) - p) * min(1, max(0, d))
+    }
     /// Le bord : biseau (largeur, blanc vif / éteint / retour), reflet intérieur (blanc, largeur de la bande), trait sombre dehors.
     public static let lisere = (largeur: 2.0, vif: 1.0, eteint: 0.25, retour: 0.7, reflet: 0.14, largeurReflet: 3.0, sombre: 0.28)
     /// La surbrillance : la lumière qui tombe sur le haut du verre (blanc en haut, presque rien au tiers, plus rien à 60 %), plus vive

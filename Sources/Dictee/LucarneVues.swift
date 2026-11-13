@@ -402,10 +402,11 @@ struct VerreLucarneVue: View {
 /// du vrai verre). Le contenu, lui, reste en sombre.
 struct IntensiteVerre: ViewModifier {
     var deplie: Double = 0
+    @ObservedObject var verre = ReglageVerre.partage
     func body(content: Content) -> some View {
         content
             .environment(\.colorScheme, .light)
-            .opacity(VerreLucarne.intensite(deplie: deplie))
+            .opacity(VerreLucarne.intensite(deplie: deplie, intensite: verre.intensite))
     }
 }
 

@@ -647,16 +647,18 @@ func controlesPlacesLucarne() {
         }
         func f(_ x: Double) -> String { String(format: "%.1f", x) }
         let rouge = (1.0, 0x45 / 255.0, 0x3A / 255.0), bleu = (0x0A / 255.0, 0x84 / 255.0, 1.0)
-        verifier(abs(V.voileDeplie - 0.22) < 1e-9 && abs(V.voilePilule - 0.154) < 1e-9 && V.voileDeplie(intensite: 0) == 0.04 && abs(V.voileDeplie(intensite: 1) - 0.4) < 1e-9
+        verifier(abs(V.voileDeplie - 0.22) < 1e-9 && abs(V.voilePilule - 0.154) < 1e-9 && V.voileDeplie(intensite: 0) == 0 && V.voileDeplie(intensite: 0.2) == 0 && abs(V.voileDeplie(intensite: 1) - 0.4) < 1e-9
                  && V.voileDeplie(intensite: 7) == V.voileDeplie(intensite: 1) && V.voilePilule(intensite: 1) < V.voileDeplie(intensite: 1),
-                 "une teinte réglable sur le flou, comme Sillonia : 0,22 par défaut, de 0,04 (discret) à 0,40 (très appuyé), jamais une plaque")
+                 "une teinte réglable sur le flou, comme Sillonia : 0,22 par défaut, aucune tout en bas (le verre d'avant), 0,40 tout en haut, jamais une plaque")
         verifier(V.voile(deplie: 0) == V.voilePilule && V.voile(deplie: 1, intensite: 0) == V.voileDeplie(intensite: 0) && V.refletHaut(intensite: 0.5).haut == 0.2,
                  "la teinte suit le dépliage et l'intensité ; surbrillance 0,2 en haut par défaut")
         verifier(V.nomIntensite(0) == "Discret" && V.nomIntensite(0.5) == "Moyen" && V.nomIntensite(1) == "Très appuyé", "les mots du curseur")
         verifier(ct((1, 1, 1), voile: V.voilePilule(intensite: 0)) >= 4.5, "même discret, le blanc sur page blanche reste lisible avec le halo (\(f(ct((1, 1, 1), voile: V.voilePilule(intensite: 0)))))")
         verifier(V.intensite(deplie: 0) == V.intensitePilule && V.intensite(deplie: 1) == V.intensiteDeplie && V.intensite(deplie: 2) == V.intensiteDeplie
                  && V.intensitePilule == 1 && V.intensiteDeplie == 1,
-                 "le flou plein (12/11, 23 h) : rien de net ne passe au travers (pilule \(V.intensitePilule), déplié \(V.intensiteDeplie))")
+                 "par défaut, le flou plein (12/11, 23 h) : rien de net ne passe au travers (pilule \(V.intensitePilule), déplié \(V.intensiteDeplie))")
+        verifier(V.intensite(deplie: 0, intensite: 0) == 0.35 && V.intensite(deplie: 1, intensite: 0) == 0.6 && V.intensite(deplie: 0, intensite: 1) == 1,
+                 "tout en bas du curseur, le verre atténué d'avant (0,35 et 0,6, 13/11 : « l'opacité minimum est beaucoup plus élevée »)")
         verifier(V.halo.rayonPres <= 1 && V.halo.rayonLarge <= 2, "halo serré autour des glyphes (\(V.halo.rayonPres) et \(V.halo.rayonLarge) pt) : jamais une plaque floutée")
         verifier(V.contraste(lettre: (1, 1, 1), voile: V.voileDeplie, halo: 0, fond: 1) < 2, "sans halo, le blanc sur une page blanche ne se lirait pas : le halo est indispensable")
         verifier(ct((1, 1, 1)) >= 4.5 && ct((1, 1, 1), voile: V.voilePilule) >= 4.5, "texte blanc sur page blanche, avec halo : ≥ 4,5 (\(f(ct((1, 1, 1)))), pilule \(f(ct((1, 1, 1), voile: V.voilePilule))))")
