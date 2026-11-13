@@ -650,9 +650,10 @@ final class IlotPanneau {
     func finDuGlisser() {
         glisserDeFichiers = nil
         zonesQuittees = false
-        airDropEclaire = nil
         // l'appel se range tout de suite (le glisser s'est fini ailleurs) ; les zones, elles, attendent un éventuel dépôt
-        if !moteur.depot || depotLache { guetterLaFin(false); moteur.montrerAppel(false); return }
+        if !moteur.depot || depotLache { airDropEclaire = nil; guetterLaFin(false); moteur.montrerAppel(false); return }
+        // `airDropEclaire` est gardé jusqu'au dépôt ou à la fermeture : le relâchement arrive souvent AVANT le dépôt, et l'effacer ici
+        // envoyait sur l'étagère un fichier lâché exprès sur « AirDrop » (13/11, deux fois de suite chez Hugues)
         // déjà en attente : chaque mouvement de la souris après le glisser ne repousse pas la fermeture
         guard fermetureGlisser == nil else { return }
         let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.fermerApresGlisser() } }
@@ -663,6 +664,7 @@ final class IlotPanneau {
     private var fermetureGlisser: DispatchWorkItem?
     private func fermerApresGlisser() {
         fermetureGlisser = nil
+        airDropEclaire = nil
         guetterLaFin(false)
         if !depotLache { moteur.montrerAppel(false); if moteur.depot { moteur.montrerDepot(false) } }
     }

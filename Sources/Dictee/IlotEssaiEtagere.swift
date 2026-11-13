@@ -257,7 +257,14 @@ extension IlotEssai {
         EssaiEtagere.finEnvoi?(.annule); pause(0.4)
         verifier(m.bandeau?.envoi?.etat == .annule && m.contenuAnnonce(.etagereEnvoi)?.l2 == "Rien n\u{2019}a été envoyé", "panneau AirDrop annulé : « Annulé · Rien n'a été envoyé »")
         pause(2.4)
-        // un fichier déjà sur l'étagère, lâché (depuis le Finder) sur « AirDrop » : il reste sur l'étagère, et le bandeau le dit
+        // l'ordre vécu (13/11) : le relâchement du bouton arrive AVANT le dépôt ; « AirDrop » visée un instant reste AirDrop
+        EssaiEtagere.envois = []
+        viserAirDrop()
+        c.panneau.finDuGlisser(); pause(0.05)
+        c.panneau.deposer([plan], en: CGPoint(x: 90, y: barre + 60)); pause(0.3)
+        verifier(EssaiEtagere.envois.last == [plan], "relâché puis déposé sur « AirDrop » visée : il part par AirDrop, pas sur l'étagère")
+        EssaiEtagere.finEnvoi?(.annule); pause(2.4)
+                // un fichier déjà sur l'étagère, lâché (depuis le Finder) sur « AirDrop » : il reste sur l'étagère, et le bandeau le dit
         let surEtagere = URL(fileURLWithPath: c.etagere.elements[0].chemin)
         viserAirDrop()
         c.panneau.deposer([surEtagere], en: CGPoint(x: 90, y: barre + 60)); pause(0.3); c.panneau.finDuGlisser()
