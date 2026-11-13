@@ -625,3 +625,8 @@ Un commit par point, poussé, NON fusionné, NON installé.
       le nom dans la barre des menus, que les autorisations (micro, accessibilité, surveillance de l'entrée) tiennent après le
       renommage ; (7) le curseur Verre en vrai verre (le rendu ne dessine pas le vrai verre) ; (8) une vidéo YouTube mise en pause
       puis l'îlot déplacé ; (5) une réunion : télécharger un passage et toute la réunion.
+- Vérifications (13/11 nuit) : build release sans avertissement nouveau ; 3992/3992 contrôles ; sections d'essai `dictee`, `verre`,
+  `places` vertes (places deux fois) ; `defaults read Dictee` vide. Essai complet n° 1 (vers 1 h) : 1393 ok, 1 échec (« alerte du
+  minuteur en haut à droite… boucle secousse », ressort du bourdonnement ; la section seule est verte). Essai complet n° 2 (vers 2 h) :
+  écran éteint/rallumé (pmset) puis « En faire un rappel » à 2 h du matin (« demain » = aujourd'hui avant l'aube) : l'alerte du rappel
+  reste et 58 échecs en cascade dans des sections non touchées. À relancer de jour avant la fusion.
