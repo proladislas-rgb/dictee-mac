@@ -112,4 +112,27 @@ func controlesBureau() {
     verifier((0..<50).map { NiveauxVoix.niveau(4, $0) }.reduce(0, +) > (0..<50).map { NiveauxVoix.niveau(0, $0) }.reduce(0, +), "le milieu de l'onde parle plus fort que les bords")
     let pasFin = stride(from: 0.0, through: 6, by: 1.0 / 120).map { NiveauxVoix.valeur(3, t: $0) }
     verifier(zip(pasFin, pasFin.dropFirst()).allSatisfy { abs($1 - $0) < 0.08 }, "à 120 images par seconde, une barre ne saute jamais (mouvement continu)")
+
+    groupe("Bureau : la fenêtre tient toujours dans l'écran visible")
+    let mini = CGSize(width: 760, height: 520)
+    let ecranHugues = CGRect(x: 0, y: 0, width: 1470, height: 923)
+    let sienne = CGRect(x: 226, y: 76, width: 900, height: 847)
+    verifier(CadreFenetre.borner(sienne, dans: ecranHugues, minimum: mini) == sienne, "la fenêtre de Hugues (900 × 847, en 226, 76) tient : elle ne bouge pas")
+    let grandie = CGRect(x: 226, y: -559, width: 900, height: 1482)
+    let b1 = CadreFenetre.borner(grandie, dans: ecranHugues, minimum: mini)
+    verifier(b1.height == 923 && b1.minY == 0 && b1.maxY <= ecranHugues.maxY && b1.width == 900 && b1.minX == 226,
+             "une fenêtre qui avait grandi à 1 482 pt (sous le bas de l'écran) revient à la hauteur de l'écran, en entier dedans (\(b1))")
+    let petitEcran = CGRect(x: 0, y: 0, width: 1280, height: 775)
+    let b2 = CadreFenetre.borner(sienne, dans: petitEcran, minimum: mini)
+    verifier(b2.height == 775 && b2.width == 900 && petitEcran.contains(b2), "taille enregistrée sur un écran plus grand : ramenée à l'écran plus petit (\(b2))")
+    let b3 = CadreFenetre.borner(CGRect(x: 3000, y: 2000, width: 900, height: 600), dans: ecranHugues, minimum: mini)
+    verifier(ecranHugues.contains(b3) && b3.size == CGSize(width: 900, height: 600), "une fenêtre restée sur un écran débranché revient dans l'écran, à sa taille")
+    let deuxieme = CGRect(x: 1470, y: -200, width: 1920, height: 1055)
+    let b4 = CadreFenetre.borner(CGRect(x: 1600, y: 100, width: 2400, height: 1400), dans: deuxieme, minimum: mini)
+    verifier(deuxieme.contains(b4) && b4.width == 1920 && b4.height == 1055, "second écran (origine décalée) : bornée à lui, pas à l'écran principal")
+    let minuscule = CGRect(x: 0, y: 0, width: 700, height: 480)
+    let b5 = CadreFenetre.borner(CGRect(x: 0, y: 0, width: 300, height: 200), dans: minuscule, minimum: mini)
+    verifier(b5 == minuscule && CadreFenetre.minimum(mini, dans: minuscule) == CGSize(width: 700, height: 480),
+             "écran plus petit que la taille minimale : la fenêtre prend l'écran, pas plus")
+    verifier(CadreFenetre.borner(CGRect(x: 10, y: 10, width: 400, height: 300), dans: ecranHugues, minimum: mini).size == mini, "plus petite que le minimum : remise au minimum")
 }

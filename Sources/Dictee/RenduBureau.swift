@@ -160,6 +160,8 @@ enum RenduBureau {
         Polices.enregistrer()
         let url = URL(fileURLWithPath: (dossier as NSString).expandingTildeInPath, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        // DICTEE_RENDU_SEUL=taille : seulement le contrôle de taille de la vraie fenêtre (rapide, pour la mise au point)
+        if ProcessInfo.processInfo.environment["DICTEE_RENDU_SEUL"] == "taille" { return verifierLaTaille(dossier: url) ? 0 : 1 }
         var ok = true
 
         func ecran(_ nom: String, sombre: Bool, taille: CGSize? = nil, regler: (Exemple) -> Void = { _ in }, exemple: ((Bool) -> Exemple)? = nil) {
@@ -208,6 +210,7 @@ enum RenduBureau {
             }
         }
         ok = verifierLesClics() && ok
+        ok = verifierLaTaille(dossier: url) && ok
         return ok ? 0 : 1
     }
 

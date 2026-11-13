@@ -354,3 +354,24 @@ public enum NiveauxVoix {
         return v
     }
 }
+
+// MARK: - la fenêtre dans l'écran
+
+/// Le cadre de la fenêtre de l'app, ramené dans la partie visible de l'écran (sous la barre des menus, au-dessus du Dock) : jamais plus
+/// grand qu'elle, entièrement dedans. Sert à l'ouverture (une taille enregistrée sur un écran plus grand, ou une fenêtre qui avait
+/// grandi toute seule) et quand les écrans changent. Coordonnées d'AppKit (origine en bas à gauche).
+public enum CadreFenetre {
+    /// `minimum` : la taille minimale de la fenêtre, elle-même bornée par l'écran (un écran plus petit qu'elle gagne).
+    public static func borner(_ c: CGRect, dans ecran: CGRect, minimum: CGSize) -> CGRect {
+        let l = min(max(c.width, min(minimum.width, ecran.width)), ecran.width)
+        let h = min(max(c.height, min(minimum.height, ecran.height)), ecran.height)
+        let x = min(max(c.minX, ecran.minX), ecran.maxX - l)
+        let y = min(max(c.minY, ecran.minY), ecran.maxY - h)
+        return CGRect(x: x, y: y, width: l, height: h)
+    }
+
+    /// La taille minimale réellement imposée sur cet écran.
+    public static func minimum(_ voulu: CGSize, dans ecran: CGRect) -> CGSize {
+        CGSize(width: min(voulu.width, ecran.width), height: min(voulu.height, ecran.height))
+    }
+}

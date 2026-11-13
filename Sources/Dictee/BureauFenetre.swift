@@ -161,6 +161,7 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
         if fenetre == nil { creer() }
         guard let f = fenetre else { return }
         preparer(nav.sousPage, nav.page)
+        borner(f, cause: "ouverture")
         // Verbe reste une app d'arrière-plan (pas d'icône « active » dans le Dock) même fenêtre ouverte : une app « normale »
         // ne peut plus afficher l'encoche par-dessus une app en plein écran (constaté dans le Terminal en plein écran).
         NSApp.activate(ignoringOtherApps: true)
@@ -203,6 +204,23 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
 
     func fermer() { fenetre?.close() }
 
+    /// La fenêtre ramenée dans la partie visible de son écran (ou de l'écran principal si le sien a disparu) : jamais plus grande que
+    /// lui, entièrement dedans, même avec une taille enregistrée sur un écran plus grand. À l'ouverture et quand les écrans changent.
+    private func borner(_ f: NSWindow, cause: String) {
+        guard let ecran = (f.screen ?? NSScreen.main)?.visibleFrame else { return }
+        f.minSize = CadreFenetre.minimum(Self.tailleMinimale, dans: ecran)
+        let cadre = CadreFenetre.borner(f.frame, dans: ecran, minimum: f.minSize)
+        guard cadre != f.frame else { return }
+        Log.ecrire("fenêtre : ramenée dans l'écran (\(cause)) \(Int(f.frame.width))×\(Int(f.frame.height)) → \(Int(cadre.width))×\(Int(cadre.height))")
+        f.setFrame(cadre, display: true)
+    }
+
+    /// Un écran branché, débranché, ou sa résolution changée : la fenêtre ouverte reste dans le sien.
+    func ecransChanges() {
+        guard let f = fenetre, f.isVisible else { return }
+        borner(f, cause: "écrans changés")
+    }
+
     /// Ouvre la note d'une réunion dans la page Réunions.
     func ouvrirNote(_ id: UUID) {
         reunions.ouvrir(id)
@@ -226,18 +244,30 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
     private func creer() {
         let ecran = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1280, height: 800)
         let taille = CGSize(width: min(Self.tailleParDefaut.width, ecran.width * 0.94), height: min(Self.tailleParDefaut.height, ecran.height * 0.92))
-        let f = NSWindow(contentRect: NSRect(origin: .zero, size: taille), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-                         backing: .buffered, defer: false)
-        Self.habiller(f)
-        f.isReleasedWhenClosed = false
-        // S'ouvre sur le bureau où l'on se trouve, pas sur celui où la fenêtre était la dernière fois.
-        f.collectionBehavior.insert(.moveToActiveSpace)
-        f.contentView = NSHostingView(rootView: vue())
+        let f = Self.fabriquer(vue(), taille: taille)
         f.setFrameAutosaveName("VerbeFenetreBureau")
         if !f.setFrameUsingName("VerbeFenetreBureau") { f.center() }
         f.delegate = self
         apparence.fenetre = f
         fenetre = f
+    }
+
+    /// La fenêtre et sa vue, construites comme dans l'app (les contrôles de taille de `--rendu-fenetre` passent par ici aussi).
+    static func fabriquer<V: View>(_ vue: V, taille: CGSize) -> NSWindow {
+        let f = NSWindow(contentRect: NSRect(origin: .zero, size: taille), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                         backing: .buffered, defer: false)
+        habiller(f)
+        f.isReleasedWhenClosed = false
+        // S'ouvre sur le bureau où l'on se trouve, pas sur celui où la fenêtre était la dernière fois.
+        f.collectionBehavior.insert(.moveToActiveSpace)
+        let hote = NSHostingView(rootView: vue)
+        // La fenêtre décide de sa taille, jamais le contenu. Par défaut, NSHostingView pose des contraintes de taille idéale
+        // (`.intrinsicContentSize`) plus fortes que la taille de la fenêtre : une page haute (une longue réunion, Découvrir) faisait
+        // grandir la fenêtre toute seule jusqu'à ~1 500 pt, sous le bas de l'écran, et la fin ne défilait plus (13/11). Les pages
+        // prennent la taille de la fenêtre et défilent ; la taille minimale est celle de la fenêtre (`tailleMinimale`).
+        hote.sizingOptions = []
+        f.contentView = hote
+        return f
     }
 
     /// Le cadre de la fenêtre, le même pour l'app et pour les rendus : titre caché, barre de titre transparente, et une barre d'outils

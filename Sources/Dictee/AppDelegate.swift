@@ -125,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         appliquerIcone()
         // l'icône suit l'écran principal (une encoche ou pas) et son réglage
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.appliquerIcone() }
+            MainActor.assumeIsolated { self?.appliquerIcone(); self?.fenetrePrincipale.ecransChanges() }
         }
         NotificationCenter.default.addObserver(forName: .verbeIconeBarre, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.appliquerIcone() }
