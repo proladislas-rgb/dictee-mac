@@ -88,6 +88,17 @@ extension LectureModele {
     }
 }
 
+/// La liste des rappels (« Dire un rappel ») : son en-tête « ‹ Centre » et « Rappels » (26 pt, 8 dessous), puis les lignes.
+enum PlanRappels {
+    static let entete: CGFloat = 26
+    static let ecart: CGFloat = 8
+    /// Le milieu de « ‹ … » (essais) : 10 pt de marge en haut, la pilule à gauche de la zone.
+    static func pointRetour(_ g: GrilleIlot, titre: String) -> CGPoint {
+        let z = g.zone(.rappelListe, haut: 10, bas: 12)
+        return CGPoint(x: z.minX + ContenuAnnonce.largeurRetour(titre) / 2, y: z.minY + entete / 2)
+    }
+}
+
 /// Tous les écrans, chacun avec son horloge d'apparition ; la forme noire les rogne.
 struct IlotCalques: View {
     @ObservedObject var m: IlotMoteur
@@ -260,6 +271,12 @@ struct IlotCalques: View {
     private func annonceSimple(_ v: VueIlot, _ c: ContenuAnnonce) -> some View {
         let z = g.zoneAnnonce(v, haut: v.estAlerte ? 20 : 16, bas: v.estAlerte ? 20 : 16)
         return HStack(spacing: ContenuAnnonce.espace) {
+            // un détail ouvert depuis une carte : « ‹ Outils » y ramène
+            if let r = c.retour {
+                PiluleCentre(titre: r, retour: true, etiquette: "Revenir : \(r)") { m.revenir() }
+                    .frame(width: ContenuAnnonce.largeurRetour(r))
+                    .aspectIlot(m.aspect(v, rang: 0), ancre: .leading)
+            }
             Group {
                 if c.largeurSymbole != nil, let i = c.icones.first {
                     // la miniature d'une capture : à ses proportions, coins arrondis, un filet clair (elle remplit sa place)
@@ -437,7 +454,21 @@ struct IlotCalques: View {
         let v = VueIlot.rappelListe
         let z = g.zone(v, haut: 10, bas: 12)
         let liste = Array(m.rappelsAVenir.prefix(2))
+        let retour = m.nomRetour ?? "Centre"
         return VStack(spacing: 0) {
+            // « ‹ Centre » (ou « ‹ Accueil », d'où l'on vient) et le titre, comme l'en-tête d'une carte d'outil
+            HStack(spacing: 10) {
+                PiluleCentre(titre: retour, retour: true, etiquette: "Revenir : \(retour)") { m.revenir() }
+                HStack(spacing: 6) {
+                    Image(systemName: "bell.fill").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(CouleursIlot.jaune).frame(width: 15)
+                    Text("Rappels").font(.system(size: 13.5, weight: .bold)).foregroundStyle(.white)
+                }
+                .lineLimit(1).fixedSize().allowsHitTesting(false)
+                Spacer(minLength: 0)
+            }
+            .frame(height: PlanRappels.entete)
+            .padding(.bottom, PlanRappels.ecart)
+            .aspectIlot(m.aspect(v, rang: 0), ancre: .topLeading)
             if liste.isEmpty {
                 Text("Aucun rappel pour l\u{2019}instant.").font(.system(size: 14, weight: .medium)).foregroundStyle(CouleursIlot.encre3)
                     .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)

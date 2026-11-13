@@ -112,12 +112,12 @@ struct EnteteCentre: View {
             if ed {
                 ajouts
             } else if page == .outils {
-                PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.allerA(.centre) }
+                PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.revenir() }
                 PiluleCentre(titre: Self.titreQuitter, symbole: "power", discret: true, etiquette: "Quitter Voxile") { m.surAction(.quitter) }
             } else if let a = m.avisCentre {
                 avis(a)
-            } else if let nom = m.nomPremiereCarte, let premiere = m.cartes.first {
-                PiluleCentre(titre: nom, retour: true, etiquette: "Revenir à : \(nom)") { m.allerA(premiere) }
+            } else if let nom = m.nomPremiereCarte, m.cartes.first != nil {
+                PiluleCentre(titre: nom, retour: true, etiquette: "Revenir à : \(nom)") { m.revenir() }
             } else if m.miseEnPageCentre.etagereEnHaut {
                 // les fichiers de l'étagère sont en haut : leur titre et leur nombre ouvrent la carte (maquette ilot-etagere-rapide.html)
                 TitreEtagereCentre(m: m)

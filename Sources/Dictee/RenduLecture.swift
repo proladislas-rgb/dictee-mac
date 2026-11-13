@@ -727,7 +727,7 @@ enum RenduLecture {
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.groq = usageGroq(minutes: 480, pause: 3600) })) }, "ilot-29c-groq-jauge-en-pause")
         ecrire(bureau(hauteur: hCentre) { ilot(scene(lecture: videoLongue, outils { m in m.groq = usageGroq(minutes: 42); m.epinglerLeCentre(); m.bulleAide = .groq })) }, "ilot-29d-groq-aide-au-survol")
         let detail = TexteGroq.detail(usageGroq(minutes: 42), a: t0)
-        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in m.groq = usageGroq(minutes: 42); m.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: detail.titre, ligne2: detail.sousTitre, groq: .detail) }) },
+        ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { m in m.groq = usageGroq(minutes: 42); m.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: detail.titre, ligne2: detail.sousTitre, groq: .detail, retour: "Outils") }) },
                "ilot-29e-groq-detail")
         ecrire(bureau(hauteur: petitBureau + 30) { ilot(scene { $0.bandeau = BandeauIlot(vue: .groq, jusqua: t0, ligne1: "Plus que 59 min de dictée gratuite aujourd\u{2019}hui", ligne2: "Ensuite, le Mac écrit à ta place", groq: .bas) }) },
                "ilot-29f-groq-annonce-bientot")

@@ -515,6 +515,10 @@ extension IlotEssai {
                  "vrai clic sur la jauge : « \(m.bandeauVu?.ligne1 ?? "") · \(m.bandeauVu?.ligne2 ?? "") » (\(m.courante))")
         pose("bandeau détail de Groq")
         attendre(6) { m.bandeau != nil }
+        // seul, il revient aux Outils, épinglés comme avant (13/11) ; on range l'îlot pour les annonces qui suivent
+        pause(0.4)
+        verifier(m.bandeau == nil && m.courante == .outils && m.epingle, "le détail parti seul : retour aux Outils épinglés (\(m.courante))")
+        m.fermer(); pause(0.6)
         // sous 15 % : annoncé une fois
         usage = etat(minutesJour: 420)
         c.groqChange(); pause(0.9)

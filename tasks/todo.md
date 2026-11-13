@@ -685,3 +685,27 @@ Un commit par point, poussé, NON fusionné, NON installé.
   rappel » (une alerte de rappel d'une section d'avant sonne : « rappelEtendu »), déjà vu la nuit ; le binaire de main, juste après,
   vert ; essai complet n° 2 de la branche (12 h 28-12 h 46, écran allumé) : 1 397 ok, tout vert. Dette : ce rappel qui sonne selon
   l'heure dans l'essai complet (à chercher dans le grand audit) ; `defaults read Dictee` vide.
+
+## 13/11, après-midi : revenir en arrière dans l'îlot (branche `ilot-retour`, poussée, non fusionnée)
+Demande de Hugues (« c'est bien, oui, c'est concrètement ça ») : Centre › Outils › Groq, bloqué ~10 s sur le détail, sans retour.
+- [x] Cause des ~10 s : le détail de Groq est un bandeau de 5 s ; un bandeau sous le pointeur était prolongé de 1,5 s en 1,5 s tant que
+      le pointeur y restait (même immobile) ; pendant ce temps l'îlot est verrouillé (clic et défilement ignorés) ; à la fin il se
+      repliait (la page Outils était perdue, le survol ne la rouvrait pas sans ressortir).
+- [x] Logique pure `DicteeCore/RetourIlot.swift` : `PileRetour` (d'où l'on vient + épinglé, 8 au plus, vidée quand l'îlot se range),
+      `NavigationIlot` (« ‹ X » mène toujours à X ; sinon la pile ; sinon un secours), `BalayageRetour` (deux doigts vers la droite :
+      36 pt, 2 fois plus large que haut, une fois par geste, inertie et molette ignorées), `FermetureBandeau` (échu, un bandeau reste
+      sous une souris qui bouge, part 3 s après le dernier geste). Contrôles : `ControlesRetour.swift` (47).
+- [x] « ‹ » ajoutés : détail de Groq (« ‹ Outils », un clic sur le détail aussi), liste des rappels (en-tête « ‹ Centre » ou
+      « ‹ Accueil » + « Rappels », +34 pt). Les « ‹ » déjà là passent par `revenir()` (même cible qu'avant, la pile reste juste).
+      Réunion avec « Ce que j'ai raté » ouvert : le geste revient au direct.
+- [x] Rendus mis à jour : `ilot-4b-rappels-liste`, `ilot-29e-groq-detail`. Essai : `DICTEE_ESSAI_SEUL=retour` (vrais clics, vrais
+      défilements horizontaux et verticaux, pointeur immobile / qui bouge).
+- [ ] Hugues, une fois installée : Centre › Outils › jauge Groq : (a) « ‹ Outils » ; (b) deux doigts vers la droite ; (c) poser la
+      souris dessus sans bouger : parti en ~5 s, retour aux Outils ; (d) deux doigts vers la droite sur une carte d'outil, les Dictées,
+      les Outils (→ Centre) ; (e) défilement vertical des Dictées inchangé. Si le geste part dans le mauvais sens (défilement naturel
+      coupé ?), le dire.
+- Non fait (choisi) : l'accueil n'a pas de « ‹ » (carte de la pile, on en sort par défilement ou points de page ; le geste y revient à
+      la carte d'avant) ; vers la gauche, rien.
+- Vérifications (13/11, 13 h 40) : build release sans avertissement ; 4 065/4 065 contrôles (47 nouveaux) ; section `retour` verte
+  (25 contrôles) ; essai complet 13 h 22-13 h 40, écran allumé, charge ~2,5 : 1 424 ok, tout vert (section Groq des Outils
+  ajustée : le détail revient aux Outils épinglés).

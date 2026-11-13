@@ -601,7 +601,7 @@ struct CarteModesConcentration: View {
         ZStack(alignment: .topLeading) {
             FondCarteConcentration(m: m, g: g, v: v)
             HStack(spacing: 10) {
-                PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.allerA(.centre) }.frame(width: PlanConcentration.largeurRetour)
+                PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.revenir() }.frame(width: PlanConcentration.largeurRetour)
                 Text("Concentration").font(.system(size: 15, weight: .semibold)).tracking(-0.2).foregroundStyle(.white).lineLimit(1).fixedSize()
                     .allowsHitTesting(false)
                 Spacer(minLength: 0)

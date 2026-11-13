@@ -60,6 +60,10 @@ struct ContenuAnnonce {
     var reveil = false
     /// À la place du symbole : un anneau qui se remplit (0 à 1) ; « Note en préparation… ».
     var progres: Double? = nil
+    /// Avant le symbole : « ‹ Outils », d'un détail ouvert depuis une carte (il y ramène).
+    var retour: String? = nil
+    /// La pilule « ‹ … » (PiluleCentre : 8, le chevron, 4, le mot, 11).
+    static func largeurRetour(_ titre: String) -> CGFloat { 8 + MesureIlot.symbole("chevron.left", 10.5, .bold) + 4 + MesureIlot.texte(titre, 12.5, .semibold) + 11 }
 
     static let cote: CGFloat = 26, espace: CGFloat = 12, espaceBoutons: CGFloat = 8, espaceJauges: CGFloat = 8
     /// L'icône d'un fichier : 38 pt, presque la hauteur des deux lignes (maquette ilot-apple.html, « Téléchargé »).
@@ -251,7 +255,9 @@ extension IlotMoteur {
             case .relais, .attente: g = GlypheIlot(nom: "laptopcomputer", couleur: .white, taille: 19)
             case .detail: g = GlypheIlot(nom: "waveform", couleur: JaugeGroq.couleur(groq?.niveau ?? .ok), taille: 20)
             }
-            return ContenuAnnonce(glyphe: g, l1: b.ligne1, l2: b.ligne2)
+            var c = ContenuAnnonce(glyphe: g, l1: b.ligne1, l2: b.ligne2)
+            c.retour = b.retour
+            return c
         case .etagerePartis:
             // « 3 fichiers partis dans Mail », « Remettre », puis la croix (fermer tout de suite) cerclée de l'anneau qui se vide
             // (maquette ilot-etagere-rapide.html, étapes 7 et 8 ; la croix : demande de Hugues du 12/11)
@@ -347,6 +353,7 @@ extension IlotMoteur {
         let textes = max(MesureIlot.texte(c.l1, 17, .semibold, interlettre: ContenuAnnonce.interlettreL1), MesureIlot.texte(l2, 12.5, .medium))
         // sans symbole, « Note en préparation… » commence au bord (le pourcentage est sur la ligne du titre)
         var l = c.progres == nil ? c.largeurIcone + ContenuAnnonce.espace + textes : textes
+        if let r = c.retour { l += ContenuAnnonce.largeurRetour(r) + ContenuAnnonce.espace }
         switch c.droite {
         case .rien: break
         case .meta(let t): l += ContenuAnnonce.espace + MesureIlot.texte(v == .reunionPrepare ? PreparationNote.pourcent(1) : t, 13, .semibold, chiffres: true)

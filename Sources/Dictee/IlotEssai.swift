@@ -118,10 +118,10 @@ enum IlotEssai {
         let g = m.geometrie
         print("caméra : \(Int(g.largeur)) × \(Int(g.hauteur)) pt")
 
-        // une section seule (pour la mettre au point sans attendre tout l'essai) : `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`, `places`, `places-survol`, `concentration`, `voix`, `outils`, `etagere`), ou
+        // une section seule (pour la mettre au point sans attendre tout l'essai) : `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`, `places`, `places-survol`, `concentration`, `voix`, `outils`, `etagere`, `retour`), ou
         // `--ilot-essai --seulement=survol` (le survol des Dictées, pour mesurer vite ; l'essai complet la joue aussi)
         let seul = CommandLine.arguments.contains("--seulement=survol") ? "survol" : ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"]
-        if let seul, ["bibliotheque", "reveil", "survol", "places", "places-survol", "concentration", "voix", "dictee", "verre", "outils", "etagere"].contains(seul) {
+        if let seul, ["bibliotheque", "reveil", "survol", "places", "places-survol", "concentration", "voix", "dictee", "verre", "outils", "etagere", "retour"].contains(seul) {
             attendre(0.4)
             if seul == "bibliotheque" {
                 IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
@@ -145,6 +145,8 @@ enum IlotEssai {
                 IlotEssai.concentration(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
             } else if seul == "etagere" {
                 IlotEssai.etagereRapide(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
+            } else if seul == "retour" {
+                IlotEssai.retour(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
             } else if seul == "outils" {
                 IlotEssai.outils(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) })
             } else if seul == "reveil" {
@@ -1192,6 +1194,7 @@ enum IlotEssai {
         IlotEssai.modifierCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.cheminsDuCentre(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.outils(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.retour(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.dictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers }, fenetres: { fenetres })
         IlotEssai.lucarne(c, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers })
         IlotEssai.voix(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers })

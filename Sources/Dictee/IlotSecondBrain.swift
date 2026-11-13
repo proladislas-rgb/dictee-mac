@@ -266,7 +266,7 @@ struct CarteSecondBrain: View {
         // la fraîcheur se calcule à l'ouverture de la carte (jamais de minuterie) : « il y a 2 min », « mis à jour hier », ou rien
         let fraicheur = m.secondBrain?.fraicheur(maintenant: m.maintenant())
         return HStack(spacing: 10) {
-            PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.allerA(.centre) }.frame(width: PlanCarteClaude.pilule)
+            PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.revenir() }.frame(width: PlanCarteClaude.pilule)
             HStack(spacing: 6) {
                 SigneSecondBrain(taille: 15, point: .white, trait: Color.white.opacity(0.5))
                 Text(SecondCerveauIlot.nomApp).font(.system(size: 13.5, weight: .bold)).foregroundStyle(.white)

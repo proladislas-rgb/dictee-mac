@@ -108,7 +108,7 @@ struct EnteteOutil<Droite: View>: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            PiluleCentre(titre: "Outils", retour: true, etiquette: "Revenir aux outils") { m.allerA(.outils) }.frame(width: Self.pilule)
+            PiluleCentre(titre: "Outils", retour: true, etiquette: "Revenir aux outils") { m.revenir() }.frame(width: Self.pilule)
             HStack(spacing: 6) {
                 Image(systemName: glyphe).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white).frame(width: 15)
                 Text(titre).font(.system(size: 13.5, weight: .bold)).foregroundStyle(.white)

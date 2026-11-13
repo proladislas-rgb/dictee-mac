@@ -77,7 +77,9 @@ extension IlotControleur {
                                              ligne2: texte, groq: .attente))
     }
 
-    /// Un clic sur la jauge : le détail (un geste : il passe même le Centre épinglé, qui retiendrait sinon les bandeaux).
+    /// Un clic sur la jauge : le détail (un geste : il passe même le Centre épinglé, qui retiendrait sinon les bandeaux). Il porte un
+    /// « ‹ Outils » qui y ramène (deux doigts vers la droite aussi) ; seul, il y revient au bout de 5 s si l'îlot était épinglé ou sous
+    /// la souris, et une souris posée dessus sans bouger ne le retient plus (13/11 : il restait ~10 s sans moyen de revenir).
     func detailGroq() {
         let t = maintenant()
         let e = lireEtatGroq(t)
@@ -85,8 +87,7 @@ extension IlotControleur {
         let d = TexteGroq.detail(e, a: t)
         var l2 = d.sousTitre
         if let p = lireProgressionParole() { l2 = "Le Mac télécharge le français \u{00B7} \(Int((p * 100).rounded(.down))) %" }
-        if moteur.centreRetientLesBandeaux { moteur.epingle = false }
-        moteur.annoncer(bandeau: BandeauIlot(vue: .groq, jusqua: t.addingTimeInterval(Self.dureeBandeauGroq + 1), ligne1: d.titre, ligne2: l2, groq: .detail))
+        moteur.annoncerDetail(BandeauIlot(vue: .groq, jusqua: t.addingTimeInterval(Self.dureeBandeauGroq + 1), ligne1: d.titre, ligne2: l2, groq: .detail))
     }
 }
 

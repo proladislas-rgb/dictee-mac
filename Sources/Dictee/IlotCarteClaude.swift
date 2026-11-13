@@ -144,7 +144,7 @@ struct CarteClaudeVue: View {
         let n = m.sessionsClaude.count
         return HStack(spacing: 10) {
             if m.cartes.contains(.centre) {
-                PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.allerA(.centre) }.frame(width: PlanCarteClaude.pilule)
+                PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.revenir() }.frame(width: PlanCarteClaude.pilule)
             }
             HStack(spacing: 6) {
                 // la place de l'étoile : c'est l'étoile de l'îlot replié qui vient s'y poser (ClaudeVoyageur)
