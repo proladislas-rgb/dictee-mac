@@ -97,7 +97,7 @@ cat > "$ASSEMBLAGE/Contents/Info.plist" <<PLIST
   <key>NSDownloadsFolderUsageDescription</key>
   <string>Voxile montre dans l'encoche le fichier qui vient d'arriver dans Téléchargements (AirDrop compris), avec « Ouvrir ». Rien n'est lu dans les fichiers, rien n'est envoyé.</string>
   <key>NSAppleEventsUsageDescription</key>
-  <string>Voxile crée dans l'app Notes la note rapide que tu envoies avec « Vers Notes ». Il ne lit rien d'autre dans Notes.</string>
+  <string>Voxile crée dans l'app Notes la note rapide que tu envoies avec « Vers Notes ». Si tu branches Mail, il lit l'expéditeur, l'objet et la date de tes nouveaux mails non lus pour les montrer dans l'encoche, jamais leur contenu. Rien n'est envoyé.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Voxile utilise la reconnaissance vocale du Mac, sur l'appareil, pour afficher ton texte en direct et en secours.</string>
 </dict>

@@ -63,7 +63,7 @@ enum InstallationApp {
         let alerte = NSAlert()
         alerte.messageText = "Désinstaller Voxile ?"
         let ancienne = anciennes.isEmpty ? "" : " L\u{2019}ancienne app (\(anciennes.map { $0.path }.joined(separator: ", "))) est aussi placée à la corbeille."
-        alerte.informativeText = "Cela efface l\u{2019}historique, les mots, les raccourcis, le journal, les réglages et la clé Groq rangée dans le Trousseau, puis place l\u{2019}app à la corbeille. Un fichier de clé que tu aurais créé toi-même (~/.config/groq/.env) n\u{2019}est pas touché." + ancienne
+        alerte.informativeText = "Cela efface l\u{2019}historique, les mots, les raccourcis, le journal, les réglages, la clé Groq et les clés de tes apps (Notion, Airtable) rangées dans le Trousseau, puis place l\u{2019}app à la corbeille. Un fichier de clé que tu aurais créé toi-même (~/.config/groq/.env) n\u{2019}est pas touché." + ancienne
         alerte.addButton(withTitle: "Annuler")
         let bouton = alerte.addButton(withTitle: "Désinstaller")
         bouton.hasDestructiveAction = true
@@ -73,6 +73,7 @@ enum InstallationApp {
         Log.ecrire("désinstallation demandée")
         try? SMAppService.mainApp.unregister()
         CleGroq.effacer()
+        TrousseauApps.effacerTout()
         let resultat = Desinstallation.effacer(maison: maison)
         UserDefaults.standard.removePersistentDomain(forName: Desinstallation.identifiant)
         // Dernier mot du journal avant son arrêt définitif (sinon il recréerait son dossier à la sortie).

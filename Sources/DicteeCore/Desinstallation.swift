@@ -9,6 +9,8 @@ public enum Desinstallation {
     /// L'élément du Trousseau qui garde la clé Groq (service + compte).
     public static let serviceTrousseau = "com.hugues.dictee"
     public static let compteTrousseau = "groq"
+    /// Les clés de « Tes apps » (même service) : une par app qui en demande une (`AppBranchee.demandeUneCle`).
+    public static let comptesTrousseauApps = AppBranchee.allCases.filter(\.demandeUneCle).map(\.rawValue)
 
     /// Chemins relatifs au dossier personnel : historique, mots, raccourcis, journal, réglages, caches.
     public static let cheminsRelatifs: [String] = [
