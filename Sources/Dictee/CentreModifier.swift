@@ -61,7 +61,7 @@ extension IlotMoteur {
 
 /// L'en-tête du Centre : « ‹ Vidéo » (ou l'étagère, ou « Centre »), ou la ligne d'avis ; « Reste ouvert » quand l'îlot est épinglé (l'épingle
 /// seule s'il n'y a pas la place) ; « Outils › » (la 2e page) ; « Dictées » ; « Modifier ». Sur la page Outils : « ‹ Centre », « Reste
-/// ouvert », « Modifier ».
+/// ouvert », « Modifier » ; et, discret à côté de « ‹ Centre », « Quitter Voxile » (tout se fait depuis l'îlot, quitter aussi).
 /// Dans « Modifier » : « Ajouter : » et les pastilles de ce qu'on peut ajouter (celles qui tiennent, puis « +N »), et « OK ».
 struct EnteteCentre: View {
     @ObservedObject var m: IlotMoteur
@@ -90,6 +90,11 @@ struct EnteteCentre: View {
         // au moins une pastille, même dans une ligne trop courte
         return (tous, debut, max(n, suite.isEmpty ? 0 : 1))
     }
+    static let titreQuitter = "Quitter Voxile"
+    /// « ‹ Centre » (page Outils) : 8, le chevron, 4, le mot, 11.
+    static var piluleRetourCentre: CGFloat { 8 + MesureIlot.symbole("chevron.left", 10.5, .bold) + 4 + MesureIlot.texte("Centre", 12.5, .semibold) + 11 }
+    /// « Quitter Voxile » : 11, le symbole marche/arrêt (10 pt), 4, le texte, 11.
+    static var piluleQuitter: CGFloat { 11 + MesureIlot.symbole("power", 10, .bold) + 4 + MesureIlot.texte(titreQuitter, 12.5, .semibold) + 11 }
     /// La pilule « Dictées » (les guillemets de 10 pt et 4 pt avant le mot).
     static var piluleDictees: CGFloat { pilule("Dictées") + MesureIlot.symbole("quote.opening", 10, .bold) + 4 }
     /// La place de la ligne d'avis : tout l'en-tête sauf « Modifier » (« Reste ouvert » et « Dictées » s'effacent devant elle, le temps
@@ -108,6 +113,7 @@ struct EnteteCentre: View {
                 ajouts
             } else if page == .outils {
                 PiluleCentre(titre: "Centre", retour: true, etiquette: "Revenir au Centre") { m.allerA(.centre) }
+                PiluleCentre(titre: Self.titreQuitter, symbole: "power", discret: true, etiquette: "Quitter Voxile") { m.surAction(.quitter) }
             } else if let a = m.avisCentre {
                 avis(a)
             } else if let nom = m.nomPremiereCarte, let premiere = m.cartes.first {

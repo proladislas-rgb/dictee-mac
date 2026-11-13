@@ -706,6 +706,8 @@ struct PiluleCentre: View {
     var suite = false
     /// « OK » de « Modifier » : blanche, texte noir (maquette).
     var plein = false
+    /// « Quitter Voxile » : sans fond (il paraît au survol), texte atténué ; présent, lisible, mais il ne tire pas l'œil.
+    var discret = false
     var etiquette: String
     var action: () -> Void
     @State private var survol = false
@@ -717,10 +719,10 @@ struct PiluleCentre: View {
                 Text(titre).font(.system(size: 12.5, weight: .semibold)).lineLimit(1).fixedSize()
                 if suite { Image(systemName: "chevron.right").font(.system(size: 10.5, weight: .bold)) }
             }
-            .foregroundStyle(plein ? .black : .white)
+            .foregroundStyle(plein ? .black : discret && !survol ? Color.white.opacity(0.6) : .white)
             .padding(.leading, retour ? 8 : 11).padding(.trailing, suite ? 9 : 11)
             .frame(height: 26)
-            .background(Capsule().fill(plein ? Color.white.opacity(survol ? 0.88 : 1) : Color.white.opacity(survol ? 0.2 : 0.12)))
+            .background(Capsule().fill(plein ? Color.white.opacity(survol ? 0.88 : 1) : Color.white.opacity(survol ? (discret ? 0.12 : 0.2) : (discret ? 0 : 0.12))))
             .contentShape(Capsule())
         }
         .buttonStyle(AppuiIlot(echelle: 0.92))

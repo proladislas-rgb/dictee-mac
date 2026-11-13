@@ -112,6 +112,21 @@ extension IlotEssai {
         verifier(m.courante == .centre, "vrai clic sur « ‹ Centre » : le Centre")
         m.allerA(.outils); pause(0.8)
 
+        // --- « Quitter Voxile » : discret à côté de « ‹ Centre » ; un vrai clic demande la sortie (capturée : l'essai ne quitte jamais)
+        var sorties = 0
+        let surQuitterAvant = c.surQuitter
+        c.surQuitter = { sorties += 1 }
+        let entQ = PlanCentre.cadreEntete(m.grille, .outils)
+        verifier(EnteteCentre.piluleRetourCentre + 8 + EnteteCentre.piluleQuitter + 8 + EnteteCentre.pilule(EnteteCentre.titreModifier) + 100 < entQ.width,
+                 "« Quitter Voxile » tient dans l'en-tête des Outils avec « ‹ Centre », « Reste ouvert » et « Modifier » (\(Int(entQ.width)) pt)")
+        clic(CGPoint(x: entQ.minX + EnteteCentre.piluleRetourCentre + 8 + EnteteCentre.piluleQuitter / 2, y: entQ.midY), 0.6)
+        verifier(sorties == 1, "vrai clic sur « Quitter Voxile » (page Outils) : Voxile quitte (\(sorties) demande)")
+        // à côté, dans l'espace vide de l'en-tête : rien
+        clic(CGPoint(x: entQ.minX + EnteteCentre.piluleRetourCentre + 8 + EnteteCentre.piluleQuitter + 40, y: entQ.midY), 0.5)
+        verifier(sorties == 1 && m.courante == .outils, "un clic à côté, dans le vide de l'en-tête : ni sortie ni changement de page (\(m.courante))")
+        c.surQuitter = surQuitterAvant
+        m.allerA(.outils); pause(0.5)
+
         // --- Garder éveillé
         let hSans = m.geo[2].cibleFinale
         clic(PlanCentre.centreRond(m, .eveil), 0.7)

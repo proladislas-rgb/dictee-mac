@@ -438,6 +438,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Task { await self.dictee.recoller(texte, dans: cible) }
         }
         ilot.surOuvrirFenetre = { [weak self] onglet in self?.ouvrirFenetre(onglet) }
+        // « Quitter Voxile » de l'îlot (page Outils) : la même sortie que le menu et ⌘Q (applicationWillTerminate range tout)
+        ilot.surQuitter = { [weak self] in self?.quitter() }
         // Outils › Presse-papiers › « Coller » : la copie est déjà dans le presse-papiers, ⌘V part dans l'app d'où l'on vient (comme le
         // collage des dictées ; il faut l'Accessibilité, déjà accordée pour la dictée)
         ilot.surCommandeV = { [weak self] in

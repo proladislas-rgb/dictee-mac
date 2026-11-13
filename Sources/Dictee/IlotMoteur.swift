@@ -187,6 +187,8 @@ enum ActionIlot {
     case centreCalendrier
     /// La jauge de Groq (page Outils) : le détail de l'usage.
     case groqDetail
+    /// « Quitter Voxile » (en-tête de la page Outils) : la même sortie que « Quitter » du menu et ⌘Q.
+    case quitter
     /// La réunion (IlotReunion.swift) : « Noter » ou « Non » sur « Noter cet appel ? », pause, reprise, arrêt, « Ajouter un point »,
     /// « Ce que j'ai raté » (et le retour au direct), « Ouvrir » sur « Note prête ».
     case reunionNoter, reunionRefuser, reunionPause, reunionReprendre, reunionArreter, reunionPoint, reunionRattrapage, reunionDirect, reunionOuvrirNote

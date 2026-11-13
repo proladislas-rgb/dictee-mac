@@ -129,6 +129,8 @@ final class IlotControleur {
     var surReunion: (ActionIlot) -> Void = { _ in }
     /// Ouvre la fenêtre principale sur un onglet (le pied de la carte Dictées ; rempli par l'AppDelegate).
     var surOuvrirFenetre: (Onglet) -> Void = { _ in }
+    /// Quitte Voxile (« Quitter Voxile » de la page Outils ; rempli par l'AppDelegate, capturé dans les essais : ils ne quittent jamais).
+    var surQuitter: () -> Void = {}
     /// Met un texte dans le presse-papiers (un clic sur une dictée ; injectable : les essais ne touchent jamais le vrai presse-papiers).
     var copier: (String) -> Void = { texte in
         NSPasteboard.general.clearContents()
@@ -704,6 +706,9 @@ final class IlotControleur {
         case .secondBrainOuvrir(let lien): agirSecondBrain(lien)
         case .reveilRegler, .reveilAnnuler, .reveilEncore, .reveilOK: agirReveil(action)
         case .groqDetail: detailGroq()
+        case .quitter:
+            Log.ecrire("îlot : « Quitter Voxile »")
+            surQuitter()
         case .concentration(let a): concentration.agir(a)
         case .voix(let a): agirVoix(a)
         case .alerteOK: moteur.quitterAlerte()
