@@ -52,7 +52,9 @@ extension IlotEssai {
         // la forme du bandeau avec sa pilule : posée, dans la zone de dessin, « ‹ Outils » entier
         if let lc = m.contenus[.groq] {
             let z = m.grille.zoneAnnonce(.groq)
-            verifier(z.width + 0.5 >= lc && lc >= ContenuAnnonce.largeurRetour("Outils") + 26 + 24, "le détail épouse « ‹ Outils », le symbole et le texte (\(Int(lc)) pt pour \(Int(z.width)) pt de zone)")
+            // les textes (sans la pilule ni le symbole) peuvent se resserrer de 10 % quand l'îlot est à sa largeur maximale
+            let textes = lc - ContenuAnnonce.largeurRetour("Outils") - 26 - 24
+            verifier(z.width + 0.5 >= lc - (1 - ContenuAnnonce.resserrementRetour) * textes && textes > 0, "le détail épouse « ‹ Outils », le symbole et le texte (\(Int(lc)) pt pour \(Int(z.width)) pt de zone, texte resserré au plus de 10 %)")
         }
         clic(pointRetourDetail(), 0.9)
         verifier(m.courante == .outils && m.bandeau == nil && m.epingle && m.pileRetour.vues == [.centre],

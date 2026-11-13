@@ -304,8 +304,8 @@ struct IlotCalques: View {
             } }
             .aspectIlot(m.aspect(v, rang: 0), ancre: .center)
             VStack(alignment: .leading, spacing: 2) {
-                Text(c.l1).font(TexteIlot.l1).tracking(ContenuAnnonce.interlettreL1).foregroundStyle(.white).lineLimit(1).truncationMode(c.coupureL1)
-                c.texteL2.font(TexteIlot.l2).foregroundStyle(c.couleurL2 ?? CouleursIlot.encre2).lineLimit(1).truncationMode(.tail)
+                Text(c.l1).font(TexteIlot.l1).tracking(ContenuAnnonce.interlettreL1).foregroundStyle(.white).lineLimit(1).truncationMode(c.coupureL1).minimumScaleFactor(c.retour == nil ? 1 : ContenuAnnonce.resserrementRetour)
+                c.texteL2.font(TexteIlot.l2).foregroundStyle(c.couleurL2 ?? CouleursIlot.encre2).lineLimit(1).truncationMode(.tail).minimumScaleFactor(c.retour == nil ? 1 : ContenuAnnonce.resserrementRetour)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .glisserFichier(c.glisser, m)
