@@ -624,7 +624,13 @@ Arrêté après l'étape 1 sur demande (nouvelles demandes de Hugues, dont le re
       à la main pour rappels, notes indentées, réveil, concentration, étagère, relus tels quels ; réécrits = mêmes octets, 0600 ;
       `.abime`, oubli, échec tracé sans le contenu, en mémoire), 4003/4003. Laissés : l'historique, l'usage Groq, le lexique, les
       expressions et les réunions gardent leur propre écriture (pas dans la liste ; à faire au même modèle).
-- [ ] Essai complet `--ilot-essai` (au moins après les étapes 4 et 5), sous le verrou du scratchpad.
+- [x] Essai complet `--ilot-essai` (au moins après les étapes 4 et 5), sous le verrou du scratchpad. Fait le 13/11 sur 662e291
+      (écran allumé tout du long, charge ≈ 2,5) : **1394 ok, 0 échec, 1053 s**. Sections : `places` 115 ok, `dictee` 8, `reveil` 82,
+      `concentration` 59, toutes vertes ; `bibliotheque` : 11 échecs en cascade au 1er passage (vrais clics, à partir de « Retirer »),
+      puis verte 2 fois sur 2 avec le nouveau binaire ET 2 fois sur 2 avec celui de main (bruit, pas le ménage). Rendus contre le
+      binaire de main a8a3cc5 : îlot 286/286, journée 11/11, réunions 18/18 identiques au pixel ; fenêtre 56/62, les 6 autres sont
+      les Réglages, qui affichent l'heure de la dernière vérification (« Vérifiée aujourd'hui à 10:40 » / « 10:41 », vu à l'œil) :
+      ils diffèrent aussi entre deux passes du binaire de main. `defaults read Dictee` : absent. Branche poussée, NON fusionnée.
 
 ## Retours de Hugues du 12/11, 23 h 30 (sur main 9fcc1dc) : branche retours-23h (worktree ~/dictee-mac-retours, depuis texte-groq e33ff77)
 Un commit par point, poussé, NON fusionné, NON installé.
