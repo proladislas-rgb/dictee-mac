@@ -714,13 +714,39 @@ Demande de Hugues (« c'est bien, oui, c'est concrètement ça ») : Centre › 
 But : zéro dette technique et zéro bug d'usage réel avant la vidéo finale. Rien fusionné ni installé.
 - [x] 0. Vieux worktrees : les 21 (scratchpad/wt-*, correctif2, ~/dictee-mac-*) avaient leur branche fusionnée dans main et rien de
       non commité : tous retirés (`git worktree remove`, sans --force) ; branches gardées (locales et distantes).
-- [ ] 1. Journal réel (lecture seule, 12/11 → 13/11 14 h 30) : chercher erreurs, états incohérents, relances ; cause, correction, contrôle.
-- [ ] 2. Essai complet indépendant de l'heure : le rappel « Plus tard » de la section réunion restait programmé dans le contrôleur
-      (seul le fichier était vidé) et sonnait ~10 min plus tard, au milieu d'une autre section (selon la vitesse de l'essai) ;
-      rappels purgés entre les sections ; horloge de l'essai posée à 10 h (`DICTEE_ESSAI_HEURE` pour l'essayer à 2 h).
-- [ ] 3. Délais sous charge : les attentes « le bandeau se retire » ont une marge de charge (attente sur condition, rien de plus long au vert).
-- [ ] 4. `.abime` : l'historique (et les raccourcis/propositions) passent par la même mise de côté que MagasinJSON ; écritures en 0600 d'emblée.
-- [ ] 5. `--rendu-fenetre` : Réglages avec une heure de vérification et un usage Groq fictifs et fixes ; le verre des rendus à sa valeur par défaut.
-- [ ] 6. `DICTEE_ESSAI_SEUL=etagere` autonome.
-- [ ] 7. Revue : une seule mesure des pilules (`largeurRetour` ×5…), octet NUL dans lessons.md, avertissements, observateurs.
-- [ ] 8. Vérifications : build release 0 avertissement, DicteeControles, essai complet, chaque section seule, `--rendu-fenetre`.
+- [x] 1. Journal réel (lecture seule, 12/11 2 h 40 → 13/11 14 h 30, ≈ 5 500 lignes de l'app après 7 h 16 le 12/11) : rien de faux
+      côté dictée (pas d'état incohérent, pas de relance en boucle, aucun rapport de plantage depuis le 11/11). Trouvé : (a) sous VPN,
+      Groq répond 403 (signalé par Hugues à 14 h 56) → corrigé (point 9) ; (b) « captures glissées : dossier inaccessible (errno 1) »
+      à CHAQUE lancement : macOS refuse à Voxile installé la lecture de …/T/TemporaryItems (System Policy deny, vu dans le journal du
+      système) : la fonction « captures glissées depuis la vignette » ne marche donc pas dans l'app installée (seulement dans l'essai,
+      lancé du Terminal). NON corrigé (il faut essayer dans l'app installée ; piste : lire le chemin du fichier dans le presse-papiers du
+      glisser, NSPasteboard(name: .drag)). (c) Chaque arrivée/départ des AirPods reconstruit le moteur du micro 4 à 5 fois en 50 ms
+      (une par notification CoreAudio, ~220 fois) : sans effet visible, laissé (ne s'essaie pas sans le vrai micro).
+- [x] 2. Essai complet indépendant de l'heure : cause trouvée = le rappel « Plus tard » de la section réunion restait programmé dans le
+      contrôleur (seul le fichier était vidé) et sonnait ~10 min plus tard au milieu d'une autre section, selon la vitesse de l'essai.
+      Vidé là + `entreDeuxSections` (rappels, alerte) avant chaque section ; horloge de l'essai posée à 10 h (`DICTEE_ESSAI_HEURE`).
+- [x] 3. Délais sous charge : `IlotEssai.sousCharge` (+3 s) sur les 43 attentes « le bandeau se retire » et les 2 bornes du retour.
+- [x] 4. `.abime` : l'historique passe par MagasinJSON (son `try? moveItem` vers un .abime déjà là laissait le fichier abîmé être
+      écrasé : prouvé par un essai jetable de l'ancien code) ; raccourcis/propositions par `FichierIllisible.mettreDeCote` ; historique,
+      raccourcis, propositions, usage Groq, expressions, réunions écrits par `FichierPrive` (0600 d'emblée).
+- [x] 5. `--rendu-fenetre` : heure de vérification d'exemple fixe (9:41), verre des rendus à sa valeur par défaut.
+- [x] 6. `DICTEE_ESSAI_SEUL=etagere` : mesurait le ressort encore en train de dépasser ; attend la forme posée. Vert seul.
+- [x] 7. Revue : `PiluleCentre.largeur` remplace 9 formules ; 10 déclarations mortes retirées ; NUL de lessons.md (ligne 65) remplacé ;
+      0 avertissement ; Timers et observateurs : tous dans des objets qui vivent autant que l'app, ou invalidés. Laissés exprès : le
+      mode Swift 5 de la cible Dictee (Package.swift dit pourquoi), 37 `@unchecked Sendable` et 15 `nonisolated(unsafe)`.
+- [x] 9. Groq sous VPN (ajouté en cours d'audit) : 403 sans en-tête de limite = `EchecGroq.refuse`, « Groq refuse ce réseau (VPN ?) » ;
+      la remise au propre ne retente pas Groq 60 s après un refus ; la dictée retente toujours (le VPN coupé, elle répond et efface le refus).
+- [x] 8. Vérifications (13/11, 14 h 30 → 16 h 30, écran allumé, charge ≈ 2,5-3) :
+      build release À NEUF (.build vide, 222 s) 0 avertissement ; 4 076/4 076 contrôles (11 nouveaux) ; essai complet n° 1 (horloge
+      10 h, avant le refus Groq) 1 426 ok ; essai complet FINAL (binaire final, 16 h 13-16 h 31) 1 427 ok, tout vert ;
+      essai complet avec `DICTEE_ESSAI_HEURE=02:00` 1 427 ok, tout vert ; chaque section seule verte (bibliotheque 56, reveil 82,
+      survol 13, places 115, places-survol 127, concentration 59, voix 43, dictee 8, verre 7, outils 177, etagere 119, retour 27) ;
+      `--rendu-fenetre` 2 passes, 0 échec, 74 fichiers : les Réglages identiques au pixel d'une passe à l'autre (avant : 6 différaient),
+      seules 3 images « taille-decouvrir » (vraie fenêtre) diffèrent de 13 à 61 pixels à 2/255 (bruit) ; `defaults read Dictee` absent ;
+      aucune ligne d'essai dans le vrai journal.
+      `places-survol` échouait AVANT l'audit aussi (binaire de main : 104,9 M instructions) : la sonde VoiceOver laisse SwiftUI tenir
+      son arbre d'accessibilité à jour (+13 %, prouvé par bissection) ; budget à 115 M seulement dans ce cas.
+- [ ] Hugues, une fois installée : sous VPN, dicter : l'îlot doit dire « Dicté sur le Mac · Groq refuse ce réseau (VPN ?) », puis
+      « Mac » dans les ailes ; couper le VPN : la dictée suivante repasse par Groq (texte remis au propre).
+- [ ] Reste (non fait, à décider) : captures glissées refusées par macOS dans l'app installée (point 1b) ; cible Dictee en mode
+      Swift 5 (choix écrit dans Package.swift).
