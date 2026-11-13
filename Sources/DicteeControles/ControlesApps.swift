@@ -180,6 +180,9 @@ func controlesApps() async {
              "nouveauté Notion : clé page + jour, « Aujourd'hui · 13:30 », la page s'ouvre (\(n2.sousTitre))")
     verifier(ClientNotion.nouveaute(pages[0], jour: "2026-11-13", heure: heureParis).sousTitre == "Aujourd\u{2019}hui"
              && ClientNotion.nouveaute(pages[2], jour: "2026-11-13", heure: heureParis).sousTitre == "Assignée à toi", "jour sans heure ; assignée")
+    verifier(ClientNotion.nouveaute(pages[2], jour: "2026-11-13", heure: heureParis).id == "notion:p3000000-0000-4000-8000-000000000003"
+             && ClientNotion.nouveaute(pages[2], jour: "2026-11-14", heure: heureParis).id == ClientNotion.nouveaute(pages[2], jour: "2026-11-13", heure: heureParis).id,
+             "une tâche seulement assignée : la même clé chaque jour (annoncée une fois)")
     verifier(ClientNotion.analyserPages(["object": "error"], reglage: rn, jour: "2026-11-13") == nil, "une réponse qui n'est pas une liste : nil (dite illisible)")
     do {
         let reseau = FauxReseau()
@@ -299,7 +302,12 @@ func controlesApps() async {
     var vieille = MemoireApps(); vieille.amorcees = [.mail]
     _ = vieille.retenir([n("ancien")], app: .mail, maintenant: t0)
     _ = vieille.retenir([], app: .mail, maintenant: t0.addingTimeInterval(MemoireApps.garde + 1))
-    verifier(vieille.vues.isEmpty, "une clé vue est oubliée après 30 jours")
+    verifier(vieille.vues.isEmpty, "une clé vue est oubliée après 30 jours sans être revue")
+    var revue = MemoireApps(); revue.amorcees = [.notion]
+    _ = revue.retenir([n("t", .notion)], app: .notion, maintenant: t0)
+    _ = revue.retenir([n("t", .notion)], app: .notion, maintenant: t0.addingTimeInterval(20 * 86_400))
+    verifier(revue.retenir([n("t", .notion)], app: .notion, maintenant: t0.addingTimeInterval(40 * 86_400)).isEmpty,
+             "revue entre-temps (tâche toujours assignée) : jamais réannoncée, même après 40 jours")
     var pleine = MemoireApps(); pleine.amorcees = [.mail]
     _ = pleine.retenir((0..<(MemoireApps.maxVues + 10)).map { n("m\($0)") }, app: .mail, maintenant: t0)
     verifier(pleine.vues.count == MemoireApps.maxVues, "\(MemoireApps.maxVues) clés au plus")

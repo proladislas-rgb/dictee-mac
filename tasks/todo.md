@@ -750,3 +750,21 @@ But : zéro dette technique et zéro bug d'usage réel avant la vidéo finale. R
       « Mac » dans les ailes ; couper le VPN : la dictée suivante repasse par Groq (texte remis au propre).
 - [ ] Reste (non fait, à décider) : captures glissées refusées par macOS dans l'app installée (point 1b) ; cible Dictee en mode
       Swift 5 (choix écrit dans Package.swift).
+
+## 13/11 soir — branche `apps-branchees` (worktree ~/dictee-mac-apps)
+- [x] Tâche 1 : Concentration retirée (Hugues : « aucun intérêt, c'est rapide d'accès via macOS »). Rond, carte, bannières, icône,
+      pilote Raccourcis, essai `DICTEE_ESSAI_SEUL=concentration`, contrôles, rendus ilot-33*, docs/concentration-ilot.md. La maquette
+      `design/maquettes/ilot-concentration.html` reste (ilot-voix-rappel.html en reprend le code). Un Centre rangé avec « concentration »
+      se relit sans elle (contrôle sur la vraie liste du journal) ; au lancement `concentration.json` (+ `.abime`) est effacé, un mode
+      laissé allumé est dit au journal ; la désinstallation efface déjà tout le dossier.
+- [x] Tâche 2 : cœur de « Tes apps » (DicteeCore/Apps*.swift) + façade `AppsBranchees` ; côté app `AppsSysteme.swift` (Trousseau,
+      Mail par AppleScript, `AppsBranchees.reelle(agenda:)`), désinstallation des clés, texte Automatisation qui parle de Mail.
+- [x] Preuves (13/11, 20 h 40 → 21 h 18, charge ≈ 3-4, une vidéo se rendait à côté) : build release recompilé en entier (nos 4
+      cibles) 0 avertissement ; 4 049/4 049 contrôles ; essai complet n° 1 : 1 368 ok, 1 échec attendu (« AirPods partis : cinq
+      boutons », écrit pour le Centre avec Concentration : quatre maintenant) corrigé ; essai complet n° 2 sur le binaire final :
+      1 369 ok, tout vert.
+- [ ] Interface de l'îlot (maquette chez un autre agent) : brancher la façade dans IlotControleur (minuterie sur `prochainSondage()`,
+      `surNouveautes` → bandeau, `actuelles`/`etats` → la carte).
+- [ ] À vérifier dans l'app installée : 1re lecture de Mail = fenêtre « Voxile veut contrôler Mail » ; coût réel d'un passage
+      (ligne « apps : mail lu (n, k nouveaux, X ms) » du journal) ; vraies clés Notion (base partagée avec la connexion) et Airtable
+      (droits data.records:read + schema.bases:read).

@@ -18,20 +18,21 @@ public struct MemoireApps: Codable, Equatable, Sendable {
     /// Le dernier passage réussi dans Mail (heure du Mac).
     public var mailDernier: Date?
 
-    /// Une clé vue reste retenue 30 jours (au-delà, la même chose ne peut plus revenir : un mail non lu de plus de 2 jours n'est pas relu,
-    /// une fiche modifiée a une autre clé), 4 000 au plus (les plus anciennes partent d'abord).
+    /// Une clé reste retenue 30 jours après la dernière fois qu'on l'a vue (au-delà, elle ne revient plus : un mail non lu de plus de
+    /// 2 jours n'est pas relu, une fiche modifiée a une autre clé), 4 000 au plus (les plus anciennes partent d'abord).
     public static let garde: TimeInterval = 30 * 86_400
     public static let maxVues = 4_000
 
     public init() {}
 
-    /// Ne garde, de `elements`, que ce qui n'a jamais été vu (et pas deux fois la même clé dans la liste), et le retient comme vu. Avant
-    /// le premier passage de l'app (`amorcees`), rien n'est rendu : tout est retenu.
+    /// Ne garde, de `elements`, que ce qui n'a jamais été vu (et pas deux fois la même clé dans la liste), et le retient comme vu. Ce
+    /// qui est revu est daté de nouveau : une clé n'est oubliée qu'après 30 jours SANS être revue (une tâche toujours assignée ne revient
+    /// jamais). Avant le premier passage de l'app (`amorcees`), rien n'est rendu : tout est retenu.
     public mutating func retenir(_ elements: [Nouveaute], app: AppBranchee, maintenant: Date) -> [Nouveaute] {
         var nouvelles: [Nouveaute] = []
-        for e in elements where vues[e.id] == nil {
+        for e in elements {
+            if vues[e.id] == nil { nouvelles.append(e) }
             vues[e.id] = maintenant
-            nouvelles.append(e)
         }
         let premiere = !amorcees.contains(app)
         amorcees.insert(app)

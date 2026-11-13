@@ -164,7 +164,7 @@ extension IlotEssai {
         clic(rond(.dictee), 0.5)
         verifier(memoire.micro == nil && m.choixMicro?.airpods == false, "second clic : le micro du Mac (réglage Automatique)")
         c.lireMicros = { [] }; c.relireChoixMicro(); m.donneesChangees(); pause(0.5)
-        verifier(m.rondsCentre.count == 5, "AirPods partis : cinq boutons")
+        verifier(m.rondsCentre.count == 4, "AirPods partis : quatre boutons")
 
         // --- l'aide au survol (11/11 au soir : « pas clair ») : une phrase sous le bouton survolé, après un court instant ; elle ne
         // prend aucun clic, part au clic, ne paraît pas pendant « Modifier »

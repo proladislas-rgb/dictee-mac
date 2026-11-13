@@ -183,13 +183,14 @@ public struct ClientNotion: Sendable {
         }
     }
 
-    /// Une page en nouveauté. La clé tient le jour : une tâche assignée est annoncée une fois, une tâche du jour une fois par jour.
+    /// Une page en nouveauté. Une tâche du jour : sa clé tient le jour (annoncée une fois ce jour-là ; reportée à demain, de nouveau
+    /// demain). Une tâche seulement assignée : annoncée une fois.
     public static func nouveaute(_ p: PageNotion, jour: String, heure: (Date) -> String) -> Nouveaute {
         let sous: String
         if p.duJour, p.avecHeure, let e = p.echeance { sous = "Aujourd\u{2019}hui \u{00B7} \(heure(e))" }
         else if p.duJour { sous = "Aujourd\u{2019}hui" }
         else { sous = "Assignée à toi" }
         let action: ActionOuverture = p.url.map { .adresse($0) } ?? .adresse(URL(string: "https://www.notion.so/\(identifiantPropre(p.id).replacingOccurrences(of: "-", with: ""))")!)
-        return Nouveaute(id: "notion:\(p.id)@\(jour)", app: .notion, titre: p.titre, sousTitre: sous, date: p.duJour ? (p.echeance ?? p.modifiee) : p.modifiee, action: action)
+        return Nouveaute(id: p.duJour ? "notion:\(p.id)@\(jour)" : "notion:\(p.id)", app: .notion, titre: p.titre, sousTitre: sous, date: p.duJour ? (p.echeance ?? p.modifiee) : p.modifiee, action: action)
     }
 }
