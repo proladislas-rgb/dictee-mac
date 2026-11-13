@@ -175,8 +175,7 @@ struct PanneauEveil: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 7) {
                     Image(systemName: "cup.and.saucer.fill").font(.system(size: 13, weight: .semibold)).foregroundStyle(CouleursIlot.ambre).frame(width: 18, height: 17)
-                    (Text(e != nil ? "Éveillé" : "Garder le Mac éveillé").fontWeight(.semibold).foregroundColor(.white)
-                     + Text(" " + (e?.detail() ?? "combien de temps ?")).font(.system(size: 12.5, weight: .medium)).foregroundColor(Color.white.opacity(0.5)))
+                    Text("\(Text(e != nil ? "Éveillé" : "Garder le Mac éveillé").fontWeight(.semibold).foregroundColor(.white))\(Text(" " + (e?.detail() ?? "combien de temps ?")).font(.system(size: 12.5, weight: .medium)).foregroundColor(Color.white.opacity(0.5)))")
                         .font(.system(size: 13.5)).lineLimit(1)
                 }
                 .frame(height: 17)

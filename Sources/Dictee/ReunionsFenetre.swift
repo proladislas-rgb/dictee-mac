@@ -219,7 +219,7 @@ final class ReunionsModele: ObservableObject {
         let fichiers = [Locuteur.moi: store.fichierSon(r, .moi), .eux: store.fichierSon(r, .eux)]
         Task.detached(priority: .utility) { [weak self] in
             let o = Self.ondes(r, fichiers: fichiers)
-            await MainActor.run { self?.ondes.merge(o) { $1 } }
+            await MainActor.run { [weak self] in self?.ondes.merge(o) { $1 } }
         }
     }
 
@@ -289,12 +289,13 @@ final class ReunionsModele: ObservableObject {
                 self?.exportAudio = 0
                 Task.detached(priority: .userInitiated) { [weak self] in
                     let t0 = ProcessInfo.processInfo.systemUptime
-                    var ok = true
+                    let ok: Bool
                     do {
                         try ExportAudio.reunion(moi: moi, eux: eux, vers: url) { p in
                             Task { @MainActor [weak self] in if let a = self?.exportAudio, a < 1 { self?.exportAudio = max(a, p * 0.99) } }
                         }
                         Log.ecrire("réunions : audio de la réunion exporté en \(Int((ProcessInfo.processInfo.systemUptime - t0) * 1000)) ms")
+                        ok = true
                     } catch { ok = false; Log.ecrire("réunions : audio de la réunion non exporté (\(error))") }
                     await MainActor.run { [weak self] in
                         self?.exportAudio = ok ? 1 : nil

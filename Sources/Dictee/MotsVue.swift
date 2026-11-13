@@ -78,8 +78,7 @@ struct MotsVue: View {
                 .font(Polices.commande(12, .medium)).foregroundStyle(Palette.texte)
                 .frame(minWidth: 20, minHeight: 20)
                 .background(Capsule().fill(Palette.relief))
-            (Text("À valider : ").foregroundStyle(Palette.texte) + Text(mot).foregroundStyle(Palette.texte).fontWeight(.medium) +
-             Text(" revient dans tes corrections").foregroundStyle(Palette.texte2))
+            Text("\(Text("À valider : ").foregroundStyle(Palette.texte))\(Text(mot).foregroundStyle(Palette.texte).fontWeight(.medium))\(Text(" revient dans tes corrections").foregroundStyle(Palette.texte2))")
                 .font(Polices.commande(15)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
             BoutonPlein(titre: "Ajouter", hauteur: 32) { m.accepter(mot) }.fixedSize()

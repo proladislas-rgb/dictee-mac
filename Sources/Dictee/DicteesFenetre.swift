@@ -94,8 +94,7 @@ struct LigneEtat: View {
         let n = store.historique.entrees.count
         let mots = store.historique.motsLe()
         HStack(spacing: 16) {
-            (Text(Self.nombre(n)).foregroundStyle(Palette.texte).fontWeight(.medium) + Text(" dictée\(n > 1 ? "s" : "") \u{00B7} ") +
-             Text(Self.nombre(mots)).foregroundStyle(Palette.texte).fontWeight(.medium) + Text(" mot\(mots > 1 ? "s" : "") aujourd\u{2019}hui"))
+            Text("\(Text(Self.nombre(n)).foregroundStyle(Palette.texte).fontWeight(.medium)) dictée\(n > 1 ? "s" : "") \u{00B7} \(Text(Self.nombre(mots)).foregroundStyle(Palette.texte).fontWeight(.medium)) mot\(mots > 1 ? "s" : "") aujourd\u{2019}hui")
                 .lineLimit(1)
             Spacer(minLength: 8)
             ViewThatFits(in: .horizontal) {
@@ -146,7 +145,7 @@ struct EnteteJour: View {
         let relatif = groupe.titre == "Aujourd\u{2019}hui" || groupe.titre == "Hier"
         HStack {
             if relatif, let jour = groupe.jour {
-                Text(groupe.titre).foregroundStyle(Palette.texte).fontWeight(.medium) + Text(" \u{00B7} \(Self.formatJour.string(from: jour))")
+                Text("\(Text(groupe.titre).foregroundStyle(Palette.texte).fontWeight(.medium)) \u{00B7} \(Self.formatJour.string(from: jour))")
             } else {
                 Text(groupe.titre)
             }

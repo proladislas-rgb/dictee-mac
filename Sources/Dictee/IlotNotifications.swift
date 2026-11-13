@@ -65,7 +65,7 @@ final class SourceNotifications {
         let p = pid
         Task.detached(priority: .utility) { [weak self] in
             let groupes = SourceNotifications.lireLesBannieres(pid: p)
-            await MainActor.run {
+            await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.enCours = false
                 let maintenant = Date()

@@ -5,7 +5,7 @@ import DicteeCore
 /// Passe le texte par la même remise au propre qu'une vraie dictée (réseau seulement), affiche le résultat et la durée.
 enum Nettoyer {
     static func executer(arguments: [String]) -> Int32 {
-        func valeur(_ nom: String) -> String? {
+        @Sendable func valeur(_ nom: String) -> String? {
             guard let i = arguments.firstIndex(of: nom), i + 1 < arguments.count else { return nil }
             return arguments[i + 1]
         }

@@ -125,7 +125,7 @@ enum Transcrire {
             var e = Essai(texte: t, morceaux: transcripteur.nombreDeMorceaux, apresRelachement: maintenant - relachement, total: maintenant - debut)
             e.details = detailNettoyage + String(format: " [parole mesurée %.1f s sur %.1f s enregistrées]", pipeline.dureeParole, pipeline.dureeEnregistree) + " [anticipés réutilisés \(transcripteur.anticipesReutilises), jetés \(transcripteur.anticipesJetes), secours \(transcripteur.secoursLances)]"
             return e
-        case .echec(let e): print("Échec : \(e)"); return nil
+        case .echec(let message, let detail): print("Échec : \((message, detail))"); return nil
         case .delai: print("Trop lent (> 15 s)"); return nil
         }
     }

@@ -364,7 +364,7 @@ struct TitreDefilant: View {
     static let budget = 20.0
     /// Le masque du titre : fondu de 18 pt à droite (la suite du titre), et à gauche de 0 à 18 pt selon `gauche` (0 au repos, le texte
     /// commence net sur la marge ; 1 dès qu'il glisse : les lettres qui sortent s'effacent au lieu d'être coupées).
-    static func fondu(largeur: CGFloat, gauche: CGFloat) -> LinearGradient {
+    nonisolated static func fondu(largeur: CGFloat, gauche: CGFloat) -> LinearGradient {
         let f = min(0.5, 18 / max(1, largeur))
         return LinearGradient(stops: [.init(color: .black.opacity(Double(1 - gauche)), location: 0), .init(color: .black, location: f),
                                       .init(color: .black, location: 1 - f), .init(color: .clear, location: 1)], startPoint: .leading, endPoint: .trailing)

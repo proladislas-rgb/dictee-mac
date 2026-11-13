@@ -392,9 +392,9 @@ struct LigneDirectVue: View {
         let blanc = Color.white.opacity(0.86), gris = Color.white.opacity(0.4)
         var t = Text("")
         for (i, mo) in ligne.morceaux.enumerated() {
-            t = t + Text((i > 0 ? " " : "") + mo.texte).foregroundColor(mo.sur ? blanc : gris)
+            t = Text("\(t)\(Text((i > 0 ? " " : "") + mo.texte).foregroundColor(mo.sur ? blanc : gris))")
         }
-        if ligne.suite || ligne.morceaux.isEmpty { t = t + Text(ligne.morceaux.isEmpty ? "\u{2026}" : " \u{2026}").foregroundColor(gris) }
+        if ligne.suite || ligne.morceaux.isEmpty { t = Text("\(t)\(Text(ligne.morceaux.isEmpty ? "\u{2026}" : " \u{2026}").foregroundColor(gris))") }
         return t
     }
 }

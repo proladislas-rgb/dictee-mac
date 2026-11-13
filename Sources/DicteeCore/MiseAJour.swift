@@ -192,8 +192,7 @@ public enum EmpreinteSHA256 {
         public init() {}
         public mutating func ajouter(_ donnees: Data) { hacheur.update(data: donnees); octets += donnees.count }
         public func resultat() -> String {
-            var copie = hacheur
-            return copie.finalize().map { String(format: "%02x", $0) }.joined()
+            hacheur.finalize().map { String(format: "%02x", $0) }.joined()
         }
     }
 

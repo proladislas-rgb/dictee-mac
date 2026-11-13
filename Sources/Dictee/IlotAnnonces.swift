@@ -70,7 +70,7 @@ struct ContenuAnnonce {
 
     var texteL2: Text {
         guard let fort, let r = l2.range(of: fort) else { return Text(l2) }
-        return Text(String(l2[..<r.lowerBound])) + Text(fort).foregroundColor(.white) + Text(String(l2[r.upperBound...]))
+        return Text("\(String(l2[..<r.lowerBound]))\(Text(fort).foregroundColor(.white))\(String(l2[r.upperBound...]))")
     }
 }
 

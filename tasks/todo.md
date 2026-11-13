@@ -587,8 +587,12 @@ Arrêté après l'étape 1 sur demande (nouvelles demandes de Hugues, dont le re
       bruit vérifié en relançant le binaire de référence 3 fois) ; les autres rendus identiques ; `defaults read Dictee` vide.
       Pas d'essai complet (aucune section de l'essai ne passe par le relais ; demandé de s'arrêter). Pas fait non plus : prouver que le
       contrôle échoue avec l'ancien code (le mécanisme est celui de la leçon du 09/11).
-- [ ] 2. Zéro avertissement (les 27 ci-dessus, dont IlotNotifications:69, Nettoyer:8, ReunionsFenetre:222/300, IlotEtagere:702,
-      IlotVues:617, IlotPieces:397, Transcrire:128), sans `@unchecked` ni `nonisolated(unsafe)` nouveaux.
+- [x] 2. Zéro avertissement (les 27 ci-dessus, dont IlotNotifications:69, Nettoyer:8, ReunionsFenetre:222/300, IlotEtagere:702,
+      IlotVues:617, IlotPieces:397, Transcrire:128), sans `@unchecked` ni `nonisolated(unsafe)` nouveaux. Reprise le 13/11 sur la
+      branche `menage-2` (worktree ~/dictee-mac-menage2, depuis main a8a3cc5) : build release à neuf de a8a3cc5 = 27 avertissements
+      distincts (les mêmes), après = **0** ; 3993/3993 contrôles. `Text + Text` → `Text("\(Text(…))…")` (13), `keyframeAnimator` lit
+      des valeurs prises dans `body` (2), `fondu` `nonisolated`, `[weak self]` sur les `MainActor.run` (2), `let ok`, `@Sendable func
+      valeur`, `.echec(let message, let detail)` (même sortie), `currentEditor()` sans transtypage, `hacheur.finalize()`.
 - [ ] 3. Vrai code mort (§ 3 de l'audit), vérifié par grep dans tout le dépôt avant chaque suppression ; corriger la doc de
       `Settings` (secours) et `--lecture-essai` → `--lecture-test` dans ce fichier.
 - [ ] 4. Durées de vie : FSEvents de `SurveillanceClaude` (IlotClaude.swift, `retain: nil` aujourd'hui), `KeyMonitor`

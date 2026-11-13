@@ -216,8 +216,7 @@ struct BlocSessionClaude: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(s.projet).font(.system(size: 14, weight: .bold)).foregroundStyle(.white).lineLimit(1).truncationMode(.middle)
                     let suite = TexteClaude.suite(s, a: a)
-                    (Text(TexteClaude.etat(s.etat)).fontWeight(.bold).foregroundColor(couleur)
-                     + Text(suite.isEmpty ? "" : " \u{00B7} " + suite).foregroundColor(Color.white.opacity(0.5)))
+                    Text("\(Text(TexteClaude.etat(s.etat)).fontWeight(.bold).foregroundColor(couleur))\(Text(suite.isEmpty ? "" : " \u{00B7} " + suite).foregroundColor(Color.white.opacity(0.5)))")
                         .font(.system(size: 12, weight: .medium)).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

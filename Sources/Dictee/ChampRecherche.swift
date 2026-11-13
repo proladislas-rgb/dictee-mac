@@ -32,7 +32,7 @@ final class ChampNS: NSTextField {
             moniteurEspace = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
                 guard let self, event.keyCode == 49,
                       event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
-                      let editeur = self.currentEditor() as? NSText, self.window?.firstResponder === editeur,
+                      let editeur = self.currentEditor(), self.window?.firstResponder === editeur,
                       editeur.string.isEmpty, self.surEspace?() == true else { return event }
                 return nil
             }

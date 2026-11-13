@@ -687,12 +687,13 @@ struct PileEtagere: View {
     var body: some View {
         let v = VueIlot.etagerePile
         let n = m.etagere.count
+        let fixe = m.reduire || m.statique
         let gauche = -g.cou(v), l = g.cou(v) - g.hc
         HStack(spacing: Self.espace) {
             Image(systemName: Self.glyphe).font(.system(size: Self.tailleGlyphe, weight: .semibold))
             Text("\(n)").font(.system(size: Self.tailleNombre, weight: .bold).monospacedDigit())
                 .contentTransition(.numericText())
-                .keyframeAnimator(initialValue: 1.0, trigger: n) { t, e in t.scaleEffect(m.reduire || m.statique ? 1 : e) } keyframes: { _ in
+                .keyframeAnimator(initialValue: 1.0, trigger: n) { t, e in t.scaleEffect(fixe ? 1 : e) } keyframes: { _ in
                     KeyframeTrack { SpringKeyframe(1.45, duration: 0.14); SpringKeyframe(1, duration: 0.3, spring: Spring(response: 0.3, dampingRatio: 0.6)) }
                 }
         }

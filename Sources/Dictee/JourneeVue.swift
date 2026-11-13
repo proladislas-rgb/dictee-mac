@@ -177,8 +177,7 @@ struct JourneeVue: View {
     private func navigation(_ v: VueJournee) -> some View {
         HStack(spacing: 8) {
             FlecheJour(symbole: "chevron.left", etiquette: "Jour précédent", active: true) { m.jourPrecedent() }
-            (Text(v.titre.relatif ?? v.titre.date).foregroundStyle(Palette.texte).fontWeight(.medium)
-             + Text(v.titre.relatif != nil ? " \u{00B7} \(v.titre.date)" : "").foregroundStyle(Palette.texte2))
+            Text("\(Text(v.titre.relatif ?? v.titre.date).foregroundStyle(Palette.texte).fontWeight(.medium))\(Text(v.titre.relatif != nil ? " \u{00B7} \(v.titre.date)" : "").foregroundStyle(Palette.texte2))")
                 .font(Polices.commande(14))
                 .lineLimit(1)
                 .accessibilityAddTraits(.isHeader)

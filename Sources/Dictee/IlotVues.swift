@@ -617,11 +617,12 @@ struct LectureVoyageurs: View {
         let a = m.aspect(FamilleIlot.lecture)
         let teinte = teinteIlot(lecture.teinte.clair)
         let ce = g.centreAile(.lectureCompact, droite: true)
+        let reduire = m.reduire
         ZStack(alignment: .topLeading) {
             PochetteLecture(m: lecture)
                 .clipShape(RoundedRectangle(cornerRadius: rayon, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: rayon, style: .continuous).strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5))
-                .keyframeAnimator(initialValue: 1.0, trigger: lecture.pop) { v, s in v.scaleEffect(m.reduire ? 1 : s) } keyframes: { _ in
+                .keyframeAnimator(initialValue: 1.0, trigger: lecture.pop) { v, s in v.scaleEffect(reduire ? 1 : s) } keyframes: { _ in
                     KeyframeTrack { LinearKeyframe(0.9, duration: 0.01); SpringKeyframe(1, duration: 0.42, spring: Spring(response: 0.42, dampingRatio: 0.78)) }
                 }
                 .posee(r, a, ancre: .center)
