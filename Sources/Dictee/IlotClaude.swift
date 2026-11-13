@@ -162,7 +162,19 @@ private final class SurveillanceClaude: @unchecked Sendable {
         try? FileManager.default.createDirectory(at: dossier, withIntermediateDirectories: true)
         // les vieux fichiers d'abord, puis tout ce qui reste est relu sans rien annoncer
         Self.effacerLesVieux(dossier)
-        var ctx = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil)
+        // le flux retient la surveillance (retain/release) : un rappel déjà en file derrière l'arrêt trouve toujours un objet vivant ; le
+        // flux la relâche quand il est libéré (`arreter`)
+        var ctx = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(),
+                                       retain: { info in
+                                           guard let info else { return nil }
+                                           _ = Unmanaged<SurveillanceClaude>.fromOpaque(info).retain()
+                                           return info
+                                       },
+                                       release: { info in
+                                           guard let info else { return }
+                                           Unmanaged<SurveillanceClaude>.fromOpaque(info).release()
+                                       },
+                                       copyDescription: nil)
         let rappel: FSEventStreamCallback = { _, info, _, _, _, _ in
             guard let info else { return }
             Unmanaged<SurveillanceClaude>.fromOpaque(info).takeUnretainedValue().relire(relecture: false)

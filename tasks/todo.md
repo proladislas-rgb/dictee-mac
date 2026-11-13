@@ -602,9 +602,15 @@ Arrêté après l'étape 1 sur demande (nouvelles demandes de Hugues, dont le re
       et `BudgetReunion.restantPourReunion` (une ligne chacun, porte d'entrée des contrôles vers une logique vivante : `notes`, le
       budget) ; « goutte » (commentaires). Doc du secours posée sur `secoursApple` ; `--lecture-essai` (ligne 100) : fondu dans
       `--ilot-essai` (7c2a74e), pas renommé `--lecture-test` (qui existe déjà à côté) ; spec-v1 ne cite plus la fonction retirée.
-- [ ] 4. Durées de vie : FSEvents de `SurveillanceClaude` (IlotClaude.swift, `retain: nil` aujourd'hui), `KeyMonitor`
+- [x] 4. Durées de vie : FSEvents de `SurveillanceClaude` (IlotClaude.swift, `retain: nil` aujourd'hui), `KeyMonitor`
       (`CFMachPortInvalidate` + `isolated deinit`, `Log.ecrire` hors du rappel du tap), `tolerance` sur les `Timer` de l'app
       (AppDelegate, MiseAJourControleur ×2, PriseEnMain, IlotLucarne, ReunionController ; pas la minuterie d'animation de l'essai).
+      Fait : le flux FSEvents retient la surveillance (`retain`/`release` dans le contexte) ; `KeyMonitor.arreter()` invalide le port,
+      `isolated deinit` l'appelle, les 2 lignes de journal du rappel partent après lui (`noterApres`) ; tolérances : autorisations 0,5 s,
+      relevé des mises à jour 60 s (période 600 s), bande de mise à jour 0,5 s, prise en main 0,2 s, fin de note 0,05 s ;
+      ReunionController l'avait déjà (0,3 s). Build sans avertissement, 3985/3985. Essai jetable (non commité) : 20 branchements /
+      débranchements de `SourceClaude` pendant qu'un écrivain ajoute une ligne toutes les 2 ms, 3 fois : aucun plantage, la
+      surveillance livre encore après (≈ 1 180 lignes reçues après le dernier branchement), journal temporaire seulement.
 - [ ] 5. `DossierVerbe.url(_:)` (≈ 20 chemins « Library/Application Support/Dictee » écrits en dur) ; `MagasinJSON<T>` dans DicteeCore
       pour Rappels, Étagère, Notes, Bibliothèque, Concentration, Réveil (même format : chaque type garde ses `depuis`/`donnees`),
       écriture atomique créée directement en 0600, échec tracé ; journal en 0600 ; contrôle qui relit un fichier au format actuel.

@@ -88,12 +88,20 @@ final class KeyMonitor {
         return true
     }
 
+    /// Coupe et détruit le tap (`CFMachPortInvalidate`) : macOS ne garde plus aucun pointeur vers cet objet.
     func arreter() {
         if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
         if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
+        if let tap { CFMachPortInvalidate(tap) }
         tap = nil
         source = nil
     }
+
+    /// Le tap garde un pointeur non retenu vers `self` : il ne survit jamais à l'objet.
+    isolated deinit { arreter() }
+
+    /// Le journal s'écrit après le rappel du tap, jamais pendant : chaque frappe du Mac attend la fin de ce rappel.
+    private func noterApres(_ message: String) { DispatchQueue.main.async { Log.ecrire(message) } }
 
     /// Quand une dictée se termine d'elle-même (erreur), on remet la machine à zéro.
     func reinitialiserGeste() { detector.reset() }
@@ -107,7 +115,7 @@ final class KeyMonitor {
         }
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            Log.ecrire("écoute du clavier : coupée par macOS (\(type == .tapDisabledByTimeout ? "trop lent" : "entrée utilisateur")), on la rallume")
+            noterApres("écoute du clavier : coupée par macOS (\(type == .tapDisabledByTimeout ? "trop lent" : "entrée utilisateur")), on la rallume")
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             // On a pu rater un relâchement : on repart de zéro plutôt que de rester bloqué en dictée.
             if detector.isActive { onAction?(.cancel) }
@@ -147,7 +155,7 @@ final class KeyMonitor {
             if let onCopie, event.flags.contains(.maskCommand), !event.flags.contains(.maskControl), !event.flags.contains(.maskAlternate),
                ["c", "x"].contains(Self.caractere(event)) { onCopie() }
             let delai = ProcessInfo.processInfo.systemUptime - dernierRelachementFn
-            if delai < 0.5 { Log.ecrire("touche \(code) reçue \(Int(delai * 1000)) ms après le relâchement de fn (casse un éventuel double appui)") }
+            if delai < 0.5 { noterApres("touche \(code) reçue \(Int(delai * 1000)) ms après le relâchement de fn (casse un éventuel double appui)") }
             appliquer(.otherKey)
             return false
 

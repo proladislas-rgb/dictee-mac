@@ -444,6 +444,7 @@ final class PriseEnMain {
         minuteur = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.modele.rafraichir() }
         }
+        minuteur?.tolerance = 0.2
         Log.ecrire("prise en main ouverte (étape \(etape.rawValue))")
         surChangementEtat()
     }

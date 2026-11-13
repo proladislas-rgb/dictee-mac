@@ -155,6 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         pollTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.surveillerAutorisations() }
         }
+        pollTimer?.tolerance = 0.5 // macOS peut grouper ce réveil avec d'autres
     }
     private var toutEstAccorde: Bool { Permissions.premierManquant == nil && Permissions.microOK && clavier.actif }
 

@@ -130,6 +130,7 @@ final class MiseAJourControleur {
         let t = Timer(timeInterval: PlanVerification.periodeDeReleve, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.verifierSiNecessaire() }
         }
+        t.tolerance = PlanVerification.periodeDeReleve / 10
         RunLoop.main.add(t, forMode: .common)
         releve = t
     }
@@ -213,6 +214,7 @@ final class MiseAJourControleur {
         let besoinSurveillance = modele.disponible != nil
         if besoinSurveillance, surveillance == nil {
             let t = Timer(timeInterval: 2, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.majBande() } }
+            t.tolerance = 0.5
             RunLoop.main.add(t, forMode: .common)
             surveillance = t
         } else if !besoinSurveillance { surveillance?.invalidate(); surveillance = nil }

@@ -280,6 +280,7 @@ extension IlotControleur {
         finDeNote = FinDeNote(debut: maintenant())
         minuterieNote?.invalidate()
         minuterieNote = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.verifierFinDeNote() } }
+        minuterieNote?.tolerance = 0.05
         Log.ecrire("note rapide : écoute lancée d'un clic")
     }
 
