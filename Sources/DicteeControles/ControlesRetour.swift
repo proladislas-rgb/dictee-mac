@@ -23,7 +23,7 @@ func controlesRetourIlot() {
     verifier(p.pas.count <= PileRetour.profondeur, "la pile ne grandit jamais au-delà de \(PileRetour.profondeur) écrans (\(p.pas.count))")
     var q = PileRetour()
     var ici = VueIlot.lectureEtendu
-    for v: VueIlot in [.centre, .outils, .accueil, .dictees, .etagere, .bibliotheque, .claudeCarte, .secondBrain, .concentration, .rappelListe] {
+    for v: VueIlot in [.centre, .outils, .accueil, .dictees, .etagere, .bibliotheque, .claudeCarte, .secondBrain, .rappelListe] {
         q.aller(depuis: ici, vers: v, epingle: false); ici = v
     }
     verifier(q.pas.count == PileRetour.profondeur && q.pas.first?.vue != .lectureEtendu, "au-delà, le plus ancien s'oublie")
@@ -34,7 +34,7 @@ func controlesRetourIlot() {
     // les « ‹ » déjà dessinés disent où ils mènent : le geste va au même endroit, quoi que dise la pile
     verifier(NavigationIlot.retour(de: .bibliotheque, pile: [.centre, .etagere], premiere: .centre) == .etagere, "Bibliothèque : « ‹ Étagère »")
     verifier(NavigationIlot.retour(de: .etagere, pile: [.accueil], premiere: .centre) == .centre, "Étagère : « ‹ Centre », même ouverte depuis l'accueil (le bouton dit Centre)")
-    for v: VueIlot in [.claudeCarte, .dictees, .outils, .secondBrain, .concentration] {
+    for v: VueIlot in [.claudeCarte, .dictees, .outils, .secondBrain] {
         verifier(NavigationIlot.retour(de: v, pile: [], premiere: .centre) == .centre, "\(v.rawValue) : « ‹ Centre »")
     }
     for v: VueIlot in [.outilPressePapiers, .outilReformuler, .outilNote] {

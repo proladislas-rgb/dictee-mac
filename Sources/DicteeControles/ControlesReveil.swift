@@ -93,26 +93,26 @@ func controlesReveil() {
     // un Centre rangé avant l'arrivée du calendrier (« Modifier ») le reçoit une fois, devant Claude Code
     let ancien = D(identifiants: ["micro", "telechargements", "claude", "minuteur", "etagere", "reunion"])
     let n1 = ancien.avecNouveautes(dejaProposees: [])
-    verifier(n1.disposition.elements == [.micro, .telechargements, .calendrier, .claude, .concentration, .minuteur, .etagere, .reunion] && n1.proposees == [.calendrier, .concentration],
+    verifier(n1.disposition.elements == [.micro, .telechargements, .calendrier, .claude, .minuteur, .etagere, .reunion] && n1.proposees == [.calendrier],
              "Centre rangé sans calendrier : il arrive devant Claude Code, une fois (proposé : retenu)")
-    verifier(ancien.avecNouveautes(dejaProposees: ["calendrier", "concentration"]).disposition == ancien && ancien.avecNouveautes(dejaProposees: ["calendrier", "concentration"]).proposees.isEmpty,
+    verifier(ancien.avecNouveautes(dejaProposees: ["calendrier"]).disposition == ancien && ancien.avecNouveautes(dejaProposees: ["calendrier"]).proposees.isEmpty,
              "déjà proposé (puis retiré par « Modifier ») : il ne revient pas")
     let sansClaude = D(identifiants: ["rappel", "micro", "etagere"]).avecNouveautes(dejaProposees: [])
-    verifier(sansClaude.disposition.elements == [.rappel, .micro, .calendrier, .concentration, .etagere], "sans Claude Code dans le Centre : après le dernier rond")
+    verifier(sansClaude.disposition.elements == [.rappel, .micro, .calendrier, .etagere], "sans Claude Code dans le Centre : après le dernier rond")
     let plein = D(identifiants: ["micro", "dictee", "telechargements", "claude", "rappel", "derniere-dictee"]).avecNouveautes(dejaProposees: [])
-    verifier(!plein.disposition.elements.contains(.calendrier) && plein.proposees == [.calendrier, .concentration], "rangée déjà pleine (6) : rien n'est poussé dehors, « Modifier » le proposera")
-    verifier(D(identifiants: ["micro", "calendrier"]).avecNouveautes(dejaProposees: ["concentration"]).disposition.elements == [.micro, .calendrier], "déjà là : rien ne change")
+    verifier(!plein.disposition.elements.contains(.calendrier) && plein.proposees == [.calendrier], "rangée déjà pleine (6) : rien n'est poussé dehors, « Modifier » le proposera")
+    verifier(D(identifiants: ["micro", "calendrier"]).avecNouveautes(dejaProposees: []).disposition.elements == [.micro, .calendrier], "déjà là : rien ne change")
     // au lancement (`relire`) : un Centre jamais rangé contient déjà le calendrier ; il est retenu comme donné, sinon retiré par
     // « Modifier » il reviendrait au lancement suivant
     let jamais = D.relire(identifiants: nil, dejaProposees: [])
-    verifier(jamais.disposition == D() && jamais.aRetenir == ["calendrier", "concentration"] && jamais.ajoutees.isEmpty,
+    verifier(jamais.disposition == D() && jamais.aRetenir == ["calendrier"] && jamais.ajoutees.isEmpty,
              "Centre jamais rangé : le Centre par défaut (calendrier compris), le calendrier retenu comme donné, rien d'enregistré")
     let retire = D.relire(identifiants: ["micro", "dictee", "telechargements", "claude", "minuteur", "etagere", "reunion"], dejaProposees: Set(jamais.aRetenir ?? []))
     verifier(!retire.disposition.elements.contains(.calendrier) && retire.aRetenir == nil && retire.ajoutees.isEmpty,
              "puis retiré par « Modifier » : au lancement suivant il ne revient pas")
-    verifier(D.relire(identifiants: nil, dejaProposees: ["calendrier", "concentration"]).aRetenir == nil, "jamais rangé, déjà retenu : rien à écrire")
+    verifier(D.relire(identifiants: nil, dejaProposees: ["calendrier"]).aRetenir == nil, "jamais rangé, déjà retenu : rien à écrire")
     let vieux = D.relire(identifiants: ["micro", "telechargements", "claude"], dejaProposees: [])
-    verifier(vieux.disposition.elements == [.micro, .telechargements, .calendrier, .claude, .concentration] && vieux.aRetenir == ["calendrier", "concentration"] && vieux.ajoutees == [.calendrier, .concentration],
+    verifier(vieux.disposition.elements == [.micro, .telechargements, .calendrier, .claude] && vieux.aRetenir == ["calendrier"] && vieux.ajoutees == [.calendrier],
              "rangé avant le calendrier : il arrive une fois (retenu, disposition à enregistrer)")
     let pleinR = D.relire(identifiants: ["micro", "dictee", "telechargements", "claude", "rappel", "derniere-dictee"], dejaProposees: [])
     // depuis 222bcee : une nouveauté sans place n'est plus retenue (elle arrivera quand une place se libère)

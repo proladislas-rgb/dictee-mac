@@ -102,10 +102,8 @@ enum IlotEssai {
             c.reglagesCentre.reglerCaptures = { EssaiEtagere.captures = $0 }
             // l'app Rappels : jamais EventKit ni une vraie fenêtre d'autorisation ; les réglages des rappels et de la question, simulés
             c.rappelsApple = RappelsAppleFactice()
-            // la Concentration : jamais la vraie app Raccourcis (rien de créé, signé, ouvert ni lancé), jamais le vrai fichier
-            c.concentration.systeme = RaccourcisFactices().systeme
-            c.concentration.store = ConcentrationStore(url: dossier.appendingPathComponent("concentration.json"))
-            c.concentration.dossierTemporaire = dossier
+            // le ménage des fichiers d'une fonction retirée : dans le dossier de l'essai, jamais le vrai dossier de Voxile
+            c.dossierAnciensFichiers = dossier
             IlotEssai.reglagesLucarneDEssai(c)
             IlotEssai.systemeLucarneDEssai(c)
             c.vignetteSysteme = ReglageVignette(lire: { EssaiEtagere.vignette }, ecrire: { EssaiEtagere.vignette = $0 },
@@ -123,10 +121,10 @@ enum IlotEssai {
         /// Avant chaque section : rien de laissé par la précédente qui sonnerait pendant celle-ci (rappels, alerte).
         func entreDeuxSections() { IlotEssai.entreDeuxSections(c, attendre: { attendre($0, tant: $1) }) }
 
-        // une section seule (pour la mettre au point sans attendre tout l'essai) : `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`, `places`, `places-survol`, `concentration`, `voix`, `outils`, `etagere`, `retour`), ou
+        // une section seule (pour la mettre au point sans attendre tout l'essai) : `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`, `places`, `places-survol`, `voix`, `outils`, `etagere`, `retour`), ou
         // `--ilot-essai --seulement=survol` (le survol des Dictées, pour mesurer vite ; l'essai complet la joue aussi)
         let seul = CommandLine.arguments.contains("--seulement=survol") ? "survol" : ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"]
-        if let seul, ["bibliotheque", "reveil", "survol", "places", "places-survol", "concentration", "voix", "dictee", "verre", "outils", "etagere", "retour"].contains(seul) {
+        if let seul, ["bibliotheque", "reveil", "survol", "places", "places-survol", "voix", "dictee", "verre", "outils", "etagere", "retour"].contains(seul) {
             attendre(0.4)
             entreDeuxSections()
             if seul == "bibliotheque" {
@@ -147,8 +145,6 @@ enum IlotEssai {
                 IlotEssai.lectureEnPauseLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
             } else if seul == "voix" {
                 IlotEssai.voix(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers })
-            } else if seul == "concentration" {
-                IlotEssai.concentration(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() })
             } else if seul == "etagere" {
                 IlotEssai.etagereRapide(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
             } else if seul == "retour" {
@@ -1150,7 +1146,7 @@ enum IlotEssai {
             occ.dictee = false; c.occupationChangee(); attendre(0.9)
             // le Centre et les fichiers tout en haut (maquette ilot-etagere-rapide.html, étape 6)
             m.clicForme(); attendre(0.9)
-            // un nom sur deux lignes (cinq ronds depuis la Concentration : « Télécharge- / ments ») allonge la rangée d'une ligne
+            // un nom sur deux lignes (« Télécharge- / ments ») allonge la rangée d'une ligne
             let hCentre = barre + DispositionCentre.plan(ronds: true, cases: true, bande: true, nomsSurDeuxLignes: m.nomsSurDeuxLignes).profondeur
             let hCentreFichiers = barre + DispositionCentre.plan(etagere: true, ronds: true, cases: true, bande: false, nomsSurDeuxLignes: m.nomsSurDeuxLignes).profondeur
             verifier(m.courante == .centre && abs(m.geo[2].x - hCentreFichiers) < 0.5 && m.etagere.count == 3 && PlanCentre.cadre(.etagere, m) != nil,
@@ -1222,7 +1218,6 @@ enum IlotEssai {
             { IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, fenetres: { fenetres }, relancer: { fabriquer() }) },
             { IlotEssai.reveilEtCalendrier(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() }) },
             { IlotEssai.reunion(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
-            { IlotEssai.concentration(c, dossier: dossier, decaler: { decalage += $0 }, verifier: verifier, attendre: { attendre($0, tant: $1) }, relancer: { fabriquer() }) },
             { IlotEssai.noteApresAppel(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
             { IlotEssai.sonDeReunionGarde(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }) },
             { IlotEssai.voixSeparees(dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) }) },

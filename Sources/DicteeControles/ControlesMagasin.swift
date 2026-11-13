@@ -37,9 +37,6 @@ func controlesMagasins() {
     let urlV = ecrireBrut("reveil.json", #"{"heure":7,"minute":30,"repousse":true,"sonnerie":"2026-11-14T06:40:00Z"}"#)
     let reveil = MagasinJSON<ReveilIlot>(url: urlV, nom: "réveil", siIllisible: .oublier).lire()
     verifier(reveil?.heure == 7 && reveil?.minute == 30 && reveil?.repousse == true && reveil?.sonnerie == date("2026-11-14T06:40:00Z"), "reveil.json : relu tel quel")
-    let urlC = ecrireBrut("concentration.json", #"{"dernier":{"duree":"1h","mode":"travail"},"raccourci":"Concentration Verbe"}"#)
-    verifier(MagasinJSON<MemoireConcentration>(url: urlC, nom: "concentration").lire()
-             == MemoireConcentration(dernier: DernierConcentration(mode: .travail, duree: .uneHeure), raccourci: "Concentration Verbe"), "concentration.json : relu tel quel")
     let urlE = ecrireBrut("etagere.json", #"{"elements":[{"ajout":"2026-11-12T10:00:00Z","chemin":"/Users/essai/Documents/Contrat.pdf","id":"6F1C2D3E-0000-4000-8000-000000000003","nom":"Contrat.pdf","signet":"AAEC"}]}"#)
     let etagere = MagasinJSON<EtagereIlot>(url: urlE, nom: "étagère").lire()
     verifier(etagere?.elements.map(\.nom) == ["Contrat.pdf"] && etagere?.elements.first?.signet == Data([0, 1, 2]) && etagere?.elements.first?.arriveSeul == false,

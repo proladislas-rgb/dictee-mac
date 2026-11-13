@@ -87,7 +87,7 @@ ZStack {
 - F. Pilule debout : largeur mesurée 40…66 pt.
 
 ## Exigence transversale (Hugues, 12/11 nuit)
-TOUT ce qui existe dans l'îlot doit marcher en verre « Liquide » depuis les 4 coins (et les autres places) : Centre, cartes (Claude, Outils, Second Brain, Concentration, Dictées, Étagère), annonces (captures, rappel avec carte de confirmation, téléchargé, AirDrop), alertes (minuteur, rappel), réunion en cours, onde de voix de la dictée/note. Chaque essai de mission 3-4 parcourt ces écrans depuis hautGauche, hautDroite, basGauche, basDroite (+ gauche/droite) : rien de coupé, ouverture vers l'intérieur, lisible sur fond clair et sombre.
+TOUT ce qui existe dans l'îlot doit marcher en verre « Liquide » depuis les 4 coins (et les autres places) : Centre, cartes (Claude, Outils, Second Brain, Dictées, Étagère), annonces (captures, rappel avec carte de confirmation, téléchargé, AirDrop), alertes (minuteur, rappel), réunion en cours, onde de voix de la dictée/note. Chaque essai de mission 3-4 parcourt ces écrans depuis hautGauche, hautDroite, basGauche, basDroite (+ gauche/droite) : rien de coupé, ouverture vers l'intérieur, lisible sur fond clair et sombre.
 
 > Intégration (12/11) : `ControlesLucarne.swift` et `IlotEssaiLucarne.swift` existent déjà sur main pour les commandes « Lucarne, … ». Les contrôles des places sont donc dans `ControlesPlacesLucarne.swift` (`controlesPlacesLucarne()`), et l'essai des places devra s'appeler `IlotEssaiPlacesLucarne.swift`.
 

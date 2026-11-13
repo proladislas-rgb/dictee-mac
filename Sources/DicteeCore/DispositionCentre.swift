@@ -29,8 +29,6 @@ public enum ElementCentre: String, CaseIterable, Sendable {
     case secondBrain = "second-brain"
     /// Ce que Groq laisse pour la transcription (jauge en anneau, page Outils ; 12/11 : « j'ai peur d'arriver à mes limites sur Groq »).
     case groq
-    /// Les modes de Concentration de macOS (maquette ilot-concentration.html) : un rond qui ouvre la carte des modes, ou arrête le mode allumé.
-    case concentration
 
     public enum Genre: Sendable { case rond, grandeCase, bande }
 
@@ -72,7 +70,6 @@ extension ElementCentre {
         case .noteRapide: return "Un clic, tu parles, c\u{2019}est noté"
         case .secondBrain: return "Ce qui t\u{2019}attend dans Second Brain"
         case .groq: return "Ta dictée gratuite restante"
-        case .concentration: return "Allume Travail, Sommeil, Ne pas déranger"
         }
     }
     /// La plus longue phrase d'aide permise (en caractères) : au-delà, ce n'est plus une aide de survol.
@@ -90,8 +87,9 @@ public struct DispositionCentre: Equatable, Sendable {
     /// Ce que le Centre montre la première fois (maquette, étape 3) : le micro, le choix du micro de la dictée (seulement avec des
     /// AirPods), Téléchargements, Claude Code, le minuteur et l'étagère, la bande « Noter la réunion ». « Modifier » propose d'ajouter
     /// Rappel et Dernière dictée (maquette, étape 9). Le calendrier s'y ajoute (maquette ilot-bibliotheque.html, étape 10), avant Claude.
-    /// La Concentration y arrive le 12/11 (maquette ilot-concentration.html, étape 1), après Claude Code.
-    public static let parDefaut: [ElementCentre] = [.micro, .dictee, .telechargements, .calendrier, .claude, .concentration, .minuteur, .etagere, .reunion]
+    /// La Concentration y était du 12 au 13/11 (retirée : macOS l'offre déjà à portée de main) ; son identifiant, encore rangé dans
+    /// des réglages, est ignoré comme tout identifiant inconnu (`init(identifiants:)`).
+    public static let parDefaut: [ElementCentre] = [.micro, .dictee, .telechargements, .calendrier, .claude, .minuteur, .etagere, .reunion]
     /// La page Outils telle qu'elle est la première fois (maquette, étape 8) : les quatre outils, la jauge de Groq (12/11) et la bande
     /// « Dicter une note ».
     public static let parDefautOutils: [ElementCentre] = [.eveil, .pressePapiers, .reformuler, .notes, .groq, .noteRapide]
@@ -99,7 +97,7 @@ public struct DispositionCentre: Equatable, Sendable {
     /// Ce qui est arrivé après coup dans une disposition par défaut (le calendrier dans le Centre, la jauge de Groq dans les Outils) : une
     /// page déjà rangée (« Modifier ») le reçoit UNE fois, à sa place (`avecNouveautes`) ; retiré ensuite, il ne revient plus. Chacun
     /// n'entre que dans sa page (`page`) ; les deux pages partagent la liste de ce qui a déjà été donné.
-    public static let nouveautes: [ElementCentre] = [.calendrier, .groq, .concentration]
+    public static let nouveautes: [ElementCentre] = [.calendrier, .groq]
 
     /// La page que cette disposition décrit : seuls ses éléments y entrent, « Ajouter : » ne propose qu'eux.
     public let page: PageCentre
@@ -155,7 +153,7 @@ public struct DispositionCentre: Equatable, Sendable {
         let r = d.avecNouveautes(dejaProposees: dejaProposees)
         guard !r.proposees.isEmpty else { return (d, nil, []) }
         let ajoutees = r.proposees.filter { r.disposition.elements.contains($0) && !d.elements.contains($0) }
-        // seulement ce qui a vraiment trouvé sa place (12/11 : la rangée pleine, Concentration était marquée « proposée » sans jamais
+        // seulement ce qui a vraiment trouvé sa place (12/11 : la rangée pleine, une nouveauté était marquée « proposée » sans jamais
         // être montrée) ; le reste attend une place libre et sera ajouté à ce moment-là
         guard !ajoutees.isEmpty else { return (d, nil, []) }
         return (r.disposition, dejaProposees.union(ajoutees.map(\.rawValue)).sorted(), ajoutees)

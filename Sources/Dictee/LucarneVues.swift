@@ -32,7 +32,6 @@ enum GenreCompact: Equatable {
         case .microCompact: return .activite(.micro)
         case .claudeMinimal, .claudeCompact: return .activite(.claude)
         case .reunionCompact: return .activite(.reunion)
-        case .concentrationCompact: return .activite(.concentration)
         case .volume: return .niveau(.volume)
         case .luminosite: return .niveau(.luminosite)
         case .batterieCharge: return .energie(charge: true)
@@ -67,7 +66,6 @@ extension IlotMoteur {
                 return (13, s.isEmpty ? 0 : 6, s.isEmpty ? 0 : t(s))
             case .reveil: return (MesureIlot.symbole("alarm", 12), 6, t((reveil ?? dernierReveil)?.libelle() ?? "10:30"))
             case .reunion: return (7, 6, t(FormatIlot.chrono((reunion ?? derniereReunion).temps(a: maintenant()))))
-            case .concentration: return (13, 0, 0)
             case .alerte: return piecesCompactes(.logo)
             }
         case .niveau(let n): return (MesureIlot.symbole(niveauVu(n).symbole, 14), 6, t("100\u{202F}%"))
@@ -214,11 +212,6 @@ struct ContenuCompactLucarne: View {
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(r.enPause ? "Réunion en pause" : "Réunion en cours")
-        case .concentration:
-            let mode = m.concentration.modeVu
-            GlypheConcentration(mode: mode, taille: 13, couleur: mode.teinte)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Concentration \(mode.nom)")
         case .alerte:
             EmptyView()
         }

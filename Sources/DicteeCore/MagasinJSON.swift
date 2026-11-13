@@ -32,7 +32,6 @@ extension EtagereIlot: FichierJSON {}
 extension ListeNotes: FichierJSON {}
 extension BibliothequeIlot: FichierJSON {}
 extension ReveilIlot: FichierJSON {}
-extension MemoireConcentration: FichierJSON {}
 extension Historique: FichierJSON {}
 
 /// Un fichier JSON de l'utilisateur (rappels, étagère, notes…) : relu tel quel, écrit d'un coup en 0600 (`FichierPrive`), échec tracé

@@ -93,7 +93,6 @@ public enum NavigationIlot {
         case .outilPressePapiers: return "Presse-papiers"
         case .outilReformuler: return "Reformuler"
         case .outilNote: return "Notes"
-        case .concentration: return "Concentration"
         case .rappelListe: return "Rappels"
         default: return nil
         }

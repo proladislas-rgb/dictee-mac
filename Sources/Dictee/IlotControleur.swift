@@ -143,8 +143,8 @@ final class IlotControleur {
     /// Second Brain (IlotSecondBrain.swift) : le dossier de son fichier d'état, la lecture du fichier, le test d'existence d'un chemin et la
     /// recherche de l'app, tous injectables (l'essai ne lit jamais le vrai ~/.config et n'ouvre rien).
     let secondBrainSource = SourceSecondBrain()
-    /// Les modes de Concentration (IlotConcentration.swift) : son système (Raccourcis) et son fichier sont injectables.
-    lazy var concentration = PiloteConcentration(moteur: moteur)
+    /// Le dossier où traînent les fichiers d'une fonction retirée (`AnciensFichiers`) : celui de Voxile ; l'essai donne le sien.
+    var dossierAnciensFichiers = DossierVerbe.url()
     var dossierSecondBrain: () -> URL = { FichierSecondCerveau.dossierParDefaut() }
     var lireSecondBrain: (URL) -> Data? = { FichierSecondCerveau.lire($0) }
     var existenceSecondBrain: (String) -> SecondCerveauIlot.Existence = { chemin in
@@ -317,7 +317,7 @@ final class IlotControleur {
         // le réveil gardé (Verbe relancé, Mac redémarré) : il reprend, ou sonne s'il est passé pendant que Verbe était fermé
         demarrerLeReveil()
         demarrerGroq()
-        concentration.demarrer()
+        nettoyerAnciensFichiers()
     }
 
     /// Ce que le Centre montre, relu des réglages ; un Centre rangé avant l'arrivée du calendrier le reçoit une fois, à sa place.
@@ -332,9 +332,19 @@ final class IlotControleur {
         return r.disposition
     }
 
+    /// Au lancement : les fichiers d'une fonction retirée (la Concentration, 13/11) sont effacés ; un mode que l'ancienne version avait
+    /// allumé reste allumé dans macOS (plus personne pour l'éteindre à l'heure) : le journal le dit.
+    func nettoyerAnciensFichiers() {
+        let bilan = AnciensFichiers.nettoyer(dossier: dossierAnciensFichiers)
+        guard !bilan.effaces.isEmpty else { return }
+        Log.ecrire("ménage : effacé \(bilan.effaces.joined(separator: ", ")) (Concentration retirée)")
+        if let mode = bilan.concentrationLaisseeAllumee {
+            Log.ecrire("ménage : le mode de Concentration « \(mode) » allumé par l'ancienne version reste allumé (Centre de contrôle pour l'éteindre)")
+        }
+    }
+
     func arreter() {
         secondBrainSource.arreter()
-        concentration.arreter()
         lecture.arreter()
         notificationsSource.arreter()
         energieSource.arreter(); appareilsSource.arreter()
@@ -709,7 +719,6 @@ final class IlotControleur {
         case .quitter:
             Log.ecrire("îlot : « Quitter Voxile »")
             surQuitter()
-        case .concentration(let a): concentration.agir(a)
         case .voix(let a): agirVoix(a)
         case .alerteOK: moteur.quitterAlerte()
         case .rappelPlusTard(let id):

@@ -1415,21 +1415,21 @@ func controlesDispositionCentre() {
     let sansAirPods: (ElementCentre) -> Bool = { $0 != .dictee && $0 != .secondBrain }
     // la valeur par défaut, et ce qui est rangé dans les réglages
     let d0 = D(identifiants: nil)
-    verifier(d0.elements == [.micro, .dictee, .telechargements, .calendrier, .claude, .concentration, .minuteur, .etagere, .reunion],
-             "jamais modifié : micro, dictée, Téléchargements, Calendrier, Claude Code, Concentration, minuteur, étagère, réunion (maquettes ilot-centre, étape 3, ilot-bibliotheque, étape 10, ilot-concentration, étape 1)")
-    verifier(d0.ronds(disponible: sansAirPods) == [.micro, .telechargements, .calendrier, .claude, .concentration] && d0.ronds(disponible: tout).count == 6 && d0.cases == [.minuteur, .etagere] && d0.bande,
-             "par défaut : 5 ronds sans AirPods (6 avec), les deux cases, la bande « Noter la réunion »")
+    verifier(d0.elements == [.micro, .dictee, .telechargements, .calendrier, .claude, .minuteur, .etagere, .reunion],
+             "jamais modifié : micro, dictée, Téléchargements, Calendrier, Claude Code, minuteur, étagère, réunion (maquettes ilot-centre, étape 3, ilot-bibliotheque, étape 10)")
+    verifier(d0.ronds(disponible: sansAirPods) == [.micro, .telechargements, .calendrier, .claude] && d0.ronds(disponible: tout).count == 5 && d0.cases == [.minuteur, .etagere] && d0.bande,
+             "par défaut : 4 ronds sans AirPods (5 avec), les deux cases, la bande « Noter la réunion »")
     verifier(D(identifiants: d0.identifiants) == d0 && d0.identifiants.contains("derniere-dictee") == false && ElementCentre.derniereDictee.rawValue == "derniere-dictee",
              "les identifiants rangés se relisent à l'identique")
     verifier(D(identifiants: ["claude", "fusee", "micro", "claude", "etagere"]).elements == [.claude, .micro, .etagere], "identifiants inconnus et doublons ignorés, l'ordre gardé")
     verifier(D(identifiants: ["fusee", "laser"]) == d0, "plus rien de connu dans une liste non vide (réglage abîmé, version plus récente) : la valeur par défaut")
     verifier(D(identifiants: []).elements.isEmpty, "une liste vide est un choix (tout retiré) : gardée vide")
-    // retirer (la suite de la maquette ilot-centre, faite avant l'arrivée de la Concentration : on part du Centre d'alors)
-    var d = D(d0.elements.filter { $0 != .concentration })
+    // retirer (la suite de la maquette ilot-centre)
+    var d = d0
     verifier(d.retirer(.telechargements) && !d.retirer(.telechargements) && d.ronds(disponible: tout) == [.micro, .dictee, .calendrier, .claude], "« – » sur Téléchargements : retiré (une seule fois)")
     verifier(d.retirer(.minuteur) && d.cases == [.etagere], "« – » sur Minuteur : l'étagère reste seule")
     // ajouter : ce qui n'est pas montré, dans l'ordre du catalogue ; à la fin de son genre
-    verifier(d.aAjouter(disponible: tout) == [.telechargements, .rappel, .derniereDictee, .minuteur, .concentration], "« Ajouter : » propose ce qui n'est pas montré, dans l'ordre du catalogue")
+    verifier(d.aAjouter(disponible: tout) == [.telechargements, .rappel, .derniereDictee, .minuteur], "« Ajouter : » propose ce qui n'est pas montré, dans l'ordre du catalogue")
     verifier(d0.aAjouter(disponible: sansAirPods) == [.rappel, .derniereDictee], "par défaut : « + Rappel », « + Dernière dictée » (maquette, étape 9) ; sans AirPods, pas le choix du micro")
     verifier(d.ajouter(.rappel) && d.elements == [.micro, .dictee, .calendrier, .claude, .rappel, .etagere, .reunion], "+ Rappel : à la fin des ronds (l'ordre d'ajout), avant les cases")
     verifier(d.ajouter(.minuteur) && d.cases == [.etagere, .minuteur], "+ Minuteur : après l'étagère")

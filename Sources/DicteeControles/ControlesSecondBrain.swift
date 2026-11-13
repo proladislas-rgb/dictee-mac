@@ -199,8 +199,8 @@ func controlesSecondBrain() {
     verifier(GeoIlot.valeurs(.secondBrain, hauteurBarre: 33) == GeoIlot.valeurs(.centre, hauteurBarre: 33), "même largeur que le Centre (on passe de l'un à l'autre sans que la forme s'élargisse)")
     verifier(ElementCentre.secondBrain.rawValue == "second-brain" && ElementCentre.secondBrain.genre == .rond && ElementCentre.secondBrain.page == .centre, "l'élément « second-brain » : un rond du Centre")
     func dispo(_ sb: Bool) -> (ElementCentre) -> Bool { { $0 != .secondBrain || sb } }
-    // le Centre d'avant la Concentration (12/11) : six ronds avec elle, il n'y aurait plus de place pour Second Brain
-    var d = DispositionCentre(DispositionCentre.parDefaut.filter { $0 != .concentration })
+    // le Centre par défaut : cinq ronds, une place pour Second Brain
+    var d = DispositionCentre()
     verifier(!d.elements.contains(.secondBrain) && d.aAjouter(disponible: dispo(false)).contains(.secondBrain) == false && d.aAjouter(disponible: dispo(true)).contains(.secondBrain), "proposé dans « Ajouter : » seulement quand le fichier existe")
     verifier(!d.ajouter(.secondBrain, disponible: dispo(false)) && d.ajouter(.secondBrain, disponible: dispo(true)), "ajouté seulement quand le fichier existe")
     verifier(d.ronds(disponible: dispo(true)).contains(.secondBrain) && !d.ronds(disponible: dispo(false)).contains(.secondBrain), "montré avec le fichier, caché sans (aucun vide), sans être retiré de la disposition")

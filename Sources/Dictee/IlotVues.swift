@@ -171,7 +171,6 @@ struct IlotCalques: View {
         case .reunionCompact: ReunionAiles(m: m, g: g)
         case .reunionEtendu: CarteReunion(m: m, g: g)
         case .reunionPropose, .reunionPrepare, .reunionPrete, .reunionMessage: if let c = m.contenuAnnonce(v) { annonce(v, c) }
-        case .concentrationCompact, .concentrationStatut, .concentration, .concentrationLance, .concentrationFin: EcranConcentration(m: m, g: g, v: v)
         case .voixEcoute, .voixCarte: EcranVoix(m: m, voix: m.voix, g: g, v: v)
         }
     }

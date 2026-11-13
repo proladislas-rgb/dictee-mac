@@ -334,7 +334,6 @@ extension IlotMoteur {
 
     /// La largeur du contenu (sans les marges) d'un écran qui l'épouse : c'est elle qui donne sa largeur à la forme.
     func largeurContenu(_ v: VueIlot) -> CGFloat? {
-        if let l = largeurConcentration(v) { return l }
         if v == .agendaEtendu {
             guard let e = rdvVu else { return nil }
             // la plage est mesurée avec « dans 10 min », sa forme la plus longue dans la fenêtre des 10 minutes
