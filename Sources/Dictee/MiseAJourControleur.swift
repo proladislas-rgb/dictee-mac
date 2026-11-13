@@ -67,8 +67,11 @@ final class MiseAJourModele: ObservableObject {
         }
     }
 
+    /// L'heure de vérification des exemples : aujourd'hui à 9:41, jamais l'heure réelle (13/11 : deux passes des rendus des Réglages
+    /// différaient, « Vérifiée aujourd'hui à 10:40 » puis « 10:41 »).
+    nonisolated static var heureExemple: Date { Calendar.current.date(bySettingHour: 9, minute: 41, second: 0, of: Date()) ?? Date() }
     /// Exemples pour les rendus PNG : aucun accès au réseau ni aux réglages de l'utilisateur.
-    static func exemple(_ activite: Activite = .repos, disponible: String? = nil, verifieeLe: Date? = Date(), refus: String? = nil,
+    static func exemple(_ activite: Activite = .repos, disponible: String? = nil, verifieeLe: Date? = heureExemple, refus: String? = nil,
                         message: String? = nil, echec: String? = nil, automatique: Bool = true) -> MiseAJourModele {
         let m = MiseAJourModele(versionActuelle: "0.3.0", automatique: automatique)
         m.installe = false

@@ -108,7 +108,7 @@ final class ReglagesModele: ObservableObject {
     /// `reel = false` : valeurs d'exemple, aucun accès au système (rendus PNG).
     init(reel: Bool = true, globe: Int? = 0, maj: MiseAJourModele? = nil) {
         self.reel = reel
-        self.maj = maj ?? (reel ? MiseAJourControleur.partage.modele : MiseAJourModele.exemple(verifieeLe: Date()))
+        self.maj = maj ?? (reel ? MiseAJourControleur.partage.modele : MiseAJourModele.exemple())
         globeValeur = reel ? ToucheGlobe.lire() : globe
         remettreAuPropre = reel ? Settings.remettreAuPropre : true
         adapterLeTon = reel ? Settings.adapterLeTon : true
@@ -177,8 +177,6 @@ final class ReglagesModele: ObservableObject {
             groq = EtatGroq.calculer(c, modele: ModeleWhisper.precis.identifiant, secours: ModeleWhisper.rapide.identifiant, a: t)
         }
     }
-    /// Pour les rendus : un usage d'exemple (bas, en pause).
-    func exempleGroq(_ e: EtatGroq) { guard !reel else { return }; groq = e }
 
     /// Deux commandes de l'ancien menu de l'icône, qui n'avaient pas d'autre chemin (l'icône est éteinte par défaut sur un Mac à encoche).
     /// Le journal s'ouvre sur ce Mac, dans l'app choisie pour les fichiers texte.

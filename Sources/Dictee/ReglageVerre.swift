@@ -12,6 +12,12 @@ final class ReglageVerre: ObservableObject {
     /// Où la valeur est gardée (le vrai réglage ; l'essai le remplace : jamais les vrais réglages).
     var enregistrer: (Double) -> Void = { Settings.intensiteVerre = $0 }
     init(intensite: Double = Settings.intensiteVerre) { self.intensite = intensite }
+    /// Les rendus PNG : la valeur par défaut, jamais celle de l'utilisateur, et rien d'enregistré (13/11 : les Réglages et la Lucarne des
+    /// rendus prenaient le verre réglé chez Hugues).
+    func pourLesRendus() {
+        enregistrer = { _ in }
+        intensite = VerreLucarne.intensiteParDefaut
+    }
     /// Une nouvelle intensité (bornée 0…1, par pas de 0,05 comme le curseur des Réglages) : l'aperçu est immédiat, la valeur gardée.
     func regler(_ v: Double) {
         let x = (min(1, max(0, v)) * 20).rounded() / 20

@@ -78,6 +78,9 @@ if arguments.contains("--verifier-collage") {
     RunLoop.main.run()
 }
 
+// Les rendus ne montrent que des exemples : le verre de la Lucarne à sa valeur par défaut, jamais le réglage de l'utilisateur
+if arguments.contains(where: { $0.hasPrefix("--rendu-") }) { MainActor.assumeIsolated { ReglageVerre.partage.pourLesRendus() } }
+
 // Dictee --rendu-encoche dossier  (dessine l'encoche en PNG, sans fenêtre)
 if let i = arguments.firstIndex(of: "--rendu-encoche"), i + 1 < arguments.count {
     exit(MainActor.assumeIsolated { RenduEncoche.executer(dossier: arguments[i + 1]) })
