@@ -271,7 +271,7 @@ extension IlotEssai {
     /// part, une relecture et une rédaction factices : ni micro, ni réseau.
     @MainActor
     static func sonDeReunionGarde(dossier: URL, verifier: @escaping (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void) {
-        print("Réunions : le son gardé tant qu'il peut servir (relecture en échec, Verbe fermé, réunion effacée)")
+        print("Réunions : le son gardé tant qu'il peut servir (relecture en échec, Voxile fermé, réunion effacée)")
         let d = dossier.appendingPathComponent("reunions-son-garde", isDirectory: true)
         try? FileManager.default.removeItem(at: d)
         let store = ReunionStore(dossier: d, lire: false)

@@ -37,20 +37,20 @@ enum MiseAJourTest {
     static func verifier(arguments a: [String]) async -> Int32 {
         guard let c = client(a) else { return 2 }
         print("Version installée : \(c.versionActuelle)")
-        print("Requête           : GET \(c.urlAPI.absoluteString)  (User-Agent : Verbe-\(c.versionActuelle))")
+        print("Requête           : GET \(c.urlAPI.absoluteString)  (User-Agent : Voxile-\(c.versionActuelle))")
         switch await c.chercher() {
         case .proposition(let p):
-            print("Verbe proposerait : Verbe \(p.version) (Installer / Plus tard / Nouveautés)")
+            print("Voxile proposerait : Voxile \(p.version) (Installer / Plus tard / Nouveautés)")
             decrire(p)
             return 0
         case .aJour:
-            print("Verbe proposerait : rien (à jour)")
+            print("Voxile proposerait : rien (à jour)")
             return 0
         case .horsLigne:
-            print("Verbe proposerait : rien (pas de connexion, silencieux)")
+            print("Voxile proposerait : rien (pas de connexion, silencieux)")
             return 0
         case .limite(let jusqua):
-            print("Verbe proposerait : rien (limite de requêtes atteinte, pas avant \(jusqua))")
+            print("Voxile proposerait : rien (limite de requêtes atteinte, pas avant \(jusqua))")
             return 0
         case .echec(let detail):
             print("Échec : \(detail)")
@@ -66,13 +66,14 @@ enum MiseAJourTest {
         guard let chemin = valeur("--app", a) else { print("--app manque"); return 2 }
         let cible = URL(fileURLWithPath: (chemin as NSString).expandingTildeInPath).resolvingSymlinksInPath()
         let maison = FileManager.default.homeDirectoryForCurrentUser
-        let interdits = ["/Applications/Verbe.app", maison.appendingPathComponent("Applications/Verbe.app").path, Bundle.main.bundleURL.resolvingSymlinksInPath().path]
+        let interdits = ["/Applications/Verbe.app", maison.appendingPathComponent("Applications/Verbe.app").path,
+                         "/Applications/Voxile.app", maison.appendingPathComponent("Applications/Voxile.app").path, Bundle.main.bundleURL.resolvingSymlinksInPath().path]
         if interdits.contains(cible.path) { print("Refusé : ce test ne remplace que des copies, jamais une app installée (\(cible.path))"); return 2 }
         func versionDe(_ app: URL) -> String { (NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))?["CFBundleShortVersionString"] as? String) ?? "illisible" }
 
         print("Copie à mettre à jour : \(cible.path) (version \(versionDe(cible)))")
         guard case .proposition(let p) = await c.chercher() else { print("Aucune mise à jour proposée par le serveur de test"); return 1 }
-        print("Proposition : Verbe \(p.version) (\(p.taille) octets)")
+        print("Proposition : Voxile \(p.version) (\(p.taille) octets)")
         var installateur = InstallateurMiseAJour(client: c)
         installateur.echecSimuleApresEchange = a.contains("--simuler-echec-apres-echange")
         do {
@@ -149,7 +150,7 @@ enum RenduMiseAJour {
         reglages("reglages-1-a-jour", MiseAJourModele.exemple())
         reglages("reglages-2-disponible", MiseAJourModele.exemple(disponible: "0.3.1"))
         reglages("reglages-3-telechargement", MiseAJourModele.exemple(.telechargement(0.42), disponible: "0.3.1"))
-        reglages("reglages-4-depuis-image-disque", MiseAJourModele.exemple(disponible: "0.3.1", refus: "Verbe tourne depuis l\u{2019}image disque. Glisse-le dans Applications, puis rouvre-le."))
+        reglages("reglages-4-depuis-image-disque", MiseAJourModele.exemple(disponible: "0.3.1", refus: "Voxile tourne depuis l\u{2019}image disque. Glisse-le dans Applications, puis rouvre-le."))
         reglages("reglages-5-hors-ligne", MiseAJourModele.exemple(message: "Impossible de vérifier : pas de connexion à GitHub.", automatique: false))
         reglages("reglages-6-petite", MiseAJourModele.exemple(disponible: "0.3.1"), taille: CGSize(width: FenetrePrincipale.tailleMinimale.width + 80, height: FenetrePrincipale.tailleMinimale.height + 80))
 

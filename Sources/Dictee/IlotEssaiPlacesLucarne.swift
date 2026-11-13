@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import DicteeCore
 
@@ -306,7 +307,15 @@ enum CatalogueLucarne {
                 var r = ReunionIlot(); r.depuis = t0.addingTimeInterval(-754); m.reunion = r; m.donneesChangees(); m.clicForme()
             },
             Ecran(nom: "annonce capture", vue: .etagereCapture) { m in
-                m.annoncer(bandeau: BandeauIlot(vue: .etagereCapture, jusqua: t0.addingTimeInterval(60), ligne1: "Capture d\u{2019}écran", ligne2: RafaleCaptures.sousTitre))
+                // une fausse capture 16:10 (dessinée, aucun fichier) : sa miniature à ses proportions, comme une vraie
+                let t = MiniatureCapture.taille(largeur: 1600, hauteur: 1000)
+                let vignette = NSImage(size: t, flipped: false) { r in
+                    NSGradient(starting: NSColor(calibratedRed: 0.20, green: 0.36, blue: 0.62, alpha: 1), ending: NSColor(calibratedRed: 0.55, green: 0.32, blue: 0.58, alpha: 1))?.draw(in: r, angle: -35)
+                    NSColor.white.setFill(); NSBezierPath(roundedRect: r.insetBy(dx: r.width * 0.15, dy: r.height * 0.17), xRadius: 2, yRadius: 2).fill()
+                    return true
+                }
+                m.annoncer(bandeau: BandeauIlot(vue: .etagereCapture, jusqua: t0.addingTimeInterval(60), ligne1: "Capture d\u{2019}écran", ligne2: RafaleCaptures.sousTitre,
+                                                vignette: vignette))
             },
             Ecran(nom: "annonce rappel (Rappels d'Apple ?)", vue: .lucarne) { m in
                 m.annoncer(bandeau: BandeauIlot(vue: .lucarne, jusqua: t0.addingTimeInterval(60), ligne1: "", ligne2: "", lucarne: .questionRappelsApple))
@@ -920,5 +929,182 @@ extension IlotEssai {
         } else { verifier(false, "la Lucarne dans l'encoche : la fenêtre de dictée est là") }
         d.fermer(); dicter(false); pause(1.0)
         verifier(!m.lucarne.libre && c.panneau.estVisible && !m.boucleActive, "fin de la dictée : la Lucarne dans l'encoche, plus rien ne tourne")
+    }
+}
+
+extension IlotEssai {
+    /// La dictée à la place de la Lucarne, câblée comme dans l'app (AppDelegate.configurerLecture) : l'occupation lit la vraie fenêtre de
+    /// la dictée, son `ouverte` relit les masques, une vidéo joue. Pendant fn tenue, la pilule de la dictée reste à l'écran.
+    @MainActor
+    static func dicteeLucarneCablee(_ c: IlotControleur, verifier: (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void) {
+        func pause(_ s: Double) { attendre(s) { true } }
+        let m = c.moteur
+        print("— la dictée à la place de la Lucarne, câblée comme dans l'app, avec une vidéo")
+        let d = EnclochePanneau()
+        d.invisible = true
+        d.placementLibre = { [weak c] in c?.panneau.placementDictee() }
+        c.occupation = { OccupationEncoche(dictee: d.modele.ouverte) }
+        var jetons = Set<AnyCancellable>()
+        d.modele.$ouverte.dropFirst().sink { [weak c] _ in c?.occupationChangee() }.store(in: &jetons)
+        d.modele.$ruban.dropFirst().sink { [weak c] _ in c?.occupationChangee() }.store(in: &jetons)
+        let morceauAvant = c.lecture.modele.morceau
+        defer {
+            d.fermer(); c.occupation = { OccupationEncoche() }
+            c.lecture.modele.morceau = morceauAvant; c.lecture.surIlot(morceauAvant != nil); c.occupationChangee()
+        }
+        c.lecture.modele.morceau = MorceauEnCours(titre: "Vidéo · Titre", app: "essai.lecture", joue: true, duree: 214, position: 97)
+        c.lecture.surIlot(true)
+        for p in [PlaceLucarne.hautDroite, .hautGauche, .basGauche, .basDroite] {
+            CatalogueLucarne.vider(m)
+            EssaiPlaces.memoire.poser(p, sur: EssaiPlaces.ecran)
+            c.panneau.recaler(); m.poser(); pause(0.4)
+            var trace: [String] = []
+            c.dicteeChange(enCours: true)
+            pause(0.12); d.ouvrir(app: nil, mainsLibres: false)
+            for i in 0..<10 {
+                pause(0.15)
+                if i == 3 { d.mettreAJourTexte("Je te rappelle demain pour le devis") }
+                if d.cadre == nil || !d.modele.ouverte { trace.append("t\(i): fenêtre \(d.cadre == nil ? "absente" : "là"), ouverte \(d.modele.ouverte)") }
+            }
+            verifier(trace.isEmpty && d.horsEncoche, "\(p.rawValue), vidéo en cours : la pilule de la dictée reste affichée pendant fn\(trace.isEmpty ? "" : " — " + trace.joined(separator: " ; "))")
+            d.figer(); d.fermer(); c.dicteeChange(enCours: false); pause(1.0)
+        }
+    }
+}
+
+extension IlotEssai {
+    /// Les égaliseurs (barres de son) à l'écran dans la fenêtre de l'îlot : combien, et combien bougent.
+    @MainActor
+    static func egaliseurs(_ c: IlotControleur) -> (total: Int, animes: Int) {
+        var total = 0, animes = 0
+        func parcourir(_ v: NSView) {
+            if let e = v as? EgaliseurLecture.Vue, e.window != nil { total += 1; if e.anime { animes += 1 } }
+            v.subviews.forEach(parcourir)
+        }
+        if let v = c.panneau.fenetre?.contentView { parcourir(v) }
+        return (total, animes)
+    }
+
+    /// Une vidéo en pause (Hugues 12/11, 23 h 47) : la bulle de la lecture garde des barres immobiles au repos, pendant la tenue, le glisser
+    /// et après le lâcher ; elle joue : les barres bougent.
+    @MainActor
+    static func lectureEnPauseLucarne(_ c: IlotControleur, verifier: (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void) {
+        func pause(_ s: Double) { attendre(s) { true } }
+        let m = c.moteur
+        print("— la vidéo en pause : barres immobiles, posée comme tenue")
+        let morceauAvant = c.lecture.modele.morceau
+        var tenu = false
+        m.boutonEnfonce = { tenu }
+        defer {
+            m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 }
+            c.lecture.modele.morceau = morceauAvant; c.lecture.surIlot(morceauAvant != nil); m.donneesChangees()
+        }
+        CatalogueLucarne.vider(m)
+        EssaiPlaces.memoire.poser(.hautDroite, sur: EssaiPlaces.ecran)
+        c.panneau.recaler(); m.poser(); pause(0.3)
+        c.lecture.modele.morceau = MorceauEnCours(titre: "Vidéo · Titre", app: "essai.lecture", joue: true, duree: 214, position: 97)
+        c.lecture.surIlot(true); m.donneesChangees(); pause(0.8)
+        let enJeu = egaliseurs(c)
+        verifier(enJeu.total > 0 && enJeu.animes == enJeu.total, "la vidéo joue : ses barres bougent (\(enJeu.animes) sur \(enJeu.total))")
+        // la pause arrive du système (Hugues met la vidéo en pause dans Chrome), par le vrai chemin : aucun `donneesChangees` de l'essai
+        if var enPause = c.lecture.modele.morceau { enPause.joue = false; c.lecture.systeme.surEvenement(.etat(enPause)) }
+        pause(0.5)
+        var bilan: [String] = []
+        func noter(_ moment: String) { let e = egaliseurs(c); if e.animes > 0 { bilan.append("\(moment) : \(e.animes) sur \(e.total) bougent") } }
+        noter("au repos")
+        let depart = CGPoint(x: m.lucarne.capsule.cx.x, y: m.lucarne.capsule.cy.x)
+        tenu = true; c.panneau.envoyerSouris(.leftMouseDown, en: depart); pause(0.25); noter("pendant l'appui")
+        pause(0.35); noter("décollée")
+        let loin = CGPoint(x: depart.x - 260, y: depart.y + 300)
+        for i in 1...20 {
+            let u = CGFloat(i) / 20
+            c.panneau.envoyerSouris(.leftMouseDragged, en: CGPoint(x: depart.x + (loin.x - depart.x) * u, y: depart.y + (loin.y - depart.y) * u)); pause(0.016)
+            if i % 5 == 0 { noter("glisser \(i)") }
+        }
+        pause(0.3); noter("tenue")
+        c.panneau.envoyerSouris(.leftMouseUp, en: loin); tenu = false; pause(1.2); noter("après le lâcher")
+        verifier(bilan.isEmpty && egaliseurs(c).total > 0,
+                 "la vidéo en pause : barres immobiles au repos, à l'appui, pendant le glisser et après le lâcher\(bilan.isEmpty ? "" : " — " + bilan.joined(separator: " ; "))")
+        // la cause vue chez Hugues : une commande (la reprise de fin de dictée, un clic) met l'état deviné à « joue » ; si la vidéo ne
+        // repart pas, le système ne dit rien (il ne prévient que d'un changement) et les barres bougeaient sur une vidéo en pause.
+        // Ici la commande ne part pas (aucun programme d'aide dans l'essai) : l'état doit revenir au vrai tout seul.
+        let exclusive = c.lecture.systeme.appExclusive
+        c.lecture.systeme.appExclusive = "essai.aucune-app"
+        c.lecture.modele.surBascule(); pause(0.4)
+        let deviné = egaliseurs(c).animes > 0 && c.lecture.modele.joue
+        pause(Double(LectureControleur.delaiConfirmationCommande) + 0.4)
+        verifier(deviné && !c.lecture.modele.joue && egaliseurs(c).animes == 0,
+                 "une reprise que le système ne confirme pas (la vidéo reste en pause) : « joue » deviné \(deviné ? "oui" : "non"), puis revenu à « en pause » au bout de \(Int(LectureControleur.delaiConfirmationCommande)) s, barres immobiles (\(c.lecture.modele.joue ? "joue encore" : "en pause"), \(egaliseurs(c).animes) bougent)")
+        c.lecture.systeme.appExclusive = exclusive
+        CatalogueLucarne.vider(m)
+        EssaiPlaces.memoire.poser(.encoche, sur: EssaiPlaces.ecran)
+        c.panneau.recaler(); m.poser(); pause(0.4)
+    }
+}
+
+extension IlotEssai {
+    /// Le curseur « Verre » du Centre (13/11, Hugues : l'intensité du verre réglable depuis l'îlot, comme la luminosité du Centre de
+    /// contrôle), avec de vrais événements souris : absent dans l'encoche (noire) ; en verre, un clic pose la valeur, un glisser de plus
+    /// d'une seconde la suit sans décoller la Lucarne, le Centre reste ouvert ; les Réglages suivent, et le curseur suit les Réglages.
+    /// Jamais les vrais réglages : la valeur est gardée dans une fermeture de l'essai.
+    @MainActor
+    static func verreCentre(_ c: IlotControleur, verifier: (Bool, String) -> Void, attendre: (Double, () -> Bool) -> Void) {
+        func pause(_ s: Double) { attendre(s) { true } }
+        let m = c.moteur
+        print("— le curseur « Verre » du Centre")
+        let rv = ReglageVerre.partage
+        let avant = rv.intensite, enregistrerAvant = rv.enregistrer
+        var ecrits: [Double] = []
+        rv.enregistrer = { ecrits.append($0) }
+        var tenu = false
+        m.boutonEnfonce = { tenu }
+        func aller(_ p: PlaceLucarne) {
+            CatalogueLucarne.vider(m)
+            EssaiPlaces.memoire.poser(p, sur: EssaiPlaces.ecran)
+            c.panneau.recaler(); m.poser(); pause(0.4)
+        }
+        defer {
+            m.boutonEnfonce = { NSEvent.pressedMouseButtons & 1 != 0 }
+            rv.enregistrer = enregistrerAvant; rv.intensite = avant
+            aller(.encoche)
+        }
+        // dans l'encoche : l'îlot est noir, pas de verre à régler
+        aller(.encoche)
+        m.clicForme(); pause(0.9)
+        verifier(m.courante == .centre && PlanCentre.cadre(.verre, m) == nil, "Lucarne dans l'encoche (noire) : pas de curseur Verre dans le Centre")
+        m.fermer(); pause(0.8)
+        // en verre, en haut à droite : un clic court sur la pilule ouvre le Centre
+        aller(.hautDroite)
+        let pil = m.lucarne.capsule.cible
+        let surPilule = CGPoint(x: pil.centreX, y: pil.centreY)
+        c.panneau.envoyerSouris(.leftMouseDown, en: surPilule); pause(0.08); c.panneau.envoyerSouris(.leftMouseUp, en: surPilule); pause(1.0)
+        guard m.courante == .centre, let r = PlanCentre.cadre(.verre, m) else {
+            verifier(false, "Lucarne en verre : le Centre s'ouvre et montre le curseur Verre (\(m.courante.rawValue))"); return
+        }
+        verifier(abs(CGFloat(m.geo[2].x) - m.grille.hauteur(.centre)) < 0.6,
+                 "le Centre en verre a la hauteur de ce qu'il montre, curseur compris (\(Int(m.geo[2].x)) pt pour \(Int(m.grille.hauteur(.centre))))")
+        let piste = CurseurVerreCentre.piste(r), h = CurseurVerreCentre.hauteurPiste
+        func point(_ u: CGFloat) -> CGPoint { m.depuisContenu(CGPoint(x: piste.minX + h / 2 + (piste.width - h) * u, y: piste.midY)) }
+        func bas(_ p: CGPoint) { tenu = true; c.panneau.envoyerSouris(.leftMouseDown, en: p) }
+        func haut(_ p: CGPoint) { c.panneau.envoyerSouris(.leftMouseUp, en: p); tenu = false }
+        // un clic à 20 %
+        bas(point(0.2)); pause(0.08); haut(point(0.2)); pause(0.4)
+        verifier(abs(rv.intensite - 0.2) < 0.051 && abs((ecrits.last ?? -1) - rv.intensite) < 0.001 && m.courante == .centre && m.lucarne.place == .hautDroite,
+                 "un vrai clic à 20 % de la piste : intensité \(rv.intensite), gardée, le Centre reste ouvert, la Lucarne à sa place")
+        // un glisser lent (plus d'une seconde, au-delà des 0,4 s de l'appui long) de 20 % à 85 %
+        bas(point(0.2))
+        for i in 1...30 { c.panneau.envoyerSouris(.leftMouseDragged, en: point(0.2 + 0.65 * CGFloat(i) / 30)); pause(0.035) }
+        pause(0.2); haut(point(0.85)); pause(0.6)
+        verifier(abs(rv.intensite - 0.85) < 0.051 && m.courante == .centre && m.lucarne.place == .hautDroite && !m.lucarneEnMain && m.lucarne.geste.phase == .repos,
+                 "un vrai glisser de 20 à 85 % en plus d'une seconde : intensité \(rv.intensite), la Lucarne ne se décolle pas, le Centre reste ouvert \(IlotEssai.etatLucarne(m))")
+        // les deux curseurs n'en font qu'un : les Réglages suivent le Centre, et l'inverse
+        let reglages = ReglagesModele(reel: false)
+        let suitLeCentre = abs(reglages.intensiteVerre - rv.intensite) < 0.001
+        reglages.intensiteVerre = 0.4; pause(0.2)
+        verifier(suitLeCentre && abs(rv.intensite - 0.4) < 0.001 && abs((ecrits.last ?? -1) - 0.4) < 0.001,
+                 "Réglages et Centre : la même valeur (Réglages à \(reglages.intensiteVerre), Centre à \(rv.intensite)), bouger l'un déplace l'autre")
+        bas(point(1)); pause(0.08); haut(point(1)); pause(0.3)
+        verifier(abs(reglages.intensiteVerre - 1) < 0.001, "le curseur du Centre au bout : les Réglages affichent « \(VerreLucarne.nomIntensite(reglages.intensiteVerre)) »")
+        m.clicAilleurs(); pause(0.6)
     }
 }

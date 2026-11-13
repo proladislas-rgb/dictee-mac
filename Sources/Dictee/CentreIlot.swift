@@ -61,6 +61,7 @@ enum PlanCentre {
         case .ronds: h = DispositionCentre.ronds + (m.nomsSurDeuxLignesDe(page) ? DispositionCentre.ligneNom : 0)
         case .cases: h = DispositionCentre.cases
         case .bande: h = DispositionCentre.bande
+        case .verre: h = DispositionCentre.rangeeVerre
         }
         return CGRect(x: z.minX, y: g.barre + CGFloat(y), width: z.width, height: CGFloat(h))
     }
@@ -264,12 +265,15 @@ extension IlotMoteur {
     var nomsCentre: [(texte: String, place: CGFloat, taille: CGFloat)] { nomsDe(.centre) }
     var nomsSurDeuxLignes: Bool { nomsSurDeuxLignesDe(.centre) }
     /// Les rangées d'une page et sa profondeur sous la barre. Sur la page Outils, le panneau « Garder éveillé » prend la place des cases.
+    /// Le curseur « Verre » au bas du Centre : seulement quand la Lucarne est en verre (hors de l'encoche).
+    var verreDansLeCentre: Bool { lucarne.libre }
     func planDe(_ p: PageCentre) -> (hauts: [DispositionCentre.Rangee: Double], profondeur: Double) {
         let deux = nomsSurDeuxLignesDe(p)
         // le Centre suit sa mise en page du moment (les fichiers de l'étagère en haut, la réunion en case) ; les Outils, leur disposition
         if p == .centre {
             let mp = miseEnPageCentre
-            return DispositionCentre.plan(etagere: mp.etagereEnHaut, ronds: !rondsDe(p).isEmpty, cases: !mp.cases.isEmpty, bande: mp.bande, nomsSurDeuxLignes: deux)
+            return DispositionCentre.plan(etagere: mp.etagereEnHaut, ronds: !rondsDe(p).isEmpty, cases: !mp.cases.isEmpty, bande: mp.bande, nomsSurDeuxLignes: deux,
+                                          verre: verreDansLeCentre)
         }
         return DispositionCentre.plan(ronds: !rondsDe(p).isEmpty, cases: panneauEveilVisible, bande: dispositionDe(p).bande, nomsSurDeuxLignes: deux)
     }
@@ -345,6 +349,9 @@ struct CentreVue: View {
                 }
                 if m.miseEnPageCentre.bande {
                     BandeReunion(m: m).posee(PlanCentre.cadreBande(m, g), m.aspect(v, rang: 4), ancre: .top)
+                }
+                if let r = PlanCentre.cadre(.verre, m, g) {
+                    CurseurVerreCentre(m: m, largeur: r.width).posee(r, m.aspect(v, rang: 5), ancre: .top)
                 }
             } else {
                 if m.panneauEveilVisible, let c = PlanCentre.cadre(.cases, m, g, page: .outils) {
@@ -786,7 +793,7 @@ struct CaseReunion: View {
         }
         .buttonStyle(AppuiIlot(echelle: 0.97))
         .onHover { survol = $0 }
-        .accessibilityLabel(r == nil ? "Noter la réunion : Verbe écrit tout ce qui se dit" : "Réunion en cours : voir le direct")
+        .accessibilityLabel(r == nil ? "Noter la réunion : Voxile écrit tout ce qui se dit" : "Réunion en cours : voir le direct")
     }
 }
 
@@ -1418,5 +1425,46 @@ extension IlotControleur {
         moteur.telechargementsAttente = false
         if depuisLeCentre { moteur.avisCentre = .telechargementsRefuses }
         moteur.donneesChangees()
+    }
+}
+
+/// Le curseur « Verre » du Centre (13/11, Hugues : régler l'opacité de la pilule depuis l'îlot, avec un bouton visible, comme le curseur de
+/// luminosité du Centre de contrôle de macOS) : une piste en capsule qui se remplit, le symbole du verre au bout rempli ; on la glisse ou
+/// on clique où l'on veut. C'est la même valeur que le curseur des Réglages (`ReglageVerre`) : l'aperçu est immédiat sur la Lucarne.
+struct CurseurVerreCentre: View {
+    @ObservedObject var m: IlotMoteur
+    @ObservedObject var verre = ReglageVerre.partage
+    var largeur: CGFloat
+    static let hauteurPiste: CGFloat = 26, etiquette: CGFloat = 44, ecart: CGFloat = 10
+    /// La piste (repère du Centre) : utile aux essais pour viser un point.
+    static func piste(_ r: CGRect) -> CGRect {
+        CGRect(x: r.minX + etiquette + ecart, y: r.midY - hauteurPiste / 2, width: r.width - etiquette - ecart, height: hauteurPiste)
+    }
+
+    var body: some View {
+        let w = largeur - Self.etiquette - Self.ecart, h = Self.hauteurPiste
+        let i = verre.intensite
+        HStack(spacing: Self.ecart) {
+            Text("Verre").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(CouleursIlot.encre2)
+                .frame(width: Self.etiquette, alignment: .leading).allowsHitTesting(false)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.16))
+                Capsule().fill(Color.white.opacity(0.92)).frame(width: h + (w - h) * CGFloat(i))
+                Image(systemName: "circle.lefthalf.filled").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.black.opacity(0.7))
+                    .frame(width: h, height: h)
+            }
+            .frame(width: w, height: h)
+            .contentShape(Capsule())
+            // un clic pose la valeur sous le pointeur, un glisser la suit ; le Centre reste ouvert (épinglé), comme pour ses boutons
+            .gesture(DragGesture(minimumDistance: 0).onChanged { g in
+                m.epinglerLeCentre()
+                verre.regler(Double((g.location.x - h / 2) / max(1, w - h)))
+            })
+            .accessibilityElement()
+            .accessibilityLabel("Intensité du verre")
+            .accessibilityValue(VerreLucarne.nomIntensite(i))
+            .accessibilityAdjustableAction { d in verre.regler(i + (d == .increment ? 0.1 : -0.1)) }
+        }
+        .frame(width: largeur, height: CGFloat(DispositionCentre.rangeeVerre))
     }
 }

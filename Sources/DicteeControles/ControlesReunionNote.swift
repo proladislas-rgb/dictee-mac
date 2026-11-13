@@ -174,7 +174,7 @@ func controlesReunionNote() {
         verifier(relue?.passagesParVoix[.moi] == [PassageParole(debut: 1, fin: 4)] && relue?.passagesParVoix[.eux] == [], "passages enregistrés et relus (une voix muette reste « connue et vide »)")
         verifier(Reunion(debut: debut).passagesParVoix.isEmpty, "sans passages : inconnus")
         verifier(RelectureReunion.passagesInconnus(direct: [], locuteur: .moi, dureeSon: 42) == [PassageParole(debut: 0, fin: 42)],
-                 "passages inconnus et rien dans la transcription (Verbe fermé tôt, direct en panne) : tout le son est relu")
+                 "passages inconnus et rien dans la transcription (Voxile fermé tôt, direct en panne) : tout le son est relu")
         verifier(RelectureReunion.passagesInconnus(direct: [s(10, 14, .moi, "Oui.")], locuteur: .moi, dureeSon: 42) == [PassageParole(debut: 10, fin: 14)],
                  "passages inconnus : ceux de la transcription")
 

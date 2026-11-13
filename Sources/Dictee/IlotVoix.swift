@@ -372,7 +372,7 @@ struct EcranVoix: View {
         }
         .allowsHitTesting(false)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(genre.map { "Lucarne écoute : \($0.libelle)" } ?? "Lucarne écoute")
+        .accessibilityLabel(genre.map { "\(NomApp.nom) écoute : \($0.libelle)" } ?? "\(NomApp.nom) écoute")
     }
 }
 

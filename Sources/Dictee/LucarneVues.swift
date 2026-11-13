@@ -137,7 +137,7 @@ struct ContenuCompactLucarne: View {
         case .logo:
             FormeGuillemets().fill(Color.white.opacity(0.92))
                 .frame(width: Self.hauteurLogo * Guillemets.rapport, height: Self.hauteurLogo)
-                .accessibilityLabel("Lucarne")
+                .accessibilityLabel(NomApp.nom)
         }
     }
 
@@ -156,11 +156,8 @@ struct ContenuCompactLucarne: View {
             pile(7) {
                 PochetteLecture(m: m.lecture).frame(width: large ? 24 : 15, height: large ? 13.5 : 15)
                     .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
-                Group {
-                    if m.statique { EgaliseurFixe(teinte: teinteIlot(m.lecture.teinte.clair), joue: m.lecture.joue, nombre: 3, largeurBarre: 2.2) }
-                    else { EgaliseurPetit(teinte: teinteIlot(m.lecture.teinte.clair), joue: m.lecture.joue, animer: !m.reduire) }
-                }
-                .frame(width: 11, height: 10)
+                EgaliseurDeLaLecture(lecture: m.lecture, statique: m.statique, animer: !m.reduire)
+                    .frame(width: 11, height: 10)
                 if ouverture > 0.001 {
                     Text(m.lecture.morceau?.titre ?? "").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
                         .frame(maxWidth: 140, alignment: .leading)
@@ -506,5 +503,19 @@ struct HaloLucarne: ViewModifier {
             .compositingGroup()
             .shadow(color: .black.opacity(h.pres * force), radius: h.rayonPres)
             .shadow(color: .black.opacity(h.large * force), radius: h.rayonLarge)
+    }
+}
+
+/// Les barres de la lecture dans la pilule de la Lucarne. Elles lisent la lecture ELLE-MÊME (pas le moteur de l'îlot) : une pause venue du
+/// système (la vidéo mise en pause dans Chrome) ne redessine pas l'îlot, et les barres continuaient de bouger, au repos comme pendant le
+/// déplacement (Hugues 12/11, 23 h 47).
+struct EgaliseurDeLaLecture: View {
+    @ObservedObject var lecture: LectureModele
+    var statique: Bool
+    var animer: Bool
+    var body: some View {
+        let teinte = teinteIlot(lecture.teinte.clair)
+        if statique { EgaliseurFixe(teinte: teinte, joue: lecture.joue, nombre: 3, largeurBarre: 2.2) }
+        else { EgaliseurPetit(teinte: teinte, joue: lecture.joue, animer: animer) }
     }
 }

@@ -108,7 +108,7 @@ struct SourcesAujourdhui {
 @MainActor
 final class FenetrePrincipale: NSObject, NSWindowDelegate {
     static let tailleParDefaut = CGSize(width: 900, height: 560)
-    static let tailleMinimale = CGSize(width: 820, height: 520)
+    static let tailleMinimale = CGSize(width: 760, height: 520)
 
     let nav = NavigationBureau()
     let dictees: ModeleDictees
@@ -243,13 +243,13 @@ final class FenetrePrincipale: NSObject, NSWindowDelegate {
     /// Le cadre de la fenêtre, le même pour l'app et pour les rendus : titre caché, barre de titre transparente, et une barre d'outils
     /// vide de style « unifié » pour que les trois boutons se posent à la hauteur de la barre d'onglets (centre à 26 pt du haut).
     static func habiller(_ f: NSWindow) {
-        f.title = "Verbe"
+        f.title = "Voxile"
         f.titleVisibility = .hidden
         f.titlebarAppearsTransparent = true
         f.titlebarSeparatorStyle = .none
         f.isMovableByWindowBackground = false
         f.backgroundColor = NSColor.dynamique(clair: NSColor(hex: 0xFAF7F2), sombre: NSColor(hex: 0x252528))
-        let barre = NSToolbar(identifier: "VerbeBureau")
+        let barre = NSToolbar(identifier: "VoxileBureau")
         barre.displayMode = .iconOnly
         barre.allowsUserCustomization = false
         f.toolbar = barre

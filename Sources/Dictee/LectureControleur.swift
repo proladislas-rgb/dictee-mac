@@ -103,6 +103,7 @@ final class LectureControleur {
         case .rien:
             if modele.morceau != nil { vider() }
         case .etat(let m):
+            confirmationCommande?.cancel(); confirmationCommande = nil
             let nouveau = m.cle != modele.morceau?.cle
             if nouveau, imageDeSecours { imageDeSecours = false; modele.image = nil }
             if m.cheminImage != cheminImage { chargerImage(m.cheminImage) }
@@ -243,13 +244,37 @@ final class LectureControleur {
     // MARK: commandes de l'îlot
 
     /// Mise à jour immédiate de ce qu'on voit (la barre et le bouton répondent au doigt) ; l'état réel du système la remplace dans la foulée.
+    /// Si le système ne dit rien (MediaRemote ne prévient que d'un changement : la commande n'a rien changé, par exemple la vidéo restée en
+    /// pause après la reprise de fin de dictée), l'état deviné revient à l'état d'avant au bout de `delaiConfirmation` : jamais des barres
+    /// qui bougent sur une vidéo en pause (Hugues 12/11, 23 h 47).
     private func appliquerLocalement(joue: Bool? = nil, position: Double? = nil) {
         guard var m = modele.morceau else { return }
+        let avant = m.joue
         let maintenant = Date()
         if let p = m.positionA(maintenant) { m.position = p; m.depuis = maintenant }
         if let joue { m.joue = joue; if joue, m.vitesse <= 0 { m.vitesse = 1 } }
         if let position { m.position = position; m.depuis = maintenant }
         modele.morceau = m
+        if let joue, joue != avant { attendreConfirmation(avant: avant, attendu: m) }
+    }
+
+    /// Combien de temps on attend que le système confirme un changement de lecture (pause, reprise) avant de revenir à son dernier état.
+    static let delaiConfirmationCommande: TimeInterval = 2
+    private var confirmationCommande: DispatchWorkItem?
+    /// `attendu` : le morceau tel qu'on vient de le deviner ; s'il a changé depuis (un événement, un autre geste), on ne touche à rien.
+    private func attendreConfirmation(avant: Bool, attendu: MorceauEnCours) {
+        confirmationCommande?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, var m = self.modele.morceau, m == attendu else { return }
+                Log.ecrire("lecture : le système n'a rien confirmé en \(Int(Self.delaiConfirmationCommande)) s, l'état revient à « \(avant ? "joue" : "en pause") »")
+                m.joue = avant
+                self.modele.morceau = m
+                self.recalculer()
+            }
+        }
+        confirmationCommande = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.delaiConfirmationCommande, execute: item)
     }
 
     private func basculer() {
@@ -286,6 +311,8 @@ final class LectureControleur {
         // Pendant la dictée, la mini-miniature n'existe que si c'est Verbe qui a mis la lecture en pause (c'est le geste pour la reprendre),
         // qu'elle est bien en pause, et que le ruban de texte de la dictée est sorti (c'est dedans qu'elle se loge).
         if voulu == .miniature, !(pause.pauseParNous && !modele.joue && rubanDictee()) { voulu = .aucun }
+        // la pilule de verre (hors de l'encoche) garde la vidéo mise en pause par la dictée, avec le signe pause : elle ne part pas
+        bulleDictee(PrioriteLecture.bulleDansLaPilule(dictee: o.dictee, pauseParNous: pause.pauseParNous, joue: modele.joue, morceau: modele.morceau != nil) ? modele : nil)
         defer { surRecalcul() }
         guard voulu != affichage else { return }
         let avant = affichage
@@ -304,6 +331,8 @@ final class LectureControleur {
     /// Rempli par l'AppDelegate : le ruban de texte de la dictée est-il sorti ? et réserve à droite du texte du ruban (la mini-miniature s'y loge).
     var rubanDictee: () -> Bool = { false }
     var reserveRuban: (CGFloat) -> Void = { _ in }
+    /// Rempli par l'AppDelegate : la lecture à montrer dans la pilule de verre de la dictée (nil : aucune).
+    var bulleDictee: (LectureModele?) -> Void = { _ in }
 
     /// Clic sur la mini-miniature : la lecture reprend tout de suite (la dictée continue). `PauseDictee` voit alors une lecture relancée par
     /// Hugues : elle ne fera rien de plus à la fin de la dictée.
@@ -336,7 +365,7 @@ final class LectureControleur {
                 Log.ecrire("lecture : reprise après la dictée")
             case .rien, .pause: break
             }
-            if etaitConfirmee { recalculer() }
+            if etaitConfirmee { recalculer() } else { bulleDictee(nil) }
         }
     }
 

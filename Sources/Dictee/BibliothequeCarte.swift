@@ -149,7 +149,7 @@ enum PlanBibliotheque {
     static let largeurPunaise: CGFloat = 26
     static let titreRetour = "Étagère"
     static let invite = "Rechercher un fichier"
-    static let notePied = "Rien n\u{2019}est copié : Verbe garde seulement le chemin"
+    static let notePied = "Rien n\u{2019}est copié : Voxile garde seulement le chemin"
 
     /// La zone du contenu : toute la largeur (pas de points de page sur cette carte, comme l'étagère).
     static func zone(_ g: GrilleIlot) -> CGRect { g.zone(.bibliotheque, haut: CGFloat(CarteBibliotheque.marge), bas: CGFloat(CarteBibliotheque.marge)) }
@@ -550,7 +550,7 @@ struct PiedBibliotheque: View {
                         .lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: 8)
                     LienPied(titre: "En grand", symbole: "arrow.up.forward.square") { m.surAction(.ouvrirFenetre(.bibliotheque)) }
-                        .accessibilityLabel("Ouvrir la Bibliothèque en grand, dans la fenêtre de Verbe")
+                        .accessibilityLabel("Ouvrir la Bibliothèque en grand, dans la fenêtre de Voxile")
                 }
             }
             .padding(.leading, 6).padding(.trailing, 4)

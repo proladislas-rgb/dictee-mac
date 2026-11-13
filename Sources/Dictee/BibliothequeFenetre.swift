@@ -302,7 +302,7 @@ struct CoteBibliotheque: View {
             }
             .padding(.top, 8)
             VStack(alignment: .leading, spacing: 7) {
-                Text("\(Text("Rien n\u{2019}est copié.").bold().foregroundStyle(Palette.texte)) Verbe garde seulement le chemin de chaque fichier.")
+                Text("\(Text("Rien n\u{2019}est copié.").bold().foregroundStyle(Palette.texte)) Voxile garde seulement le chemin de chaque fichier.")
                 Text("\(Text("« Retirer »").bold().foregroundStyle(Palette.texte)) l\u{2019}enlève d\u{2019}ici ; le fichier, lui, reste où il est.")
                 Text("Glisse un fichier vers une app. Choisis-en plusieurs pour les glisser ensemble.")
             }

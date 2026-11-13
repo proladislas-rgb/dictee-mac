@@ -99,7 +99,7 @@ public struct PropositionMiseAJour: Equatable, Sendable {
         self.taille = taille; self.empreinteJSON = empreinteJSON; self.empreinteURL = empreinteURL
     }
 
-    public var nomDMG: String { "Verbe-\(version).dmg" }
+    public var nomDMG: String { NomApp.dmg(version) }
 }
 
 public enum ChoixMiseAJour {
@@ -128,14 +128,15 @@ public enum ChoixMiseAJour {
         var assets: [Asset]?
     }
 
-    /// Lit le JSON de `releases/latest` et décide. Prend l'asset `Verbe-<version>.dmg` (nom exact), jamais un autre.
+    /// Lit le JSON de `releases/latest` et décide. Prend l'asset `Voxile-<version>.dmg` (nom exact), jamais un autre (la release joint
+    /// aussi `Verbe-<version>.dmg`, pour les Verbe 0.3.x d'avant le changement de nom).
     public static func analyser(json: Data, versionActuelle: VersionApp, politique: PolitiqueAdresses = .production) -> Resultat {
         guard let release = try? JSONDecoder().decode(Release.self, from: json) else { return .illisible }
         if release.draft == true || release.prerelease == true { return .aJour }
         guard let version = VersionApp(release.tag_name) else { return .illisible }
         guard version > versionActuelle else { return .aJour }
 
-        let nomDMG = "Verbe-\(version).dmg"
+        let nomDMG = NomApp.dmg(version)
         let assets = release.assets ?? []
         guard let dmg = assets.first(where: { $0.name == nomDMG }) else { return .inutilisable("pas de fichier \(nomDMG) dans la release \(release.tag_name)") }
         guard let url = URL(string: dmg.browser_download_url), politique.accepte(url) else { return .inutilisable("adresse de téléchargement refusée") }
@@ -297,11 +298,11 @@ public enum EmplacementApp {
     /// Verbe peut-il se remplacer là où il est ? Non depuis l'image disque, un volume en lecture seule, un dossier « translocalisé »
     /// par macOS, ou un dossier où l'on ne peut pas écrire.
     public static func evaluer(chemin: String, volumeEnLectureSeule: Bool, dossierEcrivable: Bool) -> Verdict {
-        guard chemin.hasSuffix(".app") else { return .refuse("Verbe ne tourne pas depuis une app installée.") }
-        if chemin.contains("/AppTranslocation/") { return .refuse("Verbe tourne depuis un dossier temporaire de macOS. Place-le dans Applications, puis rouvre-le.") }
-        if chemin.hasPrefix("/Volumes/"), volumeEnLectureSeule { return .refuse("Verbe tourne depuis l\u{2019}image disque. Glisse-le dans Applications, puis rouvre-le.") }
-        if volumeEnLectureSeule { return .refuse("Le dossier de Verbe est en lecture seule.") }
-        if !dossierEcrivable { return .refuse("Le dossier de Verbe n\u{2019}est pas modifiable. Télécharge la nouvelle version à la main.") }
+        guard chemin.hasSuffix(".app") else { return .refuse("Voxile ne tourne pas depuis une app installée.") }
+        if chemin.contains("/AppTranslocation/") { return .refuse("Voxile tourne depuis un dossier temporaire de macOS. Place-le dans Applications, puis rouvre-le.") }
+        if chemin.hasPrefix("/Volumes/"), volumeEnLectureSeule { return .refuse("Voxile tourne depuis l\u{2019}image disque. Glisse-le dans Applications, puis rouvre-le.") }
+        if volumeEnLectureSeule { return .refuse("Le dossier de Voxile est en lecture seule.") }
+        if !dossierEcrivable { return .refuse("Le dossier de Voxile n\u{2019}est pas modifiable. Télécharge la nouvelle version à la main.") }
         return .possible
     }
 }

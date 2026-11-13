@@ -97,7 +97,7 @@ struct MotsVue: View {
 
     private var noms: some View {
         VStack(alignment: .leading, spacing: 0) {
-            EnteteSection(titre: "Noms à retenir", phrase: "Verbe les écrit toujours avec cette orthographe.", compte: m.mots.count)
+            EnteteSection(titre: "Noms à retenir", phrase: "Voxile les écrit toujours avec cette orthographe.", compte: m.mots.count)
             if m.mots.isEmpty {
                 Text("Aucun nom pour l\u{2019}instant.").font(Polices.texte(18)).foregroundStyle(Palette.texte2).padding(.vertical, 12)
             }
@@ -112,17 +112,17 @@ struct MotsVue: View {
     /// « Verbe a appris 3 mots et expressions cette semaine » : sobre, sans bouton (l'apprentissage est automatique).
     private var ligneApprentissage: some View {
         let n = m.apprisCetteSemaine
-        let phrase = n == 0 ? "Verbe apprend tout seul de tes dictées et de tes corrections."
-                            : "Verbe a appris \(n) mot\(n > 1 ? "s" : "") et expression\(n > 1 ? "s" : "") cette semaine."
+        let phrase = n == 0 ? "Voxile apprend tout seul de tes dictées et de tes corrections."
+                            : "Voxile a appris \(n) mot\(n > 1 ? "s" : "") et expression\(n > 1 ? "s" : "") cette semaine."
         return Text(phrase).font(Polices.commande(13)).foregroundStyle(Palette.texte2).padding(.top, 10).padding(.leading, 4)
             .accessibilityLabel(phrase)
     }
 
     private var tesExpressions: some View {
         VStack(alignment: .leading, spacing: 0) {
-            EnteteSection(titre: "Tes expressions", phrase: "Ce que tu dis souvent. Verbe le repère tout seul dans tes dictées ; retire ce qui n\u{2019}a rien à faire ici.", compte: m.expressions.count)
+            EnteteSection(titre: "Tes expressions", phrase: "Ce que tu dis souvent. Voxile le repère tout seul dans tes dictées ; retire ce qui n\u{2019}a rien à faire ici.", compte: m.expressions.count)
             if m.expressions.isEmpty {
-                Text("Pas encore d\u{2019}expression : Verbe les cherche une fois par jour dans tes dictées.").font(Polices.commande(14)).foregroundStyle(Palette.texte2).padding(.vertical, 12)
+                Text("Pas encore d\u{2019}expression : Voxile les cherche une fois par jour dans tes dictées.").font(Polices.commande(14)).foregroundStyle(Palette.texte2).padding(.vertical, 12)
             }
             ForEach(Array(m.expressions.enumerated()), id: \.element.texte) { i, e in
                 LigneExpression(e: e, premiere: i == 0) { m.retirerExpression(e.texte) }
@@ -146,7 +146,7 @@ struct MotsVue: View {
 
     private var raccourcis: some View {
         VStack(alignment: .leading, spacing: 0) {
-            EnteteSection(titre: "Raccourcis vocaux", phrase: "Dis la phrase de gauche, Verbe écrit le texte de droite.", compte: m.raccourcis.count)
+            EnteteSection(titre: "Raccourcis vocaux", phrase: "Dis la phrase de gauche, Voxile écrit le texte de droite.", compte: m.raccourcis.count)
             ForEach(Array(m.raccourcis.enumerated()), id: \.element.id) { i, r in
                 LigneRaccourci(r: r, premiere: i == 0) { m.retirerRaccourci(r) }
             }
@@ -162,7 +162,7 @@ struct MotsVue: View {
             }
             .frame(width: 150)
             Image(systemName: "arrow.right").font(.system(size: 12)).foregroundStyle(Palette.texte3).frame(width: 20)
-            champEncadre($remplacement, invite: "Verbe écrit…", jeton: jetonRemplacement) { c in
+            champEncadre($remplacement, invite: "Voxile écrit…", jeton: jetonRemplacement) { c in
                 if c == .entree { ajouterRaccourci(); return true }
                 return false
             }

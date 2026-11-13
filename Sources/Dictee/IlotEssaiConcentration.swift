@@ -165,7 +165,7 @@ extension IlotEssai {
         let n0 = fx.lances.count
         clic(PlanConcentration.pointCentre(m.grille), 0.9)
         verifier(m.courante == .centre && m.etatCentre(.concentration) == "Travail", "« ‹ Centre » : le Centre ; sous le rond, « Travail »")
-        verifier(fx.lances.count == n0, "la carte ouverte avec un mode allumé par Verbe : aucune lecture de l'état (ce que Verbe allume ne dépend pas d'elle)")
+        verifier(fx.lances.count == n0, "la carte ouverte avec un mode allumé par Voxile : aucune lecture de l'état (ce que Voxile allume ne dépend pas d'elle)")
 
         // --- l'arrêt d'un clic depuis le Centre, puis la relance d'un clic (étape 7)
         clic(PlanCentre.centreRond(m, .concentration), 0.9)
@@ -214,7 +214,7 @@ extension IlotEssai {
         clic(PlanCentre.centreRond(m, .concentration), 1.0)
         attendre(2) { fx.prepares.count == preparesAvant }
         verifier(fx.prepares.count == preparesAvant + 1 && m.concentration.raccourciManquant && p.memoire.raccourci == nil,
-                 "raccourci supprimé : Verbe l'oublie et le propose de nouveau")
+                 "raccourci supprimé : Voxile l'oublie et le propose de nouveau")
         let idNeuf = "B1B1B1B1-1111-4222-8333-444444444444"
         fx.ajouter("Concentration Verbe", idNeuf)
         revenirDeRaccourcis()
@@ -230,7 +230,7 @@ extension IlotEssai {
         c2.concentration.store = ConcentrationStore(url: fichier)
         c2.concentration.demarrer()
         verifier(c2.moteur.concentration.actif?.mode == .travail && c2.concentration.memoire.raccourci == idNeuf && c2.concentration.echeance != nil,
-                 "Verbe relancé : le mode, sa fin (une échéance) et le raccourci sont relus")
+                 "Voxile relancé : le mode, sa fin (une échéance) et le raccourci sont relus")
         c2.concentration.arreter()
         verifier(c2.concentration.echeance == nil, "arrêté : plus d'échéance")
 
@@ -242,7 +242,7 @@ extension IlotEssai {
         p.agir(.changer); pause(0.9)
         attendre(2) { m.concentration.externe == nil }
         verifier(fx.lances.last?.entree == "etat" && m.concentration.externe == "Sommeil" && m.etatCentre(.concentration) == "Sommeil",
-                 "la carte ouverte, rien d'allumé par Verbe : Raccourcis dit le mode allumé ailleurs (« Repos » → Sommeil)")
+                 "la carte ouverte, rien d'allumé par Voxile : Raccourcis dit le mode allumé ailleurs (« Repos » → Sommeil)")
         let lectures = fx.lances.filter { $0.entree == "etat" }.count
         clic(PlanConcentration.pointCentre(m.grille), 0.6); p.agir(.changer); pause(0.6)
         verifier(fx.lances.filter { $0.entree == "etat" }.count == lectures, "rouverte tout de suite : pas de nouvelle lecture (une par minute au plus)")
@@ -270,7 +270,7 @@ extension IlotEssai {
         p.arreter()
         attendre(1.5) { m.boucleActive }
         verifier(p.echeance == nil && !m.boucleActive, "fin de la section : aucune échéance, aucune boucle (bouge encore : \(m.ceQuiBouge))")
-        verifier(fx.lances.allSatisfy { $0.id == idVerbe || $0.id == idNeuf }, "Verbe n'a jamais lancé que SON raccourci (jamais « Météo du matin »)")
+        verifier(fx.lances.allSatisfy { $0.id == idVerbe || $0.id == idNeuf }, "Voxile n'a jamais lancé que SON raccourci (jamais « Météo du matin »)")
         m.concentration = AffichageConcentration()
         m.donneesChangees()
         pause(0.8)

@@ -55,10 +55,10 @@ final class MiseAJourModele: ObservableObject {
     }
     var presentation: Presentation? {
         switch activite {
-        case .telechargement(let x): return .progression("Téléchargement de Verbe \(disponible?.version.description ?? "")… \(Int((x * 100).rounded())) %")
+        case .telechargement(let x): return .progression("Téléchargement de Voxile \(disponible?.version.description ?? "")… \(Int((x * 100).rounded())) %")
         case .controle: return .progression("Vérification du fichier…")
-        case .installation: return .progression("Installation de Verbe \(disponible?.version.description ?? "")…")
-        case .attenteRedemarrage: return .progression("Verbe est à jour. Il se relance…")
+        case .installation: return .progression("Installation de Voxile \(disponible?.version.description ?? "")…")
+        case .attenteRedemarrage: return .progression("Voxile est à jour. Il se relance…")
         case .verification: return nil
         case .repos:
             if let echecInstallation { return .echec(echecInstallation) }
@@ -78,8 +78,8 @@ final class MiseAJourModele: ObservableObject {
         m.message = message
         m.echecInstallation = echec
         if let disponible, let v = VersionApp(disponible) {
-            m.disponible = PropositionMiseAJour(version: v, notes: "# Verbe \(disponible)\n\n## Ce qui change\n- **Mise à jour automatique** : Verbe cherche seul une nouvelle version.\n- Un correctif sur le collage dans Terminal.",
-                                                pageURL: nil, dmgURL: URL(string: "https://github.com/proladislas-rgb/dictee-mac/releases/download/v\(disponible)/Verbe-\(disponible).dmg")!,
+            m.disponible = PropositionMiseAJour(version: v, notes: "# Voxile \(disponible)\n\n## Ce qui change\n- **Mise à jour automatique** : Voxile cherche seul une nouvelle version.\n- Un correctif sur le collage dans Terminal.",
+                                                pageURL: nil, dmgURL: URL(string: "https://github.com/proladislas-rgb/dictee-mac/releases/download/v\(disponible)/Voxile-\(disponible).dmg")!,
                                                 taille: 1_500_000, empreinteJSON: nil, empreinteURL: nil)
         }
         return m
@@ -124,7 +124,7 @@ final class MiseAJourControleur {
         evaluerEmplacement()
         if let installee = Settings.miseAJourInstallee {
             Settings.miseAJourInstallee = nil
-            Log.ecrire("mise à jour : installée, Verbe \(VersionDeLApp.texte) tourne (version attendue \(installee))")
+            Log.ecrire("mise à jour : installée, Voxile \(VersionDeLApp.texte) tourne (version attendue \(installee))")
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + PlanVerification.delaiAuLancement) { [weak self] in self?.verifierSiNecessaire() }
         let t = Timer(timeInterval: PlanVerification.periodeDeReleve, repeats: true) { [weak self] _ in
@@ -170,7 +170,7 @@ final class MiseAJourControleur {
         switch resultat {
         case .proposition(let p):
             noterReussite()
-            Log.ecrire("mise à jour : Verbe \(p.version) disponible (installée : \(versionActuelle))")
+            Log.ecrire("mise à jour : Voxile \(p.version) disponible (installée : \(versionActuelle))")
             modele.disponible = p
             modele.message = nil
         case .aJour:

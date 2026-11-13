@@ -7,7 +7,7 @@ enum LectureTest {
     @MainActor
     static func executer(secondes: Double) -> Int32 {
         guard LecteurSysteme.fichiers != nil else {
-            print("programme d'aide introuvable : lancer depuis l'app assemblée (.build/Verbe.app/Contents/MacOS/Verbe)")
+            print("programme d'aide introuvable : lancer depuis l'app assemblée (.build/Voxile.app/Contents/MacOS/Voxile)")
             return 1
         }
         let systeme = LecteurSysteme()

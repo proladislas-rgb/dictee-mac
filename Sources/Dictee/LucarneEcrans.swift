@@ -166,7 +166,7 @@ extension IlotPanneau {
         moteur.donneesChangees()
         ajuster()
         NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
-                             userInfo: [.announcement: "Lucarne déplacée vers " + place.nom(avecEncoche: el.avecEncoche), .priority: NSAccessibilityPriorityLevel.high.rawValue])
+                             userInfo: [.announcement: "Îlot déplacé vers " + place.nom(avecEncoche: el.avecEncoche), .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }
 
     /// Un événement du bouton gauche sur la vue de l'îlot : son point GLOBAL (`cgEvent.location`, origine en haut à gauche de l'écran

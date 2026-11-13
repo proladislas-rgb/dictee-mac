@@ -20,18 +20,18 @@ public enum Desinstallation {
         "Library/Saved Application State/\(identifiant).savedState",
     ]
 
-    /// Nom de l'app avant le renommage en Verbe (0.1.0) : une ancienne copie peut encore traîner dans Applications.
-    public static let ancienNomApp = "Dictee.app"
+    /// Les noms d'avant (Dictée 0.1.0, Verbe jusqu'au 13/11) : une ancienne copie peut encore traîner dans Applications.
+    public static let anciensNomsApp = NomApp.anciensPaquets
 
     /// Les dossiers où l'app s'installe : /Applications et ~/Applications.
     public static func dossiersApplications(maison: URL) -> [URL] {
         [URL(fileURLWithPath: "/Applications", isDirectory: true), maison.appendingPathComponent("Applications", isDirectory: true)]
     }
 
-    /// Les anciennes copies `Dictee.app` présentes dans ces dossiers (sauf `exclure`, l'app qui tourne). Jamais autre chose.
+    /// Les anciennes copies `Verbe.app` et `Dictee.app` présentes dans ces dossiers (sauf `exclure`, l'app qui tourne). Jamais autre chose.
     public static func anciennesApps(dossiers: [URL], exclure: URL, fm: FileManager = .default) -> [URL] {
         let exclu = exclure.standardizedFileURL.path
-        return dossiers.map { $0.appendingPathComponent(ancienNomApp) }.filter {
+        return dossiers.flatMap { d in anciensNomsApp.map { d.appendingPathComponent($0) } }.filter {
             $0.standardizedFileURL.path != exclu && (try? fm.attributesOfItem(atPath: $0.path)) != nil
         }
     }

@@ -110,7 +110,35 @@ final class EnclochePanneau {
             modele.ouverte = true
             modele.mainsLibres = mainsLibres
         }
+        // Le journal dit où la dictée s'affiche (13/11 : Hugues ne voyait rien à la place de la Lucarne, sans aucune trace) ; et un
+        // filet : si la fenêtre n'est plus à l'écran alors que la dictée l'est, elle revient devant (et on l'écrit).
+        if !dejaAffichee {
+            signale = false
+            Log.ecrire(placement.map { "dictée : affichée à la place de la Lucarne (\($0.place.rawValue)), \(Int(f.frame.minX)),\(Int(f.frame.minY)) \(Int(f.frame.width))×\(Int(f.frame.height))" }
+                       ?? "dictée : affichée dans l'encoche")
+        }
+        surveiller()
         // Le ruban sort avec les premiers mots (voir `mettreAJourTexte`) : pas de ruban vide.
+    }
+
+    /// La dictée est ouverte mais sa fenêtre n'est plus à l'écran (retirée, ou cachée par le système) : elle revient devant, et le journal le
+    /// dit. Relu 0,4 s après l'ouverture puis toutes les secondes tant que la dictée est ouverte.
+    private var veille: DispatchWorkItem?
+    private var signale = false
+    private func surveiller() {
+        veille?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.modele.ouverte, let f = self.fenetre, !self.invisible else { return }
+                if !f.isVisible || !f.occlusionState.contains(.visible) {
+                    if !self.signale { self.signale = true; Log.ecrire("dictée : fenêtre absente de l'écran alors que la dictée est ouverte (visible \(f.isVisible), occlusion \(f.occlusionState.rawValue), alpha \(f.alphaValue)), remise devant") }
+                    f.orderFrontRegardless()
+                }
+                self.surveiller()
+            }
+        }
+        veille = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + (modele.texte.isEmpty ? 0.4 : 1.0), execute: item)
     }
 
     /// Hors de l'encoche : la fenêtre se cale sur la pilule visée (avec la place de son ombre) ; elle grandit tout de suite, avant la
@@ -148,8 +176,11 @@ final class EnclochePanneau {
 
     /// Referme l'encoche (bande et ruban ensemble, 200 ms), puis retire la fenêtre. N'attend jamais rien : l'insertion
     /// du texte ne dépend pas de cette animation.
-    func fermer() {
+    func fermer(depuis: String = #fileID, ligne: Int = #line) {
         fermeture?.cancel()
+        veille?.cancel(); veille = nil
+        // qui la range (13/11 : une dictée sans pilule visible, sans trace ; la prochaine fois, le journal dira d'où vient la fermeture)
+        if modele.ouverte, !invisible { Log.ecrire("dictée : rangée (\((depuis as NSString).lastPathComponent):\(ligne))") }
         fenetre?.ignoresMouseEvents = true
         modele.calmerLesBarres()
         withAnimation(ressort(rebond: 0)) {

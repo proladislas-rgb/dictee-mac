@@ -18,8 +18,8 @@ enum InstallationApp {
         guard Installation.doitProposerDeplacement(chemin: app.path, volumeEnLectureSeule: lectureSeule) else { return false }
 
         let alerte = NSAlert()
-        alerte.messageText = "Placer Verbe dans Applications ?"
-        alerte.informativeText = "Verbe tourne depuis l\u{2019}image disque. Pour qu\u{2019}il reste installé, il va être copié dans Applications, puis relancé de là."
+        alerte.messageText = "Placer Voxile dans Applications ?"
+        alerte.informativeText = "Voxile tourne depuis l\u{2019}image disque. Pour qu\u{2019}il reste installé, il va être copié dans Applications, puis relancé de là."
         alerte.addButton(withTitle: "Placer dans Applications")
         alerte.addButton(withTitle: "Pas maintenant")
         NSApp.activate(ignoringOtherApps: true)
@@ -35,8 +35,8 @@ enum InstallationApp {
         } catch {
             Log.ecrire("installation : copie impossible (\(error.localizedDescription))")
             let echec = NSAlert()
-            echec.messageText = "Verbe n\u{2019}a pas pu être copié"
-            echec.informativeText = "Glisse Verbe dans le dossier Applications à la main, puis ouvre-le de là."
+            echec.messageText = "Voxile n\u{2019}a pas pu être copié"
+            echec.informativeText = "Glisse Voxile dans le dossier Applications à la main, puis ouvre-le de là."
             echec.addButton(withTitle: "OK")
             echec.runModal()
             return false
@@ -60,8 +60,8 @@ enum InstallationApp {
         // Une ancienne copie « Dictee.app » (nom d'avant Verbe) part aussi, mais on le dit avant, pas après.
         let anciennes = Desinstallation.anciennesApps(dossiers: Desinstallation.dossiersApplications(maison: maison), exclure: Bundle.main.bundleURL)
         let alerte = NSAlert()
-        alerte.messageText = "Désinstaller Verbe ?"
-        let ancienne = anciennes.isEmpty ? "" : " L\u{2019}ancienne app « \(Desinstallation.ancienNomApp) » (\(anciennes.map { $0.deletingLastPathComponent().path }.joined(separator: ", "))) est aussi placée à la corbeille."
+        alerte.messageText = "Désinstaller Voxile ?"
+        let ancienne = anciennes.isEmpty ? "" : " L\u{2019}ancienne app (\(anciennes.map { $0.path }.joined(separator: ", "))) est aussi placée à la corbeille."
         alerte.informativeText = "Cela efface l\u{2019}historique, les mots, les raccourcis, le journal, les réglages et la clé Groq rangée dans le Trousseau, puis place l\u{2019}app à la corbeille. Un fichier de clé que tu aurais créé toi-même (~/.config/groq/.env) n\u{2019}est pas touché." + ancienne
         alerte.addButton(withTitle: "Annuler")
         let bouton = alerte.addButton(withTitle: "Désinstaller")
@@ -85,7 +85,7 @@ enum InstallationApp {
                 if erreur != nil {
                     let reste = NSAlert()
                     reste.messageText = "Tes données sont effacées"
-                    reste.informativeText = "Verbe n\u{2019}a pas pu se placer lui-même à la corbeille. Glisse-le à la corbeille à la main."
+                    reste.informativeText = "Voxile n\u{2019}a pas pu se placer lui-même à la corbeille. Glisse-le à la corbeille à la main."
                     reste.addButton(withTitle: "OK")
                     reste.runModal()
                 }

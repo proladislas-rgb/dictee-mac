@@ -397,6 +397,13 @@ public enum PrioriteLecture {
     }
 }
 
+extension PrioriteLecture {
+    /// Hors de l'encoche, pendant une dictée (Hugues 12/11 : « comme l'iPhone, l'îlot ne disparaît jamais ») : la pilule de verre de la
+    /// dictée garde la lecture que la dictée a mise en pause, sa miniature et le signe pause ; une lecture qui joue encore, ou que la dictée
+    /// n'a pas mise en pause, n'y est pas.
+    public static func bulleDansLaPilule(dictee: Bool, pauseParNous: Bool, joue: Bool, morceau: Bool) -> Bool { dictee && pauseParNous && !joue && morceau }
+}
+
 /// Pause automatique pendant une dictée : on met en pause au début si quelque chose joue, et on reprend à la fin SEULEMENT si c'est
 /// nous qui avons mis en pause et que rien n'a changé entre-temps (même morceau, toujours en pause).
 public struct PauseDictee: Equatable, Sendable {

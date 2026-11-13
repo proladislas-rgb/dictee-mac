@@ -224,7 +224,10 @@ public struct DispositionCentre: Equatable, Sendable {
     /// pour son sélecteur « Minuteur · Réveil » et ses quatre heures.
     public static func poidsCase(_ e: ElementCentre) -> Double { e == .minuteur ? 1.16 : 0.84 }
 
-    public enum Rangee: Sendable { case etagere, ronds, cases, bande }
+    public enum Rangee: Sendable { case etagere, ronds, cases, bande, verre }
+    /// Le curseur « Verre » en bas du Centre (13/11, Hugues : régler l'intensité du verre depuis l'îlot, comme la luminosité du Centre
+    /// de contrôle) ; seulement quand la Lucarne est en verre (hors de l'encoche : dans l'encoche, l'îlot est noir).
+    public static let rangeeVerre: Double = 30
     /// La rangée des fichiers de l'étagère, en haut du Centre quand elle en garde (maquette ilot-etagere-rapide.html, étape 6).
     public static let rangeeEtagere: Double = 64
 
@@ -245,11 +248,11 @@ public struct DispositionCentre: Equatable, Sendable {
     }
 
     /// Le haut de chaque rangée présente, depuis le haut du corps (sous la barre), et la profondeur totale.
-    public static func plan(etagere e: Bool = false, ronds r: Bool, cases c: Bool, bande b: Bool, nomsSurDeuxLignes: Bool = false) -> (hauts: [Rangee: Double], profondeur: Double) {
+    public static func plan(etagere e: Bool = false, ronds r: Bool, cases c: Bool, bande b: Bool, nomsSurDeuxLignes: Bool = false, verre v: Bool = false) -> (hauts: [Rangee: Double], profondeur: Double) {
         var y = haut + entete
         var hauts: [Rangee: Double] = [:]
         var premiere = true
-        for (rangee, presente, h) in [(Rangee.etagere, e, rangeeEtagere), (.ronds, r, ronds + (nomsSurDeuxLignes ? ligneNom : 0)), (.cases, c, cases), (.bande, b, bande)] where presente {
+        for (rangee, presente, h) in [(Rangee.etagere, e, rangeeEtagere), (.ronds, r, ronds + (nomsSurDeuxLignes ? ligneNom : 0)), (.cases, c, cases), (.bande, b, bande), (.verre, v, rangeeVerre)] where presente {
             y += premiere ? ecartEntete : ecart
             premiere = false
             hauts[rangee] = y

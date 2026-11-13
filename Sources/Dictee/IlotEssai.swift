@@ -121,7 +121,7 @@ enum IlotEssai {
         // une section seule (pour la mettre au point sans attendre tout l'essai) : `DICTEE_ESSAI_SEUL=bibliotheque` (ou `reveil`, `places`, `places-survol`, `concentration`, `voix`), ou
         // `--ilot-essai --seulement=survol` (le survol des Dictées, pour mesurer vite ; l'essai complet la joue aussi)
         let seul = CommandLine.arguments.contains("--seulement=survol") ? "survol" : ProcessInfo.processInfo.environment["DICTEE_ESSAI_SEUL"]
-        if let seul, ["bibliotheque", "reveil", "survol", "places", "places-survol", "concentration", "voix"].contains(seul) {
+        if let seul, ["bibliotheque", "reveil", "survol", "places", "places-survol", "concentration", "voix", "dictee", "verre"].contains(seul) {
             attendre(0.4)
             if seul == "bibliotheque" {
                 IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },
@@ -134,6 +134,11 @@ enum IlotEssai {
                 // `places-survol` : le survol des Dictées juste après (comme dans l'essai complet) : la Lucarne revenue dans l'encoche ne
                 // doit rien laisser qui alourdisse l'îlot
                 if seul == "places-survol" { IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) }) }
+            } else if seul == "verre" {
+                IlotEssai.verreCentre(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+            } else if seul == "dictee" {
+                IlotEssai.dicteeLucarneCablee(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+                IlotEssai.lectureEnPauseLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
             } else if seul == "voix" {
                 IlotEssai.voix(c, verifier: verifier, attendre: { attendre($0, tant: $1) }, pressePapiers: { pressePapiers })
             } else if seul == "concentration" {
@@ -504,9 +509,9 @@ enum IlotEssai {
             verifier(m.cache && m.bandeau == nil, "pendant la dictée : l'îlot effacé, rien d'affiché")
             occ.dictee = false; c.dicteeChange(enCours: false); c.occupationChangee(); attendre(0.6)
             verifier(faux.commandes.count == n4 && faux.coupes["airpods"] == true, "les AirPods restent coupés (un appel ne les entendrait pas)")
-            verifier(m.courante == .microFn && m.bandeauVu?.ligne1 == "Le micro des AirPods est coupé" && m.bandeauVu?.ligne2 == "Verbe dicte avec le micro du Mac"
+            verifier(m.courante == .microFn && m.bandeauVu?.ligne1 == "Le micro des AirPods est coupé" && m.bandeauVu?.ligne2 == "Voxile dicte avec le micro du Mac"
                      && m.contenuAnnonce(.microFn).map { if case .rien = $0.droite { return true } else { return false } } == true,
-                     "à la fin : « Le micro des AirPods est coupé · Verbe dicte avec le micro du Mac », sans bouton (\(m.courante))")
+                     "à la fin : « Le micro des AirPods est coupé · Voxile dicte avec le micro du Mac », sans bouton (\(m.courante))")
             attendre(4.5)
             verifier(c.autoriserDictee() && m.bandeau == nil, "le deuxième appui : la dictée part, on ne le redit pas")
             occ.dictee = true; c.dicteeChange(enCours: true); occ.dictee = false; c.dicteeChange(enCours: false); c.occupationChangee(); attendre(0.6)
@@ -657,7 +662,7 @@ enum IlotEssai {
             verifier(r1.bas && r1.haut && !r2.bas && !r2.haut && faux.ecritures.count == n4 && m.bandeau == nil,
                      "écriture refusée : l'appui suivant et son relâchement vont à macOS (son affichage), l'îlot ne montre rien de faux")
             faux.refuser = false; faux.changement()
-            verifier(appuyer(.volumePlus).bas, "le système signale un changement (nouvelle sortie) : Verbe reprend la main")
+            verifier(appuyer(.volumePlus).bas, "le système signale un changement (nouvelle sortie) : Voxile reprend la main")
             // le lecteur épinglé ouvert : la touche reste à macOS, l'îlot ne se referme pas sous les doigts
             attendre(1.8) { m.bandeau != nil }
             m.clicForme(); attendre(0.6)
@@ -976,10 +981,10 @@ enum IlotEssai {
         let c3 = fabriquer()
         c3.agir(.rappelFait(rappelId))
         verifier(c3.rappels.rappels.isEmpty, "Fait : le rappel disparaît du fichier")
-        var plusTard = ListeRappels(); plusTard.ajouter(texte: "Pendant que Verbe dormait", echeance: Date().addingTimeInterval(-600), maintenant: Date().addingTimeInterval(-3600))
+        var plusTard = ListeRappels(); plusTard.ajouter(texte: "Pendant que Voxile dormait", echeance: Date().addingTimeInterval(-600), maintenant: Date().addingTimeInterval(-3600))
         RappelsStore(url: fichier).ecrire(plusTard)
         let c4 = fabriquer(); c4.panneau.demarrer(); c4.verifierLesRappels(); attendre(0.5)
-        verifier(c4.moteur.alerte?.vue == .rappelEtendu && c4.moteur.alerte?.rappel?.texte == "Pendant que Verbe dormait", "un rappel arrivé à échéance fermé sonne à la relance")
+        verifier(c4.moteur.alerte?.vue == .rappelEtendu && c4.moteur.alerte?.rappel?.texte == "Pendant que Voxile dormait", "un rappel arrivé à échéance fermé sonne à la relance")
         c4.panneau.fermer()
         RappelsStore(url: fichier).ecrire(ListeRappels())
 
@@ -1112,7 +1117,7 @@ enum IlotEssai {
             attendre(0.6)
             // un glisser qui PART de l'îlot (une tuile, le fichier du bandeau « Téléchargé ») n'ouvre jamais la zone sous lui-même
             verifier(!c.panneau.glisserSurLIlot(CGPoint(x: 0, y: barre + 40), interne: true) && !m.depot,
-                     "glisser venu de Verbe lui-même (source dans l'app) : refusé, pas de « Déposez ici »")
+                     "glisser venu de Voxile lui-même (source dans l'app) : refusé, pas de « Déposez ici »")
             var tenu = true
             m.boutonEnfonce = { tenu }
             m.glisserSortantCommence()
@@ -1190,6 +1195,9 @@ enum IlotEssai {
         IlotEssai.verreLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.bordsLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.dicteeLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.dicteeLucarneCablee(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.lectureEnPauseLucarne(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
+        IlotEssai.verreCentre(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.survolDictees(c, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.secondBrain(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) })
         IlotEssai.bibliotheque(c, dossier: dossier, verifier: verifier, attendre: { attendre($0, tant: $1) },

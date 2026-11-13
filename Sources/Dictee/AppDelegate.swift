@@ -43,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
-        Log.ecrire("démarrage Verbe \(version) pid=\(ProcessInfo.processInfo.processIdentifier) sansInterface=\(options.sansInterface)")
+        Log.ecrire("démarrage Voxile \(version) pid=\(ProcessInfo.processInfo.processIdentifier) sansInterface=\(options.sansInterface)")
         Log.ecrire("autorisations : \(Permissions.resume())")
 
         if let autre = autreInstance() {
@@ -51,6 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Log.vider()
             exit(0)
         }
+
+        // Verbe devient Voxile : une Verbe.app se renomme (puis se relance), une Voxile.app range l'ancienne Verbe.app à la corbeille
+        if !options.sansInterface, MigrationNom.appliquer() { return }
 
         if options.sansInterface {
             if let chemin = options.verifierParole {
@@ -393,6 +396,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // l'encoche de la dictée : celle de l'écran de la Lucarne (elle peut être dans l'encoche d'un écran qui n'est pas le principal)
         dictee.panneau.ecranEncoche = { [weak self] in self?.ilot.panneau.ecran?.ecran ?? NSScreen.screens.first }
         lecture.reserveRuban = { [weak self] r in self?.dictee.panneau.modele.reserveRuban = r }
+        lecture.bulleDictee = { [weak self] l in if self?.dictee.panneau.modele.bulleLecture !== l { self?.dictee.panneau.modele.bulleLecture = l } }
         dictee.panneau.modele.$ruban.dropFirst().sink { [weak self] _ in self?.ilot.occupationChangee() }.store(in: &abonnements)
         dictee.surChangementEtat = { [weak self] enCours in self?.ilot.dicteeChange(enCours: enCours) }
         dictee.peutCommencer = { [weak self] in self?.ilot.autoriserDictee() ?? true }
@@ -472,12 +476,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let item = NSMenuItem(); let menu = NSMenu(title: titre)
             construire(menu); item.submenu = menu; principal.addItem(item)
         }
-        sousMenu("Verbe") { m in
-            m.addItem(withTitle: "Ouvrir Verbe", action: #selector(ouvrirVerbe), keyEquivalent: ",").target = self
+        sousMenu("Voxile") { m in
+            m.addItem(withTitle: "Ouvrir Voxile", action: #selector(ouvrirVerbe), keyEquivalent: ",").target = self
             let noter = m.addItem(withTitle: "Noter la réunion", action: #selector(noterLaReunion), keyEquivalent: "n")
             noter.keyEquivalentModifierMask = [.command, .option]; noter.target = self
             m.addItem(.separator())
-            m.addItem(withTitle: "Quitter Verbe", action: #selector(quitter), keyEquivalent: "q").target = self
+            m.addItem(withTitle: "Quitter Voxile", action: #selector(quitter), keyEquivalent: "q").target = self
         }
         sousMenu("Édition") { m in
             m.addItem(withTitle: "Annuler", action: Selector(("undo:")), keyEquivalent: "z")
@@ -523,7 +527,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let eveil = ilot.titreMenuEveil {
             menu.addItem(withTitle: eveil, action: #selector(rendreLaVeille), keyEquivalent: "").target = self
         }
-        let ouvrir = menu.addItem(withTitle: "Ouvrir Verbe", action: #selector(ouvrirVerbe), keyEquivalent: ",")
+        let ouvrir = menu.addItem(withTitle: "Ouvrir Voxile", action: #selector(ouvrirVerbe), keyEquivalent: ",")
         ouvrir.target = self
         if !HistoriqueStore.shared.historique.estVide {
             menu.addItem(withTitle: "Dernière dictée", action: #selector(derniereDictee), keyEquivalent: "").target = self
@@ -531,7 +535,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         let maj = MiseAJourControleur.partage.modele
         if let d = maj.disponible, maj.peutInstaller {
-            menu.addItem(withTitle: "Installer Verbe \(d.version)…", action: #selector(rechercherLesMisesAJour), keyEquivalent: "").target = self
+            menu.addItem(withTitle: "Installer Voxile \(d.version)…", action: #selector(rechercherLesMisesAJour), keyEquivalent: "").target = self
         } else {
             menu.addItem(withTitle: "Rechercher les mises à jour…", action: #selector(rechercherLesMisesAJour), keyEquivalent: "").target = self
         }
@@ -539,14 +543,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: "Autorisations…", action: #selector(ouvrirAutorisations), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Ouvrir le journal", action: #selector(ouvrirJournal), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Désinstaller Verbe…", action: #selector(desinstaller), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Désinstaller Voxile…", action: #selector(desinstaller), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quitter", action: #selector(quitter), keyEquivalent: "q").target = self
     }
 
     @objc private func ouvrirAutorisations() {
         let alerte = NSAlert()
-        alerte.messageText = "Autorisations de Verbe"
+        alerte.messageText = "Autorisations de Voxile"
         alerte.informativeText = """
         Micro : \(Permissions.microOK ? "accordé" : "manquant")
         Accessibilité : \(Permissions.accessibiliteOK ? "accordée" : "manquante")

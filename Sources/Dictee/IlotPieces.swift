@@ -239,6 +239,8 @@ struct EgaliseurLecture: NSViewRepresentable {
             }
             CATransaction.commit()
         }
+        /// Essais : les barres bougent-elles (une animation posée sur au moins une barre) ?
+        var anime: Bool { barres.contains { $0.animation(forKey: "eq") != nil } }
         func appliquer(teinte: Color, joue: Bool, animer: Bool) {
             let c = NSColor(teinte).cgColor
             CATransaction.begin(); CATransaction.setDisableActions(true)

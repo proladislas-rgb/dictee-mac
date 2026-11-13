@@ -230,7 +230,7 @@ extension IlotEssai {
         autre.sons.reveil = {}
         autre.demarrerLeReveil()
         verifier(autre.reveil == c.reveil && autre.moteur.reveil == c.reveil && autre.moteur.resolution.principal == .reveilCompact,
-                 "Verbe relancé : le réveil de 9:15 est relu du fichier, replié dans les ailes")
+                 "Voxile relancé : le réveil de 9:15 est relu du fichier, replié dans les ailes")
         autre.annulerLeReveil(); autre.arreter()
         verifier(!fm.fileExists(atPath: fichier.path), "annulé : plus de fichier")
         c.reveil = nil; m.reveil = nil; m.donneesChangees(); pause(0.4)
@@ -250,7 +250,7 @@ extension IlotEssai {
                      "lancement, Centre jamais rangé : le calendrier y est, retenu comme donné (\(donnees))")
             rangee = d1.identifiants.filter { $0 != "calendrier" }   // « Modifier » : Calendrier retiré, « OK »
             let d2 = c.dispositionAvecNouveautes()
-            verifier(!d2.elements.contains(.calendrier) && rangee?.contains("calendrier") == false, "retiré par « Modifier », Verbe relancé : il ne revient pas")
+            verifier(!d2.elements.contains(.calendrier) && rangee?.contains("calendrier") == false, "retiré par « Modifier », Voxile relancé : il ne revient pas")
             c.reglagesCentre = rc
         }
         // --- étape 10 : le rond Calendrier ; macOS demande une fois (ici : une fermeture qui répond après 0,3 s)

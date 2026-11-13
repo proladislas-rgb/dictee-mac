@@ -52,6 +52,9 @@ final class EncocheModele: ObservableObject {
     @Published var message: String?         // ex. « Champ protégé, texte copié »
     /// Place laissée libre à droite du texte du ruban (la mini-miniature de la lecture s'y loge pendant une dictée).
     @Published var reserveRuban: CGFloat = 0
+    /// Hors de l'encoche (la pilule de verre à la place de la Lucarne) : la lecture que la dictée a mise en pause, montrée dans la pilule
+    /// (sa miniature et le signe pause), à côté de l'icône de l'app ; nil : rien à montrer.
+    @Published var bulleLecture: LectureModele?
     @Published var niveaux: [CGFloat] = Array(repeating: 0, count: 5)
     var icone: NSImage?
     var geometrie = GeometrieEncoche()

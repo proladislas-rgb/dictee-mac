@@ -14,11 +14,13 @@ struct DecouvrirVue: View {
             EntetePage(petit: "Sept choses que fait l\u{2019}encoche", titre: "Découvrir") {
                 PhraseEntete(texte: "Chaque scène bouge toute seule. «\u{202F}Essayer\u{202F}» le fait faire à la vraie encoche, juste au-dessus.")
             }
+            // comme Aujourd'hui : deux rangées d'une hauteur de lecture, posées en haut ; trop basse, la page défile
             GeometryReader { g in
                 let e = TonsBureau.ecart
                 let colonne = (g.size.width - 3 * e) / 4
-                let rang = (g.size.height - e) / 2
+                let rang = GrilleBureau.rang(hauteur: g.size.height, rangees: 2, min: GrilleBureau.rangMinDecouvrir, max: GrilleBureau.rangMaxDecouvrir)
                 let petites = Decouverte.allCases.filter { !$0.grande }
+                ScrollView(.vertical) {
                 VStack(spacing: e) {
                     HStack(spacing: e) {
                         TuileDecouverte(d: .centre, peutEssayer: essais.contains(.centre), essayer: essayer, actif: actif).frame(width: 2 * colonne + e)
@@ -30,6 +32,9 @@ struct DecouvrirVue: View {
                     }
                     .frame(height: rang)
                 }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .scrollDisabled(2 * rang + e <= g.size.height + 0.5)
             }
         }
         .padding(.horizontal, TonsBureau.margeH)
@@ -66,10 +71,19 @@ struct TuileDecouverte: View {
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
                         scene
-                        HStack(spacing: 6) {
-                            Text(d.titre).font(.system(size: 14, weight: .semibold)).tracking(-0.15).foregroundStyle(TonsBureau.encre).lineLimit(1)
-                            Spacer(minLength: 4)
-                            if peutEssayer { BoutonCapsule(titre: "Essayer", style: .doux, hauteur: 24) { essayer(d) } }
+                        // étroite (fenêtre de 760 pt) : « Essayer » devient un rond ▶ et le titre garde toute sa place (« Étagè… » sinon)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 6) {
+                                Text(d.titre).font(.system(size: 14, weight: .semibold)).tracking(-0.15).foregroundStyle(TonsBureau.encre).lineLimit(1).fixedSize()
+                                Spacer(minLength: 4)
+                                if peutEssayer { BoutonCapsule(titre: "Essayer", style: .doux, hauteur: 24) { essayer(d) } }
+                            }
+                            HStack(spacing: 6) {
+                                Text(d.titre).font(.system(size: 14, weight: .semibold)).tracking(-0.15).foregroundStyle(TonsBureau.encre).lineLimit(1)
+                                    .minimumScaleFactor(0.85)
+                                Spacer(minLength: 4)
+                                if peutEssayer { BoutonRondEssayer { essayer(d) } }
+                            }
                         }
                         .frame(height: 24)
                         .padding(.top, 9).padding(.horizontal, 4)
@@ -372,5 +386,30 @@ struct FeuilleMini<C: View>: View {
             .padding(.horizontal, 9).padding(.vertical, 7)
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .background(RoundedRectangle(cornerRadius: 6).fill(.white).shadow(color: Color(red: 20/255, green: 30/255, blue: 50/255).opacity(0.3), radius: 5, y: 4))
+    }
+}
+
+/// « Essayer » en rond (le symbole ▶ seul), quand la tuile est trop étroite pour le mot.
+struct BoutonRondEssayer: View {
+    var action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "play.fill").font(.system(size: 9.5, weight: .bold)).foregroundStyle(TonsBureau.bleuTexte)
+                .frame(width: 24, height: 24).background(Circle().fill(TonsBureau.remplissage)).contentShape(Circle())
+        }
+        .buttonStyle(Enfonce())
+        .help("Essayer")
+        .accessibilityLabel("Essayer")
+    }
+}
+
+/// La hauteur des rangées des pages en tuiles (Aujourd'hui, Découvrir) : partagée entre les rangées, bornée ; la page défile en dessous
+/// du minimum, les tuiles s'arrêtent au maximum (posées en haut, le reste de la fenêtre libre).
+enum GrilleBureau {
+    static let rangMin: CGFloat = 150, rangMax: CGFloat = 196
+    static let rangMinDecouvrir: CGFloat = 190, rangMaxDecouvrir: CGFloat = 250
+    static func rang(hauteur: CGFloat, rangees: Int, min mini: CGFloat, max maxi: CGFloat) -> CGFloat {
+        let n = CGFloat(rangees)
+        return Swift.min(maxi, Swift.max(mini, (hauteur - (n - 1) * TonsBureau.ecart) / n))
     }
 }

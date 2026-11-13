@@ -255,7 +255,7 @@ extension IlotEssai {
         c.panneau.simulerPointeur(forme: true); pause(1.0)
         m.allerA(.dictees); pause(0.8)
         clic(PlanDictees.pointLien(.reglages, m.grille), 0.5)
-        verifier(fenetres().last == .reglages && m.courante != .dictees, "vrai clic sur « Réglages » : la fenêtre de Verbe sur l'onglet Réglages, l'îlot se range")
+        verifier(fenetres().last == .reglages && m.courante != .dictees, "vrai clic sur « Réglages » : la fenêtre de Voxile sur l'onglet Réglages, l'îlot se range")
         refermer()
         c.panneau.simulerPointeur(forme: true); pause(1.0)
         m.allerA(.dictees); pause(0.8)

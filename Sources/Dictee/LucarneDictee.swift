@@ -65,7 +65,8 @@ struct DicteeVerreVue: View {
                 if statique { forme.fill(Color.white.opacity(0.05)) } else { Color.clear.glassEffect(.clear, in: forme).modifier(IntensiteVerre()) }
                 forme.fill(Color.black.opacity(VerreLucarne.voilePilule(intensite: verre.intensite)))
                 LisereVerre(forme: forme, intensite: verre.intensite)
-                contenu(ruban: ruban).modifier(HaloLucarne(force: 1))
+                // rogné à la pilule : pendant qu'elle s'allonge, le texte arrivé ne déborde jamais sur la page (vu à l'écran, 13/11)
+                contenu(ruban: ruban).modifier(HaloLucarne(force: 1)).clipShape(forme)
             }
             .frame(width: r.width, height: r.height)
             .offset(x: r.minX, y: r.minY)
@@ -95,6 +96,10 @@ struct DicteeVerreVue: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Spacer(minLength: 0)
+            }
+            if let l = m.bulleLecture {
+                MiniatureLectureVue(m: l, presence: 1).allowsHitTesting(m.mainsLibres)
+                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
             BarresDeSon(niveaux: m.niveaux)
             if m.mainsLibres {
