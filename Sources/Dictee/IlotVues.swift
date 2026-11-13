@@ -172,6 +172,11 @@ struct IlotCalques: View {
         case .reunionEtendu: CarteReunion(m: m, g: g)
         case .reunionPropose, .reunionPrepare, .reunionPrete, .reunionMessage: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         case .voixEcoute, .voixCarte: EcranVoix(m: m, voix: m.voix, g: g, v: v)
+        case .apps: CarteApps(m: m, g: g)
+        case .appsDetail: CarteDetailApp(m: m, g: g)
+        case .appsNouveautes: CarteNouveautes(m: m, g: g)
+        case .appsAile: AileApps(m: m, g: g)
+        case .appsBandeau: if let c = m.contenuAnnonce(v) { annonce(v, c) }
         }
     }
 

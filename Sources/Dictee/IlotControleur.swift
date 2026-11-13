@@ -105,6 +105,15 @@ final class IlotControleur {
     var echeanceNote: DispatchWorkItem?
     /// Une dictée sans encoche est en cours : la lecture qui se met en pause pour elle n'efface pas l'îlot (il montre l'écoute).
     var noteParClic = false
+    // MARK: « Tes apps » (IlotApps.swift) : la façade est fabriquée par une fermeture (l'essai donne un faux Mail, un faux réseau, un
+    // coffre en mémoire et un dossier temporaire : jamais la vraie Mail, les vrais Notion et Airtable ni le Trousseau)
+    var fabriqueApps: (IlotControleur) -> AppsBranchees = { c in AppsBranchees.reelle(agenda: { [weak c] in c?.evenements ?? [] }) }
+    var facadeApps: AppsBranchees?
+    var reveilApps: DispatchWorkItem?
+    var sondageAppsEnCours = false
+    /// Le texte du presse-papiers, pour « Coller » une clé (injectable : l'essai ne touche jamais le vrai presse-papiers).
+    var lireCleCollee: () -> String? = { NSPasteboard.general.string(forType: .string) }
+
     // MARK: Groq (IlotGroq.swift) : l'usage et le téléchargement de la langue du Mac sont lus par des fermetures (l'essai les remplace)
     var lireEtatGroq: (Date) -> EtatGroq = { UsageGroqStore.partage.etat(a: $0) }
     var lireProgressionParole: () -> Double? = { PrechauffageParole.progression }
@@ -224,7 +233,7 @@ final class IlotControleur {
     private var reveilMinuteur: DispatchWorkItem?
     private var reveilRappels: DispatchWorkItem?
     private var reveilAgenda: DispatchWorkItem?
-    private var evenements: [EvenementAgenda] = []
+    private(set) var evenements: [EvenementAgenda] = []
     private var annonces = Set<String>()       // rendez-vous déjà annoncés (10 min avant)
     private var debutsAnnonces = Set<String>() // rendez-vous dont le début a été signalé
     private var ignores = Set<String>()        // rendez-vous rejoints ou notés : on n'en parle plus
@@ -317,6 +326,7 @@ final class IlotControleur {
         // le réveil gardé (Verbe relancé, Mac redémarré) : il reprend, ou sonne s'il est passé pendant que Verbe était fermé
         demarrerLeReveil()
         demarrerGroq()
+        demarrerApps()
         nettoyerAnciensFichiers()
     }
 
@@ -356,6 +366,7 @@ final class IlotControleur {
         agenda.arreter()
         arreterLesOutils()
         arreterGroq()
+        reveilApps?.cancel(); reveilApps = nil
         panneau.fermer()
         [reveilMinuteur, reveilRappels, reveilAgenda, echeanceReveil].forEach { $0?.cancel() }
         if let o = observateurReveilMac { NSWorkspace.shared.notificationCenter.removeObserver(o) }
@@ -415,6 +426,7 @@ final class IlotControleur {
             agenda.arreter(); evenements = []; reveilAgenda?.cancel()
             moteur.rendezVous = nil; moteur.rendezVousProche = false; moteur.rendezVousSuivant = nil
         }
+        appsCalendrierChange()
         moteur.donneesChangees()
     }
     /// La question de macOS (une seule fois) ; injectable.
@@ -720,6 +732,7 @@ final class IlotControleur {
             Log.ecrire("îlot : « Quitter Voxile »")
             surQuitter()
         case .voix(let a): agirVoix(a)
+        case .apps(let a): agirApps(a)
         case .alerteOK: moteur.quitterAlerte()
         case .rappelPlusTard(let id):
             rappels.reporter(id, depuis: maintenant()); sauver()

@@ -90,7 +90,7 @@ extension IlotEssai {
         verifier(m.courante == .centre, "îlot vide, un clic : le Centre (\(m.courante))")
         let ent = PlanCentre.cadreEntete(m.grille)
         // « Outils › » est à gauche de « Dictées » et de « Modifier »
-        let pOutils = CGPoint(x: ent.maxX - EnteteCentre.pilule(EnteteCentre.titreModifier) - 8 - EnteteCentre.piluleDictees - 8 - EnteteCentre.piluleOutils / 2, y: ent.midY)
+        let pOutils = EnteteCentre.centrePilule(.outils, m, entete: ent)
         clic(pOutils, 0.9)
         verifier(m.courante == .outils && m.carteCourante == .outils && m.visible(ExtraIlot.points) && m.cartes == [.centre, .outils, .accueil, .dictees],
                  "vrai clic sur « Outils › » : la 2e page, son point allumé (\(m.courante))")

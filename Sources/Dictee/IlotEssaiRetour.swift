@@ -44,7 +44,7 @@ extension IlotEssai {
         m.clicForme(); pause(0.9)
         verifier(m.courante == .centre && m.pileRetour.estVide && m.cibleRetour == nil, "un clic : le Centre, rien avant (la racine)")
         let ent = PlanCentre.cadreEntete(m.grille)
-        clic(CGPoint(x: ent.maxX - EnteteCentre.pilule(EnteteCentre.titreModifier) - 8 - EnteteCentre.piluleDictees - 8 - EnteteCentre.piluleOutils / 2, y: ent.midY), 0.9)
+        clic(EnteteCentre.centrePilule(.outils, m, entete: ent), 0.9)
         verifier(m.courante == .outils && m.pileRetour.vues == [.centre], "vrai clic sur « Outils › » : les Outils, le Centre retenu (\(m.pileRetour.vues.map(\.rawValue)))")
         ouvrirLeDetail("Centre › Outils › Groq")
         verifier(m.pileRetour.vues == [.centre, .outils] && m.pileRetour.dernier?.epingle == true, "la pile : Centre puis Outils (épinglé)")

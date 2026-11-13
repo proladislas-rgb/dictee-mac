@@ -235,6 +235,8 @@ extension IlotMoteur {
                                   droite: .boutons([.init(titre: "Voir", etiquette: "Voir la fenêtre du Terminal de \(s?.projet ?? "Claude Code")", action: .claudeOuvrir(s))]))
         case .reunionPropose, .reunionPrepare, .reunionPrete, .reunionMessage:
             return contenuReunion(v)
+        case .appsBandeau:
+            return contenuAnnonceApps()
         case .microEtendu:
             // le micro barré voyage depuis l'aile gauche (sa place est gardée) ; le nom du micro peut être long : coupé au bout
             return ContenuAnnonce(glyphe: nil, l1: "Micro coupé", l2: nomMicro ?? "Micro du Mac",

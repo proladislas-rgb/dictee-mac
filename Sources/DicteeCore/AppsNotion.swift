@@ -13,8 +13,11 @@ public struct ReglageNotion: Codable, Equatable, Sendable {
     public var proprietePersonne: String?
     /// La personne dont on suit les tâches assignées (un utilisateur Notion ; une intégration interne ne sait pas qui est « moi »).
     public var personneId: String?
-    public init(baseId: String, baseNom: String, proprieteDate: String? = nil, proprietePersonne: String? = nil, personneId: String? = nil) {
+    /// Son nom, pour l'affichage (« Assignées à : Camille ») ; optionnel : un ancien fichier sans ce champ se relit.
+    public var personneNom: String?
+    public init(baseId: String, baseNom: String, proprieteDate: String? = nil, proprietePersonne: String? = nil, personneId: String? = nil, personneNom: String? = nil) {
         self.baseId = baseId; self.baseNom = baseNom; self.proprieteDate = proprieteDate; self.proprietePersonne = proprietePersonne; self.personneId = personneId
+        self.personneNom = personneNom
     }
     /// Il y a de quoi filtrer : une date, ou une personne choisie avec sa propriété.
     public var complet: Bool { proprieteDate != nil || (proprietePersonne != nil && personneId != nil) }

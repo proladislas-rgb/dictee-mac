@@ -23,6 +23,8 @@ public enum CartesIlot {
     /// La carte Second Brain est rangée sous le Centre (son bouton y est) : même chose, le point du Centre reste allumé.
     public static func parent(_ v: VueIlot) -> VueIlot? {
         if v == .secondBrain { return .centre }
+        // « Tes apps » (sa pilule est dans l'en-tête du Centre) : ses cartes sont rangées sous le Centre, comme Second Brain
+        if [.apps, .appsDetail, .appsNouveautes].contains(v) { return .centre }
         return [.outilPressePapiers, .outilReformuler, .outilNote].contains(v) ? .outils : nil
     }
 

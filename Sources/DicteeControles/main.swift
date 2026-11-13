@@ -1954,6 +1954,8 @@ controlesPresenceDock()
 controlesVoix()
 controlesMagasins()
 await controlesApps()
+controlesAppsIlot()
+await controlesAppsFacadeInterface()
 
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)

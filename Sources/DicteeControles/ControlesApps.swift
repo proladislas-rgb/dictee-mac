@@ -478,3 +478,171 @@ func controlesApps() async {
     let attrs = try? fm.attributesOfItem(atPath: fichier.path)
     verifier((attrs?[.posixPermissions] as? Int) == 0o600, "apps.json en 0600")
 }
+
+// MARK: - l'interface de « Tes apps » dans l'îlot (logique pure : écrans, navigation, regroupement, hauteurs)
+
+@MainActor
+func controlesAppsIlot() {
+    groupe("Tes apps : l'interface de l'îlot")
+    let t = Date(timeIntervalSince1970: 1_794_560_000)
+    func n(_ id: String, _ app: AppBranchee, _ titre: String, _ sous: String, _ s: TimeInterval) -> Nouveaute {
+        Nouveaute(id: id, app: app, titre: titre, sousTitre: sous, date: t.addingTimeInterval(s), action: .messageMail(id: id))
+    }
+
+    // les écrans : des cartes rangées sous le Centre, l'aile et le bandeau sont des bandeaux ; « ‹ » mène où il dit
+    verifier([VueIlot.apps, .appsDetail, .appsNouveautes].allSatisfy { CartesIlot.parent($0) == .centre && GeoIlot.aEpaules($0) && !$0.estBandeau },
+             "Tes apps, le détail et les Nouveautés : des cartes sous le Centre (point du Centre allumé, épaules)")
+    verifier(VueIlot.appsAile.estBandeau && VueIlot.appsBandeau.estBandeau && GeoIlot.ajusteAuContenu(.appsBandeau) && !GeoIlot.ajusteAuContenu(.appsAile),
+             "l'aile et le bandeau se retirent seuls ; le bandeau épouse son contenu")
+    verifier(NavigationIlot.parentFixe(.apps, premiere: nil) == .centre && NavigationIlot.parentFixe(.appsDetail, premiere: nil) == .apps
+             && NavigationIlot.parentFixe(.appsNouveautes, premiere: .lectureEtendu) == .apps && NavigationIlot.nom(.apps) == "Tes apps",
+             "« ‹ Centre » depuis Tes apps, « ‹ Tes apps » depuis le détail et les Nouveautés")
+    verifier(NavigationIlot.retour(de: .appsNouveautes, pile: [.centre, .outils], premiere: .centre) == .apps, "le geste va où mène le « ‹ », pas à la pile")
+
+    // le regroupement : une seule annonce, jamais une rafale
+    var a = AnnonceApps([n("mail:1", .mail, "Camille Roche", "Devis cuisine", 0)])
+    verifier(a.titre == "Camille Roche" && a.sousTitre == "Devis cuisine \u{00B7} Mail" && !a.ouvreLaListe && a.aile == ["1 mail", "1"],
+             "une nouveauté : qui, quoi, l'app ; « Ouvrir » l'ouvre ; l'aile « 1 mail »")
+    a.ajouter([n("mail:2", .mail, "Atelier Nord", "Facture", 10), n("mail:3", .mail, "Atelier Nord", "Relance", 20), n("mail:1", .mail, "Camille Roche", "Devis cuisine", 0)])
+    verifier(a.elements.count == 3 && a.titre == "3 nouveaux mails" && a.sousTitre == "Atelier Nord, Camille Roche" && a.ouvreLaListe && a.aile.first == "3 mails",
+             "trois mails (un en double) : « 3 nouveaux mails », les noms une fois chacun, « Ouvrir » ouvre la liste (\(a.sousTitre))")
+    a.ajouter([n("notion:1", .notion, "Rappeler le menuisier", "Aujourd'hui", 30), n("airtable:1", .airtable, "Chantier Les Tilleuls", "Statut", 40)])
+    verifier(a.titre == "5 nouveautés" && a.sousTitre == "3 mails, 1 tâche, 1 fiche" && a.apps == [.mail, .notion, .airtable],
+             "plusieurs apps : « 5 nouveautés · 3 mails, 1 tâche, 1 fiche »")
+    let deuxTaches = AnnonceApps([n("notion:1", .notion, "A", "x", 0), n("notion:2", .notion, "B", "y", 1)])
+    verifier(deuxTaches.titre == "2 nouvelles tâches" && AnnonceApps([n("agenda:1", .agenda, "P", "x", 0), n("agenda:2", .agenda, "Q", "y", 1)]).titre == "2 nouveaux rendez-vous",
+             "les accords : « 2 nouvelles tâches », « 2 nouveaux rendez-vous »")
+    let quatre = AnnonceApps((1...4).map { n("mail:\($0)", .mail, "Nom \($0)", "o", Double($0)) })
+    verifier(quatre.sousTitre == "Nom 4, Nom 3 et 2 autres", "plus de deux noms : « et 2 autres »")
+
+    // la liste « Nouveautés » : bornée par sa hauteur, une ligne par app d'abord, puis les plus récentes
+    var act: [AppBranchee: [Nouveaute]] = [:]
+    act[.mail] = (1...10).map { n("mail:\($0)", .mail, "M\($0)", "o", Double($0)) }
+    act[.notion] = (1...5).map { n("notion:\($0)", .notion, "T\($0)", "o", 100 + Double($0)) }
+    act[.agenda] = [n("agenda:1", .agenda, "R", "o", 5000)]
+    let s = PlanNouveautes.sections(act)
+    verifier(s.map(\.app) == [.mail, .agenda, .notion] && PlanNouveautes.hauteur(s) <= PlanNouveautes.corpsMax
+             && s.allSatisfy { !$0.lignes.isEmpty } && s.map { $0.lignes.count + $0.cachees } == [10, 1, 5],
+             "Nouveautés : rangées par app, \(s.map(\.lignes.count)) lignes, \(Int(PlanNouveautes.hauteur(s))) pt ≤ \(Int(PlanNouveautes.corpsMax)), le reste compté « +N »")
+    verifier(s.first { $0.app == .notion }?.lignes.first?.id == "notion:5", "les plus récentes d'abord")
+    verifier(PlanNouveautes.sections([:]).isEmpty && PlanNouveautes.hauteur([]) == PlanNouveautes.corpsVide, "rien : la phrase « Rien de nouveau »")
+    verifier(MesuresApps.profondeurNouveautes(corps: PlanNouveautes.corpsMax) <= GeoIlot.profondeurCentre, "les Nouveautés jamais plus hautes que le Centre")
+    verifier(MesuresApps.profondeurListe <= GeoIlot.profondeurCentre, "Tes apps : \(Int(MesuresApps.profondeurListe)) pt, sous la hauteur du Centre")
+
+    // la clé, jamais lisible
+    verifier(ClePartielle.masque("ntn_abcdefghijklmnopqrstuvwxyzK7Rm") == "ntn_\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}K7Rm"
+             && ClePartielle.masque("patAbc123.defghijklmnopqrstuvwxyz9fQz").hasPrefix("pat\u{2022}") && ClePartielle.masque("court") == String(repeating: "\u{2022}", count: 8),
+             "la clé masquée : le préfixe, huit points, les quatre derniers caractères (une clé courte : des points seulement)")
+
+    // les erreurs : un texte court pour la liste, un geste qui répare
+    verifier(ErreurApp.reseau(.notion).geste == .reessayer && ErreurApp.autorisationMail.geste == .reglagesMail && ErreurApp.cleRefusee(.airtable).geste == .autreCle
+             && ErreurApp.mailFerme.geste == .aucun && ErreurApp.introuvable(.notion).geste == .choisirBase, "chaque erreur a son geste")
+    let toutes: [ErreurApp] = [.cleAbsente(.notion), .cleRefusee(.notion), .droitsManquants(.airtable, "x"), .introuvable(.notion), .introuvable(.airtable),
+                               .limite(.airtable, reessayerDans: 30), .serveur(.notion, 502), .refus(.notion, 400), .reseau(.mail), .reponseIllisible(.notion),
+                               .reglageIncomplet(.notion), .autorisationMail, .mailFerme, .mail(-1712)]
+    verifier(toutes.allSatisfy { $0.court.count <= 36 && !$0.court.isEmpty }, "les formes courtes tiennent en 36 caractères")
+
+    // le parcours : le grand bouton, les pages de choix, « Réessayer » quand la liste n'a pas pu être lue
+    var p = ParcoursApp(app: .notion)
+    verifier(!p.boutonActif && p.titreBouton == "Vérifier la clé", "clé vide : « Vérifier la clé » grisé")
+    p.saisie = "ntn_x"
+    verifier(p.boutonActif, "clé collée : « Vérifier la clé »")
+    p.etape = .bases; p.choix = (1...9).map { ChoixApp(id: "\($0)", nom: "Base \($0)") }
+    verifier(p.pages == 3 && p.optionsMontrees.count == 4 && !p.boutonActif && p.titreBouton == "Suivre cette base", "neuf bases : trois pages de quatre, rien de choisi")
+    p.page = 7
+    verifier(p.pageMontree == 2 && p.optionsMontrees.map(\.id) == ["9"], "une page trop loin : la dernière")
+    var vide = ParcoursApp(app: .airtable, etape: .bases); vide.erreur = .reseau(.airtable)
+    verifier(vide.relireLaListe && vide.boutonActif && vide.titreBouton == "Réessayer", "la liste n'a pas pu être lue : « Réessayer » la relit")
+
+    // les blocs du détail, et la hauteur de la forme qui les épouse (jamais plus haute que la fenêtre de l'îlot)
+    var e = EtatAppsIlot()
+    e.branchees = Set(AppBranchee.allCases)
+    e.etats = [.mail: .erreur(.autorisationMail), .agenda: .aJour(t), .notion: .erreur(.reseau(.notion)), .airtable: .aJour(t)]
+    e.notion = ReglageNotion(baseId: "b", baseNom: "Tâches", proprieteDate: "d", proprietePersonne: "p", personneId: "x", personneNom: "Camille")
+    e.airtable = ReglageAirtable(baseId: "a", baseNom: "Chantiers", tableId: "t", tableNom: "Suivi")
+    e.cles = [.notion: "ntn_\u{2022}\u{2022}k7Rm", .airtable: "pat\u{2022}\u{2022}9fQz"]
+    var pire = 0.0
+    for app in AppBranchee.allCases {
+        e.detail = app
+        for conf in [false, true] {
+            e.confirmation = conf
+            pire = max(pire, e.profondeurDetail)
+            verifier(e.blocs.last == (conf ? .confirmation : .pied), "\(app.nom)\(conf ? ", « Débrancher ? »" : "") : le détail finit par \(conf ? "la confirmation" : "le pied")")
+        }
+    }
+    e.confirmation = false
+    for app in [AppBranchee.notion, .airtable] {
+        e.detail = app
+        var q = ParcoursApp(app: app); q.erreur = .cleRefusee(app); e.parcours = q
+        pire = max(pire, e.profondeurDetail)
+        q.etape = .bases; q.choix = (1...6).map { ChoixApp(id: "\($0)", nom: "B\($0)") }; q.compte = "Espace"; e.parcours = q
+        pire = max(pire, e.profondeurDetail)
+        q.erreur = nil; e.parcours = q
+        pire = max(pire, e.profondeurDetail)
+    }
+    verifier(pire <= MesuresApps.profondeurMax, "le détail le plus chargé : \(Int(pire)) pt ≤ \(Int(MesuresApps.profondeurMax)) (rien n'est rogné)")
+    e.detail = .notion; e.parcours = nil
+    verifier(e.blocs.contains { if case .erreur(_, .reessayer) = $0 { return true }; return false }, "Notion en erreur réseau : la phrase et « Réessayer »")
+    e.confirmation = true
+    verifier(!e.blocs.contains { if case .erreur = $0 { return true }; return false }, "« Débrancher ? » ouvert : l'erreur s'efface (on débranche)")
+
+    // les lignes de « Tes apps »
+    e.confirmation = false
+    verifier(e.ligne(.mail).bouton == .aRevoir && e.ligne(.mail).alerte && e.ligne(.agenda).bouton == .branche && e.ligne(.airtable).sousTitre == "Table suivie : Suivi",
+             "les lignes : « À revoir » en ambre, « Branché », ce qui est suivi")
+    var x = EtatAppsIlot()
+    verifier(x.ligne(.agenda).bouton == .brancher && x.ligne(.agenda).sousTitre.contains("permettre") && x.ligne(.notion).sousTitre == AppBranchee.notion.description,
+             "rien de branché : « Brancher » partout ; l'Agenda dit que l'accès au calendrier est à permettre")
+    x.calendrierPermis = true
+    verifier(x.ligne(.agenda).sousTitre == AppBranchee.agenda.description, "le calendrier permis : la phrase de la maquette")
+}
+
+/// L'Agenda branché d'office, une seule fois ; une clé laissée en route effacée ; « Réessayer » relance une app arrêtée.
+@MainActor
+func controlesAppsFacadeInterface() async {
+    groupe("Tes apps : la façade pour l'interface")
+    let fm = FileManager.default
+    let dossier = fm.temporaryDirectory.appendingPathComponent("controles-apps-ui-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+    try? fm.createDirectory(at: dossier, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: dossier) }
+    let coffre = CoffreEnMemoire(), mail = FauxMail(), reseau = FauxReseau()
+    let horloge = HorlogeEssai(Date(timeIntervalSince1970: 1_794_560_000))
+    func fabriquer() -> AppsBranchees {
+        AppsBranchees(magasin: MagasinJSON(url: dossier.appendingPathComponent("apps.json"), nom: "apps"), coffre: coffre, transport: reseau, mail: mail,
+                      agenda: { [] }, horloge: { horloge.t }, heure: { _ in "10:00" },
+                      espacementNotion: EspacementRequetes(ecart: 0), espacementAirtable: EspacementRequetes(ecart: 0))
+    }
+    var f = fabriquer()
+    f.brancherAgendaUneFois(calendrierPermis: false)
+    verifier(!f.estBranchee(.agenda) && f.memoire.agendaPropose == nil, "le calendrier pas permis : l'Agenda n'est pas branché")
+    f.brancherAgendaUneFois(calendrierPermis: true)
+    verifier(f.estBranchee(.agenda) && f.memoire.agendaPropose == true, "le calendrier permis : l'Agenda est branché d'office")
+    f.debrancher(.agenda)
+    f = fabriquer()
+    f.brancherAgendaUneFois(calendrierPermis: true)
+    verifier(!f.estBranchee(.agenda), "débranché par Hugues, il ne revient pas tout seul (même relancé)")
+
+    // une clé vérifiée puis laissée en route (la base jamais choisie) : effacée ; celle d'une app branchée reste
+    _ = coffre.ranger("ntn_enroute", pour: .notion)
+    f.abandonner(.notion)
+    verifier(coffre.lire(.notion) == nil, "branchement laissé en route : la clé ne reste pas dans le coffre")
+    verifier(f.cleMasquee(.notion) == nil && f.cleMasquee(.mail) == nil, "pas de clé : rien à montrer (Mail n'en a jamais)")
+
+    // « Réessayer » : une app arrêtée par une erreur qui demandait un geste est relue tout de suite
+    mail.erreur = .autorisationMail
+    f.brancher(.mail)
+    _ = await f.sonder()
+    verifier(f.etats[.mail] == .erreur(.autorisationMail) && f.plan.suivis[.mail]?.arrete == true, "autorisation refusée : Mail arrêté jusqu'à un geste")
+    mail.erreur = nil
+    _ = await f.reessayer(.mail)
+    verifier(f.etats[.mail].map { if case .aJour = $0 { return true }; return false } == true && f.plan.suivis[.mail]?.arrete == false, "« Réessayer » : relu, il repart")
+
+    // le nom de la personne Notion suit le choix
+    _ = coffre.ranger("ntn_essaiEssaiEssaiEssaiEssaiEssaiK7Rm", pour: .notion)
+    reseau.repondre("GET https://api.notion.com/v1/databases/0f0e0d0c", .init(corps: ExemplesApps.notionSchema))
+    _ = await f.choisirBaseNotion("0f0e0d0c-1111-4222-8333-444455556666")
+    f.choisirPersonneNotion("11111111-2222-4333-8444-555555555555", nom: "Camille")
+    verifier(f.memoire.notion?.personneNom == "Camille", "la personne choisie garde son nom pour l'affichage")
+    f.choisirPersonneNotion(nil, nom: "Camille")
+    verifier(f.memoire.notion?.personneNom == nil && f.memoire.notion?.personneId == nil, "aucune personne : ni identifiant ni nom")
+}

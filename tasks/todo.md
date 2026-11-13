@@ -763,8 +763,41 @@ But : zéro dette technique et zéro bug d'usage réel avant la vidéo finale. R
       cibles) 0 avertissement ; 4 049/4 049 contrôles ; essai complet n° 1 : 1 368 ok, 1 échec attendu (« AirPods partis : cinq
       boutons », écrit pour le Centre avec Concentration : quatre maintenant) corrigé ; essai complet n° 2 sur le binaire final :
       1 369 ok, tout vert.
-- [ ] Interface de l'îlot (maquette chez un autre agent) : brancher la façade dans IlotControleur (minuterie sur `prochainSondage()`,
+- [x] (fait dans la branche `apps-interface`, section suivante) Interface de l'îlot : brancher la façade dans IlotControleur (minuterie sur `prochainSondage()`,
       `surNouveautes` → bandeau, `actuelles`/`etats` → la carte).
 - [ ] À vérifier dans l'app installée : 1re lecture de Mail = fenêtre « Voxile veut contrôler Mail » ; coût réel d'un passage
       (ligne « apps : mail lu (n, k nouveaux, X ms) » du journal) ; vraies clés Notion (base partagée avec la connexion) et Airtable
       (droits data.records:read + schema.bases:read).
+
+## 13/11 soir — interface de « Tes apps » dans l'îlot (branche `apps-interface`, worktree ~/dictee-mac-apps-ui, depuis main 1009aef)
+Maquette design/maquettes/ilot-apps.html (9 étapes, parcourue dans un Chrome sans tête) + décisions de Hugues du 13/11 au soir.
+- [x] 1. DicteeCore (AppsIlot.swift) : écrans `apps`, `appsDetail`, `appsNouveautes` (cartes rangées sous le Centre, largeur du Centre,
+      hauteur qui épouse le contenu, 336 pt au plus), `appsAile` (le logo, « 2 mails ») et `appsBandeau` (épouse son contenu) ;
+      navigation : « ‹ Centre » depuis Tes apps, « ‹ Tes apps » depuis le détail et les Nouveautés, deux doigts vers la droite pareil ;
+      `EtatAppsIlot` (lignes, blocs du détail, hauteurs), `ParcoursApp` (clé → base → table ou personne ; pages de quatre ; « Réessayer »
+      relit une liste ratée), `AnnonceApps` (UN bandeau : « 3 nouveaux mails », « 3 nouveautés · 2 mails, 1 tâche »), `PlanNouveautes`
+      (une ligne par app d'abord, puis les plus récentes, « +N »), `ClePartielle` (« ntn_••••••••K7Rm »), `ErreurApp.court` / `.geste`.
+      Façade : `brancherAgendaUneFois` (le calendrier permis : l'Agenda branché d'office, une fois ; débranché, il le reste),
+      `abandonner` (clé d'un branchement laissé en route effacée, aussi au lancement), `reessayer`, `cleMasquee`, nom de la personne Notion.
+- [x] 2. Vrais logos : Mail et Calendrier = `NSWorkspace.icon(forFile:)` des apps installées (réduites à 128 px, 8 bits) ; Notion et
+      Airtable = tracés simple-icons 13.21.0 (CC0) dans Resources/Logos/*.svg (Airtable en ses trois couleurs), posés sur une tuile blanche
+      à la taille des icônes du Mac ; copiés par build.sh ; une marque absente : tuile neutre et initiale.
+- [x] 3. Îlot : pilule « Tes apps » (carrés + mot) dans l'en-tête du Centre, entre « Dictées » et « Modifier » ; si la ligne ne tient pas,
+      « Dictées » passe d'abord en guillemets seuls (sur la caméra de 179 pt de Hugues, toujours), puis les deux ; mesuré avec toutes les
+      pilules (`EnteteCentre.formes`, `centrePilule`). Cartes Tes apps / Brancher / détail / Nouveautés ; erreurs dites en entier avec
+      leur geste (« Réessayer », « Ouvrir les Réglages », dans le parcours le grand bouton) ; « Débrancher » → confirmation → clé effacée.
+      Survol avec du neuf : les Nouveautés ; sinon le Centre. Clic sur l'aile ou le bandeau : les Nouveautés.
+- [x] 4. Contrôleur (IlotApps.swift) : façade par `fabriqueApps` (l'essai la remplace), une minuterie sur `prochainSondage()`,
+      `surNouveautes` → aile 1,6 s puis bandeau 6 s (ce qui arrive pendant les rejoint, même en attente d'une dictée), la liste ouverte →
+      seulement les points bleus ; « Coller » lit le presse-papiers (injectable) ; Mail arrêté par un refus : ouvrir son détail réessaie.
+- [x] 5. Essai `DICTEE_ESSAI_SEUL=apps` (aussi dans l'essai complet) et rendus `--rendu-ilot` (`DICTEE_RENDU_SEUL=apps`, ilot-35*) ;
+      33 rendus du Centre mis à jour (nouvel en-tête) ; les écarts de 27*, 29*, 30* (sans rapport, déjà présents) non repris.
+- Preuves (13/11, 21 h 30 → 23 h, une vidéo se rendait à côté, charge 3 à 8) : build release 0 avertissement ; 4 145/4 145 contrôles
+      (dont « Tes apps : l'interface » et « la façade pour l'interface ») ; `DICTEE_ESSAI_SEUL=apps` vert (85 contrôles, vrais clics,
+      caméras 179 et 200 pt sans texte coupé) ; `places` vert (115) ; essai complet 1 453 ok, tout vert (un 1er passage avait 4 échecs :
+      capture des liens remplacée par une section d'avant, calendrier laissé allumé, aile sans contenu compact pour la Lucarne : corrigés) ;
+      `defaults read Dictee` absent, aucune ligne « apps : » dans le vrai journal. Rendus : design/rendus-ilot/ilot-35*.png (24, 8 bits, 4,6 Mo).
+- [ ] Hugues, dans l'app installée : (a) brancher Mail : la fenêtre « Voxile veut contrôler Mail » (OK) ; si refusée, « À revoir »,
+      « Ouvrir les Réglages », puis rouvrir le détail de Mail ; (b) une vraie clé Notion (la base partagée avec la connexion) et un vrai
+      jeton Airtable (data.records:read + schema.bases:read, la base ajoutée au jeton) ; (c) un vrai mail : l'aile, puis le bandeau,
+      « Ouvrir » l'ouvre dans Mail ; (d) le coût d'un passage de Mail au journal (« apps : mail lu (n, k nouveaux, X ms) »).

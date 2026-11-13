@@ -54,6 +54,8 @@ struct BandeauIlot {
     /// pour ne pas changer pendant qu'il s'efface. nil : une annonce ordinaire, sans « ‹ ».
     var retour: String?
     var detail: Bool { retour != nil }
+    /// Les nouveautés de « Tes apps » qu'annoncent l'aile (`.appsAile`) puis le bandeau (`.appsBandeau`), regroupées.
+    var apps: AnnonceApps?
 }
 
 /// Le bandeau `.lucarne` : une commande dite qui n'a pas abouti (rien n'est collé : la phrase est là, avec « Copier »), ou l'app Rappels.
@@ -198,6 +200,8 @@ enum ActionIlot {
     case reunionNoter, reunionRefuser, reunionPause, reunionReprendre, reunionArreter, reunionPoint, reunionRattrapage, reunionDirect, reunionOuvrirNote
     /// La carte de fin d'un rappel ou d'une note dits à Lucarne (IlotVoix.swift).
     case voix(ActionVoix)
+    /// « Tes apps » (IlotApps.swift).
+    case apps(ActionApps)
 }
 
 /// La case Minuteur du Centre a deux onglets (maquette ilot-bibliotheque.html, étape 7) : le minuteur (5 · 10 · 25 min) et le réveil
@@ -489,6 +493,14 @@ final class IlotMoteur: ObservableObject {
     /// Le défilement de la liste des notes (0 = en haut), quand elle dépasse.
     private(set) var defilementNotes: CGFloat = 0
 
+    // MARK: « Tes apps » (IlotApps.swift)
+    /// Ce que montrent ses cartes : recopié de la façade par le contrôleur, plus ce qui n'appartient qu'à l'interface (le détail ouvert,
+    /// le branchement en cours, les nouveautés pas encore vues).
+    var apps = EtatAppsIlot() { didSet { if apps != oldValue { rev += 1 } } }
+    /// L'aile reste 1,6 s, puis le bandeau (maquette, étape 6) ; le bandeau se range seul après 6 s.
+    static let dureeAileApps: TimeInterval = 1.6
+    static let dureeBandeauApps: TimeInterval = 6
+
     // MARK: la réunion (IlotReunion.swift) : une activité de l'îlot, plus un masque
     /// La réunion qui s'enregistre (nil : aucune) ; la dernière vue, pour un écran qui s'efface.
     var reunion: ReunionIlot? { didSet { if let reunion { derniereReunion = reunion } } }
@@ -648,6 +660,9 @@ final class IlotMoteur: ObservableObject {
         if depot, carte != .centre { voulu = .etagereDepot }
         else if appel, !fenetreOuverte, !resolution.verrou { voulu = .etagereAppel }
         afficher(voulu)
+        // « Tes apps » : la liste des Nouveautés vue, le survol ne s'y rouvre plus avant la prochaine ; l'îlot rangé, « Débrancher ? » se ferme
+        if courante == .appsNouveautes, fenetreOuverte, apps.neuf { apps.neuf = false }
+        if !fenetreOuverte, apps.confirmation { apps.confirmation = false }
         // le Centre s'est rangé (clic ailleurs, alerte, autre carte) : « Modifier » se termine et enregistre ; la ligne d'avis s'en va
         if editionCentre, courante != .centre, courante != .outils { finirEditionCentre() }
         // la carte Dictées quittée (autre carte, îlot rangé, dictée qui commence) : le champ rend le clavier tout de suite ; l'îlot rangé,
@@ -722,6 +737,11 @@ final class IlotMoteur: ObservableObject {
         let pb = CarteBibliotheque.profondeur(liste: bibliotheque.miseEnPage().hauteur)
         if pb != CarteBibliotheque.profondeurMax { d[.bibliotheque] = CGFloat(pb - CarteBibliotheque.profondeurMax) }
         d.merge(hauteursVoix) { $1 }
+        // « Tes apps » : chaque carte épouse ce qu'elle montre (MesuresApps, EtatAppsIlot)
+        let pc0 = CGFloat(GeoIlot.profondeurCentre)
+        d[.apps] = CGFloat(MesuresApps.profondeurListe) - pc0
+        d[.appsDetail] = CGFloat(min(MesuresApps.profondeurMax, apps.profondeurDetail)) - pc0
+        d[.appsNouveautes] = CGFloat(apps.profondeurNouveautes) - pc0
         return d
     }
 
@@ -991,6 +1011,11 @@ final class IlotMoteur: ObservableObject {
         if let j = alerte?.jusqua, j <= t { alerte = nil; surAlerteExpiree() }
         if let b = bandeau, b.jusqua <= t {
             if b.detail { finirDetail(); return }
+            // « Tes apps » : l'aile a annoncé, le bandeau dit qui et quoi (avec tout ce qui est arrivé entre-temps)
+            if b.vue == .appsAile, let a = b.apps {
+                bandeau = BandeauIlot(vue: .appsBandeau, jusqua: t.addingTimeInterval(Self.dureeBandeauApps), ligne1: "", ligne2: "", apps: a)
+                donneesChangees(); return
+            }
             bandeau = nil
         }
         donneesChangees()
@@ -1045,9 +1070,9 @@ final class IlotMoteur: ObservableObject {
         if dedans {
             if survole || epingle { return }
             if resolution.survol != nil, geo[2].x > geo[2].cibleFinale + 2 {
-                survole = true; donneesChangees(); surDepliageMoniteur(); return
+                survole = true; surNouveautesSiNeuf(); donneesChangees(); surDepliageMoniteur(); return
             }
-            let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { guard let self, self.pointeurSurForme else { return }; self.survole = true; self.donneesChangees(); self.surDepliageMoniteur() } }
+            let item = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { guard let self, self.pointeurSurForme else { return }; self.survole = true; self.surNouveautesSiNeuf(); self.donneesChangees(); self.surDepliageMoniteur() } }
             intention = item
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.delaiIntention, execute: item)
         } else {
@@ -1066,10 +1091,13 @@ final class IlotMoteur: ObservableObject {
         if detailOuvert { revenir(); return }
         // « Capture d’écran · Sur l’étagère » : un clic ouvre l'étagère
         if bandeau?.vue == .etagereCapture, alerte == nil, !cache { bandeau = nil; ouvrirEtagere(); return }
+        // l'aile ou le bandeau de « Tes apps » : un clic ouvre les Nouveautés
+        if let v = bandeau?.vue, v == .appsAile || v == .appsBandeau, alerte == nil, !cache { bandeau = nil; donneesChangees(); ouvrirOutil(.appsNouveautes); return }
         guard !cache, !resolution.verrou, resolution.survol != nil else { return }
         intention?.cancel(); fermeture?.cancel()
         if epingle { fermer(); return }
         epingle = true; survole = true
+        surNouveautesSiNeuf()
         donneesChangees(); surDepliageMoniteur()
     }
     /// L'îlot est enfoncé sous le doigt (il gonfle un peu), en attendant l'appui long.
@@ -1367,6 +1395,32 @@ final class IlotMoteur: ObservableObject {
     private func noterOrigine(vers v: VueIlot) {
         guard !enRetour else { return }
         pileRetour.aller(depuis: ecranDuRetour, vers: v, epingle: epingle)
+    }
+
+    /// L'îlot s'ouvre au survol (ou d'un clic) : s'il y a du neuf dans « Tes apps », sur la liste des Nouveautés (décision de Hugues,
+    /// 13/11) ; sinon comme d'habitude (le Centre, ou l'activité).
+    func surNouveautesSiNeuf() {
+        guard apps.neuf, sousVue == nil, !resolution.verrou, !cache else { return }
+        noterOrigine(vers: .appsNouveautes)
+        sousVue = .appsNouveautes
+    }
+
+    /// De nouvelles nouveautés arrivent pendant que l'aile ou le bandeau de « Tes apps » est à l'écran (ou attend la fin d'une dictée) :
+    /// elles rejoignent CETTE annonce (« 3 nouveaux mails »), jamais une rafale de bandeaux. Faux : aucune annonce en cours.
+    func regrouperApps(_ n: [Nouveaute]) -> Bool {
+        if var b = bandeau, b.vue == .appsAile || b.vue == .appsBandeau, var a = b.apps {
+            a.ajouter(n); b.apps = a
+            if b.vue == .appsBandeau { b.jusqua = max(b.jusqua, maintenant().addingTimeInterval(3)) }
+            bandeau = b
+            donneesChangees()
+            return true
+        }
+        if let i = enAttente.lastIndex(where: { $0.bandeau?.apps != nil }), var b = enAttente[i].bandeau, var a = b.apps {
+            a.ajouter(n); b.apps = a
+            enAttente[i] = (nil, b)
+            return true
+        }
+        return false
     }
 
     /// Un détail ouvert d'un clic sur une carte (la jauge de Groq) : il passe le Centre épinglé (un geste : il ne doit pas attendre que

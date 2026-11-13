@@ -97,6 +97,57 @@ struct EnteteCentre: View {
     static var piluleQuitter: CGFloat { PiluleCentre.largeur(titreQuitter, symbole: "power") }
     /// La pilule « Dictées » (les guillemets de 10 pt et 4 pt avant le mot).
     static var piluleDictees: CGFloat { PiluleCentre.largeur("Dictées", symbole: "quote.opening") }
+    /// « Tes apps » : les quatre carrés avant le mot (maquette ilot-apps.html, étape 1).
+    static let titreApps = "Tes apps", symboleApps = "square.grid.2x2"
+    static func piluleApps(entiere: Bool) -> CGFloat { PiluleCentre.largeur(entiere ? titreApps : "", symbole: symboleApps) }
+    static func piluleDicteesForme(entiere: Bool) -> CGFloat { PiluleCentre.largeur(entiere ? "Dictées" : "", symbole: "quote.opening") }
+    /// Ce qui est à gauche de l'en-tête du Centre : « ‹ Vidéo », le titre de l'étagère, ou « Centre ».
+    static func largeurGauche(_ m: IlotMoteur) -> CGFloat {
+        if let nom = m.nomPremiereCarte, m.cartes.first != nil { return PiluleCentre.largeur(nom, retour: true) }
+        if m.miseEnPageCentre.etagereEnHaut {
+            let n = "\(m.etagere.count)"
+            return 4 + MesureIlot.symbole("tray", 14) + 7 + MesureIlot.texte("Étagère", 13.5, .semibold) + 7
+                + max(18, MesureIlot.texte(n, 11.5, .bold, chiffres: true) + 10) + 7 + MesureIlot.symbole("chevron.right", 10.5) + 4
+        }
+        return MesureIlot.texte("Centre", 13.5, .semibold) + 2
+    }
+    /// La ligne sans « Dictées » ni « Tes apps » : ce qui est à gauche, l'épingle de « Reste ouvert » (sa place est toujours gardée),
+    /// « Outils › », « Modifier », et les 8 pt entre chacun, l'espace élastique compris (six écarts : la pile les compte aussi de part et
+    /// d'autre de l'espace).
+    static func largeurFixe(_ m: IlotMoteur) -> CGFloat { largeurFixe(gauche: largeurGauche(m)) }
+    static func largeurFixe(gauche: CGFloat) -> CGFloat {
+        gauche + MesureIlot.symbole("pin.fill", 10, .semibold) + piluleOutils + pilule(titreModifier) + 6 * 8
+    }
+    /// Les formes de « Dictées » et de « Tes apps » (vrai : le mot entier ; faux : le glyphe seul) : toutes deux entières si elles
+    /// tiennent ; sinon « Dictées » en glyphe (les guillemets, connus) et « Tes apps » garde son nom (la nouvelle entrée, décision de
+    /// Hugues du 13/11) ; sinon les deux en glyphe. Mesurées avec TOUTES les pilules de la ligne : jamais un mot coupé.
+    static func formes(_ m: IlotMoteur, largeur: CGFloat) -> (dictees: Bool, apps: Bool) { formes(gauche: largeurGauche(m), largeur: largeur) }
+    static func formes(gauche: CGFloat, largeur: CGFloat) -> (dictees: Bool, apps: Bool) {
+        let fixe = largeurFixe(gauche: gauche)
+        for f in [(true, true), (false, true), (false, false)] where fixe + piluleDicteesForme(entiere: f.0) + piluleApps(entiere: f.1) <= largeur {
+            return f
+        }
+        return (false, false)
+    }
+    /// La largeur occupée par la ligne du Centre (essais : rien ne dépasse).
+    static func largeurOccupee(_ m: IlotMoteur, largeur: CGFloat) -> CGFloat {
+        let f = formes(m, largeur: largeur)
+        return largeurFixe(m) + piluleDicteesForme(entiere: f.dictees) + piluleApps(entiere: f.apps)
+    }
+    enum PiluleEntete { case outils, dictees, apps, modifier }
+    /// Le milieu d'une pilule de droite de l'en-tête du Centre (essais : où cliquer), avec les formes du moment.
+    static func centrePilule(_ p: PiluleEntete, _ m: IlotMoteur, entete e: CGRect) -> CGPoint {
+        let f = formes(m, largeur: e.width)
+        let largeurs: [(PiluleEntete, CGFloat)] = [(.modifier, pilule(titreModifier)), (.apps, piluleApps(entiere: f.apps)),
+                                                   (.dictees, piluleDicteesForme(entiere: f.dictees)), (.outils, piluleOutils)]
+        var x = e.maxX
+        for (q, l) in largeurs {
+            if q == p { return CGPoint(x: x - l / 2, y: e.midY) }
+            x -= l + 8
+        }
+        return CGPoint(x: x, y: e.midY)
+    }
+
     /// La place de la ligne d'avis : tout l'en-tête sauf « Modifier » (« Reste ouvert » et « Dictées » s'effacent devant elle, le temps
     /// qu'on la lise : les Dictées restent à un point de page ou un défilement ; « Outils › » aussi s'il ne tient plus à côté).
     static func placeAvis(largeur: CGFloat) -> CGFloat { largeur - pilule(titreModifier) - 8 }
@@ -152,7 +203,12 @@ struct EnteteCentre: View {
             } else {
                 // les Dictées (l'ancien panneau de la barre des menus), la dernière carte de la pile ; sur le Centre seulement
                 if page == .centre, m.avisCentre == nil {
-                    PiluleCentre(titre: "Dictées", symbole: "quote.opening", etiquette: "Les dictées : chercher, copier, coller") { m.allerA(.dictees) }
+                    let f = Self.formes(m, largeur: largeur)
+                    PiluleCentre(titre: f.dictees ? "Dictées" : "", symbole: "quote.opening", etiquette: "Les dictées : chercher, copier, coller") { m.allerA(.dictees) }
+                    // « Tes apps » (décision de Hugues, 13/11) : un bouton visible, jamais un raccourci
+                    PiluleCentre(titre: f.apps ? Self.titreApps : "", symbole: Self.symboleApps, etiquette: "Tes apps : brancher Mail, Agenda, Notion, Airtable") {
+                        m.ouvrirOutil(.apps)
+                    }
                 }
                 PiluleCentre(titre: Self.titreModifier, etiquette: "Modifier le Centre : ajouter, retirer, ranger les boutons") { m.commencerEditionCentre() }
             }

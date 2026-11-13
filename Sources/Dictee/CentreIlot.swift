@@ -695,7 +695,8 @@ struct PiluleCentre: View {
     static func largeur(_ titre: String, retour: Bool = false, symbole: String? = nil, suite: Bool = false) -> CGFloat {
         var l = (retour ? 8 : 11) + MesureIlot.texte(titre, 12.5, .semibold) + (suite ? 9 : 11)
         if retour { l += MesureIlot.symbole("chevron.left", 10.5, .bold) + 4 }
-        if let symbole { l += MesureIlot.symbole(symbole, 10, .bold) + 4 }
+        // un glyphe seul (la forme courte de « Tes apps » ou de « Dictées ») : pas d'écart après lui
+        if let symbole { l += MesureIlot.symbole(symbole, 10, .bold) + (titre.isEmpty ? 0 : 4) }
         if suite { l += 4 + MesureIlot.symbole("chevron.right", 10.5, .bold) }
         return l
     }
@@ -717,7 +718,7 @@ struct PiluleCentre: View {
             HStack(spacing: 4) {
                 if retour { Image(systemName: "chevron.left").font(.system(size: 10.5, weight: .bold)) }
                 if let symbole { Image(systemName: symbole).font(.system(size: 10, weight: .bold)) }
-                Text(titre).font(.system(size: 12.5, weight: .semibold)).lineLimit(1).fixedSize()
+                if !titre.isEmpty { Text(titre).font(.system(size: 12.5, weight: .semibold)).lineLimit(1).fixedSize() }
                 if suite { Image(systemName: "chevron.right").font(.system(size: 10.5, weight: .bold)) }
             }
             .foregroundStyle(plein ? .black : discret && !survol ? Color.white.opacity(0.6) : .white)

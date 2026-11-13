@@ -56,7 +56,9 @@ public enum NavigationIlot {
     public static func parentFixe(_ v: VueIlot, premiere: VueIlot?) -> VueIlot? {
         switch v {
         case .bibliotheque: return .etagere
-        case .etagere, .claudeCarte, .dictees, .outils: return .centre
+        case .etagere, .claudeCarte, .dictees, .outils, .apps: return .centre
+        // le détail d'une app et les Nouveautés ramènent à « Tes apps » (leur « ‹ Tes apps »)
+        case .appsDetail, .appsNouveautes: return .apps
         case .centre: return premiere == .centre ? nil : premiere
         default: return CartesIlot.parent(v)
         }
@@ -94,6 +96,8 @@ public enum NavigationIlot {
         case .outilReformuler: return "Reformuler"
         case .outilNote: return "Notes"
         case .rappelListe: return "Rappels"
+        case .apps: return "Tes apps"
+        case .appsNouveautes: return "Nouveautés"
         default: return nil
         }
     }

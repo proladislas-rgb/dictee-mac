@@ -77,13 +77,17 @@ public enum VueIlot: String, CaseIterable, Sendable {
     /// La voix d'un rappel ou d'une note (maquette ilot-voix-rappel.html, VoixIlot.swift) : l'onde pendant qu'on parle (et « Rappel… »
     /// dessous dès que c'est compris), puis la carte de fin (« Envoyer dans Rappels », « Envoyer dans Notes »).
     case voixEcoute, voixCarte
+    /// « Tes apps » (maquette ilot-apps.html, AppsIlot.swift) : la liste des apps qu'on branche (pilule « Tes apps » du Centre), le détail
+    /// d'une app (brancher : coller la clé, choisir la base ; branchée : ce qu'elle suit, « Débrancher »), la liste « Nouveautés » rangée
+    /// par app ; une nouveauté qui arrive îlot fermé : d'abord l'aile (le logo, « 1 mail »), puis un bandeau qui regroupe tout.
+    case apps, appsDetail, appsNouveautes, appsAile, appsBandeau
 
     /// Ces écrans sont des bandeaux : ils s'annoncent, restent un instant, puis se retirent d'eux-mêmes.
     public var estBandeau: Bool {
         switch self {
         case .minuteurLance, .rappelAjoute, .rappelFait, .rappelReporte, .agendaAvant, .notification, .notifications,
              .appareil, .batterieCharge, .batterieFaible, .telecharge, .microOuvert, .microFn, .volume, .luminosite, .claudeAttend, .claudeTermine,
-             .etagereEnvoi, .etagerePartis, .lucarne, .etagereCapture, .reveilRegle, .groq, .dicteeMac: return true
+             .etagereEnvoi, .etagerePartis, .lucarne, .etagereCapture, .reveilRegle, .groq, .dicteeMac, .appsAile, .appsBandeau: return true
         default: return false
         }
     }
@@ -214,6 +218,12 @@ public enum GeoIlot {
         // largeur du Centre, sa hauteur suit son résumé (`enPlus`)
         .voixEcoute: [MesuresVoix.cou, MesuresVoix.corps, MesuresVoix.profondeurOnde, 6, 24, 14, 10],
         .voixCarte: [14, MesuresVoix.corpsCarte, MesuresVoix.profondeurCarteMax, 6, 30, 16, 10],
+        // « Tes apps » : ses cartes ont la largeur du Centre (on passe de l'un à l'autre) ; leur hauteur suit ce qu'elles montrent (`enPlus`,
+        // MesuresApps). L'aile : le logo à gauche, « 1 mail » à droite (60 + 6 = 66) ; le bandeau épouse son contenu
+        .apps: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        .appsDetail: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        .appsNouveautes: [14, 144, profondeurCentre, 6, 34, 18, 10],
+        .appsAile: compact(60), .appsBandeau: bandeau,
     ]
     /// Indices des valeurs : largeurs (cou, corps, cou droit) et hauteurs (hauteur, épaule, coins, congé). À l'ouverture la largeur
     /// mène ; à la fermeture la hauteur se replie d'abord.
@@ -236,7 +246,8 @@ public enum GeoIlot {
     public static let epaules: Double = 56
     public static func aEpaules(_ v: VueIlot) -> Bool {
         [.minuteurEtendu, .lectureEtendu, .rappelListe, .agendaEtendu, .accueil, .etagere, .centre, .dictees, .claudeCarte,
-         .outils, .outilPressePapiers, .outilReformuler, .outilNote, .secondBrain, .bibliotheque, .reunionEtendu, .voixCarte].contains(v)
+         .outils, .outilPressePapiers, .outilReformuler, .outilNote, .secondBrain, .bibliotheque, .reunionEtendu, .voixCarte,
+         .apps, .appsDetail, .appsNouveautes].contains(v)
     }
 
     /// Demi-corps (au-delà de la demi-caméra) pour un contenu de `largeur` pt : contenu + marges, borné entre le cou + 38 pt et la table.

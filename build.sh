@@ -46,6 +46,10 @@ cp Resources/Polices/Newsreader.ttf Resources/Polices/OFL.txt "$ASSEMBLAGE/Conte
 mkdir -p "$ASSEMBLAGE/Contents/Resources/Illustrations"
 for illustration in Resources/Illustrations/*.png(N); do cp "$illustration" "$ASSEMBLAGE/Contents/Resources/Illustrations/"; done
 
+# Logos de « Tes apps » (Notion, Airtable : Resources/Logos/*.svg, tracés simple-icons CC0) ; Mail et Calendrier viennent des apps du Mac
+mkdir -p "$ASSEMBLAGE/Contents/Resources/Logos"
+cp Resources/Logos/*.svg "$ASSEMBLAGE/Contents/Resources/Logos/"
+
 # Lecture en cours dans l'encoche : un petit module natif (Objective-C) chargé par /usr/bin/perl, qui lit MediaRemote à la place de l'app
 # (macOS ≥ 15.4 ne le permet plus aux apps tierces). arm64e : /usr/bin/perl est arm64e, il ne charge pas un module arm64 seul.
 echo "==> Module de lecture en cours (verbe-lecture.dylib)"

@@ -83,7 +83,7 @@ extension IlotEssai {
         clic(PlanDictees.pointRetour(m.grille), 0.9)
         verifier(m.courante == .centre, "vrai clic sur « ‹ Centre » : le Centre (\(m.courante))")
         let ec = PlanCentre.cadreEntete(m.grille)
-        let pDictees = CGPoint(x: ec.maxX - EnteteCentre.pilule(EnteteCentre.titreModifier) - 8 - EnteteCentre.piluleDictees / 2, y: ec.midY)
+        let pDictees = EnteteCentre.centrePilule(.dictees, m, entete: ec)
         clic(pDictees, 0.9)
         verifier(m.courante == .dictees, "vrai clic sur la pilule « Dictées » du Centre : les Dictées (\(m.courante))")
         poseeSurLaCible()

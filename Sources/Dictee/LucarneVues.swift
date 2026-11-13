@@ -17,6 +17,8 @@ enum GenreCompact: Equatable {
     case niveau(GenreNiveau)
     case energie(charge: Bool)
     case microOuvert, dicteeMac, pile, logo
+    /// L'aile de « Tes apps » : le logo de l'app et « 2 mails ».
+    case apps
 
     /// Le contenu compact d'un écran replié (rien sous la barre) ; nil pour un écran déplié. Tous les écrans repliés en ont un : un
     /// contrôle de l'essai le vérifie.
@@ -39,6 +41,7 @@ enum GenreCompact: Equatable {
         case .microOuvert: return .microOuvert
         case .dicteeMac: return .dicteeMac
         case .etagerePile: return .pile
+        case .appsAile: return .apps
         default: return .logo
         }
     }
@@ -76,6 +79,7 @@ extension IlotMoteur {
             return (MesureIlot.symbole(PileEtagere.glyphe, PileEtagere.tailleGlyphe), PileEtagere.espace,
                     MesureIlot.texte("\(EtagereIlot.capacite)", PileEtagere.tailleNombre, .bold, chiffres: true))
         case .logo: return (ContenuCompactLucarne.hauteurLogo * Guillemets.rapport, 0, 0)
+        case .apps: return (16, 6, t(bandeauVu?.apps?.aile.first ?? "", chiffres: false))
         }
     }
     /// La largeur d'un contenu compact : couché, côte à côte ; debout, l'un sous l'autre.
@@ -132,6 +136,13 @@ struct ContenuCompactLucarne: View {
             }
             .foregroundStyle(.white).lineLimit(1).fixedSize()
             .accessibilityElement(children: .ignore).accessibilityLabel("Étagère : " + EtagereIlot.resume(m.etagere.count))
+        case .apps:
+            let a = m.bandeauVu?.apps
+            pile(6) {
+                if let app = a?.apps.first { LogoApp(app: app, cote: 16) }
+                texte(a?.aile.first ?? "", .white)
+            }
+            .accessibilityElement(children: .ignore).accessibilityLabel("Tes apps : \(a?.titre ?? "")")
         case .logo:
             FormeGuillemets().fill(Color.white.opacity(0.92))
                 .frame(width: Self.hauteurLogo * Guillemets.rapport, height: Self.hauteurLogo)

@@ -17,6 +17,9 @@ public struct MemoireApps: Codable, Equatable, Sendable {
     public var airtableDepuis: Date?
     /// Le dernier passage réussi dans Mail (heure du Mac).
     public var mailDernier: Date?
+    /// L'Agenda a déjà été branché d'office (le calendrier permis : il n'y a rien à brancher, maquette étape 1). Débranché ensuite, il ne
+    /// revient pas tout seul. Optionnel : un ancien fichier sans ce champ se relit.
+    public var agendaPropose: Bool?
 
     /// Une clé reste retenue 30 jours après la dernière fois qu'on l'a vue (au-delà, elle ne revient plus : un mail non lu de plus de
     /// 2 jours n'est pas relu, une fiche modifiée a une autre clé), 4 000 au plus (les plus anciennes partent d'abord).

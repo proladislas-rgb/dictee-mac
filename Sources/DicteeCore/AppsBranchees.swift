@@ -96,6 +96,39 @@ public final class AppsBranchees {
         surChangement()
     }
 
+    /// L'Agenda n'a rien à brancher (Voxile lit déjà le calendrier) : la première fois que le calendrier est permis, il est branché
+    /// d'office, une seule fois (débranché ensuite, il le reste).
+    public func brancherAgendaUneFois(calendrierPermis: Bool) {
+        guard calendrierPermis, memoire.agendaPropose != true else { return }
+        memoire.agendaPropose = true
+        if estBranchee(.agenda) { enregistrer() } else { brancher(.agenda) }
+    }
+
+    /// La clé rangée, montrée sans être lisible (« ntn_••••••••k7Rm ») ; nil : aucune clé.
+    public func cleMasquee(_ a: AppBranchee) -> String? {
+        guard a.demandeUneCle, let c = coffre.lire(a) else { return nil }
+        return ClePartielle.masque(c)
+    }
+
+    /// Le branchement a été laissé en route (la clé vérifiée, la base pas encore choisie) : la clé ne reste pas dans le Trousseau d'une app
+    /// qui n'est pas branchée.
+    public func abandonner(_ a: AppBranchee) {
+        guard a.demandeUneCle, !estBranchee(a), coffre.lire(a) != nil else { return }
+        coffre.effacer(a)
+        journal("apps : branchement de \(a.rawValue) laissé en route, clé effacée")
+    }
+
+    /// Un geste de Hugues (« Réessayer ») : l'app est sondée tout de suite, même arrêtée par une erreur qui demandait un geste.
+    public func reessayer(_ a: AppBranchee) async -> [Nouveaute] {
+        guard estBranchee(a), !enCours.contains(a) else { return [] }
+        plan.maintenant(a, horloge())
+        etats[a] = .enAttente
+        surChangement()
+        let n = await sonder(a)
+        if !n.isEmpty { surNouveautes(n) }
+        return n
+    }
+
     /// Vérifie la clé auprès de l'app, puis la range dans le coffre (jamais avant : une clé refusée n'est pas gardée). Rend le nom du
     /// compte ou de l'espace. L'app n'est branchée qu'une fois la base (Notion) ou la table (Airtable) choisie.
     public func enregistrerCle(_ saisie: String, pour a: AppBranchee) async -> Result<String, ErreurApp> {
@@ -128,6 +161,7 @@ public final class AppsBranchees {
         do {
             var r = try await c.reglage(base: id)
             r.personneId = memoire.notion?.baseId == r.baseId ? memoire.notion?.personneId : nil
+            r.personneNom = r.personneId == nil ? nil : memoire.notion?.personneNom
             memoire.notion = r
             memoire.amorcees.remove(.notion)
             brancher(.notion)
@@ -135,9 +169,10 @@ public final class AppsBranchees {
         } catch { return .failure(error) }
     }
     /// La personne dont on suit les tâches assignées (nil : seulement les tâches du jour).
-    public func choisirPersonneNotion(_ id: String?) {
+    public func choisirPersonneNotion(_ id: String?, nom: String? = nil) {
         guard var r = memoire.notion else { return }
         r.personneId = id.map(ClientNotion.identifiantPropre)
+        r.personneNom = id == nil ? nil : nom
         memoire.notion = r
         plan.maintenant(.notion, horloge())
         enregistrer(); surChangement()

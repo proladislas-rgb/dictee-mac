@@ -198,6 +198,80 @@ enum RenduLecture {
         func ilot(_ m: IlotMoteur) -> some View { IlotVue(m: m).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }
         let petitBureau: CGFloat = geometrie.hauteur + 70, moyenBureau: CGFloat = geometrie.hauteur + 130, grandBureau: CGFloat = geometrie.hauteur + 240
         func minut(_ min: Double, restant: Double? = nil) -> MinuteurIlot { MinuteurIlot(minutes: min, depuis: t0.addingTimeInterval(-(min * 60 - (restant ?? min * 60)))) }
+        // « Tes apps » (maquette ilot-apps.html ; décisions de Hugues du 13/11) : la pilule du Centre, la liste, brancher (clé, base,
+        // table, personne), le détail (erreur, Agenda, Notion, « Débrancher ? »), les Nouveautés, l'aile et le bandeau. Données inventées ;
+        // les logos de Mail et du Calendrier viennent des apps du Mac, ceux de Notion et Airtable de Resources/Logos.
+        func rendusApps() {
+            let n0 = t0.addingTimeInterval(-60)
+            func nv(_ id: String, _ app: AppBranchee, _ titre: String, _ sous: String, _ s: TimeInterval) -> Nouveaute {
+                Nouveaute(id: id, app: app, titre: titre, sousTitre: sous, date: n0.addingTimeInterval(s), action: .adresse(URL(string: "https://exemple.fr")!))
+            }
+            let rdvApps = EvenementAgenda(id: "rdv-apps", titre: "Point client", debut: t0.addingTimeInterval(38 * 60), fin: t0.addingTimeInterval(68 * 60), lien: URL(string: "https://meet.google.com/abc-defg-hij"))
+            func etat(_ config: (inout EtatAppsIlot) -> Void = { _ in }) -> EtatAppsIlot {
+                var e = EtatAppsIlot()
+                e.calendrierPermis = true
+                e.branchees = [.agenda]; e.etats = [.agenda: .aJour(t0)]
+                e.rendezVous = rdvApps
+                config(&e)
+                return e
+            }
+            func tout(_ e: inout EtatAppsIlot) {
+                e.branchees = Set(AppBranchee.allCases)
+                e.etats = [.mail: .aJour(t0), .agenda: .aJour(t0), .notion: .aJour(t0), .airtable: .aJour(t0)]
+                e.notion = ReglageNotion(baseId: "b", baseNom: "Tâches de l\u{2019}équipe", proprieteDate: "d", proprietePersonne: "p", personneId: "x", personneNom: "Camille Essai")
+                e.airtable = ReglageAirtable(baseId: "a", baseNom: "Suivi des chantiers", tableId: "t", tableNom: "Chantiers")
+                e.cles = [.notion: ClePartielle.masque("ntn_essaiEssaiEssaiEssaiEssaiK7Rm"), .airtable: ClePartielle.masque("patEssai.essaiessaiessaiessai9fQz")]
+                e.actuelles = [.mail: [nv("m1", .mail, "Camille Roche", "Devis cuisine, version 2", 50), nv("m2", .mail, "Atelier Nord", "Facture de novembre", -1700)],
+                               .agenda: [nv("a1", .agenda, "Point client", "15:10 \u{00B7} Google Meet", 2280)],
+                               .notion: [nv("n1", .notion, "Rappeler le menuisier", "Aujourd\u{2019}hui", 40)],
+                               .airtable: [nv("r1", .airtable, "Chantier Les Tilleuls", "Statut : En cours", -720)]]
+            }
+            func carte(_ e: EtatAppsIlot, _ v: VueIlot, geo: GeometrieEncoche? = nil, clair: Bool = true, _ nom: String) {
+                ecrire(bureau(hauteur: geometrie.hauteur + 350, clair: clair, geo: geo) { ilot(scene(geo: geo) { m in
+                    m.etagereActive = true; m.calendrierActif = true; m.apps = e
+                    m.donneesChangees(); m.survole = true; m.donneesChangees(); m.allerA(.centre); m.donneesChangees()
+                    if v != .centre { m.ouvrirOutil(v) }
+                    m.donneesChangees() }) }, nom)
+            }
+            func parcours(_ app: AppBranchee, _ config: (inout ParcoursApp) -> Void) -> EtatAppsIlot {
+                etat { e in var p = ParcoursApp(app: app); config(&p); e.parcours = p; e.detail = app }
+            }
+            carte(etat(), .centre, "ilot-35a-apps-1-centre-pilule-tes-apps")
+            carte(etat(), .apps, "ilot-35b-apps-1-liste")
+            carte(etat { e in tout(&e); e.etats[.mail] = .erreur(.autorisationMail); e.nonLues = ["m1", "n1"] }, .apps, "ilot-35c-apps-liste-branchees-mail-a-revoir")
+            carte(parcours(.notion) { _ in }, .appsDetail, "ilot-35d-apps-3-notion-cle-vide")
+            carte(parcours(.notion) { $0.saisie = "ntn_essaiEssaiEssaiEssaiEssaiK7Rm" }, .appsDetail, "ilot-35e-apps-3-notion-cle-collee")
+            carte(parcours(.notion) { $0.saisie = "ntn_fauxfauxfauxfauxfauxfaux1234"; $0.erreur = .cleRefusee(.notion) }, .appsDetail, "ilot-35f-apps-notion-cle-refusee")
+            carte(parcours(.notion) { $0.etape = .bases; $0.compte = "Espace Atelier"; $0.choix = [ChoixApp(id: "1", nom: "Tâches de l\u{2019}équipe"), ChoixApp(id: "2", nom: "Idées"), ChoixApp(id: "3", nom: "Chantiers")]; $0.selection = "1" },
+                  .appsDetail, "ilot-35g-apps-notion-bases")
+            carte(parcours(.notion) { $0.etape = .personnes; $0.compte = "Espace Atelier"; $0.choix = [ChoixApp(id: "1", nom: "Camille Essai"), ChoixApp(id: "2", nom: "Dominique Essai")] },
+                  .appsDetail, "ilot-35h-apps-notion-personne")
+            carte(parcours(.airtable) { $0.etape = .tables; $0.compte = "Suivi des chantiers"; $0.base = ChoixApp(id: "a", nom: "Suivi des chantiers")
+                $0.tables = [TableAirtable(id: "t1", nom: "Chantiers", champTitre: nil, champModification: nil), TableAirtable(id: "t2", nom: "Clients", champTitre: nil, champModification: nil)]; $0.selection = "t1" },
+                  .appsDetail, "ilot-35i-apps-4-airtable-table")
+            carte(parcours(.airtable) { $0.etape = .bases; $0.erreur = .reseau(.airtable) }, .appsDetail, "ilot-35i2-apps-airtable-liste-a-relire")
+            carte(etat { e in tout(&e); e.etats[.mail] = .erreur(.autorisationMail); e.detail = .mail }, .appsDetail, "ilot-35j-apps-2-mail-autorisation")
+            carte(etat { e in tout(&e); e.detail = .agenda }, .appsDetail, "ilot-35k-apps-5-agenda")
+            carte(etat { e in tout(&e); e.detail = .notion }, .appsDetail, "ilot-35l-apps-notion-branche")
+            carte(etat { e in tout(&e); e.etats[.notion] = .erreur(.reseau(.notion)); e.detail = .notion }, .appsDetail, "ilot-35l2-apps-notion-reessayer")
+            carte(etat { e in tout(&e); e.detail = .airtable; e.confirmation = true }, .appsDetail, "ilot-35m-apps-9-debrancher-airtable")
+            carte(etat { e in tout(&e); e.nonLues = ["m1", "n1", "a1"] }, .appsNouveautes, "ilot-35n-apps-8-nouveautes")
+            carte(etat { e in tout(&e); e.nonLues = ["m1"] }, .appsNouveautes, clair: false, "ilot-35n2-apps-nouveautes-sombre")
+            carte(etat { e in e.actuelles = [:] }, .appsNouveautes, "ilot-35o-apps-nouveautes-vide")
+            // l'aile, puis le bandeau (une nouveauté ; plusieurs, regroupées)
+            let un = AnnonceApps([nv("m1", .mail, "Camille Roche", "Devis cuisine, version 2", 50)])
+            let deux = AnnonceApps([nv("m1", .mail, "Camille Roche", "Devis cuisine, version 2", 50), nv("m3", .mail, "Bureau d\u{2019}études", "Plans modifiés", 55)])
+            var trois = deux; trois.ajouter([nv("n1", .notion, "Rappeler le menuisier", "Aujourd\u{2019}hui", 40)])
+            ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .appsAile, jusqua: t0.addingTimeInterval(60), ligne1: "", ligne2: "", apps: deux) }) }, "ilot-35p-apps-6-aile-deux-mails")
+            ecrire(bureau(hauteur: moyenBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .appsBandeau, jusqua: t0.addingTimeInterval(60), ligne1: "", ligne2: "", apps: un) }) }, "ilot-35q-apps-6-bandeau-un-mail")
+            ecrire(bureau(hauteur: moyenBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .appsBandeau, jusqua: t0.addingTimeInterval(60), ligne1: "", ligne2: "", apps: trois) }) }, "ilot-35r-apps-bandeau-regroupe")
+            // la plus grande caméra (200 pt) : la liste et le détail le plus chargé
+            let g200 = GeometrieEncoche(largeur: 200, hauteur: 32)
+            carte(etat { e in tout(&e); e.etats[.mail] = .erreur(.autorisationMail) }, .apps, geo: g200, "ilot-35s-apps-liste-camera-200")
+            carte(etat { e in tout(&e); e.etats[.notion] = .erreur(.reseau(.notion)); e.detail = .notion }, .appsDetail, geo: g200, "ilot-35t-apps-notion-reessayer-camera-200")
+            carte(etat(), .centre, geo: g200, "ilot-35u-apps-centre-pilule-camera-200")
+        }
+        if ProcessInfo.processInfo.environment["DICTEE_RENDU_SEUL"] == "apps" { rendusApps(); return ok ? 0 : 1 }
         let musique = modele(contenus[2])
         let videoLongue = modele(Contenu(nom: "ipod", morceau: MorceauEnCours(titre: "Je détestais la mode des iPods, donc j\u{2019}en ai racheté un en 2026", artiste: "Le Coin Tech", app: "com.google.Chrome", joue: true, duree: 774, position: 202),
                                          site: "YouTube", art: image(ArtVideo(), cote: 480, hauteur: 270)))
@@ -845,6 +919,7 @@ enum RenduLecture {
         ecrire(bureau(hauteur: geometrie.hauteur + 80) { scene(sansImage(contenus[1], joue: false)).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }, "dictee-miniature-icone-app")
         ecrire(bureau(hauteur: geometrie.hauteur + 80) { scene(modele(contenus[0], joue: false), mainsLibres: true).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) }, "dictee-mains-libres-miniature")
 
+        rendusApps()
         return ok ? 0 : 1
     }
 }
