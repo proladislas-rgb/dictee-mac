@@ -88,24 +88,9 @@ extension SystemeConcentration {
 
 /// Ce que Verbe garde des modes de Concentration : ~/Library/Application Support/Dictee/concentration.json (0600, jamais dans git, jamais
 /// envoyé). Rien : pas de fichier.
-struct ConcentrationStore {
-    var url: URL
+typealias ConcentrationStore = MagasinJSON<MemoireConcentration>
+extension MagasinJSON where Valeur == MemoireConcentration {
+    init(url: URL) { self.init(url: url, nom: "concentration", journal: { Log.ecrire($0) }) }
     /// Le chemin seulement : le dossier n'est créé qu'à la première écriture (construire le pilote, essais compris, ne touche à rien).
-    static var urlParDefaut: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee/concentration.json")
-    }
-    func lire() -> MemoireConcentration {
-        guard let d = try? Data(contentsOf: url) else { return MemoireConcentration() }
-        if let m = MemoireConcentration.depuis(d) { return m }
-        Log.ecrire("concentration : fichier illisible, l'ancien est gardé en .abime")
-        try? FileManager.default.removeItem(at: url.appendingPathExtension("abime"))
-        try? FileManager.default.moveItem(at: url, to: url.appendingPathExtension("abime"))
-        return MemoireConcentration()
-    }
-    func ecrire(_ m: MemoireConcentration) {
-        guard let d = m.donnees() else { return }
-        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? d.write(to: url, options: .atomic)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-    }
+    static var urlParDefaut: URL { DossierVerbe.url("concentration.json") }
 }

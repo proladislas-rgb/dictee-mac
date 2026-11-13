@@ -1043,7 +1043,7 @@ enum IlotEssai {
             try? FileManager.default.createDirectory(at: rayon, withIntermediateDirectories: true)
             func creer(_ nom: String) -> URL { let u = rayon.appendingPathComponent(nom); try? Data("essai".utf8).write(to: u); return u }
             let contrat = creer("Contrat.pdf"), photo = creer("Photo.heic"), notes = creer("Notes.txt")
-            verifier(c.etagereStore.url.path.hasPrefix(dossier.path) && c.etagere.estVide, "étagère d'essai : fichier temporaire, vide au départ")
+            verifier(c.etagereStore.url?.path.hasPrefix(dossier.path) == true && c.etagere.estVide, "étagère d'essai : fichier temporaire, vide au départ")
             c.activerEtagere(true); attendre(0.2)
             verifier(c.panneau.accepteLesFichiers, "réglage allumé : la fenêtre accepte les fichiers lâchés (URL de fichiers)")
             let hc = Double(m.demiCamera), barre = Double(g.hauteur)
@@ -1094,7 +1094,7 @@ enum IlotEssai {
             verifier(c.panneau.deposer([contrat, photo]), "fichiers lâchés : acceptés")
             verifier(c.etagere.elements.map(\.nom) == ["Contrat.pdf", "Photo.heic"] && m.etagere.map(\.nom) == ["Contrat.pdf", "Photo.heic"], "deux fichiers sur l'étagère, dans l'ordre")
             verifier(FileManager.default.fileExists(atPath: contrat.path) && FileManager.default.fileExists(atPath: photo.path), "les fichiers n'ont pas bougé (ni copiés, ni déplacés)")
-            let droits = (try? FileManager.default.attributesOfItem(atPath: c.etagereStore.url.path)[.posixPermissions] as? Int) ?? -1
+            let droits = c.etagereStore.url.flatMap { try? FileManager.default.attributesOfItem(atPath: $0.path)[.posixPermissions] as? Int } ?? -1
             verifier(droits == 0o600, "etagere.json écrit en 0600 (\(String(droits, radix: 8)))")
             verifier(m.depot && !m.depotSurvole && m.depotRange && EssaiEtagere.envois.isEmpty, "juste après : « Rangé » (rien n'est parti par AirDrop)")
             c.panneau.finDuGlisser()

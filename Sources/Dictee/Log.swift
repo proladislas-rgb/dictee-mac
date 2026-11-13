@@ -30,12 +30,18 @@ enum Log {
         queue.async {
             guard actif else { return }
             let fm = FileManager.default
-            if let attrs = try? fm.attributesOfItem(atPath: url.path), let size = attrs[.size] as? Int, size > maxBytes {
-                let old = url.deletingLastPathComponent().appendingPathComponent("dictee.log.1")
-                try? fm.removeItem(at: old)
-                try? fm.moveItem(at: url, to: old)
+            // le journal est lisible par Hugues seul (0600) : créé ainsi, et un ancien journal en 0644 y est ramené
+            if let attrs = try? fm.attributesOfItem(atPath: url.path) {
+                if let size = attrs[.size] as? Int, size > maxBytes {
+                    let old = url.deletingLastPathComponent().appendingPathComponent("dictee.log.1")
+                    try? fm.removeItem(at: old)
+                    try? fm.moveItem(at: url, to: old)
+                    try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: old.path)
+                } else if let droits = attrs[.posixPermissions] as? Int, droits != 0o600 {
+                    try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+                }
             }
-            if !fm.fileExists(atPath: url.path) { fm.createFile(atPath: url.path, contents: nil) }
+            if !fm.fileExists(atPath: url.path) { fm.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]) }
             guard let handle = try? FileHandle(forWritingTo: url), let data = ligne.data(using: .utf8) else { return }
             defer { try? handle.close() }
             _ = try? handle.seekToEnd()

@@ -10,11 +10,7 @@ final class ExpressionsStore: @unchecked Sendable {
     private var cache: ListeExpressions?
     private var modifieLe: Date?
 
-    static var url: URL {
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("expressions.json")
-    }
+    static var url: URL { DossierVerbe.preparer("expressions.json") }
 
     func liste() -> ListeExpressions {
         verrou.lock(); defer { verrou.unlock() }

@@ -249,7 +249,7 @@ struct InstallationClaude {
     static var parDefaut: InstallationClaude {
         let maison = FileManager.default.homeDirectoryForCurrentUser
         return InstallationClaude(reglages: maison.appendingPathComponent(".claude/settings.json"),
-                                  dossierVerbe: maison.appendingPathComponent("Library/Application Support/Dictee", isDirectory: true))
+                                  dossierVerbe: DossierVerbe.url(maison: maison))
     }
 
     enum Echec: Error {

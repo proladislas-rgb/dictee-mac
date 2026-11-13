@@ -7,25 +7,10 @@ extension Notification.Name {
 }
 
 /// Les rappels, gardés localement : ~/Library/Application Support/Dictee/rappels.json (0600, jamais dans git, jamais envoyés nulle part).
-struct RappelsStore {
-    var url: URL
-    static var urlParDefaut: URL {
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("rappels.json")
-    }
-    func lire() -> ListeRappels {
-        guard let d = try? Data(contentsOf: url) else { return ListeRappels() }
-        if let l = ListeRappels.depuis(d) { return l }
-        Log.ecrire("rappels : fichier illisible, l'ancien est gardé en .abime")
-        try? FileManager.default.moveItem(at: url, to: url.appendingPathExtension("abime"))
-        return ListeRappels()
-    }
-    func ecrire(_ liste: ListeRappels) {
-        guard let d = liste.donnees() else { return }
-        try? d.write(to: url, options: .atomic)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-    }
+typealias RappelsStore = MagasinJSON<ListeRappels>
+extension MagasinJSON where Valeur == ListeRappels {
+    init(url: URL) { self.init(url: url, nom: "rappels", journal: { Log.ecrire($0) }) }
+    static var urlParDefaut: URL { DossierVerbe.url("rappels.json") }
 }
 
 /// Le centre d'activités : relie l'îlot (moteur + fenêtre) à ce qui l'alimente — la lecture en cours, le minuteur, les rappels, le calendrier,
@@ -252,11 +237,11 @@ final class IlotControleur {
          bibliotheque: BibliothequeModele? = nil, reveil reveilStore: ReveilStore = ReveilStore(url: ReveilStore.urlParDefaut)) {
         self.stockage = stockage
         self.reveilStore = reveilStore
-        rappels = stockage.lire()
+        rappels = stockage.lire() ?? ListeRappels()
         self.notesStore = notesStore
-        listeNotes = notesStore.lire()
+        listeNotes = notesStore.lire() ?? ListeNotes()
         self.etagereStore = etagereStore
-        etagere = etagereStore.lire()
+        etagere = etagereStore.lire() ?? EtagereIlot()
         // rien n'est lu sur le disque ici (ni signet résolu, ni dossier) : seulement le fichier de la bibliothèque
         self.bibliotheque = bibliotheque ?? BibliothequeModele()
         moteur = IlotMoteur(lecture: lecture.modele)

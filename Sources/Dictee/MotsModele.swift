@@ -147,7 +147,7 @@ final class MotsModele: ObservableObject {
     // MARK: fichiers
 
     private static var dossier: URL {
-        let d = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee", isDirectory: true)
+        let d = DossierVerbe.url()
         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         return d
     }

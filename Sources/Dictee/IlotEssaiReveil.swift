@@ -43,7 +43,7 @@ extension IlotEssai {
             c.surColler = collerAvant
             c.annulerLeReveil()
         }
-        let fichier = c.reveilStore.url
+        guard let fichier = c.reveilStore.url else { verifier(false, "réveil d'essai : un fichier temporaire"); return }
         let fm = FileManager.default
         c.lireMicros = { [] }; c.relireChoixMicro()
         if c.minuteur != nil { c.agir(.minuteurArreter) }

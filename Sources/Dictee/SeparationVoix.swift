@@ -36,7 +36,7 @@ enum SeparationVoixLocale {
 
     /// ~/Library/Application Support/Dictee/Modeles : jamais dans git, effacé par « Désinstaller ».
     static var dossierParDefaut: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee/Modeles", isDirectory: true)
+        DossierVerbe.url("Modeles", dossier: true)
     }
 
     /// Le dossier du modèle de séparation dans `modeles` (FluidAudio y ajoute le nom du dépôt).

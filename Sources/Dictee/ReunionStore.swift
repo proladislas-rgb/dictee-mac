@@ -12,7 +12,7 @@ final class ReunionStore: ObservableObject {
     private let file = DispatchQueue(label: "dictee.reunions.fichiers")
 
     static var dossierParDefaut: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee/Reunions", isDirectory: true)
+        DossierVerbe.url("Reunions", dossier: true)
     }
 
     /// `lire = false` : aucun accès au disque (rendus PNG avec des réunions d'exemple). `maintenant` : l'heure du lancement (le son

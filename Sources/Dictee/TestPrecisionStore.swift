@@ -7,7 +7,7 @@ enum TestPrecisionStore {
     static var dossier: URL {
         // DICTEE_DOSSIER_TEST_PRECISION : dossier d'essai (contrôles du comparateur), jamais utilisé en usage normal.
         if let d = ProcessInfo.processInfo.environment["DICTEE_DOSSIER_TEST_PRECISION"], !d.isEmpty { return URL(fileURLWithPath: d, isDirectory: true) }
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee/test-precision", isDirectory: true)
+        return DossierVerbe.url("test-precision", dossier: true)
     }
 
     static func fichiers() -> [String] { (try? FileManager.default.contentsOfDirectory(atPath: dossier.path)) ?? [] }

@@ -16,25 +16,10 @@ import DicteeCore
 // 5. en option, les nouvelles captures d'écran arrivent sur l'étagère, marquées « Nouveau ».
 
 /// L'étagère, gardée localement : ~/Library/Application Support/Dictee/etagere.json (0600, jamais dans git, jamais envoyée nulle part).
-struct EtagereStore {
-    var url: URL
-    static var urlParDefaut: URL {
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("etagere.json")
-    }
-    func lire() -> EtagereIlot {
-        guard let d = try? Data(contentsOf: url) else { return EtagereIlot() }
-        if let e = EtagereIlot.depuis(d) { return e }
-        Log.ecrire("étagère : fichier illisible, l'ancien est gardé en .abime")
-        try? FileManager.default.moveItem(at: url, to: url.appendingPathExtension("abime"))
-        return EtagereIlot()
-    }
-    func ecrire(_ e: EtagereIlot) {
-        guard let d = e.donnees() else { return }
-        try? d.write(to: url, options: .atomic)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-    }
+typealias EtagereStore = MagasinJSON<EtagereIlot>
+extension MagasinJSON where Valeur == EtagereIlot {
+    init(url: URL) { self.init(url: url, nom: "étagère", journal: { Log.ecrire($0) }) }
+    static var urlParDefaut: URL { DossierVerbe.url("etagere.json") }
 }
 
 /// Les signets des fichiers de l'étagère (pas de bac à sable : des signets ordinaires suffisent).

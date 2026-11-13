@@ -107,25 +107,10 @@ final class PressePapiersSysteme: PilotePressePapiers {
 // MARK: - Note rapide
 
 /// Les notes rapides : ~/Library/Application Support/Dictee/notes.json (0600, jamais dans git, jamais envoyées nulle part).
-struct NotesStore {
-    var url: URL
-    static var urlParDefaut: URL {
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("notes.json")
-    }
-    func lire() -> ListeNotes {
-        guard let d = try? Data(contentsOf: url) else { return ListeNotes() }
-        if let l = ListeNotes.depuis(d) { return l }
-        Log.ecrire("notes : fichier illisible, l'ancien est gardé en .abime")
-        try? FileManager.default.moveItem(at: url, to: url.appendingPathExtension("abime"))
-        return ListeNotes()
-    }
-    func ecrire(_ l: ListeNotes) {
-        guard let d = l.donnees() else { return }
-        try? d.write(to: url, options: .atomic)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-    }
+typealias NotesStore = MagasinJSON<ListeNotes>
+extension MagasinJSON where Valeur == ListeNotes {
+    init(url: URL) { self.init(url: url, nom: "notes", journal: { Log.ecrire($0) }) }
+    static var urlParDefaut: URL { DossierVerbe.url("notes.json") }
 }
 
 extension IlotControleur {

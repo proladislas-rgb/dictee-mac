@@ -1950,6 +1950,7 @@ controlesVoixReunion()
 controlesExtraitsReunion()
 controlesBureau()
 controlesVoix()
+controlesMagasins()
 
 print("\n\(total - echecs)/\(total) contrôles passés")
 exit(echecs == 0 ? 0 : 1)

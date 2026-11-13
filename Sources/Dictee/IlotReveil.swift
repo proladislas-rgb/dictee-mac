@@ -11,24 +11,13 @@ import DicteeCore
 // mais Mac allumé (le cas de la maquette), il sonne à l'heure et rallume l'écran.
 
 /// Le réveil gardé : ~/Library/Application Support/Dictee/reveil.json (0600, jamais dans git, jamais envoyé). Pas de réveil : pas de fichier.
-struct ReveilStore {
-    var url: URL
-    static var urlParDefaut: URL {
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("reveil.json")
-    }
-    func lire() -> ReveilIlot? {
-        guard let d = try? Data(contentsOf: url) else { return nil }
-        if let r = ReveilIlot.depuis(d) { return r }
-        Log.ecrire("réveil : fichier illisible, oublié")
-        try? FileManager.default.removeItem(at: url)
-        return nil
-    }
+typealias ReveilStore = MagasinJSON<ReveilIlot>
+extension MagasinJSON where Valeur == ReveilIlot {
+    init(url: URL) { self.init(url: url, nom: "réveil", siIllisible: .oublier, journal: { Log.ecrire($0) }) }
+    static var urlParDefaut: URL { DossierVerbe.url("reveil.json") }
+    /// Pas de réveil : pas de fichier.
     func ecrire(_ r: ReveilIlot?) {
-        guard let r, let d = r.donnees() else { try? FileManager.default.removeItem(at: url); return }
-        try? d.write(to: url, options: .atomic)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        if let r { let _: Bool = ecrire(r) } else { effacer() }
     }
 }
 

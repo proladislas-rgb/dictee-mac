@@ -611,9 +611,19 @@ Arrêté après l'étape 1 sur demande (nouvelles demandes de Hugues, dont le re
       ReunionController l'avait déjà (0,3 s). Build sans avertissement, 3985/3985. Essai jetable (non commité) : 20 branchements /
       débranchements de `SourceClaude` pendant qu'un écrivain ajoute une ligne toutes les 2 ms, 3 fois : aucun plantage, la
       surveillance livre encore après (≈ 1 180 lignes reçues après le dernier branchement), journal temporaire seulement.
-- [ ] 5. `DossierVerbe.url(_:)` (≈ 20 chemins « Library/Application Support/Dictee » écrits en dur) ; `MagasinJSON<T>` dans DicteeCore
+- [x] 5. `DossierVerbe.url(_:)` (≈ 20 chemins « Library/Application Support/Dictee » écrits en dur) ; `MagasinJSON<T>` dans DicteeCore
       pour Rappels, Étagère, Notes, Bibliothèque, Concentration, Réveil (même format : chaque type garde ses `depuis`/`donnees`),
       écriture atomique créée directement en 0600, échec tracé ; journal en 0600 ; contrôle qui relit un fichier au format actuel.
+      Fait (DicteeCore/MagasinJSON.swift) : `DossierVerbe` (`url`, `preparer` quand le dossier doit exister, `relatif` repris par la
+      désinstallation) remplace les 17 chemins écrits en dur ; `MagasinJSON<Valeur: FichierJSON>` + `FichierPrive.ecrire` (fichier
+      temporaire ouvert en 0600 puis renommé) ; les 6 magasins deviennent des `typealias` (mêmes noms, mêmes noms de fichiers, mêmes
+      lignes au journal). Écarts voulus, invisibles : le dossier est créé à la première écriture (plus à la simple lecture du chemin) ;
+      un 2e fichier illisible remplace le `.abime` précédent pour les 6 (avant : seule la Concentration ; les autres laissaient le
+      fichier abîmé en place, écrasé à l'écriture suivante) ; une écriture ratée laisse une ligne au journal. Journal : créé en 0600,
+      un ancien 0644 y est ramené à la première ligne, `dictee.log.1` aussi. Contrôles : 19 nouveaux (fichiers au format actuel écrits
+      à la main pour rappels, notes indentées, réveil, concentration, étagère, relus tels quels ; réécrits = mêmes octets, 0600 ;
+      `.abime`, oubli, échec tracé sans le contenu, en mémoire), 4003/4003. Laissés : l'historique, l'usage Groq, le lexique, les
+      expressions et les réunions gardent leur propre écriture (pas dans la liste ; à faire au même modèle).
 - [ ] Essai complet `--ilot-essai` (au moins après les étapes 4 et 5), sous le verrou du scratchpad.
 
 ## Retours de Hugues du 12/11, 23 h 30 (sur main 9fcc1dc) : branche retours-23h (worktree ~/dictee-mac-retours, depuis texte-groq e33ff77)

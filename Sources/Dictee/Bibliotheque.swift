@@ -13,27 +13,11 @@ import DicteeCore
 
 /// La bibliothèque, gardée localement : ~/Library/Application Support/Dictee/bibliotheque.json (0600). `url` nil : en mémoire seulement
 /// (essais, rendus), rien n'est écrit.
-struct BibliothequeStore {
-    var url: URL?
-    static var urlParDefaut: URL {
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("bibliotheque.json")
-    }
-    static let enMemoire = BibliothequeStore(url: nil)
-    var existe: Bool { url.map { FileManager.default.fileExists(atPath: $0.path) } ?? false }
-    func lire() -> BibliothequeIlot {
-        guard let url, let d = try? Data(contentsOf: url) else { return BibliothequeIlot() }
-        if let b = BibliothequeIlot.depuis(d) { return b }
-        Log.ecrire("bibliothèque : fichier illisible, l'ancien est gardé en .abime")
-        try? FileManager.default.moveItem(at: url, to: url.appendingPathExtension("abime"))
-        return BibliothequeIlot()
-    }
-    func ecrire(_ b: BibliothequeIlot) {
-        guard let url, let d = b.donnees() else { return }
-        try? d.write(to: url, options: .atomic)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-    }
+typealias BibliothequeStore = MagasinJSON<BibliothequeIlot>
+extension MagasinJSON where Valeur == BibliothequeIlot {
+    init(url: URL?) { self.init(url: url, nom: "bibliothèque", journal: { Log.ecrire($0) }) }
+    static var urlParDefaut: URL { DossierVerbe.url("bibliotheque.json") }
+    static var enMemoire: BibliothequeStore { BibliothequeStore(url: nil) }
 }
 
 /// Les dossiers que les sources lisent (injectables : les essais donnent des dossiers temporaires, jamais les vrais).
@@ -139,7 +123,7 @@ final class BibliothequeModele: ObservableObject {
 
     init(store: BibliothequeStore = BibliothequeStore(url: BibliothequeStore.urlParDefaut), sources: Set<SourceBibliotheque> = Settings.bibliothequeSources) {
         self.store = store
-        bib = store.lire()
+        bib = store.lire() ?? BibliothequeIlot()
         self.sources = sources
     }
     /// En mémoire (essais, rendus) : rien n'est écrit, aucune source n'est lue.

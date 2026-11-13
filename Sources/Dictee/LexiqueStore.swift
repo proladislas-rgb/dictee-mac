@@ -12,11 +12,7 @@ final class LexiqueStore: @unchecked Sendable {
     private var derniereVerification = Date.distantPast
     private var indexCache: (cle: [String], index: IndexCorrection)?
 
-    static var url: URL {
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("lexique.json")
-    }
+    static var url: URL { DossierVerbe.preparer("lexique.json") }
 
     /// Les mots du lexique (vide si le fichier n'existe pas ou si le lexique est éteint dans les réglages).
     func entrees() -> [EntreeLexique] {

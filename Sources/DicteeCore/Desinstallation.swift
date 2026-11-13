@@ -12,7 +12,7 @@ public enum Desinstallation {
 
     /// Chemins relatifs au dossier personnel : historique, mots, raccourcis, journal, réglages, caches.
     public static let cheminsRelatifs: [String] = [
-        "Library/Application Support/Dictee",
+        DossierVerbe.relatif,
         "Library/Logs/Dictee",
         "Library/Preferences/\(identifiant).plist",
         "Library/Caches/\(identifiant)",

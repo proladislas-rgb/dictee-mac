@@ -83,7 +83,7 @@ final class PiloteConcentration {
 
     /// Au lancement : relit le fichier ; un mode fini pendant que Verbe était fermé (ou le Mac éteint) s'éteint ; sinon son échéance.
     func demarrer() {
-        memoire = store.lire()
+        memoire = store.lire() ?? MemoireConcentration()
         affichage.actif = memoire.actif; affichage.dernier = memoire.dernier
         if observateurReveilMac == nil {
             observateurReveilMac = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in

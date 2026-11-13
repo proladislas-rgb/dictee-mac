@@ -27,11 +27,7 @@ final class HistoriqueStore: ObservableObject {
         }
     }
 
-    static var urlParDefaut: URL {
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("historique.json")
-    }
+    static var urlParDefaut: URL { DossierVerbe.preparer("historique.json") }
 
     func ajouter(_ entree: EntreeHistorique) {
         historique.ajouter(entree, limite: Settings.limiteHistorique)

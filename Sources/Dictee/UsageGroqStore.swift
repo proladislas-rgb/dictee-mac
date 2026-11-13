@@ -23,7 +23,7 @@ final class UsageGroqStore: @unchecked Sendable {
         let fm = FileManager.default
         let dir: URL
         if let d = ProcessInfo.processInfo.environment["DICTEE_DOSSIER_USAGE_GROQ"], !d.isEmpty { dir = URL(fileURLWithPath: d, isDirectory: true) }
-        else { dir = fm.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Dictee", isDirectory: true) }
+        else { dir = DossierVerbe.url() }
         try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("groq-usage.json")
     }
