@@ -514,7 +514,7 @@ extension IlotEssai {
         verifier(m.courante == .groq && m.bandeauVu?.ligne1 == "Il te reste 7 h 18 aujourd\u{2019}hui" && m.bandeauVu?.ligne2 == "De dictée gratuite avec Groq (8 h par jour)",
                  "vrai clic sur la jauge : « \(m.bandeauVu?.ligne1 ?? "") · \(m.bandeauVu?.ligne2 ?? "") » (\(m.courante))")
         pose("bandeau détail de Groq")
-        attendre(6) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(6)) { m.bandeau != nil }
         // seul, il revient aux Outils, épinglés comme avant (13/11) ; on range l'îlot pour les annonces qui suivent
         pause(0.4)
         verifier(m.bandeau == nil && m.courante == .outils && m.epingle, "le détail parti seul : retour aux Outils épinglés (\(m.courante))")
@@ -525,7 +525,7 @@ extension IlotEssai {
         verifier(m.courante == .groq && m.bandeauVu?.ligne1 == "Plus que 1 h de dictée gratuite aujourd\u{2019}hui" && m.bandeauVu?.ligne2 == "Ensuite, le Mac écrit à ta place" && m.bandeauVu?.groq == .bas,
                  "sous 15 % : « \(m.bandeauVu?.ligne1 ?? "") · \(m.bandeauVu?.ligne2 ?? "") »")
         pose("bandeau Groq bientôt à sa limite")
-        attendre(7) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(7)) { m.bandeau != nil }
         c.groqChange(); pause(0.4)
         verifier(m.bandeau == nil, "toujours sous 15 % : pas redit (\(m.courante))")
         // la limite atteinte, le turbo aussi : « Dictée gratuite en pause jusqu'à … · Le Mac écrit à ta place »
@@ -538,14 +538,14 @@ extension IlotEssai {
                  "limite atteinte : « \(m.bandeauVu?.ligne1 ?? "") · \(m.bandeauVu?.ligne2 ?? "") »")
         verifier(c.reveilGroq != nil, "un seul réveil à la fin de la pause (aucune minuterie qui tourne)")
         pose("bandeau Groq en pause")
-        attendre(7) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(7)) { m.bandeau != nil }
         verifier(m.etatCentre(.groq).hasPrefix("Pause ") && m.groq?.utilise == 1, "sous le rond : « \(m.etatCentre(.groq)) », anneau plein")
         // la dictée passée par le Mac
         c.relaisDictee(.reseau); pause(0.9)
         verifier(m.courante == .groq && m.bandeauVu?.ligne1 == "Dicté sur le Mac" && m.bandeauVu?.ligne2 == "Pas de réseau" && m.bandeauVu?.groq == .relais,
                  "1re dictée passée par le Mac : « Dicté sur le Mac · Pas de réseau »")
         pose("bandeau Dicté sur le Mac")
-        attendre(6) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(6)) { m.bandeau != nil }
         c.relaisDictee(.reseau); pause(0.5)
         verifier(m.courante == .dicteeMac, "la suivante : « Mac » dans les ailes seulement (\(m.courante))")
         // replié dans les ailes : la fenêtre n'a pas un point sous la barre (les onglets des apps), on ne vérifie donc que la largeur
@@ -555,16 +555,21 @@ extension IlotEssai {
             verifier(Double(f.width) >= 2 * m.trace.corps && Double(f.height) <= Double(m.geometrie.hauteur) + 0.5,
                      "ailes Mac : la fenêtre couvre les ailes (\(Int(f.width)) pt pour \(Int(2 * m.trace.corps))) sans descendre sous la barre (\(Int(f.height)) pt, trace \(String(format: "%.1f", m.trace.hauteur)))")
         }
-        attendre(3) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(3)) { m.bandeau != nil }
         verifier(m.bandeau == nil && m.courante == .repos, "les ailes partent seules (\(m.courante))")
         c.groqReussi()
         c.relaisDictee(.limite); pause(0.5)
         verifier(m.courante == .dicteeMac, "pour la limite (déjà annoncée) : les ailes seules")
-        attendre(3) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(3)) { m.bandeau != nil }
+        // Groq refuse le réseau (VPN, 13/11) : la vraie raison, en entier dans le bandeau, jamais « Groq n'a pas répondu »
+        c.relaisDictee(.refuse); pause(0.9)
+        verifier(m.courante == .groq && m.bandeauVu?.ligne1 == "Dicté sur le Mac" && m.bandeauVu?.ligne2 == "Groq refuse ce réseau (VPN ?)",
+                 "Groq refuse le réseau : « Dicté sur le Mac · Groq refuse ce réseau (VPN ?) » (\(m.courante), \(Int(m.largeurContenu(.groq) ?? 0)) pt de contenu)")
+        attendre(IlotEssai.sousCharge(6)) { m.bandeau != nil }
         // la langue du Mac en téléchargement
         c.relaisIndisponible("Le Mac télécharge le français \u{00B7} 42 %"); pause(0.9)
         verifier(m.bandeauVu?.ligne1 == "Dictée sur le Mac pas encore prête" && m.bandeauVu?.ligne2.hasSuffix("42 %") == true, "le Mac n'est pas prêt : la progression du téléchargement")
-        attendre(6) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(6)) { m.bandeau != nil }
         c.arreterGroq()
         verifier(c.reveilGroq == nil && c.observateurGroq == nil, "arrêt : plus de réveil ni d'observateur")
     }

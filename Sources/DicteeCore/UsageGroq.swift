@@ -357,7 +357,8 @@ public struct AlerteGroq: Equatable, Sendable {
 
 /// Pourquoi Groq n'a pas donné le texte d'une dictée.
 public enum EchecGroq: String, Equatable, Sendable {
-    case pasDeCle, limite, reseau, panne, delai, autre
+    /// `refuse` : Groq refuse le réseau d'où part la requête (HTTP 403 sans aucun en-tête de limite : un VPN, un réseau d'entreprise).
+    case pasDeCle, limite, reseau, panne, delai, refuse, autre
 
     /// D'après l'erreur de la requête : code HTTP (429 limite, 5xx panne), réseau, clé absente.
     public static func depuis(codeHTTP: Int?, reseau: Bool, pasDeCle: Bool) -> EchecGroq {
@@ -368,6 +369,29 @@ public enum EchecGroq: String, Equatable, Sendable {
         if c >= 500 { return .panne }
         return .autre
     }
+}
+
+/// Groq refuse le réseau (13/11, chez Hugues sous VPN : « HTTP 403 » en 160 ms, la dictée passée au Mac, l'îlot disait « Groq n'a pas
+/// répondu », faux, et chaque remise au propre retentait pour le même refus).
+public struct RefusGroq: Equatable, Sendable {
+    /// Le temps pendant lequel la remise au propre ne retente pas Groq après un refus. Chaque dictée, elle, retente Groq : c'est elle qui
+    /// voit le VPN coupé, et une réponse de Groq efface le refus tout de suite.
+    public static let duree: TimeInterval = 60
+
+    /// Un 403 SANS en-tête de limite (`x-ratelimit-*`, `retry-after`) : le réseau est refusé. Avec l'un d'eux, c'est une limite : jamais
+    /// confondus.
+    public static func estUnRefus(statut: Int, enTete: (String) -> String?) -> Bool {
+        guard statut == 403 else { return false }
+        return ["retry-after", "x-ratelimit-limit-requests", "x-ratelimit-remaining-requests", "x-ratelimit-limit-tokens",
+                "x-ratelimit-remaining-tokens", "x-ratelimit-reset-requests", "x-ratelimit-reset-tokens"].allSatisfy { enTete($0) == nil }
+    }
+
+    public private(set) var depuis: Date?
+    public init() {}
+    public mutating func noterRefus(a t: Date) { depuis = t }
+    public mutating func noterReponse() { depuis = nil }
+    /// Vrai pendant `duree` après le dernier refus (et tant que Groq n'a pas répondu depuis).
+    public func actif(a t: Date) -> Bool { depuis.map { t.timeIntervalSince($0) < Self.duree && t >= $0 } ?? false }
 }
 
 /// Le relais de la dictée sur le Mac (reconnaissance vocale de macOS, sur l'appareil) quand Groq ne répond pas.
@@ -397,6 +421,7 @@ public enum RelaisDictee {
         case .panne: return "Groq ne répond pas"
         case .pasDeCle: return "Clé Groq absente"
         case .delai: return "Groq trop lent"
+        case .refuse: return "Groq refuse ce réseau (VPN ?)"
         case .autre: return "Groq n\u{2019}a pas répondu"
         }
     }

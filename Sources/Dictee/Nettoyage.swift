@@ -40,6 +40,8 @@ enum Nettoyage {
         }
         // Relecture seule : pas de remise au propre à faire, une courte requête avec son propre délai (au plus +250 ms, sinon on colle tel quel).
         let relectureSeule = !remiseUtile
+        // Groq vient de refuser ce réseau (VPN) : pas de requête vouée au même refus, le texte tel quel
+        if GroqClient.shared.reseauRefuse { return rendre(brut, false, "Groq refuse ce réseau (VPN ?), aucune requête") }
         if relectureSeule, !BudgetRequetes.nettoyage.permet(.anticipation) {
             return rendre(brut, false, "relecture non faite : budget de requêtes bas")
         }

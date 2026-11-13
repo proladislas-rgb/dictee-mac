@@ -6,6 +6,8 @@ enum GroqErreur: Error, CustomStringConvertible {
     case http(Int)
     case reponseIllisible
     case reseau(String)
+    /// HTTP 403 sans en-tête de limite : Groq refuse ce réseau (VPN…).
+    case refuse
 
     var description: String {
         switch self {
@@ -13,6 +15,7 @@ enum GroqErreur: Error, CustomStringConvertible {
         case .http(let code): return "Groq a répondu HTTP \(code)"
         case .reponseIllisible: return "réponse Groq illisible"
         case .reseau(let m): return "réseau : \(m)"
+        case .refuse: return "Groq a répondu HTTP 403 sans limite : il refuse ce réseau (VPN ?)"
         }
     }
 }
@@ -25,6 +28,7 @@ extension GroqErreur {
         case .reseau: return .reseau
         case .http(let c): return EchecGroq.depuis(codeHTTP: c, reseau: false, pasDeCle: false)
         case .reponseIllisible: return .autre
+        case .refuse: return .refuse
         }
     }
 }
@@ -205,6 +209,7 @@ final class GroqClient: @unchecked Sendable {
             budget.noter429(retryAfter: attente)
             Log.ecrire("Groq limite atteinte (429, \(modele.identifiant)), nouvelle tentative possible dans \(Int(attente ?? 0)) s : envois de confort suspendus")
         }
+        try noterRefusOuReponse(http)
         guard http.statusCode == 200 else { throw GroqErreur.http(http.statusCode) }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let texte = json["text"] as? String else {
             throw GroqErreur.reponseIllisible
@@ -229,6 +234,20 @@ final class GroqClient: @unchecked Sendable {
             } catch GroqErreur.http(429) { derniere = GroqErreur.http(429); continue }
         }
         throw derniere
+    }
+
+    private var refus = RefusGroq()
+    /// Groq vient de refuser ce réseau (403 sans limite, il y a moins d'une minute, et aucune réponse depuis) : la remise au propre ne
+    /// le retente pas ; la dictée, si (c'est elle qui voit le VPN coupé).
+    var reseauRefuse: Bool { verrou.lock(); defer { verrou.unlock() }; return refus.actif(a: Date()) }
+    /// Toute réponse de Groq : un refus (403 sans en-tête de limite) est noté et levé (`GroqErreur.refuse`) ; une autre réponse efface le
+    /// refus d'avant (le VPN est coupé).
+    private func noterRefusOuReponse(_ http: HTTPURLResponse) throws {
+        if RefusGroq.estUnRefus(statut: http.statusCode, enTete: { http.value(forHTTPHeaderField: $0) }) {
+            verrou.lock(); refus.noterRefus(a: Date()); verrou.unlock()
+            throw GroqErreur.refuse
+        }
+        verrou.lock(); refus.noterReponse(); verrou.unlock()
     }
 
     private var pausesModelesTexte: [String: Double] = [:]
@@ -276,6 +295,7 @@ final class GroqClient: @unchecked Sendable {
             if ModelesTexte.ordre(prefere: modele, pauses: pausesModeles()).isEmpty { BudgetRequetes.nettoyage.noter429(retryAfter: attente) }
             Log.ecrire("Groq (\(modele)) : limite atteinte (429), nouvelle tentative possible dans \(Int(attente ?? 0)) s")
         }
+        try noterRefusOuReponse(http)
         guard http.statusCode == 200 else { throw GroqErreur.http(http.statusCode) }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let choix = (json["choices"] as? [[String: Any]])?.first,
@@ -320,6 +340,7 @@ extension GroqClient {
             Log.ecrire("Groq (note de réunion) : limite atteinte (429), attente demandée \(Int(attente ?? 0)) s")
             throw NoteLimite(retryApres: attente)
         }
+        try noterRefusOuReponse(http)
         guard http.statusCode == 200 else {
             // Le code d'erreur seulement (jamais le corps : « failed_generation » contient le texte de la note).
             let code = ((try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? [String: Any])?["code"] as? String
