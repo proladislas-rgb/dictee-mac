@@ -103,8 +103,8 @@ struct EnteteOutil<Droite: View>: View {
     var sous: String? = nil
     @ViewBuilder var droite: () -> Droite
 
-    /// « ‹ Outils » (PiluleCentre : 8, le chevron, 4, le mot, 11).
-    static var pilule: CGFloat { 8 + MesureIlot.symbole("chevron.left", 10.5, .bold) + 4 + MesureIlot.texte("Outils", 12.5, .semibold) + 11 }
+    /// « ‹ Outils ».
+    static var pilule: CGFloat { PiluleCentre.largeur("Outils", retour: true) }
 
     var body: some View {
         HStack(spacing: 10) {

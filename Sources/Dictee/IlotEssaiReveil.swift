@@ -21,7 +21,7 @@ extension IlotEssai {
         // l'heure, décalée à volonté (rendue à la fin)
         let maintenantAvant = c.maintenant
         var decalage = 0.0
-        c.maintenant = { Date().addingTimeInterval(decalage) }
+        c.maintenant = { maintenantAvant().addingTimeInterval(decalage) }   // l'heure de l'essai, pas l'heure réelle
         // ce qui serait réel : capturé
         var sonneries = 0, ecrans = 0, notes = 0
         var liens: [URL] = []
@@ -92,7 +92,7 @@ extension IlotEssai {
         let xPlus = cm.minX + CaseMinuteur.cote + 28 + 6 + CaseMinuteur.largeurHeure + 6 + 14
         clic(CGPoint(x: xPlus, y: yHeures), 0.25); clic(CGPoint(x: xPlus, y: yHeures), 0.25); clic(CGPoint(x: xMoins, y: yHeures), 0.25)
         verifier(m.reveilAutre.map { $0.heure == 7 && $0.minute == 45 } == true && c.reveil == nil, "vrais clics + + − : 7:45 (rien n'est réglé avant « OK »)")
-        let xOK = cm.minX + CaseMinuteur.cote + 28 + 6 + CaseMinuteur.largeurHeure + 6 + 28 + 6 + 2 + (MesureIlot.texte("OK", 12.5, .semibold) + 22) / 2
+        let xOK = cm.minX + CaseMinuteur.cote + 28 + 6 + CaseMinuteur.largeurHeure + 6 + 28 + 6 + 2 + PiluleCentre.largeur("OK") / 2
         clic(CGPoint(x: xOK, y: yHeures), 0.5)
         verifier(c.reveil?.heure == 7 && c.reveil?.minute == 45 && m.reveilAutre == nil && m.courante == .centre, "vrai clic sur « OK » : réveil à 7:45, les heures proposées reviennent")
         clic(CGPoint(x: xAutre, y: yHeures), 0.5)
@@ -171,7 +171,7 @@ extension IlotEssai {
         memoire.minuteur = true
         verifier(c.intercepter("Mets un réveil à 7 h 30.") == true && c.reveil?.minute == 30, "îlot fermé, « mets un réveil à 7 h 30 » : 7:30")
         verifier(m.bandeauVu?.texteDicte == "Mets un réveil à 7 h 30.", "le bandeau garde la phrase (pour « Annuler »), jamais le fichier")
-        attendre(4.5) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(4.5)) { m.bandeau != nil }
         verifier(m.courante == .reveilCompact, "le bandeau parti : le réveil dans les ailes (\(m.courante))")
 
         // --- étape 9 : à l'heure, il sonne (écran rallumé, son, vibration) ; « Encore 10 min », « OK »
@@ -323,7 +323,7 @@ extension IlotEssai {
         evenements = [rdv]
         c.relireAgenda(); pause(0.6)
         verifier(m.bandeau?.vue == .agendaAvant && (m.bandeauVu?.ligne2.hasPrefix("Dans 10 min") ?? false), "10 min avant : le bandeau « Point client · Dans 10 min · Visio »")
-        attendre(5.5) { m.bandeau != nil }
+        attendre(IlotEssai.sousCharge(5.5)) { m.bandeau != nil }
         poseeSurLaCible()
         verifier(m.courante == .agendaCompact && m.trace.bande - hc <= GeoIlot.aileMax + 0.01 && abs(m.trace.hauteur - barre) < 0.5,
                  "puis la petite aile : le calendrier à gauche, « 10 min » à droite (\(Int(m.trace.bande - hc)) pt dans la barre)")

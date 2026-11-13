@@ -205,7 +205,7 @@ enum PlanDictees {
     /// Le milieu du champ « Rechercher » et de la pilule « ‹ Centre ».
     static func pointChamp(_ g: GrilleIlot) -> CGPoint { let e = cadreEntete(g); return CGPoint(x: e.minX + largeurRetour + 8 + 80, y: e.midY) }
     static func pointRetour(_ g: GrilleIlot) -> CGPoint { let e = cadreEntete(g); return CGPoint(x: e.minX + largeurRetour / 2, y: e.midY) }
-    static var largeurRetour: CGFloat { 8 + 10 + 4 + MesureIlot.texte("Centre", 12.5, .semibold) + 11 }
+    static var largeurRetour: CGFloat { PiluleCentre.largeur("Centre", retour: true) }
     /// Les liens du pied : leurs largeurs mesurées, 7 pt et un « · » entre eux.
     static func largeurLien(_ o: Onglet) -> CGFloat { MesureIlot.texte(o.rawValue, 12.5, .medium) }
     static var largeurPoint: CGFloat { MesureIlot.texte("\u{00B7}", 12, .regular) }

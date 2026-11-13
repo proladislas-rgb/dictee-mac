@@ -698,6 +698,15 @@ struct BadgeRetirer: View {
 
 /// Les pilules de l'en-tête : « ‹ Vidéo », « Modifier » (26 pt, maquette).
 struct PiluleCentre: View {
+    /// La largeur de la pilule, mesurée comme `body` la dessine (mêmes polices, mêmes marges, 4 pt entre les morceaux) : la SEULE mesure
+    /// des pilules de l'îlot (« ‹ Centre », « Outils › », « Quitter Voxile »…) ; chaque carte l'appelle au lieu de recopier la formule.
+    static func largeur(_ titre: String, retour: Bool = false, symbole: String? = nil, suite: Bool = false) -> CGFloat {
+        var l = (retour ? 8 : 11) + MesureIlot.texte(titre, 12.5, .semibold) + (suite ? 9 : 11)
+        if retour { l += MesureIlot.symbole("chevron.left", 10.5, .bold) + 4 }
+        if let symbole { l += MesureIlot.symbole(symbole, 10, .bold) + 4 }
+        if suite { l += 4 + MesureIlot.symbole("chevron.right", 10.5, .bold) }
+        return l
+    }
     var titre: String
     var retour = false
     /// Un glyphe avant le titre (les guillemets de « Dictées »).

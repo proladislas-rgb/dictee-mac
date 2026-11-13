@@ -421,7 +421,7 @@ enum PlanConcentration {
         return CGRect(x: l.minX + avant, y: l.maxY + CGFloat(Mc.ecartDurees), width: largeur(d), height: CGFloat(Mc.duree))
     }
     /// « ‹ Centre » dans l'en-tête.
-    static var largeurRetour: CGFloat { 8 + MesureIlot.symbole("chevron.left", 10.5, .bold) + 4 + MesureIlot.texte("Centre", 12.5, .semibold) + 11 }
+    static var largeurRetour: CGFloat { PiluleCentre.largeur("Centre", retour: true) }
     static func pointCentre(_ g: GrilleIlot) -> CGPoint { let e = entete(g); return CGPoint(x: e.minX + largeurRetour / 2, y: e.midY) }
 
     // la carte du mode (au survol de l'îlot replié)

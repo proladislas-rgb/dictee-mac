@@ -166,7 +166,7 @@ enum PlanBibliotheque {
     static func fond(_ g: GrilleIlot) -> CGRect { let w = g.corps(.bibliotheque); return CGRect(x: -w, y: g.barre, width: 2 * w, height: g.hauteur(.bibliotheque) - g.barre) }
 
     // l'en-tête : « ‹ Étagère » (mesuré), le tri (mesuré), le champ prend le reste
-    static var largeurRetour: CGFloat { 8 + 10 + 4 + MesureIlot.texte(titreRetour, 12.5, .semibold) + 11 }
+    static var largeurRetour: CGFloat { PiluleCentre.largeur(titreRetour, retour: true) }
     static func titreTri(_ recents: Bool) -> String { recents ? "Récents" : "Anciens" }
     static var largeurTri: CGFloat { 10 + MesureIlot.symbole("arrow.up.arrow.down", 10.5, .bold) + 4 + max(MesureIlot.texte("Récents", 12.5, .semibold), MesureIlot.texte("Anciens", 12.5, .semibold)) + 9 }
 
@@ -211,8 +211,6 @@ enum PlanBibliotheque {
     static func pointLienPied(_ titre: String, symbole: Bool, _ g: GrilleIlot) -> CGPoint {
         let p = cadrePied(g); return CGPoint(x: p.maxX - 4 - largeurLienPied(titre, symbole: symbole) / 2, y: p.minY + 4 + 15)
     }
-    static var largeurPoignee: CGFloat { 7 + 15 + 6 + MesureIlot.texte("Glisser les 00", 12.5, .bold) + 11 }
-    static func pointPoignee(_ g: GrilleIlot) -> CGPoint { let p = cadrePied(g); return CGPoint(x: p.minX + 6 + largeurPoignee / 2, y: p.minY + 4 + 15) }
     /// Le pied par défaut, mesuré : le lien, la note, « En grand » (la note se coupe si besoin, jamais « En grand »).
     static var largeurPiedNote: CGFloat { 6 + 14 + 6 + MesureIlot.texte(notePied, 11.5, .medium) + 12 + largeurLienPied("En grand", symbole: true) + 4 }
 }

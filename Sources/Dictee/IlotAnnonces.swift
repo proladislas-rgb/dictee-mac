@@ -66,7 +66,7 @@ struct ContenuAnnonce {
     /// Un détail avec « ‹ X » devant, l'îlot à sa largeur maximale (13/11 : 414 pt pour 413 selon la ligne de Groq) : ses deux
     /// lignes se resserrent au plus de 10 % plutôt que de perdre leurs derniers mots.
     static let resserrementRetour: CGFloat = 0.9
-    static func largeurRetour(_ titre: String) -> CGFloat { 8 + MesureIlot.symbole("chevron.left", 10.5, .bold) + 4 + MesureIlot.texte(titre, 12.5, .semibold) + 11 }
+    static func largeurRetour(_ titre: String) -> CGFloat { PiluleCentre.largeur(titre, retour: true) }
 
     static let cote: CGFloat = 26, espace: CGFloat = 12, espaceBoutons: CGFloat = 8, espaceJauges: CGFloat = 8
     /// L'icône d'un fichier : 38 pt, presque la hauteur des deux lignes (maquette ilot-apple.html, « Téléchargé »).

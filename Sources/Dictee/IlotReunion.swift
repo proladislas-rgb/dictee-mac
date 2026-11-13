@@ -34,8 +34,8 @@ enum PlanReunion {
         return CGRect(x: -w, y: g.barre, width: 2 * w, height: g.hauteur(.reunionEtendu) - g.barre)
     }
     static func largeurTexte(_ g: GrilleIlot) -> CGFloat { direct(g).width - colonneQui - ecartQui }
-    /// Le bouton « Centre » de l'en-tête (mesuré : 11 + glyphe + 4 + « Centre » + 11).
-    static var largeurCentre: CGFloat { 11 + MesureIlot.symbole("square.grid.2x2.fill", 10, .bold) + 4 + MesureIlot.texte("Centre", 12.5, .semibold) + 11 }
+    /// Le bouton « Centre » de l'en-tête (glyphe avant le mot).
+    static var largeurCentre: CGFloat { PiluleCentre.largeur("Centre", symbole: "square.grid.2x2.fill") }
     static func cadreCentre(_ g: GrilleIlot) -> CGRect { let e = cadreEntete(g); return CGRect(x: e.maxX - largeurCentre, y: e.minY, width: largeurCentre, height: entete) }
 
     // MARK: la rangée du bas (mesurée : rien ne se tasse ni ne déborde)

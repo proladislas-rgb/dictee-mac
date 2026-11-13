@@ -69,10 +69,10 @@ struct EnteteCentre: View {
     var page: PageCentre = .centre
 
     static let titreOK = "OK", titreModifier = "Modifier", titreOutils = "Outils"
-    /// « Outils › » : 11, le mot, 4, le chevron (10,5 pt), 9.
-    static var piluleOutils: CGFloat { 11 + MesureIlot.texte(titreOutils, 12.5, .semibold) + 4 + MesureIlot.symbole("chevron.right", 10.5, .bold) + 9 }
-    /// La largeur d'une pilule de l'en-tête (11 pt de chaque côté du texte).
-    static func pilule(_ t: String) -> CGFloat { MesureIlot.texte(t, 12.5, .semibold) + 22 }
+    /// « Outils › ».
+    static var piluleOutils: CGFloat { PiluleCentre.largeur(titreOutils, suite: true) }
+    /// La largeur d'une pilule de l'en-tête (le texte seul).
+    static func pilule(_ t: String) -> CGFloat { PiluleCentre.largeur(t) }
     static let libelleAjouter = "Ajouter :"
     /// Une pastille « + Rappel » : 8 pt, le « + » (11), 5, le nom, 11.
     static func pastille(_ e: ElementCentre) -> CGFloat { MesureIlot.texte(e.nom, 12.5, .semibold) + 35 }
@@ -91,12 +91,12 @@ struct EnteteCentre: View {
         return (tous, debut, max(n, suite.isEmpty ? 0 : 1))
     }
     static let titreQuitter = "Quitter Voxile"
-    /// « ‹ Centre » (page Outils) : 8, le chevron, 4, le mot, 11.
-    static var piluleRetourCentre: CGFloat { 8 + MesureIlot.symbole("chevron.left", 10.5, .bold) + 4 + MesureIlot.texte("Centre", 12.5, .semibold) + 11 }
-    /// « Quitter Voxile » : 11, le symbole marche/arrêt (10 pt), 4, le texte, 11.
-    static var piluleQuitter: CGFloat { 11 + MesureIlot.symbole("power", 10, .bold) + 4 + MesureIlot.texte(titreQuitter, 12.5, .semibold) + 11 }
+    /// « ‹ Centre » (page Outils).
+    static var piluleRetourCentre: CGFloat { PiluleCentre.largeur("Centre", retour: true) }
+    /// « Quitter Voxile » : le symbole marche/arrêt avant le texte.
+    static var piluleQuitter: CGFloat { PiluleCentre.largeur(titreQuitter, symbole: "power") }
     /// La pilule « Dictées » (les guillemets de 10 pt et 4 pt avant le mot).
-    static var piluleDictees: CGFloat { pilule("Dictées") + MesureIlot.symbole("quote.opening", 10, .bold) + 4 }
+    static var piluleDictees: CGFloat { PiluleCentre.largeur("Dictées", symbole: "quote.opening") }
     /// La place de la ligne d'avis : tout l'en-tête sauf « Modifier » (« Reste ouvert » et « Dictées » s'effacent devant elle, le temps
     /// qu'on la lise : les Dictées restent à un point de page ou un défilement ; « Outils › » aussi s'il ne tient plus à côté).
     static func placeAvis(largeur: CGFloat) -> CGFloat { largeur - pilule(titreModifier) - 8 }
@@ -268,13 +268,6 @@ struct BandeReunion: View {
     @State private var survol = false
     static let titre = "Noter la réunion", sousTitre = "Voxile écrit tout ce qui se dit"
     static let titreEnCours = "Réunion en cours", suiteEnCours = " \u{00B7} voir le direct"
-    /// Le point (16), 10, le titre, au moins 12, le sous-titre ; 14 et 16 de marge (la plus longue des deux formes).
-    static var largeurUtile: CGFloat {
-        let repos = MesureIlot.texte(titre, 13.5, .semibold) + 12 + MesureIlot.texte(sousTitre, 12, .medium)
-        let enCours = MesureIlot.texte(titreEnCours, 13.5, .semibold) + 12 + MesureIlot.texte("0:00:00" + suiteEnCours, 12, .medium, chiffres: true)
-        return 14 + 16 + 10 + max(repos, enCours) + 16
-    }
-
     var body: some View {
         let ed = m.editionCentre
         let r = m.reunion

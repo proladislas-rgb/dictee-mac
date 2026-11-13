@@ -87,8 +87,8 @@ enum PlanCarteClaude {
         let lb = MesureIlot.texte(titre, 12.5, .bold) + 26
         return CGPoint(x: c.maxX - margeDroite - lb / 2, y: c.minY + hautBloc(i, m) - m.defilementClaude + margeHaut + ligneTete / 2)
     }
-    /// La pilule « ‹ Centre » (PiluleCentre : 8, le chevron, 4, le mot, 11) : l'étoile de Claude se pose juste après, 10 pt plus loin.
-    static var pilule: CGFloat { 8 + MesureIlot.symbole("chevron.left", 10.5, .bold) + 4 + MesureIlot.texte("Centre", 12.5, .semibold) + 11 }
+    /// La pilule « ‹ Centre » : l'étoile de Claude se pose juste après, 10 pt plus loin.
+    static var pilule: CGFloat { PiluleCentre.largeur("Centre", retour: true) }
     /// Le milieu de « ‹ Centre » dans l'en-tête.
     static func pointCentre(_ m: IlotMoteur) -> CGPoint { let e = cadreEntete(m.grille); return CGPoint(x: e.minX + 34, y: e.midY) }
 }
