@@ -9,6 +9,12 @@ App de dictée vocale native pour Mac (anciens noms : Verbe, Dictée). Tu clique
 
 > État : version 0.x, en construction. Mac Apple Silicon avec macOS 26 requis.
 
+## Le film
+
+[![Le film de Voxile (1 min 33)](design/film/affiche.jpg)](https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.4.0/Voxile-film-1080p.mp4)
+
+1 min 33 pour voir Voxile en action : dicter, le Centre, l'étagère, les réunions, Claude Code et tes apps. [En 1080p](https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.4.0/Voxile-film-1080p.mp4) ou [en 4K](https://github.com/proladislas-rgb/dictee-mac/releases/download/v0.4.0/Voxile-film-4K.mp4). Musique : « Synapse » de Shane Ivers, silvermansound.com, sous licence CC BY 4.0.
+
 ## Télécharger
 
 1. Télécharge `Voxile-<version>.dmg` sur la [page des versions](https://github.com/proladislas-rgb/dictee-mac/releases/latest).
