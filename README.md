@@ -17,6 +17,8 @@ App de dictée vocale native pour Mac (anciens noms : Verbe, Dictée). Tu clique
 
 ## Télécharger
 
+**Nouveau : le [manuel d'utilisation illustré](docs/manuel/MANUEL.md)**, de l'installation à chaque fonction, avec des images.
+
 1. Télécharge `Voxile-<version>.dmg` sur la [page des versions](https://github.com/proladislas-rgb/dictee-mac/releases/latest).
 2. Ouvre le fichier, glisse **Voxile** sur le dossier **Applications**.
 3. Ouvre Voxile depuis Applications. **La première fois, macOS refuse** : voir « Première ouverture » ci-dessous.
@@ -55,6 +57,8 @@ Au premier lancement, accepte les trois autorisations : le micro, l'accessibilit
 Une app construite sur ton Mac n'est pas mise en quarantaine : pas d'avertissement. Reçue d'une autre personne, elle suit la procédure « Première ouverture » ci-dessus.
 
 ## Utiliser
+
+Tout est expliqué, avec des images, dans le **[manuel d'utilisation](docs/manuel/MANUEL.md)**. L'essentiel :
 
 | Geste | Effet |
 |---|---|
