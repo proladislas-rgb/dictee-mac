@@ -28,7 +28,7 @@ En une commande pour les initiés : `xattr -dr com.apple.quarantine /Application
 
 **Mises à jour.** Voxile se met à jour tout seul à partir de la 0.3 : une fois par jour, il demande à GitHub s'il existe une version plus récente et, si oui, propose **Installer** dans une ligne sous l'encoche (jamais pendant une dictée ni une réunion ; « Plus tard » repousse au lendemain, « Nouveautés » montre les notes de la version). Il télécharge le fichier, contrôle sa taille, son empreinte SHA-256 et sa signature, remplace l'app puis se relance. Si une étape échoue, rien n'est remplacé. Réglages › Compte & données › **Mises à jour** : version actuelle, bouton « Rechercher », interrupteur « Vérifier automatiquement ». Depuis une version plus ancienne que la 0.3, il faut retélécharger le fichier une fois.
 
-**Venant de Voxile (l'ancien nom) ou de Dictée.** Voxile garde le même identifiant : autorisations, historique et dictionnaire sont conservés. Une Voxile installée qui se met à jour devient Voxile toute seule ; à la main : quitte Voxile, glisse Voxile dans Applications et ouvre-la, elle met l'ancienne `Voxile.app` à la corbeille.
+**Venant de Verbe (l'ancien nom) ou de Dictée.** Voxile garde le même identifiant : autorisations, historique et dictionnaire sont conservés. Une Verbe installée qui se met à jour devient Voxile toute seule ; à la main : quitte Verbe, glisse Voxile dans Applications et ouvre-la, elle met l'ancienne `Verbe.app` à la corbeille.
 
 **Désinstaller.** Clic droit sur les guillemets dans la barre des menus › **Désinstaller Voxile…** (ou Réglages › Désinstaller). Cela efface l'historique, les mots, les raccourcis, le journal, les réglages et la clé Groq du Trousseau, puis place l'app à la corbeille (et, après confirmation, une éventuelle ancienne `Dictee.app`). Ton éventuel fichier `~/.config/groq/.env` n'est jamais touché.
 
@@ -55,6 +55,22 @@ Une app construite sur ton Mac n'est pas mise en quarantaine : pas d'avertisseme
 | Tenir **fn**, parler, relâcher | Dicte, puis écrit au curseur |
 | Deux appuis rapides sur **fn** | Mains libres : un nouvel appui sur fn ou ✓ termine |
 | **Échap** ou ✕ | Annule, rien n'est écrit |
+
+### Tes apps
+
+Dans l'îlot, Centre › **Tes apps** branche tes outils : leurs nouveautés sortent de l'encoche en direct (un bandeau, regroupé s'il en arrive plusieurs), et l'onglet **Nouveautés** les garde, rangées par app. Tout est en lecture seule.
+
+| Onglet | App | Ce qui est annoncé | Comment la brancher |
+|---|---|---|---|
+| Au quotidien | Mail | Nouveaux mails (expéditeur et objet, jamais le contenu) | Autoriser Voxile à contrôler Mail |
+| | Agenda | Le prochain rendez-vous, avec « Rejoindre » | Accès au calendrier |
+| | Notion | Tâches d'une base qui te sont assignées | Clé de connexion interne (`ntn_…`), base partagée avec la connexion |
+| | Airtable | Nouvelles lignes d'une table | Jeton avec `data.records:read` et `schema.bases:read` |
+| Vente | Shopify | Nouvelle commande, commande payée, stock bas | App du Dev Dashboard : adresse de la boutique, Client ID, Client secret |
+| | HubSpot | Nouveau contact, affaire qui change d'étape, gagnée ou perdue | Clé de service (`pat-…`), droits contacts et affaires en lecture |
+| | Stripe | Paiement reçu, paiement échoué | Clé limitée (`rk_…`) en lecture ; une clé `sk_…` est refusée |
+
+Les clés vont dans le Trousseau du Mac, jamais dans un fichier ni dans le journal. « Débrancher » efface la clé.
 
 Un petit son et une vibration du trackpad marquent le début, la fin (texte collé) et l'annulation. Réglages › **Sons** et **Vibration** les coupent séparément. La vibration ne se sent que si un doigt est posé sur le trackpad.
 
