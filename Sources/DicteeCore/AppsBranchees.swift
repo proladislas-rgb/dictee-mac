@@ -5,7 +5,8 @@ import Foundation
 //
 // Pour l'interface :
 // - `brancher(.mail)` / `brancher(.agenda)` ; `enregistrerCle(_:pour:)` puis `choisirBaseNotion` / `choisirPersonneNotion` ou
-//   `choisirTableAirtable` ; `debrancher(_:)` (efface aussi la clé) ;
+//   `choisirTableAirtable` ; HubSpot et Stripe : `enregistrerCle` les branche d'un coup ; Shopify : `enregistrerShopify` (l'adresse,
+//   l'identifiant et le secret, ou un ancien jeton) ; `debrancher(_:)` (efface aussi la clé) ;
 // - une minuterie appelle `sonder()` à `prochainSondage()` ; `surNouveautes` reçoit ce qui est à annoncer (jamais deux fois la même
 //   chose) ; `actuelles` et `etats` disent quoi montrer.
 // Tout est injectable : les contrôles n'appellent jamais le vrai réseau, la vraie Mail ni le vrai Trousseau.
@@ -52,7 +53,15 @@ public final class AppsBranchees {
     private let journal: (String) -> Void
     private let espacementNotion: EspacementRequetes
     private let espacementAirtable: EspacementRequetes
+    private let espacementShopify: EspacementRequetes
+    private let espacementHubSpot: EspacementRequetes
+    private let espacementStripe: EspacementRequetes
     private var enCours: Set<AppBranchee> = []
+    /// Le jeton de 24 h de Shopify (en mémoire seulement).
+    private let jetonShopify = JetonShopify()
+    /// Les étapes des pipelines de HubSpot (leurs noms ; relues quand une étape inconnue apparaît, au plus une fois par heure).
+    private var etapesHubSpot: [String: EtapeHubSpot] = [:]
+    private var etapesHubSpotLues: Date?
 
     /// `agenda` : les rendez-vous que l'îlot lit déjà (AgendaSysteme.prochains) ; `heure` : « 14:30 » ; `journal` : le journal de l'app
     /// (jamais une clé n'y est écrite : seulement l'app, l'état, des nombres).
@@ -60,10 +69,14 @@ public final class AppsBranchees {
                 agenda: @escaping @MainActor () -> [EvenementAgenda], horloge: @escaping () -> Date = { Date() },
                 heure: @escaping (Date) -> String, journal: @escaping (String) -> Void = { _ in },
                 espacementNotion: EspacementRequetes = EspacementRequetes(ecart: ClientNotion.ecart),
-                espacementAirtable: EspacementRequetes = EspacementRequetes(ecart: ClientAirtable.ecart)) {
+                espacementAirtable: EspacementRequetes = EspacementRequetes(ecart: ClientAirtable.ecart),
+                espacementShopify: EspacementRequetes = EspacementRequetes(ecart: ClientShopify.ecart),
+                espacementHubSpot: EspacementRequetes = EspacementRequetes(ecart: ClientHubSpot.ecart),
+                espacementStripe: EspacementRequetes = EspacementRequetes(ecart: ClientStripe.ecart)) {
         self.magasin = magasin; self.coffre = coffre; self.transport = transport; self.mail = mail; self.agenda = agenda
         self.horloge = horloge; self.heure = heure; self.journal = journal
         self.espacementNotion = espacementNotion; self.espacementAirtable = espacementAirtable
+        self.espacementShopify = espacementShopify; self.espacementHubSpot = espacementHubSpot; self.espacementStripe = espacementStripe
         memoire = magasin.lire() ?? MemoireApps()
         for a in AppBranchee.allCases { etats[a] = memoire.branchees.contains(a) ? .enAttente : .debranchee }
     }
@@ -88,6 +101,8 @@ public final class AppsBranchees {
     public func debrancher(_ a: AppBranchee) {
         memoire.oublier(a)
         if a.demandeUneCle { coffre.effacer(a) }
+        if a == .shopify { jetonShopify.oublier() }
+        if a == .hubspot { etapesHubSpot = [:]; etapesHubSpotLues = nil }
         plan.retirer(a)
         etats[a] = .debranchee
         actuelles[a] = nil
@@ -107,6 +122,7 @@ public final class AppsBranchees {
     /// La clé rangée, montrée sans être lisible (« ntn_••••••••k7Rm ») ; nil : aucune clé.
     public func cleMasquee(_ a: AppBranchee) -> String? {
         guard a.demandeUneCle, let c = coffre.lire(a) else { return nil }
+        if a == .shopify { return IdentifiantsShopify(rangement: c).map { ClePartielle.masque($0.secretMontre) } }
         return ClePartielle.masque(c)
     }
 
@@ -115,6 +131,7 @@ public final class AppsBranchees {
     public func abandonner(_ a: AppBranchee) {
         guard a.demandeUneCle, !estBranchee(a), coffre.lire(a) != nil else { return }
         coffre.effacer(a)
+        if a == .shopify { jetonShopify.oublier() }
         journal("apps : branchement de \(a.rawValue) laissé en route, clé effacée")
     }
 
@@ -130,19 +147,73 @@ public final class AppsBranchees {
     }
 
     /// Vérifie la clé auprès de l'app, puis la range dans le coffre (jamais avant : une clé refusée n'est pas gardée). Rend le nom du
-    /// compte ou de l'espace. L'app n'est branchée qu'une fois la base (Notion) ou la table (Airtable) choisie.
+    /// compte ou de l'espace. Notion et Airtable ne sont branchés qu'une fois la base (la table) choisie ; HubSpot et Stripe le sont
+    /// tout de suite (rien à choisir). Shopify passe par `enregistrerShopify`.
     public func enregistrerCle(_ saisie: String, pour a: AppBranchee) async -> Result<String, ErreurApp> {
         let cle = saisie.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard a.demandeUneCle else { return .failure(.reglageIncomplet(a)) }
-        let vraisemblable = a == .notion ? ClientNotion.vraisemblable(cle) : ClientAirtable.vraisemblable(cle)
-        guard vraisemblable else { journal("apps : clé \(a.rawValue) refusée avant envoi (forme)"); return .failure(.cleRefusee(a)) }
+        guard a.demandeUneCle, a != .shopify else { return .failure(.reglageIncomplet(a)) }
+        let forme: ErreurApp?
+        switch a {
+        case .notion: forme = ClientNotion.vraisemblable(cle) ? nil : .cleRefusee(a)
+        case .airtable: forme = ClientAirtable.vraisemblable(cle) ? nil : .cleRefusee(a)
+        case .hubspot: forme = ClientHubSpot.vraisemblable(cle) ? nil : .cleRefusee(a)
+        default: forme = ClientStripe.controler(cle)
+        }
+        if let forme {
+            journal("apps : clé \(a.rawValue) refusée avant envoi (\(forme == .cleTropPuissante(a) ? "tous les droits" : "forme"))")
+            return .failure(forme)
+        }
         do {
-            let nom = a == .notion ? try await notion(cle).verifier() : try await airtable(cle).verifier()
+            let nom: String
+            var apres: (inout MemoireApps) -> Void = { _ in }
+            switch a {
+            case .notion: nom = try await notion(cle).verifier()
+            case .airtable: nom = try await airtable(cle).verifier()
+            case .hubspot:
+                let r = try await hubspot(cle).verifier()
+                nom = r.portail.map { "compte \($0)" } ?? "HubSpot"
+                apres = { $0.hubspot = r; $0.hubspotDepuis = nil; $0.amorcees.remove(.hubspot) }
+            default:
+                let r = try await stripe(cle).verifier()
+                nom = r.test ? "mode test" : "mode réel"
+                apres = { $0.stripe = r; $0.stripeDepuis = nil; $0.amorcees.remove(.stripe) }
+            }
             guard coffre.ranger(cle, pour: a) else { return .failure(.refus(a, 0)) }
             journal("apps : clé \(a.rawValue) vérifiée et rangée dans le Trousseau")
+            if a == .hubspot || a == .stripe { apres(&memoire); brancher(a) }
             return .success(nom)
         } catch {
             journal("apps : clé \(a.rawValue) non vérifiée (\(Self.resume(error)))")
+            return .failure(error)
+        }
+    }
+
+    /// Shopify : l'adresse de la boutique, puis l'identifiant et le secret d'une app du Dev Dashboard (ou un ancien jeton `shpat_`, sans
+    /// secret). Vérifiés (un jeton obtenu, la boutique lue), rangés dans le Trousseau (une entrée), puis Shopify est branché.
+    public func enregistrerShopify(boutique saisie: String, identifiant: String, secret: String?) async -> Result<String, ErreurApp> {
+        guard let boutique = ClientShopify.boutique(depuis: saisie) else { return .failure(.introuvable(.shopify)) }
+        let id = identifiant.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ids: IdentifiantsShopify
+        if ClientShopify.estJeton(id) { ids = .jeton(id) }
+        else if let s = secret?.trimmingCharacters(in: .whitespacesAndNewlines), ClientShopify.identifiantVraisemblable(id), ClientShopify.secretVraisemblable(s) {
+            ids = .client(id: id, secret: s)
+        } else {
+            journal("apps : clé shopify refusée avant envoi (forme)")
+            return .failure(.cleRefusee(.shopify))
+        }
+        jetonShopify.oublier()
+        do {
+            let nom = try await shopify(boutique, ids).verifier()
+            guard coffre.ranger(ids.rangement, pour: .shopify) else { jetonShopify.oublier(); return .failure(.refus(.shopify, 0)) }
+            journal("apps : clé shopify vérifiée et rangée dans le Trousseau (\(ids == .jeton(id) ? "ancien jeton" : "identifiant et secret"))")
+            memoire.shopify = ReglageShopify(boutique: boutique, nom: nom)
+            memoire.shopifyDepuis = nil
+            memoire.amorcees.remove(.shopify)
+            brancher(.shopify)
+            return .success(nom)
+        } catch {
+            jetonShopify.oublier()
+            journal("apps : clé shopify non vérifiée (\(Self.resume(error)))")
             return .failure(error)
         }
     }
@@ -280,6 +351,36 @@ public final class AppsBranchees {
             let suivante = serveur ?? t.addingTimeInterval(-60)
             return Lecture(elements: fiches.map { ClientAirtable.nouveaute($0, reglage: r, fenetre: depuis, vue: t) }, remplace: false,
                            apres: { $0.airtableDepuis = suivante })
+        case .shopify:
+            guard let r = memoire.shopify else { throw .reglageIncomplet(.shopify) }
+            guard let c = clientShopify(r) else { throw .cleAbsente(.shopify) }
+            let depuis = memoire.shopifyDepuis ?? t.addingTimeInterval(-86_400)
+            let (commandes, stocks) = try await c.lire(depuis: depuis)
+            let elements = commandes.compactMap { ClientShopify.nouveaute($0, reglage: r, depuis: depuis) } + stocks.map { ClientShopify.nouveaute($0, reglage: r) }
+            // la fenêtre suivante recouvre celle-ci de 2 minutes (horloges, commandes en cours d'écriture) : les clés dédoublonnent
+            return Lecture(elements: elements, remplace: false, apres: { $0.shopifyDepuis = t.addingTimeInterval(-120) })
+        case .hubspot:
+            guard let c = clientHubSpot() else { throw .cleAbsente(.hubspot) }
+            guard let r = memoire.hubspot else { throw .reglageIncomplet(.hubspot) }
+            let depuis = memoire.hubspotDepuis ?? t.addingTimeInterval(-86_400)
+            let contacts = try await c.contacts(depuis: depuis)
+            let affaires = try await c.affaires(depuis: depuis)
+            // les noms des étapes : relus si une étape est inconnue (au plus une fois par heure ; un échec n'empêche rien)
+            if affaires.contains(where: { etapesHubSpot[$0.etape] == nil }), etapesHubSpotLues.map({ t.timeIntervalSince($0) > 3600 }) ?? true {
+                etapesHubSpotLues = t
+                if let e = try? await c.etapes(), !e.isEmpty { etapesHubSpot = e }
+            }
+            let etapes = etapesHubSpot
+            let elements = contacts.map { ClientHubSpot.nouveaute($0, reglage: r) }
+                + affaires.compactMap { ClientHubSpot.nouveaute($0, etapes: etapes, reglage: r, depuis: depuis) }
+            return Lecture(elements: elements, remplace: false, apres: { $0.hubspotDepuis = t.addingTimeInterval(-120) })
+        case .stripe:
+            guard let c = clientStripe() else { throw .cleAbsente(.stripe) }
+            let depuis = memoire.stripeDepuis ?? t.addingTimeInterval(-86_400)
+            let (paiements, serveur) = try await c.paiements(depuis: depuis)
+            // la fenêtre suivante part de l'heure de Stripe (une seconde de recouvrement : `created[gt]` est en secondes entières)
+            let suivante = (serveur ?? t).addingTimeInterval(-60)
+            return Lecture(elements: paiements.map(ClientStripe.nouveaute), remplace: false, apres: { $0.stripeDepuis = suivante })
         }
     }
 
@@ -289,6 +390,17 @@ public final class AppsBranchees {
     private func airtable(_ cle: String) -> ClientAirtable { ClientAirtable(cle: cle, transport: transport, espacement: espacementAirtable) }
     private func clientNotion() -> ClientNotion? { coffre.lire(.notion).map(notion) }
     private func clientAirtable() -> ClientAirtable? { coffre.lire(.airtable).map(airtable) }
+    private func hubspot(_ cle: String) -> ClientHubSpot { ClientHubSpot(cle: cle, transport: transport, espacement: espacementHubSpot) }
+    private func stripe(_ cle: String) -> ClientStripe { ClientStripe(cle: cle, transport: transport, espacement: espacementStripe) }
+    private func shopify(_ boutique: String, _ ids: IdentifiantsShopify) -> ClientShopify {
+        ClientShopify(boutique: boutique, identifiants: ids, transport: transport, espacement: espacementShopify, jeton: jetonShopify,
+                      maintenant: horloge())
+    }
+    private func clientHubSpot() -> ClientHubSpot? { coffre.lire(.hubspot).map(hubspot) }
+    private func clientStripe() -> ClientStripe? { coffre.lire(.stripe).map(stripe) }
+    private func clientShopify(_ r: ReglageShopify) -> ClientShopify? {
+        coffre.lire(.shopify).flatMap(IdentifiantsShopify.init(rangement:)).map { shopify(r.boutique, $0) }
+    }
 
     private func enregistrer() { magasin.ecrire(memoire) }
 
@@ -305,6 +417,7 @@ public final class AppsBranchees {
         case .cleRefusee: return "clé refusée"
         case .droitsManquants(_, let d): return "droits manquants : \(d)"
         case .introuvable: return "introuvable"
+        case .cleTropPuissante: return "clé à tous les droits refusée"
         case .limite(_, let s): return "limite de débit, \(Int(s)) s"
         case .serveur(_, let c): return "serveur \(c)"
         case .refus(_, let c): return "refus \(c)"

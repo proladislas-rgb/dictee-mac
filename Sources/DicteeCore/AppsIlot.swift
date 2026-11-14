@@ -15,6 +15,9 @@ extension AppBranchee {
         case .agenda: return "Calendrier du Mac, Google Agenda compris"
         case .notion: return "Tes tâches du jour \u{00B7} une clé à coller"
         case .airtable: return "Les fiches qui changent \u{00B7} une clé à coller"
+        case .shopify: return "Commandes et stock de ta boutique"
+        case .hubspot: return "Contacts et affaires \u{00B7} une clé à coller"
+        case .stripe: return "Paiements reçus et échoués \u{00B7} une clé"
         }
     }
     /// Ce qu'elle suit, une fois branchée.
@@ -24,43 +27,41 @@ extension AppBranchee {
         case .agenda: return "Ton prochain rendez-vous"
         case .notion: return "Tâches du jour et tâches qu\u{2019}on t\u{2019}assigne"
         case .airtable: return "Les fiches qui changent dans la table"
+        case .shopify: return "Nouvelles commandes, commandes payées, stock bas"
+        case .hubspot: return "Nouveaux contacts, étapes des affaires"
+        case .stripe: return "Paiements reçus et paiements échoués"
         }
     }
-    /// Le nom d'une nouveauté de cette app (« mail », « tâche »…), au singulier et au pluriel, et son genre (« nouvelles tâches »).
-    public var mot: (un: String, plusieurs: String) {
+    /// Le nom de la clé dans le détail d'une app branchée (« Clé ••••k7Rm »).
+    public var nomCle: String {
         switch self {
-        case .mail: return ("mail", "mails")
-        case .agenda: return ("rendez-vous", "rendez-vous")
-        case .notion: return ("tâche", "tâches")
-        case .airtable: return ("fiche", "fiches")
+        case .airtable: return "Jeton"
+        case .shopify: return "Secret"
+        default: return "Clé"
         }
-    }
-    public var feminin: Bool { self == .notion || self == .airtable }
-    public func compte(_ n: Int) -> String { "\(n) " + (n > 1 ? mot.plusieurs : mot.un) }
-
-    /// Notion et Airtable : où créer la clé, et comment la nommer.
-    public var libelleCle: String { self == .airtable ? "Jeton d\u{2019}accès Airtable" : "Clé de ta connexion Notion" }
-    public var nomCle: String { self == .airtable ? "Jeton" : "Clé" }
-    public var exempleCle: String { self == .airtable ? "pat\u{2026}" : "ntn_\u{2026}" }
-    public var pageCle: URL? {
-        switch self {
-        case .notion: return URL(string: "https://www.notion.so/profile/integrations")
-        case .airtable: return URL(string: "https://airtable.com/create/tokens")
-        default: return nil
-        }
-    }
-    /// La ligne d'aide sous le champ : où trouver la clé (la partie `fort` en blanc).
-    public var aideCle: (debut: String, fort: String, fin: String) {
-        self == .airtable ? ("Où le créer : ", "airtable.com/create/tokens", " \u{203A} lecture seule")
-                          : ("Où la trouver : ", "notion.so/profile/integrations", " \u{203A} ta connexion")
     }
     /// Ce que dit le pied du détail, à côté de « Débrancher ».
     public var notePied: String {
         switch self {
         case .mail: return "Voxile lit seulement qui écrit et l\u{2019}objet."
         case .agenda: return "Voxile lit le Calendrier du Mac. Pas de clé."
-        case .notion, .airtable: return "La clé reste dans le Trousseau de ton Mac."
+        default: return "La clé reste dans le Trousseau de ton Mac."
         }
+    }
+}
+
+/// Un champ à coller du parcours (la clé, l'adresse de la boutique, l'identifiant) : ses textes, l'exemple en gris, l'aide (la partie
+/// `fort` en blanc) et la page qu'ouvre « Ouvrir la page ».
+public struct ChampCle: Equatable, Sendable {
+    public var libelle: String
+    public var exemple: String
+    public var aide: (debut: String, fort: String, fin: String)
+    public var page: URL
+    /// Montré masqué une fois collé (une clé) ; sinon en clair (l'adresse de la boutique).
+    public var masque: Bool
+    public static func == (a: ChampCle, b: ChampCle) -> Bool {
+        a.libelle == b.libelle && a.exemple == b.exemple && a.aide.debut == b.aide.debut && a.aide.fort == b.aide.fort && a.aide.fin == b.aide.fin
+            && a.page == b.page && a.masque == b.masque
     }
 }
 
@@ -74,13 +75,17 @@ extension ErreurApp {
         case .cleRefusee: return "Clé refusée"
         case .droitsManquants: return "Il manque un droit à la clé"
         case .introuvable(.notion): return "Base pas partagée avec la connexion"
+        case .introuvable(.shopify): return "Boutique introuvable"
         case .introuvable: return "Introuvable avec cette clé"
+        case .cleTropPuissante: return "Clé à tous les droits : à remplacer"
         case .limite: return "Demande de patienter"
         case .serveur: return "Ne répond pas en ce moment"
         case .refus(_, let c): return "Refuse la demande (\(c))"
         case .reseau: return "Pas de réseau"
         case .reponseIllisible: return "Réponse illisible"
-        case .reglageIncomplet: return "Base à choisir"
+        case .reglageIncomplet(.shopify): return "Adresse de la boutique à donner"
+        case .reglageIncomplet(.notion), .reglageIncomplet(.airtable): return "Base à choisir"
+        case .reglageIncomplet: return "À rebrancher"
         case .autorisationMail: return "Autorisation à donner dans Réglages"
         case .mailFerme: return "Mail est fermé"
         case .mail: return "Mail n\u{2019}a pas répondu"
@@ -102,8 +107,9 @@ extension ErreurApp {
     /// Le bouton qui accompagne l'erreur dans l'îlot (nil : rien à faire, Mail fermé).
     public var geste: Geste {
         switch self {
-        case .cleAbsente, .cleRefusee, .droitsManquants: return .autreCle
-        case .introuvable, .reglageIncomplet: return .choisirBase
+        case .cleAbsente, .cleRefusee, .droitsManquants, .cleTropPuissante: return .autreCle
+        // une base à choisir n'existe que pour Notion et Airtable ; ailleurs, on recolle (l'adresse de la boutique, la clé)
+        case .introuvable(let a), .reglageIncomplet(let a): return a == .notion || a == .airtable ? .choisirBase : .autreCle
         case .autorisationMail: return .reglagesMail
         case .mailFerme: return .aucun
         case .limite, .serveur, .refus, .reseau, .reponseIllisible, .mail: return .reessayer
@@ -171,14 +177,20 @@ public struct LigneApp: Equatable, Sendable {
 
 // MARK: - le parcours du branchement
 
-/// Brancher Notion ou Airtable : coller la clé, la vérifier, puis choisir la base (Notion : puis la personne, si la base a une propriété
-/// « personne » ; Airtable : puis la table, s'il y en a plusieurs). « Changer » depuis le détail d'une app branchée commence au choix.
+/// Brancher une app à clé : coller la clé, la vérifier, puis choisir la base (Notion : puis la personne, si la base a une propriété
+/// « personne » ; Airtable : puis la table, s'il y en a plusieurs). HubSpot et Stripe : la clé seule. Shopify : l'adresse de la
+/// boutique, puis l'identifiant client de l'app (ou un ancien jeton `shpat_`, et c'est fini), puis le secret client. « Changer » depuis
+/// le détail d'une app branchée commence au choix.
 public struct ParcoursApp: Equatable, Sendable {
-    public enum Etape: Equatable, Sendable { case cle, bases, tables, personnes }
+    public enum Etape: Equatable, Sendable { case boutique, identifiant, cle, bases, tables, personnes }
     public var app: AppBranchee
-    public var etape: Etape = .cle
-    /// La clé collée : en mémoire seulement, le temps du branchement (jamais dans un fichier ni au journal ; montrée masquée).
+    public var etape: Etape
+    /// Ce qui est collé dans le champ de l'étape : en mémoire seulement, le temps du branchement (jamais dans un fichier ni au
+    /// journal ; une clé est montrée masquée).
     public var saisie: String?
+    /// Shopify : l'adresse de la boutique (« ma-boutique.myshopify.com ») et l'identifiant client, gardés pour l'étape suivante.
+    public var boutique: String?
+    public var identifiant: String?
     /// Le nom de l'espace (Notion) ou du compte (Airtable), une fois la clé vérifiée.
     public var compte: String?
     public var choix: [ChoixApp] = []
@@ -193,7 +205,53 @@ public struct ParcoursApp: Equatable, Sendable {
     /// La base choisie n'a ni date ni personne : rien à suivre (Notion).
     public var baseSansRien = false
 
-    public init(app: AppBranchee, etape: Etape = .cle) { self.app = app; self.etape = etape }
+    public init(app: AppBranchee, etape: Etape? = nil) { self.app = app; self.etape = etape ?? (app == .shopify ? .boutique : .cle) }
+
+    /// L'étape a un champ à coller (et « Coller »).
+    public var estChamp: Bool { etape == .boutique || etape == .identifiant || etape == .cle }
+    /// Shopify : un ancien jeton collé à l'étape de l'identifiant (pas de secret à demander).
+    public var jetonShopify: Bool { app == .shopify && etape == .identifiant && ClientShopify.estJeton(saisie ?? "") }
+
+    /// Le champ de l'étape (nil : une étape de choix).
+    public var champ: ChampCle? {
+        guard estChamp else { return nil }
+        switch (app, etape) {
+        case (.shopify, .boutique):
+            return ChampCle(libelle: "Adresse de ta boutique", exemple: "ma-boutique.myshopify.com",
+                            aide: ("Dans l\u{2019}admin : ", "Réglages \u{203A} Domaines", " \u{203A} adresse en .myshopify.com"),
+                            page: ClientShopify.pageBoutique, masque: false)
+        case (.shopify, .identifiant):
+            return ChampCle(libelle: "Identifiant client de ton app", exemple: "Client ID (ou shpat_\u{2026})",
+                            aide: ("Dev Dashboard \u{203A} ", "ton app \u{203A} Settings", " \u{203A} Client ID"),
+                            page: ClientShopify.pageApp, masque: true)
+        case (.shopify, _):
+            return ChampCle(libelle: "Secret client de ton app", exemple: "Client secret",
+                            aide: ("Dev Dashboard \u{203A} ", "ton app \u{203A} Settings", " \u{203A} Client secret"),
+                            page: ClientShopify.pageApp, masque: true)
+        case (.airtable, _):
+            return ChampCle(libelle: "Jeton d\u{2019}accès Airtable", exemple: "pat\u{2026}",
+                            aide: ("Où le créer : ", "airtable.com/create/tokens", " \u{203A} lecture seule"),
+                            page: URL(string: "https://airtable.com/create/tokens")!, masque: true)
+        case (.hubspot, _):
+            return ChampCle(libelle: "Clé de service HubSpot", exemple: "pat-\u{2026}",
+                            aide: ("Où la créer : ", "Développement \u{203A} Clés", " \u{203A} Clés de service"),
+                            page: ClientHubSpot.pageCle, masque: true)
+        case (.stripe, _):
+            return ChampCle(libelle: "Clé limitée Stripe, en lecture", exemple: "rk_live_\u{2026}",
+                            aide: ("Où la créer : ", "dashboard.stripe.com/apikeys", " \u{203A} clé limitée"),
+                            page: ClientStripe.pageCle, masque: true)
+        default:
+            return ChampCle(libelle: "Clé de ta connexion Notion", exemple: "ntn_\u{2026}",
+                            aide: ("Où la trouver : ", "notion.so/profile/integrations", " \u{203A} ta connexion"),
+                            page: URL(string: "https://www.notion.so/profile/integrations")!, masque: true)
+        }
+    }
+    /// Ce que montre le champ une fois collé (masqué pour une clé ; l'adresse ramenée à sa forme en .myshopify.com si elle se lit).
+    public var saisieMontree: String? {
+        guard let s = saisie else { return nil }
+        if champ?.masque == false { return ClientShopify.boutique(depuis: s) ?? Nouveaute.ligne(s, max: 60) }
+        return ClePartielle.masque(s)
+    }
 
     /// Les lignes à choisir de l'étape (bases, tables ou personnes).
     public var options: [ChoixApp] {
@@ -207,7 +265,7 @@ public struct ParcoursApp: Equatable, Sendable {
 
     public var question: String {
         switch etape {
-        case .cle: return ""
+        case .cle, .boutique, .identifiant: return ""
         case .bases: return app == .airtable ? "Quelle base suivre\u{00A0}?" : "Quelle base Notion suivre\u{00A0}?"
         case .tables: return "Quelle table suivre\u{00A0}?"
         case .personnes: return "Qui es-tu dans Notion\u{00A0}?"
@@ -216,7 +274,9 @@ public struct ParcoursApp: Equatable, Sendable {
     /// Le grand bouton du bas.
     public var titreBouton: String {
         switch etape {
-        case .cle: return app == .airtable ? "Vérifier le jeton" : "Vérifier la clé"
+        case .boutique: return "Continuer"
+        case .identifiant: return jetonShopify ? "Vérifier le jeton" : "Continuer"
+        case .cle: return app == .airtable ? "Vérifier le jeton" : (app == .shopify ? "Vérifier et brancher" : "Vérifier la clé")
         case _ where relireLaListe: return "Réessayer"
         case .bases: return "Suivre cette base"
         case .tables: return "Suivre cette table"
@@ -224,12 +284,12 @@ public struct ParcoursApp: Equatable, Sendable {
         }
     }
     /// La liste n'a pas pu être lue (réseau, serveur) : le grand bouton la relit.
-    public var relireLaListe: Bool { etape != .cle && options.isEmpty && erreur != nil }
-    public var titreEnCours: String { etape == .cle ? "Vérification\u{2026}" : "Un instant\u{2026}" }
+    public var relireLaListe: Bool { !estChamp && options.isEmpty && erreur != nil }
+    public var titreEnCours: String { estChamp ? "Vérification\u{2026}" : "Un instant\u{2026}" }
     /// Le grand bouton est-il utilisable ? (Sinon grisé : un clic ne fait rien, il ne range pas l'îlot.)
     public var boutonActif: Bool {
         switch etape {
-        case .cle: return !(saisie ?? "").isEmpty
+        case .cle, .boutique, .identifiant: return !(saisie ?? "").isEmpty
         case _ where relireLaListe: return true
         case .bases, .tables: return selection != nil
         case .personnes: return true
@@ -237,9 +297,11 @@ public struct ParcoursApp: Equatable, Sendable {
     }
     /// Le titre de l'écran (en-tête).
     public var titre: String { "Brancher " + app.nom }
-    /// Ce que dit la ligne verte au-dessus du choix (« Clé valide · Espace Atelier »).
+    /// Ce que dit la ligne verte au-dessus du choix (« Clé valide · Espace Atelier ») ; Shopify : la boutique déjà donnée, au-dessus
+    /// de l'identifiant et du secret.
     public var valide: String? {
-        guard etape != .cle else { return nil }
+        if app == .shopify, etape == .identifiant || etape == .cle, let b = boutique { return "Boutique \u{00B7} " + b }
+        guard !estChamp else { return nil }
         let debut = app == .airtable ? "Jeton valide" : "Clé valide"
         return compte.map { debut + " \u{00B7} " + $0 } ?? debut
     }
@@ -260,34 +322,36 @@ public struct AnnonceApps: Equatable, Sendable {
     /// Les apps concernées, dans l'ordre de « Tes apps ».
     public var apps: [AppBranchee] { Array(Set(elements.map(\.app))).sorted() }
     public var seule: Nouveaute? { elements.count == 1 ? elements[0] : nil }
+    /// Les genres présents (mail, commande, paiement…), dans l'ordre de « Tes apps ».
+    public var genres: [GenreNouveaute] { Array(Set(elements.map(\.genre))).sorted() }
 
-    /// La première ligne : le nom de l'expéditeur (ou la tâche, la fiche, le rendez-vous) ; plusieurs d'une même app : « 3 nouveaux
-    /// mails » ; de plusieurs apps : « 4 nouveautés ».
+    /// La première ligne : le nom de l'expéditeur (ou la tâche, la commande, le paiement) ; plusieurs d'un même genre : « 3 nouveaux
+    /// mails », « 2 nouvelles commandes » ; de plusieurs genres : « 4 nouveautés ».
     public var titre: String {
         if let s = seule { return s.titre }
         let n = elements.count
-        if apps.count == 1, let a = apps.first {
-            let adjectif = a.feminin ? "nouvelles" : "nouveaux"
-            return "\(n) \(adjectif) \(a.mot.plusieurs)"
+        if genres.count == 1, let g = genres.first {
+            return "\(n) \(g.feminin ? "nouvelles" : "nouveaux") \(g.mots.plusieurs)"
         }
         return "\(n) nouveautés"
     }
-    /// La deuxième ligne : « Devis cuisine · Mail » ; « Camille Roche, Atelier Nord et 1 autre » ; « 2 mails, 1 tâche, 1 fiche ».
+    /// La deuxième ligne : « Devis cuisine · Mail » ; « Camille Roche, Atelier Nord et 1 autre » ; « 2 mails, 1 tâche, 1 fiche » ;
+    /// « 1 commande, 1 contact, 2 paiements ».
     public var sousTitre: String {
         if let s = seule { return s.sousTitre + " \u{00B7} " + s.app.nom }
-        if apps.count == 1 {
+        if genres.count == 1 {
             var noms: [String] = []
             for e in elements where !noms.contains(e.titre) { noms.append(e.titre) }
             let montres = noms.prefix(2).joined(separator: ", ")
             let reste = noms.count - min(2, noms.count)
             return reste == 0 ? montres : montres + " et \(reste) autre" + (reste > 1 ? "s" : "")
         }
-        return apps.map { a in a.compte(elements.filter { $0.app == a }.count) }.joined(separator: ", ")
+        return genres.map { g in g.compte(elements.filter { $0.genre == g }.count) }.joined(separator: ", ")
     }
     /// Ce que dit l'aile droite, du plus long au plus court : l'îlot prend le premier qui tient (« 3 mails », sinon « 3 »).
     public var aile: [String] {
         let n = elements.count
-        if apps.count == 1, let a = apps.first { return [a.compte(n), "\(n)"] }
+        if genres.count == 1, let g = genres.first { return [g.compte(n), "\(n)"] }
         return ["\(n) nouv.", "\(n)"]
     }
     /// Ce que fait « Ouvrir » : la nouveauté elle-même si elle est seule, sinon la liste des Nouveautés.
@@ -311,13 +375,18 @@ public enum PlanNouveautes {
     public static let corpsVide: Double = 74
 
     /// Les apps qui ont quelque chose (dans l'ordre de « Tes apps »), une ligne chacune d'abord, puis les plus récentes tant qu'elles
-    /// tiennent dans `corpsMax`. Jamais une ligne coupée par le bas de la carte.
+    /// tiennent dans `corpsMax`. Jamais une ligne coupée par le bas de la carte. Plus d'apps qu'il n'en tient (sept apps : quatre au
+    /// plus) : celles dont la nouveauté est la plus récente.
     public static func sections(_ actuelles: [AppBranchee: [Nouveaute]], corpsMax: Double = corpsMax) -> [Section] {
         let apps = AppBranchee.allCases.filter { !(actuelles[$0] ?? []).isEmpty }
+        let recentes = apps.sorted { a, b in
+            let da = (actuelles[a] ?? []).map(\.date).max() ?? .distantPast, db = (actuelles[b] ?? []).map(\.date).max() ?? .distantPast
+            return da == db ? a < b : da > db
+        }
         var montrees: [AppBranchee: Int] = [:]
         var h = 0.0
-        for (i, a) in apps.enumerated() {
-            let ajout = (i > 0 ? ecart : 0) + titre + ligne
+        for a in recentes {
+            let ajout = (montrees.isEmpty ? 0 : ecart) + titre + ligne
             guard h + ajout <= corpsMax + 0.001 else { break }
             h += ajout; montrees[a] = 1
         }
@@ -343,9 +412,14 @@ public enum PlanNouveautes {
 /// Les mesures des cartes de « Tes apps » (en points) : elles servent au dessin, à la hauteur de la forme et aux essais (où cliquer).
 public enum MesuresApps {
     public static let haut: Double = 14, entete: Double = 26, bas: Double = 14
-    /// La liste « Tes apps » : la phrase sous l'en-tête, puis la boîte des quatre apps (une ligne de 48 pt chacune).
-    public static let ecartPhrase: Double = 6, phrase: Double = 16, ecartBoite: Double = 8, ligne: Double = 48
-    public static var profondeurListe: Double { haut + entete + ecartPhrase + phrase + ecartBoite + Double(AppBranchee.allCases.count) * ligne + bas }
+    /// La liste « Tes apps » : les deux onglets (« Au quotidien », « Vente ») sous l'en-tête, puis la boîte des apps de l'onglet (une
+    /// ligne de 48 pt chacune, quatre au plus : la hauteur d'avant les apps de vente).
+    public static let ecartOnglets: Double = 6, onglets: Double = 26, ecartBoite: Double = 8, ligne: Double = 48
+    public static func profondeurListe(_ g: AppBranchee.Groupe) -> Double {
+        haut + entete + ecartOnglets + onglets + ecartBoite + Double(g.apps.count) * ligne + bas
+    }
+    /// La plus haute des deux pages.
+    public static var profondeurListeMax: Double { AppBranchee.Groupe.allCases.map(profondeurListe).max() ?? 0 }
     /// Les Nouveautés : l'en-tête, 8 pt, le corps (`PlanNouveautes`).
     public static let ecartNouveautes: Double = 8
     public static func profondeurNouveautes(corps: Double) -> Double { haut + entete + ecartNouveautes + corps + bas }
@@ -405,7 +479,7 @@ public enum BlocDetailApp: Equatable, Sendable {
 
 /// Une ligne d'information du détail d'une app branchée.
 public struct InfoApp: Equatable, Sendable {
-    public enum Genre: Equatable, Sendable { case suit, base, personne, cle, etat }
+    public enum Genre: Equatable, Sendable { case suit, base, personne, cle, etat, compte }
     public var genre: Genre
     public var libelle: String
     /// En gras après le libellé (« Chantiers »), ou à droite pour la clé masquée.
@@ -441,6 +515,11 @@ public struct EtatAppsIlot: Equatable, Sendable {
     public var cles: [AppBranchee: String] = [:]
     public var notion: ReglageNotion?
     public var airtable: ReglageAirtable?
+    public var shopify: ReglageShopify?
+    public var hubspot: ReglageHubSpot?
+    public var stripe: ReglageStripe?
+    /// L'onglet montré dans « Tes apps ».
+    public var groupe: AppBranchee.Groupe = .quotidien
     /// Le prochain rendez-vous (détail de l'Agenda).
     public var rendezVous: EvenementAgenda?
     /// macOS permet à Voxile de lire le calendrier.
@@ -472,6 +551,8 @@ public struct EtatAppsIlot: Equatable, Sendable {
         switch a {
         case .notion: return notion.map { "Base suivie : " + $0.baseNom } ?? a.suit
         case .airtable: return airtable.map { "Table suivie : " + $0.tableNom } ?? a.suit
+        case .shopify: return shopify.map { "Boutique : " + $0.nom } ?? a.suit
+        case .stripe: return stripe?.test == true ? "Paiements du mode test" : "Paiements reçus et échoués"
         default: return a.suit
         }
     }
@@ -502,6 +583,18 @@ public struct EtatAppsIlot: Equatable, Sendable {
             b = [.info(InfoApp(.suit, a.suit))]
             if let r = airtable { b.append(.info(InfoApp(.base, "Table suivie : ", valeur: r.tableNom, changer: true))) }
             if let c = cles[a] { b.append(.info(InfoApp(.cle, a.nomCle, valeur: c))) }
+        case .shopify:
+            b = [.info(InfoApp(.suit, a.suit))]
+            if let r = shopify { b.append(.info(InfoApp(.compte, "Boutique : ", valeur: r.nom))) }
+            if let c = cles[a] { b.append(.info(InfoApp(.cle, a.nomCle, valeur: c))) }
+        case .hubspot:
+            b = [.info(InfoApp(.suit, a.suit))]
+            if let p = hubspot?.portail { b.append(.info(InfoApp(.compte, "Compte : ", valeur: String(p)))) }
+            if let c = cles[a] { b.append(.info(InfoApp(.cle, a.nomCle, valeur: c))) }
+        case .stripe:
+            b = [.info(InfoApp(.suit, a.suit))]
+            if let r = stripe { b.append(.info(InfoApp(.compte, "Mode : ", valeur: r.test ? "test" : "réel"))) }
+            if let c = cles[a] { b.append(.info(InfoApp(.cle, a.nomCle, valeur: c))) }
         }
         // la confirmation ouverte, on ne parle plus de l'erreur (on débranche)
         if !confirmation {
@@ -523,8 +616,10 @@ public struct EtatAppsIlot: Equatable, Sendable {
             return nil
         }()
         switch p.etape {
-        case .cle:
-            b = [.libelleCle, .champCle, .aideCle]
+        case .cle, .boutique, .identifiant:
+            // Shopify : la boutique déjà donnée, en vert au-dessus (une erreur prend sa place)
+            if erreur == nil, let v = p.valide { b.append(.valide(v)) }
+            b += [.libelleCle, .champCle, .aideCle]
             if let e = erreur { b.append(e) }
         case .bases, .tables, .personnes:
             // une erreur prend la place de « Clé valide » (elle compte plus, et la carte reste sous la hauteur permise)
@@ -544,6 +639,7 @@ public struct EtatAppsIlot: Equatable, Sendable {
         case (.libelleCle, .champCle): return 6
         case (.champCle, .aideCle): return 8
         case (.valide, .question): return 10
+        case (.valide, .libelleCle): return 10
         case (.question, .choix): return 6
         case (.choix, .choix): return 4
         case (.info, .info): return 0

@@ -8,6 +8,14 @@ public struct MemoireApps: Codable, Equatable, Sendable {
     public var branchees: Set<AppBranchee> = []
     public var notion: ReglageNotion?
     public var airtable: ReglageAirtable?
+    /// Shopify (la boutique), HubSpot (le compte), Stripe (le mode). Optionnels : un ancien fichier sans ces champs se relit.
+    public var shopify: ReglageShopify?
+    public var hubspot: ReglageHubSpot?
+    public var stripe: ReglageStripe?
+    /// Les débuts des prochaines fenêtres (Shopify et HubSpot : heure du Mac, avec un recouvrement ; Stripe : heure de Stripe).
+    public var shopifyDepuis: Date?
+    public var hubspotDepuis: Date?
+    public var stripeDepuis: Date?
     /// Les clés déjà vues, avec l'heure où on les a vues (oubliées après `garde`).
     public var vues: [String: Date] = [:]
     /// Les apps dont le premier passage est fait. Au premier passage, tout ce qui existe déjà est retenu SANS être annoncé (300 mails non
@@ -61,6 +69,9 @@ public struct MemoireApps: Codable, Equatable, Sendable {
         case .airtable: airtable = nil; airtableDepuis = nil
         case .mail: mailDernier = nil
         case .agenda: break
+        case .shopify: shopify = nil; shopifyDepuis = nil
+        case .hubspot: hubspot = nil; hubspotDepuis = nil
+        case .stripe: stripe = nil; stripeDepuis = nil
         }
     }
 
@@ -87,12 +98,12 @@ extension MemoireApps: FichierJSON {
 /// fermé n'est jamais sondé. Logique pure : l'interface n'a qu'à rappeler `AppsBranchees.sonder()` à `prochainSondage`.
 public struct PlanSondages: Equatable, Sendable {
     /// Mail : une minute (le script coûte quelques dizaines de millisecondes) ; Agenda : 5 min (rien n'y change sans prévenir, l'îlot
-    /// écoute déjà les changements) ; Notion et Airtable : 3 min (loin de leurs limites).
+    /// écoute déjà les changements) ; Notion, Airtable, Shopify, HubSpot et Stripe : 3 min (loin de leurs limites).
     public static func intervalle(_ a: AppBranchee) -> TimeInterval {
         switch a {
         case .mail: return 60
         case .agenda: return 300
-        case .notion, .airtable: return 180
+        case .notion, .airtable, .shopify, .hubspot, .stripe: return 180
         }
     }
     public static let espacementMax: TimeInterval = 30 * 60

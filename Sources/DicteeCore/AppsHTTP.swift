@@ -1,6 +1,6 @@
 import Foundation
 
-// Le réseau de « Tes apps » (Notion, Airtable) : un transport injectable (les contrôles en donnent un faux, jamais le vrai réseau), un
+// Le réseau de « Tes apps » (Notion, Airtable, Shopify, HubSpot, Stripe) : un transport injectable (les contrôles en donnent un faux, jamais le vrai réseau), un
 // espacement entre deux requêtes (les limites de débit des API), et la lecture commune des réponses (codes, « Retry-After », date du
 // serveur). La clé ne quitte jamais l'en-tête `Authorization` : ni journal, ni message d'erreur.
 
@@ -102,21 +102,24 @@ public enum ReponseHTTP {
         case 401: return .cleRefusee(app)
         case 403: return code == "restricted_resource" ? .introuvable(app) : .droitsManquants(app, "accès refusé")
         case 404: return .introuvable(app)
-        // Airtable demande 30 s après un 429 ; Notion donne « Retry-After »
-        case 429: return .limite(app, reessayerDans: reessayer ?? (app == .airtable ? 30 : 60))
+        // Airtable demande 30 s après un 429 ; HubSpot compte par fenêtres de 10 s ; Notion et Shopify donnent « Retry-After »
+        case 429: return .limite(app, reessayerDans: reessayer ?? (app == .airtable ? 30 : app == .hubspot ? 10 : 60))
         case 500...599: return .serveur(app, statut)
         default: return .refus(app, statut)
         }
     }
 
     /// Envoie, classe les erreurs (réseau, codes), et rend le JSON d'une réponse réussie.
+    /// `classer` : le classement propre à une API (le corps d'erreur lu) ; nil : le classement commun.
     static func json(_ app: AppBranchee, _ requete: URLRequest, transport: TransportHTTP, espacement: EspacementRequetes,
-                     codeErreur: ([String: Any]) -> String?) async throws(ErreurApp) -> (objet: [String: Any], reponse: HTTPURLResponse) {
+                     codeErreur: ([String: Any]) -> String?,
+                     classer: (Int, [String: Any]?) -> ErreurApp? = { _, _ in nil }) async throws(ErreurApp) -> (objet: [String: Any], reponse: HTTPURLResponse) {
         await espacement.patienter()
         let d: Data, r: HTTPURLResponse
         do { (d, r) = try await transport.envoyer(requete) } catch { throw .reseau(app) }
         guard (200..<300).contains(r.statusCode) else {
-            throw erreur(app, statut: r.statusCode, code: objet(d).flatMap(codeErreur), reessayer: reessayerApres(r))
+            let corps = objet(d)
+            throw classer(r.statusCode, corps) ?? erreur(app, statut: r.statusCode, code: corps.flatMap(codeErreur), reessayer: reessayerApres(r))
         }
         guard let o = objet(d) else { throw .reponseIllisible(app) }
         return (o, r)

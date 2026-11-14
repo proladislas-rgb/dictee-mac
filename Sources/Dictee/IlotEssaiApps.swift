@@ -219,8 +219,98 @@ extension IlotEssai {
         verifier(c.apps.estBranchee(.airtable) && m.apps.airtable?.tableNom == "Chantiers" && m.apps.detail == .airtable, "Airtable branché : « Suivi des chantiers › Chantiers »")
         controlerEcran("détail d'Airtable")
         clic(PlanApps.pointRetour(m.grille, .appsDetail), 0.8)
-        verifier(AppBranchee.allCases.allSatisfy { m.apps.ligne($0).bouton == .branche }, "les quatre apps « Branché » (maquette, étape 4)")
+        verifier(AppBranchee.Groupe.quotidien.apps.allSatisfy { m.apps.ligne($0).bouton == .branche } && m.apps.groupe == .quotidien,
+                 "les quatre apps « Au quotidien » « Branché » (maquette, étape 4)")
         controlerEcran("Tes apps, tout branché")
+
+        // --- 4b. l'onglet « Vente » : Shopify (adresse, identifiant, secret), HubSpot (clé de service), Stripe (sk_ refusée, puis rk_)
+        let boutique = "ma-boutique-essai.myshopify.com"
+        let idShopify = "0123456789abcdef0123456789abcdef", secretShopify = "shpss_essaiEssaiEssaiEssaiEssai1234"
+        // des clés d'essai fabriquées en morceaux : un texte qui a la forme d'une vraie clé bloque l'envoi sur GitHub (dépôt public)
+        let cleHubSpot = ["pat", "eu1", "11111111", "2222", "3333", "4444", "555555555555"].joined(separator: "-")
+        let skStripe = ["sk", "live", "essaiEssaiEssaiEssaiEssaiEssai"].joined(separator: "_"), rkStripe = ["rk", "live", "essaiEssaiEssaiEssaiEssaiEssai"].joined(separator: "_")
+        reseau.repondre("POST https://\(boutique)/admin/oauth/access_token", #"{"access_token":"jetonessai000000000000000000000001","scope":"read_orders","expires_in":86399}"#)
+        reseau.repondre("POST https://\(boutique)/admin/api/2026-10/graphql.json", #"{"data":{"shop":{"name":"Boutique Essai"},"orders":{"nodes":[]}}}"#)
+        reseau.repondre("GET https://api.hubapi.com/crm/v3/objects/contacts?limit=1", #"{"results":[]}"#)
+        reseau.repondre("GET https://api.hubapi.com/crm/v3/objects/deals?limit=1", #"{"results":[]}"#)
+        reseau.repondre("GET https://api.hubapi.com/account-info/v3/details", #"{"portalId":12345678,"companyCurrency":"EUR","uiDomain":"app-eu1.hubspot.com"}"#)
+        reseau.repondre("POST https://api.hubapi.com/crm/v3/objects/contacts/search", #"{"total":0,"results":[]}"#)
+        reseau.repondre("POST https://api.hubapi.com/crm/v3/objects/deals/search", #"{"total":0,"results":[]}"#)
+        reseau.repondre("GET https://api.stripe.com/v1/events?", #"{"object":"list","url":"/v1/events","has_more":false,"data":[]}"#)
+        clic(PlanApps.pointOnglet(m.grille, .vente), 0.7)
+        verifier(m.courante == .apps && m.apps.groupe == .vente && AppBranchee.Groupe.vente.apps.allSatisfy { m.apps.ligne($0).bouton == .brancher },
+                 "vrai clic sur l'onglet « Vente » : Shopify, HubSpot, Stripe à brancher (\(m.apps.groupe))")
+        controlerEcran("Tes apps, onglet Vente")
+        // Shopify
+        clic(PlanApps.pointBouton(m.grille, .shopify, .brancher), 0.9)
+        verifier(m.courante == .appsDetail && m.apps.parcours?.etape == .boutique && m.apps.parcours?.boutonActif == false, "Brancher Shopify : d'abord l'adresse de la boutique")
+        controlerEcran("Brancher Shopify (adresse vide)")
+        let avantPage = liens().count
+        clic(PlanApps.pointPageCle(m.grille, m.apps), 0.5)
+        verifier(liens().count == avantPage + 1 && liens().last == ClientShopify.pageBoutique, "« Ouvrir la page » : l'admin, Réglages › Domaines (\(liens().last?.absoluteString ?? "?"))")
+        presse = "https://\(boutique)/admin"
+        clic(PlanApps.pointColler(m.grille, m.apps), 0.5)
+        verifier(m.apps.parcours?.saisieMontree == boutique, "l'adresse collée, ramenée à « \(boutique) »")
+        controlerEcran("Brancher Shopify (adresse collée)")
+        let requetesShopify = reseau.requetes
+        clic(PlanApps.pointBouton(m.grille, m.apps), 0.6)
+        verifier(m.apps.parcours?.etape == .identifiant && m.apps.parcours?.boutique == boutique && reseau.requetes == requetesShopify
+                 && m.apps.blocs.first == .valide("Boutique \u{00B7} \(boutique)"), "« Continuer » : l'identifiant de l'app, la boutique rappelée en vert (rien n'est envoyé)")
+        controlerEcran("Brancher Shopify (identifiant)")
+        clic(PlanApps.pointPageCle(m.grille, m.apps), 0.5)
+        verifier(liens().last == ClientShopify.pageApp, "« Ouvrir la page » : le Dev Dashboard")
+        presse = idShopify
+        clic(PlanApps.pointColler(m.grille, m.apps), 0.5)
+        clic(PlanApps.pointBouton(m.grille, m.apps), 0.6)
+        verifier(m.apps.parcours?.etape == .cle && m.apps.parcours?.titreBouton == "Vérifier et brancher", "l'identifiant : puis le secret client")
+        controlerEcran("Brancher Shopify (secret)")
+        presse = secretShopify
+        clic(PlanApps.pointColler(m.grille, m.apps), 0.5)
+        clic(PlanApps.pointBouton(m.grille, m.apps), 0.3)
+        attendre(5) { m.apps.occupe || c.sondageAppsEnCours }
+        pause(0.3)
+        verifier(c.apps.estBranchee(.shopify) && m.apps.detail == .shopify && m.apps.parcours == nil && coffre.lire(.shopify) == "\(idShopify):\(secretShopify)"
+                 && m.apps.shopify?.nom == "Boutique Essai" && m.apps.blocs.contains { if case .info(let i) = $0 { return i.genre == .cle && i.valeur == ClePartielle.masque(secretShopify) }; return false },
+                 "Shopify branché : la boutique, le secret masqué, l'identifiant et le secret dans le coffre")
+        controlerEcran("détail de Shopify")
+        // HubSpot
+        clic(PlanApps.pointRetour(m.grille, .appsDetail), 0.8)
+        verifier(m.courante == .apps && m.apps.groupe == .vente, "« ‹ Tes apps » : l'onglet « Vente » reste ouvert")
+        clic(PlanApps.pointBouton(m.grille, .hubspot, .brancher), 0.9)
+        presse = cleHubSpot
+        clic(PlanApps.pointColler(m.grille, m.apps), 0.5)
+        controlerEcran("Brancher HubSpot (clé collée)")
+        clic(PlanApps.pointBouton(m.grille, m.apps), 0.3)
+        attendre(5) { m.apps.occupe || c.sondageAppsEnCours }
+        pause(0.3)
+        verifier(c.apps.estBranchee(.hubspot) && m.apps.detail == .hubspot && coffre.lire(.hubspot) == cleHubSpot && m.apps.hubspot?.portail == 12345678,
+                 "HubSpot branché d'un coup (rien à choisir) : le compte retenu")
+        controlerEcran("détail de HubSpot")
+        // Stripe : la clé secrète complète refusée sans rien envoyer
+        clic(PlanApps.pointRetour(m.grille, .appsDetail), 0.8)
+        clic(PlanApps.pointBouton(m.grille, .stripe, .brancher), 0.9)
+        presse = skStripe
+        clic(PlanApps.pointColler(m.grille, m.apps), 0.5)
+        let requetesStripe = reseau.requetes
+        clic(PlanApps.pointBouton(m.grille, m.apps), 0.3)
+        attendre(5) { m.apps.occupe }
+        verifier(m.apps.parcours?.erreur == .cleTropPuissante(.stripe) && reseau.requetes == requetesStripe && coffre.lire(.stripe) == nil && !c.apps.estBranchee(.stripe),
+                 "sk_live_ : « \(ErreurApp.cleTropPuissante(.stripe).texte) », rien n'est envoyé ni gardé")
+        controlerEcran("Brancher Stripe (clé secrète refusée)")
+        presse = rkStripe
+        clic(PlanApps.pointColler(m.grille, m.apps), 0.5)
+        clic(PlanApps.pointBouton(m.grille, m.apps), 0.3)
+        attendre(5) { m.apps.occupe || c.sondageAppsEnCours }
+        pause(0.3)
+        verifier(c.apps.estBranchee(.stripe) && coffre.lire(.stripe) == rkStripe && m.apps.stripe == ReglageStripe(test: false), "rk_live_ : Stripe branché (mode réel)")
+        controlerEcran("détail de Stripe")
+        clic(PlanApps.pointRetour(m.grille, .appsDetail), 0.8)
+        attendre(4) { c.sondageAppsEnCours || m.apps.occupe }
+        verifier(AppBranchee.Groupe.vente.apps.allSatisfy { m.apps.ligne($0).bouton == .branche }, "Shopify, HubSpot, Stripe « Branché » (\(AppBranchee.Groupe.vente.apps.map { m.apps.ligne($0).bouton.titre }))")
+        controlerEcran("Tes apps, Vente tout branché")
+        clic(PlanApps.pointOnglet(m.grille, .quotidien), 0.7)
+        verifier(m.apps.groupe == .quotidien && m.courante == .apps, "vrai clic sur « Au quotidien » : la première page revient")
+        controlerEcran("Tes apps, retour à Au quotidien")
 
         // --- 5. une nouveauté îlot fermé : l'aile, puis UN bandeau ; ce qui arrive pendant le bandeau le rejoint
         m.fermer(); c.panneau.simulerPointeur(forme: false); pause(1.0)
@@ -284,8 +374,38 @@ extension IlotEssai {
         c.panneau.simulerPointeur(forme: true); pause(0.9)
         verifier(m.courante == .centre, "survol sans neuf : le Centre, comme d'habitude (\(m.courante))")
 
+        // --- 6b. de la vente îlot fermé : une commande, un contact, deux paiements → UNE annonce qui les compte
+        m.fermer(); c.panneau.simulerPointeur(forme: false); pause(1.0)
+        attendre(4) { c.sondageAppsEnCours }
+        let maintenantISO = c.maintenant().formatted(Date.ISO8601FormatStyle())
+        reseau.repondre("POST https://\(boutique)/admin/api/2026-10/graphql.json",
+                        ##"{"data":{"orders":{"nodes":[{"id":"gid://shopify/Order/1003","name":"#1003","createdAt":"\##(maintenantISO)","cancelledAt":null,"displayFinancialStatus":"PAID","totalPriceSet":{"shopMoney":{"amount":"64.5","currencyCode":"EUR"}},"transactions":[{"kind":"SALE","status":"SUCCESS","processedAt":"\##(maintenantISO)"}]}]}}}"##)
+        reseau.repondre("POST https://api.hubapi.com/crm/v3/objects/contacts/search",
+                        #"{"total":1,"results":[{"id":"501","properties":{"createdate":"\#(maintenantISO)","firstname":"Dominique","lastname":"Essai","email":"dominique@exemple.fr"}}]}"#)
+        let ts = Int(c.maintenant().timeIntervalSince1970)
+        reseau.repondre("GET https://api.stripe.com/v1/events?",
+                        #"{"object":"list","has_more":false,"data":[{"id":"evt_essai1","object":"event","created":\#(ts),"livemode":true,"type":"payment_intent.succeeded","data":{"object":{"id":"pi_essai1","amount":6450,"amount_received":6450,"currency":"eur","description":null}}},{"id":"evt_essai2","object":"event","created":\#(ts),"livemode":true,"type":"payment_intent.payment_failed","data":{"object":{"id":"pi_essai2","amount":2000,"currency":"eur","description":null}}}]}"#)
+        c.sonderApps(force: true)
+        attendre(IlotMoteur.dureeAileApps + 4) { m.courante != .appsBandeau }
+        verifier(m.courante == .appsBandeau && m.bandeau?.apps?.titre == "4 nouveautés" && m.bandeau?.apps?.sousTitre == "1 commande, 1 contact, 2 paiements",
+                 "de la vente : UN bandeau « \(m.bandeau?.apps?.titre ?? "?") · \(m.bandeau?.apps?.sousTitre ?? "?") »")
+        posee()
+        let zb = m.grille.zoneAnnonce(.appsBandeau)
+        clic(CGPoint(x: zb.maxX - lo / 2, y: zb.midY), 0.9)
+        verifier(m.courante == .appsNouveautes && Set(PlanNouveautes.sections(m.apps.actuelles).map(\.app)).isSuperset(of: [.shopify, .hubspot, .stripe]),
+                 "« Ouvrir » : les Nouveautés montrent Shopify, HubSpot et Stripe (\(PlanNouveautes.sections(m.apps.actuelles).map(\.app.rawValue)))")
+        controlerEcran("Nouveautés avec la vente")
+        clic(PlanApps.pointOuvrir(m.grille, m.apps, "shopify:payee:1003"), 0.6)
+        verifier(liens().last?.absoluteString == "https://admin.shopify.com/store/ma-boutique-essai/orders/1003" && !m.fenetreOuverte,
+                 "« Ouvrir » sur la commande : l'admin de Shopify, l'îlot se range")
+        pause(0.6)
+        c.panneau.simulerPointeur(forme: false); pause(0.9)
+        c.panneau.simulerPointeur(forme: true); pause(0.9)
+        verifier(m.courante == .centre, "survol, la liste vue : le Centre (\(m.courante))")
+
         // --- 7. débrancher Airtable : une confirmation, puis la clé effacée
         clic(EnteteCentre.centrePilule(.apps, m, entete: PlanCentre.cadreEntete(m.grille)), 0.9)
+        if m.apps.groupe != .quotidien { clic(PlanApps.pointOnglet(m.grille, .quotidien), 0.7) }
         clic(PlanApps.pointBouton(m.grille, .airtable, .branche), 0.9)
         verifier(m.courante == .appsDetail && m.apps.detail == .airtable, "le détail d'Airtable (maquette, étape 9)")
         clic(PlanApps.pointDebrancher(m.grille, m.apps), 0.7)
@@ -294,12 +414,23 @@ extension IlotEssai {
         clic(PlanApps.pointConfirmer(m.grille, m.apps), 0.9)
         verifier(!c.apps.estBranchee(.airtable) && coffre.lire(.airtable) == nil && m.courante == .apps && m.apps.ligne(.airtable).bouton == .brancher,
                  "confirmé : Airtable débranché, son jeton effacé, retour à la liste (« Brancher »)")
+        // débrancher Shopify : l'identifiant et le secret quittent le coffre
+        clic(PlanApps.pointOnglet(m.grille, .vente), 0.7)
+        clic(PlanApps.pointBouton(m.grille, .shopify, .branche), 0.9)
+        verifier(m.courante == .appsDetail && m.apps.detail == .shopify, "le détail de Shopify")
+        clic(PlanApps.pointDebrancher(m.grille, m.apps), 0.7)
+        controlerEcran("Débrancher Shopify ?")
+        clic(PlanApps.pointConfirmer(m.grille, m.apps), 0.9)
+        verifier(!c.apps.estBranchee(.shopify) && coffre.lire(.shopify) == nil && m.courante == .apps && m.apps.ligne(.shopify).bouton == .brancher,
+                 "Shopify débranché : identifiant et secret effacés")
 
         // --- jamais une clé dans le fichier ni au journal
         let texte = (try? String(contentsOf: fichier, encoding: .utf8)) ?? ""
-        verifier(!texte.isEmpty && !texte.contains(cleBonne) && !texte.contains("patEssai") && journal.allSatisfy { !$0.contains("ntn_") && !$0.contains("patEssai") },
-                 "apps.json et le journal : aucune clé (\(journal.count) lignes)")
-        verifier(!journal.contains { $0.contains("Camille") || $0.contains("Mairie") || $0.contains("Devis") }, "le journal : ni nom ni objet")
+        let secrets = [cleBonne, "patEssai", idShopify, secretShopify, "jetonessai", cleHubSpot, rkStripe, skStripe, "ntn_"]
+        verifier(!texte.isEmpty && !secrets.contains { texte.contains($0) } && journal.allSatisfy { l in !secrets.contains { l.contains($0) } },
+                 "apps.json et le journal : aucune clé, aucun identifiant ni secret (\(journal.count) lignes)")
+        verifier(!journal.contains { l in ["Camille", "Mairie", "Devis", "Dominique", "exemple.fr", "64,5", "#1003", "ma-boutique", "Boutique Essai"].contains { l.contains($0) } },
+                 "le journal : ni nom, ni objet, ni e-mail, ni montant, ni boutique")
         m.fermer(); c.panneau.simulerPointeur(forme: false); pause(0.8)
         c.reveilApps?.cancel(); c.reveilApps = nil
         c.facadeApps = nil

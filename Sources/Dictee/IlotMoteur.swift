@@ -739,7 +739,7 @@ final class IlotMoteur: ObservableObject {
         d.merge(hauteursVoix) { $1 }
         // « Tes apps » : chaque carte épouse ce qu'elle montre (MesuresApps, EtatAppsIlot)
         let pc0 = CGFloat(GeoIlot.profondeurCentre)
-        d[.apps] = CGFloat(MesuresApps.profondeurListe) - pc0
+        d[.apps] = CGFloat(MesuresApps.profondeurListe(apps.groupe)) - pc0
         d[.appsDetail] = CGFloat(min(MesuresApps.profondeurMax, apps.profondeurDetail)) - pc0
         d[.appsNouveautes] = CGFloat(apps.profondeurNouveautes) - pc0
         return d

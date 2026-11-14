@@ -102,7 +102,7 @@ func controlesApps() async {
              "les erreurs disent quoi faire, en français")
     verifier(ErreurApp.cleRefusee(.airtable).demandeUnGeste && !ErreurApp.reseau(.notion).demandeUnGeste && !ErreurApp.limite(.notion, reessayerDans: 2).demandeUnGeste,
              "clé refusée : on attend un geste ; réseau, limite : on réessaie")
-    verifier(AppBranchee.allCases.filter(\.demandeUneCle) == [.notion, .airtable] && Desinstallation.comptesTrousseauApps == ["notion", "airtable"],
+    verifier(AppBranchee.allCases.filter { !$0.demandeUneCle } == [.mail, .agenda] && Desinstallation.comptesTrousseauApps.prefix(2) == ["notion", "airtable"],
              "Notion et Airtable ont une clé (Trousseau, même service que Groq) ; Mail et Agenda non")
 
     groupe("Tes apps : lecture des réponses HTTP")
@@ -527,7 +527,7 @@ func controlesAppsIlot() {
     verifier(s.first { $0.app == .notion }?.lignes.first?.id == "notion:5", "les plus récentes d'abord")
     verifier(PlanNouveautes.sections([:]).isEmpty && PlanNouveautes.hauteur([]) == PlanNouveautes.corpsVide, "rien : la phrase « Rien de nouveau »")
     verifier(MesuresApps.profondeurNouveautes(corps: PlanNouveautes.corpsMax) <= GeoIlot.profondeurCentre, "les Nouveautés jamais plus hautes que le Centre")
-    verifier(MesuresApps.profondeurListe <= GeoIlot.profondeurCentre, "Tes apps : \(Int(MesuresApps.profondeurListe)) pt, sous la hauteur du Centre")
+    verifier(MesuresApps.profondeurListeMax <= GeoIlot.profondeurCentre, "Tes apps : \(Int(MesuresApps.profondeurListeMax)) pt au plus, sous la hauteur du Centre")
 
     // la clé, jamais lisible
     verifier(ClePartielle.masque("ntn_abcdefghijklmnopqrstuvwxyzK7Rm") == "ntn_\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}K7Rm"
@@ -539,7 +539,7 @@ func controlesAppsIlot() {
              && ErreurApp.mailFerme.geste == .aucun && ErreurApp.introuvable(.notion).geste == .choisirBase, "chaque erreur a son geste")
     let toutes: [ErreurApp] = [.cleAbsente(.notion), .cleRefusee(.notion), .droitsManquants(.airtable, "x"), .introuvable(.notion), .introuvable(.airtable),
                                .limite(.airtable, reessayerDans: 30), .serveur(.notion, 502), .refus(.notion, 400), .reseau(.mail), .reponseIllisible(.notion),
-                               .reglageIncomplet(.notion), .autorisationMail, .mailFerme, .mail(-1712)]
+                               .reglageIncomplet(.notion), .autorisationMail, .mailFerme, .mail(-1712), .cleTropPuissante(.stripe), .introuvable(.shopify)]
     verifier(toutes.allSatisfy { $0.court.count <= 36 && !$0.court.isEmpty }, "les formes courtes tiennent en 36 caractères")
 
     // le parcours : le grand bouton, les pages de choix, « Réessayer » quand la liste n'a pas pu être lue

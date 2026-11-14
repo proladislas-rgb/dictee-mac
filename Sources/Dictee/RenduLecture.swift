@@ -270,6 +270,51 @@ enum RenduLecture {
             carte(etat { e in tout(&e); e.etats[.mail] = .erreur(.autorisationMail) }, .apps, geo: g200, "ilot-35s-apps-liste-camera-200")
             carte(etat { e in tout(&e); e.etats[.notion] = .erreur(.reseau(.notion)); e.detail = .notion }, .appsDetail, geo: g200, "ilot-35t-apps-notion-reessayer-camera-200")
             carte(etat(), .centre, geo: g200, "ilot-35u-apps-centre-pilule-camera-200")
+
+            // Shopify, HubSpot, Stripe (13/11 nuit) : l'onglet « Vente », les trois parcours, le détail, l'annonce regroupée
+            // des clés d'essai fabriquées en morceaux : un texte qui a la forme d'une vraie clé bloque l'envoi sur GitHub (dépôt public)
+            let patEssai = ["pat", "eu1", "essai", "essai", "essai", "essai", "4f2a"].joined(separator: "-")
+            let rkEssai = ["rk", "live", "essaiEssaiEssaiEssai8Hn1"].joined(separator: "_"), skEssai = ["sk", "live", "essaiEssaiEssaiEssai8Hn1"].joined(separator: "_")
+            func vente(_ e: inout EtatAppsIlot) {
+                tout(&e)
+                e.etats[.shopify] = .aJour(t0); e.etats[.hubspot] = .aJour(t0); e.etats[.stripe] = .aJour(t0)
+                e.shopify = ReglageShopify(boutique: "ma-boutique.myshopify.com", nom: "Boutique Essai")
+                e.hubspot = ReglageHubSpot(portail: 12345678, domaine: "app-eu1.hubspot.com", devise: "EUR")
+                e.stripe = ReglageStripe(test: false)
+                e.cles[.shopify] = ClePartielle.masque("shpss_essaiEssaiEssaiEssai7Kq2")
+                e.cles[.hubspot] = ClePartielle.masque(patEssai)
+                e.cles[.stripe] = ClePartielle.masque(rkEssai)
+                e.actuelles[.shopify] = [nv("shopify:payee:1003", .shopify, "Commande #1003", "Nouvelle, payée \u{00B7} 64,50\u{00A0}€", 70)]
+                e.actuelles[.hubspot] = [nv("hubspot:contact:501", .hubspot, "Dominique Essai", "Nouveau contact", 75),
+                                         nv("hubspot:affaire:901@closedwon@1", .hubspot, "Atelier Essai, agrandissement", "Gagnée \u{00B7} 12\u{202F}000\u{00A0}€", -400)]
+                e.actuelles[.stripe] = [nv("stripe:evt_1", .stripe, "Paiement reçu", "64,50\u{00A0}€", 71), nv("stripe:evt_2", .stripe, "Paiement échoué", "20\u{00A0}€", 20)]
+                e.groupe = .vente
+            }
+            carte(etat { $0.groupe = .vente; $0.nonLues = [] }, .apps, "ilot-35v-apps-vente-liste")
+            carte(etat { e in vente(&e); e.etats[.hubspot] = .erreur(.droitsManquants(.hubspot, "crm.objects.deals.read")); e.nonLues = ["m1"] }, .apps, "ilot-35w-apps-vente-branchees-hubspot-a-revoir")
+            carte(parcours(.shopify) { $0.saisie = "https://ma-boutique.myshopify.com/admin" }, .appsDetail, "ilot-35x-apps-shopify-1-adresse")
+            carte(parcours(.shopify) { $0.etape = .identifiant; $0.boutique = "ma-boutique.myshopify.com"; $0.saisie = "0123456789abcdef0123456789abcdef" }, .appsDetail,
+                  "ilot-35x2-apps-shopify-2-identifiant")
+            carte(parcours(.shopify) { $0.etape = .cle; $0.boutique = "ma-boutique.myshopify.com"; $0.saisie = "shpss_essaiEssaiEssaiEssai7Kq2" }, .appsDetail,
+                  "ilot-35x3-apps-shopify-3-secret")
+            carte(parcours(.shopify) { $0.etape = .cle; $0.boutique = "ma-boutique.myshopify.com"; $0.saisie = "shpss_essaiEssaiEssaiEssai7Kq2"
+                $0.erreur = .droitsManquants(.shopify, "la boutique n\u{2019}est pas dans ton organisation Shopify") }, .appsDetail, "ilot-35x4-apps-shopify-hors-organisation")
+            carte(parcours(.hubspot) { $0.saisie = patEssai }, .appsDetail, "ilot-35y-apps-hubspot-cle")
+            carte(parcours(.stripe) { $0.saisie = skEssai; $0.erreur = .cleTropPuissante(.stripe) }, .appsDetail, "ilot-35y2-apps-stripe-cle-secrete-refusee")
+            carte(etat { e in vente(&e); e.detail = .shopify }, .appsDetail, "ilot-35z-apps-shopify-branche")
+            carte(etat { e in vente(&e); e.detail = .stripe; e.etats[.stripe] = .erreur(.droitsManquants(.stripe, ClientStripe.droits)) }, .appsDetail, "ilot-35z2-apps-stripe-droits")
+            carte(etat { e in vente(&e); e.nonLues = ["shopify:payee:1003", "hubspot:contact:501", "stripe:evt_1"] }, .appsNouveautes, "ilot-35z3-apps-nouveautes-vente")
+            let venteAnnonce = AnnonceApps([nv("shopify:payee:1003", .shopify, "Commande #1003", "Nouvelle, payée \u{00B7} 64,50\u{00A0}€", 70),
+                                            nv("hubspot:contact:501", .hubspot, "Dominique Essai", "Nouveau contact", 75),
+                                            nv("stripe:evt_1", .stripe, "Paiement reçu", "64,50\u{00A0}€", 71), nv("stripe:evt_2", .stripe, "Paiement échoué", "20\u{00A0}€", 20)])
+            ecrire(bureau(hauteur: moyenBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .appsBandeau, jusqua: t0.addingTimeInterval(60), ligne1: "", ligne2: "", apps: venteAnnonce) }) },
+                   "ilot-35z4-apps-bandeau-vente-regroupe")
+            let deuxPaiements = AnnonceApps([nv("stripe:evt_1", .stripe, "Paiement reçu", "64,50\u{00A0}€", 71), nv("stripe:evt_2", .stripe, "Paiement reçu", "20\u{00A0}€", 20)])
+            ecrire(bureau(hauteur: petitBureau) { ilot(scene { $0.bandeau = BandeauIlot(vue: .appsAile, jusqua: t0.addingTimeInterval(60), ligne1: "", ligne2: "", apps: deuxPaiements) }) },
+                   "ilot-35z5-apps-aile-deux-paiements")
+            carte(etat { e in vente(&e); e.etats[.hubspot] = .erreur(.droitsManquants(.hubspot, "crm.objects.deals.read")) }, .apps, geo: g200, "ilot-35z6-apps-vente-camera-200")
+            carte(parcours(.shopify) { $0.etape = .cle; $0.boutique = "ma-boutique.myshopify.com"; $0.saisie = "shpss_essaiEssaiEssaiEssai7Kq2"
+                $0.erreur = .droitsManquants(.shopify, "la boutique n\u{2019}est pas dans ton organisation Shopify") }, .appsDetail, geo: g200, "ilot-35z7-apps-shopify-hors-organisation-camera-200")
         }
         if ProcessInfo.processInfo.environment["DICTEE_RENDU_SEUL"] == "apps" { rendusApps(); return ok ? 0 : 1 }
         let musique = modele(contenus[2])

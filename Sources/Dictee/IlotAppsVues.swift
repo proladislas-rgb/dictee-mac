@@ -21,15 +21,31 @@ enum PlanApps {
         let e = cadreEntete(g, v); return CGPoint(x: e.minX + PiluleCentre.largeur(motRetour(v), retour: true) / 2, y: e.midY)
     }
 
-    // la liste « Tes apps »
+    // la liste « Tes apps » : deux onglets, puis les apps de l'onglet
     static let logoListe: CGFloat = 30, retraitTexte: CGFloat = 50
-    static func cadreBoite(_ g: GrilleIlot) -> CGRect {
+    static func cadreOnglets(_ g: GrilleIlot) -> CGRect {
         let z = zone(g, .apps)
-        let y = z.minY + entete + CGFloat(MesuresApps.ecartPhrase + MesuresApps.phrase + MesuresApps.ecartBoite)
-        return CGRect(x: z.minX, y: y, width: z.width, height: CGFloat(MesuresApps.ligne) * CGFloat(AppBranchee.allCases.count))
+        return CGRect(x: z.minX, y: z.minY + entete + CGFloat(MesuresApps.ecartOnglets), width: z.width, height: CGFloat(MesuresApps.onglets))
     }
+    /// Un onglet : 14 pt de chaque côté du nom (et 6 + 6 pour le point bleu des nouveautés non lues), 6 pt entre les deux.
+    static func largeurOnglet(_ o: AppBranchee.Groupe) -> CGFloat { MesureIlot.texte(o.nom, 12.5, .semibold) + 28 + 12 }
+    static let ecartOnglets: CGFloat = 6
+    static func pointOnglet(_ g: GrilleIlot, _ o: AppBranchee.Groupe) -> CGPoint {
+        let c = cadreOnglets(g)
+        var x = c.minX
+        for x0 in AppBranchee.Groupe.allCases {
+            if x0 == o { return CGPoint(x: x + largeurOnglet(x0) / 2, y: c.midY) }
+            x += largeurOnglet(x0) + ecartOnglets
+        }
+        return CGPoint(x: c.minX, y: c.midY)
+    }
+    static func cadreBoite(_ g: GrilleIlot, _ o: AppBranchee.Groupe) -> CGRect {
+        let c = cadreOnglets(g)
+        return CGRect(x: c.minX, y: c.maxY + CGFloat(MesuresApps.ecartBoite), width: c.width, height: CGFloat(MesuresApps.ligne) * CGFloat(o.apps.count))
+    }
+    /// La ligne d'une app, dans la page de son onglet (l'essai ouvre l'onglet avant d'y cliquer).
     static func cadreLigne(_ g: GrilleIlot, _ a: AppBranchee) -> CGRect {
-        let b = cadreBoite(g), i = CGFloat(AppBranchee.allCases.firstIndex(of: a) ?? 0)
+        let b = cadreBoite(g, a.groupe), i = CGFloat(a.groupe.apps.firstIndex(of: a) ?? 0)
         return CGRect(x: b.minX, y: b.minY + CGFloat(MesuresApps.ligne) * i, width: b.width, height: CGFloat(MesuresApps.ligne))
     }
     /// Le bouton à droite d'une ligne (« Brancher », « ● Branché › »).
@@ -44,8 +60,7 @@ enum PlanApps {
         let l = cadreLigne(g, a); return CGPoint(x: l.maxX - 10 - largeurBouton(b) / 2, y: l.midY)
     }
     /// La place du sous-titre d'une ligne (entre le logo et le bouton).
-    static func placeSousTitre(_ g: GrilleIlot, _ b: BoutonLigneApp) -> CGFloat { cadreBoite(g).width - retraitTexte - 10 - largeurBouton(b) - 10 }
-    static let phraseListe = "Branche une app : ses nouveautés arrivent dans l\u{2019}îlot, en direct."
+    static func placeSousTitre(_ g: GrilleIlot, _ b: BoutonLigneApp) -> CGFloat { zone(g, .apps).width - retraitTexte - 10 - largeurBouton(b) - 10 }
     static var largeurPiluleNouveautes: CGFloat { PiluleCentre.largeur("Nouveautés") + 10 }
 
     // le détail : les blocs, posés les uns sous les autres
@@ -64,6 +79,10 @@ enum PlanApps {
     static let largeurColler: CGFloat = PiluleOutil.largeur("Collée", icone: "checkmark", padding: 14)
     static func pointColler(_ g: GrilleIlot, _ e: EtatAppsIlot) -> CGPoint? {
         cadreBloc(g, e) { $0 == .champCle }.map { CGPoint(x: $0.maxX - largeurColler / 2, y: $0.midY) }
+    }
+    /// « Ouvrir la page ↗ » à droite du libellé du champ.
+    static func pointPageCle(_ g: GrilleIlot, _ e: EtatAppsIlot) -> CGPoint? {
+        cadreBloc(g, e) { $0 == .libelleCle }.map { CGPoint(x: $0.maxX - PiluleOutil.largeur("Ouvrir la page", icone: "arrow.up.right", taille: 12, padding: 10) / 2, y: $0.midY) }
     }
     static func pointBouton(_ g: GrilleIlot, _ e: EtatAppsIlot) -> CGPoint? { cadreBloc(g, e) { $0 == .bouton }.map { CGPoint(x: $0.midX, y: $0.midY) } }
     static func pointChoix(_ g: GrilleIlot, _ e: EtatAppsIlot, _ id: String) -> CGPoint? {
@@ -116,7 +135,7 @@ enum PlanApps {
         let retour = PiluleCentre.largeur("Centre", retour: true), retourApps = PiluleCentre.largeur("Tes apps", retour: true)
         // la liste
         tient(retour + 10 + t("Tes apps", 13.5, .bold) + 10 + largeurPiluleNouveautes, W, "en-tête de Tes apps")
-        tient(t(phraseListe, 12, .medium) + 1, W, "phrase de Tes apps")
+        tient(AppBranchee.Groupe.allCases.map(largeurOnglet).reduce(0, +) + ecartOnglets, W, "onglets de Tes apps")
         let boite = W
         for a in AppBranchee.allCases {
             let l = e.ligne(a)
@@ -130,9 +149,15 @@ enum PlanApps {
             tient(retourApps + 10 + 22 + 7 + t(e.titreDetail, 13.5, .bold) + 10 + pastille, W, "en-tête du détail")
             for b in e.blocs {
                 switch b {
-                case .libelleCle: tient(t(a.libelleCle, 12.5, .semibold) + 8 + PiluleOutil.largeur("Ouvrir la page", icone: "arrow.up.right", taille: 12, padding: 10), W, "libellé de la clé")
-                case .champCle: tient(MesureIlot.texte(e.parcours?.saisie.map(ClePartielle.masque) ?? a.exempleCle, 13, .medium) + 24, W - 8 - largeurColler, "champ de la clé")
-                case .aideCle: let x = a.aideCle; tient(t(x.debut, 11.5, .medium) + t(x.fort, 11.5, .semibold) + t(x.fin, 11.5, .medium), W, "aide de la clé")
+                case .libelleCle: tient(t(e.parcours?.champ?.libelle ?? "", 12.5, .semibold) + 8 + PiluleOutil.largeur("Ouvrir la page", icone: "arrow.up.right", taille: 12, padding: 10), W, "libellé de la clé")
+                case .champCle:
+                    // l'exemple, et la forme la plus longue d'une saisie (la clé masquée : 4 + 8 + 4 ; l'adresse d'une boutique au nom long)
+                    let ch = e.parcours?.champ
+                    tient(MesureIlot.texte(ch?.exemple ?? "", 13, .medium) + 24, W - 8 - largeurColler, "exemple du champ")
+                    // une clé masquée (le préfixe le plus long, huit points, quatre caractères larges) ; une adresse vient de Hugues : coupée au milieu
+                    if ch?.masque == true { tient(MesureIlot.texte("rk_live_\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}WWWW", 13, .medium) * 1.15 + 24, W - 8 - largeurColler, "clé collée") }
+                case .aideCle:
+                    if let x = e.parcours?.champ?.aide { tient(t(x.debut, 11.5, .medium) + t(x.fort, 11.5, .semibold) + t(x.fin, 11.5, .medium), W, "aide de la clé") }
                 case .valide(let v): tient(MesureIlot.symbole("checkmark", 11, .bold) + 7 + t(v, 12.5, .semibold) + 24, W, "clé valide")
                 case .question: tient(t(e.parcours?.question ?? "", 12.5, .semibold) + 6 + 22 + 6 + 30 + 6 + 22, W, "question")
                 case .erreur(let x, let g):
@@ -223,7 +248,6 @@ struct CarteApps: View {
 
     var body: some View {
         let v = VueIlot.apps
-        let z = PlanApps.zone(g, v)
         let e = m.apps
         ZStack(alignment: .topLeading) {
             FondCarteApps(m: m, v: v, g: g)
@@ -233,23 +257,51 @@ struct CarteApps: View {
                 }
             }
             .posee(PlanApps.cadreEntete(g, v), m.aspect(v, rang: 0), ancre: .topLeading)
-            Text(PlanApps.phraseListe).font(.system(size: 12, weight: .medium)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
-                .allowsHitTesting(false)
-                .posee(CGRect(x: z.minX + 1, y: z.minY + PlanApps.entete + CGFloat(MesuresApps.ecartPhrase), width: z.width, height: CGFloat(MesuresApps.phrase)),
-                       m.aspect(v, rang: 1), ancre: .topLeading, .leading)
+            OngletsApps(m: m, e: e)
+                .posee(PlanApps.cadreOnglets(g), m.aspect(v, rang: 1), ancre: .topLeading, .leading)
             VStack(spacing: 0) {
-                ForEach(Array(AppBranchee.allCases.enumerated()), id: \.element) { i, a in
+                ForEach(Array(e.groupe.apps.enumerated()), id: \.element) { i, a in
                     if i > 0 { Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1).padding(.leading, PlanApps.retraitTexte).allowsHitTesting(false) }
                     LigneTesApps(m: m, l: e.ligne(a)).frame(height: CGFloat(MesuresApps.ligne) - (i > 0 ? 1 : 0))
                 }
             }
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.07)).allowsHitTesting(false))
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .posee(PlanApps.cadreBoite(g), m.aspect(v, rang: 2), ancre: .top)
+            .posee(PlanApps.cadreBoite(g, e.groupe), m.aspect(v, rang: 2), ancre: .top)
         }
         .frame(width: IlotMoteur.largeur, height: IlotMoteur.hauteurMax, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Tes apps")
+    }
+}
+
+/// « Au quotidien » et « Vente » : deux onglets (sept apps ne tiennent pas dans une carte). L'onglet montré est blanc ; un point bleu
+/// dit qu'une app de l'autre onglet a une nouveauté non lue.
+private struct OngletsApps: View {
+    @ObservedObject var m: IlotMoteur
+    var e: EtatAppsIlot
+    var body: some View {
+        HStack(spacing: PlanApps.ecartOnglets) {
+            ForEach(AppBranchee.Groupe.allCases, id: \.self) { o in
+                let choisi = e.groupe == o
+                let nonLu = e.toutes.contains { $0.app.groupe == o && e.nonLues.contains($0.id) }
+                Button { m.surAction(.apps(.groupe(o))) } label: {
+                    HStack(spacing: 6) {
+                        Text(o.nom).font(.system(size: 12.5, weight: .semibold)).lineLimit(1).fixedSize()
+                        Circle().fill(nonLu && !choisi ? CouleursIlot.bleu : .clear).frame(width: 6, height: 6)
+                    }
+                    .foregroundStyle(choisi ? Color.black : Color.white.opacity(0.75))
+                    .padding(.leading, 14).padding(.trailing, 8)
+                    .frame(width: PlanApps.largeurOnglet(o), height: CGFloat(MesuresApps.onglets))
+                    .background(Capsule().fill(choisi ? Color.white : Color.white.opacity(0.1)))
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(AppuiIlot(echelle: 0.95))
+                .accessibilityLabel(o.nom + (nonLu ? ", des nouveautés non lues" : ""))
+                .accessibilityAddTraits(choisi ? [.isButton, .isSelected] : .isButton)
+            }
+            Spacer(minLength: 0)
+        }
     }
 }
 
@@ -395,10 +447,11 @@ struct CarteDetailApp: View {
 
     @ViewBuilder private func bloc(_ b: BlocDetailApp, _ e: EtatAppsIlot) -> some View {
         let app = e.parcours?.app ?? e.detail ?? .notion
+        let champ = e.parcours?.champ
         switch b {
         case .libelleCle:
             HStack(spacing: 8) {
-                Text(app.libelleCle).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Color.white.opacity(0.6)).lineLimit(1).allowsHitTesting(false)
+                Text(champ?.libelle ?? "").font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Color.white.opacity(0.6)).lineLimit(1).allowsHitTesting(false)
                 Spacer(minLength: 0)
                 PiluleOutil(titre: "Ouvrir la page", icone: "arrow.up.right", hauteur: 24, taille: 12, padding: 10,
                             etiquette: "Ouvrir la page où créer la clé, dans le navigateur") { m.surAction(.apps(.pageCle)) }
@@ -406,21 +459,21 @@ struct CarteDetailApp: View {
         case .champCle:
             let saisie = e.parcours?.saisie
             HStack(spacing: 8) {
-                Text(saisie.map(ClePartielle.masque) ?? app.exempleCle)
-                    .font(.system(size: 13, weight: .medium, design: .monospaced))
-                    .foregroundStyle(saisie == nil ? Color.white.opacity(0.35) : .white).lineLimit(1)
+                Text(e.parcours?.saisieMontree ?? champ?.exemple ?? "")
+                    .font(.system(size: 13, weight: .medium, design: champ?.masque == false ? .default : .monospaced))
+                    .foregroundStyle(saisie == nil ? Color.white.opacity(0.35) : .white).lineLimit(1).truncationMode(.middle)
                     .padding(.horizontal, 12)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.white.opacity(0.08)))
                     .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(Color.white.opacity(saisie == nil ? 0.12 : 0.35), lineWidth: 1))
                     .allowsHitTesting(false)
-                    .accessibilityLabel(saisie == nil ? "Aucune clé collée" : "Clé collée")
+                    .accessibilityLabel(saisie == nil ? "Rien de collé : \(champ?.libelle ?? "")" : (champ?.masque == false ? "Collé : \(e.parcours?.saisieMontree ?? "")" : "Clé collée"))
                 PiluleOutil(titre: saisie == nil ? "Coller" : "Collée", icone: saisie == nil ? "doc.on.clipboard" : "checkmark", hauteur: 36, taille: 13, padding: 14,
-                            etiquette: "Coller la clé copiée") { m.surAction(.apps(.coller)) }
+                            etiquette: "Coller ce qui est copié : \(champ?.libelle ?? "la clé")") { m.surAction(.apps(.coller)) }
                     .frame(width: PlanApps.largeurColler)
             }
         case .aideCle:
-            let a = app.aideCle
+            let a = champ?.aide ?? (debut: "", fort: "", fin: "")
             Text("\(a.debut)\(Text(a.fort).foregroundColor(.white).fontWeight(.semibold))\(a.fin)")
                 .font(.system(size: 11.5, weight: .medium)).foregroundStyle(Color.white.opacity(0.5)).lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -579,6 +632,7 @@ private struct LigneInfo: View {
         case .personne: return "person"
         case .cle: return "key"
         case .etat: return "macwindow"
+        case .compte: return "building.2"
         }
     }
     var body: some View {

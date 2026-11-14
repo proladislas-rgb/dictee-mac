@@ -9,6 +9,8 @@ import DicteeCore
 // - `surChangement` → les cartes (la liste « Tes apps », le détail d'une app, les Nouveautés) ;
 // - au survol, s'il y a du neuf, l'îlot s'ouvre sur « Nouveautés » (IlotMoteur.surNouveautesSiNeuf) ;
 // - brancher : Mail et Agenda d'un clic ; Notion et Airtable : « Coller » (jamais ⌘V), « Vérifier », la base (la table, la personne) ;
+//   HubSpot et Stripe : la clé seule ; Shopify : l'adresse de la boutique, l'identifiant de l'app, son secret ;
+// - « Tes apps » a deux onglets (« Au quotidien », « Vente ») : quatre apps au plus par page, la hauteur d'avant ;
 // - débrancher : une confirmation, puis la clé est effacée.
 // Rien de ce que disent les apps (objets, noms, titres) n'est écrit au journal : seulement l'app, l'état, des nombres.
 
@@ -18,6 +20,7 @@ enum ActionApps {
     case brancher(AppBranchee)
     case detail(AppBranchee)
     case nouveautes
+    case groupe(AppBranchee.Groupe)
     case coller
     case pageCle
     case valider
@@ -34,7 +37,7 @@ enum ActionApps {
 // MARK: - les logos
 
 /// Les vrais logos (décision de Hugues, 13/11) : Mail et Calendrier sont les icônes des apps installées (rien n'est gardé dans le dépôt) ;
-/// Notion et Airtable, leurs marques en SVG (Resources/Logos, tracés simple-icons CC0) posées sur une tuile blanche à la taille des
+/// Notion, Airtable, Shopify, HubSpot et Stripe, leurs marques en SVG (Resources/Logos, tracés simple-icons CC0) posées sur une tuile blanche à la taille des
 /// icônes du Mac. Une marque absente : une tuile neutre avec l'initiale (comme la maquette).
 @MainActor
 enum LogosApps {
@@ -49,6 +52,9 @@ enum LogosApps {
         case .agenda: i = icone(cheminCalendrier) ?? tuile(nil, initiale: "A")
         case .notion: i = bitmap(tuile(marque("notion"), initiale: "N"))
         case .airtable: i = bitmap(tuile(marque("airtable"), initiale: "A"))
+        case .shopify: i = bitmap(tuile(marque("shopify"), initiale: "S"))
+        case .hubspot: i = bitmap(tuile(marque("hubspot"), initiale: "H"))
+        case .stripe: i = bitmap(tuile(marque("stripe"), initiale: "S"))
         }
         cache[a] = i
         return i
@@ -137,6 +143,9 @@ extension IlotControleur {
         e.actuelles = f.actuelles
         e.notion = f.memoire.notion
         e.airtable = f.memoire.airtable
+        e.shopify = f.memoire.shopify
+        e.hubspot = f.memoire.hubspot
+        e.stripe = f.memoire.stripe
         // la clé masquée : lue une fois dans le Trousseau (pas à chaque sondage), oubliée quand l'app est débranchée
         var cles: [AppBranchee: String] = [:]
         for a in AppBranchee.allCases where a.demandeUneCle && f.estBranchee(a) { cles[a] = e.cles[a] ?? f.cleMasquee(a) }
@@ -193,15 +202,19 @@ extension IlotControleur {
         case .brancher(let a): brancherApp(a)
         case .detail(let a):
             moteur.apps.detail = a; moteur.apps.confirmation = false
+            moteur.apps.groupe = a.groupe
             // le détail d'une app branchée : ce qu'elle suit (un « Changer » laissé en route est oublié)
             if f.estBranchee(a), moteur.apps.parcours?.app == a { moteur.apps.parcours = nil }
             ouvrirCarteApps(.appsDetail)
             // Mail arrêté par un refus (l'autorisation donnée depuis, dans Réglages) : ouvrir son détail est le geste qui réessaie
             if a == .mail, let e = f.etats[.mail]?.erreur, e.demandeUnGeste { sonderMaintenant(.mail) }
         case .nouveautes: ouvrirCarteApps(.appsNouveautes)
+        case .groupe(let o):
+            guard moteur.apps.groupe != o else { return }
+            moteur.apps.groupe = o; moteur.donneesChangees()
         case .coller: collerCle()
         case .pageCle:
-            if let a = moteur.apps.parcours?.app ?? moteur.apps.detail, let u = a.pageCle { ouvrir(u); Log.ecrire("apps : page de la clé \(a.rawValue) ouverte") }
+            if let p = moteur.apps.parcours, let u = p.champ?.page { ouvrir(u); Log.ecrire("apps : page de la clé \(p.app.rawValue) ouverte") }
         case .valider: validerParcours()
         case .choisir(let id):
             guard var p = moteur.apps.parcours else { return }
@@ -252,11 +265,12 @@ extension IlotControleur {
             // Mail : le premier sondage pose la question de macOS (Automatisation) ; on le fait tout de suite, d'un geste
             sonderMaintenant(a)
             moteur.donneesChangees()
-        case .notion, .airtable:
+        case .notion, .airtable, .shopify, .hubspot, .stripe:
             // un autre branchement laissé en route : sa clé ne reste pas
             if let p = moteur.apps.parcours, p.app != a { f.abandonner(p.app) }
             if moteur.apps.parcours?.app != a { moteur.apps.parcours = ParcoursApp(app: a) }
             moteur.apps.detail = a
+            moteur.apps.groupe = a.groupe
             ouvrirCarteApps(.appsDetail)
         }
     }
@@ -272,7 +286,7 @@ extension IlotControleur {
     }
 
     private func collerCle() {
-        guard var p = moteur.apps.parcours, p.etape == .cle else { return }
+        guard var p = moteur.apps.parcours, p.estChamp else { return }
         let texte = (lireCleCollee() ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         p.erreur = nil
         if texte.isEmpty { p.presseVide = true; p.saisie = nil } else { p.presseVide = false; p.saisie = texte }
@@ -296,7 +310,7 @@ extension IlotControleur {
                 switch p.etape {
                 case .bases: r = p.app == .notion ? await f.basesNotion() : await f.basesAirtable()
                 case .personnes: r = await f.personnesNotion()
-                case .tables, .cle:
+                case .tables, .cle, .boutique, .identifiant:
                     switch await f.tablesAirtable(base: p.base?.id ?? "") {
                     case .failure(let e): r = .failure(e)
                     case .success(let t): q.tables = t; r = .success([])
@@ -312,6 +326,31 @@ extension IlotControleur {
                 return
             }
             switch p.etape {
+            case .boutique:
+                // l'adresse : lue ici (rien n'est envoyé) ; la boutique se vérifie avec la clé
+                if let b = ClientShopify.boutique(depuis: p.saisie ?? "") { q.boutique = b; q.etape = .identifiant; q.saisie = nil }
+                else { q.erreur = .introuvable(.shopify) }
+            case .identifiant:
+                if p.jetonShopify {
+                    // un ancien jeton d'app de l'admin : vérifié tout de suite, pas de secret
+                    switch await f.enregistrerShopify(boutique: p.boutique ?? "", identifiant: p.saisie ?? "", secret: nil) {
+                    case .failure(let e): q.erreur = e; Self.reculerShopify(&q, e)
+                    case .success: self.finirParcours(.shopify); return
+                    }
+                } else if ClientShopify.identifiantVraisemblable(p.saisie ?? "") {
+                    q.identifiant = p.saisie; q.saisie = nil; q.etape = .cle
+                } else { q.erreur = .cleRefusee(.shopify) }
+            case .cle where p.app == .shopify:
+                switch await f.enregistrerShopify(boutique: p.boutique ?? "", identifiant: p.identifiant ?? "", secret: p.saisie) {
+                case .failure(let e): q.erreur = e; Self.reculerShopify(&q, e)
+                case .success: self.finirParcours(.shopify); return
+                }
+            case .cle where p.app == .hubspot || p.app == .stripe:
+                // rien à choisir : la clé vérifiée branche l'app
+                switch await f.enregistrerCle(p.saisie ?? "", pour: p.app) {
+                case .failure(let e): q.erreur = e
+                case .success: self.finirParcours(p.app); return
+                }
             case .cle:
                 switch await f.enregistrerCle(p.saisie ?? "", pour: p.app) {
                 case .failure(let e): q.erreur = e
@@ -364,6 +403,16 @@ extension IlotControleur {
         }
     }
 
+    /// Shopify refuse : on revient à ce qu'il faut recoller (l'identifiant et le secret vont ensemble ; une boutique introuvable se
+    /// redonne), l'erreur dite au-dessus du champ.
+    static func reculerShopify(_ q: inout ParcoursApp, _ e: ErreurApp) {
+        switch e {
+        case .cleRefusee(.shopify): q.etape = .identifiant; q.identifiant = nil; q.saisie = nil
+        case .introuvable(.shopify): q.etape = .boutique; q.boutique = nil; q.identifiant = nil; q.saisie = nil
+        default: break
+        }
+    }
+
     /// Le branchement est fini : le détail de l'app branchée, et un premier sondage.
     private func finirParcours(_ a: AppBranchee) {
         moteur.apps.occupe = false
@@ -376,7 +425,7 @@ extension IlotControleur {
 
     /// « Changer » la base (ou la personne) d'une app branchée : le parcours reprend au choix, la clé gardée.
     private func changerReglage(_ genre: InfoApp.Genre) {
-        guard let a = moteur.apps.detail, a.demandeUneCle, !moteur.apps.occupe else { return }
+        guard let a = moteur.apps.detail, a == .notion || a == .airtable, !moteur.apps.occupe else { return }
         let f = apps
         moteur.apps.occupe = true
         moteur.donneesChangees()
@@ -411,7 +460,13 @@ extension IlotControleur {
                 if p.etape == .cle || p.boutonActif { validerParcours() } else { changerReglage(p.etape == .personnes ? .personne : .base) }
             } else { sonderMaintenant(a) }
         case .autreCle:
-            moteur.apps.parcours = ParcoursApp(app: a)
+            var p = ParcoursApp(app: a)
+            // Shopify : la boutique est connue (une clé refusée ne change pas d'adresse), on reprend à l'identifiant ; mais une boutique
+            // introuvable se redonne
+            if a == .shopify, let b = apps.memoire.shopify?.boutique, apps.etats[.shopify]?.erreur != .introuvable(.shopify) {
+                p.boutique = b; p.etape = .identifiant
+            }
+            moteur.apps.parcours = p
             moteur.donneesChangees()
         case .choisirBase: changerReglage(.base)
         case .reglagesMail:

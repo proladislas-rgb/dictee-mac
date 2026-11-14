@@ -801,3 +801,25 @@ Maquette design/maquettes/ilot-apps.html (9 étapes, parcourue dans un Chrome sa
       « Ouvrir les Réglages », puis rouvrir le détail de Mail ; (b) une vraie clé Notion (la base partagée avec la connexion) et un vrai
       jeton Airtable (data.records:read + schema.bases:read, la base ajoutée au jeton) ; (c) un vrai mail : l'aile, puis le bandeau,
       « Ouvrir » l'ouvre dans Mail ; (d) le coût d'un passage de Mail au journal (« apps : mail lu (n, k nouveaux, X ms) »).
+
+## 13/11 nuit — Tes apps : Shopify, HubSpot, Stripe (branche `apps-vente`, worktree ~/dictee-mac-apps-vente, depuis main 3036105)
+Décision de Hugues : trois apps de vente en plus. Docs officielles relues le 13/11 :
+- Shopify : plus de « custom app » créée dans l'admin depuis le 01/01/2026. App du Dev Dashboard (Réglages › Apps › Développer des apps ›
+  « Build apps in Dev Dashboard »), droits `read_orders` (+ `read_products` pour le stock bas, facultatif), installée sur la boutique ;
+  jeton obtenu par « client credentials » (POST https://{boutique}.myshopify.com/admin/oauth/access_token, 24 h, à redemander) avec
+  l'identifiant client et le secret. Seulement si l'app et la boutique sont dans la même organisation Shopify. Un ancien jeton `shpat_`
+  (app de l'admin d'avant 2026) marche encore : accepté aussi.
+- HubSpot : les « private apps » ne se créent plus depuis le 26/10/2026 ; le chemin sans outil de développement = une « clé de service »
+  (Développement › Clés › Clés de service, `pat-…`), droits `crm.objects.contacts.read` + `crm.objects.deals.read`. Recherche CRM v3 :
+  5 requêtes/s par compte, 200 par page. Le changement d'étape se lit dans l'historique de `dealstage` (lecture groupée).
+- Stripe : clé limitée `rk_…` (Events en lecture, PaymentIntents en lecture) ; `sk_…` refusée (tous les droits) ; /v1/events filtré
+  (`types[]`), 30 jours de rétention.
+Plan :
+- [x] 1. Cœur : AppBranchee +3 (groupe « Au quotidien » / « Vente »), clients ClientShopify / ClientHubSpot / ClientStripe (analyse pure
+      + requêtes), ErreurApp.cleTropPuissante, genres de nouveautés (« 1 commande, 2 paiements, 1 contact »), mémoire (réglages, fenêtres),
+      façade (parcours Shopify en 3 champs, HubSpot et Stripe en 1), sondage 3 min, attente doublée après erreur.
+- [x] 2. Contrôles (DicteeControles) : réponses d'exemple des docs, erreurs 401/403/429, sk_ refusée, regroupement, hauteurs.
+- [x] 3. Interface : « Tes apps » en deux onglets (4 + 3, pas de carte plus haute qu'avant), parcours Shopify (adresse, identifiant,
+      secret), logos simple-icons (Shopify, HubSpot, Stripe), textes mesurés aux caméras 179 et 200.
+- [ ] 4. Essai à vrais clics (`DICTEE_ESSAI_SEUL=apps`) sur les trois parcours, puis essai complet ; rendus `DICTEE_RENDU_SEUL=apps`.
+- [ ] 5. Commit, push `apps-vente` ; leçons.
