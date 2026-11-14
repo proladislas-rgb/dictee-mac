@@ -710,6 +710,10 @@ enum IlotEssai {
         // un settings.json temporaire (jamais ~/.claude) ; l'app au premier plan est simulée et le retour au Terminal capturé (aucune app
         // n'est activée)
         do {
+            // le script date ses lignes à l'heure RÉELLE : l'îlot lit donc à l'heure réelle ici, sinon l'horloge de l'essai (10:00)
+            // vieillit ou rajeunit les sessions de l'écart avec l'heure réelle (14/11 à 8 h : +2 h, toutes « oubliées » au bout de 30 min)
+            let decalageAvant = decalage; decalage = 0
+            defer { decalage = decalageAvant }
             let morceauAvant = c.lecture.modele.morceau
             c.lecture.modele.morceau = nil; c.lecture.surIlot(false); attendre(0.6)
             let racine = dossier.appendingPathComponent("claude", isDirectory: true)
