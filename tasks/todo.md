@@ -821,5 +821,16 @@ Plan :
 - [x] 2. Contrôles (DicteeControles) : réponses d'exemple des docs, erreurs 401/403/429, sk_ refusée, regroupement, hauteurs.
 - [x] 3. Interface : « Tes apps » en deux onglets (4 + 3, pas de carte plus haute qu'avant), parcours Shopify (adresse, identifiant,
       secret), logos simple-icons (Shopify, HubSpot, Stripe), textes mesurés aux caméras 179 et 200.
-- [ ] 4. Essai à vrais clics (`DICTEE_ESSAI_SEUL=apps`) sur les trois parcours, puis essai complet ; rendus `DICTEE_RENDU_SEUL=apps`.
-- [ ] 5. Commit, push `apps-vente` ; leçons.
+- [x] 4. Essai à vrais clics (`DICTEE_ESSAI_SEUL=apps`) sur les trois parcours, puis essai complet ; rendus `DICTEE_RENDU_SEUL=apps`.
+- [x] 5. Commit, push `apps-vente` ; leçons.
+Résultats (14/11, branche `apps-vente`, poussée) :
+- `swift build -c release` : 0 avertissement (fichiers touchés recompilés) ; `DicteeControles` : 4 221/4 221 (dont ~70 nouveaux, groupes
+  « Tes apps, vente »).
+- `DICTEE_ESSAI_SEUL=apps --ilot-essai` : tout vert (147 contrôles, vrais clics : onglet Vente, Shopify en 3 champs, HubSpot, Stripe sk_
+  refusée puis rk_, annonce « 4 nouveautés · 1 commande, 1 contact, 2 paiements », débrancher Shopify).
+- Essai complet : section « Tes apps » toute verte ; 29 échecs, tous dans la section « Claude au travail » (lancée avant). Le binaire de
+  main (3036105) a les MÊMES échecs aux mêmes lignes dans les mêmes conditions (la nuit, d'autres équipes Claude au travail sur le Mac) :
+  rien à voir avec la vente. Comparaison arrêtée à mi-chemin pour rendre le verrou.
+- Rendus : design/rendus-ilot/ilot-35v à ilot-35z7 (+ 35b, 35c, 35s, qui montrent maintenant les onglets).
+À vérifier en vrai (Hugues) : une vraie boutique (client credentials accepté pour SA boutique : même organisation ?), une vraie clé de
+service HubSpot (compte EU/US, droits), une vraie clé limitée Stripe (« Events » en lecture suffit-il sans « PaymentIntents » ?).
