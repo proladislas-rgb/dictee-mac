@@ -834,3 +834,8 @@ Résultats (14/11, branche `apps-vente`, poussée) :
 - Rendus : design/rendus-ilot/ilot-35v à ilot-35z7 (+ 35b, 35c, 35s, qui montrent maintenant les onglets).
 À vérifier en vrai (Hugues) : une vraie boutique (client credentials accepté pour SA boutique : même organisation ?), une vraie clé de
 service HubSpot (compte EU/US, droits), une vraie clé limitée Stripe (« Events » en lecture suffit-il sans « PaymentIntents » ?).
+
+## Idée « petit plus » : mode Prompt (23/11, pas prioritaire)
+Hugues : le reprompt automatique dans Claude Code suffit (crochet ~/.claude/hooks/reprompt.sh + skill ~/.claude/skills/reprompt). Dans Voxile, ce serait un plus, plus tard, sur maquette d'abord.
+- Bouton dans l'îlot pour allumer un mode « Prompt » (Terminal, Claude, ChatGPT, Codex) : la dictée sort rangée en prompt (objectif, étapes, contraintes).
+- À lever : `RemiseAuPropre.consigne(.terminal)` met tout sur une ligne ; `verifier` refuse une sortie à moins de 70 % de mots communs ou hors 50-150 % de longueur. Il faudrait des règles propres à ce mode.
