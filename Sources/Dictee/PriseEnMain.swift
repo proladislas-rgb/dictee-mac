@@ -425,7 +425,10 @@ final class PriseEnMain {
             f.isOpaque = false; f.backgroundColor = .clear; f.hasShadow = false
             f.level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 2)
             f.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-            f.hidesOnDeactivate = false; f.isMovable = false; f.animationBehavior = .none
+            // Déplaçable en la prenant par le verre, hors boutons et champs (Hugues, 23/11, MacBook Air M1 sans encoche : on ne
+            // pouvait pas l'écarter). Sonde du 23/11 sur ce même panneau : isMovableByWindowBackground la déplace et le bouton
+            // reste un clic ; WindowDragGesture posé sous le contenu, ou un DragGesture qui pousse la fenêtre, ne la bougent pas.
+            f.hidesOnDeactivate = false; f.isMovable = true; f.isMovableByWindowBackground = true; f.animationBehavior = .none
             // le verre suit l'apparence du Mac (clair ou sombre), comme les cartes du système
             let vue = NSHostingView(rootView: PriseEnMainVue(m: modele, apparition: apparition))
             vue.frame = NSRect(origin: .zero, size: taille)
